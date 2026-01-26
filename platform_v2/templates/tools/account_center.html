@@ -450,6 +450,77 @@
         margin-right: var(--archie-space-2);
     }
 
+    .tier-role-badge {
+        display: inline-block;
+        padding: 2px 10px;
+        border-radius: var(--archie-radius-full);
+        font-size: var(--archie-text-xs);
+        font-family: var(--archie-font-heading);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: var(--archie-space-3);
+        border: 1px solid;
+    }
+
+    .tier-stats-row {
+        display: flex;
+        justify-content: center;
+        gap: var(--archie-space-6);
+        margin: var(--archie-space-4) 0;
+        padding: var(--archie-space-3) 0;
+        border-top: 1px solid var(--archie-border-subtle);
+        border-bottom: 1px solid var(--archie-border-subtle);
+    }
+
+    .tier-stat {
+        text-align: center;
+    }
+
+    .tier-stat-value {
+        font-family: var(--archie-font-heading);
+        font-size: var(--archie-text-xl);
+        color: var(--archie-text-primary);
+    }
+
+    .tier-stat-label {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--archie-text-tertiary);
+    }
+
+    .tier-limits {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: var(--archie-space-2);
+        margin-top: var(--archie-space-3);
+        text-align: left;
+        font-size: var(--archie-text-xs);
+    }
+
+    .tier-limit-item {
+        display: flex;
+        justify-content: space-between;
+        padding: var(--archie-space-1) var(--archie-space-2);
+        background: var(--archie-bg-elevated);
+        border-radius: var(--archie-radius-sm);
+    }
+
+    .tier-limit-item .limit-label {
+        color: var(--archie-text-tertiary);
+    }
+
+    .tier-limit-item .limit-value {
+        color: var(--archie-text-primary);
+        font-family: var(--archie-font-mono);
+    }
+
+    .tier-user-count {
+        font-size: var(--archie-text-xs);
+        color: var(--archie-text-tertiary);
+        margin-top: var(--archie-space-3);
+    }
+
     /* Activity Timeline */
     .activity-list {
         max-height: 500px;
@@ -670,6 +741,23 @@
                     <div class="loading">
                         <div class="loading-spinner"></div>
                         <p>Loading tiers...</p>
+                    </div>
+                </div>
+
+                <!-- Tier Comparison Table -->
+                <div class="card" style="margin-top: var(--archie-space-6);">
+                    <div class="card-header">Tier Comparison</div>
+                    <div class="card-body">
+                        <div class="perm-matrix-wrap">
+                            <table class="perm-matrix-table" id="tier-comparison-table">
+                                <thead id="tier-comparison-head"></thead>
+                                <tbody id="tier-comparison-body">
+                                    <tr><td colspan="5" style="text-align:center; padding: var(--archie-space-8);">
+                                        <div class="loading-spinner"></div>
+                                    </td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
@@ -1616,6 +1704,15 @@ function renderRoleCards(roles) {
         card.appendChild(desc);
         card.appendChild(count);
         card.appendChild(label);
+
+        // Show which subscription tiers map to this role
+        if (role.subscription_tiers && role.subscription_tiers.length > 0) {
+            const tierLine = document.createElement('div');
+            tierLine.style.cssText = 'font-size: 10px; color: var(--archie-text-tertiary); margin-top: var(--archie-space-2); text-transform: uppercase; letter-spacing: 0.05em;';
+            tierLine.textContent = role.subscription_tiers.join(' \u00B7 ');
+            card.appendChild(tierLine);
+        }
+
         container.appendChild(card);
     });
 
@@ -1793,40 +1890,248 @@ function setPermFilter(mode) {
     filterPermissions();
 }
 
+// Permission value to human-readable label lookup (shared with permissions tab)
+const PERM_LABELS = {
+    'public:view': 'View Public Pages', 'directory:view': 'View Directory',
+    'archie:chat': 'Chat with A.R.C.H.I.E.', 'code_editor:read': 'Code Editor (Read)',
+    'code_editor:write': 'Code Editor (Write)', 'user:settings': 'User Settings',
+    'read:own': 'Read Own Data', 'write:own': 'Write Own Data',
+    'automation:create': 'Create Automations', 'automation:manage': 'Manage Automations',
+    'task_planner:schedule': 'Schedule Tasks', 'task_planner:calendar': 'Calendar Access',
+    'google:email': 'Google Email', 'google:contacts': 'Google Contacts',
+    'google:calendar': 'Google Calendar', 'app_builder:create': 'Create Apps',
+    'app_builder:deploy': 'Deploy Apps', 'app_builder:unlimited': 'Unlimited Projects',
+    'website_builder:create': 'Create Websites', 'website_builder:deploy': 'Deploy Websites',
+    'store:create': 'Create Store', 'store:manage': 'Manage Store',
+    'telephony:access': 'Phone System', 'telephony:admin': 'Phone Admin',
+    'social_media:create': 'Social Posts', 'social_media:schedule': 'Schedule Social',
+    'figma:import': 'Figma Import', 'analytics:view': 'Analytics',
+    'stock_bot:scan': 'Stock Scanner', 'stock_bot:alerts': 'Stock Alerts',
+    'obsidian:read': 'Read Vault', 'obsidian:write': 'Write Vault',
+    'obsidian:delete': 'Delete Vault', 'obsidian:admin': 'Vault Admin',
+    'admin:access': 'Admin Panel', 'admin:agents': 'Manage Agents',
+    'admin:improvements': 'Improvements', 'admin:users': 'Manage Users',
+    'admin:backups': 'Backups', 'admin:logs': 'System Logs',
+    'admin:sandbox': 'Sandbox', 'admin:fine_tuning': 'AI Fine-Tuning',
+    'admin:ide': 'IDE Access', 'admin:testing': 'Testing Tools',
+    'admin:projects': 'Projects', 'read:all': 'Read All', 'write:all': 'Write All',
+    'admin:mining': 'Mining', 'admin:system': 'System Ops',
+    'admin:security': 'Security', 'superadmin:all': 'Full Access'
+};
+
+const ROLE_COLORS = {
+    'USER': '#06b6d4', 'PREMIUM': '#f97316', 'ADMIN': '#ef4444', 'SUPER_ADMIN': '#a855f7'
+};
+
 async function loadTiers() {
     try {
         const res = await fetch('/tools/account-center/api/tiers');
         const data = await res.json();
-        if (data.success) {
-            const grid = document.getElementById('tiers-grid');
-            grid.textContent = '';
-            data.tiers.forEach(t => {
-                const card = document.createElement('div');
-                card.className = 'tier-card';
-                card.style.borderColor = t.color;
+        if (!data.success) return;
 
-                const name = document.createElement('div');
-                name.className = 'tier-name';
-                name.style.color = t.color;
-                name.textContent = t.display_name;
-
-                const price = document.createElement('div');
-                price.className = 'tier-price';
-                price.textContent = '$' + t.price_monthly + '/mo';
-
-                const desc = document.createElement('p');
-                desc.style.cssText = 'color: var(--archie-text-secondary); font-size: var(--archie-text-sm); margin-bottom: var(--archie-space-4);';
-                desc.textContent = t.description || '';
-
-                card.appendChild(name);
-                card.appendChild(price);
-                card.appendChild(desc);
-                grid.appendChild(card);
-            });
-        }
+        renderTierCards(data.tiers);
+        renderTierComparison(data.tiers);
     } catch (err) {
         console.error('Error loading tiers:', err);
     }
+}
+
+function renderTierCards(tiers) {
+    const grid = document.getElementById('tiers-grid');
+    grid.textContent = '';
+
+    const LIMIT_LABELS = {
+        'storage_mb': 'Storage', 'app_projects': 'App Projects',
+        'api_calls_daily': 'API Calls/Day', 'website_projects': 'Website Projects'
+    };
+
+    tiers.forEach(t => {
+        const card = document.createElement('div');
+        card.className = 'tier-card';
+        card.style.borderColor = t.color;
+
+        // Tier name
+        const name = document.createElement('div');
+        name.className = 'tier-name';
+        name.style.color = t.color;
+        name.textContent = t.display_name;
+
+        // Price
+        const price = document.createElement('div');
+        price.className = 'tier-price';
+        price.textContent = t.price_monthly > 0 ? '$' + t.price_monthly + '/mo' : 'Free';
+
+        // Role badge
+        const roleBadge = document.createElement('div');
+        roleBadge.className = 'tier-role-badge';
+        const roleColor = ROLE_COLORS[t.mapped_role] || '#6b7280';
+        roleBadge.style.color = roleColor;
+        roleBadge.style.borderColor = roleColor;
+        roleBadge.textContent = t.mapped_role.replace('_', ' ') + ' Role';
+
+        // Stats row (permissions, modules, users)
+        const statsRow = document.createElement('div');
+        statsRow.className = 'tier-stats-row';
+        [{v: t.permission_count, l: 'Permissions'}, {v: t.module_count, l: 'Modules'}, {v: t.user_count, l: 'Users'}].forEach(s => {
+            const stat = document.createElement('div');
+            stat.className = 'tier-stat';
+            const val = document.createElement('div');
+            val.className = 'tier-stat-value';
+            val.textContent = s.v;
+            const lbl = document.createElement('div');
+            lbl.className = 'tier-stat-label';
+            lbl.textContent = s.l;
+            stat.appendChild(val);
+            stat.appendChild(lbl);
+            statsRow.appendChild(stat);
+        });
+
+        // Features list
+        const features = t.features || [];
+        const featureList = document.createElement('ul');
+        featureList.className = 'tier-features';
+        features.forEach(f => {
+            const li = document.createElement('li');
+            li.textContent = f;
+            featureList.appendChild(li);
+        });
+
+        // Limits grid
+        const limits = t.limits || {};
+        const limitsDiv = document.createElement('div');
+        limitsDiv.className = 'tier-limits';
+        Object.entries(limits).forEach(([key, val]) => {
+            const item = document.createElement('div');
+            item.className = 'tier-limit-item';
+            const label = document.createElement('span');
+            label.className = 'limit-label';
+            label.textContent = LIMIT_LABELS[key] || key;
+            const value = document.createElement('span');
+            value.className = 'limit-value';
+            value.textContent = val === -1 ? '\u221E' : (key.includes('storage') ? formatStorage(val) : val.toLocaleString());
+            item.appendChild(label);
+            item.appendChild(value);
+            limitsDiv.appendChild(item);
+        });
+
+        // User count
+        const userCount = document.createElement('div');
+        userCount.className = 'tier-user-count';
+        userCount.textContent = t.user_count + ' user' + (t.user_count !== 1 ? 's' : '') + ' on this tier';
+
+        card.appendChild(name);
+        card.appendChild(price);
+        card.appendChild(roleBadge);
+        card.appendChild(statsRow);
+        card.appendChild(featureList);
+        card.appendChild(limitsDiv);
+        card.appendChild(userCount);
+        grid.appendChild(card);
+    });
+}
+
+function formatStorage(mb) {
+    if (mb >= 1000) return (mb / 1000) + ' GB';
+    return mb + ' MB';
+}
+
+function renderTierComparison(tiers) {
+    const head = document.getElementById('tier-comparison-head');
+    const body = document.getElementById('tier-comparison-body');
+    head.textContent = '';
+    body.textContent = '';
+
+    // Header row
+    const headerRow = document.createElement('tr');
+    const emptyTh = document.createElement('th');
+    emptyTh.textContent = 'Feature';
+    headerRow.appendChild(emptyTh);
+    tiers.forEach(t => {
+        const th = document.createElement('th');
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'th-role-name';
+        nameSpan.textContent = t.display_name;
+        nameSpan.style.color = t.color;
+        const priceSpan = document.createElement('span');
+        priceSpan.style.cssText = 'display:block; font-size:10px; color:var(--archie-text-tertiary); font-weight:normal;';
+        priceSpan.textContent = t.price_monthly > 0 ? '$' + t.price_monthly + '/mo' : 'Free';
+        th.appendChild(nameSpan);
+        th.appendChild(priceSpan);
+        headerRow.appendChild(th);
+    });
+    head.appendChild(headerRow);
+
+    // Role row
+    addCompRow(body, 'RBAC Role', tiers.map(t => {
+        const span = document.createElement('span');
+        span.textContent = t.mapped_role.replace('_', ' ');
+        span.style.color = ROLE_COLORS[t.mapped_role] || '#6b7280';
+        span.style.fontWeight = '600';
+        return span;
+    }));
+
+    // Permissions count row
+    addCompRow(body, 'Total Permissions', tiers.map(t => t.permission_count));
+
+    // Modules count row
+    addCompRow(body, 'Modules Accessible', tiers.map(t => t.module_count));
+
+    // Limit rows
+    const LIMIT_LABELS = {
+        'storage_mb': 'Storage', 'app_projects': 'App Projects',
+        'api_calls_daily': 'API Calls/Day', 'website_projects': 'Website Projects'
+    };
+    const limitKeys = Object.keys(tiers[0]?.limits || {});
+    limitKeys.forEach(key => {
+        addCompRow(body, LIMIT_LABELS[key] || key, tiers.map(t => {
+            const val = (t.limits || {})[key];
+            if (val === undefined) return '\u2014';
+            if (val === -1) return '\u221E';
+            if (key.includes('storage')) return formatStorage(val);
+            return val.toLocaleString();
+        }));
+    });
+
+    // Permissions gained row (what's new at each tier)
+    addCompRow(body, 'New Permissions', tiers.map(t => {
+        const gained = t.permissions_gained || [];
+        if (gained.length === 0) return '\u2014';
+        const div = document.createElement('div');
+        div.style.cssText = 'font-size:10px; max-height:80px; overflow-y:auto; text-align:left;';
+        gained.slice(0, 8).forEach(p => {
+            const line = document.createElement('div');
+            line.textContent = '+ ' + (PERM_LABELS[p] || p);
+            line.style.color = '#22c55e';
+            div.appendChild(line);
+        });
+        if (gained.length > 8) {
+            const more = document.createElement('div');
+            more.textContent = '+ ' + (gained.length - 8) + ' more';
+            more.style.color = 'var(--archie-text-tertiary)';
+            div.appendChild(more);
+        }
+        return div;
+    }));
+}
+
+function addCompRow(tbody, label, values) {
+    const row = document.createElement('tr');
+    row.className = 'perm-row';
+    const labelTd = document.createElement('td');
+    labelTd.textContent = label;
+    labelTd.style.fontWeight = '500';
+    row.appendChild(labelTd);
+
+    values.forEach(val => {
+        const td = document.createElement('td');
+        if (val instanceof HTMLElement) {
+            td.appendChild(val);
+        } else {
+            td.textContent = val;
+        }
+        row.appendChild(td);
+    });
+    tbody.appendChild(row);
 }
 
 async function loadActivity() {

@@ -438,8 +438,17 @@ def api_reset_password(user_id):
 @login_required
 @admin_required
 def api_list_roles():
-    """List available roles with permission counts"""
+    """List available roles with permission counts and tier mappings"""
     from rbac import Permission, ROLE_PERMISSIONS, Role
+
+    # Tier-to-role mapping (role_level from subscription_tiers table)
+    tier_role_map = {
+        0: ['PUBLIC'],
+        10: ['Free'],
+        20: ['Pro', 'Business', 'Enterprise'],
+        90: ['Admin (manual)'],
+        100: ['Super Admin (manual)']
+    }
 
     roles = [
         {'name': 'PUBLIC', 'level': 0, 'color': '#6b7280', 'icon': 'globe',
@@ -458,6 +467,7 @@ def api_list_roles():
         role_enum = Role[role_info['name']]
         perms = ROLE_PERMISSIONS.get(role_enum, set())
         role_info['permission_count'] = len(perms)
+        role_info['subscription_tiers'] = tier_role_map.get(role_info['level'], [])
 
     return jsonify({'success': True, 'roles': roles})
 
@@ -616,8 +626,11 @@ def api_update_user_role(user_id):
 @login_required
 @admin_required
 def api_list_tiers():
-    """List subscription tiers"""
+    """List subscription tiers with role mapping, permissions, and module access"""
     try:
+        from rbac import Role, ROLE_PERMISSIONS, Permission
+        from module_registry import get_enabled_modules
+
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
@@ -629,10 +642,60 @@ def api_list_tiers():
         """)
         tiers = cur.fetchall()
 
+        # Get user counts per tier
+        cur.execute("""
+            SELECT COALESCE(subscription_tier, 'free') as tier, COUNT(*) as count
+            FROM users
+            GROUP BY COALESCE(subscription_tier, 'free')
+        """)
+        tier_counts = {row['tier']: row['count'] for row in cur.fetchall()}
+
         cur.close()
         conn.close()
 
-        return jsonify({'success': True, 'tiers': [dict(t) for t in tiers]})
+        # Map role_level to Role enum
+        level_to_role = {r.value: r for r in Role}
+
+        # Get all enabled modules for access counting
+        all_modules = get_enabled_modules()
+
+        # Previous tier permissions for computing "gained" permissions
+        prev_perms = set()
+
+        result = []
+        for t in tiers:
+            t = dict(t)
+            role_level = t.get('role_level', 10)
+            role = level_to_role.get(role_level, Role.USER)
+            role_perms = ROLE_PERMISSIONS.get(role, set())
+
+            # Permissions gained over previous tier
+            gained = role_perms - prev_perms
+            prev_perms = role_perms
+
+            # Modules accessible at this role level
+            accessible_modules = []
+            for mod in all_modules:
+                try:
+                    mod_role = Role[mod.minimum_role]
+                    if role.value >= mod_role.value:
+                        accessible_modules.append({
+                            'id': mod.id,
+                            'name': mod.name,
+                            'icon': mod.icon
+                        })
+                except (KeyError, AttributeError):
+                    pass
+
+            t['mapped_role'] = role.name
+            t['permission_count'] = len(role_perms)
+            t['permissions_gained'] = [p.value for p in sorted(gained, key=lambda x: x.value)]
+            t['module_count'] = len(accessible_modules)
+            t['modules'] = accessible_modules
+            t['user_count'] = tier_counts.get(t['name'], 0)
+            result.append(t)
+
+        return jsonify({'success': True, 'tiers': result})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 

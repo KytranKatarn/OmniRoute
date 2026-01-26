@@ -24,48 +24,53 @@ from . import account_center_bp
 
 def admin_required(f):
     """Decorator to require admin access"""
+
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not current_user.is_authenticated:
-            return redirect(url_for('login'))
-        if not getattr(current_user, 'is_admin', False):
-            flash('Admin access required', 'error')
-            return redirect(url_for('dashboard'))
+            return redirect(url_for("login"))
+        if not getattr(current_user, "is_admin", False):
+            flash("Admin access required", "error")
+            return redirect(url_for("dashboard"))
         return f(*args, **kwargs)
+
     return decorated_function
 
 
 def get_db():
     """Get database connection"""
     return psycopg2.connect(
-        host=os.getenv('DB_HOST', 'archie_database'),
-        port=os.getenv('DB_PORT', '5432'),
-        database=os.getenv('DB_NAME', 'archie'),
-        user=os.getenv('DB_USER', 'archie'),
-        password=os.getenv('DB_PASSWORD', '')
+        host=os.getenv("DB_HOST", "archie_database"),
+        port=os.getenv("DB_PORT", "5432"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", ""),
     )
 
 
-def log_activity(user_id, action, module='account_center', details=None, resource_type=None, resource_id=None):
+def log_activity(user_id, action, module="account_center", details=None, resource_type=None, resource_id=None):
     """Log user activity"""
     try:
         conn = get_db()
         cur = conn.cursor()
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO user_activity_log
             (user_id, username, action, module, resource_type, resource_id, details, ip_address, user_agent)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """, (
-            user_id,
-            current_user.username if current_user.is_authenticated else None,
-            action,
-            module,
-            resource_type,
-            resource_id,
-            psycopg2.extras.Json(details) if details else None,
-            request.remote_addr,
-            request.headers.get('User-Agent', '')[:500]
-        ))
+        """,
+            (
+                user_id,
+                current_user.username if current_user.is_authenticated else None,
+                action,
+                module,
+                resource_type,
+                resource_id,
+                psycopg2.extras.Json(details) if details else None,
+                request.remote_addr,
+                request.headers.get("User-Agent", "")[:500],
+            ),
+        )
         conn.commit()
         cur.close()
         conn.close()
@@ -77,19 +82,20 @@ def log_activity(user_id, action, module='account_center', details=None, resourc
 # PAGE ROUTES
 # ============================================================================
 
-@account_center_bp.route('/')
+
+@account_center_bp.route("/")
 @login_required
 @admin_required
 def index():
     """User Management dashboard"""
     stats = {
-        'total_users': 0,
-        'admins': 0,
-        'premium': 0,
-        'free': 0,
-        'active_today': 0,
-        'active_sessions': 0,
-        'api_keys': 0
+        "total_users": 0,
+        "admins": 0,
+        "premium": 0,
+        "free": 0,
+        "active_today": 0,
+        "active_sessions": 0,
+        "api_keys": 0,
     }
 
     try:
@@ -98,42 +104,45 @@ def index():
 
         # Get user counts
         cur.execute("SELECT COUNT(*) as count FROM users WHERE is_active = true")
-        stats['total_users'] = cur.fetchone()['count']
+        stats["total_users"] = cur.fetchone()["count"]
 
         cur.execute("SELECT COUNT(*) as count FROM users WHERE is_admin = true")
-        stats['admins'] = cur.fetchone()['count']
+        stats["admins"] = cur.fetchone()["count"]
 
         cur.execute("SELECT COUNT(*) as count FROM users WHERE subscription_tier IN ('pro', 'business', 'enterprise')")
-        stats['premium'] = cur.fetchone()['count']
+        stats["premium"] = cur.fetchone()["count"]
 
         cur.execute("SELECT COUNT(*) as count FROM users WHERE subscription_tier = 'free' OR subscription_tier IS NULL")
-        stats['free'] = cur.fetchone()['count']
+        stats["free"] = cur.fetchone()["count"]
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT COUNT(DISTINCT user_id) as count FROM user_activity_log
             WHERE created_at > NOW() - INTERVAL '24 hours'
-        """)
-        stats['active_today'] = cur.fetchone()['count']
+        """
+        )
+        stats["active_today"] = cur.fetchone()["count"]
 
         cur.execute("SELECT COUNT(*) as count FROM active_sessions")
-        stats['active_sessions'] = cur.fetchone()['count']
+        stats["active_sessions"] = cur.fetchone()["count"]
 
         cur.execute("SELECT COUNT(*) as count FROM mcp_api_keys WHERE is_active = true")
-        stats['api_keys'] = cur.fetchone()['count']
+        stats["api_keys"] = cur.fetchone()["count"]
 
         cur.close()
         conn.close()
     except Exception as e:
         print(f"Error getting stats: {e}")
 
-    return render_template('tools/account_center.html', stats=stats)
+    return render_template("tools/account_center.html", stats=stats)
 
 
 # ============================================================================
 # USER CRUD API
 # ============================================================================
 
-@account_center_bp.route('/api/users')
+
+@account_center_bp.route("/api/users")
 @login_required
 @admin_required
 def api_list_users():
@@ -143,11 +152,11 @@ def api_list_users():
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get filter parameters
-        role_filter = request.args.get('role', '')
-        tier_filter = request.args.get('tier', '')
-        search = request.args.get('search', '')
-        limit = request.args.get('limit', 100, type=int)
-        offset = request.args.get('offset', 0, type=int)
+        role_filter = request.args.get("role", "")
+        tier_filter = request.args.get("tier", "")
+        search = request.args.get("search", "")
+        limit = request.args.get("limit", 100, type=int)
+        offset = request.args.get("offset", 0, type=int)
 
         # Build query with session and API key counts
         query = """
@@ -178,7 +187,7 @@ def api_list_users():
 
         if search:
             query += " AND (u.username ILIKE %s OR u.email ILIKE %s)"
-            params.extend([f'%{search}%', f'%{search}%'])
+            params.extend([f"%{search}%", f"%{search}%"])
 
         query += " ORDER BY u.created_at DESC LIMIT %s OFFSET %s"
         params.extend([limit, offset])
@@ -198,26 +207,22 @@ def api_list_users():
             count_params.append(tier_filter)
         if search:
             count_query += " AND (username ILIKE %s OR email ILIKE %s)"
-            count_params.extend([f'%{search}%', f'%{search}%'])
+            count_params.extend([f"%{search}%", f"%{search}%"])
 
         cur.execute(count_query, count_params)
-        total = cur.fetchone()['count']
+        total = cur.fetchone()["count"]
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'users': [dict(u) for u in users],
-            'total': total,
-            'limit': limit,
-            'offset': offset
-        })
+        return jsonify(
+            {"success": True, "users": [dict(u) for u in users], "total": total, "limit": limit, "offset": offset}
+        )
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@account_center_bp.route('/api/users/<int:user_id>')
+@account_center_bp.route("/api/users/<int:user_id>")
 @login_required
 @admin_required
 def api_get_user(user_id):
@@ -226,53 +231,64 @@ def api_get_user(user_id):
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT id, username, email, role, subscription_tier, subscription_status,
                    is_admin, is_active, created_at, last_login, last_login_ip,
                    preferences, metadata, totp_enabled, totp_verified_at,
                    failed_login_count, locked_until
             FROM users WHERE id = %s
-        """, (user_id,))
+        """,
+            (user_id,),
+        )
         user = cur.fetchone()
 
         if not user:
-            return jsonify({'success': False, 'error': 'User not found'}), 404
+            return jsonify({"success": False, "error": "User not found"}), 404
 
         # Get user stats including session/API key counts
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 (SELECT COUNT(*) FROM conversations WHERE user_id = %s) as conversations,
                 (SELECT COUNT(*) FROM app_builder_projects WHERE user_id = %s) as app_projects,
                 (SELECT COUNT(*) FROM website_builder_projects WHERE user_id = %s) as website_projects,
                 (SELECT COUNT(*) FROM active_sessions WHERE user_id = %s) as session_count,
                 (SELECT COUNT(*) FROM mcp_api_keys WHERE user_id = %s AND is_active = true) as api_key_count
-        """, (user_id, user_id, user_id, user_id, user_id))
+        """,
+            (user_id, user_id, user_id, user_id, user_id),
+        )
         stats = cur.fetchone()
 
         # Get recent activity
-        cur.execute("""
+        cur.execute(
+            """
             SELECT action, module, created_at
             FROM user_activity_log
             WHERE user_id = %s
             ORDER BY created_at DESC
             LIMIT 10
-        """, (user_id,))
+        """,
+            (user_id,),
+        )
         recent_activity = cur.fetchall()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'user': dict(user),
-            'stats': dict(stats) if stats else {},
-            'recent_activity': [dict(a) for a in recent_activity]
-        })
+        return jsonify(
+            {
+                "success": True,
+                "user": dict(user),
+                "stats": dict(stats) if stats else {},
+                "recent_activity": [dict(a) for a in recent_activity],
+            }
+        )
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@account_center_bp.route('/api/users', methods=['POST'])
+@account_center_bp.route("/api/users", methods=["POST"])
 @login_required
 @admin_required
 def api_create_user():
@@ -280,15 +296,15 @@ def api_create_user():
     try:
         data = request.get_json()
 
-        username = data.get('username', '').strip()
-        email = data.get('email', '').strip()
-        password = data.get('password', '')
-        role = data.get('role', 'user')
-        subscription_tier = data.get('subscription_tier', 'free')
-        is_admin = data.get('is_admin', False)
+        username = data.get("username", "").strip()
+        email = data.get("email", "").strip()
+        password = data.get("password", "")
+        role = data.get("role", "user")
+        subscription_tier = data.get("subscription_tier", "free")
+        is_admin = data.get("is_admin", False)
 
         if not username or not password:
-            return jsonify({'success': False, 'error': 'Username and password required'}), 400
+            return jsonify({"success": False, "error": "Username and password required"}), 400
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -296,30 +312,33 @@ def api_create_user():
         # Check if username exists
         cur.execute("SELECT id FROM users WHERE username = %s", (username,))
         if cur.fetchone():
-            return jsonify({'success': False, 'error': 'Username already exists'}), 400
+            return jsonify({"success": False, "error": "Username already exists"}), 400
 
         # Create user
         password_hash = generate_password_hash(password)
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO users (username, email, password_hash, role, subscription_tier, is_admin)
             VALUES (%s, %s, %s, %s, %s, %s)
             RETURNING id
-        """, (username, email, password_hash, role, subscription_tier, is_admin))
+        """,
+            (username, email, password_hash, role, subscription_tier, is_admin),
+        )
 
-        new_id = cur.fetchone()['id']
+        new_id = cur.fetchone()["id"]
         conn.commit()
 
-        log_activity(current_user.id, 'user_created', details={'new_user_id': new_id, 'username': username})
+        log_activity(current_user.id, "user_created", details={"new_user_id": new_id, "username": username})
 
         cur.close()
         conn.close()
 
-        return jsonify({'success': True, 'user_id': new_id})
+        return jsonify({"success": True, "user_id": new_id})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@account_center_bp.route('/api/users/<int:user_id>', methods=['PUT'])
+@account_center_bp.route("/api/users/<int:user_id>", methods=["PUT"])
 @login_required
 @admin_required
 def api_update_user(user_id):
@@ -334,47 +353,50 @@ def api_update_user(user_id):
         updates = []
         params = []
 
-        if 'email' in data:
+        if "email" in data:
             updates.append("email = %s")
-            params.append(data['email'])
-        if 'role' in data:
+            params.append(data["email"])
+        if "role" in data:
             updates.append("role = %s")
-            params.append(data['role'])
-        if 'subscription_tier' in data:
+            params.append(data["role"])
+        if "subscription_tier" in data:
             updates.append("subscription_tier = %s")
-            params.append(data['subscription_tier'])
-        if 'is_admin' in data:
+            params.append(data["subscription_tier"])
+        if "is_admin" in data:
             updates.append("is_admin = %s")
-            params.append(data['is_admin'])
-        if 'is_active' in data:
+            params.append(data["is_admin"])
+        if "is_active" in data:
             updates.append("is_active = %s")
-            params.append(data['is_active'])
-        if 'password' in data and data['password']:
+            params.append(data["is_active"])
+        if "password" in data and data["password"]:
             updates.append("password_hash = %s")
-            params.append(generate_password_hash(data['password']))
+            params.append(generate_password_hash(data["password"]))
 
         if not updates:
-            return jsonify({'success': False, 'error': 'No fields to update'}), 400
+            return jsonify({"success": False, "error": "No fields to update"}), 400
 
         params.append(user_id)
-        cur.execute(f"""
+        cur.execute(
+            f"""
             UPDATE users SET {', '.join(updates)}
             WHERE id = %s
-        """, params)
+        """,
+            params,
+        )
 
         conn.commit()
 
-        log_activity(current_user.id, 'user_updated', details={'target_user_id': user_id, 'fields': list(data.keys())})
+        log_activity(current_user.id, "user_updated", details={"target_user_id": user_id, "fields": list(data.keys())})
 
         cur.close()
         conn.close()
 
-        return jsonify({'success': True})
+        return jsonify({"success": True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@account_center_bp.route('/api/users/<int:user_id>', methods=['DELETE'])
+@account_center_bp.route("/api/users/<int:user_id>", methods=["DELETE"])
 @login_required
 @admin_required
 def api_delete_user(user_id):
@@ -382,7 +404,7 @@ def api_delete_user(user_id):
     try:
         # Prevent deleting yourself
         if user_id == current_user.id:
-            return jsonify({'success': False, 'error': 'Cannot delete your own account'}), 400
+            return jsonify({"success": False, "error": "Cannot delete your own account"}), 400
 
         conn = get_db()
         cur = conn.cursor()
@@ -390,27 +412,27 @@ def api_delete_user(user_id):
         cur.execute("UPDATE users SET is_active = false WHERE id = %s", (user_id,))
         conn.commit()
 
-        log_activity(current_user.id, 'user_deleted', details={'target_user_id': user_id})
+        log_activity(current_user.id, "user_deleted", details={"target_user_id": user_id})
 
         cur.close()
         conn.close()
 
-        return jsonify({'success': True})
+        return jsonify({"success": True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@account_center_bp.route('/api/users/<int:user_id>/password', methods=['POST'])
+@account_center_bp.route("/api/users/<int:user_id>/password", methods=["POST"])
 @login_required
 @admin_required
 def api_reset_password(user_id):
     """Reset user password (migrated from admin routes)"""
     try:
         data = request.get_json()
-        new_password = data.get('password') if data else None
+        new_password = data.get("password") if data else None
 
         if not new_password or len(new_password) < 8:
-            return jsonify({'success': False, 'error': 'Password must be at least 8 characters'}), 400
+            return jsonify({"success": False, "error": "Password must be at least 8 characters"}), 400
 
         conn = get_db()
         cur = conn.cursor()
@@ -420,21 +442,22 @@ def api_reset_password(user_id):
 
         conn.commit()
 
-        log_activity(current_user.id, 'password_reset', details={'target_user_id': user_id})
+        log_activity(current_user.id, "password_reset", details={"target_user_id": user_id})
 
         cur.close()
         conn.close()
 
-        return jsonify({'success': True, 'message': 'Password reset successfully'})
+        return jsonify({"success": True, "message": "Password reset successfully"})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # ROLES & PERMISSIONS API
 # ============================================================================
 
-@account_center_bp.route('/api/roles')
+
+@account_center_bp.route("/api/roles")
 @login_required
 @admin_required
 def api_list_roles():
@@ -443,36 +466,61 @@ def api_list_roles():
 
     # Tier-to-role mapping (role_level from subscription_tiers table)
     tier_role_map = {
-        0: ['PUBLIC'],
-        10: ['Free'],
-        20: ['Pro', 'Business', 'Enterprise'],
-        90: ['Admin (manual)'],
-        100: ['Super Admin (manual)']
+        0: ["PUBLIC"],
+        10: ["Free"],
+        20: ["Pro", "Business", "Enterprise"],
+        90: ["Admin (manual)"],
+        100: ["Super Admin (manual)"],
     }
 
     roles = [
-        {'name': 'PUBLIC', 'level': 0, 'color': '#6b7280', 'icon': 'globe',
-         'description': 'Unauthenticated visitors with read-only access to public pages'},
-        {'name': 'USER', 'level': 10, 'color': '#06b6d4', 'icon': 'user',
-         'description': 'Free registered users with basic tools, chat, and limited app building'},
-        {'name': 'PREMIUM', 'level': 20, 'color': '#f97316', 'icon': 'crown',
-         'description': 'Paid subscribers with full creation tools, analytics, and deployment'},
-        {'name': 'ADMIN', 'level': 90, 'color': '#ef4444', 'icon': 'shield',
-         'description': 'Administrators with system management, backups, and user control'},
-        {'name': 'SUPER_ADMIN', 'level': 100, 'color': '#a855f7', 'icon': 'shield-check',
-         'description': 'System owner with unrestricted access to all permissions'}
+        {
+            "name": "PUBLIC",
+            "level": 0,
+            "color": "#6b7280",
+            "icon": "globe",
+            "description": "Unauthenticated visitors with read-only access to public pages",
+        },
+        {
+            "name": "USER",
+            "level": 10,
+            "color": "#06b6d4",
+            "icon": "user",
+            "description": "Free registered users with basic tools, chat, and limited app building",
+        },
+        {
+            "name": "PREMIUM",
+            "level": 20,
+            "color": "#f97316",
+            "icon": "crown",
+            "description": "Paid subscribers with full creation tools, analytics, and deployment",
+        },
+        {
+            "name": "ADMIN",
+            "level": 90,
+            "color": "#ef4444",
+            "icon": "shield",
+            "description": "Administrators with system management, backups, and user control",
+        },
+        {
+            "name": "SUPER_ADMIN",
+            "level": 100,
+            "color": "#a855f7",
+            "icon": "shield-check",
+            "description": "System owner with unrestricted access to all permissions",
+        },
     ]
 
     for role_info in roles:
-        role_enum = Role[role_info['name']]
+        role_enum = Role[role_info["name"]]
         perms = ROLE_PERMISSIONS.get(role_enum, set())
-        role_info['permission_count'] = len(perms)
-        role_info['subscription_tiers'] = tier_role_map.get(role_info['level'], [])
+        role_info["permission_count"] = len(perms)
+        role_info["subscription_tiers"] = tier_role_map.get(role_info["level"], [])
 
-    return jsonify({'success': True, 'roles': roles})
+    return jsonify({"success": True, "roles": roles})
 
 
-@account_center_bp.route('/api/permissions')
+@account_center_bp.route("/api/permissions")
 @login_required
 @admin_required
 def api_list_permissions():
@@ -482,147 +530,151 @@ def api_list_permissions():
 
         # Human-readable labels and category groupings
         PERM_META = {
-            'public:view': {'label': 'View Public Pages', 'category': 'Public Access'},
-            'directory:view': {'label': 'View Directory', 'category': 'Public Access'},
-            'archie:chat': {'label': 'Chat with A.R.C.H.I.E.', 'category': 'Core Features'},
-            'code_editor:read': {'label': 'Code Editor (Read)', 'category': 'Core Features'},
-            'code_editor:write': {'label': 'Code Editor (Write)', 'category': 'Core Features'},
-            'user:settings': {'label': 'User Settings', 'category': 'Core Features'},
-            'read:own': {'label': 'Read Own Data', 'category': 'Core Features'},
-            'write:own': {'label': 'Write Own Data', 'category': 'Core Features'},
-            'automation:create': {'label': 'Create Automations', 'category': 'Automation & Tasks'},
-            'automation:manage': {'label': 'Manage Automations', 'category': 'Automation & Tasks'},
-            'task_planner:schedule': {'label': 'Schedule Tasks', 'category': 'Automation & Tasks'},
-            'task_planner:calendar': {'label': 'Calendar Access', 'category': 'Automation & Tasks'},
-            'google:email': {'label': 'Google Email', 'category': 'Google Workspace'},
-            'google:contacts': {'label': 'Google Contacts', 'category': 'Google Workspace'},
-            'google:calendar': {'label': 'Google Calendar', 'category': 'Google Workspace'},
-            'app_builder:create': {'label': 'Create Apps', 'category': 'App Building'},
-            'app_builder:deploy': {'label': 'Deploy Apps', 'category': 'App Building'},
-            'app_builder:unlimited': {'label': 'Unlimited Projects', 'category': 'App Building'},
-            'website_builder:create': {'label': 'Create Websites', 'category': 'Website & Store'},
-            'website_builder:deploy': {'label': 'Deploy Websites', 'category': 'Website & Store'},
-            'store:create': {'label': 'Create Store', 'category': 'Website & Store'},
-            'store:manage': {'label': 'Manage Store', 'category': 'Website & Store'},
-            'telephony:access': {'label': 'Phone System Access', 'category': 'Website & Store'},
-            'telephony:admin': {'label': 'Phone System Admin', 'category': 'Website & Store'},
-            'social_media:create': {'label': 'Create Social Posts', 'category': 'Content & Media'},
-            'social_media:schedule': {'label': 'Schedule Social Posts', 'category': 'Content & Media'},
-            'figma:import': {'label': 'Figma Import', 'category': 'Content & Media'},
-            'analytics:view': {'label': 'View Analytics', 'category': 'Content & Media'},
-            'stock_bot:scan': {'label': 'Stock Scanner', 'category': 'Finance'},
-            'stock_bot:alerts': {'label': 'Stock Alerts', 'category': 'Finance'},
-            'obsidian:read': {'label': 'Read Vault Notes', 'category': 'Obsidian Vault'},
-            'obsidian:write': {'label': 'Write Vault Notes', 'category': 'Obsidian Vault'},
-            'obsidian:delete': {'label': 'Delete Vault Notes', 'category': 'Obsidian Vault'},
-            'obsidian:admin': {'label': 'Vault Administration', 'category': 'Obsidian Vault'},
-            'admin:access': {'label': 'Admin Panel Access', 'category': 'Administration'},
-            'admin:agents': {'label': 'Manage Agents', 'category': 'Administration'},
-            'admin:improvements': {'label': 'Improvement Workflow', 'category': 'Administration'},
-            'admin:users': {'label': 'Manage Users', 'category': 'Administration'},
-            'admin:backups': {'label': 'Backup Management', 'category': 'Administration'},
-            'admin:logs': {'label': 'View System Logs', 'category': 'Administration'},
-            'admin:sandbox': {'label': 'Sandbox Access', 'category': 'Administration'},
-            'admin:fine_tuning': {'label': 'AI Fine-Tuning', 'category': 'Administration'},
-            'admin:ide': {'label': 'IDE Access', 'category': 'Administration'},
-            'admin:testing': {'label': 'Testing Tools', 'category': 'Administration'},
-            'admin:projects': {'label': 'Project Management', 'category': 'Administration'},
-            'read:all': {'label': 'Read All Data', 'category': 'Administration'},
-            'write:all': {'label': 'Write All Data', 'category': 'Administration'},
-            'admin:mining': {'label': 'Mining Operations', 'category': 'Super Admin'},
-            'admin:system': {'label': 'System Operations', 'category': 'Super Admin'},
-            'admin:security': {'label': 'Security Management', 'category': 'Super Admin'},
-            'superadmin:all': {'label': 'Full System Access', 'category': 'Super Admin'},
+            "public:view": {"label": "View Public Pages", "category": "Public Access"},
+            "directory:view": {"label": "View Directory", "category": "Public Access"},
+            "archie:chat": {"label": "Chat with A.R.C.H.I.E.", "category": "Core Features"},
+            "code_editor:read": {"label": "Code Editor (Read)", "category": "Core Features"},
+            "code_editor:write": {"label": "Code Editor (Write)", "category": "Core Features"},
+            "user:settings": {"label": "User Settings", "category": "Core Features"},
+            "read:own": {"label": "Read Own Data", "category": "Core Features"},
+            "write:own": {"label": "Write Own Data", "category": "Core Features"},
+            "automation:create": {"label": "Create Automations", "category": "Automation & Tasks"},
+            "automation:manage": {"label": "Manage Automations", "category": "Automation & Tasks"},
+            "task_planner:schedule": {"label": "Schedule Tasks", "category": "Automation & Tasks"},
+            "task_planner:calendar": {"label": "Calendar Access", "category": "Automation & Tasks"},
+            "google:email": {"label": "Google Email", "category": "Google Workspace"},
+            "google:contacts": {"label": "Google Contacts", "category": "Google Workspace"},
+            "google:calendar": {"label": "Google Calendar", "category": "Google Workspace"},
+            "app_builder:create": {"label": "Create Apps", "category": "App Building"},
+            "app_builder:deploy": {"label": "Deploy Apps", "category": "App Building"},
+            "app_builder:unlimited": {"label": "Unlimited Projects", "category": "App Building"},
+            "website_builder:create": {"label": "Create Websites", "category": "Website & Store"},
+            "website_builder:deploy": {"label": "Deploy Websites", "category": "Website & Store"},
+            "store:create": {"label": "Create Store", "category": "Website & Store"},
+            "store:manage": {"label": "Manage Store", "category": "Website & Store"},
+            "telephony:access": {"label": "Phone System Access", "category": "Website & Store"},
+            "telephony:admin": {"label": "Phone System Admin", "category": "Website & Store"},
+            "social_media:create": {"label": "Create Social Posts", "category": "Content & Media"},
+            "social_media:schedule": {"label": "Schedule Social Posts", "category": "Content & Media"},
+            "figma:import": {"label": "Figma Import", "category": "Content & Media"},
+            "analytics:view": {"label": "View Analytics", "category": "Content & Media"},
+            "stock_bot:scan": {"label": "Stock Scanner", "category": "Finance"},
+            "stock_bot:alerts": {"label": "Stock Alerts", "category": "Finance"},
+            "obsidian:read": {"label": "Read Vault Notes", "category": "Obsidian Vault"},
+            "obsidian:write": {"label": "Write Vault Notes", "category": "Obsidian Vault"},
+            "obsidian:delete": {"label": "Delete Vault Notes", "category": "Obsidian Vault"},
+            "obsidian:admin": {"label": "Vault Administration", "category": "Obsidian Vault"},
+            "admin:access": {"label": "Admin Panel Access", "category": "Administration"},
+            "admin:agents": {"label": "Manage Agents", "category": "Administration"},
+            "admin:improvements": {"label": "Improvement Workflow", "category": "Administration"},
+            "admin:users": {"label": "Manage Users", "category": "Administration"},
+            "admin:backups": {"label": "Backup Management", "category": "Administration"},
+            "admin:logs": {"label": "View System Logs", "category": "Administration"},
+            "admin:sandbox": {"label": "Sandbox Access", "category": "Administration"},
+            "admin:fine_tuning": {"label": "AI Fine-Tuning", "category": "Administration"},
+            "admin:ide": {"label": "IDE Access", "category": "Administration"},
+            "admin:testing": {"label": "Testing Tools", "category": "Administration"},
+            "admin:projects": {"label": "Project Management", "category": "Administration"},
+            "read:all": {"label": "Read All Data", "category": "Administration"},
+            "write:all": {"label": "Write All Data", "category": "Administration"},
+            "admin:mining": {"label": "Mining Operations", "category": "Super Admin"},
+            "admin:system": {"label": "System Operations", "category": "Super Admin"},
+            "admin:security": {"label": "Security Management", "category": "Super Admin"},
+            "superadmin:all": {"label": "Full System Access", "category": "Super Admin"},
         }
 
-        all_roles = ['PUBLIC', 'USER', 'PREMIUM', 'ADMIN', 'SUPER_ADMIN']
+        all_roles = ["PUBLIC", "USER", "PREMIUM", "ADMIN", "SUPER_ADMIN"]
 
         # Build grouped permissions
         groups = {}
         for perm in Permission:
-            meta = PERM_META.get(perm.value, {
-                'label': perm.value.replace(':', ' ').replace('_', ' ').title(),
-                'category': 'Other'
-            })
-            category = meta['category']
+            meta = PERM_META.get(
+                perm.value, {"label": perm.value.replace(":", " ").replace("_", " ").title(), "category": "Other"}
+            )
+            category = meta["category"]
             if category not in groups:
                 groups[category] = []
 
             granted_roles = [role.name for role, perms in ROLE_PERMISSIONS.items() if perm in perms]
 
-            groups[category].append({
-                'value': perm.value,
-                'name': perm.name,
-                'label': meta['label'],
-                'roles': {r: r in granted_roles for r in all_roles}
-            })
+            groups[category].append(
+                {
+                    "value": perm.value,
+                    "name": perm.name,
+                    "label": meta["label"],
+                    "roles": {r: r in granted_roles for r in all_roles},
+                }
+            )
 
         # Define category order
         CATEGORY_ORDER = [
-            'Public Access', 'Core Features', 'Automation & Tasks', 'Google Workspace',
-            'App Building', 'Website & Store', 'Content & Media', 'Finance',
-            'Obsidian Vault', 'Administration', 'Super Admin', 'Other'
+            "Public Access",
+            "Core Features",
+            "Automation & Tasks",
+            "Google Workspace",
+            "App Building",
+            "Website & Store",
+            "Content & Media",
+            "Finance",
+            "Obsidian Vault",
+            "Administration",
+            "Super Admin",
+            "Other",
         ]
 
         ordered_groups = []
         for cat in CATEGORY_ORDER:
             if cat in groups:
-                ordered_groups.append({
-                    'category': cat,
-                    'permissions': groups[cat]
-                })
+                ordered_groups.append({"category": cat, "permissions": groups[cat]})
 
         # Include any categories not in the predefined order
         for cat in groups:
             if cat not in CATEGORY_ORDER:
-                ordered_groups.append({
-                    'category': cat,
-                    'permissions': groups[cat]
-                })
+                ordered_groups.append({"category": cat, "permissions": groups[cat]})
 
-        return jsonify({
-            'success': True,
-            'groups': ordered_groups,
-            'roles': all_roles
-        })
+        return jsonify({"success": True, "groups": ordered_groups, "roles": all_roles})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@account_center_bp.route('/api/users/<int:user_id>/role', methods=['PUT'])
+@account_center_bp.route("/api/users/<int:user_id>/role", methods=["PUT"])
 @login_required
 @admin_required
 def api_update_user_role(user_id):
     """Update user's role"""
     try:
         data = request.get_json()
-        role = data.get('role', 'user')
-        is_admin = role in ['ADMIN', 'SUPER_ADMIN']
+        role = data.get("role", "user")
+        is_admin = role in ["ADMIN", "SUPER_ADMIN"]
 
         conn = get_db()
         cur = conn.cursor()
 
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE users SET role = %s, is_admin = %s WHERE id = %s
-        """, (role.lower(), is_admin, user_id))
+        """,
+            (role.lower(), is_admin, user_id),
+        )
 
         conn.commit()
 
-        log_activity(current_user.id, 'role_changed', details={'target_user_id': user_id, 'new_role': role})
+        log_activity(current_user.id, "role_changed", details={"target_user_id": user_id, "new_role": role})
 
         cur.close()
         conn.close()
 
-        return jsonify({'success': True})
+        return jsonify({"success": True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # SUBSCRIPTIONS API
 # ============================================================================
 
-@account_center_bp.route('/api/tiers')
+
+@account_center_bp.route("/api/tiers")
 @login_required
 @admin_required
 def api_list_tiers():
@@ -634,21 +686,25 @@ def api_list_tiers():
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT id, name, display_name, description, price_monthly, price_yearly,
                    features, limits, role_level, color, enabled
             FROM subscription_tiers
             ORDER BY sort_order
-        """)
+        """
+        )
         tiers = cur.fetchall()
 
         # Get user counts per tier
-        cur.execute("""
+        cur.execute(
+            """
             SELECT COALESCE(subscription_tier, 'free') as tier, COUNT(*) as count
             FROM users
             GROUP BY COALESCE(subscription_tier, 'free')
-        """)
-        tier_counts = {row['tier']: row['count'] for row in cur.fetchall()}
+        """
+        )
+        tier_counts = {row["tier"]: row["count"] for row in cur.fetchall()}
 
         cur.close()
         conn.close()
@@ -665,7 +721,7 @@ def api_list_tiers():
         result = []
         for t in tiers:
             t = dict(t)
-            role_level = t.get('role_level', 10)
+            role_level = t.get("role_level", 10)
             role = level_to_role.get(role_level, Role.USER)
             role_perms = ROLE_PERMISSIONS.get(role, set())
 
@@ -679,58 +735,60 @@ def api_list_tiers():
                 try:
                     mod_role = Role[mod.minimum_role]
                     if role.value >= mod_role.value:
-                        accessible_modules.append({
-                            'id': mod.id,
-                            'name': mod.name,
-                            'icon': mod.icon
-                        })
+                        accessible_modules.append({"id": mod.id, "name": mod.name, "icon": mod.icon})
                 except (KeyError, AttributeError):
                     pass
 
-            t['mapped_role'] = role.name
-            t['permission_count'] = len(role_perms)
-            t['permissions_gained'] = [p.value for p in sorted(gained, key=lambda x: x.value)]
-            t['module_count'] = len(accessible_modules)
-            t['modules'] = accessible_modules
-            t['user_count'] = tier_counts.get(t['name'], 0)
+            t["mapped_role"] = role.name
+            t["permission_count"] = len(role_perms)
+            t["permissions_gained"] = [p.value for p in sorted(gained, key=lambda x: x.value)]
+            t["module_count"] = len(accessible_modules)
+            t["modules"] = accessible_modules
+            t["user_count"] = tier_counts.get(t["name"], 0)
             result.append(t)
 
-        return jsonify({'success': True, 'tiers': result})
+        return jsonify({"success": True, "tiers": result})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@account_center_bp.route('/api/users/<int:user_id>/subscription', methods=['PUT'])
+@account_center_bp.route("/api/users/<int:user_id>/subscription", methods=["PUT"])
 @login_required
 @admin_required
 def api_update_subscription(user_id):
     """Update user's subscription tier"""
     try:
         data = request.get_json()
-        tier = data.get('tier', 'free')
-        status = data.get('status', 'active')
+        tier = data.get("tier", "free")
+        status = data.get("status", "active")
 
         conn = get_db()
         cur = conn.cursor()
 
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE users SET subscription_tier = %s, subscription_status = %s WHERE id = %s
-        """, (tier, status, user_id))
+        """,
+            (tier, status, user_id),
+        )
 
         conn.commit()
 
-        log_activity(current_user.id, 'subscription_changed',
-                    details={'target_user_id': user_id, 'new_tier': tier, 'status': status})
+        log_activity(
+            current_user.id,
+            "subscription_changed",
+            details={"target_user_id": user_id, "new_tier": tier, "status": status},
+        )
 
         cur.close()
         conn.close()
 
-        return jsonify({'success': True})
+        return jsonify({"success": True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@account_center_bp.route('/api/users/<int:user_id>/usage')
+@account_center_bp.route("/api/users/<int:user_id>/usage")
 @login_required
 @admin_required
 def api_get_usage(user_id):
@@ -740,44 +798,46 @@ def api_get_usage(user_id):
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get user's tier and limits
-        cur.execute("""
+        cur.execute(
+            """
             SELECT u.subscription_tier, t.limits
             FROM users u
             LEFT JOIN subscription_tiers t ON t.name = u.subscription_tier
             WHERE u.id = %s
-        """, (user_id,))
+        """,
+            (user_id,),
+        )
         result = cur.fetchone()
 
-        tier = result['subscription_tier'] if result else 'free'
-        limits = result['limits'] if result and result['limits'] else {}
+        tier = result["subscription_tier"] if result else "free"
+        limits = result["limits"] if result and result["limits"] else {}
 
         # Get actual usage
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 (SELECT COUNT(*) FROM app_builder_projects WHERE user_id = %s) as app_projects,
                 (SELECT COUNT(*) FROM website_builder_projects WHERE user_id = %s) as website_projects,
                 (SELECT COUNT(*) FROM token_usage_log WHERE user_id = %s AND created_at > NOW() - INTERVAL '1 day') as api_calls_today
-        """, (user_id, user_id, user_id))
+        """,
+            (user_id, user_id, user_id),
+        )
         usage = cur.fetchone()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'tier': tier,
-            'limits': limits,
-            'usage': dict(usage) if usage else {}
-        })
+        return jsonify({"success": True, "tier": tier, "limits": limits, "usage": dict(usage) if usage else {}})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # ACTIVITY API
 # ============================================================================
 
-@account_center_bp.route('/api/activity')
+
+@account_center_bp.route("/api/activity")
 @login_required
 @admin_required
 def api_get_activity():
@@ -787,11 +847,11 @@ def api_get_activity():
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get filter parameters
-        user_id = request.args.get('user_id', type=int)
-        module = request.args.get('module', '')
-        action = request.args.get('action', '')
-        limit = request.args.get('limit', 50, type=int)
-        offset = request.args.get('offset', 0, type=int)
+        user_id = request.args.get("user_id", type=int)
+        module = request.args.get("module", "")
+        action = request.args.get("action", "")
+        limit = request.args.get("limit", 50, type=int)
+        offset = request.args.get("offset", 0, type=int)
 
         query = """
             SELECT a.*, u.username as user_name
@@ -828,21 +888,17 @@ def api_get_activity():
             count_params.append(module)
 
         cur.execute(count_query, count_params)
-        total = cur.fetchone()['count']
+        total = cur.fetchone()["count"]
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'activities': [dict(a) for a in activities],
-            'total': total
-        })
+        return jsonify({"success": True, "activities": [dict(a) for a in activities], "total": total})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@account_center_bp.route('/api/activity/modules')
+@account_center_bp.route("/api/activity/modules")
 @login_required
 @admin_required
 def api_get_activity_modules():
@@ -851,24 +907,26 @@ def api_get_activity_modules():
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT module, COUNT(*) as count
             FROM user_activity_log
             WHERE module IS NOT NULL
             GROUP BY module
             ORDER BY count DESC
-        """)
+        """
+        )
         modules = cur.fetchall()
 
         cur.close()
         conn.close()
 
-        return jsonify({'success': True, 'modules': [dict(m) for m in modules]})
+        return jsonify({"success": True, "modules": [dict(m) for m in modules]})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@account_center_bp.route('/api/activity/summary')
+@account_center_bp.route("/api/activity/summary")
 @login_required
 @admin_required
 def api_activity_summary():
@@ -878,28 +936,33 @@ def api_activity_summary():
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Last 7 days activity by day
-        cur.execute("""
+        cur.execute(
+            """
             SELECT DATE(created_at) as date, COUNT(*) as count
             FROM user_activity_log
             WHERE created_at > NOW() - INTERVAL '7 days'
             GROUP BY DATE(created_at)
             ORDER BY date
-        """)
+        """
+        )
         by_day = cur.fetchall()
 
         # Top actions
-        cur.execute("""
+        cur.execute(
+            """
             SELECT action, COUNT(*) as count
             FROM user_activity_log
             WHERE created_at > NOW() - INTERVAL '24 hours'
             GROUP BY action
             ORDER BY count DESC
             LIMIT 10
-        """)
+        """
+        )
         top_actions = cur.fetchall()
 
         # Most active users
-        cur.execute("""
+        cur.execute(
+            """
             SELECT u.username, COUNT(*) as count
             FROM user_activity_log a
             JOIN users u ON a.user_id = u.id
@@ -907,27 +970,31 @@ def api_activity_summary():
             GROUP BY u.username
             ORDER BY count DESC
             LIMIT 5
-        """)
+        """
+        )
         top_users = cur.fetchall()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'by_day': [dict(d) for d in by_day],
-            'top_actions': [dict(a) for a in top_actions],
-            'top_users': [dict(u) for u in top_users]
-        })
+        return jsonify(
+            {
+                "success": True,
+                "by_day": [dict(d) for d in by_day],
+                "top_actions": [dict(a) for a in top_actions],
+                "top_users": [dict(u) for u in top_users],
+            }
+        )
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # SESSION MANAGEMENT API
 # ============================================================================
 
-@account_center_bp.route('/api/sessions')
+
+@account_center_bp.route("/api/sessions")
 @login_required
 @admin_required
 def api_list_sessions():
@@ -936,8 +1003,8 @@ def api_list_sessions():
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        user_id = request.args.get('user_id', type=int)
-        search = request.args.get('search', '')
+        user_id = request.args.get("user_id", type=int)
+        search = request.args.get("search", "")
 
         query = """
             SELECT s.*, u.username
@@ -952,7 +1019,7 @@ def api_list_sessions():
             params.append(user_id)
         if search:
             query += " AND s.ip_address ILIKE %s"
-            params.append(f'%{search}%')
+            params.append(f"%{search}%")
 
         query += " ORDER BY s.last_activity DESC LIMIT 100"
 
@@ -960,27 +1027,25 @@ def api_list_sessions():
         sessions = cur.fetchall()
 
         # Get users for filter dropdown
-        cur.execute("""
+        cur.execute(
+            """
             SELECT DISTINCT u.id, u.username
             FROM active_sessions s
             JOIN users u ON s.user_id = u.id
             ORDER BY u.username
-        """)
+        """
+        )
         users = cur.fetchall()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'sessions': [dict(s) for s in sessions],
-            'users': [dict(u) for u in users]
-        })
+        return jsonify({"success": True, "sessions": [dict(s) for s in sessions], "users": [dict(u) for u in users]})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@account_center_bp.route('/api/sessions/<int:session_id>', methods=['DELETE'])
+@account_center_bp.route("/api/sessions/<int:session_id>", methods=["DELETE"])
 @login_required
 @admin_required
 def api_revoke_session(session_id):
@@ -992,17 +1057,17 @@ def api_revoke_session(session_id):
         cur.execute("DELETE FROM active_sessions WHERE id = %s", (session_id,))
         conn.commit()
 
-        log_activity(current_user.id, 'session_revoked', details={'session_id': session_id})
+        log_activity(current_user.id, "session_revoked", details={"session_id": session_id})
 
         cur.close()
         conn.close()
 
-        return jsonify({'success': True})
+        return jsonify({"success": True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@account_center_bp.route('/api/sessions/expired', methods=['DELETE'])
+@account_center_bp.route("/api/sessions/expired", methods=["DELETE"])
 @login_required
 @admin_required
 def api_revoke_expired_sessions():
@@ -1011,30 +1076,33 @@ def api_revoke_expired_sessions():
         conn = get_db()
         cur = conn.cursor()
 
-        cur.execute("""
+        cur.execute(
+            """
             DELETE FROM active_sessions
             WHERE expires_at IS NOT NULL AND expires_at < NOW()
             RETURNING id
-        """)
+        """
+        )
         deleted = cur.fetchall()
         count = len(deleted)
         conn.commit()
 
-        log_activity(current_user.id, 'expired_sessions_revoked', details={'count': count})
+        log_activity(current_user.id, "expired_sessions_revoked", details={"count": count})
 
         cur.close()
         conn.close()
 
-        return jsonify({'success': True, 'count': count})
+        return jsonify({"success": True, "count": count})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # API KEYS MANAGEMENT
 # ============================================================================
 
-@account_center_bp.route('/api/api-keys')
+
+@account_center_bp.route("/api/api-keys")
 @login_required
 @admin_required
 def api_list_api_keys():
@@ -1043,8 +1111,8 @@ def api_list_api_keys():
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        user_id = request.args.get('user_id', type=int)
-        status = request.args.get('status', '')
+        user_id = request.args.get("user_id", type=int)
+        status = request.args.get("status", "")
 
         query = """
             SELECT k.*, u.username
@@ -1057,11 +1125,11 @@ def api_list_api_keys():
         if user_id:
             query += " AND k.user_id = %s"
             params.append(user_id)
-        if status == 'active':
+        if status == "active":
             query += " AND k.is_active = true AND (k.expires_at IS NULL OR k.expires_at > NOW())"
-        elif status == 'inactive':
+        elif status == "inactive":
             query += " AND k.is_active = false"
-        elif status == 'expired':
+        elif status == "expired":
             query += " AND k.expires_at IS NOT NULL AND k.expires_at <= NOW()"
 
         query += " ORDER BY k.created_at DESC"
@@ -1076,16 +1144,12 @@ def api_list_api_keys():
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'keys': [dict(k) for k in keys],
-            'users': [dict(u) for u in users]
-        })
+        return jsonify({"success": True, "keys": [dict(k) for k in keys], "users": [dict(u) for u in users]})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@account_center_bp.route('/api/api-keys', methods=['POST'])
+@account_center_bp.route("/api/api-keys", methods=["POST"])
 @login_required
 @admin_required
 def api_create_api_key():
@@ -1093,19 +1157,19 @@ def api_create_api_key():
     try:
         data = request.get_json()
 
-        user_id = data.get('user_id')
-        name = data.get('name', '').strip()
-        description = data.get('description', '')
-        permissions = data.get('permissions', ['read'])
-        expires_in_days = data.get('expires_in_days')
-        rate_limit = data.get('rate_limit_per_hour', 1000)
+        user_id = data.get("user_id")
+        name = data.get("name", "").strip()
+        description = data.get("description", "")
+        permissions = data.get("permissions", ["read"])
+        expires_in_days = data.get("expires_in_days")
+        rate_limit = data.get("rate_limit_per_hour", 1000)
 
         if not user_id or not name:
-            return jsonify({'success': False, 'error': 'User and name are required'}), 400
+            return jsonify({"success": False, "error": "User and name are required"}), 400
 
         # Generate a secure API key
         raw_key = secrets.token_urlsafe(32)
-        key_prefix = 'arch_' + raw_key[:6]
+        key_prefix = "arch_" + raw_key[:6]
         key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
 
         expires_at = None
@@ -1115,22 +1179,30 @@ def api_create_api_key():
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO mcp_api_keys
             (user_id, key_hash, key_prefix, name, description, permissions,
              rate_limit_per_hour, expires_at)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
-        """, (
-            user_id, key_hash, key_prefix, name, description,
-            psycopg2.extras.Json(permissions), rate_limit, expires_at
-        ))
+        """,
+            (
+                user_id,
+                key_hash,
+                key_prefix,
+                name,
+                description,
+                psycopg2.extras.Json(permissions),
+                rate_limit,
+                expires_at,
+            ),
+        )
 
-        new_id = cur.fetchone()['id']
+        new_id = cur.fetchone()["id"]
         conn.commit()
 
-        log_activity(current_user.id, 'api_key_created',
-                     details={'key_id': new_id, 'user_id': user_id, 'name': name})
+        log_activity(current_user.id, "api_key_created", details={"key_id": new_id, "user_id": user_id, "name": name})
 
         cur.close()
         conn.close()
@@ -1138,17 +1210,12 @@ def api_create_api_key():
         # Return the full key only once - it won't be retrievable later
         full_key = f"arch_{raw_key}"
 
-        return jsonify({
-            'success': True,
-            'key_id': new_id,
-            'api_key': full_key,
-            'key_prefix': key_prefix
-        })
+        return jsonify({"success": True, "key_id": new_id, "api_key": full_key, "key_prefix": key_prefix})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@account_center_bp.route('/api/api-keys/<int:key_id>', methods=['PUT'])
+@account_center_bp.route("/api/api-keys/<int:key_id>", methods=["PUT"])
 @login_required
 @admin_required
 def api_update_api_key(key_id):
@@ -1159,24 +1226,22 @@ def api_update_api_key(key_id):
         conn = get_db()
         cur = conn.cursor()
 
-        if 'is_active' in data:
-            cur.execute("UPDATE mcp_api_keys SET is_active = %s WHERE id = %s",
-                        (data['is_active'], key_id))
+        if "is_active" in data:
+            cur.execute("UPDATE mcp_api_keys SET is_active = %s WHERE id = %s", (data["is_active"], key_id))
 
         conn.commit()
 
-        log_activity(current_user.id, 'api_key_updated',
-                     details={'key_id': key_id, 'changes': list(data.keys())})
+        log_activity(current_user.id, "api_key_updated", details={"key_id": key_id, "changes": list(data.keys())})
 
         cur.close()
         conn.close()
 
-        return jsonify({'success': True})
+        return jsonify({"success": True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@account_center_bp.route('/api/api-keys/<int:key_id>', methods=['DELETE'])
+@account_center_bp.route("/api/api-keys/<int:key_id>", methods=["DELETE"])
 @login_required
 @admin_required
 def api_delete_api_key(key_id):
@@ -1188,28 +1253,29 @@ def api_delete_api_key(key_id):
         cur.execute("DELETE FROM mcp_api_keys WHERE id = %s", (key_id,))
         conn.commit()
 
-        log_activity(current_user.id, 'api_key_deleted', details={'key_id': key_id})
+        log_activity(current_user.id, "api_key_deleted", details={"key_id": key_id})
 
         cur.close()
         conn.close()
 
-        return jsonify({'success': True})
+        return jsonify({"success": True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # BULK OPERATIONS API
 # ============================================================================
 
-@account_center_bp.route('/api/bulk/export')
+
+@account_center_bp.route("/api/bulk/export")
 @login_required
 @admin_required
 def api_bulk_export():
     """Export users to CSV or JSON"""
     try:
-        format_type = request.args.get('format', 'csv')
-        scope = request.args.get('scope', 'all')
+        format_type = request.args.get("format", "csv")
+        scope = request.args.get("scope", "all")
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -1221,11 +1287,11 @@ def api_bulk_export():
             WHERE 1=1
         """
 
-        if scope == 'active':
+        if scope == "active":
             query += " AND is_active = true"
-        elif scope == 'admins':
+        elif scope == "admins":
             query += " AND is_admin = true"
-        elif scope == 'premium':
+        elif scope == "premium":
             query += " AND subscription_tier IN ('pro', 'business', 'enterprise')"
 
         query += " ORDER BY created_at DESC"
@@ -1236,19 +1302,20 @@ def api_bulk_export():
         cur.close()
         conn.close()
 
-        log_activity(current_user.id, 'users_exported',
-                     details={'format': format_type, 'scope': scope, 'count': len(users)})
+        log_activity(
+            current_user.id, "users_exported", details={"format": format_type, "scope": scope, "count": len(users)}
+        )
 
-        if format_type == 'json':
+        if format_type == "json":
             # Convert datetime objects to ISO format strings
             for user in users:
-                for key in ['created_at', 'last_login']:
+                for key in ["created_at", "last_login"]:
                     if user[key]:
                         user[key] = user[key].isoformat()
             return Response(
                 json.dumps([dict(u) for u in users], indent=2),
-                mimetype='application/json',
-                headers={'Content-Disposition': 'attachment; filename=users_export.json'}
+                mimetype="application/json",
+                headers={"Content-Disposition": "attachment; filename=users_export.json"},
             )
         else:
             # CSV export
@@ -1256,34 +1323,44 @@ def api_bulk_export():
             writer = csv.writer(output)
 
             # Header
-            headers = ['id', 'username', 'email', 'role', 'subscription_tier',
-                       'subscription_status', 'is_admin', 'is_active', 'created_at', 'last_login']
+            headers = [
+                "id",
+                "username",
+                "email",
+                "role",
+                "subscription_tier",
+                "subscription_status",
+                "is_admin",
+                "is_active",
+                "created_at",
+                "last_login",
+            ]
             writer.writerow(headers)
 
             # Data
             for user in users:
-                row = [user.get(h, '') for h in headers]
+                row = [user.get(h, "") for h in headers]
                 writer.writerow(row)
 
             return Response(
                 output.getvalue(),
-                mimetype='text/csv',
-                headers={'Content-Disposition': 'attachment; filename=users_export.csv'}
+                mimetype="text/csv",
+                headers={"Content-Disposition": "attachment; filename=users_export.csv"},
             )
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@account_center_bp.route('/api/bulk/preview', methods=['POST'])
+@account_center_bp.route("/api/bulk/preview", methods=["POST"])
 @login_required
 @admin_required
 def api_bulk_preview():
     """Preview bulk update operation"""
     try:
         data = request.get_json()
-        target = data.get('target', 'free')
-        action = data.get('action', 'upgrade')
-        tier = data.get('tier', 'pro')
+        target = data.get("target", "free")
+        action = data.get("action", "upgrade")
+        tier = data.get("tier", "pro")
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -1291,9 +1368,9 @@ def api_bulk_preview():
         # Build query based on target
         query = "SELECT id, username, email, subscription_tier FROM users WHERE is_active = true"
 
-        if target == 'free':
+        if target == "free":
             query += " AND (subscription_tier = 'free' OR subscription_tier IS NULL)"
-        elif target == 'inactive':
+        elif target == "inactive":
             query = "SELECT id, username, email, subscription_tier FROM users WHERE is_active = false"
         # 'selected' would require client-side selected IDs
 
@@ -1302,93 +1379,106 @@ def api_bulk_preview():
 
         # Generate action description
         action_descriptions = {
-            'upgrade': f'Upgrade to {tier.upper()} tier',
-            'downgrade': f'Downgrade to {tier.upper()} tier',
-            'deactivate': 'Deactivate accounts',
-            'reactivate': 'Reactivate accounts'
+            "upgrade": f"Upgrade to {tier.upper()} tier",
+            "downgrade": f"Downgrade to {tier.upper()} tier",
+            "deactivate": "Deactivate accounts",
+            "reactivate": "Reactivate accounts",
         }
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'count': len(users),
-            'users': [dict(u) for u in users[:50]],  # Limit preview
-            'action_description': action_descriptions.get(action, action)
-        })
+        return jsonify(
+            {
+                "success": True,
+                "count": len(users),
+                "users": [dict(u) for u in users[:50]],  # Limit preview
+                "action_description": action_descriptions.get(action, action),
+            }
+        )
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@account_center_bp.route('/api/bulk/update', methods=['POST'])
+@account_center_bp.route("/api/bulk/update", methods=["POST"])
 @login_required
 @admin_required
 def api_bulk_update():
     """Execute bulk update operation"""
     try:
         data = request.get_json()
-        target = data.get('target', 'free')
-        action = data.get('action', 'upgrade')
-        tier = data.get('tier', 'pro')
+        target = data.get("target", "free")
+        action = data.get("action", "upgrade")
+        tier = data.get("tier", "pro")
 
         conn = get_db()
         cur = conn.cursor()
 
         # Build update based on action
-        if action in ['upgrade', 'downgrade']:
-            if target == 'free':
-                cur.execute("""
+        if action in ["upgrade", "downgrade"]:
+            if target == "free":
+                cur.execute(
+                    """
                     UPDATE users SET subscription_tier = %s
                     WHERE is_active = true AND (subscription_tier = 'free' OR subscription_tier IS NULL)
-                """, (tier,))
-            elif target == 'inactive':
-                cur.execute("""
+                """,
+                    (tier,),
+                )
+            elif target == "inactive":
+                cur.execute(
+                    """
                     UPDATE users SET subscription_tier = %s
                     WHERE is_active = false
-                """, (tier,))
+                """,
+                    (tier,),
+                )
 
-        elif action == 'deactivate':
-            if target == 'free':
-                cur.execute("""
+        elif action == "deactivate":
+            if target == "free":
+                cur.execute(
+                    """
                     UPDATE users SET is_active = false
                     WHERE is_active = true AND (subscription_tier = 'free' OR subscription_tier IS NULL)
-                """)
-            elif target == 'inactive':
+                """
+                )
+            elif target == "inactive":
                 pass  # Already inactive
 
-        elif action == 'reactivate':
-            if target == 'inactive':
+        elif action == "reactivate":
+            if target == "inactive":
                 cur.execute("UPDATE users SET is_active = true WHERE is_active = false")
 
         count = cur.rowcount
         conn.commit()
 
-        log_activity(current_user.id, 'bulk_update_executed',
-                     details={'target': target, 'action': action, 'tier': tier, 'count': count})
+        log_activity(
+            current_user.id,
+            "bulk_update_executed",
+            details={"target": target, "action": action, "tier": tier, "count": count},
+        )
 
         cur.close()
         conn.close()
 
-        return jsonify({'success': True, 'count': count})
+        return jsonify({"success": True, "count": count})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@account_center_bp.route('/api/bulk/import', methods=['POST'])
+@account_center_bp.route("/api/bulk/import", methods=["POST"])
 @login_required
 @admin_required
 def api_bulk_import():
     """Import users from CSV data"""
     try:
         data = request.get_json()
-        users_to_import = data.get('users', [])
+        users_to_import = data.get("users", [])
 
         if not users_to_import:
-            return jsonify({'success': False, 'error': 'No users to import'}), 400
+            return jsonify({"success": False, "error": "No users to import"}), 400
 
         if len(users_to_import) > 1000:
-            return jsonify({'success': False, 'error': 'Maximum 1000 users per import'}), 400
+            return jsonify({"success": False, "error": "Maximum 1000 users per import"}), 400
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -1397,11 +1487,11 @@ def api_bulk_import():
         skipped = 0
 
         for user_data in users_to_import:
-            username = user_data.get('username', '').strip()
-            email = user_data.get('email', '').strip()
-            password = user_data.get('password', '')
-            role = user_data.get('role', 'user')
-            tier = user_data.get('subscription_tier', 'free')
+            username = user_data.get("username", "").strip()
+            email = user_data.get("email", "").strip()
+            password = user_data.get("password", "")
+            role = user_data.get("role", "user")
+            tier = user_data.get("subscription_tier", "free")
 
             if not username or not password:
                 skipped += 1
@@ -1414,32 +1504,35 @@ def api_bulk_import():
                 continue
 
             password_hash = generate_password_hash(password)
-            is_admin = role.lower() in ['admin', 'super_admin']
+            is_admin = role.lower() in ["admin", "super_admin"]
 
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO users (username, email, password_hash, role, subscription_tier, is_admin)
                 VALUES (%s, %s, %s, %s, %s, %s)
-            """, (username, email or None, password_hash, role.lower(), tier, is_admin))
+            """,
+                (username, email or None, password_hash, role.lower(), tier, is_admin),
+            )
             created += 1
 
         conn.commit()
 
-        log_activity(current_user.id, 'users_imported',
-                     details={'created': created, 'skipped': skipped})
+        log_activity(current_user.id, "users_imported", details={"created": created, "skipped": skipped})
 
         cur.close()
         conn.close()
 
-        return jsonify({'success': True, 'created': created, 'skipped': skipped})
+        return jsonify({"success": True, "created": created, "skipped": skipped})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # SECURITY API
 # ============================================================================
 
-@account_center_bp.route('/api/security/overview')
+
+@account_center_bp.route("/api/security/overview")
 @login_required
 @admin_required
 def api_security_overview():
@@ -1449,37 +1542,43 @@ def api_security_overview():
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Failed logins in last 24 hours
-        cur.execute("""
+        cur.execute(
+            """
             SELECT COUNT(*) as count FROM failed_logins
             WHERE attempted_at > NOW() - INTERVAL '24 hours'
-        """)
-        failed_logins = cur.fetchone()['count']
+        """
+        )
+        failed_logins = cur.fetchone()["count"]
 
         # Locked accounts
-        cur.execute("""
+        cur.execute(
+            """
             SELECT COUNT(*) as count FROM users
             WHERE locked_until IS NOT NULL AND locked_until > NOW()
-        """)
-        locked_accounts = cur.fetchone()['count']
+        """
+        )
+        locked_accounts = cur.fetchone()["count"]
 
         # 2FA enabled users
         cur.execute("SELECT COUNT(*) as count FROM users WHERE totp_enabled = true")
-        totp_enabled = cur.fetchone()['count']
+        totp_enabled = cur.fetchone()["count"]
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'failed_logins_24h': failed_logins,
-            'locked_accounts': locked_accounts,
-            'totp_enabled': totp_enabled
-        })
+        return jsonify(
+            {
+                "success": True,
+                "failed_logins_24h": failed_logins,
+                "locked_accounts": locked_accounts,
+                "totp_enabled": totp_enabled,
+            }
+        )
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@account_center_bp.route('/api/security/failed-logins')
+@account_center_bp.route("/api/security/failed-logins")
 @login_required
 @admin_required
 def api_failed_logins():
@@ -1488,24 +1587,26 @@ def api_failed_logins():
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT username, ip_address, user_agent, attempted_at, reason
             FROM failed_logins
             WHERE attempted_at > NOW() - INTERVAL '24 hours'
             ORDER BY attempted_at DESC
             LIMIT 100
-        """)
+        """
+        )
         logins = cur.fetchall()
 
         cur.close()
         conn.close()
 
-        return jsonify({'success': True, 'logins': [dict(l) for l in logins]})
+        return jsonify({"success": True, "logins": [dict(l) for l in logins]})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@account_center_bp.route('/api/security/2fa')
+@account_center_bp.route("/api/security/2fa")
 @login_required
 @admin_required
 def api_list_2fa_users():
@@ -1514,61 +1615,93 @@ def api_list_2fa_users():
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT id, username, email, totp_enabled, totp_verified_at,
                    failed_login_count, locked_until
             FROM users
             WHERE is_active = true
             ORDER BY totp_enabled DESC, username ASC
-        """)
+        """
+        )
         users = cur.fetchall()
 
         cur.close()
         conn.close()
 
-        return jsonify({'success': True, 'users': [dict(u) for u in users]})
+        return jsonify({"success": True, "users": [dict(u) for u in users]})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@account_center_bp.route('/api/security/2fa/<int:user_id>', methods=['PUT'])
+@account_center_bp.route("/api/security/2fa/<int:user_id>", methods=["PUT"])
 @login_required
 @admin_required
 def api_toggle_2fa(user_id):
-    """Enable/disable 2FA for a user"""
+    """Enable, disable, or reset 2FA for a user"""
     try:
         data = request.get_json()
-        enabled = data.get('enabled', False)
+        enabled = data.get("enabled", False)
+        reset = data.get("reset", False)
 
         conn = get_db()
         cur = conn.cursor()
 
-        if enabled:
-            cur.execute("""
-                UPDATE users SET totp_enabled = true, totp_verified_at = NOW()
+        totp_secret = None
+
+        if enabled and reset:
+            # Reset: generate new TOTP secret, keep enabled
+            import base64
+
+            totp_secret = base64.b32encode(secrets.token_bytes(20)).decode("utf-8")
+            cur.execute(
+                """
+                UPDATE users SET totp_secret = %s, totp_enabled = true, totp_verified_at = NOW()
                 WHERE id = %s
-            """, (user_id,))
+            """,
+                (totp_secret, user_id),
+            )
+            action = "2fa_reset"
+        elif enabled:
+            # Enable: generate TOTP secret
+            import base64
+
+            totp_secret = base64.b32encode(secrets.token_bytes(20)).decode("utf-8")
+            cur.execute(
+                """
+                UPDATE users SET totp_secret = %s, totp_enabled = true, totp_verified_at = NOW()
+                WHERE id = %s
+            """,
+                (totp_secret, user_id),
+            )
+            action = "2fa_enabled"
         else:
             # Disable 2FA - clear secret and status
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE users SET totp_enabled = false, totp_secret = NULL, totp_verified_at = NULL
                 WHERE id = %s
-            """, (user_id,))
+            """,
+                (user_id,),
+            )
+            action = "2fa_disabled"
 
         conn.commit()
 
-        action = '2fa_enabled' if enabled else '2fa_disabled'
-        log_activity(current_user.id, action, details={'target_user_id': user_id})
+        log_activity(current_user.id, action, details={"target_user_id": user_id})
 
         cur.close()
         conn.close()
 
-        return jsonify({'success': True})
+        result = {"success": True}
+        if totp_secret:
+            result["totp_secret"] = totp_secret
+        return jsonify(result)
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@account_center_bp.route('/api/security/unlock/<int:user_id>', methods=['POST'])
+@account_center_bp.route("/api/security/unlock/<int:user_id>", methods=["POST"])
 @login_required
 @admin_required
 def api_unlock_user(user_id):
@@ -1577,18 +1710,21 @@ def api_unlock_user(user_id):
         conn = get_db()
         cur = conn.cursor()
 
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE users SET locked_until = NULL, failed_login_count = 0
             WHERE id = %s
-        """, (user_id,))
+        """,
+            (user_id,),
+        )
 
         conn.commit()
 
-        log_activity(current_user.id, 'user_unlocked', details={'target_user_id': user_id})
+        log_activity(current_user.id, "user_unlocked", details={"target_user_id": user_id})
 
         cur.close()
         conn.close()
 
-        return jsonify({'success': True})
+        return jsonify({"success": True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500

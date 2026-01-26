@@ -13,6 +13,15 @@
         background: var(--archie-bg-deep);
     }
 
+    /* Fix card header contrast - shared components.css lacks explicit color */
+    .account-center-container .card-header {
+        color: var(--archie-text-primary);
+        font-family: var(--archie-font-heading);
+        font-size: var(--archie-text-sm);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+    }
+
     .account-center-content {
         padding-top: 70px;
     }
@@ -957,11 +966,16 @@
 
                 <!-- 2FA Management -->
                 <div class="card">
-                    <div class="card-header">Two-Factor Authentication Management</div>
+                    <div class="card-header">Two-Factor Authentication</div>
                     <div class="card-body">
-                        <p style="color: var(--archie-text-secondary); margin-bottom: var(--archie-space-4);">
-                            Manage 2FA settings for users. Disabling 2FA will require the user to set it up again.
-                        </p>
+                        <div style="display: flex; align-items: center; gap: var(--archie-space-3); margin-bottom: var(--archie-space-4); padding: var(--archie-space-3) var(--archie-space-4); background: var(--archie-bg-surface); border: 1px solid var(--archie-border-default); border-radius: var(--archie-radius-md);">
+                            <i data-lucide="info" style="width: 18px; height: 18px; color: var(--archie-accent); flex-shrink: 0;"></i>
+                            <span style="color: var(--archie-text-secondary); font-size: var(--archie-text-sm);">
+                                <strong style="color: var(--archie-text-primary);">Enable</strong> generates a TOTP secret the user must add to their authenticator app.
+                                <strong style="color: var(--archie-text-primary);">Disable</strong> removes 2FA and requires re-enrollment.
+                                <strong style="color: var(--archie-text-primary);">Reset</strong> clears a failed TOTP and generates a new secret.
+                            </span>
+                        </div>
                         <table class="data-table">
                             <thead>
                                 <tr>
@@ -2942,11 +2956,27 @@ async function loadTotpUsers() {
                 actionsDiv.style.gap = '8px';
 
                 if (u.totp_enabled) {
+                    // Disable button - removes 2FA
                     const disableBtn = document.createElement('button');
                     disableBtn.className = 'btn btn-sm btn-danger';
-                    disableBtn.textContent = 'Disable 2FA';
+                    disableBtn.textContent = 'Disable';
                     disableBtn.onclick = () => toggle2FA(u.id, false);
                     actionsDiv.appendChild(disableBtn);
+
+                    // Reset button - regenerate secret
+                    const resetBtn = document.createElement('button');
+                    resetBtn.className = 'btn btn-sm btn-warning';
+                    resetBtn.textContent = 'Reset';
+                    resetBtn.onclick = () => toggle2FA(u.id, 'reset');
+                    actionsDiv.appendChild(resetBtn);
+                } else {
+                    // Enable button - generate TOTP secret
+                    const enableBtn = document.createElement('button');
+                    enableBtn.className = 'btn btn-sm';
+                    enableBtn.style.cssText = 'background: rgba(34,197,94,0.15); color: #22c55e; border: 1px solid rgba(34,197,94,0.3);';
+                    enableBtn.textContent = 'Enable';
+                    enableBtn.onclick = () => toggle2FA(u.id, true);
+                    actionsDiv.appendChild(enableBtn);
                 }
 
                 if (u.locked_until && new Date(u.locked_until) > new Date()) {
@@ -2972,18 +3002,33 @@ async function loadTotpUsers() {
     }
 }
 
-async function toggle2FA(userId, enable) {
-    const action = enable ? 'enable' : 'disable';
-    if (!confirm('Are you sure you want to ' + action + ' 2FA for this user?')) return;
+async function toggle2FA(userId, action) {
+    const labels = { true: 'enable', false: 'disable', reset: 'reset' };
+    const label = labels[action] || action;
+
+    const messages = {
+        true: 'Enable 2FA for this user? A TOTP secret will be generated that must be added to their authenticator app.',
+        false: 'Disable 2FA for this user? They will need to re-enroll to use 2FA again.',
+        reset: 'Reset 2FA for this user? This generates a new TOTP secret and invalidates the old one.'
+    };
+    if (!confirm(messages[action] || 'Are you sure?')) return;
 
     try {
+        const body = action === 'reset'
+            ? { enabled: true, reset: true }
+            : { enabled: action === true };
+
         const res = await fetch('/tools/account-center/api/security/2fa/' + userId, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ enabled: enable })
+            body: JSON.stringify(body)
         });
         const data = await res.json();
         if (data.success) {
+            // If enabling/resetting, show the TOTP secret
+            if ((action === true || action === 'reset') && data.totp_secret) {
+                alert('2FA ' + (action === 'reset' ? 'reset' : 'enabled') + ' successfully.\n\nTOTP Secret: ' + data.totp_secret + '\n\nShare this secret with the user to add to their authenticator app (Google Authenticator, Authy, etc.).');
+            }
             loadSecurityData();
         } else {
             alert(data.error || 'Error updating 2FA');

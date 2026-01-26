@@ -138,7 +138,7 @@ def get_categories_info() -> Dict[str, Dict]:
             'description': 'System management, backups, security, and accounts',
             'admin_only': True,
             'color': '#FF6B6B',  # Red color for admin tools
-            'priority': 4
+            'priority': 7  # Last section on dashboard
         },
         'development': {
             'name': 'Development Tools',

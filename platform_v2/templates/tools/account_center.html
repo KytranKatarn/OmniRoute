@@ -294,6 +294,9 @@
                 <button class="tab-btn active" data-tab="list">LIST</button>
                 <button class="tab-btn" data-tab="permissions">PERMISSIONS</button>
                 <button class="tab-btn" data-tab="subscriptions">SUBSCRIPTIONS</button>
+                <button class="tab-btn" data-tab="sessions">SESSIONS</button>
+                <button class="tab-btn" data-tab="api-keys">API KEYS</button>
+                <button class="tab-btn" data-tab="bulk">BULK OPS</button>
                 <button class="tab-btn" data-tab="activity">ACTIVITY</button>
             </div>
 
@@ -407,6 +410,170 @@
                 </div>
             </div>
 
+            <!-- SESSIONS Tab -->
+            <div class="tab-content" id="tab-sessions">
+                <div class="action-bar">
+                    <div class="filters">
+                        <select id="filter-session-user" class="form-select">
+                            <option value="">All Users</option>
+                        </select>
+                        <input type="text" id="search-sessions" class="form-input" placeholder="Search by IP..." style="width: 200px;">
+                    </div>
+                    <button class="btn btn-danger" onclick="revokeAllSessions()">Revoke All Expired</button>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">Active Sessions</div>
+                    <div class="card-body">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>User</th>
+                                    <th>IP Address</th>
+                                    <th>Device</th>
+                                    <th>Created</th>
+                                    <th>Last Activity</th>
+                                    <th>Expires</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sessions-table-body">
+                                <tr>
+                                    <td colspan="7" class="loading">
+                                        <div class="loading-spinner"></div>
+                                        <p>Loading sessions...</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- API KEYS Tab -->
+            <div class="tab-content" id="tab-api-keys">
+                <div class="action-bar">
+                    <div class="filters">
+                        <select id="filter-apikey-user" class="form-select">
+                            <option value="">All Users</option>
+                        </select>
+                        <select id="filter-apikey-status" class="form-select">
+                            <option value="">All Status</option>
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                            <option value="expired">Expired</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" onclick="showCreateApiKeyModal()">+ GENERATE KEY</button>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">API Keys</div>
+                    <div class="card-body">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>User</th>
+                                    <th>Name</th>
+                                    <th>Key Prefix</th>
+                                    <th>Permissions</th>
+                                    <th>Last Used</th>
+                                    <th>Expires</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="apikeys-table-body">
+                                <tr>
+                                    <td colspan="8" class="loading">
+                                        <div class="loading-spinner"></div>
+                                        <p>Loading API keys...</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BULK OPS Tab -->
+            <div class="tab-content" id="tab-bulk">
+                <div class="card" style="margin-bottom: var(--archie-space-6);">
+                    <div class="card-header">Export Users</div>
+                    <div class="card-body">
+                        <p style="color: var(--archie-text-secondary); margin-bottom: var(--archie-space-4);">Export user data for backup or analysis.</p>
+                        <div style="display: flex; gap: var(--archie-space-4); flex-wrap: wrap;">
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label">Format</label>
+                                <select id="export-format" class="form-select">
+                                    <option value="csv">CSV</option>
+                                    <option value="json">JSON</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label">Include</label>
+                                <select id="export-scope" class="form-select">
+                                    <option value="all">All Users</option>
+                                    <option value="active">Active Only</option>
+                                    <option value="admins">Admins Only</option>
+                                    <option value="premium">Premium Only</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin: 0; display: flex; align-items: flex-end;">
+                                <button class="btn btn-primary" onclick="exportUsers()">Export</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-bottom: var(--archie-space-6);">
+                    <div class="card-header">Bulk Update</div>
+                    <div class="card-body">
+                        <p style="color: var(--archie-text-secondary); margin-bottom: var(--archie-space-4);">Apply changes to multiple users at once.</p>
+                        <div style="display: flex; gap: var(--archie-space-4); flex-wrap: wrap; margin-bottom: var(--archie-space-4);">
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label">Target Users</label>
+                                <select id="bulk-target" class="form-select">
+                                    <option value="free">All Free Users</option>
+                                    <option value="inactive">Inactive Users</option>
+                                    <option value="selected">Selected Users</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label">Action</label>
+                                <select id="bulk-action" class="form-select">
+                                    <option value="upgrade">Upgrade Tier</option>
+                                    <option value="downgrade">Downgrade Tier</option>
+                                    <option value="deactivate">Deactivate</option>
+                                    <option value="reactivate">Reactivate</option>
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin: 0;" id="bulk-tier-group">
+                                <label class="form-label">New Tier</label>
+                                <select id="bulk-tier" class="form-select">
+                                    <option value="free">Free</option>
+                                    <option value="pro">Pro</option>
+                                    <option value="business">Business</option>
+                                    <option value="enterprise">Enterprise</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" onclick="previewBulkUpdate()">Preview Changes</button>
+                    </div>
+                </div>
+
+                <div class="card" id="bulk-preview-card" style="display: none;">
+                    <div class="card-header">Preview Changes</div>
+                    <div class="card-body">
+                        <div id="bulk-preview-content"></div>
+                        <div style="margin-top: var(--archie-space-4); display: flex; gap: var(--archie-space-2);">
+                            <button class="btn btn-danger" onclick="executeBulkUpdate()">Apply Changes</button>
+                            <button class="btn btn-ghost" onclick="cancelBulkPreview()">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- ACTIVITY Tab -->
             <div class="tab-content" id="tab-activity">
                 <div class="action-bar">
@@ -510,6 +677,90 @@
     </div>
 </div>
 
+<!-- Create API Key Modal -->
+<div class="modal-overlay" id="apikey-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>Generate API Key</h3>
+            <button class="modal-close" onclick="closeApiKeyModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="apikey-form" onsubmit="createApiKey(event)">
+                <div class="form-group">
+                    <label class="form-label">User *</label>
+                    <select id="apikey-user" class="form-select" required>
+                        <option value="">Select User</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Key Name *</label>
+                    <input type="text" id="apikey-name" class="form-input" placeholder="e.g., Production API Key" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea id="apikey-description" class="form-input" rows="2" placeholder="What is this key used for?"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Permissions</label>
+                    <div style="display: flex; gap: var(--archie-space-4); flex-wrap: wrap;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" name="apikey-perm" value="read" checked> Read
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" name="apikey-perm" value="write"> Write
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" name="apikey-perm" value="execute"> Execute
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Expires In</label>
+                    <select id="apikey-expiry" class="form-select">
+                        <option value="">Never</option>
+                        <option value="30">30 Days</option>
+                        <option value="90">90 Days</option>
+                        <option value="365">1 Year</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Rate Limit (per hour)</label>
+                    <input type="number" id="apikey-ratelimit" class="form-input" value="1000" min="10" max="100000">
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-ghost" onclick="closeApiKeyModal()">Cancel</button>
+            <button type="submit" form="apikey-form" class="btn btn-primary">Generate Key</button>
+        </div>
+    </div>
+</div>
+
+<!-- API Key Created Modal -->
+<div class="modal-overlay" id="apikey-created-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 style="color: var(--archie-green);">API Key Generated</h3>
+            <button class="modal-close" onclick="closeApiKeyCreatedModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p style="color: var(--archie-orange); margin-bottom: var(--archie-space-4); font-weight: bold;">
+                Save this key now. It will not be shown again.
+            </p>
+            <div class="form-group">
+                <label class="form-label">API Key</label>
+                <div style="display: flex; gap: var(--archie-space-2);">
+                    <input type="text" id="generated-key" class="form-input" readonly style="font-family: monospace;">
+                    <button class="btn" onclick="copyApiKey()">Copy</button>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-primary" onclick="closeApiKeyCreatedModal()">Done</button>
+        </div>
+    </div>
+</div>
+
 <script>
 // Global state
 let users = [];
@@ -526,6 +777,8 @@ document.querySelectorAll('.tab-btn').forEach(tab => {
 
         if (tab.dataset.tab === 'permissions') loadPermissions();
         if (tab.dataset.tab === 'subscriptions') loadTiers();
+        if (tab.dataset.tab === 'sessions') loadSessions();
+        if (tab.dataset.tab === 'api-keys') loadApiKeys();
         if (tab.dataset.tab === 'activity') loadActivity();
     });
 });
@@ -937,7 +1190,524 @@ function renderActivityChart(data) {
     });
 }
 
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeDetailsModal(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeDetailsModal(); closeApiKeyModal(); closeApiKeyCreatedModal(); } });
 document.querySelectorAll('.modal-overlay').forEach(overlay => { overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('active'); }); });
+
+// ============================================================================
+// SESSIONS MANAGEMENT
+// ============================================================================
+
+async function loadSessions() {
+    const userId = document.getElementById('filter-session-user').value;
+    const search = document.getElementById('search-sessions').value;
+
+    let url = '/tools/account-center/api/sessions?';
+    if (userId) url += 'user_id=' + userId + '&';
+    if (search) url += 'search=' + encodeURIComponent(search) + '&';
+
+    try {
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.success) {
+            renderSessionsTable(data.sessions);
+            populateSessionUserFilter(data.users || []);
+        }
+    } catch (err) {
+        console.error('Error loading sessions:', err);
+    }
+}
+
+function populateSessionUserFilter(userList) {
+    const select = document.getElementById('filter-session-user');
+    const currentVal = select.value;
+    select.textContent = '';
+    const defaultOpt = document.createElement('option');
+    defaultOpt.value = '';
+    defaultOpt.textContent = 'All Users';
+    select.appendChild(defaultOpt);
+    userList.forEach(u => {
+        const opt = document.createElement('option');
+        opt.value = u.id;
+        opt.textContent = u.username;
+        select.appendChild(opt);
+    });
+    if (currentVal) select.value = currentVal;
+}
+
+function renderSessionsTable(sessions) {
+    const tbody = document.getElementById('sessions-table-body');
+    tbody.textContent = '';
+
+    if (sessions.length === 0) {
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 7;
+        td.className = 'empty-state';
+        td.textContent = 'No active sessions found';
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+        return;
+    }
+
+    sessions.forEach(s => {
+        const tr = document.createElement('tr');
+
+        const tdUser = document.createElement('td');
+        const strong = document.createElement('strong');
+        strong.textContent = s.username || 'Unknown';
+        tdUser.appendChild(strong);
+
+        const tdIp = document.createElement('td');
+        tdIp.textContent = s.ip_address || '-';
+        tdIp.style.fontFamily = 'monospace';
+
+        const tdDevice = document.createElement('td');
+        tdDevice.textContent = parseUserAgent(s.user_agent);
+        tdDevice.style.fontSize = 'var(--archie-text-sm)';
+
+        const tdCreated = document.createElement('td');
+        tdCreated.textContent = s.created_at ? new Date(s.created_at).toLocaleString() : '-';
+
+        const tdActivity = document.createElement('td');
+        tdActivity.textContent = s.last_activity ? new Date(s.last_activity).toLocaleString() : '-';
+
+        const tdExpires = document.createElement('td');
+        if (s.expires_at) {
+            const expires = new Date(s.expires_at);
+            const isExpired = expires < new Date();
+            tdExpires.textContent = expires.toLocaleString();
+            if (isExpired) tdExpires.style.color = 'var(--archie-red)';
+        } else {
+            tdExpires.textContent = 'Never';
+        }
+
+        const tdActions = document.createElement('td');
+        const revokeBtn = document.createElement('button');
+        revokeBtn.className = 'btn btn-sm btn-danger';
+        revokeBtn.textContent = 'Revoke';
+        revokeBtn.onclick = () => revokeSession(s.id);
+        tdActions.appendChild(revokeBtn);
+
+        tr.appendChild(tdUser);
+        tr.appendChild(tdIp);
+        tr.appendChild(tdDevice);
+        tr.appendChild(tdCreated);
+        tr.appendChild(tdActivity);
+        tr.appendChild(tdExpires);
+        tr.appendChild(tdActions);
+        tbody.appendChild(tr);
+    });
+}
+
+function parseUserAgent(ua) {
+    if (!ua) return 'Unknown';
+    if (ua.includes('Chrome')) return 'Chrome';
+    if (ua.includes('Firefox')) return 'Firefox';
+    if (ua.includes('Safari')) return 'Safari';
+    if (ua.includes('Edge')) return 'Edge';
+    if (ua.includes('Mobile')) return 'Mobile';
+    return 'Browser';
+}
+
+async function revokeSession(sessionId) {
+    if (!confirm('Revoke this session? The user will be logged out.')) return;
+    try {
+        const res = await fetch('/tools/account-center/api/sessions/' + sessionId, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+            loadSessions();
+        } else {
+            alert(data.error || 'Error revoking session');
+        }
+    } catch (err) {
+        console.error('Error revoking session:', err);
+        alert('Error revoking session');
+    }
+}
+
+async function revokeAllSessions() {
+    if (!confirm('Revoke all expired sessions?')) return;
+    try {
+        const res = await fetch('/tools/account-center/api/sessions/expired', { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+            alert('Revoked ' + (data.count || 0) + ' expired sessions');
+            loadSessions();
+        } else {
+            alert(data.error || 'Error revoking sessions');
+        }
+    } catch (err) {
+        console.error('Error revoking sessions:', err);
+    }
+}
+
+// ============================================================================
+// API KEYS MANAGEMENT
+// ============================================================================
+
+async function loadApiKeys() {
+    const userId = document.getElementById('filter-apikey-user').value;
+    const status = document.getElementById('filter-apikey-status').value;
+
+    let url = '/tools/account-center/api/api-keys?';
+    if (userId) url += 'user_id=' + userId + '&';
+    if (status) url += 'status=' + status + '&';
+
+    try {
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.success) {
+            renderApiKeysTable(data.keys);
+            populateApiKeyUserFilters(data.users || []);
+        }
+    } catch (err) {
+        console.error('Error loading API keys:', err);
+    }
+}
+
+function populateApiKeyUserFilters(userList) {
+    ['filter-apikey-user', 'apikey-user'].forEach(selectId => {
+        const select = document.getElementById(selectId);
+        if (!select) return;
+        const currentVal = select.value;
+        select.textContent = '';
+        const defaultOpt = document.createElement('option');
+        defaultOpt.value = '';
+        defaultOpt.textContent = selectId === 'apikey-user' ? 'Select User' : 'All Users';
+        select.appendChild(defaultOpt);
+        userList.forEach(u => {
+            const opt = document.createElement('option');
+            opt.value = u.id;
+            opt.textContent = u.username;
+            select.appendChild(opt);
+        });
+        if (currentVal) select.value = currentVal;
+    });
+}
+
+function renderApiKeysTable(keys) {
+    const tbody = document.getElementById('apikeys-table-body');
+    tbody.textContent = '';
+
+    if (keys.length === 0) {
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 8;
+        td.className = 'empty-state';
+        td.textContent = 'No API keys found';
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+        return;
+    }
+
+    keys.forEach(k => {
+        const tr = document.createElement('tr');
+
+        const tdUser = document.createElement('td');
+        tdUser.textContent = k.username || 'System';
+
+        const tdName = document.createElement('td');
+        const strong = document.createElement('strong');
+        strong.textContent = k.name;
+        tdName.appendChild(strong);
+        if (k.description) {
+            const desc = document.createElement('div');
+            desc.style.cssText = 'font-size: var(--archie-text-xs); color: var(--archie-text-tertiary);';
+            desc.textContent = k.description;
+            tdName.appendChild(desc);
+        }
+
+        const tdPrefix = document.createElement('td');
+        tdPrefix.textContent = k.key_prefix + '...';
+        tdPrefix.style.fontFamily = 'monospace';
+
+        const tdPerms = document.createElement('td');
+        const perms = k.permissions || ['read'];
+        perms.forEach(p => {
+            const badge = document.createElement('span');
+            badge.className = 'badge';
+            badge.style.marginRight = '4px';
+            badge.textContent = p;
+            tdPerms.appendChild(badge);
+        });
+
+        const tdLastUsed = document.createElement('td');
+        tdLastUsed.textContent = k.last_used_at ? new Date(k.last_used_at).toLocaleDateString() : 'Never';
+
+        const tdExpires = document.createElement('td');
+        if (k.expires_at) {
+            const expires = new Date(k.expires_at);
+            const isExpired = expires < new Date();
+            tdExpires.textContent = expires.toLocaleDateString();
+            if (isExpired) tdExpires.style.color = 'var(--archie-red)';
+        } else {
+            tdExpires.textContent = 'Never';
+        }
+
+        const tdStatus = document.createElement('td');
+        const statusBadge = document.createElement('span');
+        let statusText = 'Active';
+        let statusClass = 'badge-success';
+        if (!k.is_active) {
+            statusText = 'Inactive';
+            statusClass = 'badge-danger';
+        } else if (k.expires_at && new Date(k.expires_at) < new Date()) {
+            statusText = 'Expired';
+            statusClass = 'badge-warning';
+        }
+        statusBadge.className = 'badge ' + statusClass;
+        statusBadge.textContent = statusText;
+        tdStatus.appendChild(statusBadge);
+
+        const tdActions = document.createElement('td');
+        const actionsDiv = document.createElement('div');
+        actionsDiv.style.display = 'flex';
+        actionsDiv.style.gap = '8px';
+
+        if (k.is_active) {
+            const deactivateBtn = document.createElement('button');
+            deactivateBtn.className = 'btn btn-sm';
+            deactivateBtn.textContent = 'Deactivate';
+            deactivateBtn.onclick = () => toggleApiKey(k.id, false);
+            actionsDiv.appendChild(deactivateBtn);
+        } else {
+            const activateBtn = document.createElement('button');
+            activateBtn.className = 'btn btn-sm btn-success';
+            activateBtn.textContent = 'Activate';
+            activateBtn.onclick = () => toggleApiKey(k.id, true);
+            actionsDiv.appendChild(activateBtn);
+        }
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'btn btn-sm btn-danger';
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.onclick = () => deleteApiKey(k.id);
+        actionsDiv.appendChild(deleteBtn);
+
+        tdActions.appendChild(actionsDiv);
+
+        tr.appendChild(tdUser);
+        tr.appendChild(tdName);
+        tr.appendChild(tdPrefix);
+        tr.appendChild(tdPerms);
+        tr.appendChild(tdLastUsed);
+        tr.appendChild(tdExpires);
+        tr.appendChild(tdStatus);
+        tr.appendChild(tdActions);
+        tbody.appendChild(tr);
+    });
+}
+
+function showCreateApiKeyModal() {
+    document.getElementById('apikey-form').reset();
+    loadApiKeys(); // Refresh user list
+    document.getElementById('apikey-modal').classList.add('active');
+}
+
+function closeApiKeyModal() {
+    document.getElementById('apikey-modal').classList.remove('active');
+}
+
+function closeApiKeyCreatedModal() {
+    document.getElementById('apikey-created-modal').classList.remove('active');
+}
+
+async function createApiKey(e) {
+    e.preventDefault();
+    const userId = document.getElementById('apikey-user').value;
+    const name = document.getElementById('apikey-name').value;
+    const description = document.getElementById('apikey-description').value;
+    const expiry = document.getElementById('apikey-expiry').value;
+    const rateLimit = document.getElementById('apikey-ratelimit').value;
+
+    const permCheckboxes = document.querySelectorAll('input[name="apikey-perm"]:checked');
+    const permissions = Array.from(permCheckboxes).map(cb => cb.value);
+
+    try {
+        const res = await fetch('/tools/account-center/api/api-keys', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                user_id: parseInt(userId),
+                name: name,
+                description: description,
+                permissions: permissions,
+                expires_in_days: expiry ? parseInt(expiry) : null,
+                rate_limit_per_hour: parseInt(rateLimit)
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            closeApiKeyModal();
+            document.getElementById('generated-key').value = data.api_key;
+            document.getElementById('apikey-created-modal').classList.add('active');
+            loadApiKeys();
+        } else {
+            alert(data.error || 'Error creating API key');
+        }
+    } catch (err) {
+        console.error('Error creating API key:', err);
+        alert('Error creating API key');
+    }
+}
+
+function copyApiKey() {
+    const keyInput = document.getElementById('generated-key');
+    keyInput.select();
+    document.execCommand('copy');
+    alert('API key copied to clipboard');
+}
+
+async function toggleApiKey(keyId, activate) {
+    try {
+        const res = await fetch('/tools/account-center/api/api-keys/' + keyId, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_active: activate })
+        });
+        const data = await res.json();
+        if (data.success) {
+            loadApiKeys();
+        } else {
+            alert(data.error || 'Error updating API key');
+        }
+    } catch (err) {
+        console.error('Error updating API key:', err);
+    }
+}
+
+async function deleteApiKey(keyId) {
+    if (!confirm('Delete this API key? This cannot be undone.')) return;
+    try {
+        const res = await fetch('/tools/account-center/api/api-keys/' + keyId, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+            loadApiKeys();
+        } else {
+            alert(data.error || 'Error deleting API key');
+        }
+    } catch (err) {
+        console.error('Error deleting API key:', err);
+    }
+}
+
+// ============================================================================
+// BULK OPERATIONS
+// ============================================================================
+
+let bulkPreviewData = null;
+
+document.getElementById('bulk-action').addEventListener('change', function() {
+    const tierGroup = document.getElementById('bulk-tier-group');
+    tierGroup.style.display = ['upgrade', 'downgrade'].includes(this.value) ? 'block' : 'none';
+});
+
+async function exportUsers() {
+    const format = document.getElementById('export-format').value;
+    const scope = document.getElementById('export-scope').value;
+
+    try {
+        const res = await fetch('/tools/account-center/api/bulk/export?format=' + format + '&scope=' + scope);
+        if (res.ok) {
+            const blob = await res.blob();
+            const filename = 'users_export_' + new Date().toISOString().slice(0, 10) + '.' + format;
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        } else {
+            const data = await res.json();
+            alert(data.error || 'Error exporting users');
+        }
+    } catch (err) {
+        console.error('Error exporting users:', err);
+        alert('Error exporting users');
+    }
+}
+
+async function previewBulkUpdate() {
+    const target = document.getElementById('bulk-target').value;
+    const action = document.getElementById('bulk-action').value;
+    const tier = document.getElementById('bulk-tier').value;
+
+    try {
+        const res = await fetch('/tools/account-center/api/bulk/preview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ target: target, action: action, tier: tier })
+        });
+        const data = await res.json();
+        if (data.success) {
+            bulkPreviewData = data;
+            const content = document.getElementById('bulk-preview-content');
+            content.textContent = '';
+
+            const summary = document.createElement('p');
+            summary.style.marginBottom = 'var(--archie-space-4)';
+            summary.textContent = 'This will affect ' + data.count + ' user(s): ' + data.action_description;
+            content.appendChild(summary);
+
+            if (data.users && data.users.length > 0) {
+                const list = document.createElement('ul');
+                list.style.cssText = 'list-style: none; max-height: 200px; overflow-y: auto;';
+                data.users.slice(0, 20).forEach(u => {
+                    const li = document.createElement('li');
+                    li.style.padding = 'var(--archie-space-1) 0';
+                    li.textContent = u.username + ' (' + (u.email || 'no email') + ')';
+                    list.appendChild(li);
+                });
+                if (data.users.length > 20) {
+                    const more = document.createElement('li');
+                    more.style.color = 'var(--archie-text-tertiary)';
+                    more.textContent = '... and ' + (data.users.length - 20) + ' more';
+                    list.appendChild(more);
+                }
+                content.appendChild(list);
+            }
+
+            document.getElementById('bulk-preview-card').style.display = 'block';
+        } else {
+            alert(data.error || 'Error generating preview');
+        }
+    } catch (err) {
+        console.error('Error previewing bulk update:', err);
+    }
+}
+
+function cancelBulkPreview() {
+    document.getElementById('bulk-preview-card').style.display = 'none';
+    bulkPreviewData = null;
+}
+
+async function executeBulkUpdate() {
+    if (!bulkPreviewData) return;
+    if (!confirm('Are you sure you want to apply these changes to ' + bulkPreviewData.count + ' users?')) return;
+
+    try {
+        const res = await fetch('/tools/account-center/api/bulk/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                target: document.getElementById('bulk-target').value,
+                action: document.getElementById('bulk-action').value,
+                tier: document.getElementById('bulk-tier').value
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert('Successfully updated ' + data.count + ' users');
+            cancelBulkPreview();
+            loadUsers();
+        } else {
+            alert(data.error || 'Error applying bulk update');
+        }
+    } catch (err) {
+        console.error('Error executing bulk update:', err);
+    }
+}
 </script>
 {% endblock %}

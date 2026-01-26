@@ -1,16 +1,22 @@
 """
 Account Center Routes
 =====================
-API routes for account CRUD, permissions, subscriptions, and activity tracking.
+API routes for account CRUD, permissions, subscriptions, sessions,
+API keys, bulk operations, and activity tracking.
 """
 
-from flask import render_template, jsonify, request, redirect, url_for, flash
+from flask import render_template, jsonify, request, redirect, url_for, flash, Response
 from flask_login import login_required, current_user
 from functools import wraps
 from werkzeug.security import generate_password_hash
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import os
+import secrets
+import hashlib
+import json
+import csv
+import io
 from datetime import datetime, timedelta
 
 from . import account_center_bp
@@ -720,5 +726,457 @@ def api_activity_summary():
             'top_actions': [dict(a) for a in top_actions],
             'top_users': [dict(u) for u in top_users]
         })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ============================================================================
+# SESSION MANAGEMENT API
+# ============================================================================
+
+@account_center_bp.route('/api/sessions')
+@login_required
+@admin_required
+def api_list_sessions():
+    """List all active sessions"""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        user_id = request.args.get('user_id', type=int)
+        search = request.args.get('search', '')
+
+        query = """
+            SELECT s.*, u.username
+            FROM active_sessions s
+            LEFT JOIN users u ON s.user_id = u.id
+            WHERE 1=1
+        """
+        params = []
+
+        if user_id:
+            query += " AND s.user_id = %s"
+            params.append(user_id)
+        if search:
+            query += " AND s.ip_address ILIKE %s"
+            params.append(f'%{search}%')
+
+        query += " ORDER BY s.last_activity DESC LIMIT 100"
+
+        cur.execute(query, params)
+        sessions = cur.fetchall()
+
+        # Get users for filter dropdown
+        cur.execute("""
+            SELECT DISTINCT u.id, u.username
+            FROM active_sessions s
+            JOIN users u ON s.user_id = u.id
+            ORDER BY u.username
+        """)
+        users = cur.fetchall()
+
+        cur.close()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'sessions': [dict(s) for s in sessions],
+            'users': [dict(u) for u in users]
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@account_center_bp.route('/api/sessions/<int:session_id>', methods=['DELETE'])
+@login_required
+@admin_required
+def api_revoke_session(session_id):
+    """Revoke a specific session"""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+
+        cur.execute("DELETE FROM active_sessions WHERE id = %s", (session_id,))
+        conn.commit()
+
+        log_activity(current_user.id, 'session_revoked', details={'session_id': session_id})
+
+        cur.close()
+        conn.close()
+
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@account_center_bp.route('/api/sessions/expired', methods=['DELETE'])
+@login_required
+@admin_required
+def api_revoke_expired_sessions():
+    """Revoke all expired sessions"""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+
+        cur.execute("""
+            DELETE FROM active_sessions
+            WHERE expires_at IS NOT NULL AND expires_at < NOW()
+            RETURNING id
+        """)
+        deleted = cur.fetchall()
+        count = len(deleted)
+        conn.commit()
+
+        log_activity(current_user.id, 'expired_sessions_revoked', details={'count': count})
+
+        cur.close()
+        conn.close()
+
+        return jsonify({'success': True, 'count': count})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ============================================================================
+# API KEYS MANAGEMENT
+# ============================================================================
+
+@account_center_bp.route('/api/api-keys')
+@login_required
+@admin_required
+def api_list_api_keys():
+    """List all API keys"""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        user_id = request.args.get('user_id', type=int)
+        status = request.args.get('status', '')
+
+        query = """
+            SELECT k.*, u.username
+            FROM mcp_api_keys k
+            LEFT JOIN users u ON k.user_id = u.id
+            WHERE 1=1
+        """
+        params = []
+
+        if user_id:
+            query += " AND k.user_id = %s"
+            params.append(user_id)
+        if status == 'active':
+            query += " AND k.is_active = true AND (k.expires_at IS NULL OR k.expires_at > NOW())"
+        elif status == 'inactive':
+            query += " AND k.is_active = false"
+        elif status == 'expired':
+            query += " AND k.expires_at IS NOT NULL AND k.expires_at <= NOW()"
+
+        query += " ORDER BY k.created_at DESC"
+
+        cur.execute(query, params)
+        keys = cur.fetchall()
+
+        # Get users for filter dropdown
+        cur.execute("SELECT id, username FROM users WHERE is_active = true ORDER BY username")
+        users = cur.fetchall()
+
+        cur.close()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'keys': [dict(k) for k in keys],
+            'users': [dict(u) for u in users]
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@account_center_bp.route('/api/api-keys', methods=['POST'])
+@login_required
+@admin_required
+def api_create_api_key():
+    """Generate a new API key"""
+    try:
+        data = request.get_json()
+
+        user_id = data.get('user_id')
+        name = data.get('name', '').strip()
+        description = data.get('description', '')
+        permissions = data.get('permissions', ['read'])
+        expires_in_days = data.get('expires_in_days')
+        rate_limit = data.get('rate_limit_per_hour', 1000)
+
+        if not user_id or not name:
+            return jsonify({'success': False, 'error': 'User and name are required'}), 400
+
+        # Generate a secure API key
+        raw_key = secrets.token_urlsafe(32)
+        key_prefix = 'arch_' + raw_key[:6]
+        key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+
+        expires_at = None
+        if expires_in_days:
+            expires_at = datetime.now() + timedelta(days=int(expires_in_days))
+
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute("""
+            INSERT INTO mcp_api_keys
+            (user_id, key_hash, key_prefix, name, description, permissions,
+             rate_limit_per_hour, expires_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            user_id, key_hash, key_prefix, name, description,
+            psycopg2.extras.Json(permissions), rate_limit, expires_at
+        ))
+
+        new_id = cur.fetchone()['id']
+        conn.commit()
+
+        log_activity(current_user.id, 'api_key_created',
+                     details={'key_id': new_id, 'user_id': user_id, 'name': name})
+
+        cur.close()
+        conn.close()
+
+        # Return the full key only once - it won't be retrievable later
+        full_key = f"arch_{raw_key}"
+
+        return jsonify({
+            'success': True,
+            'key_id': new_id,
+            'api_key': full_key,
+            'key_prefix': key_prefix
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@account_center_bp.route('/api/api-keys/<int:key_id>', methods=['PUT'])
+@login_required
+@admin_required
+def api_update_api_key(key_id):
+    """Update an API key (activate/deactivate)"""
+    try:
+        data = request.get_json()
+
+        conn = get_db()
+        cur = conn.cursor()
+
+        if 'is_active' in data:
+            cur.execute("UPDATE mcp_api_keys SET is_active = %s WHERE id = %s",
+                        (data['is_active'], key_id))
+
+        conn.commit()
+
+        log_activity(current_user.id, 'api_key_updated',
+                     details={'key_id': key_id, 'changes': list(data.keys())})
+
+        cur.close()
+        conn.close()
+
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@account_center_bp.route('/api/api-keys/<int:key_id>', methods=['DELETE'])
+@login_required
+@admin_required
+def api_delete_api_key(key_id):
+    """Delete an API key"""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+
+        cur.execute("DELETE FROM mcp_api_keys WHERE id = %s", (key_id,))
+        conn.commit()
+
+        log_activity(current_user.id, 'api_key_deleted', details={'key_id': key_id})
+
+        cur.close()
+        conn.close()
+
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ============================================================================
+# BULK OPERATIONS API
+# ============================================================================
+
+@account_center_bp.route('/api/bulk/export')
+@login_required
+@admin_required
+def api_bulk_export():
+    """Export users to CSV or JSON"""
+    try:
+        format_type = request.args.get('format', 'csv')
+        scope = request.args.get('scope', 'all')
+
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        query = """
+            SELECT id, username, email, role, subscription_tier, subscription_status,
+                   is_admin, is_active, created_at, last_login
+            FROM users
+            WHERE 1=1
+        """
+
+        if scope == 'active':
+            query += " AND is_active = true"
+        elif scope == 'admins':
+            query += " AND is_admin = true"
+        elif scope == 'premium':
+            query += " AND subscription_tier IN ('pro', 'business', 'enterprise')"
+
+        query += " ORDER BY created_at DESC"
+
+        cur.execute(query)
+        users = cur.fetchall()
+
+        cur.close()
+        conn.close()
+
+        log_activity(current_user.id, 'users_exported',
+                     details={'format': format_type, 'scope': scope, 'count': len(users)})
+
+        if format_type == 'json':
+            # Convert datetime objects to ISO format strings
+            for user in users:
+                for key in ['created_at', 'last_login']:
+                    if user[key]:
+                        user[key] = user[key].isoformat()
+            return Response(
+                json.dumps([dict(u) for u in users], indent=2),
+                mimetype='application/json',
+                headers={'Content-Disposition': 'attachment; filename=users_export.json'}
+            )
+        else:
+            # CSV export
+            output = io.StringIO()
+            writer = csv.writer(output)
+
+            # Header
+            headers = ['id', 'username', 'email', 'role', 'subscription_tier',
+                       'subscription_status', 'is_admin', 'is_active', 'created_at', 'last_login']
+            writer.writerow(headers)
+
+            # Data
+            for user in users:
+                row = [user.get(h, '') for h in headers]
+                writer.writerow(row)
+
+            return Response(
+                output.getvalue(),
+                mimetype='text/csv',
+                headers={'Content-Disposition': 'attachment; filename=users_export.csv'}
+            )
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@account_center_bp.route('/api/bulk/preview', methods=['POST'])
+@login_required
+@admin_required
+def api_bulk_preview():
+    """Preview bulk update operation"""
+    try:
+        data = request.get_json()
+        target = data.get('target', 'free')
+        action = data.get('action', 'upgrade')
+        tier = data.get('tier', 'pro')
+
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Build query based on target
+        query = "SELECT id, username, email, subscription_tier FROM users WHERE is_active = true"
+
+        if target == 'free':
+            query += " AND (subscription_tier = 'free' OR subscription_tier IS NULL)"
+        elif target == 'inactive':
+            query = "SELECT id, username, email, subscription_tier FROM users WHERE is_active = false"
+        # 'selected' would require client-side selected IDs
+
+        cur.execute(query)
+        users = cur.fetchall()
+
+        # Generate action description
+        action_descriptions = {
+            'upgrade': f'Upgrade to {tier.upper()} tier',
+            'downgrade': f'Downgrade to {tier.upper()} tier',
+            'deactivate': 'Deactivate accounts',
+            'reactivate': 'Reactivate accounts'
+        }
+
+        cur.close()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'count': len(users),
+            'users': [dict(u) for u in users[:50]],  # Limit preview
+            'action_description': action_descriptions.get(action, action)
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@account_center_bp.route('/api/bulk/update', methods=['POST'])
+@login_required
+@admin_required
+def api_bulk_update():
+    """Execute bulk update operation"""
+    try:
+        data = request.get_json()
+        target = data.get('target', 'free')
+        action = data.get('action', 'upgrade')
+        tier = data.get('tier', 'pro')
+
+        conn = get_db()
+        cur = conn.cursor()
+
+        # Build update based on action
+        if action in ['upgrade', 'downgrade']:
+            if target == 'free':
+                cur.execute("""
+                    UPDATE users SET subscription_tier = %s
+                    WHERE is_active = true AND (subscription_tier = 'free' OR subscription_tier IS NULL)
+                """, (tier,))
+            elif target == 'inactive':
+                cur.execute("""
+                    UPDATE users SET subscription_tier = %s
+                    WHERE is_active = false
+                """, (tier,))
+
+        elif action == 'deactivate':
+            if target == 'free':
+                cur.execute("""
+                    UPDATE users SET is_active = false
+                    WHERE is_active = true AND (subscription_tier = 'free' OR subscription_tier IS NULL)
+                """)
+            elif target == 'inactive':
+                pass  # Already inactive
+
+        elif action == 'reactivate':
+            if target == 'inactive':
+                cur.execute("UPDATE users SET is_active = true WHERE is_active = false")
+
+        count = cur.rowcount
+        conn.commit()
+
+        log_activity(current_user.id, 'bulk_update_executed',
+                     details={'target': target, 'action': action, 'tier': tier, 'count': count})
+
+        cur.close()
+        conn.close()
+
+        return jsonify({'success': True, 'count': count})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500

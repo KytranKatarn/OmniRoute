@@ -273,6 +273,19 @@ def api_get_user(user_id):
         )
         recent_activity = cur.fetchall()
 
+        # Get recent failed login attempts for this user (by username)
+        cur.execute(
+            """
+            SELECT username, ip_address, reason, attempted_at
+            FROM failed_logins
+            WHERE LOWER(username) = LOWER(%s)
+            ORDER BY attempted_at DESC
+            LIMIT 10
+        """,
+            (user["username"],),
+        )
+        failed_logins = cur.fetchall()
+
         cur.close()
         conn.close()
 
@@ -282,6 +295,7 @@ def api_get_user(user_id):
                 "user": dict(user),
                 "stats": dict(stats) if stats else {},
                 "recent_activity": [dict(a) for a in recent_activity],
+                "failed_logins": [dict(f) for f in failed_logins],
             }
         )
     except Exception as e:
@@ -462,7 +476,7 @@ def api_reset_password(user_id):
 @admin_required
 def api_list_roles():
     """List available roles with permission counts and tier mappings"""
-    from rbac import Permission, ROLE_PERMISSIONS, Role
+    from rbac import ROLE_PERMISSIONS, Role  # noqa: F401
 
     # Tier-to-role mapping (role_level from subscription_tiers table)
     tier_role_map = {
@@ -526,7 +540,7 @@ def api_list_roles():
 def api_list_permissions():
     """List permissions grouped by category with human-readable labels"""
     try:
-        from rbac import Permission, ROLE_PERMISSIONS, Role
+        from rbac import Permission, ROLE_PERMISSIONS, Role  # noqa: F401
 
         # Human-readable labels and category groupings
         PERM_META = {
@@ -680,7 +694,7 @@ def api_update_user_role(user_id):
 def api_list_tiers():
     """List subscription tiers with role mapping, permissions, and module access"""
     try:
-        from rbac import Role, ROLE_PERMISSIONS, Permission
+        from rbac import Role, ROLE_PERMISSIONS, Permission  # noqa: F401
         from module_registry import get_enabled_modules
 
         conn = get_db()
@@ -752,19 +766,118 @@ def api_list_tiers():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@account_center_bp.route("/api/users/<int:user_id>/subscription")
+@login_required
+@admin_required
+def api_get_subscription(user_id):
+    """Get user subscription details, usage, and available tiers"""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Get user + subscription tier + user_subscriptions data
+        cur.execute(
+            """
+            SELECT u.id, u.username, u.subscription_tier, u.subscription_status,
+                   t.id as tier_id, t.name as tier_name, t.display_name, t.color,
+                   t.price_monthly, t.features, t.limits, t.role_level,
+                   us.status as sub_status, us.started_at, us.expires_at, us.payment_method
+            FROM users u
+            LEFT JOIN subscription_tiers t ON t.name = u.subscription_tier
+            LEFT JOIN user_subscriptions us ON us.user_id = u.id
+            WHERE u.id = %s
+        """,
+            (user_id,),
+        )
+        row = cur.fetchone()
+
+        if not row:
+            cur.close()
+            conn.close()
+            return jsonify({"success": False, "error": "User not found"}), 404
+
+        # Map role_level to role name
+        role_level = row.get("role_level") or 10
+        level_role_map = {0: "PUBLIC", 10: "USER", 20: "PREMIUM", 90: "ADMIN", 100: "SUPER_ADMIN"}
+        mapped_role = level_role_map.get(role_level, "USER")
+
+        subscription = {
+            "tier_id": row["tier_id"],
+            "tier_name": row["tier_name"] or row["subscription_tier"] or "free",
+            "display_name": row["display_name"] or "Free",
+            "color": row["color"] or "#6b7280",
+            "price": row["price_monthly"] or 0,
+            "features": row["features"] or [],
+            "limits": row["limits"] or {},
+            "role_level": role_level,
+            "mapped_role": mapped_role,
+            "status": row["sub_status"] or row["subscription_status"] or "active",
+            "started_at": row["started_at"],
+            "expires_at": row["expires_at"],
+            "payment_method": row["payment_method"],
+        }
+
+        # Get usage counts
+        cur.execute(
+            """
+            SELECT
+                (SELECT COUNT(*)
+                    FROM app_builder_projects
+                    WHERE user_id = %s) as app_projects,
+                (SELECT COUNT(*)
+                    FROM website_builder_projects
+                    WHERE user_id = %s) as website_projects,
+                (SELECT COUNT(*)
+                    FROM token_usage_log
+                    WHERE user_id = %s
+                    AND created_at > NOW() - INTERVAL '1 day'
+                ) as api_calls_today
+        """,
+            (user_id, user_id, user_id),
+        )
+        usage = dict(cur.fetchone()) if cur.rowcount else {}
+
+        # Get all enabled tiers
+        cur.execute(
+            """
+            SELECT id, name, display_name, color, price_monthly, features, limits, role_level
+            FROM subscription_tiers
+            WHERE enabled = true
+            ORDER BY sort_order
+        """
+        )
+        available_tiers = [dict(t) for t in cur.fetchall()]
+
+        cur.close()
+        conn.close()
+
+        return jsonify(
+            {
+                "success": True,
+                "subscription": subscription,
+                "usage": usage,
+                "available_tiers": available_tiers,
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @account_center_bp.route("/api/users/<int:user_id>/subscription", methods=["PUT"])
 @login_required
 @admin_required
 def api_update_subscription(user_id):
-    """Update user's subscription tier"""
+    """Update user's subscription tier, status, and expiry"""
     try:
         data = request.get_json()
         tier = data.get("tier", "free")
         status = data.get("status", "active")
+        expires_at = data.get("expires_at")  # ISO date string or null
 
         conn = get_db()
-        cur = conn.cursor()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
+        # Update users table
         cur.execute(
             """
             UPDATE users SET subscription_tier = %s, subscription_status = %s WHERE id = %s
@@ -772,12 +885,45 @@ def api_update_subscription(user_id):
             (tier, status, user_id),
         )
 
+        # Upsert user_subscriptions table
+        # Look up tier_id from subscription_tiers
+        cur.execute("SELECT id FROM subscription_tiers WHERE name = %s", (tier,))
+        tier_row = cur.fetchone()
+        tier_id = tier_row["id"] if tier_row else None
+
+        if tier_id:
+            # Parse expires_at if provided
+            parsed_expires = None
+            if expires_at:
+                try:
+                    parsed_expires = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+                except (ValueError, AttributeError):
+                    parsed_expires = None
+
+            cur.execute(
+                """
+                INSERT INTO user_subscriptions (user_id, tier_id, status, expires_at)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (user_id) DO UPDATE
+                SET tier_id = EXCLUDED.tier_id,
+                    status = EXCLUDED.status,
+                    expires_at = EXCLUDED.expires_at,
+                    updated_at = NOW()
+            """,
+                (user_id, tier_id, status, parsed_expires),
+            )
+
         conn.commit()
 
         log_activity(
             current_user.id,
             "subscription_changed",
-            details={"target_user_id": user_id, "new_tier": tier, "status": status},
+            details={
+                "target_user_id": user_id,
+                "new_tier": tier,
+                "status": status,
+                "expires_at": expires_at,
+            },
         )
 
         cur.close()
@@ -816,9 +962,17 @@ def api_get_usage(user_id):
         cur.execute(
             """
             SELECT
-                (SELECT COUNT(*) FROM app_builder_projects WHERE user_id = %s) as app_projects,
-                (SELECT COUNT(*) FROM website_builder_projects WHERE user_id = %s) as website_projects,
-                (SELECT COUNT(*) FROM token_usage_log WHERE user_id = %s AND created_at > NOW() - INTERVAL '1 day') as api_calls_today
+                (SELECT COUNT(*)
+                    FROM app_builder_projects
+                    WHERE user_id = %s) as app_projects,
+                (SELECT COUNT(*)
+                    FROM website_builder_projects
+                    WHERE user_id = %s) as website_projects,
+                (SELECT COUNT(*)
+                    FROM token_usage_log
+                    WHERE user_id = %s
+                    AND created_at > NOW() - INTERVAL '1 day'
+                ) as api_calls_today
         """,
             (user_id, user_id, user_id),
         )
@@ -827,7 +981,14 @@ def api_get_usage(user_id):
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "tier": tier, "limits": limits, "usage": dict(usage) if usage else {}})
+        return jsonify(
+            {
+                "success": True,
+                "tier": tier,
+                "limits": limits,
+                "usage": dict(usage) if usage else {},
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -1582,10 +1743,21 @@ def api_security_overview():
 @login_required
 @admin_required
 def api_failed_logins():
-    """Get recent failed login attempts"""
+    """Get recent failed login attempts with pagination"""
     try:
+        limit = request.args.get("limit", 100, type=int)
+        offset = request.args.get("offset", 0, type=int)
+
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            SELECT COUNT(*) as count FROM failed_logins
+            WHERE attempted_at > NOW() - INTERVAL '24 hours'
+        """
+        )
+        total = cur.fetchone()["count"]
 
         cur.execute(
             """
@@ -1593,15 +1765,16 @@ def api_failed_logins():
             FROM failed_logins
             WHERE attempted_at > NOW() - INTERVAL '24 hours'
             ORDER BY attempted_at DESC
-            LIMIT 100
-        """
+            LIMIT %s OFFSET %s
+        """,
+            (limit, offset),
         )
         logins = cur.fetchall()
 
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "logins": [dict(l) for l in logins]})
+        return jsonify({"success": True, "logins": [dict(row) for row in logins], "total": total})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -1640,20 +1813,25 @@ def api_list_2fa_users():
 def api_toggle_2fa(user_id):
     """Enable, disable, or reset 2FA for a user"""
     try:
+        import pyotp
+        import qrcode
+        import qrcode.constants
+        import base64
+        from io import BytesIO
+
         data = request.get_json()
         enabled = data.get("enabled", False)
         reset = data.get("reset", False)
 
         conn = get_db()
-        cur = conn.cursor()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
 
         totp_secret = None
+        qr_code_data = None
 
         if enabled and reset:
             # Reset: generate new TOTP secret, keep enabled
-            import base64
-
-            totp_secret = base64.b32encode(secrets.token_bytes(20)).decode("utf-8")
+            totp_secret = pyotp.random_base32()
             cur.execute(
                 """
                 UPDATE users SET totp_secret = %s, totp_enabled = true, totp_verified_at = NOW()
@@ -1664,9 +1842,7 @@ def api_toggle_2fa(user_id):
             action = "2fa_reset"
         elif enabled:
             # Enable: generate TOTP secret
-            import base64
-
-            totp_secret = base64.b32encode(secrets.token_bytes(20)).decode("utf-8")
+            totp_secret = pyotp.random_base32()
             cur.execute(
                 """
                 UPDATE users SET totp_secret = %s, totp_enabled = true, totp_verified_at = NOW()
@@ -1688,6 +1864,32 @@ def api_toggle_2fa(user_id):
 
         conn.commit()
 
+        # Generate QR code if we have a new secret
+        if totp_secret:
+            # Get username for provisioning URI
+            cur.execute("SELECT username FROM users WHERE id = %s", (user_id,))
+            user_row = cur.fetchone()
+            username = user_row["username"] if user_row else f"user_{user_id}"
+
+            totp = pyotp.TOTP(totp_secret)
+            provisioning_uri = totp.provisioning_uri(name=username, issuer_name="ARCHIE")
+
+            # Generate QR code as base64 PNG
+            qr = qrcode.QRCode(
+                version=1,
+                error_correction=qrcode.constants.ERROR_CORRECT_L,
+                box_size=6,
+                border=4,
+            )
+            qr.add_data(provisioning_uri)
+            qr.make(fit=True)
+            img = qr.make_image(fill_color="black", back_color="white")
+
+            buffer = BytesIO()
+            img.save(buffer, format="PNG")
+            buffer.seek(0)
+            qr_code_data = "data:image/png;base64," + base64.b64encode(buffer.read()).decode("utf-8")
+
         log_activity(current_user.id, action, details={"target_user_id": user_id})
 
         cur.close()
@@ -1696,6 +1898,7 @@ def api_toggle_2fa(user_id):
         result = {"success": True}
         if totp_secret:
             result["totp_secret"] = totp_secret
+            result["qr_code"] = qr_code_data
         return jsonify(result)
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

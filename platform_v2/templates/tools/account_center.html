@@ -81,6 +81,7 @@
         padding: var(--archie-space-5);
         position: relative;
         overflow: hidden;
+        text-align: center;
     }
 
     .security-card::before {
@@ -99,6 +100,7 @@
     .security-card-header {
         display: flex;
         align-items: center;
+        justify-content: center;
         gap: var(--archie-space-3);
         margin-bottom: var(--archie-space-3);
     }
@@ -378,7 +380,7 @@
         font-size: var(--archie-text-xs);
         text-transform: uppercase;
         letter-spacing: 0.05em;
-        color: var(--archie-text-tertiary);
+        color: var(--archie-text-primary);
         border-bottom: 2px solid var(--archie-border-default);
         white-space: nowrap;
     }
@@ -433,6 +435,7 @@
         padding: var(--archie-space-2) var(--archie-space-3);
         border-bottom: 1px solid var(--archie-border-subtle);
         text-align: center;
+        color: var(--archie-text-primary);
     }
 
     .perm-matrix-table .perm-row td:first-child {
@@ -680,6 +683,420 @@
         padding: var(--archie-space-8);
         color: var(--archie-text-secondary);
     }
+
+    /* Sessions refresh countdown indicator */
+    .sessions-refresh-indicator {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: var(--archie-radius-sm);
+        background: var(--archie-accent-alpha-10);
+        border: 1px solid var(--archie-border-subtle);
+    }
+
+    .refresh-ring {
+        transform: rotate(-90deg);
+    }
+
+    .refresh-ring-bg {
+        fill: none;
+        stroke: var(--archie-border-default);
+        stroke-width: 2;
+    }
+
+    .refresh-ring-progress {
+        fill: none;
+        stroke: var(--archie-accent);
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-dasharray: 50.265; /* 2 * PI * 8 */
+        stroke-dashoffset: 0;
+        transition: none;
+    }
+
+    .refresh-ring-progress.animating {
+        transition: stroke-dashoffset 1s linear;
+    }
+
+    .refresh-label {
+        font-size: var(--archie-text-xs);
+        font-family: var(--archie-font-mono);
+        color: var(--archie-text-tertiary);
+        min-width: 22px;
+        text-align: center;
+    }
+
+    /* Profile Tabs */
+    .profile-tabs {
+        display: flex;
+        gap: var(--archie-space-1);
+        border-bottom: 1px solid var(--archie-border-default);
+        margin-bottom: var(--archie-space-5);
+        padding: 0 var(--archie-space-2);
+    }
+
+    .profile-tab-btn {
+        padding: var(--archie-space-2) var(--archie-space-4);
+        background: transparent;
+        border: none;
+        border-bottom: 2px solid transparent;
+        color: var(--archie-text-secondary);
+        font-size: var(--archie-text-sm);
+        font-family: var(--archie-font-heading);
+        letter-spacing: 0.04em;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .profile-tab-btn:hover {
+        color: var(--archie-text-primary);
+        background: var(--archie-accent-alpha-10);
+    }
+
+    .profile-tab-btn.active {
+        color: var(--archie-accent);
+        border-bottom-color: var(--archie-accent);
+    }
+
+    /* Profile Header */
+    .profile-header {
+        display: flex;
+        align-items: center;
+        gap: var(--archie-space-4);
+        padding: var(--archie-space-4) var(--archie-space-2);
+        margin-bottom: var(--archie-space-2);
+    }
+
+    .profile-avatar {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--archie-font-heading);
+        font-size: var(--archie-text-xl);
+        color: #fff;
+        background: var(--archie-accent);
+        flex-shrink: 0;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .profile-header-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .profile-header-name {
+        font-family: var(--archie-font-heading);
+        font-size: var(--archie-text-lg);
+        color: var(--archie-text-primary);
+        margin-bottom: var(--archie-space-1);
+    }
+
+    .profile-header-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--archie-space-2);
+    }
+
+    .profile-header-meta {
+        font-size: var(--archie-text-xs);
+        color: var(--archie-text-tertiary);
+        margin-top: var(--archie-space-1);
+    }
+
+    /* Inline Editable Fields */
+    .inline-field {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: var(--archie-space-2) 0;
+        border-bottom: 1px solid var(--archie-border-subtle);
+    }
+
+    .inline-field-label {
+        font-size: var(--archie-text-xs);
+        color: var(--archie-text-tertiary);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        min-width: 100px;
+    }
+
+    .inline-field-value {
+        flex: 1;
+        color: var(--archie-text-primary);
+        font-size: var(--archie-text-sm);
+    }
+
+    .inline-field-edit {
+        display: none;
+        flex: 1;
+        gap: var(--archie-space-2);
+        align-items: center;
+    }
+
+    .inline-field-edit input,
+    .inline-field-edit select {
+        flex: 1;
+        padding: var(--archie-space-1) var(--archie-space-2);
+        background: var(--archie-bg-input);
+        border: 1px solid var(--archie-border-default);
+        border-radius: var(--archie-radius-sm);
+        color: var(--archie-text-primary);
+        font-size: var(--archie-text-sm);
+    }
+
+    .inline-field-actions {
+        display: flex;
+        gap: var(--archie-space-1);
+        margin-left: var(--archie-space-2);
+    }
+
+    .inline-field-actions button {
+        padding: 2px 8px;
+        font-size: 11px;
+        border-radius: var(--archie-radius-sm);
+        border: 1px solid var(--archie-border-default);
+        background: transparent;
+        color: var(--archie-text-secondary);
+        cursor: pointer;
+    }
+
+    .inline-field-actions button.save-btn {
+        border-color: var(--archie-accent);
+        color: var(--archie-accent);
+    }
+
+    .inline-field.editing .inline-field-value { display: none; }
+    .inline-field.editing .inline-field-edit { display: flex; }
+
+    /* Usage Bars */
+    .usage-bar-wrap {
+        margin-bottom: var(--archie-space-3);
+    }
+
+    .usage-bar-label {
+        display: flex;
+        justify-content: space-between;
+        font-size: var(--archie-text-xs);
+        color: var(--archie-text-secondary);
+        margin-bottom: var(--archie-space-1);
+    }
+
+    .usage-bar {
+        height: 8px;
+        background: var(--archie-bg-input);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .usage-bar-fill {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.4s ease;
+        background: #22c55e;
+    }
+
+    .usage-bar-fill.warning { background: #f59e0b; }
+    .usage-bar-fill.danger { background: #ef4444; }
+
+    /* Activity List (compact) */
+    .activity-list-item {
+        display: flex;
+        align-items: center;
+        gap: var(--archie-space-3);
+        padding: var(--archie-space-2) 0;
+        border-bottom: 1px solid var(--archie-border-subtle);
+        font-size: var(--archie-text-sm);
+    }
+
+    .activity-list-item:last-child { border-bottom: none; }
+
+    .activity-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--archie-accent);
+        flex-shrink: 0;
+    }
+
+    .activity-list-action {
+        flex: 1;
+        color: var(--archie-text-primary);
+    }
+
+    .activity-list-module {
+        font-size: var(--archie-text-xs);
+        padding: 1px 6px;
+        border-radius: var(--archie-radius-sm);
+        background: var(--archie-accent-alpha-10);
+        color: var(--archie-accent);
+    }
+
+    .activity-list-time {
+        font-size: var(--archie-text-xs);
+        color: var(--archie-text-tertiary);
+        white-space: nowrap;
+    }
+
+    /* Profile two-column layout */
+    .profile-two-col {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: var(--archie-space-5);
+    }
+
+    @media (max-width: 700px) {
+        .profile-two-col { grid-template-columns: 1fr; }
+    }
+
+    .profile-section-title {
+        font-family: var(--archie-font-heading);
+        font-size: var(--archie-text-sm);
+        color: var(--archie-accent);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-bottom: var(--archie-space-3);
+    }
+
+    /* Subscription Tier Card (profile) */
+    .sub-tier-card {
+        border: 2px solid var(--archie-border-default);
+        border-radius: var(--archie-radius-lg);
+        padding: var(--archie-space-4);
+        margin-bottom: var(--archie-space-4);
+    }
+
+    .sub-tier-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: var(--archie-space-3);
+    }
+
+    .sub-tier-name {
+        font-family: var(--archie-font-heading);
+        font-size: var(--archie-text-lg);
+    }
+
+    .sub-tier-price {
+        font-size: var(--archie-text-sm);
+        color: var(--archie-text-secondary);
+    }
+
+    /* Subscription Management Panel */
+    .sub-mgmt-user-select {
+        display: flex;
+        align-items: center;
+        gap: var(--archie-space-3);
+        margin-bottom: var(--archie-space-4);
+    }
+
+    .sub-mgmt-user-select select {
+        flex: 1;
+        max-width: 300px;
+    }
+
+    .sub-mgmt-section {
+        margin-bottom: var(--archie-space-5);
+        padding-bottom: var(--archie-space-4);
+        border-bottom: 1px solid var(--archie-border-subtle);
+    }
+
+    .sub-mgmt-section:last-child { border-bottom: none; }
+
+    .sub-mgmt-section-title {
+        font-family: var(--archie-font-heading);
+        font-size: var(--archie-text-sm);
+        color: var(--archie-accent);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-bottom: var(--archie-space-3);
+    }
+
+    .tier-change-preview {
+        background: var(--archie-bg-surface);
+        border: 1px solid var(--archie-accent-alpha-20, rgba(249,115,22,0.2));
+        border-radius: var(--archie-radius-md);
+        padding: var(--archie-space-4);
+        margin-top: var(--archie-space-3);
+    }
+
+    .tier-change-row {
+        display: flex;
+        justify-content: space-between;
+        padding: var(--archie-space-1) 0;
+        font-size: var(--archie-text-sm);
+        color: var(--archie-text-primary);
+    }
+
+    .tier-change-row .old-val { color: var(--archie-text-secondary); text-decoration: line-through; }
+    .tier-change-row .new-val-up { color: #22c55e; }
+    .tier-change-row .new-val-down { color: #ef4444; }
+
+    /* Pagination controls */
+    .pagination-controls {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: var(--archie-space-3) 0;
+        gap: var(--archie-space-3);
+        flex-wrap: wrap;
+    }
+    .pagination-controls .page-size-selector {
+        display: flex;
+        align-items: center;
+        gap: var(--archie-space-2);
+        font-size: var(--archie-text-sm);
+        color: var(--archie-text-secondary);
+    }
+    .pagination-controls .page-size-selector select {
+        padding: var(--archie-space-1) var(--archie-space-2);
+        background: var(--archie-bg-input);
+        border: 1px solid var(--archie-border-default);
+        border-radius: var(--archie-radius-sm);
+        color: var(--archie-text-primary);
+        font-size: var(--archie-text-sm);
+    }
+    .pagination-controls .page-nav {
+        display: flex;
+        align-items: center;
+        gap: var(--archie-space-2);
+    }
+    .pagination-controls .page-info {
+        font-size: var(--archie-text-sm);
+        color: var(--archie-text-secondary);
+        min-width: 120px;
+        text-align: center;
+    }
+
+    /* Sub mgmt user table */
+    .sub-mgmt-user-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .sub-mgmt-user-table th {
+        text-align: left;
+        padding: var(--archie-space-2) var(--archie-space-3);
+        border-bottom: 1px solid var(--archie-border-default);
+        color: var(--archie-text-secondary);
+        font-size: var(--archie-text-sm);
+        font-weight: 500;
+    }
+    .sub-mgmt-user-table td {
+        padding: var(--archie-space-2) var(--archie-space-3);
+        border-bottom: 1px solid var(--archie-border-default);
+        color: var(--archie-text-primary);
+    }
+    .sub-mgmt-user-table tr.selected-row {
+        background: var(--archie-accent-alpha-10, rgba(249,115,22,0.1));
+    }
+    .sub-mgmt-user-table tr:hover {
+        background: var(--archie-bg-hover);
+    }
 </style>
 {% endblock %}
 
@@ -727,7 +1144,7 @@
 
             <!-- Tabs -->
             <div class="tab-nav" style="margin-bottom: var(--archie-space-6);">
-                <button class="tab-btn active" data-tab="list">LIST</button>
+                <button class="tab-btn active" data-tab="list">USERS</button>
                 <button class="tab-btn" data-tab="permissions">PERMISSIONS</button>
                 <button class="tab-btn" data-tab="subscriptions">SUBSCRIPTIONS</button>
                 <button class="tab-btn" data-tab="security">SECURITY</button>
@@ -743,8 +1160,10 @@
                     <div class="filters">
                         <select id="filter-role" class="form-select">
                             <option value="">All Roles</option>
-                            <option value="admin">Admin</option>
                             <option value="user">User</option>
+                            <option value="premium">Premium</option>
+                            <option value="admin">Admin</option>
+                            <option value="super_admin">Super Admin</option>
                         </select>
                         <select id="filter-tier" class="form-select">
                             <option value="">All Tiers</option>
@@ -752,6 +1171,8 @@
                             <option value="pro">Pro</option>
                             <option value="business">Business</option>
                             <option value="enterprise">Enterprise</option>
+                            <option value="kytran">Kytran Staff</option>
+                            <option value="vip">VIP</option>
                         </select>
                         <input type="text" id="search-users" class="form-input" placeholder="Search users..." style="width: 200px;">
                     </div>
@@ -783,10 +1204,21 @@
                 </table>
 
                 <!-- Pagination -->
-                <div class="pagination" id="users-pagination">
-                    <button class="btn btn-sm" onclick="changePage(-1)" id="prev-page-btn" disabled>Previous</button>
-                    <span class="pagination-info" id="pagination-info">Page 1 of 1</span>
-                    <button class="btn btn-sm" onclick="changePage(1)" id="next-page-btn" disabled>Next</button>
+                <div class="pagination-controls" id="users-pagination">
+                    <div class="page-size-selector">
+                        <span>Show</span>
+                        <select id="users-page-size" onchange="changePageSize(this.value)">
+                            <option value="5">5</option>
+                            <option value="10" selected>10</option>
+                            <option value="20">20</option>
+                        </select>
+                        <span>per page</span>
+                    </div>
+                    <div class="page-nav">
+                        <button class="btn btn-sm" onclick="changePage(-1)" id="prev-page-btn" disabled>Previous</button>
+                        <span class="page-info" id="pagination-info">Showing 1–10 of 0</span>
+                        <button class="btn btn-sm" onclick="changePage(1)" id="next-page-btn" disabled>Next</button>
+                    </div>
                 </div>
             </div>
 
@@ -858,11 +1290,33 @@
                 <div class="card" style="margin-top: var(--archie-space-6);">
                     <div class="card-header">Subscription Management</div>
                     <div class="card-body">
-                        <p style="color: var(--archie-text-secondary); margin-bottom: var(--archie-space-4);">Select a user from the LIST tab to manage their subscription.</p>
-                        <div id="subscription-management">
-                            <div class="empty-state">
-                                <div class="empty-state-icon">$</div>
-                                <p>No user selected</p>
+                        <table class="sub-mgmt-user-table">
+                            <thead>
+                                <tr>
+                                    <th>Username</th>
+                                    <th>Tier</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sub-mgmt-user-tbody">
+                                <tr><td colspan="4" style="text-align: center; padding: var(--archie-space-4); color: var(--archie-text-secondary);">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                        <div class="pagination-controls" id="sub-mgmt-pagination">
+                            <div class="page-size-selector">
+                                <span>Show</span>
+                                <select id="sub-mgmt-page-size" onchange="changeSubMgmtPageSize(this.value)">
+                                    <option value="5" selected>5</option>
+                                    <option value="10">10</option>
+                                    <option value="20">20</option>
+                                </select>
+                                <span>per page</span>
+                            </div>
+                            <div class="page-nav">
+                                <button class="btn btn-sm" onclick="changeSubMgmtPage(-1)" id="sub-mgmt-prev-btn" disabled>Previous</button>
+                                <span class="page-info" id="sub-mgmt-pagination-info">Showing 1–5 of 0</span>
+                                <button class="btn btn-sm" onclick="changeSubMgmtPage(1)" id="sub-mgmt-next-btn" disabled>Next</button>
                             </div>
                         </div>
                     </div>
@@ -961,6 +1415,22 @@
                                 </tr>
                             </tbody>
                         </table>
+                        <div class="pagination-controls" id="failed-logins-pagination">
+                            <div class="page-size-selector">
+                                <span>Show</span>
+                                <select id="failed-logins-page-size" onchange="changeFailedLoginsPageSize(this.value)">
+                                    <option value="5">5</option>
+                                    <option value="10" selected>10</option>
+                                    <option value="20">20</option>
+                                </select>
+                                <span>per page</span>
+                            </div>
+                            <div class="page-nav">
+                                <button class="btn btn-sm" onclick="changeFailedLoginsPage(-1)" id="fl-prev-btn" disabled>Previous</button>
+                                <span class="page-info" id="fl-pagination-info">Showing 1–10 of 0</span>
+                                <button class="btn btn-sm" onclick="changeFailedLoginsPage(1)" id="fl-next-btn" disabled>Next</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -1004,6 +1474,13 @@
                             <option value="">All Users</option>
                         </select>
                         <input type="text" id="search-sessions" class="form-input" placeholder="Search by IP..." style="width: 200px;">
+                        <div id="sessions-refresh-indicator" class="sessions-refresh-indicator" style="display: none;">
+                            <svg class="refresh-ring" viewBox="0 0 20 20" width="20" height="20">
+                                <circle class="refresh-ring-bg" cx="10" cy="10" r="8" />
+                                <circle class="refresh-ring-progress" cx="10" cy="10" r="8" />
+                            </svg>
+                            <span class="refresh-label">15s</span>
+                        </div>
                     </div>
                     <button class="btn btn-danger" onclick="revokeAllSessions()">Revoke All Expired</button>
                 </div>
@@ -1176,6 +1653,8 @@
                                     <option value="pro">Pro</option>
                                     <option value="business">Business</option>
                                     <option value="enterprise">Enterprise</option>
+                                    <option value="kytran">Kytran Staff</option>
+                                    <option value="vip">VIP</option>
                                 </select>
                             </div>
                         </div>
@@ -1209,6 +1688,13 @@
                             <option value="user_created">User Created</option>
                             <option value="user_updated">User Updated</option>
                         </select>
+                        <div id="activity-refresh-indicator" class="sessions-refresh-indicator" style="display: none;">
+                            <svg class="refresh-ring" viewBox="0 0 20 20" width="20" height="20">
+                                <circle class="refresh-ring-bg" cx="10" cy="10" r="8" />
+                                <circle class="activity-ring-progress refresh-ring-progress" cx="10" cy="10" r="8" />
+                            </svg>
+                            <span class="activity-refresh-label refresh-label">15s</span>
+                        </div>
                     </div>
                     <button class="btn" onclick="loadActivity()">Refresh</button>
                 </div>
@@ -1227,6 +1713,22 @@
                             <div class="loading">
                                 <div class="loading-spinner"></div>
                                 <p>Loading activity...</p>
+                            </div>
+                        </div>
+                        <div class="pagination-controls" id="activity-pagination">
+                            <div class="page-size-selector">
+                                <span>Show</span>
+                                <select id="activity-page-size" onchange="changeActivityPageSize(this.value)">
+                                    <option value="5">5</option>
+                                    <option value="10" selected>10</option>
+                                    <option value="20">20</option>
+                                </select>
+                                <span>per page</span>
+                            </div>
+                            <div class="page-nav">
+                                <button class="btn btn-sm" onclick="changeActivityPage(-1)" id="activity-prev-btn" disabled>Previous</button>
+                                <span class="page-info" id="activity-pagination-info">Showing 1–10 of 0</span>
+                                <button class="btn btn-sm" onclick="changeActivityPage(1)" id="activity-next-btn" disabled>Next</button>
                             </div>
                         </div>
                     </div>
@@ -1272,6 +1774,8 @@
                         <option value="pro">Pro</option>
                         <option value="business">Business</option>
                         <option value="enterprise">Enterprise</option>
+                        <option value="kytran">Kytran Staff</option>
+                        <option value="vip">VIP</option>
                     </select>
                 </div>
             </form>
@@ -1283,14 +1787,14 @@
     </div>
 </div>
 
-<!-- User Details Modal -->
+<!-- User Profile Modal -->
 <div class="modal-overlay" id="details-modal">
-    <div class="modal modal-lg">
+    <div class="modal modal-lg" style="max-width: 720px;">
         <div class="modal-header">
-            <h3>User Details</h3>
+            <h3 id="profile-modal-title">User Profile</h3>
             <button class="modal-close" onclick="closeDetailsModal()">&times;</button>
         </div>
-        <div class="modal-body" id="user-details-content">
+        <div class="modal-body" id="user-details-content" style="max-height: 75vh; overflow-y: auto;">
             <div class="loading">
                 <div class="loading-spinner"></div>
             </div>
@@ -1382,6 +1886,17 @@
     </div>
 </div>
 
+<!-- Subscription Management Modal -->
+<div class="modal-overlay" id="sub-mgmt-modal-overlay">
+    <div class="modal" style="max-width: 700px;">
+        <div class="modal-header">
+            <h3 class="modal-title" id="sub-mgmt-modal-title">Manage Subscription</h3>
+            <button class="modal-close" onclick="closeSubMgmtModal()">&times;</button>
+        </div>
+        <div class="modal-body" id="subscription-management"></div>
+    </div>
+</div>
+
 <script>
 // Global state
 let users = [];
@@ -1389,8 +1904,58 @@ let selectedUserId = null;
 let activityChart = null;
 let currentPage = 1;
 let totalPages = 1;
-let pageSize = 25;
+let totalUsers = 0;
+let pageSize = 10;
 let importData = [];
+
+// Sessions auto-refresh with animated countdown
+let sessionsRefreshInterval = null;
+let sessionsCountdownInterval = null;
+let sessionsCountdown = 15;
+const SESSIONS_REFRESH_S = 15;
+const CIRCUMFERENCE = 50.265; // 2 * PI * 8
+
+function startSessionsAutoRefresh() {
+    stopSessionsAutoRefresh();
+    sessionsCountdown = SESSIONS_REFRESH_S;
+    var indicator = document.getElementById('sessions-refresh-indicator');
+    if (indicator) indicator.style.display = 'flex';
+    updateRefreshRing();
+
+    sessionsCountdownInterval = setInterval(function() {
+        sessionsCountdown--;
+        if (sessionsCountdown <= 0) {
+            loadSessions();
+            sessionsCountdown = SESSIONS_REFRESH_S;
+        }
+        updateRefreshRing();
+    }, 1000);
+}
+
+function stopSessionsAutoRefresh() {
+    if (sessionsCountdownInterval) {
+        clearInterval(sessionsCountdownInterval);
+        sessionsCountdownInterval = null;
+    }
+    if (sessionsRefreshInterval) {
+        clearInterval(sessionsRefreshInterval);
+        sessionsRefreshInterval = null;
+    }
+    var indicator = document.getElementById('sessions-refresh-indicator');
+    if (indicator) indicator.style.display = 'none';
+}
+
+function updateRefreshRing() {
+    var progress = document.querySelector('.refresh-ring-progress');
+    var label = document.querySelector('.refresh-label');
+    if (!progress || !label) return;
+
+    var fraction = sessionsCountdown / SESSIONS_REFRESH_S;
+    var offset = CIRCUMFERENCE * (1 - fraction);
+    progress.classList.add('animating');
+    progress.style.strokeDashoffset = offset;
+    label.textContent = sessionsCountdown + 's';
+}
 
 // Tab switching
 document.querySelectorAll('.tab-btn').forEach(tab => {
@@ -1400,12 +1965,16 @@ document.querySelectorAll('.tab-btn').forEach(tab => {
         tab.classList.add('active');
         document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
 
+        // Stop auto-refresh when leaving tabs
+        stopSessionsAutoRefresh();
+        stopActivityAutoRefresh();
+
         if (tab.dataset.tab === 'permissions') loadPermissions();
         if (tab.dataset.tab === 'subscriptions') loadTiers();
         if (tab.dataset.tab === 'security') loadSecurityData();
-        if (tab.dataset.tab === 'sessions') loadSessions();
+        if (tab.dataset.tab === 'sessions') { loadSessions(); startSessionsAutoRefresh(); }
         if (tab.dataset.tab === 'api-keys') loadApiKeys();
-        if (tab.dataset.tab === 'activity') loadActivity();
+        if (tab.dataset.tab === 'activity') { loadActivity(); startActivityAutoRefresh(); }
     });
 });
 
@@ -1440,7 +2009,8 @@ async function loadUsers() {
         const data = await res.json();
         if (data.success) {
             users = data.users;
-            totalPages = Math.ceil(data.total / pageSize) || 1;
+            totalUsers = data.total || 0;
+            totalPages = Math.ceil(totalUsers / pageSize) || 1;
             renderUsersTable(data.users);
             updatePagination();
         }
@@ -1450,9 +2020,17 @@ async function loadUsers() {
 }
 
 function updatePagination() {
-    document.getElementById('pagination-info').textContent = 'Page ' + currentPage + ' of ' + totalPages;
+    const start = ((currentPage - 1) * pageSize) + 1;
+    const end = Math.min(currentPage * pageSize, totalUsers);
+    document.getElementById('pagination-info').textContent = 'Showing ' + start + '–' + end + ' of ' + totalUsers;
     document.getElementById('prev-page-btn').disabled = currentPage <= 1;
     document.getElementById('next-page-btn').disabled = currentPage >= totalPages;
+}
+
+function changePageSize(newSize) {
+    pageSize = parseInt(newSize);
+    currentPage = 1;
+    loadUsers();
 }
 
 function changePage(delta) {
@@ -1557,7 +2135,7 @@ function renderUsersTable(userList) {
 }
 
 function getTierBadgeClass(tier) {
-    const classes = { 'free': '', 'pro': 'badge-success', 'business': 'badge-warning', 'enterprise': 'badge-purple' };
+    const classes = { 'free': '', 'pro': 'badge-success', 'business': 'badge-warning', 'enterprise': 'badge-purple', 'kytran': 'badge-info', 'vip': 'badge-purple' };
     return classes[tier] || '';
 }
 
@@ -1638,86 +2216,667 @@ async function viewUser(userId) {
     content.appendChild(loading);
 
     try {
-        const res = await fetch('/tools/account-center/api/users/' + userId);
+        // Fetch user data and subscription data in parallel
+        const [userRes, subRes] = await Promise.all([
+            fetch('/tools/account-center/api/users/' + userId),
+            fetch('/tools/account-center/api/users/' + userId + '/subscription')
+        ]);
+        const userData = await userRes.json();
+        const subData = await subRes.json();
+
+        if (!userData.success) return;
+
+        const user = userData.user;
+        const stats = userData.stats || {};
+        const recentActivity = userData.recent_activity || [];
+        const failedLogins = userData.failed_logins || [];
+        const subscription = subData.success ? subData.subscription : {};
+        const usage = subData.success ? subData.usage : {};
+        const availableTiers = subData.success ? subData.available_tiers : [];
+
+        content.textContent = '';
+
+        // Profile header
+        buildProfileHeader(content, user, subscription);
+
+        // Sub-tab navigation
+        const tabs = document.createElement('div');
+        tabs.className = 'profile-tabs';
+        const tabNames = ['Overview', 'Subscription', 'Security', 'Activity'];
+        tabNames.forEach((name, i) => {
+            const btn = document.createElement('button');
+            btn.className = 'profile-tab-btn' + (i === 0 ? ' active' : '');
+            btn.textContent = name;
+            btn.dataset.profileTab = name.toLowerCase();
+            btn.addEventListener('click', () => {
+                tabs.querySelectorAll('.profile-tab-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                content.querySelectorAll('.profile-tab-pane').forEach(p => p.style.display = 'none');
+                const pane = document.getElementById('profile-pane-' + name.toLowerCase());
+                if (pane) pane.style.display = 'block';
+            });
+            tabs.appendChild(btn);
+        });
+        content.appendChild(tabs);
+
+        // Tab panes
+        const overviewPane = document.createElement('div');
+        overviewPane.className = 'profile-tab-pane';
+        overviewPane.id = 'profile-pane-overview';
+        buildOverviewTab(overviewPane, user, stats);
+        content.appendChild(overviewPane);
+
+        const subPane = document.createElement('div');
+        subPane.className = 'profile-tab-pane';
+        subPane.id = 'profile-pane-subscription';
+        subPane.style.display = 'none';
+        buildSubscriptionTab(subPane, user, subscription, usage, availableTiers);
+        content.appendChild(subPane);
+
+        const secPane = document.createElement('div');
+        secPane.className = 'profile-tab-pane';
+        secPane.id = 'profile-pane-security';
+        secPane.style.display = 'none';
+        buildSecurityTab(secPane, user, failedLogins);
+        content.appendChild(secPane);
+
+        const actPane = document.createElement('div');
+        actPane.className = 'profile-tab-pane';
+        actPane.id = 'profile-pane-activity';
+        actPane.style.display = 'none';
+        buildActivityTab(actPane, recentActivity);
+        content.appendChild(actPane);
+
+    } catch (err) {
+        console.error('Error loading user profile:', err);
+        content.textContent = 'Error loading profile.';
+    }
+}
+
+function buildProfileHeader(container, user, subscription) {
+    const header = document.createElement('div');
+    header.className = 'profile-header';
+
+    // Avatar with initials
+    const avatar = document.createElement('div');
+    avatar.className = 'profile-avatar';
+    const initials = (user.username || '?').substring(0, 2);
+    avatar.textContent = initials;
+    if (subscription && subscription.color) {
+        avatar.style.background = subscription.color;
+    }
+    header.appendChild(avatar);
+
+    // Info section
+    const info = document.createElement('div');
+    info.className = 'profile-header-info';
+
+    const name = document.createElement('div');
+    name.className = 'profile-header-name';
+    name.textContent = user.username;
+    info.appendChild(name);
+
+    // Badges
+    const badges = document.createElement('div');
+    badges.className = 'profile-header-badges';
+
+    const roleBadge = document.createElement('span');
+    roleBadge.className = 'badge';
+    const roleColor = ROLE_COLORS[(user.role || 'user').toUpperCase()] || '#6b7280';
+    roleBadge.style.cssText = 'border: 1px solid ' + roleColor + '; color: ' + roleColor + ';';
+    roleBadge.textContent = (user.role || 'user').toUpperCase();
+    badges.appendChild(roleBadge);
+
+    const tierBadge = document.createElement('span');
+    tierBadge.className = 'badge';
+    const tierColor = (subscription && subscription.color) || '#6b7280';
+    tierBadge.style.cssText = 'border: 1px solid ' + tierColor + '; color: ' + tierColor + ';';
+    tierBadge.textContent = (subscription && subscription.display_name) || (user.subscription_tier || 'free');
+    badges.appendChild(tierBadge);
+
+    const statusBadge = document.createElement('span');
+    statusBadge.className = 'badge';
+    const isActive = user.is_active !== false;
+    statusBadge.style.cssText = 'border: 1px solid ' + (isActive ? '#22c55e' : '#ef4444') + '; color: ' + (isActive ? '#22c55e' : '#ef4444') + ';';
+    statusBadge.textContent = isActive ? 'Active' : 'Inactive';
+    badges.appendChild(statusBadge);
+
+    info.appendChild(badges);
+
+    // Meta line
+    const meta = document.createElement('div');
+    meta.className = 'profile-header-meta';
+    const created = user.created_at ? new Date(user.created_at).toLocaleDateString() : 'Unknown';
+    const lastLogin = user.last_login ? new Date(user.last_login).toLocaleString() : 'Never';
+    meta.textContent = 'Joined ' + created + '  \u00b7  Last login ' + lastLogin;
+    info.appendChild(meta);
+
+    header.appendChild(info);
+    container.appendChild(header);
+}
+
+function buildOverviewTab(container, user, stats) {
+    const grid = document.createElement('div');
+    grid.className = 'profile-two-col';
+
+    // Left: User info fields
+    const leftCol = document.createElement('div');
+    const leftTitle = document.createElement('div');
+    leftTitle.className = 'profile-section-title';
+    leftTitle.textContent = 'User Information';
+    leftCol.appendChild(leftTitle);
+
+    leftCol.appendChild(createInlineField('Email', user.email || '-', 'email', user.id, 'email'));
+    leftCol.appendChild(createInlineField('Role', (user.role || 'user').toUpperCase(), 'role', user.id, 'select', ['user', 'premium', 'admin', 'super_admin']));
+    leftCol.appendChild(createInlineField('Tier', user.subscription_tier || 'free', 'subscription_tier', user.id, 'text'));
+    leftCol.appendChild(createInlineField('Status', user.is_active !== false ? 'Active' : 'Inactive', null, null, 'readonly'));
+
+    const createdField = document.createElement('div');
+    createdField.className = 'inline-field';
+    const createdLabel = document.createElement('div');
+    createdLabel.className = 'inline-field-label';
+    createdLabel.textContent = 'Created';
+    const createdVal = document.createElement('div');
+    createdVal.className = 'inline-field-value';
+    createdVal.textContent = user.created_at ? new Date(user.created_at).toLocaleDateString() : '-';
+    createdField.appendChild(createdLabel);
+    createdField.appendChild(createdVal);
+    leftCol.appendChild(createdField);
+
+    const loginField = document.createElement('div');
+    loginField.className = 'inline-field';
+    const loginLabel = document.createElement('div');
+    loginLabel.className = 'inline-field-label';
+    loginLabel.textContent = 'Last Login';
+    const loginVal = document.createElement('div');
+    loginVal.className = 'inline-field-value';
+    loginVal.textContent = user.last_login ? new Date(user.last_login).toLocaleString() : 'Never';
+    loginField.appendChild(loginLabel);
+    loginField.appendChild(loginVal);
+    leftCol.appendChild(loginField);
+
+    grid.appendChild(leftCol);
+
+    // Right: Usage stats
+    const rightCol = document.createElement('div');
+    const rightTitle = document.createElement('div');
+    rightTitle.className = 'profile-section-title';
+    rightTitle.textContent = 'Usage Stats';
+    rightCol.appendChild(rightTitle);
+
+    const statItems = [
+        ['Conversations', stats.conversations || 0],
+        ['App Projects', stats.app_projects || 0],
+        ['Website Projects', stats.website_projects || 0],
+        ['Active Sessions', stats.session_count || 0],
+        ['API Keys', stats.api_key_count || 0]
+    ];
+    statItems.forEach(([label, value]) => {
+        const row = document.createElement('div');
+        row.className = 'inline-field';
+        const lbl = document.createElement('div');
+        lbl.className = 'inline-field-label';
+        lbl.textContent = label;
+        const val = document.createElement('div');
+        val.className = 'inline-field-value';
+        val.textContent = value;
+        row.appendChild(lbl);
+        row.appendChild(val);
+        rightCol.appendChild(row);
+    });
+
+    grid.appendChild(rightCol);
+    container.appendChild(grid);
+}
+
+function buildSubscriptionTab(container, user, subscription, usage, availableTiers) {
+    // Current tier card
+    const tierCard = document.createElement('div');
+    tierCard.className = 'sub-tier-card';
+    tierCard.style.borderColor = subscription.color || '#6b7280';
+
+    const cardHeader = document.createElement('div');
+    cardHeader.className = 'sub-tier-card-header';
+    const tierName = document.createElement('div');
+    tierName.className = 'sub-tier-name';
+    tierName.style.color = subscription.color || '#6b7280';
+    tierName.textContent = subscription.display_name || 'Free';
+    const tierPrice = document.createElement('div');
+    tierPrice.className = 'sub-tier-price';
+    tierPrice.textContent = subscription.price > 0 ? '$' + subscription.price + '/mo' : 'Free';
+    cardHeader.appendChild(tierName);
+    cardHeader.appendChild(tierPrice);
+    tierCard.appendChild(cardHeader);
+
+    // Status + dates row
+    const detailsDiv = document.createElement('div');
+    detailsDiv.style.cssText = 'display: flex; gap: var(--archie-space-4); flex-wrap: wrap; font-size: var(--archie-text-sm); color: var(--archie-text-secondary); margin-bottom: var(--archie-space-3);';
+
+    const statusSpan = document.createElement('span');
+    const subStatus = subscription.status || 'active';
+    const statusColor = subStatus === 'active' ? '#22c55e' : subStatus === 'cancelled' ? '#ef4444' : '#f59e0b';
+    statusSpan.style.color = statusColor;
+    statusSpan.textContent = 'Status: ' + subStatus.charAt(0).toUpperCase() + subStatus.slice(1);
+    detailsDiv.appendChild(statusSpan);
+
+    if (subscription.started_at) {
+        const startSpan = document.createElement('span');
+        startSpan.textContent = 'Started: ' + new Date(subscription.started_at).toLocaleDateString();
+        detailsDiv.appendChild(startSpan);
+    }
+    if (subscription.expires_at) {
+        const expSpan = document.createElement('span');
+        expSpan.textContent = 'Expires: ' + new Date(subscription.expires_at).toLocaleDateString();
+        detailsDiv.appendChild(expSpan);
+    }
+
+    tierCard.appendChild(detailsDiv);
+
+    // Role mapping
+    if (subscription.mapped_role) {
+        const roleDiv = document.createElement('div');
+        roleDiv.style.cssText = 'font-size: var(--archie-text-xs); color: var(--archie-text-tertiary);';
+        roleDiv.textContent = 'Maps to role: ' + subscription.mapped_role;
+        tierCard.appendChild(roleDiv);
+    }
+
+    container.appendChild(tierCard);
+
+    // Usage vs limits progress bars
+    const limits = subscription.limits || {};
+    const LIMIT_LABELS = {
+        'storage_mb': 'Storage (MB)', 'app_projects': 'App Projects',
+        'api_calls_daily': 'API Calls/Day', 'website_projects': 'Website Projects'
+    };
+
+    if (Object.keys(limits).length > 0) {
+        const usageTitle = document.createElement('div');
+        usageTitle.className = 'profile-section-title';
+        usageTitle.textContent = 'Usage vs Limits';
+        usageTitle.style.marginTop = 'var(--archie-space-4)';
+        container.appendChild(usageTitle);
+
+        Object.entries(limits).forEach(([key, max]) => {
+            const current = usage[key] || 0;
+            const wrap = document.createElement('div');
+            wrap.className = 'usage-bar-wrap';
+
+            const label = document.createElement('div');
+            label.className = 'usage-bar-label';
+            const labelName = document.createElement('span');
+            labelName.textContent = LIMIT_LABELS[key] || key;
+            const labelVal = document.createElement('span');
+            labelVal.textContent = max === -1 ? current + ' / Unlimited' : current + ' / ' + max;
+            label.appendChild(labelName);
+            label.appendChild(labelVal);
+            wrap.appendChild(label);
+
+            const bar = document.createElement('div');
+            bar.className = 'usage-bar';
+            const fill = document.createElement('div');
+            fill.className = 'usage-bar-fill';
+            if (max === -1) {
+                fill.style.width = '5%';
+            } else {
+                const pct = max > 0 ? Math.min(100, (current / max) * 100) : 0;
+                fill.style.width = pct + '%';
+                if (pct > 85) fill.classList.add('danger');
+                else if (pct > 60) fill.classList.add('warning');
+            }
+            bar.appendChild(fill);
+            wrap.appendChild(bar);
+            container.appendChild(wrap);
+        });
+    }
+
+    // "Full Management View" button
+    const fullMgmtBtn = document.createElement('button');
+    fullMgmtBtn.className = 'btn btn-primary';
+    fullMgmtBtn.style.marginTop = 'var(--archie-space-4)';
+    fullMgmtBtn.textContent = 'Full Management View';
+    fullMgmtBtn.addEventListener('click', () => {
+        closeDetailsModal();
+        subMgmtSelectedUserId = user.id;
+        openSubMgmtModal(user.id, user.username);
+    });
+    container.appendChild(fullMgmtBtn);
+}
+
+function buildSecurityTab(container, user, failedLogins) {
+    // 2FA Status
+    const sec2fa = document.createElement('div');
+    sec2fa.className = 'sub-mgmt-section';
+    const sec2faTitle = document.createElement('div');
+    sec2faTitle.className = 'profile-section-title';
+    sec2faTitle.textContent = 'Two-Factor Authentication';
+    sec2fa.appendChild(sec2faTitle);
+
+    const statusRow = document.createElement('div');
+    statusRow.style.cssText = 'display: flex; align-items: center; gap: var(--archie-space-3); margin-bottom: var(--archie-space-3);';
+    const statusIndicator = document.createElement('span');
+    statusIndicator.className = 'badge';
+    statusIndicator.style.cssText = 'border: 1px solid ' + (user.totp_enabled ? '#22c55e' : '#ef4444') + '; color: ' + (user.totp_enabled ? '#22c55e' : '#ef4444') + ';';
+    statusIndicator.textContent = user.totp_enabled ? 'Enabled' : 'Disabled';
+    statusRow.appendChild(statusIndicator);
+
+    if (user.totp_verified_at) {
+        const verifiedAt = document.createElement('span');
+        verifiedAt.style.cssText = 'font-size: var(--archie-text-xs); color: var(--archie-text-tertiary);';
+        verifiedAt.textContent = 'Verified: ' + new Date(user.totp_verified_at).toLocaleString();
+        statusRow.appendChild(verifiedAt);
+    }
+    sec2fa.appendChild(statusRow);
+
+    const btnRow2fa = document.createElement('div');
+    btnRow2fa.style.cssText = 'display: flex; gap: var(--archie-space-2);';
+
+    if (user.totp_enabled) {
+        const disableBtn = document.createElement('button');
+        disableBtn.className = 'btn btn-ghost';
+        disableBtn.textContent = 'Disable 2FA';
+        disableBtn.addEventListener('click', () => toggle2FA(user.id, false));
+        btnRow2fa.appendChild(disableBtn);
+
+        const resetBtn = document.createElement('button');
+        resetBtn.className = 'btn btn-ghost';
+        resetBtn.textContent = 'Reset 2FA';
+        resetBtn.addEventListener('click', () => toggle2FA(user.id, 'reset'));
+        btnRow2fa.appendChild(resetBtn);
+    } else {
+        const enableBtn = document.createElement('button');
+        enableBtn.className = 'btn btn-primary';
+        enableBtn.textContent = 'Enable 2FA';
+        enableBtn.addEventListener('click', () => toggle2FA(user.id, true));
+        btnRow2fa.appendChild(enableBtn);
+    }
+    sec2fa.appendChild(btnRow2fa);
+    container.appendChild(sec2fa);
+
+    // Password Reset
+    const secPw = document.createElement('div');
+    secPw.className = 'sub-mgmt-section';
+    const secPwTitle = document.createElement('div');
+    secPwTitle.className = 'profile-section-title';
+    secPwTitle.textContent = 'Password';
+    secPw.appendChild(secPwTitle);
+
+    const pwRow = document.createElement('div');
+    pwRow.style.cssText = 'display: flex; gap: var(--archie-space-2); align-items: center;';
+    const pwInput = document.createElement('input');
+    pwInput.type = 'password';
+    pwInput.placeholder = 'New password (min 8 chars)';
+    pwInput.style.cssText = 'flex: 1; padding: var(--archie-space-2); background: var(--archie-bg-input); border: 1px solid var(--archie-border-default); border-radius: var(--archie-radius-sm); color: var(--archie-text-primary);';
+    const pwBtn = document.createElement('button');
+    pwBtn.className = 'btn btn-primary';
+    pwBtn.textContent = 'Reset Password';
+    pwBtn.addEventListener('click', async () => {
+        const pw = pwInput.value;
+        if (!pw || pw.length < 8) { alert('Password must be at least 8 characters'); return; }
+        try {
+            const res = await fetch('/tools/account-center/api/users/' + user.id + '/password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: pw })
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert('Password reset successfully');
+                pwInput.value = '';
+            } else {
+                alert(data.error || 'Error resetting password');
+            }
+        } catch (err) {
+            alert('Error resetting password');
+        }
+    });
+    pwRow.appendChild(pwInput);
+    pwRow.appendChild(pwBtn);
+    secPw.appendChild(pwRow);
+    container.appendChild(secPw);
+
+    // Account Lock Status
+    const secLock = document.createElement('div');
+    secLock.className = 'sub-mgmt-section';
+    const secLockTitle = document.createElement('div');
+    secLockTitle.className = 'profile-section-title';
+    secLockTitle.textContent = 'Account Lock Status';
+    secLock.appendChild(secLockTitle);
+
+    const isLocked = user.locked_until && new Date(user.locked_until) > new Date();
+    const lockInfo = document.createElement('div');
+    lockInfo.style.cssText = 'display: flex; align-items: center; gap: var(--archie-space-3); margin-bottom: var(--archie-space-2);';
+
+    const lockBadge = document.createElement('span');
+    lockBadge.className = 'badge';
+    lockBadge.style.cssText = 'border: 1px solid ' + (isLocked ? '#ef4444' : '#22c55e') + '; color: ' + (isLocked ? '#ef4444' : '#22c55e') + ';';
+    lockBadge.textContent = isLocked ? 'LOCKED' : 'Unlocked';
+    lockInfo.appendChild(lockBadge);
+
+    const failCount = document.createElement('span');
+    failCount.style.cssText = 'font-size: var(--archie-text-sm); color: var(--archie-text-secondary);';
+    failCount.textContent = 'Failed since last login: ' + (user.failed_login_count || 0);
+    lockInfo.appendChild(failCount);
+
+    secLock.appendChild(lockInfo);
+
+    if (isLocked) {
+        const unlockBtn = document.createElement('button');
+        unlockBtn.className = 'btn btn-primary';
+        unlockBtn.textContent = 'Unlock Account';
+        unlockBtn.addEventListener('click', () => {
+            unlockUser(user.id);
+            // Refresh profile after unlock
+            setTimeout(() => viewUser(user.id), 500);
+        });
+        secLock.appendChild(unlockBtn);
+    }
+
+    container.appendChild(secLock);
+
+    // Failed Login History
+    const secFailed = document.createElement('div');
+    secFailed.className = 'sub-mgmt-section';
+    const secFailedTitle = document.createElement('div');
+    secFailedTitle.className = 'profile-section-title';
+    secFailedTitle.textContent = 'Recent Failed Login Attempts';
+    secFailed.appendChild(secFailedTitle);
+
+    if (!failedLogins || failedLogins.length === 0) {
+        const noFails = document.createElement('div');
+        noFails.style.cssText = 'font-size: var(--archie-text-sm); color: var(--archie-text-tertiary); padding: var(--archie-space-2) 0;';
+        noFails.textContent = 'No failed login attempts recorded';
+        secFailed.appendChild(noFails);
+    } else {
+        const table = document.createElement('table');
+        table.style.cssText = 'width: 100%; border-collapse: collapse; font-size: var(--archie-text-sm);';
+        const thead = document.createElement('thead');
+        const headRow = document.createElement('tr');
+        ['IP Address', 'Reason', 'Time'].forEach(h => {
+            const th = document.createElement('th');
+            th.style.cssText = 'text-align: left; padding: var(--archie-space-2); border-bottom: 1px solid var(--archie-border-default); color: var(--archie-text-secondary); font-weight: 500;';
+            th.textContent = h;
+            headRow.appendChild(th);
+        });
+        thead.appendChild(headRow);
+        table.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        failedLogins.forEach(f => {
+            const tr = document.createElement('tr');
+
+            const tdIp = document.createElement('td');
+            tdIp.style.cssText = 'padding: var(--archie-space-2); border-bottom: 1px solid var(--archie-border-default); font-family: monospace; color: var(--archie-text-primary);';
+            tdIp.textContent = f.ip_address || '-';
+
+            const tdReason = document.createElement('td');
+            tdReason.style.cssText = 'padding: var(--archie-space-2); border-bottom: 1px solid var(--archie-border-default); color: var(--archie-text-secondary);';
+            tdReason.textContent = (f.reason || 'unknown').replace(/_/g, ' ');
+
+            const tdTime = document.createElement('td');
+            tdTime.style.cssText = 'padding: var(--archie-space-2); border-bottom: 1px solid var(--archie-border-default); color: var(--archie-text-tertiary);';
+            tdTime.textContent = f.attempted_at ? new Date(f.attempted_at).toLocaleString() : '-';
+
+            tr.appendChild(tdIp);
+            tr.appendChild(tdReason);
+            tr.appendChild(tdTime);
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        secFailed.appendChild(table);
+    }
+
+    container.appendChild(secFailed);
+}
+
+function buildActivityTab(container, recentActivity) {
+    if (!recentActivity || recentActivity.length === 0) {
+        const empty = document.createElement('div');
+        empty.style.cssText = 'text-align: center; padding: var(--archie-space-8); color: var(--archie-text-tertiary);';
+        empty.textContent = 'No recent activity';
+        container.appendChild(empty);
+    } else {
+        recentActivity.forEach(a => {
+            const item = document.createElement('div');
+            item.className = 'activity-list-item';
+
+            const dot = document.createElement('div');
+            dot.className = 'activity-dot';
+            item.appendChild(dot);
+
+            const action = document.createElement('span');
+            action.className = 'activity-list-action';
+            action.textContent = (a.action || '').replace(/_/g, ' ');
+            item.appendChild(action);
+
+            if (a.module) {
+                const mod = document.createElement('span');
+                mod.className = 'activity-list-module';
+                mod.textContent = a.module;
+                item.appendChild(mod);
+            }
+
+            const time = document.createElement('span');
+            time.className = 'activity-list-time';
+            time.textContent = a.created_at ? new Date(a.created_at).toLocaleString() : '';
+            item.appendChild(time);
+
+            container.appendChild(item);
+        });
+    }
+
+    // "View Full Activity" button
+    const viewFullBtn = document.createElement('button');
+    viewFullBtn.className = 'btn btn-ghost';
+    viewFullBtn.style.marginTop = 'var(--archie-space-4)';
+    viewFullBtn.textContent = 'View Full Activity';
+    viewFullBtn.addEventListener('click', () => {
+        closeDetailsModal();
+        document.querySelector('[data-tab="activity"]').click();
+    });
+    container.appendChild(viewFullBtn);
+}
+
+function createInlineField(label, value, fieldName, userId, type, options) {
+    const row = document.createElement('div');
+    row.className = 'inline-field';
+
+    const lbl = document.createElement('div');
+    lbl.className = 'inline-field-label';
+    lbl.textContent = label;
+    row.appendChild(lbl);
+
+    const val = document.createElement('div');
+    val.className = 'inline-field-value';
+    val.textContent = value;
+    row.appendChild(val);
+
+    if (type === 'readonly' || !fieldName) return row;
+
+    // Edit controls
+    const editDiv = document.createElement('div');
+    editDiv.className = 'inline-field-edit';
+
+    let input;
+    if (type === 'select' && options) {
+        input = document.createElement('select');
+        options.forEach(opt => {
+            const o = document.createElement('option');
+            o.value = opt;
+            o.textContent = opt.toUpperCase();
+            if (opt === (value || '').toLowerCase()) o.selected = true;
+            input.appendChild(o);
+        });
+    } else {
+        input = document.createElement('input');
+        input.type = type || 'text';
+        input.value = value === '-' ? '' : value;
+    }
+    editDiv.appendChild(input);
+    row.appendChild(editDiv);
+
+    // Action buttons
+    const actions = document.createElement('div');
+    actions.className = 'inline-field-actions';
+
+    const editBtn = document.createElement('button');
+    editBtn.textContent = 'Edit';
+    editBtn.addEventListener('click', () => {
+        row.classList.add('editing');
+        input.focus();
+    });
+    actions.appendChild(editBtn);
+
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'save-btn';
+    saveBtn.textContent = 'Save';
+    saveBtn.style.display = 'none';
+    saveBtn.addEventListener('click', () => saveProfileField(userId, fieldName, input.value, row, val, saveBtn, cancelBtn));
+    actions.appendChild(saveBtn);
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.style.display = 'none';
+    cancelBtn.addEventListener('click', () => {
+        row.classList.remove('editing');
+        editBtn.style.display = '';
+        saveBtn.style.display = 'none';
+        cancelBtn.style.display = 'none';
+    });
+    actions.appendChild(cancelBtn);
+
+    // Toggle visibility on edit
+    editBtn.addEventListener('click', () => {
+        editBtn.style.display = 'none';
+        saveBtn.style.display = '';
+        cancelBtn.style.display = '';
+    });
+
+    row.appendChild(actions);
+    return row;
+}
+
+async function saveProfileField(userId, fieldName, value, row, valEl, saveBtn, cancelBtn) {
+    try {
+        const body = {};
+        body[fieldName] = value;
+        const res = await fetch('/tools/account-center/api/users/' + userId, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
         const data = await res.json();
         if (data.success) {
-            const user = data.user;
-            const stats = data.stats;
-            content.textContent = '';
-
-            const grid = document.createElement('div');
-            grid.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr; gap: var(--archie-space-4);';
-
-            // User Info Section
-            const userInfo = document.createElement('div');
-            const userTitle = document.createElement('h4');
-            userTitle.style.cssText = 'color: var(--archie-accent); margin-bottom: var(--archie-space-4);';
-            userTitle.textContent = 'User Info';
-            userInfo.appendChild(userTitle);
-
-            const infoItems = [
-                ['Username', user.username],
-                ['Email', user.email || '-'],
-                ['Created', new Date(user.created_at).toLocaleDateString()],
-                ['Last Login', user.last_login ? new Date(user.last_login).toLocaleString() : 'Never'],
-                ['2FA Status', user.totp_enabled ? 'Enabled' : 'Disabled'],
-                ['Account Status', user.locked_until && new Date(user.locked_until) > new Date() ? 'LOCKED' : 'Active']
-            ];
-
-            infoItems.forEach(([label, value]) => {
-                const p = document.createElement('p');
-                const strong = document.createElement('strong');
-                strong.textContent = label + ': ';
-                p.appendChild(strong);
-                p.appendChild(document.createTextNode(value));
-                userInfo.appendChild(p);
-            });
-
-            // Usage Stats Section
-            const usageStats = document.createElement('div');
-            const statsTitle = document.createElement('h4');
-            statsTitle.style.cssText = 'color: var(--archie-accent); margin-bottom: var(--archie-space-4);';
-            statsTitle.textContent = 'Usage Stats';
-            usageStats.appendChild(statsTitle);
-
-            const statItems = [
-                ['Conversations', stats.conversations || 0],
-                ['App Projects', stats.app_projects || 0],
-                ['Website Projects', stats.website_projects || 0],
-                ['Active Sessions', stats.session_count || 0],
-                ['API Keys', stats.api_key_count || 0]
-            ];
-
-            statItems.forEach(([label, value]) => {
-                const p = document.createElement('p');
-                const strong = document.createElement('strong');
-                strong.textContent = label + ': ';
-                p.appendChild(strong);
-                p.appendChild(document.createTextNode(value));
-                usageStats.appendChild(p);
-            });
-
-            grid.appendChild(userInfo);
-            grid.appendChild(usageStats);
-            content.appendChild(grid);
-
-            // View Activity Button
-            const actionsDiv = document.createElement('div');
-            actionsDiv.style.cssText = 'margin-top: var(--archie-space-4); padding-top: var(--archie-space-4); border-top: 1px solid var(--archie-border-subtle);';
-
-            const viewActivityBtn = document.createElement('button');
-            viewActivityBtn.className = 'btn btn-primary';
-            viewActivityBtn.textContent = 'View Activity';
-            viewActivityBtn.onclick = () => {
-                closeDetailsModal();
-                document.querySelector('[data-tab="activity"]').click();
-            };
-            actionsDiv.appendChild(viewActivityBtn);
-
-            content.appendChild(actionsDiv);
+            valEl.textContent = value || '-';
+            row.classList.remove('editing');
+            row.querySelector('.inline-field-actions button:first-child').style.display = '';
+            saveBtn.style.display = 'none';
+            cancelBtn.style.display = 'none';
+            loadUsers(); // Refresh the user list
+        } else {
+            alert(data.error || 'Error saving');
         }
     } catch (err) {
-        console.error('Error loading user details:', err);
+        alert('Error saving field');
     }
 }
 
@@ -2028,14 +3187,129 @@ const ROLE_COLORS = {
     'USER': '#06b6d4', 'PREMIUM': '#f97316', 'ADMIN': '#ef4444', 'SUPER_ADMIN': '#a855f7'
 };
 
+// Store tiers data globally for subscription management
+let cachedTiers = [];
+
+// Subscription management user table pagination
+let subMgmtPage = 1;
+let subMgmtPageSize = 5;
+let subMgmtTotal = 0;
+let subMgmtSelectedUserId = null;
+
+function changeSubMgmtPageSize(newSize) {
+    subMgmtPageSize = parseInt(newSize);
+    subMgmtPage = 1;
+    loadSubMgmtUsers();
+}
+
+function changeSubMgmtPage(delta) {
+    var totalSmPages = Math.ceil(subMgmtTotal / subMgmtPageSize) || 1;
+    var newPage = subMgmtPage + delta;
+    if (newPage >= 1 && newPage <= totalSmPages) {
+        subMgmtPage = newPage;
+        loadSubMgmtUsers();
+    }
+}
+
+function updateSubMgmtPagination() {
+    var totalSmPages = Math.ceil(subMgmtTotal / subMgmtPageSize) || 1;
+    var start = ((subMgmtPage - 1) * subMgmtPageSize) + 1;
+    var end = Math.min(subMgmtPage * subMgmtPageSize, subMgmtTotal);
+    var info = document.getElementById('sub-mgmt-pagination-info');
+    if (info) info.textContent = 'Showing ' + start + '–' + end + ' of ' + subMgmtTotal;
+    var prevBtn = document.getElementById('sub-mgmt-prev-btn');
+    var nextBtn = document.getElementById('sub-mgmt-next-btn');
+    if (prevBtn) prevBtn.disabled = subMgmtPage <= 1;
+    if (nextBtn) nextBtn.disabled = subMgmtPage >= totalSmPages;
+}
+
+async function loadSubMgmtUsers() {
+    try {
+        var url = '/tools/account-center/api/users?limit=' + subMgmtPageSize + '&offset=' + ((subMgmtPage - 1) * subMgmtPageSize);
+        var res = await fetch(url);
+        var data = await res.json();
+        if (data.success) {
+            subMgmtTotal = data.total || data.users.length;
+            var tbody = document.getElementById('sub-mgmt-user-tbody');
+            tbody.textContent = '';
+
+            if (data.users.length === 0) {
+                var tr = document.createElement('tr');
+                var td = document.createElement('td');
+                td.colSpan = 4;
+                td.className = 'empty-state';
+                td.textContent = 'No users found';
+                tr.appendChild(td);
+                tbody.appendChild(tr);
+                updateSubMgmtPagination();
+                return;
+            }
+
+            data.users.forEach(function(u) {
+                var tr = document.createElement('tr');
+                if (subMgmtSelectedUserId && subMgmtSelectedUserId == u.id) {
+                    tr.className = 'selected-row';
+                }
+
+                var tdUser = document.createElement('td');
+                var strong = document.createElement('strong');
+                strong.textContent = u.username;
+                tdUser.appendChild(strong);
+
+                var tdTier = document.createElement('td');
+                var tierBadge = document.createElement('span');
+                tierBadge.className = 'badge ' + getTierBadgeClass(u.subscription_tier);
+                tierBadge.textContent = (u.subscription_tier || 'free').toUpperCase();
+                tdTier.appendChild(tierBadge);
+
+                var tdStatus = document.createElement('td');
+                var statusBadge = document.createElement('span');
+                statusBadge.className = 'badge ' + (u.is_active !== false ? 'badge-success' : 'badge-danger');
+                statusBadge.textContent = u.is_active !== false ? 'Active' : 'Inactive';
+                tdStatus.appendChild(statusBadge);
+
+                var tdActions = document.createElement('td');
+                var manageBtn = document.createElement('button');
+                manageBtn.className = 'btn btn-sm';
+                manageBtn.textContent = 'Manage';
+                manageBtn.addEventListener('click', (function(userId, username) {
+                    return function() {
+                        subMgmtSelectedUserId = userId;
+                        // Highlight selected row
+                        tbody.querySelectorAll('tr').forEach(function(r) { r.classList.remove('selected-row'); });
+                        tr.classList.add('selected-row');
+                        openSubMgmtModal(userId, username);
+                    };
+                })(u.id, u.username));
+                tdActions.appendChild(manageBtn);
+
+                tr.appendChild(tdUser);
+                tr.appendChild(tdTier);
+                tr.appendChild(tdStatus);
+                tr.appendChild(tdActions);
+                tbody.appendChild(tr);
+            });
+
+            updateSubMgmtPagination();
+        }
+    } catch (err) {
+        console.error('Error loading sub mgmt users:', err);
+    }
+}
+
 async function loadTiers() {
     try {
-        const res = await fetch('/tools/account-center/api/tiers');
-        const data = await res.json();
-        if (!data.success) return;
+        var tiersRes = await fetch('/tools/account-center/api/tiers');
+        var tiersData = await tiersRes.json();
 
-        renderTierCards(data.tiers);
-        renderTierComparison(data.tiers);
+        if (tiersData.success) {
+            cachedTiers = tiersData.tiers;
+            renderTierCards(tiersData.tiers);
+            renderTierComparison(tiersData.tiers);
+        }
+
+        // Load user table for subscription management
+        loadSubMgmtUsers();
     } catch (err) {
         console.error('Error loading tiers:', err);
     }
@@ -2158,7 +3432,7 @@ function renderTierComparison(tiers) {
         nameSpan.textContent = t.display_name;
         nameSpan.style.color = t.color;
         const priceSpan = document.createElement('span');
-        priceSpan.style.cssText = 'display:block; font-size:10px; color:var(--archie-text-tertiary); font-weight:normal;';
+        priceSpan.style.cssText = 'display:block; font-size:10px; color:var(--archie-text-secondary); font-weight:normal;';
         priceSpan.textContent = t.price_monthly > 0 ? '$' + t.price_monthly + '/mo' : 'Free';
         th.appendChild(nameSpan);
         th.appendChild(priceSpan);
@@ -2239,24 +3513,565 @@ function addCompRow(tbody, label, values) {
     tbody.appendChild(row);
 }
 
+// ============================================================================
+// SUBSCRIPTION MANAGEMENT
+// ============================================================================
+
+let subMgmtData = null; // Cached subscription data for current management view
+
+function openSubMgmtModal(userId, username) {
+    var title = document.getElementById('sub-mgmt-modal-title');
+    title.textContent = 'Manage Subscription — ' + (username || 'User');
+    var overlay = document.getElementById('sub-mgmt-modal-overlay');
+    overlay.classList.add('active');
+    loadSubscriptionManagement(userId);
+}
+
+function closeSubMgmtModal() {
+    var overlay = document.getElementById('sub-mgmt-modal-overlay');
+    overlay.classList.remove('active');
+}
+
+// Close modal on overlay click (outside the modal content)
+document.addEventListener('click', function(e) {
+    var overlay = document.getElementById('sub-mgmt-modal-overlay');
+    if (e.target === overlay) closeSubMgmtModal();
+});
+
+// Close modal on Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeSubMgmtModal();
+});
+
+async function loadSubscriptionManagement(userIdParam) {
+    const container = document.getElementById('subscription-management');
+    const userId = userIdParam || subMgmtSelectedUserId || '';
+
+    if (!userId) {
+        container.textContent = '';
+        const empty = document.createElement('div');
+        empty.className = 'empty-state';
+        const icon = document.createElement('div');
+        icon.className = 'empty-state-icon';
+        icon.textContent = '$';
+        const p = document.createElement('p');
+        p.textContent = 'Select a user above to manage their subscription';
+        empty.appendChild(icon);
+        empty.appendChild(p);
+        container.appendChild(empty);
+        return;
+    }
+
+    container.textContent = '';
+    const loading = document.createElement('div');
+    loading.className = 'loading';
+    loading.textContent = 'Loading subscription data...';
+    container.appendChild(loading);
+
+    try {
+        const res = await fetch('/tools/account-center/api/users/' + userId + '/subscription');
+        const data = await res.json();
+        if (data.success) {
+            subMgmtData = data;
+            container.textContent = '';
+            renderSubscriptionManagement(container, data, userId);
+        } else {
+            container.textContent = 'Error loading subscription data.';
+        }
+    } catch (err) {
+        console.error('Error loading subscription management:', err);
+        container.textContent = 'Error loading subscription data.';
+    }
+}
+
+function renderSubscriptionManagement(container, data, userId) {
+    const sub = data.subscription || {};
+    const usage = data.usage || {};
+    const availableTiers = data.available_tiers || [];
+
+    // Section 1: Current Tier Card
+    const currentSection = document.createElement('div');
+    currentSection.className = 'sub-mgmt-section';
+    const currentTitle = document.createElement('div');
+    currentTitle.className = 'sub-mgmt-section-title';
+    currentTitle.textContent = 'Current Tier';
+    currentSection.appendChild(currentTitle);
+
+    const tierCard = document.createElement('div');
+    tierCard.className = 'sub-tier-card';
+    tierCard.style.borderColor = sub.color || '#6b7280';
+
+    const cardHeader = document.createElement('div');
+    cardHeader.className = 'sub-tier-card-header';
+    const tierName = document.createElement('div');
+    tierName.className = 'sub-tier-name';
+    tierName.style.color = sub.color || '#6b7280';
+    tierName.textContent = sub.display_name || 'Free';
+    const tierPrice = document.createElement('div');
+    tierPrice.className = 'sub-tier-price';
+    tierPrice.textContent = sub.price > 0 ? '$' + sub.price + '/mo' : 'Free';
+    cardHeader.appendChild(tierName);
+    cardHeader.appendChild(tierPrice);
+    tierCard.appendChild(cardHeader);
+
+    // Details: role, status, dates
+    const detailsGrid = document.createElement('div');
+    detailsGrid.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr; gap: var(--archie-space-2); font-size: var(--archie-text-sm);';
+
+    const addDetail = (label, value, color) => {
+        const row = document.createElement('div');
+        const lbl = document.createElement('span');
+        lbl.style.color = 'var(--archie-text-tertiary)';
+        lbl.textContent = label + ': ';
+        const val = document.createElement('span');
+        val.style.color = color || 'var(--archie-text-primary)';
+        val.textContent = value;
+        row.appendChild(lbl);
+        row.appendChild(val);
+        detailsGrid.appendChild(row);
+    };
+
+    addDetail('Role', sub.mapped_role || 'USER');
+    const subStatus = sub.status || 'active';
+    const statusColor = subStatus === 'active' ? '#22c55e' : subStatus === 'cancelled' ? '#ef4444' : '#f59e0b';
+    addDetail('Status', subStatus.charAt(0).toUpperCase() + subStatus.slice(1), statusColor);
+    addDetail('Started', sub.started_at ? new Date(sub.started_at).toLocaleDateString() : 'N/A');
+    addDetail('Expires', sub.expires_at ? new Date(sub.expires_at).toLocaleDateString() : 'Never');
+
+    tierCard.appendChild(detailsGrid);
+    currentSection.appendChild(tierCard);
+    container.appendChild(currentSection);
+
+    // Section 2: Usage Progress Bars
+    const limits = sub.limits || {};
+    if (Object.keys(limits).length > 0) {
+        const usageSection = document.createElement('div');
+        usageSection.className = 'sub-mgmt-section';
+        const usageTitle = document.createElement('div');
+        usageTitle.className = 'sub-mgmt-section-title';
+        usageTitle.textContent = 'Usage';
+        usageSection.appendChild(usageTitle);
+
+        const LIMIT_LABELS = {
+            'storage_mb': 'Storage (MB)', 'app_projects': 'App Projects',
+            'api_calls_daily': 'API Calls/Day', 'website_projects': 'Website Projects'
+        };
+
+        Object.entries(limits).forEach(([key, max]) => {
+            const current = usage[key] || 0;
+            const wrap = document.createElement('div');
+            wrap.className = 'usage-bar-wrap';
+
+            const label = document.createElement('div');
+            label.className = 'usage-bar-label';
+            const labelName = document.createElement('span');
+            labelName.textContent = LIMIT_LABELS[key] || key;
+            const labelVal = document.createElement('span');
+            labelVal.textContent = max === -1 ? current + ' / Unlimited' : current + ' / ' + max;
+            label.appendChild(labelName);
+            label.appendChild(labelVal);
+            wrap.appendChild(label);
+
+            const bar = document.createElement('div');
+            bar.className = 'usage-bar';
+            const fill = document.createElement('div');
+            fill.className = 'usage-bar-fill';
+            if (max === -1) {
+                fill.style.width = '5%';
+            } else {
+                const pct = max > 0 ? Math.min(100, (current / max) * 100) : 0;
+                fill.style.width = pct + '%';
+                if (pct > 85) fill.classList.add('danger');
+                else if (pct > 60) fill.classList.add('warning');
+            }
+            bar.appendChild(fill);
+            wrap.appendChild(bar);
+            usageSection.appendChild(wrap);
+        });
+
+        container.appendChild(usageSection);
+    }
+
+    // Section 3: Change Tier
+    const changeSection = document.createElement('div');
+    changeSection.className = 'sub-mgmt-section';
+    const changeTitle = document.createElement('div');
+    changeTitle.className = 'sub-mgmt-section-title';
+    changeTitle.textContent = 'Change Tier';
+    changeSection.appendChild(changeTitle);
+
+    const changeRow = document.createElement('div');
+    changeRow.style.cssText = 'display: flex; gap: var(--archie-space-2); align-items: center; flex-wrap: wrap;';
+
+    const tierSelect = document.createElement('select');
+    tierSelect.id = 'sub-mgmt-tier-select';
+    tierSelect.className = 'form-select';
+    tierSelect.style.minWidth = '180px';
+    availableTiers.forEach(t => {
+        const opt = document.createElement('option');
+        opt.value = t.name;
+        opt.textContent = t.display_name + (t.price_monthly > 0 ? ' ($' + t.price_monthly + '/mo)' : ' (Free)');
+        if (t.name === sub.tier_name) opt.selected = true;
+        tierSelect.appendChild(opt);
+    });
+    changeRow.appendChild(tierSelect);
+
+    const previewBtn = document.createElement('button');
+    previewBtn.className = 'btn btn-ghost';
+    previewBtn.textContent = 'Preview Changes';
+    previewBtn.addEventListener('click', () => previewTierChange(userId, sub, availableTiers));
+    changeRow.appendChild(previewBtn);
+
+    const applyBtn = document.createElement('button');
+    applyBtn.className = 'btn btn-primary';
+    applyBtn.id = 'sub-mgmt-apply-btn';
+    applyBtn.textContent = 'Apply Change';
+    applyBtn.style.display = 'none';
+    applyBtn.addEventListener('click', () => applyTierChange(userId));
+    changeRow.appendChild(applyBtn);
+
+    changeSection.appendChild(changeRow);
+
+    // Preview area
+    const previewArea = document.createElement('div');
+    previewArea.id = 'sub-mgmt-preview';
+    changeSection.appendChild(previewArea);
+
+    container.appendChild(changeSection);
+
+    // Section 4: Status & Expiry
+    const statusSection = document.createElement('div');
+    statusSection.className = 'sub-mgmt-section';
+    const statusTitle = document.createElement('div');
+    statusTitle.className = 'sub-mgmt-section-title';
+    statusTitle.textContent = 'Status & Expiry';
+    statusSection.appendChild(statusTitle);
+
+    const statusRow = document.createElement('div');
+    statusRow.style.cssText = 'display: flex; gap: var(--archie-space-3); align-items: center; flex-wrap: wrap;';
+
+    const statusSelect = document.createElement('select');
+    statusSelect.id = 'sub-mgmt-status-select';
+    statusSelect.className = 'form-select';
+    ['active', 'cancelled', 'paused'].forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s;
+        opt.textContent = s.charAt(0).toUpperCase() + s.slice(1);
+        if (s === (sub.status || 'active')) opt.selected = true;
+        statusSelect.appendChild(opt);
+    });
+    statusRow.appendChild(statusSelect);
+
+    const dateLabel = document.createElement('span');
+    dateLabel.style.cssText = 'font-size: var(--archie-text-sm); color: var(--archie-text-secondary);';
+    dateLabel.textContent = 'Expires:';
+    statusRow.appendChild(dateLabel);
+
+    const dateInput = document.createElement('input');
+    dateInput.type = 'date';
+    dateInput.id = 'sub-mgmt-expires-input';
+    dateInput.className = 'form-input';
+    dateInput.style.cssText = 'padding: var(--archie-space-2); background: var(--archie-bg-input); border: 1px solid var(--archie-border-default); border-radius: var(--archie-radius-sm); color: var(--archie-text-primary);';
+    if (sub.expires_at) {
+        dateInput.value = new Date(sub.expires_at).toISOString().split('T')[0];
+    }
+    statusRow.appendChild(dateInput);
+
+    const clearDateBtn = document.createElement('button');
+    clearDateBtn.className = 'btn btn-ghost';
+    clearDateBtn.textContent = 'Clear';
+    clearDateBtn.addEventListener('click', () => { dateInput.value = ''; });
+    statusRow.appendChild(clearDateBtn);
+
+    const saveStatusBtn = document.createElement('button');
+    saveStatusBtn.className = 'btn btn-primary';
+    saveStatusBtn.textContent = 'Save Status';
+    saveStatusBtn.addEventListener('click', () => saveSubscriptionStatus(userId));
+    statusRow.appendChild(saveStatusBtn);
+
+    statusSection.appendChild(statusRow);
+    container.appendChild(statusSection);
+}
+
+function previewTierChange(userId, currentSub, availableTiers) {
+    const tierSelect = document.getElementById('sub-mgmt-tier-select');
+    const previewArea = document.getElementById('sub-mgmt-preview');
+    const applyBtn = document.getElementById('sub-mgmt-apply-btn');
+    const newTierName = tierSelect.value;
+
+    if (newTierName === currentSub.tier_name) {
+        previewArea.textContent = '';
+        applyBtn.style.display = 'none';
+        return;
+    }
+
+    const newTier = availableTiers.find(t => t.name === newTierName);
+    if (!newTier) return;
+
+    const currentLevel = currentSub.role_level || 10;
+    const newLevel = newTier.role_level || 10;
+    const isUpgrade = newLevel > currentLevel;
+
+    const preview = document.createElement('div');
+    preview.className = 'tier-change-preview';
+
+    // Direction label
+    const dirLabel = document.createElement('div');
+    dirLabel.style.cssText = 'font-family: var(--archie-font-heading); font-size: var(--archie-text-sm); margin-bottom: var(--archie-space-3); color: ' + (isUpgrade ? '#22c55e' : '#ef4444') + ';';
+    dirLabel.textContent = isUpgrade ? 'UPGRADE' : 'DOWNGRADE';
+    preview.appendChild(dirLabel);
+
+    // Tier name change
+    const nameRow = document.createElement('div');
+    nameRow.className = 'tier-change-row';
+    const nameLabel = document.createElement('span');
+    nameLabel.textContent = 'Tier';
+    const nameVals = document.createElement('span');
+    const oldName = document.createElement('span');
+    oldName.className = 'old-val';
+    oldName.textContent = currentSub.display_name || 'Free';
+    const arrow = document.createTextNode(' \u2192 ');
+    const newName = document.createElement('span');
+    newName.className = isUpgrade ? 'new-val-up' : 'new-val-down';
+    newName.textContent = newTier.display_name;
+    nameVals.appendChild(oldName);
+    nameVals.appendChild(arrow);
+    nameVals.appendChild(newName);
+    nameRow.appendChild(nameLabel);
+    nameRow.appendChild(nameVals);
+    preview.appendChild(nameRow);
+
+    // Price change
+    const priceRow = document.createElement('div');
+    priceRow.className = 'tier-change-row';
+    const priceLabel = document.createElement('span');
+    priceLabel.textContent = 'Price';
+    const priceVals = document.createElement('span');
+    const oldPrice = document.createElement('span');
+    oldPrice.className = 'old-val';
+    oldPrice.textContent = currentSub.price > 0 ? '$' + currentSub.price + '/mo' : 'Free';
+    const priceArrow = document.createTextNode(' \u2192 ');
+    const newPrice = document.createElement('span');
+    newPrice.className = isUpgrade ? 'new-val-up' : 'new-val-down';
+    newPrice.textContent = newTier.price_monthly > 0 ? '$' + newTier.price_monthly + '/mo' : 'Free';
+    priceVals.appendChild(oldPrice);
+    priceVals.appendChild(priceArrow);
+    priceVals.appendChild(newPrice);
+    priceRow.appendChild(priceLabel);
+    priceRow.appendChild(priceVals);
+    preview.appendChild(priceRow);
+
+    // Limits comparison
+    const LIMIT_LABELS = {
+        'storage_mb': 'Storage (MB)', 'app_projects': 'App Projects',
+        'api_calls_daily': 'API Calls/Day', 'website_projects': 'Website Projects'
+    };
+
+    const currentLimits = currentSub.limits || {};
+    const newLimits = newTier.limits || {};
+    const allKeys = new Set([...Object.keys(currentLimits), ...Object.keys(newLimits)]);
+
+    allKeys.forEach(key => {
+        const oldVal = currentLimits[key];
+        const newVal = newLimits[key];
+        if (oldVal === newVal) return;
+
+        const limRow = document.createElement('div');
+        limRow.className = 'tier-change-row';
+        const limLabel = document.createElement('span');
+        limLabel.textContent = LIMIT_LABELS[key] || key;
+        const limVals = document.createElement('span');
+
+        const oldLim = document.createElement('span');
+        oldLim.className = 'old-val';
+        oldLim.textContent = oldVal === -1 ? 'Unlimited' : (oldVal !== undefined ? oldVal : 'N/A');
+        const limArrow = document.createTextNode(' \u2192 ');
+        const newLim = document.createElement('span');
+
+        const limImproved = (newVal === -1) || (newVal > (oldVal || 0));
+        newLim.className = limImproved ? 'new-val-up' : 'new-val-down';
+        newLim.textContent = newVal === -1 ? 'Unlimited' : (newVal !== undefined ? newVal : 'N/A');
+
+        limVals.appendChild(oldLim);
+        limVals.appendChild(limArrow);
+        limVals.appendChild(newLim);
+        limRow.appendChild(limLabel);
+        limRow.appendChild(limVals);
+        preview.appendChild(limRow);
+    });
+
+    previewArea.textContent = '';
+    previewArea.appendChild(preview);
+    applyBtn.style.display = '';
+}
+
+async function applyTierChange(userId) {
+    const tierSelect = document.getElementById('sub-mgmt-tier-select');
+    const statusSelect = document.getElementById('sub-mgmt-status-select');
+    const expiresInput = document.getElementById('sub-mgmt-expires-input');
+    const newTier = tierSelect.value;
+
+    if (!confirm('Change this user\'s subscription to ' + newTier.toUpperCase() + '?')) return;
+
+    try {
+        const body = {
+            tier: newTier,
+            status: statusSelect ? statusSelect.value : 'active',
+            expires_at: expiresInput && expiresInput.value ? expiresInput.value : null
+        };
+        const res = await fetch('/tools/account-center/api/users/' + userId + '/subscription', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (data.success) {
+            // Refresh all panels
+            loadSubscriptionManagement(userId);
+            loadSubMgmtUsers();
+            loadUsers();
+        } else {
+            alert(data.error || 'Error updating subscription');
+        }
+    } catch (err) {
+        console.error('Error applying tier change:', err);
+        alert('Error applying tier change');
+    }
+}
+
+async function saveSubscriptionStatus(userId) {
+    const statusSelect = document.getElementById('sub-mgmt-status-select');
+    const expiresInput = document.getElementById('sub-mgmt-expires-input');
+
+    if (!statusSelect) return;
+
+    // Use current tier from the data
+    const currentTier = subMgmtData && subMgmtData.subscription ? subMgmtData.subscription.tier_name : 'free';
+
+    try {
+        const body = {
+            tier: currentTier,
+            status: statusSelect.value,
+            expires_at: expiresInput && expiresInput.value ? expiresInput.value : null
+        };
+        const res = await fetch('/tools/account-center/api/users/' + userId + '/subscription', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (data.success) {
+            loadSubscriptionManagement(userId);
+            loadSubMgmtUsers();
+            loadUsers();
+        } else {
+            alert(data.error || 'Error saving subscription status');
+        }
+    } catch (err) {
+        console.error('Error saving subscription status:', err);
+        alert('Error saving subscription status');
+    }
+}
+
+// Activity tab pagination and auto-refresh
+let activityPage = 1;
+let activityPageSize = 10;
+let activityTotal = 0;
+let activityRefreshInterval = null;
+let activityCountdown = 15;
+const ACTIVITY_REFRESH_S = 15;
+
+function startActivityAutoRefresh() {
+    stopActivityAutoRefresh();
+    activityCountdown = ACTIVITY_REFRESH_S;
+    var indicator = document.getElementById('activity-refresh-indicator');
+    if (indicator) indicator.style.display = 'flex';
+    updateActivityRefreshRing();
+
+    activityRefreshInterval = setInterval(function() {
+        activityCountdown--;
+        if (activityCountdown <= 0) {
+            loadActivity();
+            activityCountdown = ACTIVITY_REFRESH_S;
+        }
+        updateActivityRefreshRing();
+    }, 1000);
+}
+
+function stopActivityAutoRefresh() {
+    if (activityRefreshInterval) {
+        clearInterval(activityRefreshInterval);
+        activityRefreshInterval = null;
+    }
+    var indicator = document.getElementById('activity-refresh-indicator');
+    if (indicator) indicator.style.display = 'none';
+}
+
+function updateActivityRefreshRing() {
+    var progress = document.querySelector('.activity-ring-progress');
+    var label = document.querySelector('.activity-refresh-label');
+    if (!progress || !label) return;
+
+    var fraction = activityCountdown / ACTIVITY_REFRESH_S;
+    var offset = CIRCUMFERENCE * (1 - fraction);
+    progress.classList.add('animating');
+    progress.style.strokeDashoffset = offset;
+    label.textContent = activityCountdown + 's';
+}
+
+function changeActivityPageSize(newSize) {
+    activityPageSize = parseInt(newSize);
+    activityPage = 1;
+    loadActivity();
+}
+
+function changeActivityPage(delta) {
+    var totalActivityPages = Math.ceil(activityTotal / activityPageSize) || 1;
+    var newPage = activityPage + delta;
+    if (newPage >= 1 && newPage <= totalActivityPages) {
+        activityPage = newPage;
+        loadActivity();
+    }
+}
+
+function updateActivityPagination() {
+    var totalActivityPages = Math.ceil(activityTotal / activityPageSize) || 1;
+    var start = ((activityPage - 1) * activityPageSize) + 1;
+    var end = Math.min(activityPage * activityPageSize, activityTotal);
+    var info = document.getElementById('activity-pagination-info');
+    if (info) info.textContent = 'Showing ' + start + '–' + end + ' of ' + activityTotal;
+    var prevBtn = document.getElementById('activity-prev-btn');
+    var nextBtn = document.getElementById('activity-next-btn');
+    if (prevBtn) prevBtn.disabled = activityPage <= 1;
+    if (nextBtn) nextBtn.disabled = activityPage >= totalActivityPages;
+}
+
 async function loadActivity() {
     const module = document.getElementById('filter-activity-module').value;
     const action = document.getElementById('filter-activity-action').value;
 
+    // Load chart (separate try/catch so chart errors don't block list)
     try {
         const summaryRes = await fetch('/tools/account-center/api/activity/summary');
         const summaryData = await summaryRes.json();
         if (summaryData.success) {
             renderActivityChart(summaryData.by_day);
         }
+    } catch (chartErr) {
+        console.error('Error loading activity chart:', chartErr);
+    }
 
+    // Load activity list (independent of chart)
+    try {
         let url = '/tools/account-center/api/activity?';
         if (module) url += 'module=' + module + '&';
         if (action) url += 'action=' + action + '&';
+        url += 'limit=' + activityPageSize + '&offset=' + ((activityPage - 1) * activityPageSize);
 
         const res = await fetch(url);
         const data = await res.json();
         if (data.success) {
+            activityTotal = data.total || data.activities.length;
             const list = document.getElementById('activity-list');
             list.textContent = '';
 
@@ -2265,6 +4080,7 @@ async function loadActivity() {
                 empty.className = 'empty-state';
                 empty.textContent = 'No activity found';
                 list.appendChild(empty);
+                updateActivityPagination();
                 return;
             }
 
@@ -2293,6 +4109,8 @@ async function loadActivity() {
                 item.appendChild(details);
                 list.appendChild(item);
             });
+
+            updateActivityPagination();
         }
     } catch (err) {
         console.error('Error loading activity:', err);
@@ -2862,11 +4680,45 @@ async function loadSecurityData() {
     loadTotpUsers();
 }
 
+// Failed logins pagination
+let failedLoginPage = 1;
+let failedLoginPageSize = 10;
+let failedLoginTotal = 0;
+
+function changeFailedLoginsPageSize(newSize) {
+    failedLoginPageSize = parseInt(newSize);
+    failedLoginPage = 1;
+    loadFailedLogins();
+}
+
+function changeFailedLoginsPage(delta) {
+    var totalFlPages = Math.ceil(failedLoginTotal / failedLoginPageSize) || 1;
+    var newPage = failedLoginPage + delta;
+    if (newPage >= 1 && newPage <= totalFlPages) {
+        failedLoginPage = newPage;
+        loadFailedLogins();
+    }
+}
+
+function updateFailedLoginsPagination() {
+    var totalFlPages = Math.ceil(failedLoginTotal / failedLoginPageSize) || 1;
+    var start = ((failedLoginPage - 1) * failedLoginPageSize) + 1;
+    var end = Math.min(failedLoginPage * failedLoginPageSize, failedLoginTotal);
+    var info = document.getElementById('fl-pagination-info');
+    if (info) info.textContent = 'Showing ' + start + '–' + end + ' of ' + failedLoginTotal;
+    var prevBtn = document.getElementById('fl-prev-btn');
+    var nextBtn = document.getElementById('fl-next-btn');
+    if (prevBtn) prevBtn.disabled = failedLoginPage <= 1;
+    if (nextBtn) nextBtn.disabled = failedLoginPage >= totalFlPages;
+}
+
 async function loadFailedLogins() {
     try {
-        const res = await fetch('/tools/account-center/api/security/failed-logins');
+        const url = '/tools/account-center/api/security/failed-logins?limit=' + failedLoginPageSize + '&offset=' + ((failedLoginPage - 1) * failedLoginPageSize);
+        const res = await fetch(url);
         const data = await res.json();
         if (data.success) {
+            failedLoginTotal = data.total || data.logins.length;
             const tbody = document.getElementById('failed-logins-table');
             tbody.textContent = '';
 
@@ -2878,6 +4730,7 @@ async function loadFailedLogins() {
                 td.textContent = 'No failed login attempts in the last 24 hours';
                 tr.appendChild(td);
                 tbody.appendChild(tr);
+                updateFailedLoginsPagination();
                 return;
             }
 
@@ -2905,6 +4758,8 @@ async function loadFailedLogins() {
                 tr.appendChild(tdTime);
                 tbody.appendChild(tr);
             });
+
+            updateFailedLoginsPagination();
         }
     } catch (err) {
         console.error('Error loading failed logins:', err);
@@ -3025,9 +4880,9 @@ async function toggle2FA(userId, action) {
         });
         const data = await res.json();
         if (data.success) {
-            // If enabling/resetting, show the TOTP secret
+            // If enabling/resetting, show QR code modal
             if ((action === true || action === 'reset') && data.totp_secret) {
-                alert('2FA ' + (action === 'reset' ? 'reset' : 'enabled') + ' successfully.\n\nTOTP Secret: ' + data.totp_secret + '\n\nShare this secret with the user to add to their authenticator app (Google Authenticator, Authy, etc.).');
+                show2FAQRModal(data.totp_secret, data.qr_code, action === 'reset');
             }
             loadSecurityData();
         } else {
@@ -3036,6 +4891,80 @@ async function toggle2FA(userId, action) {
     } catch (err) {
         console.error('Error toggling 2FA:', err);
     }
+}
+
+function show2FAQRModal(secret, qrCode, isReset) {
+    // Remove existing modal if any
+    const existing = document.getElementById('qr-modal-overlay');
+    if (existing) existing.remove();
+
+    // Build modal using safe DOM methods
+    const overlay = document.createElement('div');
+    overlay.id = 'qr-modal-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+
+    const modal = document.createElement('div');
+    modal.style.cssText = 'background:var(--archie-bg-card,#161b22);border:1px solid var(--archie-accent-alpha-30,rgba(0,255,65,0.3));border-radius:16px;padding:32px;max-width:420px;width:90%;text-align:center;box-shadow:0 25px 50px rgba(0,0,0,0.5);';
+
+    // Title
+    const h3 = document.createElement('h3');
+    h3.style.cssText = 'color:var(--archie-accent,#00ff41);font-family:var(--archie-font-heading,"Orbitron",sans-serif);font-size:1.1rem;margin-bottom:8px;letter-spacing:0.1em;';
+    h3.textContent = isReset ? '2FA Secret Reset' : '2FA Enabled Successfully';
+    modal.appendChild(h3);
+
+    // Subtitle
+    const subtitle = document.createElement('p');
+    subtitle.style.cssText = 'color:var(--archie-text-secondary,#8b949e);font-size:0.8rem;margin-bottom:20px;';
+    subtitle.textContent = 'Scan this QR code with Google Authenticator or any TOTP app';
+    modal.appendChild(subtitle);
+
+    // QR code image
+    if (qrCode) {
+        const img = document.createElement('img');
+        img.src = qrCode;
+        img.alt = '2FA QR Code';
+        img.style.cssText = 'display:block;margin:0 auto 20px;border-radius:8px;background:#fff;padding:8px;';
+        modal.appendChild(img);
+    }
+
+    // Manual entry section
+    const manualDiv = document.createElement('div');
+    manualDiv.style.cssText = 'margin-bottom:20px;';
+
+    const manualLabel = document.createElement('p');
+    manualLabel.style.cssText = 'color:var(--archie-text-secondary,#8b949e);font-size:0.7rem;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.1em;';
+    manualLabel.textContent = 'Manual Entry Key';
+    manualDiv.appendChild(manualLabel);
+
+    const secretCode = document.createElement('code');
+    secretCode.id = 'totp-secret-display';
+    secretCode.style.cssText = 'display:block;background:rgba(0,0,0,0.4);border:1px solid var(--archie-border,#21262d);border-radius:8px;padding:12px;font-size:0.95rem;color:var(--archie-text-primary,#e6edf3);letter-spacing:0.15em;word-break:break-all;cursor:pointer;user-select:all;';
+    secretCode.title = 'Click to copy';
+    secretCode.textContent = secret;
+    manualDiv.appendChild(secretCode);
+
+    const copyBtn = document.createElement('button');
+    copyBtn.style.cssText = 'margin-top:8px;background:transparent;border:1px solid var(--archie-accent-alpha-30,rgba(0,255,65,0.3));border-radius:6px;color:var(--archie-accent,#00ff41);padding:6px 16px;font-size:0.75rem;cursor:pointer;letter-spacing:0.05em;';
+    copyBtn.textContent = 'Copy Secret';
+    copyBtn.addEventListener('click', function() {
+        navigator.clipboard.writeText(secret).then(function() {
+            copyBtn.textContent = 'Copied!';
+            setTimeout(function() { copyBtn.textContent = 'Copy Secret'; }, 2000);
+        });
+    });
+    manualDiv.appendChild(copyBtn);
+    modal.appendChild(manualDiv);
+
+    // Done button
+    const doneBtn = document.createElement('button');
+    doneBtn.style.cssText = 'background:var(--archie-accent,#00ff41);color:#000;border:none;border-radius:8px;padding:12px 32px;font-family:var(--archie-font-heading,"Orbitron",sans-serif);font-size:0.8rem;font-weight:600;cursor:pointer;letter-spacing:0.1em;text-transform:uppercase;';
+    doneBtn.textContent = 'Done';
+    doneBtn.addEventListener('click', function() { overlay.remove(); });
+    modal.appendChild(doneBtn);
+
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
 }
 
 async function unlockUser(userId) {

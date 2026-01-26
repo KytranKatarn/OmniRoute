@@ -54,35 +54,120 @@
         margin: 0 var(--archie-space-4);
     }
 
-    /* Security Cards */
+    /* Security Overview Cards */
     .security-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        grid-template-columns: repeat(3, 1fr);
         gap: var(--archie-space-4);
     }
 
-    .security-stat {
+    @media (max-width: 900px) {
+        .security-grid { grid-template-columns: 1fr; }
+    }
+
+    .security-card {
+        background: var(--archie-bg-surface);
+        border: 1px solid var(--archie-border-default);
+        border-radius: var(--archie-radius-lg);
+        padding: var(--archie-space-5);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .security-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+    }
+
+    .security-card.card-danger::before { background: #ef4444; }
+    .security-card.card-warning::before { background: #f59e0b; }
+    .security-card.card-success::before { background: #22c55e; }
+
+    .security-card-header {
         display: flex;
         align-items: center;
         gap: var(--archie-space-3);
-        padding: var(--archie-space-3);
-        background: var(--archie-bg-elevated);
-        border-radius: var(--archie-radius-md);
+        margin-bottom: var(--archie-space-3);
     }
 
-    .security-stat-icon {
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
+    .security-card-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: var(--archie-radius-md);
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 1.2rem;
     }
 
-    .security-stat-icon.danger { background: rgba(239, 68, 68, 0.2); color: var(--archie-red); }
-    .security-stat-icon.warning { background: rgba(245, 158, 11, 0.2); color: var(--archie-orange); }
-    .security-stat-icon.success { background: rgba(34, 197, 94, 0.2); color: var(--archie-green); }
+    .security-card-icon i {
+        width: 22px;
+        height: 22px;
+    }
+
+    .security-card-icon.danger { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+    .security-card-icon.warning { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+    .security-card-icon.success { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+
+    .security-card-title {
+        font-size: var(--archie-text-sm);
+        color: var(--archie-text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .security-card-value {
+        font-family: var(--archie-font-heading);
+        font-size: var(--archie-text-3xl);
+        color: var(--archie-text-primary);
+        margin-bottom: var(--archie-space-1);
+    }
+
+    .security-card-label {
+        font-size: var(--archie-text-sm);
+        color: var(--archie-text-secondary);
+    }
+
+    /* Security Policy Grid */
+    .security-policy-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: var(--archie-space-3);
+    }
+
+    .policy-item {
+        display: flex;
+        align-items: center;
+        gap: var(--archie-space-3);
+        padding: var(--archie-space-3) var(--archie-space-4);
+        background: var(--archie-bg-surface);
+        border: 1px solid var(--archie-border-default);
+        border-radius: var(--archie-radius-md);
+    }
+
+    .policy-item .policy-icon {
+        color: var(--archie-accent);
+        flex-shrink: 0;
+    }
+
+    .policy-item .policy-icon i {
+        width: 20px;
+        height: 20px;
+    }
+
+    .policy-item .policy-value {
+        font-family: var(--archie-font-heading);
+        font-size: var(--archie-text-lg);
+        color: var(--archie-text-primary);
+    }
+
+    .policy-item .policy-label {
+        font-size: var(--archie-text-xs);
+        color: var(--archie-text-secondary);
+    }
 
     /* File Upload */
     .file-upload-zone {
@@ -779,64 +864,70 @@
             <div class="tab-content" id="tab-security">
                 <!-- Security Overview -->
                 <div class="security-grid" style="margin-bottom: var(--archie-space-6);">
-                    <div class="card">
-                        <div class="card-header">Failed Logins (24h)</div>
-                        <div class="card-body">
-                            <div class="security-stat">
-                                <div class="security-stat-icon danger">!</div>
-                                <div>
-                                    <div style="font-size: var(--archie-text-2xl); font-weight: bold;" id="failed-login-count">0</div>
-                                    <div style="font-size: var(--archie-text-sm); color: var(--archie-text-tertiary);">failed attempts</div>
-                                </div>
+                    <div class="security-card card-danger">
+                        <div class="security-card-header">
+                            <div class="security-card-icon danger">
+                                <i data-lucide="shield-alert"></i>
                             </div>
+                            <div class="security-card-title">Failed Logins (24h)</div>
                         </div>
+                        <div class="security-card-value" id="failed-login-count">0</div>
+                        <div class="security-card-label">failed attempts in the last 24 hours</div>
                     </div>
-                    <div class="card">
-                        <div class="card-header">Locked Accounts</div>
-                        <div class="card-body">
-                            <div class="security-stat">
-                                <div class="security-stat-icon warning">L</div>
-                                <div>
-                                    <div style="font-size: var(--archie-text-2xl); font-weight: bold;" id="locked-account-count">0</div>
-                                    <div style="font-size: var(--archie-text-sm); color: var(--archie-text-tertiary);">currently locked</div>
-                                </div>
+                    <div class="security-card card-warning">
+                        <div class="security-card-header">
+                            <div class="security-card-icon warning">
+                                <i data-lucide="lock"></i>
                             </div>
+                            <div class="security-card-title">Locked Accounts</div>
                         </div>
+                        <div class="security-card-value" id="locked-account-count">0</div>
+                        <div class="security-card-label">accounts currently locked out</div>
                     </div>
-                    <div class="card">
-                        <div class="card-header">2FA Enabled</div>
-                        <div class="card-body">
-                            <div class="security-stat">
-                                <div class="security-stat-icon success">2</div>
-                                <div>
-                                    <div style="font-size: var(--archie-text-2xl); font-weight: bold;" id="totp-enabled-count">0</div>
-                                    <div style="font-size: var(--archie-text-sm); color: var(--archie-text-tertiary);">users with 2FA</div>
-                                </div>
+                    <div class="security-card card-success">
+                        <div class="security-card-header">
+                            <div class="security-card-icon success">
+                                <i data-lucide="shield-check"></i>
                             </div>
+                            <div class="security-card-title">2FA Enabled</div>
                         </div>
+                        <div class="security-card-value" id="totp-enabled-count">0</div>
+                        <div class="security-card-label">users with two-factor authentication</div>
                     </div>
                 </div>
 
-                <!-- Password Policy -->
+                <!-- Password & Lockout Policy -->
                 <div class="card" style="margin-bottom: var(--archie-space-6);">
-                    <div class="card-header">Password Policy</div>
+                    <div class="card-header">Password &amp; Lockout Policy</div>
                     <div class="card-body">
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--archie-space-4);">
-                            <div class="security-stat">
-                                <div style="color: var(--archie-accent);">8+</div>
-                                <div style="font-size: var(--archie-text-sm);">Minimum length</div>
+                        <div class="security-policy-grid">
+                            <div class="policy-item">
+                                <div class="policy-icon"><i data-lucide="ruler"></i></div>
+                                <div>
+                                    <div class="policy-value">8+</div>
+                                    <div class="policy-label">Minimum length</div>
+                                </div>
                             </div>
-                            <div class="security-stat">
-                                <div style="color: var(--archie-accent);">Aa1!</div>
-                                <div style="font-size: var(--archie-text-sm);">Mixed case, numbers, symbols recommended</div>
+                            <div class="policy-item">
+                                <div class="policy-icon"><i data-lucide="case-sensitive"></i></div>
+                                <div>
+                                    <div class="policy-value">Aa1!</div>
+                                    <div class="policy-label">Complexity recommended</div>
+                                </div>
                             </div>
-                            <div class="security-stat">
-                                <div style="color: var(--archie-accent);">5</div>
-                                <div style="font-size: var(--archie-text-sm);">Failed attempts before lockout</div>
+                            <div class="policy-item">
+                                <div class="policy-icon"><i data-lucide="ban"></i></div>
+                                <div>
+                                    <div class="policy-value">5</div>
+                                    <div class="policy-label">Attempts before lockout</div>
+                                </div>
                             </div>
-                            <div class="security-stat">
-                                <div style="color: var(--archie-accent);">30m</div>
-                                <div style="font-size: var(--archie-text-sm);">Lockout duration</div>
+                            <div class="policy-item">
+                                <div class="policy-icon"><i data-lucide="timer"></i></div>
+                                <div>
+                                    <div class="policy-value">30 min</div>
+                                    <div class="policy-label">Lockout duration</div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -857,7 +948,7 @@
                             </thead>
                             <tbody id="failed-logins-table">
                                 <tr>
-                                    <td colspan="4" class="loading">Loading...</td>
+                                    <td colspan="4" style="text-align: center; padding: var(--archie-space-6); color: var(--archie-text-secondary);">Loading...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -883,7 +974,7 @@
                             </thead>
                             <tbody id="totp-users-table">
                                 <tr>
-                                    <td colspan="5" class="loading">Loading...</td>
+                                    <td colspan="5" style="text-align: center; padding: var(--archie-space-6); color: var(--archie-text-secondary);">Loading...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -2738,6 +2829,9 @@ async function executeBulkUpdate() {
 // ============================================================================
 
 async function loadSecurityData() {
+    // Initialize Lucide icons in security tab (static icons in HTML)
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+
     try {
         const res = await fetch('/tools/account-center/api/security/overview');
         const data = await res.json();

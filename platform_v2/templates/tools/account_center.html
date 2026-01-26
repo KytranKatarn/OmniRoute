@@ -33,17 +33,75 @@
     /* Stats Grid */
     .stats-grid {
         display: grid;
-        grid-template-columns: repeat(5, 1fr);
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
         gap: var(--archie-space-4);
         margin-bottom: var(--archie-space-6);
     }
 
-    @media (max-width: 1200px) {
-        .stats-grid { grid-template-columns: repeat(3, 1fr); }
+    /* Pagination */
+    .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: var(--archie-space-2);
+        margin-top: var(--archie-space-4);
+        padding: var(--archie-space-4) 0;
     }
 
-    @media (max-width: 768px) {
-        .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .pagination-info {
+        color: var(--archie-text-secondary);
+        font-size: var(--archie-text-sm);
+        margin: 0 var(--archie-space-4);
+    }
+
+    /* Security Cards */
+    .security-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: var(--archie-space-4);
+    }
+
+    .security-stat {
+        display: flex;
+        align-items: center;
+        gap: var(--archie-space-3);
+        padding: var(--archie-space-3);
+        background: var(--archie-bg-elevated);
+        border-radius: var(--archie-radius-md);
+    }
+
+    .security-stat-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+    }
+
+    .security-stat-icon.danger { background: rgba(239, 68, 68, 0.2); color: var(--archie-red); }
+    .security-stat-icon.warning { background: rgba(245, 158, 11, 0.2); color: var(--archie-orange); }
+    .security-stat-icon.success { background: rgba(34, 197, 94, 0.2); color: var(--archie-green); }
+
+    /* File Upload */
+    .file-upload-zone {
+        border: 2px dashed var(--archie-border-default);
+        border-radius: var(--archie-radius-lg);
+        padding: var(--archie-space-8);
+        text-align: center;
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+
+    .file-upload-zone:hover,
+    .file-upload-zone.dragover {
+        border-color: var(--archie-accent);
+        background: var(--archie-accent-alpha-10);
+    }
+
+    .file-upload-zone input[type="file"] {
+        display: none;
     }
 
     /* Tab Content */
@@ -287,6 +345,14 @@
                     <div class="stat-label">ACTIVE TODAY</div>
                     <div class="stat-value" id="stat-active" style="color: var(--archie-cyan);">{{ stats.active_today }}</div>
                 </div>
+                <div class="stat-card">
+                    <div class="stat-label">SESSIONS</div>
+                    <div class="stat-value" id="stat-sessions" style="color: var(--archie-green);">{{ stats.active_sessions }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">API KEYS</div>
+                    <div class="stat-value" id="stat-apikeys" style="color: var(--archie-purple);">{{ stats.api_keys }}</div>
+                </div>
             </div>
 
             <!-- Tabs -->
@@ -294,6 +360,7 @@
                 <button class="tab-btn active" data-tab="list">LIST</button>
                 <button class="tab-btn" data-tab="permissions">PERMISSIONS</button>
                 <button class="tab-btn" data-tab="subscriptions">SUBSCRIPTIONS</button>
+                <button class="tab-btn" data-tab="security">SECURITY</button>
                 <button class="tab-btn" data-tab="sessions">SESSIONS</button>
                 <button class="tab-btn" data-tab="api-keys">API KEYS</button>
                 <button class="tab-btn" data-tab="bulk">BULK OPS</button>
@@ -329,19 +396,28 @@
                             <th>Role</th>
                             <th>Tier</th>
                             <th>Status</th>
+                            <th>Sessions</th>
+                            <th>Keys</th>
                             <th>Last Login</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="users-table-body">
                         <tr>
-                            <td colspan="7" class="loading">
+                            <td colspan="9" class="loading">
                                 <div class="loading-spinner"></div>
                                 <p>Loading users...</p>
                             </td>
                         </tr>
                     </tbody>
                 </table>
+
+                <!-- Pagination -->
+                <div class="pagination" id="users-pagination">
+                    <button class="btn btn-sm" onclick="changePage(-1)" id="prev-page-btn" disabled>Previous</button>
+                    <span class="pagination-info" id="pagination-info">Page 1 of 1</span>
+                    <button class="btn btn-sm" onclick="changePage(1)" id="next-page-btn" disabled>Next</button>
+                </div>
             </div>
 
             <!-- PERMISSIONS Tab -->
@@ -406,6 +482,122 @@
                                 <p>No user selected</p>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECURITY Tab -->
+            <div class="tab-content" id="tab-security">
+                <!-- Security Overview -->
+                <div class="security-grid" style="margin-bottom: var(--archie-space-6);">
+                    <div class="card">
+                        <div class="card-header">Failed Logins (24h)</div>
+                        <div class="card-body">
+                            <div class="security-stat">
+                                <div class="security-stat-icon danger">!</div>
+                                <div>
+                                    <div style="font-size: var(--archie-text-2xl); font-weight: bold;" id="failed-login-count">0</div>
+                                    <div style="font-size: var(--archie-text-sm); color: var(--archie-text-tertiary);">failed attempts</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">Locked Accounts</div>
+                        <div class="card-body">
+                            <div class="security-stat">
+                                <div class="security-stat-icon warning">L</div>
+                                <div>
+                                    <div style="font-size: var(--archie-text-2xl); font-weight: bold;" id="locked-account-count">0</div>
+                                    <div style="font-size: var(--archie-text-sm); color: var(--archie-text-tertiary);">currently locked</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">2FA Enabled</div>
+                        <div class="card-body">
+                            <div class="security-stat">
+                                <div class="security-stat-icon success">2</div>
+                                <div>
+                                    <div style="font-size: var(--archie-text-2xl); font-weight: bold;" id="totp-enabled-count">0</div>
+                                    <div style="font-size: var(--archie-text-sm); color: var(--archie-text-tertiary);">users with 2FA</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Password Policy -->
+                <div class="card" style="margin-bottom: var(--archie-space-6);">
+                    <div class="card-header">Password Policy</div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--archie-space-4);">
+                            <div class="security-stat">
+                                <div style="color: var(--archie-accent);">8+</div>
+                                <div style="font-size: var(--archie-text-sm);">Minimum length</div>
+                            </div>
+                            <div class="security-stat">
+                                <div style="color: var(--archie-accent);">Aa1!</div>
+                                <div style="font-size: var(--archie-text-sm);">Mixed case, numbers, symbols recommended</div>
+                            </div>
+                            <div class="security-stat">
+                                <div style="color: var(--archie-accent);">5</div>
+                                <div style="font-size: var(--archie-text-sm);">Failed attempts before lockout</div>
+                            </div>
+                            <div class="security-stat">
+                                <div style="color: var(--archie-accent);">30m</div>
+                                <div style="font-size: var(--archie-text-sm);">Lockout duration</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Failed Logins -->
+                <div class="card" style="margin-bottom: var(--archie-space-6);">
+                    <div class="card-header">Recent Failed Login Attempts</div>
+                    <div class="card-body">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Username</th>
+                                    <th>IP Address</th>
+                                    <th>Reason</th>
+                                    <th>Time</th>
+                                </tr>
+                            </thead>
+                            <tbody id="failed-logins-table">
+                                <tr>
+                                    <td colspan="4" class="loading">Loading...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 2FA Management -->
+                <div class="card">
+                    <div class="card-header">Two-Factor Authentication Management</div>
+                    <div class="card-body">
+                        <p style="color: var(--archie-text-secondary); margin-bottom: var(--archie-space-4);">
+                            Manage 2FA settings for users. Disabling 2FA will require the user to set it up again.
+                        </p>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Username</th>
+                                    <th>Email</th>
+                                    <th>2FA Status</th>
+                                    <th>Enabled Since</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="totp-users-table">
+                                <tr>
+                                    <td colspan="5" class="loading">Loading...</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -521,6 +713,41 @@
                             </div>
                             <div class="form-group" style="margin: 0; display: flex; align-items: flex-end;">
                                 <button class="btn btn-primary" onclick="exportUsers()">Export</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-bottom: var(--archie-space-6);">
+                    <div class="card-header">Import Users</div>
+                    <div class="card-body">
+                        <p style="color: var(--archie-text-secondary); margin-bottom: var(--archie-space-4);">
+                            Import users from a CSV file. Required columns: username, email, password. Optional: role, subscription_tier
+                        </p>
+                        <div class="file-upload-zone" id="import-dropzone" onclick="document.getElementById('import-file').click()">
+                            <input type="file" id="import-file" accept=".csv" onchange="handleImportFile(event)">
+                            <div style="font-size: 2rem; margin-bottom: var(--archie-space-2);">+</div>
+                            <div>Drop CSV file here or click to browse</div>
+                            <div style="font-size: var(--archie-text-sm); color: var(--archie-text-tertiary); margin-top: var(--archie-space-2);">
+                                Max 1000 users per import
+                            </div>
+                        </div>
+                        <div id="import-preview" style="display: none; margin-top: var(--archie-space-4);">
+                            <div class="card-header">Preview (<span id="import-count">0</span> users)</div>
+                            <table class="data-table" style="margin-bottom: var(--archie-space-4);">
+                                <thead>
+                                    <tr>
+                                        <th>Username</th>
+                                        <th>Email</th>
+                                        <th>Role</th>
+                                        <th>Tier</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="import-preview-table"></tbody>
+                            </table>
+                            <div style="display: flex; gap: var(--archie-space-2);">
+                                <button class="btn btn-primary" onclick="executeImport()">Import Users</button>
+                                <button class="btn btn-ghost" onclick="cancelImport()">Cancel</button>
                             </div>
                         </div>
                     </div>
@@ -766,6 +993,10 @@
 let users = [];
 let selectedUserId = null;
 let activityChart = null;
+let currentPage = 1;
+let totalPages = 1;
+let pageSize = 25;
+let importData = [];
 
 // Tab switching
 document.querySelectorAll('.tab-btn').forEach(tab => {
@@ -777,6 +1008,7 @@ document.querySelectorAll('.tab-btn').forEach(tab => {
 
         if (tab.dataset.tab === 'permissions') loadPermissions();
         if (tab.dataset.tab === 'subscriptions') loadTiers();
+        if (tab.dataset.tab === 'security') loadSecurityData();
         if (tab.dataset.tab === 'sessions') loadSessions();
         if (tab.dataset.tab === 'api-keys') loadApiKeys();
         if (tab.dataset.tab === 'activity') loadActivity();
@@ -807,16 +1039,33 @@ async function loadUsers() {
     if (role) url += 'role=' + role + '&';
     if (tier) url += 'tier=' + tier + '&';
     if (search) url += 'search=' + encodeURIComponent(search) + '&';
+    url += 'limit=' + pageSize + '&offset=' + ((currentPage - 1) * pageSize);
 
     try {
         const res = await fetch(url);
         const data = await res.json();
         if (data.success) {
             users = data.users;
+            totalPages = Math.ceil(data.total / pageSize) || 1;
             renderUsersTable(data.users);
+            updatePagination();
         }
     } catch (err) {
         console.error('Error loading users:', err);
+    }
+}
+
+function updatePagination() {
+    document.getElementById('pagination-info').textContent = 'Page ' + currentPage + ' of ' + totalPages;
+    document.getElementById('prev-page-btn').disabled = currentPage <= 1;
+    document.getElementById('next-page-btn').disabled = currentPage >= totalPages;
+}
+
+function changePage(delta) {
+    const newPage = currentPage + delta;
+    if (newPage >= 1 && newPage <= totalPages) {
+        currentPage = newPage;
+        loadUsers();
     }
 }
 
@@ -826,7 +1075,7 @@ function renderUsersTable(userList) {
         tbody.textContent = '';
         const tr = document.createElement('tr');
         const td = document.createElement('td');
-        td.colSpan = 7;
+        td.colSpan = 9;
         td.className = 'empty-state';
         td.textContent = 'No users found';
         tr.appendChild(td);
@@ -864,6 +1113,14 @@ function renderUsersTable(userList) {
         statusBadge.textContent = user.is_active !== false ? 'Active' : 'Inactive';
         tdStatus.appendChild(statusBadge);
 
+        const tdSessions = document.createElement('td');
+        tdSessions.textContent = user.session_count || 0;
+        tdSessions.style.textAlign = 'center';
+
+        const tdKeys = document.createElement('td');
+        tdKeys.textContent = user.api_key_count || 0;
+        tdKeys.style.textAlign = 'center';
+
         const tdLogin = document.createElement('td');
         tdLogin.textContent = user.last_login ? new Date(user.last_login).toLocaleDateString() : 'Never';
 
@@ -897,6 +1154,8 @@ function renderUsersTable(userList) {
         tr.appendChild(tdRole);
         tr.appendChild(tdTier);
         tr.appendChild(tdStatus);
+        tr.appendChild(tdSessions);
+        tr.appendChild(tdKeys);
         tr.appendChild(tdLogin);
         tr.appendChild(tdActions);
         tbody.appendChild(tr);
@@ -995,22 +1254,73 @@ async function viewUser(userId) {
             const grid = document.createElement('div');
             grid.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr; gap: var(--archie-space-4);';
 
+            // User Info Section
             const userInfo = document.createElement('div');
-            userInfo.innerHTML = '<h4 style="color: var(--archie-accent); margin-bottom: var(--archie-space-4);">User Info</h4>';
-            userInfo.innerHTML += '<p><strong>Username:</strong> ' + user.username + '</p>';
-            userInfo.innerHTML += '<p><strong>Email:</strong> ' + (user.email || '-') + '</p>';
-            userInfo.innerHTML += '<p><strong>Created:</strong> ' + new Date(user.created_at).toLocaleDateString() + '</p>';
-            userInfo.innerHTML += '<p><strong>Last Login:</strong> ' + (user.last_login ? new Date(user.last_login).toLocaleString() : 'Never') + '</p>';
+            const userTitle = document.createElement('h4');
+            userTitle.style.cssText = 'color: var(--archie-accent); margin-bottom: var(--archie-space-4);';
+            userTitle.textContent = 'User Info';
+            userInfo.appendChild(userTitle);
 
+            const infoItems = [
+                ['Username', user.username],
+                ['Email', user.email || '-'],
+                ['Created', new Date(user.created_at).toLocaleDateString()],
+                ['Last Login', user.last_login ? new Date(user.last_login).toLocaleString() : 'Never'],
+                ['2FA Status', user.totp_enabled ? 'Enabled' : 'Disabled'],
+                ['Account Status', user.locked_until && new Date(user.locked_until) > new Date() ? 'LOCKED' : 'Active']
+            ];
+
+            infoItems.forEach(([label, value]) => {
+                const p = document.createElement('p');
+                const strong = document.createElement('strong');
+                strong.textContent = label + ': ';
+                p.appendChild(strong);
+                p.appendChild(document.createTextNode(value));
+                userInfo.appendChild(p);
+            });
+
+            // Usage Stats Section
             const usageStats = document.createElement('div');
-            usageStats.innerHTML = '<h4 style="color: var(--archie-accent); margin-bottom: var(--archie-space-4);">Usage Stats</h4>';
-            usageStats.innerHTML += '<p><strong>Conversations:</strong> ' + (stats.conversations || 0) + '</p>';
-            usageStats.innerHTML += '<p><strong>App Projects:</strong> ' + (stats.app_projects || 0) + '</p>';
-            usageStats.innerHTML += '<p><strong>Website Projects:</strong> ' + (stats.website_projects || 0) + '</p>';
+            const statsTitle = document.createElement('h4');
+            statsTitle.style.cssText = 'color: var(--archie-accent); margin-bottom: var(--archie-space-4);';
+            statsTitle.textContent = 'Usage Stats';
+            usageStats.appendChild(statsTitle);
+
+            const statItems = [
+                ['Conversations', stats.conversations || 0],
+                ['App Projects', stats.app_projects || 0],
+                ['Website Projects', stats.website_projects || 0],
+                ['Active Sessions', stats.session_count || 0],
+                ['API Keys', stats.api_key_count || 0]
+            ];
+
+            statItems.forEach(([label, value]) => {
+                const p = document.createElement('p');
+                const strong = document.createElement('strong');
+                strong.textContent = label + ': ';
+                p.appendChild(strong);
+                p.appendChild(document.createTextNode(value));
+                usageStats.appendChild(p);
+            });
 
             grid.appendChild(userInfo);
             grid.appendChild(usageStats);
             content.appendChild(grid);
+
+            // View Activity Button
+            const actionsDiv = document.createElement('div');
+            actionsDiv.style.cssText = 'margin-top: var(--archie-space-4); padding-top: var(--archie-space-4); border-top: 1px solid var(--archie-border-subtle);';
+
+            const viewActivityBtn = document.createElement('button');
+            viewActivityBtn.className = 'btn btn-primary';
+            viewActivityBtn.textContent = 'View Activity';
+            viewActivityBtn.onclick = () => {
+                closeDetailsModal();
+                document.querySelector('[data-tab="activity"]').click();
+            };
+            actionsDiv.appendChild(viewActivityBtn);
+
+            content.appendChild(actionsDiv);
         }
     } catch (err) {
         console.error('Error loading user details:', err);
@@ -1707,6 +2017,313 @@ async function executeBulkUpdate() {
         }
     } catch (err) {
         console.error('Error executing bulk update:', err);
+    }
+}
+
+// ============================================================================
+// SECURITY TAB
+// ============================================================================
+
+async function loadSecurityData() {
+    try {
+        const res = await fetch('/tools/account-center/api/security/overview');
+        const data = await res.json();
+        if (data.success) {
+            document.getElementById('failed-login-count').textContent = data.failed_logins_24h || 0;
+            document.getElementById('locked-account-count').textContent = data.locked_accounts || 0;
+            document.getElementById('totp-enabled-count').textContent = data.totp_enabled || 0;
+        }
+    } catch (err) {
+        console.error('Error loading security data:', err);
+    }
+
+    loadFailedLogins();
+    loadTotpUsers();
+}
+
+async function loadFailedLogins() {
+    try {
+        const res = await fetch('/tools/account-center/api/security/failed-logins');
+        const data = await res.json();
+        if (data.success) {
+            const tbody = document.getElementById('failed-logins-table');
+            tbody.textContent = '';
+
+            if (data.logins.length === 0) {
+                const tr = document.createElement('tr');
+                const td = document.createElement('td');
+                td.colSpan = 4;
+                td.className = 'empty-state';
+                td.textContent = 'No failed login attempts in the last 24 hours';
+                tr.appendChild(td);
+                tbody.appendChild(tr);
+                return;
+            }
+
+            data.logins.forEach(l => {
+                const tr = document.createElement('tr');
+
+                const tdUser = document.createElement('td');
+                const strong = document.createElement('strong');
+                strong.textContent = l.username || 'Unknown';
+                tdUser.appendChild(strong);
+
+                const tdIp = document.createElement('td');
+                tdIp.textContent = l.ip_address || '-';
+                tdIp.style.fontFamily = 'monospace';
+
+                const tdReason = document.createElement('td');
+                tdReason.textContent = l.reason || 'Invalid credentials';
+
+                const tdTime = document.createElement('td');
+                tdTime.textContent = new Date(l.attempted_at).toLocaleString();
+
+                tr.appendChild(tdUser);
+                tr.appendChild(tdIp);
+                tr.appendChild(tdReason);
+                tr.appendChild(tdTime);
+                tbody.appendChild(tr);
+            });
+        }
+    } catch (err) {
+        console.error('Error loading failed logins:', err);
+    }
+}
+
+async function loadTotpUsers() {
+    try {
+        const res = await fetch('/tools/account-center/api/security/2fa');
+        const data = await res.json();
+        if (data.success) {
+            const tbody = document.getElementById('totp-users-table');
+            tbody.textContent = '';
+
+            if (data.users.length === 0) {
+                const tr = document.createElement('tr');
+                const td = document.createElement('td');
+                td.colSpan = 5;
+                td.className = 'empty-state';
+                td.textContent = 'No users configured';
+                tr.appendChild(td);
+                tbody.appendChild(tr);
+                return;
+            }
+
+            data.users.forEach(u => {
+                const tr = document.createElement('tr');
+
+                const tdUser = document.createElement('td');
+                const strong = document.createElement('strong');
+                strong.textContent = u.username;
+                tdUser.appendChild(strong);
+
+                const tdEmail = document.createElement('td');
+                tdEmail.textContent = u.email || '-';
+
+                const tdStatus = document.createElement('td');
+                const badge = document.createElement('span');
+                badge.className = 'badge ' + (u.totp_enabled ? 'badge-success' : 'badge-danger');
+                badge.textContent = u.totp_enabled ? 'Enabled' : 'Disabled';
+                tdStatus.appendChild(badge);
+
+                const tdSince = document.createElement('td');
+                tdSince.textContent = u.totp_verified_at ? new Date(u.totp_verified_at).toLocaleDateString() : '-';
+
+                const tdActions = document.createElement('td');
+                const actionsDiv = document.createElement('div');
+                actionsDiv.style.display = 'flex';
+                actionsDiv.style.gap = '8px';
+
+                if (u.totp_enabled) {
+                    const disableBtn = document.createElement('button');
+                    disableBtn.className = 'btn btn-sm btn-danger';
+                    disableBtn.textContent = 'Disable 2FA';
+                    disableBtn.onclick = () => toggle2FA(u.id, false);
+                    actionsDiv.appendChild(disableBtn);
+                }
+
+                if (u.locked_until && new Date(u.locked_until) > new Date()) {
+                    const unlockBtn = document.createElement('button');
+                    unlockBtn.className = 'btn btn-sm btn-warning';
+                    unlockBtn.textContent = 'Unlock';
+                    unlockBtn.onclick = () => unlockUser(u.id);
+                    actionsDiv.appendChild(unlockBtn);
+                }
+
+                tdActions.appendChild(actionsDiv);
+
+                tr.appendChild(tdUser);
+                tr.appendChild(tdEmail);
+                tr.appendChild(tdStatus);
+                tr.appendChild(tdSince);
+                tr.appendChild(tdActions);
+                tbody.appendChild(tr);
+            });
+        }
+    } catch (err) {
+        console.error('Error loading 2FA users:', err);
+    }
+}
+
+async function toggle2FA(userId, enable) {
+    const action = enable ? 'enable' : 'disable';
+    if (!confirm('Are you sure you want to ' + action + ' 2FA for this user?')) return;
+
+    try {
+        const res = await fetch('/tools/account-center/api/security/2fa/' + userId, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled: enable })
+        });
+        const data = await res.json();
+        if (data.success) {
+            loadSecurityData();
+        } else {
+            alert(data.error || 'Error updating 2FA');
+        }
+    } catch (err) {
+        console.error('Error toggling 2FA:', err);
+    }
+}
+
+async function unlockUser(userId) {
+    if (!confirm('Unlock this user account?')) return;
+
+    try {
+        const res = await fetch('/tools/account-center/api/security/unlock/' + userId, {
+            method: 'POST'
+        });
+        const data = await res.json();
+        if (data.success) {
+            loadSecurityData();
+        } else {
+            alert(data.error || 'Error unlocking user');
+        }
+    } catch (err) {
+        console.error('Error unlocking user:', err);
+    }
+}
+
+// ============================================================================
+// USER IMPORT
+// ============================================================================
+
+// Drag and drop
+const dropzone = document.getElementById('import-dropzone');
+if (dropzone) {
+    dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+    dropzone.addEventListener('dragleave', () => { dropzone.classList.remove('dragover'); });
+    dropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('dragover');
+        const file = e.dataTransfer.files[0];
+        if (file && file.name.endsWith('.csv')) {
+            parseCSVFile(file);
+        } else {
+            alert('Please drop a CSV file');
+        }
+    });
+}
+
+function handleImportFile(event) {
+    const file = event.target.files[0];
+    if (file) parseCSVFile(file);
+}
+
+function parseCSVFile(file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const text = e.target.result;
+        const lines = text.split('\n').filter(l => l.trim());
+        if (lines.length < 2) {
+            alert('CSV must have a header row and at least one data row');
+            return;
+        }
+
+        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+        const usernameIdx = headers.indexOf('username');
+        const emailIdx = headers.indexOf('email');
+        const passwordIdx = headers.indexOf('password');
+
+        if (usernameIdx === -1 || passwordIdx === -1) {
+            alert('CSV must have at least "username" and "password" columns');
+            return;
+        }
+
+        importData = [];
+        const roleIdx = headers.indexOf('role');
+        const tierIdx = headers.indexOf('subscription_tier');
+
+        for (let i = 1; i < Math.min(lines.length, 1001); i++) {
+            const cols = lines[i].split(',').map(c => c.trim());
+            if (!cols[usernameIdx]) continue;
+
+            importData.push({
+                username: cols[usernameIdx],
+                email: emailIdx >= 0 ? (cols[emailIdx] || '') : '',
+                password: cols[passwordIdx] || '',
+                role: roleIdx >= 0 ? (cols[roleIdx] || 'user') : 'user',
+                subscription_tier: tierIdx >= 0 ? (cols[tierIdx] || 'free') : 'free'
+            });
+        }
+
+        // Show preview
+        document.getElementById('import-count').textContent = importData.length;
+        const previewTable = document.getElementById('import-preview-table');
+        previewTable.textContent = '';
+
+        importData.slice(0, 10).forEach(u => {
+            const tr = document.createElement('tr');
+            ['username', 'email', 'role', 'subscription_tier'].forEach(field => {
+                const td = document.createElement('td');
+                td.textContent = u[field] || '-';
+                tr.appendChild(td);
+            });
+            previewTable.appendChild(tr);
+        });
+
+        if (importData.length > 10) {
+            const tr = document.createElement('tr');
+            const td = document.createElement('td');
+            td.colSpan = 4;
+            td.style.color = 'var(--archie-text-tertiary)';
+            td.textContent = '... and ' + (importData.length - 10) + ' more';
+            tr.appendChild(td);
+            previewTable.appendChild(tr);
+        }
+
+        document.getElementById('import-preview').style.display = 'block';
+    };
+    reader.readAsText(file);
+}
+
+function cancelImport() {
+    importData = [];
+    document.getElementById('import-preview').style.display = 'none';
+    document.getElementById('import-file').value = '';
+}
+
+async function executeImport() {
+    if (importData.length === 0) return;
+    if (!confirm('Import ' + importData.length + ' users?')) return;
+
+    try {
+        const res = await fetch('/tools/account-center/api/bulk/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ users: importData })
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert('Imported ' + data.created + ' users. ' + (data.skipped || 0) + ' skipped (duplicates).');
+            cancelImport();
+            loadUsers();
+        } else {
+            alert(data.error || 'Error importing users');
+        }
+    } catch (err) {
+        console.error('Error importing users:', err);
+        alert('Error importing users');
     }
 }
 </script>

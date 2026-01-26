@@ -87,7 +87,9 @@ def index():
         'admins': 0,
         'premium': 0,
         'free': 0,
-        'active_today': 0
+        'active_today': 0,
+        'active_sessions': 0,
+        'api_keys': 0
     }
 
     try:
@@ -112,6 +114,12 @@ def index():
             WHERE created_at > NOW() - INTERVAL '24 hours'
         """)
         stats['active_today'] = cur.fetchone()['count']
+
+        cur.execute("SELECT COUNT(*) as count FROM active_sessions")
+        stats['active_sessions'] = cur.fetchone()['count']
+
+        cur.execute("SELECT COUNT(*) as count FROM mcp_api_keys WHERE is_active = true")
+        stats['api_keys'] = cur.fetchone()['count']
 
         cur.close()
         conn.close()
@@ -141,28 +149,38 @@ def api_list_users():
         limit = request.args.get('limit', 100, type=int)
         offset = request.args.get('offset', 0, type=int)
 
-        # Build query
+        # Build query with session and API key counts
         query = """
-            SELECT id, username, email, role, subscription_tier, subscription_status,
-                   is_admin, is_active, created_at, last_login
-            FROM users
+            SELECT u.id, u.username, u.email, u.role, u.subscription_tier, u.subscription_status,
+                   u.is_admin, u.is_active, u.created_at, u.last_login,
+                   COALESCE(s.session_count, 0) as session_count,
+                   COALESCE(k.api_key_count, 0) as api_key_count
+            FROM users u
+            LEFT JOIN (
+                SELECT user_id, COUNT(*) as session_count
+                FROM active_sessions GROUP BY user_id
+            ) s ON s.user_id = u.id
+            LEFT JOIN (
+                SELECT user_id, COUNT(*) as api_key_count
+                FROM mcp_api_keys WHERE is_active = true GROUP BY user_id
+            ) k ON k.user_id = u.id
             WHERE 1=1
         """
         params = []
 
         if role_filter:
-            query += " AND role = %s"
+            query += " AND u.role = %s"
             params.append(role_filter)
 
         if tier_filter:
-            query += " AND subscription_tier = %s"
+            query += " AND u.subscription_tier = %s"
             params.append(tier_filter)
 
         if search:
-            query += " AND (username ILIKE %s OR email ILIKE %s)"
+            query += " AND (u.username ILIKE %s OR u.email ILIKE %s)"
             params.extend([f'%{search}%', f'%{search}%'])
 
-        query += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
+        query += " ORDER BY u.created_at DESC LIMIT %s OFFSET %s"
         params.extend([limit, offset])
 
         cur.execute(query, params)
@@ -211,7 +229,8 @@ def api_get_user(user_id):
         cur.execute("""
             SELECT id, username, email, role, subscription_tier, subscription_status,
                    is_admin, is_active, created_at, last_login, last_login_ip,
-                   preferences, metadata
+                   preferences, metadata, totp_enabled, totp_verified_at,
+                   failed_login_count, locked_until
             FROM users WHERE id = %s
         """, (user_id,))
         user = cur.fetchone()
@@ -219,13 +238,15 @@ def api_get_user(user_id):
         if not user:
             return jsonify({'success': False, 'error': 'User not found'}), 404
 
-        # Get user stats
+        # Get user stats including session/API key counts
         cur.execute("""
             SELECT
                 (SELECT COUNT(*) FROM conversations WHERE user_id = %s) as conversations,
                 (SELECT COUNT(*) FROM app_builder_projects WHERE user_id = %s) as app_projects,
-                (SELECT COUNT(*) FROM website_builder_projects WHERE user_id = %s) as website_projects
-        """, (user_id, user_id, user_id))
+                (SELECT COUNT(*) FROM website_builder_projects WHERE user_id = %s) as website_projects,
+                (SELECT COUNT(*) FROM active_sessions WHERE user_id = %s) as session_count,
+                (SELECT COUNT(*) FROM mcp_api_keys WHERE user_id = %s AND is_active = true) as api_key_count
+        """, (user_id, user_id, user_id, user_id, user_id))
         stats = cur.fetchone()
 
         # Get recent activity
@@ -1178,5 +1199,224 @@ def api_bulk_update():
         conn.close()
 
         return jsonify({'success': True, 'count': count})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@account_center_bp.route('/api/bulk/import', methods=['POST'])
+@login_required
+@admin_required
+def api_bulk_import():
+    """Import users from CSV data"""
+    try:
+        data = request.get_json()
+        users_to_import = data.get('users', [])
+
+        if not users_to_import:
+            return jsonify({'success': False, 'error': 'No users to import'}), 400
+
+        if len(users_to_import) > 1000:
+            return jsonify({'success': False, 'error': 'Maximum 1000 users per import'}), 400
+
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        created = 0
+        skipped = 0
+
+        for user_data in users_to_import:
+            username = user_data.get('username', '').strip()
+            email = user_data.get('email', '').strip()
+            password = user_data.get('password', '')
+            role = user_data.get('role', 'user')
+            tier = user_data.get('subscription_tier', 'free')
+
+            if not username or not password:
+                skipped += 1
+                continue
+
+            # Check if username exists
+            cur.execute("SELECT id FROM users WHERE username = %s", (username,))
+            if cur.fetchone():
+                skipped += 1
+                continue
+
+            password_hash = generate_password_hash(password)
+            is_admin = role.lower() in ['admin', 'super_admin']
+
+            cur.execute("""
+                INSERT INTO users (username, email, password_hash, role, subscription_tier, is_admin)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (username, email or None, password_hash, role.lower(), tier, is_admin))
+            created += 1
+
+        conn.commit()
+
+        log_activity(current_user.id, 'users_imported',
+                     details={'created': created, 'skipped': skipped})
+
+        cur.close()
+        conn.close()
+
+        return jsonify({'success': True, 'created': created, 'skipped': skipped})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ============================================================================
+# SECURITY API
+# ============================================================================
+
+@account_center_bp.route('/api/security/overview')
+@login_required
+@admin_required
+def api_security_overview():
+    """Get security overview stats"""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Failed logins in last 24 hours
+        cur.execute("""
+            SELECT COUNT(*) as count FROM failed_logins
+            WHERE attempted_at > NOW() - INTERVAL '24 hours'
+        """)
+        failed_logins = cur.fetchone()['count']
+
+        # Locked accounts
+        cur.execute("""
+            SELECT COUNT(*) as count FROM users
+            WHERE locked_until IS NOT NULL AND locked_until > NOW()
+        """)
+        locked_accounts = cur.fetchone()['count']
+
+        # 2FA enabled users
+        cur.execute("SELECT COUNT(*) as count FROM users WHERE totp_enabled = true")
+        totp_enabled = cur.fetchone()['count']
+
+        cur.close()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'failed_logins_24h': failed_logins,
+            'locked_accounts': locked_accounts,
+            'totp_enabled': totp_enabled
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@account_center_bp.route('/api/security/failed-logins')
+@login_required
+@admin_required
+def api_failed_logins():
+    """Get recent failed login attempts"""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute("""
+            SELECT username, ip_address, user_agent, attempted_at, reason
+            FROM failed_logins
+            WHERE attempted_at > NOW() - INTERVAL '24 hours'
+            ORDER BY attempted_at DESC
+            LIMIT 100
+        """)
+        logins = cur.fetchall()
+
+        cur.close()
+        conn.close()
+
+        return jsonify({'success': True, 'logins': [dict(l) for l in logins]})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@account_center_bp.route('/api/security/2fa')
+@login_required
+@admin_required
+def api_list_2fa_users():
+    """List users with 2FA status"""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute("""
+            SELECT id, username, email, totp_enabled, totp_verified_at,
+                   failed_login_count, locked_until
+            FROM users
+            WHERE is_active = true
+            ORDER BY totp_enabled DESC, username ASC
+        """)
+        users = cur.fetchall()
+
+        cur.close()
+        conn.close()
+
+        return jsonify({'success': True, 'users': [dict(u) for u in users]})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@account_center_bp.route('/api/security/2fa/<int:user_id>', methods=['PUT'])
+@login_required
+@admin_required
+def api_toggle_2fa(user_id):
+    """Enable/disable 2FA for a user"""
+    try:
+        data = request.get_json()
+        enabled = data.get('enabled', False)
+
+        conn = get_db()
+        cur = conn.cursor()
+
+        if enabled:
+            cur.execute("""
+                UPDATE users SET totp_enabled = true, totp_verified_at = NOW()
+                WHERE id = %s
+            """, (user_id,))
+        else:
+            # Disable 2FA - clear secret and status
+            cur.execute("""
+                UPDATE users SET totp_enabled = false, totp_secret = NULL, totp_verified_at = NULL
+                WHERE id = %s
+            """, (user_id,))
+
+        conn.commit()
+
+        action = '2fa_enabled' if enabled else '2fa_disabled'
+        log_activity(current_user.id, action, details={'target_user_id': user_id})
+
+        cur.close()
+        conn.close()
+
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@account_center_bp.route('/api/security/unlock/<int:user_id>', methods=['POST'])
+@login_required
+@admin_required
+def api_unlock_user(user_id):
+    """Unlock a locked user account"""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+
+        cur.execute("""
+            UPDATE users SET locked_until = NULL, failed_login_count = 0
+            WHERE id = %s
+        """, (user_id,))
+
+        conn.commit()
+
+        log_activity(current_user.id, 'user_unlocked', details={'target_user_id': user_id})
+
+        cur.close()
+        conn.close()
+
+        return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500

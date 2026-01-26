@@ -16,19 +16,30 @@
 | Resource | Location |
 |----------|----------|
 | Platform | http://192.168.1.200:3000 |
-| Blueprint | http://192.168.1.200:3000/tools/blueprint |
-| Docs | `/mnt/archie_brain/docs/` (88 files) |
+| Mission Control | http://192.168.1.200:3000/tools/blueprint |
+| Docs | `knowledge_base` table → Mission Control Knowledge tab or MCP `search_knowledge` |
 | Modules | `/mnt/archie_brain/platform_v2/tools/` (50 modules) |
 | MCP Tools | 69 tools via `.mcp.json` |
-| Projects | `unified_projects` table (84 projects) |
+| Projects | `unified_projects` table → MCP `get_projects` / `create_task` |
 
 ## Architecture (5 Systems)
 
-1. **Knowledge Base** - `knowledge_base` table (3,390 entries)
+1. **Knowledge Base** - `knowledge_base` table (3,390+ entries)
 2. **AI Bridge** - `/ai_bridge/archie_bridge.py` (multi-model router)
 3. **Module System** - Flask Blueprints in `/platform_v2/tools/`
-4. **Blueprint** - Intelligence center, 45+ API endpoints
+4. **Mission Control** - Unified dashboard (Blueprint + Consciousness), 45+ API endpoints
 5. **Improvement Workflow** - Scan → Proposal → Sandbox → Deploy
+
+## Source of Truth
+
+| Data | Location | Access |
+|------|----------|--------|
+| **Documentation & Knowledge** | `knowledge_base` table | Mission Control Knowledge tab, MCP `search_knowledge`, MCP `store_memory` (use `knowledge_type='vault_note'` for docs) |
+| **Projects & Tasks** | `unified_projects` + `unified_tasks` tables | MCP `get_projects`, `create_project`, `create_task`, `complete_task` |
+| **Decisions** | `project_decisions` table | MCP `log_decision` |
+| **Module Code** | `/platform_v2/tools/` filesystem | Direct file access |
+
+**NO filesystem docs** — `/docs/` is archived (git history only). **NO TODO_LIST.md** — use `unified_tasks` table.
 
 ## Key Files
 

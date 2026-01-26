@@ -8,6 +8,7 @@ This module handles:
 
 All routes require admin authentication.
 """
+
 from flask import render_template, request, jsonify, flash, redirect, url_for
 from flask_login import login_required, current_user
 from functools import wraps
@@ -29,54 +30,61 @@ from . import consciousness_bp
 # AUTHENTICATION DECORATOR
 # ============================================================================
 
+
 def admin_required(f):
     """Decorator to require admin access"""
+
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not has_permission(Permission.ADMIN_ACCESS, current_user):
-            audit_log('ADMIN_ACCESS_DENIED', {
-                'route': request.endpoint,
-                'user_id': current_user.id if current_user.is_authenticated else None
-            }, success=False)
-            flash('Admin access required', 'error')
-            return redirect(url_for('dashboard'))
+            audit_log(
+                "ADMIN_ACCESS_DENIED",
+                {"route": request.endpoint, "user_id": current_user.id if current_user.is_authenticated else None},
+                success=False,
+            )
+            flash("Admin access required", "error")
+            return redirect(url_for("dashboard"))
 
-        audit_log('ADMIN_ACCESS', {
-            'route': request.endpoint,
-            'user_id': current_user.id
-        })
+        audit_log("ADMIN_ACCESS", {"route": request.endpoint, "user_id": current_user.id})
         return f(*args, **kwargs)
+
     return decorated_function
+
 
 # ============================================================================
 # DATABASE CONNECTION
 # ============================================================================
 
+
 def get_db():
     """Get database connection"""
     return psycopg2.connect(
-        host=os.getenv('DB_HOST', 'archie_database'),
-        database=os.getenv('DB_NAME', 'archie'),
-        user=os.getenv('DB_USER', 'archie'),
-        password=os.getenv('DB_PASSWORD', 'archiepass')
+        host=os.getenv("DB_HOST", "archie_database"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", "archiepass"),
     )
+
 
 # ============================================================================
 # MAIN DASHBOARD
 # ============================================================================
 
-@consciousness_bp.route('/')
+
+@consciousness_bp.route("/")
 @login_required
 @admin_required
 def index():
     """Consciousness dashboard - memory, analytics, team"""
-    return render_template('tools/consciousness_dashboard.html')
+    return render_template("tools/consciousness_dashboard.html")
+
 
 # ============================================================================
 # MEMORY MANAGEMENT ROUTES
 # ============================================================================
 
-@consciousness_bp.route('/memory')
+
+@consciousness_bp.route("/memory")
 @login_required
 @admin_required
 def memory():
@@ -86,7 +94,8 @@ def memory():
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get table sizes
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 'knowledge_base' as table_name,
                 COUNT(*) as row_count,
@@ -98,18 +107,20 @@ def memory():
                 COUNT(*),
                 pg_size_pretty(pg_total_relation_size('long_term_memory'))
             FROM long_term_memory
-        """)
+        """
+        )
         table_stats = cur.fetchall()
 
         cur.close()
         conn.close()
 
-        return render_template('tools/consciousness_memory.html', table_stats=table_stats)
+        return render_template("tools/consciousness_memory.html", table_stats=table_stats)
     except Exception as e:
-        flash(f'Error loading memory: {str(e)}', 'error')
-        return redirect(url_for('consciousness.index'))
+        flash(f"Error loading memory: {str(e)}", "error")
+        return redirect(url_for("consciousness.index"))
 
-@consciousness_bp.route('/memories/<view_type>', methods=['GET'])
+
+@consciousness_bp.route("/memories/<view_type>", methods=["GET"])
 @login_required
 @admin_required
 def get_memories(view_type):
@@ -119,30 +130,37 @@ def get_memories(view_type):
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Different queries based on view type
-        if view_type == 'recent':
-            cur.execute("""
+        if view_type == "recent":
+            cur.execute(
+                """
                 SELECT * FROM knowledge_base
                 WHERE knowledge_type = 'conversation_memory'
                 ORDER BY created_at DESC
                 LIMIT 50
-            """)
-        elif view_type == 'important':
-            cur.execute("""
+            """
+            )
+        elif view_type == "important":
+            cur.execute(
+                """
                 SELECT * FROM knowledge_base
                 WHERE knowledge_type = 'conversation_memory'
                 ORDER BY importance_score DESC, created_at DESC
                 LIMIT 50
-            """)
-        elif view_type == 'accessed':
-            cur.execute("""
+            """
+            )
+        elif view_type == "accessed":
+            cur.execute(
+                """
                 SELECT * FROM knowledge_base
                 WHERE knowledge_type = 'conversation_memory'
                   AND last_accessed IS NOT NULL
                 ORDER BY last_accessed DESC
                 LIMIT 50
-            """)
-        elif view_type == 'types':
-            cur.execute("""
+            """
+            )
+        elif view_type == "types":
+            cur.execute(
+                """
                 SELECT
                     knowledge_type,
                     COUNT(*) as count,
@@ -150,23 +168,27 @@ def get_memories(view_type):
                 FROM knowledge_base
                 GROUP BY knowledge_type
                 ORDER BY count DESC
-            """)
+            """
+            )
         else:
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT * FROM knowledge_base
                 ORDER BY created_at DESC
                 LIMIT 50
-            """)
+            """
+            )
 
         memories = cur.fetchall()
         cur.close()
         conn.close()
 
-        return jsonify({'memories': memories, 'view_type': view_type})
+        return jsonify({"memories": memories, "view_type": view_type})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
-@consciousness_bp.route('/emotional-state', methods=['GET'])
+
+@consciousness_bp.route("/emotional-state", methods=["GET"])
 @login_required
 @admin_required
 def emotional_state():
@@ -175,12 +197,14 @@ def emotional_state():
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT *
             FROM emotional_state
             ORDER BY timestamp DESC
             LIMIT 1
-        """)
+        """
+        )
 
         state = cur.fetchone()
         cur.close()
@@ -189,11 +213,12 @@ def emotional_state():
         if state:
             return jsonify(dict(state))
         else:
-            return jsonify({'mood': 'neutral', 'energy': 0.5, 'confidence': 0.5})
+            return jsonify({"mood": "neutral", "energy": 0.5, "confidence": 0.5})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
-@consciousness_bp.route('/backup', methods=['POST'])
+
+@consciousness_bp.route("/backup", methods=["POST"])
 @login_required
 @admin_required
 def backup_consciousness():
@@ -201,34 +226,43 @@ def backup_consciousness():
     try:
         import subprocess
 
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        backup_file = f'/var/backups/archie_brain/archie_consciousness_{timestamp}.sql'
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_file = f"/var/backups/archie_brain/archie_consciousness_{timestamp}.sql"
 
         # Create backup directory if it doesn't exist
-        os.makedirs('/var/backups/archie_brain', exist_ok=True)
+        os.makedirs("/var/backups/archie_brain", exist_ok=True)
 
         # Backup knowledge_base table
-        result = subprocess.run([
-            'docker', 'exec', 'archie_database',
-            'pg_dump', '-U', 'archie', '-d', 'archie',
-            '-t', 'knowledge_base', '-t', 'long_term_memory',
-            '-f', backup_file
-        ], capture_output=True, text=True)
+        result = subprocess.run(
+            [
+                "docker",
+                "exec",
+                "archie_database",
+                "pg_dump",
+                "-U",
+                "archie",
+                "-d",
+                "archie",
+                "-t",
+                "knowledge_base",
+                "-t",
+                "long_term_memory",
+                "-f",
+                backup_file,
+            ],
+            capture_output=True,
+            text=True,
+        )
 
         if result.returncode == 0:
-            return jsonify({
-                'success': True,
-                'message': f'Consciousness backed up to {backup_file}'
-            })
+            return jsonify({"success": True, "message": f"Consciousness backed up to {backup_file}"})
         else:
-            return jsonify({
-                'success': False,
-                'error': result.stderr
-            }), 500
+            return jsonify({"success": False, "error": result.stderr}), 500
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
-@consciousness_bp.route('/stats', methods=['GET'])
+
+@consciousness_bp.route("/stats", methods=["GET"])
 @login_required
 @admin_required
 def get_stats():
@@ -242,65 +276,71 @@ def get_stats():
     try:
         # TOTAL KNOWLEDGE - All sources combined
         cur.execute("SELECT COUNT(*) as total FROM long_term_memory")
-        long_term_memories = cur.fetchone()['total']
+        long_term_memories = cur.fetchone()["total"]
 
         cur.execute("SELECT COUNT(*) as total FROM improvement_proposals")
-        improvement_proposals_count = cur.fetchone()['total']
+        improvement_proposals_count = cur.fetchone()["total"]
 
         cur.execute("SELECT COUNT(*) as total FROM improvement_conversations")
-        improvement_conversations_count = cur.fetchone()['total']
+        improvement_conversations_count = cur.fetchone()["total"]
 
         cur.execute("SELECT COUNT(*) as total FROM archie_codebase_knowledge")
-        codebase_knowledge_count = cur.fetchone()['total']
+        codebase_knowledge_count = cur.fetchone()["total"]
 
         cur.execute("SELECT COUNT(*) as total FROM ai_conversations")
-        ai_conversations_count = cur.fetchone()['total']
+        ai_conversations_count = cur.fetchone()["total"]
 
         cur.execute("SELECT COUNT(*) as total FROM archie_core_identity")
-        core_identity_count = cur.fetchone()['total']
+        core_identity_count = cur.fetchone()["total"]
 
         # Learning Resources from external GitHub repos
         cur.execute("SELECT COUNT(*) as total FROM knowledge_base")
-        knowledge_base_count = cur.fetchone()['total']
+        knowledge_base_count = cur.fetchone()["total"]
 
         # Claude Code Sessions (conversation checkpoints from pre-compact hook)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT COUNT(*) as total
             FROM knowledge_base
             WHERE source_type = 'claude_code_hook'
-        """)
-        claude_code_sessions_count = cur.fetchone()['total']
+        """
+        )
+        claude_code_sessions_count = cur.fetchone()["total"]
 
         # Conversation memories breakdown by source
-        cur.execute("""
+        cur.execute(
+            """
             SELECT source_type, COUNT(*) as count
             FROM knowledge_base
             WHERE knowledge_type = 'conversation_memory'
             GROUP BY source_type
             ORDER BY count DESC
-        """)
+        """
+        )
         conversation_sources = cur.fetchall()
 
         # Learning resources breakdown by repo type
-        cur.execute("""
+        cur.execute(
+            """
             SELECT repo_type, COUNT(*) as count,
                    COUNT(*) FILTER (WHERE is_code = true) as code_files,
                    COUNT(*) FILTER (WHERE is_documentation = true) as docs
             FROM knowledge_base
             GROUP BY repo_type
             ORDER BY count DESC
-        """)
+        """
+        )
         learning_resources_breakdown = cur.fetchall()
 
         # Calculate TOTAL knowledge across all sources
         total_knowledge = (
-            long_term_memories +
-            improvement_proposals_count +
-            improvement_conversations_count +
-            codebase_knowledge_count +
-            ai_conversations_count +
-            core_identity_count +
-            knowledge_base_count
+            long_term_memories
+            + improvement_proposals_count
+            + improvement_conversations_count
+            + codebase_knowledge_count
+            + ai_conversations_count
+            + core_identity_count
+            + knowledge_base_count
         )
 
         print(f"🧠 [BACKEND] TOTAL KNOWLEDGE: {total_knowledge}")
@@ -314,37 +354,44 @@ def get_stats():
         print(f"  - Claude Code sessions: {claude_code_sessions_count}")
 
         # Memory Type breakdown (NEW - tracks what kind of knowledge)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT memory_type, COUNT(*) as count
             FROM long_term_memory
             WHERE memory_type IS NOT NULL
             GROUP BY memory_type
             ORDER BY count DESC
-        """)
+        """
+        )
         memory_types = cur.fetchall()
 
         # Category breakdown (code_snippet, solution, website, knowledge)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT category, COUNT(*) as count
             FROM long_term_memory
             WHERE category IS NOT NULL
             GROUP BY category
             ORDER BY count DESC
-        """)
+        """
+        )
         categories = cur.fetchall()
 
         # ALL Tags analysis (not limited) - Multi-color categorization
-        cur.execute("""
+        cur.execute(
+            """
             SELECT unnest(tags) as tag, COUNT(*) as count
             FROM long_term_memory
             WHERE tags IS NOT NULL AND array_length(tags, 1) > 0
             GROUP BY tag
             ORDER BY count DESC
-        """)
+        """
+        )
         all_tags = cur.fetchall()
 
         # NEW TAGS DETECTION - Tags that appeared recently
-        cur.execute("""
+        cur.execute(
+            """
             WITH tag_first_appearance AS (
                 SELECT
                     unnest(tags) as tag,
@@ -365,14 +412,16 @@ def get_stats():
                 END as tag_age
             FROM tag_first_appearance
             ORDER BY first_seen DESC
-        """)
+        """
+        )
         tag_timeline = cur.fetchall()
 
         # Extract only new tags (last 30 days)
-        new_tags = [dict(t) for t in tag_timeline if t['tag_age'] in ['new_7d', 'new_30d']]
+        new_tags = [dict(t) for t in tag_timeline if t["tag_age"] in ["new_7d", "new_30d"]]
 
         # Importance distribution
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 CASE
                     WHEN importance_score >= 0.8 THEN 'Critical'
@@ -384,21 +433,25 @@ def get_stats():
             FROM long_term_memory
             GROUP BY level
             ORDER BY MIN(importance_score) DESC
-        """)
+        """
+        )
         importance_dist = cur.fetchall()
 
         # Learning timeline (last 30 days)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT DATE(created_at) as date, COUNT(*) as count
             FROM long_term_memory
             WHERE created_at >= NOW() - INTERVAL '30 days'
             GROUP BY DATE(created_at)
             ORDER BY date DESC
-        """)
+        """
+        )
         learning_timeline = cur.fetchall()
 
         # Source distribution (conversation vs ai_response)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 COALESCE(metadata->>'source', 'unknown') as source,
                 COUNT(*) as count
@@ -406,32 +459,38 @@ def get_stats():
             WHERE metadata IS NOT NULL
             GROUP BY metadata->>'source'
             ORDER BY count DESC
-        """)
+        """
+        )
         sources = cur.fetchall()
 
         # Metadata field usage analysis (NEW - tracks all metadata keys)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT DISTINCT jsonb_object_keys(metadata) as field, COUNT(*) as count
             FROM long_term_memory
             WHERE metadata IS NOT NULL
             GROUP BY field
             ORDER BY count DESC
-        """)
+        """
+        )
         metadata_fields = cur.fetchall()
 
         # Access patterns (NEW - most accessed knowledge)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT category, memory_type, AVG(access_count) as avg_access,
                    MAX(access_count) as max_access
             FROM long_term_memory
             WHERE access_count > 0
             GROUP BY category, memory_type
             ORDER BY avg_access DESC
-        """)
+        """
+        )
         access_patterns = cur.fetchall()
 
         # Knowledge growth rate (NEW - memories added per week)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 DATE_TRUNC('week', created_at) as week,
                 COUNT(*) as count
@@ -439,32 +498,38 @@ def get_stats():
             WHERE created_at >= NOW() - INTERVAL '90 days'
             GROUP BY week
             ORDER BY week DESC
-        """)
+        """
+        )
         growth_rate = cur.fetchall()
 
         # User interactions (NEW - if user_id is tracked)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT user_id, COUNT(*) as memory_count,
                    AVG(importance_score) as avg_importance
             FROM long_term_memory
             WHERE user_id IS NOT NULL
             GROUP BY user_id
             ORDER BY memory_count DESC
-        """)
+        """
+        )
         user_interactions = cur.fetchall()
 
         # Recent memories
-        cur.execute("""
+        cur.execute(
+            """
             SELECT id, content, category, memory_type, tags,
                    importance_score, created_at, access_count
             FROM long_term_memory
             ORDER BY created_at DESC
             LIMIT 10
-        """)
+        """
+        )
         recent = cur.fetchall()
 
         # Recently indexed learning resources
-        cur.execute("""
+        cur.execute(
+            """
             SELECT repo_type, file_name, file_path, file_extension,
                    indexed_at, is_code, is_documentation,
                    LENGTH(content) as file_size,
@@ -472,11 +537,13 @@ def get_stats():
             FROM knowledge_base
             ORDER BY indexed_at DESC
             LIMIT 15
-        """)
+        """
+        )
         recent_learning_resources = cur.fetchall()
 
         # Repository Health Dashboard
-        cur.execute("""
+        cur.execute(
+            """
             SELECT repo_name, repo_type, status, indexed,
                    indexed_files, cloned_at, updated_at,
                    last_pull, last_push, local_path
@@ -488,7 +555,8 @@ def get_stats():
                     ELSE 3
                 END,
                 repo_type
-        """)
+        """
+        )
         repository_health = cur.fetchall()
 
         cur.close()
@@ -496,87 +564,91 @@ def get_stats():
 
         # Convert to JSON-serializable format
         for item in learning_timeline:
-            if item['date']:
-                item['date'] = item['date'].isoformat()
+            if item["date"]:
+                item["date"] = item["date"].isoformat()
 
         for item in growth_rate:
-            if item['week']:
-                item['week'] = item['week'].isoformat()
+            if item["week"]:
+                item["week"] = item["week"].isoformat()
 
         for item in tag_timeline:
-            if item['first_seen']:
-                item['first_seen'] = item['first_seen'].isoformat()
+            if item["first_seen"]:
+                item["first_seen"] = item["first_seen"].isoformat()
 
         for item in recent:
-            item['id'] = str(item['id'])
-            if item['created_at']:
-                item['created_at'] = item['created_at'].isoformat()
+            item["id"] = str(item["id"])
+            if item["created_at"]:
+                item["created_at"] = item["created_at"].isoformat()
 
         for item in recent_learning_resources:
-            if item['indexed_at']:
-                item['indexed_at'] = item['indexed_at'].isoformat()
+            if item["indexed_at"]:
+                item["indexed_at"] = item["indexed_at"].isoformat()
 
         for item in repository_health:
-            if item['cloned_at']:
-                item['cloned_at'] = item['cloned_at'].isoformat()
-            if item['updated_at']:
-                item['updated_at'] = item['updated_at'].isoformat()
-            if item['last_pull']:
-                item['last_pull'] = item['last_pull'].isoformat()
-            if item['last_push']:
-                item['last_push'] = item['last_push'].isoformat()
+            if item["cloned_at"]:
+                item["cloned_at"] = item["cloned_at"].isoformat()
+            if item["updated_at"]:
+                item["updated_at"] = item["updated_at"].isoformat()
+            if item["last_pull"]:
+                item["last_pull"] = item["last_pull"].isoformat()
+            if item["last_push"]:
+                item["last_push"] = item["last_push"].isoformat()
 
         result = {
-            'success': True,
-            'stats': {
-                'total_knowledge': total_knowledge,
-                'knowledge_sources': {
-                    'long_term_memories': long_term_memories,
-                    'improvement_proposals': improvement_proposals_count,
-                    'improvement_conversations': improvement_conversations_count,
-                    'codebase_knowledge': codebase_knowledge_count,
-                    'ai_conversations': ai_conversations_count,
-                    'core_identity': core_identity_count,
-                    'learning_resources': knowledge_base_count,
-                    'learning_resources_breakdown': [dict(r) for r in learning_resources_breakdown],
-                    'claude_code_sessions': claude_code_sessions_count,
-                    'conversation_sources': [dict(c) for c in conversation_sources]
+            "success": True,
+            "stats": {
+                "total_knowledge": total_knowledge,
+                "knowledge_sources": {
+                    "long_term_memories": long_term_memories,
+                    "improvement_proposals": improvement_proposals_count,
+                    "improvement_conversations": improvement_conversations_count,
+                    "codebase_knowledge": codebase_knowledge_count,
+                    "ai_conversations": ai_conversations_count,
+                    "core_identity": core_identity_count,
+                    "learning_resources": knowledge_base_count,
+                    "learning_resources_breakdown": [dict(r) for r in learning_resources_breakdown],
+                    "claude_code_sessions": claude_code_sessions_count,
+                    "conversation_sources": [dict(c) for c in conversation_sources],
                 },
-                'total_memories': long_term_memories,  # Keep for backwards compatibility
-                'memory_types': [dict(m) for m in memory_types],
-                'categories': [dict(c) for c in categories],
-                'all_tags': [dict(t) for t in all_tags],
-                'tag_timeline': [dict(t) for t in tag_timeline],
-                'new_tags': new_tags,
-                'new_tags_count_7d': len([t for t in new_tags if t['tag_age'] == 'new_7d']),
-                'new_tags_count_30d': len([t for t in new_tags if t['tag_age'] == 'new_30d']),
-                'importance_distribution': [dict(i) for i in importance_dist],
-                'learning_timeline': [dict(l) for l in learning_timeline],
-                'sources': [dict(s) for s in sources],
-                'metadata_fields': [dict(m) for m in metadata_fields],
-                'access_patterns': [dict(a) for a in access_patterns],
-                'growth_rate': [dict(g) for g in growth_rate],
-                'user_interactions': [dict(u) for u in user_interactions],
-                'recent_memories': [dict(r) for r in recent],
-                'recent_learning_resources': [dict(r) for r in recent_learning_resources],
-                'repository_health': [dict(r) for r in repository_health]
-            }
+                "total_memories": long_term_memories,  # Keep for backwards compatibility
+                "memory_types": [dict(m) for m in memory_types],
+                "categories": [dict(c) for c in categories],
+                "all_tags": [dict(t) for t in all_tags],
+                "tag_timeline": [dict(t) for t in tag_timeline],
+                "new_tags": new_tags,
+                "new_tags_count_7d": len([t for t in new_tags if t["tag_age"] == "new_7d"]),
+                "new_tags_count_30d": len([t for t in new_tags if t["tag_age"] == "new_30d"]),
+                "importance_distribution": [dict(i) for i in importance_dist],
+                "learning_timeline": [dict(l) for l in learning_timeline],
+                "sources": [dict(s) for s in sources],
+                "metadata_fields": [dict(m) for m in metadata_fields],
+                "access_patterns": [dict(a) for a in access_patterns],
+                "growth_rate": [dict(g) for g in growth_rate],
+                "user_interactions": [dict(u) for u in user_interactions],
+                "recent_memories": [dict(r) for r in recent],
+                "recent_learning_resources": [dict(r) for r in recent_learning_resources],
+                "repository_health": [dict(r) for r in repository_health],
+            },
         }
         print(f"🧠 [BACKEND] Returning COMPREHENSIVE stats:")
         print(f"  - {total_knowledge} TOTAL KNOWLEDGE (all sources)")
         print(f"  - {len(memory_types)} memory types")
         print(f"  - {len(categories)} categories")
         print(f"  - {len(all_tags)} unique tags")
-        print(f"  - {len(new_tags)} NEW tags detected (7d: {len([t for t in new_tags if t['tag_age'] == 'new_7d'])}, 30d: {len([t for t in new_tags if t['tag_age'] == 'new_30d'])})")
+        print(
+            f"  - {len(new_tags)} NEW tags detected (7d: {len([t for t in new_tags if t['tag_age'] == 'new_7d'])}, 30d: {len([t for t in new_tags if t['tag_age'] == 'new_30d'])})"
+        )
         print(f"  - {len(metadata_fields)} metadata fields tracked")
         return jsonify(result)
     except Exception as e:
         import traceback
+
         print("❌ [BACKEND] Error in get_consciousness_stats:")
         traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
-@consciousness_bp.route('/search', methods=['POST'])
+
+@consciousness_bp.route("/search", methods=["POST"])
 @login_required
 @admin_required
 def search_knowledge():
@@ -584,10 +656,10 @@ def search_knowledge():
     print("🔍 [BACKEND] search_knowledge called")
 
     data = request.json
-    query = data.get('query', '')
-    category = data.get('category')
-    knowledge_type = data.get('knowledge_type')
-    limit = data.get('limit', 50)
+    query = data.get("query", "")
+    category = data.get("category")
+    knowledge_type = data.get("knowledge_type")
+    limit = data.get("limit", 50)
 
     conn = get_db()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -598,7 +670,7 @@ def search_knowledge():
             SELECT * FROM knowledge_base
             WHERE (content ILIKE %s OR title ILIKE %s)
         """
-        params = [f'%{query}%', f'%{query}%']
+        params = [f"%{query}%", f"%{query}%"]
 
         if category:
             sql += " AND category = %s"
@@ -617,11 +689,12 @@ def search_knowledge():
         cur.close()
         conn.close()
 
-        return jsonify({'results': results, 'count': len(results)})
+        return jsonify({"results": results, "count": len(results)})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
-@consciousness_bp.route('/memory/<int:memory_id>', methods=['DELETE'])
+
+@consciousness_bp.route("/memory/<int:memory_id>", methods=["DELETE"])
 @login_required
 @admin_required
 def delete_memory(memory_id):
@@ -634,11 +707,12 @@ def delete_memory(memory_id):
         conn.commit()
         cur.close()
         conn.close()
-        return jsonify({'success': True})
+        return jsonify({"success": True})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
-@consciousness_bp.route('/memory/<int:memory_id>', methods=['PUT'])
+
+@consciousness_bp.route("/memory/<int:memory_id>", methods=["PUT"])
 @login_required
 @admin_required
 def update_memory(memory_id):
@@ -649,7 +723,8 @@ def update_memory(memory_id):
     cur = conn.cursor()
 
     try:
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE knowledge_base
             SET content = %s,
                 category = %s,
@@ -657,38 +732,36 @@ def update_memory(memory_id):
                 importance_score = %s,
                 updated_at = NOW()
             WHERE id = %s
-        """, (
-            data.get('content'),
-            data.get('category'),
-            data.get('tags', []),
-            data.get('importance_score'),
-            memory_id
-        ))
+        """,
+            (data.get("content"), data.get("category"), data.get("tags", []), data.get("importance_score"), memory_id),
+        )
         conn.commit()
         cur.close()
         conn.close()
-        return jsonify({'success': True})
+        return jsonify({"success": True})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
-@consciousness_bp.route('/ingest-text', methods=['POST'])
+
+@consciousness_bp.route("/ingest-text", methods=["POST"])
 @login_required
 @admin_required
 def ingest_text():
     """Manually add text knowledge to consciousness"""
     data = request.json
-    content = data.get('content')
-    category = data.get('category', 'manual')
-    tags = data.get('tags', [])
+    content = data.get("content")
+    category = data.get("category", "manual")
+    tags = data.get("tags", [])
 
     if not content:
-        return jsonify({'error': 'Content required'}), 400
+        return jsonify({"error": "Content required"}), 400
 
     conn = get_db()
     cur = conn.cursor()
 
     try:
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO knowledge_base (
                 knowledge_type, content, category, tags,
                 importance_score, source_type, created_at
@@ -696,40 +769,43 @@ def ingest_text():
                 'conversation_memory', %s, %s, %s,
                 0.7, 'manual_entry', NOW()
             )
-        """, (content, category, tags))
+        """,
+            (content, category, tags),
+        )
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({'success': True, 'message': 'Knowledge added'})
+        return jsonify({"success": True, "message": "Knowledge added"})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
-@consciousness_bp.route('/knowledge/create', methods=['POST'])
+@consciousness_bp.route("/knowledge/create", methods=["POST"])
 @login_required
 @admin_required
 def create_knowledge():
     """Create a new knowledge entry with full details (title, content, category, etc.)"""
     data = request.json
 
-    title = data.get('title')
-    content = data.get('content')
-    category = data.get('category', 'uncategorized')
-    tags = data.get('tags', [])
-    knowledge_type = data.get('knowledge_type', 'vault_note')
-    importance_score = data.get('importance_score', 0.8)
-    is_documentation = data.get('is_documentation', True)
+    title = data.get("title")
+    content = data.get("content")
+    category = data.get("category", "uncategorized")
+    tags = data.get("tags", [])
+    knowledge_type = data.get("knowledge_type", "vault_note")
+    importance_score = data.get("importance_score", 0.8)
+    is_documentation = data.get("is_documentation", True)
 
     if not title or not content:
-        return jsonify({'error': 'Title and content are required'}), 400
+        return jsonify({"error": "Title and content are required"}), 400
 
     conn = get_db()
     cur = conn.cursor()
 
     try:
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO knowledge_base (
                 title, content, knowledge_type, category, tags,
                 importance_score, is_documentation, source_type, created_at
@@ -737,23 +813,21 @@ def create_knowledge():
                 %s, %s, %s, %s, %s, %s, %s, 'consciousness_ui', NOW()
             )
             RETURNING id
-        """, (title, content, knowledge_type, category, tags, importance_score, is_documentation))
+        """,
+            (title, content, knowledge_type, category, tags, importance_score, is_documentation),
+        )
 
         new_id = cur.fetchone()[0]
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'message': 'Knowledge entry created',
-            'id': new_id
-        })
+        return jsonify({"success": True, "message": "Knowledge entry created", "id": new_id})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
-@consciousness_bp.route('/knowledge/<int:knowledge_id>', methods=['GET'])
+@consciousness_bp.route("/knowledge/<int:knowledge_id>", methods=["GET"])
 @login_required
 @admin_required
 def get_knowledge(knowledge_id):
@@ -762,34 +836,37 @@ def get_knowledge(knowledge_id):
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
-        cur.execute("""
+        cur.execute(
+            """
             SELECT id, title, content, knowledge_type, category, tags,
                    importance_score, is_documentation, created_at, updated_at
             FROM knowledge_base
             WHERE id = %s
-        """, (knowledge_id,))
+        """,
+            (knowledge_id,),
+        )
 
         entry = cur.fetchone()
         cur.close()
         conn.close()
 
         if entry:
-            return jsonify({'success': True, 'entry': dict(entry)})
+            return jsonify({"success": True, "entry": dict(entry)})
         else:
-            return jsonify({'error': 'Entry not found'}), 404
+            return jsonify({"error": "Entry not found"}), 404
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
-@consciousness_bp.route('/knowledge/list', methods=['GET'])
+@consciousness_bp.route("/knowledge/list", methods=["GET"])
 @login_required
 @admin_required
 def list_knowledge():
     """List knowledge entries with filtering and pagination"""
-    category = request.args.get('category')
-    knowledge_type = request.args.get('type')
-    limit = int(request.args.get('limit', 50))
-    offset = int(request.args.get('offset', 0))
+    category = request.args.get("category")
+    knowledge_type = request.args.get("type")
+    limit = int(request.args.get("limit", 50))
+    offset = int(request.args.get("offset", 0))
 
     conn = get_db()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -805,9 +882,9 @@ def list_knowledge():
 
         if category:
             query += " AND (category = %s OR category LIKE %s)"
-            params.extend([category, category + '/%'])
+            params.extend([category, category + "/%"])
 
-        if knowledge_type and knowledge_type != 'all':
+        if knowledge_type and knowledge_type != "all":
             query += " AND knowledge_type = %s"
             params.append(knowledge_type)
 
@@ -822,29 +899,25 @@ def list_knowledge():
         count_params = []
         if category:
             count_query += " AND (category = %s OR category LIKE %s)"
-            count_params.extend([category, category + '/%'])
-        if knowledge_type and knowledge_type != 'all':
+            count_params.extend([category, category + "/%"])
+        if knowledge_type and knowledge_type != "all":
             count_query += " AND knowledge_type = %s"
             count_params.append(knowledge_type)
 
         cur.execute(count_query, count_params)
-        total = cur.fetchone()['count']
+        total = cur.fetchone()["count"]
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'entries': [dict(e) for e in entries],
-            'total': total,
-            'limit': limit,
-            'offset': offset
-        })
+        return jsonify(
+            {"success": True, "entries": [dict(e) for e in entries], "total": total, "limit": limit, "offset": offset}
+        )
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
-@consciousness_bp.route('/knowledge/categories', methods=['GET'])
+@consciousness_bp.route("/knowledge/categories", methods=["GET"])
 @login_required
 @admin_required
 def get_categories():
@@ -853,38 +926,39 @@ def get_categories():
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
-        cur.execute("""
+        cur.execute(
+            """
             SELECT category, COUNT(*) as count
             FROM knowledge_base
             WHERE category IS NOT NULL AND category != ''
             GROUP BY category
             ORDER BY count DESC
-        """)
+        """
+        )
 
         categories = cur.fetchall()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'categories': [dict(c) for c in categories]
-        })
+        return jsonify({"success": True, "categories": [dict(c) for c in categories]})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
 # ============================================================================
 # TEAM AWARENESS ROUTES (Agent Management)
 # ============================================================================
 
-@consciousness_bp.route('/team')
+
+@consciousness_bp.route("/team")
 @login_required
 @admin_required
 def team_awareness():
     """Team directory - all agents, performance, capabilities"""
-    return render_template('tools/team_awareness.html')
+    return render_template("tools/team_awareness.html")
 
-@consciousness_bp.route('/team/agents', methods=['GET'])
+
+@consciousness_bp.route("/team/agents", methods=["GET"])
 @login_required
 @admin_required
 def get_agents():
@@ -894,7 +968,8 @@ def get_agents():
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Query from agents table (the actual team members)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 a.id,
                 a.name,
@@ -917,35 +992,38 @@ def get_agents():
             WHERE a.status = 'active'
             ORDER BY a.name
             LIMIT 50
-        """)
+        """
+        )
 
         agents = cur.fetchall()
 
         # Convert to serializable format
         for agent in agents:
-            if agent.get('last_used'):
-                agent['last_used'] = agent['last_used'].isoformat()
+            if agent.get("last_used"):
+                agent["last_used"] = agent["last_used"].isoformat()
             # Ensure worker_type has a default
-            if not agent.get('worker_type'):
-                agent['worker_type'] = 'internal'
+            if not agent.get("worker_type"):
+                agent["worker_type"] = "internal"
             # Calculate display name
-            if agent.get('first_name') and agent.get('last_name'):
-                agent['full_name'] = f"{agent['first_name']} {agent['last_name']}"
+            if agent.get("first_name") and agent.get("last_name"):
+                agent["full_name"] = f"{agent['first_name']} {agent['last_name']}"
             else:
-                agent['full_name'] = agent.get('name', 'Unknown')
+                agent["full_name"] = agent.get("name", "Unknown")
             # Ensure role fallback
-            agent['role'] = agent.get('title') or agent.get('agent_type') or 'Agent'
+            agent["role"] = agent.get("title") or agent.get("agent_type") or "Agent"
 
         cur.close()
         conn.close()
 
-        return jsonify({'success': True, 'agents': agents})
+        return jsonify({"success": True, "agents": agents})
     except Exception as e:
         import traceback
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
 
-@consciousness_bp.route('/team/agents/<int:agent_id>', methods=['GET'])
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/team/agents/<int:agent_id>", methods=["GET"])
 @login_required
 @admin_required
 def get_agent_details(agent_id):
@@ -954,36 +1032,40 @@ def get_agent_details(agent_id):
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT * FROM users WHERE id = %s AND is_agent = TRUE
-        """, (agent_id,))
+        """,
+            (agent_id,),
+        )
 
         agent = cur.fetchone()
 
         if not agent:
-            return jsonify({'error': 'Agent not found'}), 404
+            return jsonify({"error": "Agent not found"}), 404
 
         # Get recent tasks
-        cur.execute("""
+        cur.execute(
+            """
             SELECT * FROM agent_tasks
             WHERE agent_id = %s
             ORDER BY created_at DESC
             LIMIT 10
-        """, (agent_id,))
+        """,
+            (agent_id,),
+        )
 
         recent_tasks = cur.fetchall()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'agent': agent,
-            'recent_tasks': recent_tasks
-        })
+        return jsonify({"agent": agent, "recent_tasks": recent_tasks})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
-@consciousness_bp.route('/team/agents/<int:agent_id>/performance', methods=['GET'])
+
+@consciousness_bp.route("/team/agents/<int:agent_id>/performance", methods=["GET"])
 @login_required
 @admin_required
 def get_agent_performance(agent_id):
@@ -992,7 +1074,8 @@ def get_agent_performance(agent_id):
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 COUNT(*) as total_tasks,
                 COUNT(*) FILTER (WHERE status = 'completed') as completed_tasks,
@@ -1002,7 +1085,9 @@ def get_agent_performance(agent_id):
                     ELSE NULL END) as avg_completion_seconds
             FROM agent_tasks
             WHERE agent_id = %s
-        """, (agent_id,))
+        """,
+            (agent_id,),
+        )
 
         performance = cur.fetchone()
         cur.close()
@@ -1010,9 +1095,10 @@ def get_agent_performance(agent_id):
 
         return jsonify(performance)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
-@consciousness_bp.route('/team/leaderboard', methods=['GET'])
+
+@consciousness_bp.route("/team/leaderboard", methods=["GET"])
 @login_required
 @admin_required
 def performance_leaderboard():
@@ -1021,7 +1107,8 @@ def performance_leaderboard():
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 u.id,
                 u.username,
@@ -1035,17 +1122,19 @@ def performance_leaderboard():
             GROUP BY u.id
             ORDER BY success_rate DESC, completed_tasks DESC
             LIMIT 20
-        """)
+        """
+        )
 
         leaderboard = cur.fetchall()
         cur.close()
         conn.close()
 
-        return jsonify({'leaderboard': leaderboard})
+        return jsonify({"leaderboard": leaderboard})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
-@consciousness_bp.route('/team-awareness-data', methods=['GET'])
+
+@consciousness_bp.route("/team-awareness-data", methods=["GET"])
 @login_required
 @admin_required
 def get_team_awareness_data():
@@ -1058,7 +1147,8 @@ def get_team_awareness_data():
 
     try:
         # Get all active agents with comprehensive details
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 a.id, a.name, a.first_name, a.last_name, a.email,
                 a.title, a.department, a.pronouns, a.bio,
@@ -1072,11 +1162,13 @@ def get_team_awareness_data():
             LEFT JOIN agent_types at ON a.type_id = at.id
             WHERE a.status = 'active'
             ORDER BY a.department, a.first_name
-        """)
+        """
+        )
         agents = cur.fetchall()
 
         # Get department summary
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 department,
                 COUNT(*) as agent_count,
@@ -1088,11 +1180,13 @@ def get_team_awareness_data():
             WHERE status = 'active'
             GROUP BY department
             ORDER BY agent_count DESC
-        """)
+        """
+        )
         departments = cur.fetchall()
 
         # Get overall statistics
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 COUNT(*) as total_agents,
                 COUNT(DISTINCT department) as total_departments,
@@ -1106,13 +1200,14 @@ def get_team_awareness_data():
                 SUM(CASE WHEN worker_type = 'contract' AND api_enabled = FALSE THEN 1 ELSE 0 END) as contract_disabled
             FROM agents
             WHERE status = 'active'
-        """)
+        """
+        )
         stats = cur.fetchone()
 
         # Organize agents by department
         by_department = {}
         for agent in agents:
-            dept = agent['department'] or 'Unassigned'
+            dept = agent["department"] or "Unassigned"
             if dept not in by_department:
                 by_department[dept] = []
             by_department[dept].append(dict(agent))
@@ -1122,19 +1217,19 @@ def get_team_awareness_data():
 
         # Convert datetime objects to ISO format
         for agent in agents:
-            if agent['last_used']:
-                agent['last_used'] = agent['last_used'].isoformat()
-            if agent['created_at']:
-                agent['created_at'] = agent['created_at'].isoformat()
+            if agent["last_used"]:
+                agent["last_used"] = agent["last_used"].isoformat()
+            if agent["created_at"]:
+                agent["created_at"] = agent["created_at"].isoformat()
 
         result = {
-            'success': True,
-            'team': {
-                'agents': [dict(a) for a in agents],
-                'by_department': by_department,
-                'departments': [dict(d) for d in departments],
-                'statistics': dict(stats)
-            }
+            "success": True,
+            "team": {
+                "agents": [dict(a) for a in agents],
+                "by_department": by_department,
+                "departments": [dict(d) for d in departments],
+                "statistics": dict(stats),
+            },
         }
 
         print(f"🧠 [BACKEND] Returning {stats['total_agents']} agents across {stats['total_departments']} departments")
@@ -1142,22 +1237,26 @@ def get_team_awareness_data():
 
     except Exception as e:
         import traceback
+
         print("❌ [BACKEND] Error in get_team_awareness_data:")
         traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
+
 
 # ============================================================================
 # ANALYTICS ROUTES
 # ============================================================================
 
-@consciousness_bp.route('/analytics')
+
+@consciousness_bp.route("/analytics")
 @login_required
 @admin_required
 def analytics():
     """Knowledge growth analytics dashboard"""
-    return render_template('tools/consciousness_analytics.html')
+    return render_template("tools/consciousness_analytics.html")
 
-@consciousness_bp.route('/analytics/knowledge-growth', methods=['GET'])
+
+@consciousness_bp.route("/analytics/knowledge-growth", methods=["GET"])
 @login_required
 @admin_required
 def knowledge_growth():
@@ -1167,7 +1266,8 @@ def knowledge_growth():
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Growth by day (last 30 days)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 DATE(created_at) as date,
                 COUNT(*) as entries_added,
@@ -1176,17 +1276,19 @@ def knowledge_growth():
             WHERE created_at > NOW() - INTERVAL '30 days'
             GROUP BY DATE(created_at), knowledge_type
             ORDER BY date DESC
-        """)
+        """
+        )
 
         growth_data = cur.fetchall()
         cur.close()
         conn.close()
 
-        return jsonify({'growth_data': growth_data})
+        return jsonify({"growth_data": growth_data})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
-@consciousness_bp.route('/improvements', methods=['GET'])
+
+@consciousness_bp.route("/improvements", methods=["GET"])
 @login_required
 @admin_required
 def get_consciousness_improvements():
@@ -1196,25 +1298,29 @@ def get_consciousness_improvements():
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
-        cur.execute("""
+        cur.execute(
+            """
             SELECT * FROM knowledge_base
             WHERE knowledge_type = 'mistake_learned'
             ORDER BY importance_score DESC, created_at DESC
-        """)
+        """
+        )
 
         improvements = cur.fetchall()
         cur.close()
         conn.close()
 
-        return jsonify({'improvements': improvements})
+        return jsonify({"improvements": improvements})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
+
 
 # ============================================================================
 # CONVERSATION SESSIONS - ARCHIE'S MEMORY TIMELINE
 # ============================================================================
 
-@consciousness_bp.route('/sessions', methods=['GET'])
+
+@consciousness_bp.route("/sessions", methods=["GET"])
 @login_required
 @admin_required
 def get_conversation_sessions():
@@ -1225,9 +1331,9 @@ def get_conversation_sessions():
 
     try:
         # Get query parameters
-        limit = request.args.get('limit', 50, type=int)
-        phase = request.args.get('phase')
-        topic = request.args.get('topic')
+        limit = request.args.get("limit", 50, type=int)
+        phase = request.args.get("phase")
+        topic = request.args.get("topic")
 
         sql = """
             SELECT
@@ -1258,7 +1364,8 @@ def get_conversation_sessions():
         sessions = cur.fetchall()
 
         # Get summary stats
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 COUNT(*) as total_sessions,
                 COUNT(DISTINCT phase) as unique_phases,
@@ -1268,21 +1375,19 @@ def get_conversation_sessions():
                 MIN(started_at) as first_session,
                 MAX(compact_triggered_at) as latest_session
             FROM conversation_sessions
-        """)
+        """
+        )
         stats = cur.fetchone()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'sessions': sessions,
-            'stats': stats,
-            'count': len(sessions)
-        })
+        return jsonify({"sessions": sessions, "stats": stats, "count": len(sessions)})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
-@consciousness_bp.route('/sessions/<int:session_id>', methods=['GET'])
+
+@consciousness_bp.route("/sessions/<int:session_id>", methods=["GET"])
 @login_required
 @admin_required
 def get_session_detail(session_id):
@@ -1292,38 +1397,43 @@ def get_session_detail(session_id):
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
-        cur.execute("""
+        cur.execute(
+            """
             SELECT * FROM conversation_sessions WHERE id = %s
-        """, (session_id,))
+        """,
+            (session_id,),
+        )
 
         session = cur.fetchone()
 
         if not session:
-            return jsonify({'error': 'Session not found'}), 404
+            return jsonify({"error": "Session not found"}), 404
 
         # Get related knowledge entries
-        cur.execute("""
+        cur.execute(
+            """
             SELECT * FROM knowledge_base
             WHERE source_id = %s AND source_type = 'conversation_session'
-        """, (str(session_id),))
+        """,
+            (str(session_id),),
+        )
 
         knowledge_entries = cur.fetchall()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'session': session,
-            'knowledge_entries': knowledge_entries
-        })
+        return jsonify({"session": session, "knowledge_entries": knowledge_entries})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
+
 
 # ============================================================================
 # EMOTIONAL STATE TRACKING - ARCHIE'S FEELINGS OVER TIME
 # ============================================================================
 
-@consciousness_bp.route('/emotions/timeline', methods=['GET'])
+
+@consciousness_bp.route("/emotions/timeline", methods=["GET"])
 @login_required
 @admin_required
 def get_emotional_timeline():
@@ -1333,10 +1443,11 @@ def get_emotional_timeline():
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
-        days = request.args.get('days', 30, type=int)
+        days = request.args.get("days", 30, type=int)
 
         # Get emotional state history
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 DATE(timestamp) as date,
                 AVG(CASE WHEN mood = 'happy' THEN 1.0
@@ -1353,32 +1464,35 @@ def get_emotional_timeline():
             WHERE timestamp > NOW() - INTERVAL '%s days'
             GROUP BY DATE(timestamp)
             ORDER BY date DESC
-        """, (days,))
+        """,
+            (days,),
+        )
 
         timeline = cur.fetchall()
 
         # Get current emotional state
-        cur.execute("""
+        cur.execute(
+            """
             SELECT * FROM emotional_state
             ORDER BY timestamp DESC LIMIT 1
-        """)
+        """
+        )
         current_state = cur.fetchone()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'timeline': timeline,
-            'current_state': current_state
-        })
+        return jsonify({"timeline": timeline, "current_state": current_state})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
+
 
 # ============================================================================
 # MEMORY GROWTH CHARTS - ARCHIE'S BRAIN EXPANSION
 # ============================================================================
 
-@consciousness_bp.route('/memory/growth', methods=['GET'])
+
+@consciousness_bp.route("/memory/growth", methods=["GET"])
 @login_required
 @admin_required
 def get_memory_growth():
@@ -1388,10 +1502,11 @@ def get_memory_growth():
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
-        days = request.args.get('days', 30, type=int)
+        days = request.args.get("days", 30, type=int)
 
         # Growth by knowledge type
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 DATE(created_at) as date,
                 knowledge_type,
@@ -1401,12 +1516,15 @@ def get_memory_growth():
             WHERE created_at > NOW() - INTERVAL '%s days'
             GROUP BY DATE(created_at), knowledge_type
             ORDER BY date DESC, entries_added DESC
-        """, (days,))
+        """,
+            (days,),
+        )
 
         growth_by_type = cur.fetchall()
 
         # Growth by category
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 DATE(created_at) as date,
                 category,
@@ -1416,12 +1534,15 @@ def get_memory_growth():
               AND category IS NOT NULL
             GROUP BY DATE(created_at), category
             ORDER BY date DESC, entries_added DESC
-        """, (days,))
+        """,
+            (days,),
+        )
 
         growth_by_category = cur.fetchall()
 
         # Cumulative growth
-        cur.execute("""
+        cur.execute(
+            """
             WITH daily_additions AS (
                 SELECT
                     DATE(created_at) as date,
@@ -1436,26 +1557,32 @@ def get_memory_growth():
                 SUM(daily_count) OVER (ORDER BY date) as cumulative_count
             FROM daily_additions
             ORDER BY date
-        """, (days,))
+        """,
+            (days,),
+        )
 
         cumulative_growth = cur.fetchall()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'growth_by_type': growth_by_type,
-            'growth_by_category': growth_by_category,
-            'cumulative_growth': cumulative_growth
-        })
+        return jsonify(
+            {
+                "growth_by_type": growth_by_type,
+                "growth_by_category": growth_by_category,
+                "cumulative_growth": cumulative_growth,
+            }
+        )
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
+
 
 # ============================================================================
 # TAGGED EXPERIENCES - ARCHIE'S CATEGORIZED MEMORIES
 # ============================================================================
 
-@consciousness_bp.route('/experiences', methods=['GET'])
+
+@consciousness_bp.route("/experiences", methods=["GET"])
 @login_required
 @admin_required
 def get_tagged_experiences():
@@ -1466,7 +1593,8 @@ def get_tagged_experiences():
 
     try:
         # Get all unique tags with counts
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 tag,
                 COUNT(*) as usage_count,
@@ -1476,12 +1604,14 @@ def get_tagged_experiences():
             GROUP BY tag
             ORDER BY usage_count DESC
             LIMIT 100
-        """)
+        """
+        )
 
         popular_tags = cur.fetchall()
 
         # Get tag co-occurrence (tags that appear together)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 t1.tag as tag1,
                 t2.tag as tag2,
@@ -1495,19 +1625,23 @@ def get_tagged_experiences():
             HAVING COUNT(*) > 2
             ORDER BY co_occurrence DESC
             LIMIT 50
-        """)
+        """
+        )
 
         tag_relationships = cur.fetchall()
 
         # Get experiences by tag (most recent)
-        tag_filter = request.args.get('tag')
+        tag_filter = request.args.get("tag")
         if tag_filter:
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT * FROM knowledge_base
                 WHERE %s = ANY(tags)
                 ORDER BY created_at DESC
                 LIMIT 50
-            """, (tag_filter,))
+            """,
+                (tag_filter,),
+            )
 
             experiences = cur.fetchall()
         else:
@@ -1516,19 +1650,19 @@ def get_tagged_experiences():
         cur.close()
         conn.close()
 
-        return jsonify({
-            'popular_tags': popular_tags,
-            'tag_relationships': tag_relationships,
-            'experiences': experiences
-        })
+        return jsonify(
+            {"popular_tags": popular_tags, "tag_relationships": tag_relationships, "experiences": experiences}
+        )
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
+
 
 # ============================================================================
 # LEARNING PATTERNS - ARCHIE'S KNOWLEDGE ACQUISITION
 # ============================================================================
 
-@consciousness_bp.route('/learning-patterns', methods=['GET'])
+
+@consciousness_bp.route("/learning-patterns", methods=["GET"])
 @login_required
 @admin_required
 def get_learning_patterns():
@@ -1539,7 +1673,8 @@ def get_learning_patterns():
 
     try:
         # Most accessed knowledge (what ARCHIE references most)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 id,
                 knowledge_type,
@@ -1555,12 +1690,14 @@ def get_learning_patterns():
             WHERE access_count > 0
             ORDER BY access_count DESC
             LIMIT 20
-        """)
+        """
+        )
 
         most_accessed = cur.fetchall()
 
         # Learning velocity (knowledge added per day)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 DATE(created_at) as date,
                 COUNT(*) as entries_added,
@@ -1569,12 +1706,14 @@ def get_learning_patterns():
             WHERE created_at > NOW() - INTERVAL '30 days'
             GROUP BY DATE(created_at)
             ORDER BY date DESC
-        """)
+        """
+        )
 
         learning_velocity = cur.fetchall()
 
         # Knowledge retention (old memories still accessed)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 knowledge_type,
                 COUNT(*) as total_entries,
@@ -1583,12 +1722,14 @@ def get_learning_patterns():
             FROM knowledge_base
             GROUP BY knowledge_type
             ORDER BY total_entries DESC
-        """)
+        """
+        )
 
         retention_by_type = cur.fetchall()
 
         # Importance distribution
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 CASE
                     WHEN importance_score >= 0.9 THEN 'Critical (0.9+)'
@@ -1608,27 +1749,32 @@ def get_learning_patterns():
                     ELSE 4
                 END,
                 count DESC
-        """)
+        """
+        )
 
         importance_distribution = cur.fetchall()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'most_accessed': most_accessed,
-            'learning_velocity': learning_velocity,
-            'retention_by_type': retention_by_type,
-            'importance_distribution': importance_distribution
-        })
+        return jsonify(
+            {
+                "most_accessed": most_accessed,
+                "learning_velocity": learning_velocity,
+                "retention_by_type": retention_by_type,
+                "importance_distribution": importance_distribution,
+            }
+        )
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
+
 
 # ============================================================================
 # GIT REPOSITORY TRACKING - WHAT ARCHIE WAS WORKING ON
 # ============================================================================
 
-@consciousness_bp.route('/work-context', methods=['GET'])
+
+@consciousness_bp.route("/work-context", methods=["GET"])
 @login_required
 @admin_required
 def get_work_context():
@@ -1639,7 +1785,8 @@ def get_work_context():
 
     try:
         # Sessions by branch
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 git_branch,
                 COUNT(*) as session_count,
@@ -1651,12 +1798,14 @@ def get_work_context():
             WHERE git_branch IS NOT NULL AND git_branch != 'unknown'
             GROUP BY git_branch
             ORDER BY session_count DESC
-        """)
+        """
+        )
 
         branch_activity = cur.fetchall()
 
         # Sessions by phase
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 phase,
                 COUNT(*) as session_count,
@@ -1666,12 +1815,14 @@ def get_work_context():
             FROM conversation_sessions
             GROUP BY phase
             ORDER BY session_count DESC
-        """)
+        """
+        )
 
         phase_distribution = cur.fetchall()
 
         # Recent work sessions
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 cs.id,
                 cs.session_name,
@@ -1685,12 +1836,14 @@ def get_work_context():
             FROM conversation_sessions cs
             ORDER BY cs.compact_triggered_at DESC
             LIMIT 20
-        """)
+        """
+        )
 
         recent_work = cur.fetchall()
 
         # Topic distribution
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 primary_topic,
                 COUNT(*) as session_count,
@@ -1699,27 +1852,32 @@ def get_work_context():
             WHERE primary_topic IS NOT NULL
             GROUP BY primary_topic
             ORDER BY session_count DESC
-        """)
+        """
+        )
 
         topic_distribution = cur.fetchall()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'branch_activity': branch_activity,
-            'phase_distribution': phase_distribution,
-            'recent_work': recent_work,
-            'topic_distribution': topic_distribution
-        })
+        return jsonify(
+            {
+                "branch_activity": branch_activity,
+                "phase_distribution": phase_distribution,
+                "recent_work": recent_work,
+                "topic_distribution": topic_distribution,
+            }
+        )
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
+
 
 # ============================================================================
 # COMPREHENSIVE BRAIN STATE - EVERYTHING AT ONCE
 # ============================================================================
 
-@consciousness_bp.route('/brain-state', methods=['GET'])
+
+@consciousness_bp.route("/brain-state", methods=["GET"])
 @login_required
 @admin_required
 def get_complete_brain_state():
@@ -1730,7 +1888,8 @@ def get_complete_brain_state():
 
     try:
         # Overall statistics
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 COUNT(*) as total_knowledge_entries,
                 COUNT(DISTINCT knowledge_type) as unique_types,
@@ -1741,12 +1900,14 @@ def get_complete_brain_state():
                 MAX(created_at) as latest_memory,
                 pg_size_pretty(pg_total_relation_size('knowledge_base')) as database_size
             FROM knowledge_base
-        """)
+        """
+        )
 
         overall_stats = cur.fetchone()
 
         # Knowledge by type
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 knowledge_type,
                 COUNT(*) as count,
@@ -1755,12 +1916,14 @@ def get_complete_brain_state():
             FROM knowledge_base
             GROUP BY knowledge_type
             ORDER BY count DESC
-        """)
+        """
+        )
 
         knowledge_by_type = cur.fetchall()
 
         # Conversation sessions summary
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 COUNT(*) as total_sessions,
                 COUNT(DISTINCT phase) as unique_phases,
@@ -1769,23 +1932,27 @@ def get_complete_brain_state():
                 SUM(LENGTH(full_transcript)) as total_transcript_chars,
                 MAX(compact_triggered_at) as last_session
             FROM conversation_sessions
-        """)
+        """
+        )
 
         sessions_summary = cur.fetchone()
 
         # Recent activity (last 24 hours)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 COUNT(*) as entries_added_24h,
                 COUNT(DISTINCT knowledge_type) as types_added_24h
             FROM knowledge_base
             WHERE created_at > NOW() - INTERVAL '24 hours'
-        """)
+        """
+        )
 
         recent_activity = cur.fetchone()
 
         # Most important memories
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 id,
                 knowledge_type,
@@ -1798,37 +1965,44 @@ def get_complete_brain_state():
             FROM knowledge_base
             ORDER BY importance_score DESC, access_count DESC
             LIMIT 10
-        """)
+        """
+        )
 
         top_memories = cur.fetchall()
 
         # Emotional state
-        cur.execute("""
+        cur.execute(
+            """
             SELECT * FROM emotional_state
             ORDER BY timestamp DESC LIMIT 1
-        """)
+        """
+        )
 
         current_emotion = cur.fetchone()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'overall_stats': overall_stats,
-            'knowledge_by_type': knowledge_by_type,
-            'sessions_summary': sessions_summary,
-            'recent_activity': recent_activity,
-            'top_memories': top_memories,
-            'current_emotion': current_emotion or {'mood': 'neutral', 'energy': 0.5, 'confidence': 0.5}
-        })
+        return jsonify(
+            {
+                "overall_stats": overall_stats,
+                "knowledge_by_type": knowledge_by_type,
+                "sessions_summary": sessions_summary,
+                "recent_activity": recent_activity,
+                "top_memories": top_memories,
+                "current_emotion": current_emotion or {"mood": "neutral", "energy": 0.5, "confidence": 0.5},
+            }
+        )
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
+
 
 # ============================================================================
 # DOCUMENT INGESTION ROUTES (migrated from admin)
 # ============================================================================
 
-@consciousness_bp.route('/ingest-directory', methods=['POST'])
+
+@consciousness_bp.route("/ingest-directory", methods=["POST"])
 @login_required
 @admin_required
 def ingest_directory():
@@ -1836,67 +2010,68 @@ def ingest_directory():
     import os
     import json
     from datetime import datetime
-    
+
     data = request.json
-    directory_path = data.get('path', '/mnt/archie_brain/docs')
-    category = data.get('category', 'documentation')
-    
+    directory_path = data.get("path", "/mnt/archie_brain/docs")
+    category = data.get("category", "documentation")
+
     conn = get_db()
     cur = conn.cursor()
-    
+
     try:
         files_processed = 0
         errors = []
-        
+
         if not os.path.exists(directory_path):
-            return jsonify({'success': False, 'error': 'Directory not found'}), 404
-        
+            return jsonify({"success": False, "error": "Directory not found"}), 404
+
         for root, dirs, files in os.walk(directory_path):
             for filename in files:
-                if filename.endswith(('.md', '.txt', '.json', '.py', '.js', '.html', '.css')):
+                if filename.endswith((".md", ".txt", ".json", ".py", ".js", ".html", ".css")):
                     filepath = os.path.join(root, filename)
                     try:
-                        with open(filepath, 'r', encoding='utf-8') as f:
+                        with open(filepath, "r", encoding="utf-8") as f:
                             content = f.read()
-                            
+
                         # Determine subcategory from path
                         rel_path = os.path.relpath(filepath, directory_path)
-                        subcategory = os.path.dirname(rel_path) or 'root'
-                        
+                        subcategory = os.path.dirname(rel_path) or "root"
+
                         # Insert into long_term_memory
-                        cur.execute("""
-                            INSERT INTO long_term_memory 
+                        cur.execute(
+                            """
+                            INSERT INTO long_term_memory
                             (id, content, category, tags, source, importance, metadata, created_at)
                             VALUES (gen_random_uuid(), %s, %s, %s, %s, %s, %s, NOW())
                             ON CONFLICT DO NOTHING
-                        """, (
-                            content[:5000],  # Limit content size
-                            category,
-                            [subcategory, os.path.splitext(filename)[1][1:]],  # tags
-                            f'file:{rel_path}',
-                            0.7,  # importance
-                            json.dumps({'filename': filename, 'path': rel_path, 'size': len(content)})
-                        ))
-                        
+                        """,
+                            (
+                                content[:5000],  # Limit content size
+                                category,
+                                [subcategory, os.path.splitext(filename)[1][1:]],  # tags
+                                f"file:{rel_path}",
+                                0.7,  # importance
+                                json.dumps({"filename": filename, "path": rel_path, "size": len(content)}),
+                            ),
+                        )
+
                         files_processed += 1
                     except Exception as e:
-                        errors.append(f'{filename}: {str(e)}')
-        
+                        errors.append(f"{filename}: {str(e)}")
+
         conn.commit()
         cur.close()
         conn.close()
-        
-        return jsonify({
-            'success': True,
-            'files_processed': files_processed,
-            'errors': errors
-        })
+
+        return jsonify({"success": True, "files_processed": files_processed, "errors": errors})
     except Exception as e:
         import traceback
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
 
-@consciousness_bp.route('/browse-files', methods=['POST'])
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/browse-files", methods=["POST"])
 @login_required
 @admin_required
 def browse_files():
@@ -1906,7 +2081,7 @@ def browse_files():
     from datetime import datetime
 
     data = request.json
-    directory_path = data.get('path', '/mnt/archie_brain/docs')
+    directory_path = data.get("path", "/mnt/archie_brain/docs")
 
     try:
         # Get all files in directory recursively
@@ -1914,7 +2089,7 @@ def browse_files():
 
         for root, dirs, files in os.walk(directory_path):
             for file in files:
-                if file.startswith('.'):
+                if file.startswith("."):
                     continue
 
                 full_path = os.path.join(root, file)
@@ -1927,48 +2102,54 @@ def browse_files():
 
                 # Determine file type
                 ext = os.path.splitext(file)[1].lower()
-                file_type = 'text'
-                if ext in ['.md', '.markdown']:
-                    file_type = 'markdown'
-                elif ext in ['.py', '.js', '.java', '.cpp', '.c', '.h']:
-                    file_type = 'code'
-                elif ext in ['.json', '.yaml', '.yml', '.xml']:
-                    file_type = 'config'
-                elif ext in ['.txt', '.log']:
-                    file_type = 'text'
+                file_type = "text"
+                if ext in [".md", ".markdown"]:
+                    file_type = "markdown"
+                elif ext in [".py", ".js", ".java", ".cpp", ".c", ".h"]:
+                    file_type = "code"
+                elif ext in [".json", ".yaml", ".yml", ".xml"]:
+                    file_type = "config"
+                elif ext in [".txt", ".log"]:
+                    file_type = "text"
 
-                files_info.append({
-                    'name': file,
-                    'path': rel_path,
-                    'full_path': full_path,
-                    'size': file_size,
-                    'modified': modified_time.isoformat(),
-                    'type': file_type,
-                    'extension': ext
-                })
+                files_info.append(
+                    {
+                        "name": file,
+                        "path": rel_path,
+                        "full_path": full_path,
+                        "size": file_size,
+                        "modified": modified_time.isoformat(),
+                        "type": file_type,
+                        "extension": ext,
+                    }
+                )
 
         # Check which files have been ingested
         conn = get_db()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
         for file_info in files_info:
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT COUNT(*) as count, MAX(created_at) as last_ingested
                 FROM long_term_memory
                 WHERE metadata->>'file_path' = %s
-            """, (file_info['full_path'],))
+            """,
+                (file_info["full_path"],),
+            )
 
             result = cur.fetchone()
-            file_info['ingested'] = result['count'] > 0
-            file_info['ingestion_count'] = result['count']
+            file_info["ingested"] = result["count"] > 0
+            file_info["ingestion_count"] = result["count"]
 
-            if result['last_ingested']:
-                file_info['last_ingested'] = result['last_ingested'].isoformat()
+            if result["last_ingested"]:
+                file_info["last_ingested"] = result["last_ingested"].isoformat()
 
                 # Check if file was modified after last ingestion
                 from datetime import datetime
-                file_modified = datetime.fromisoformat(file_info['modified'])
-                last_ingested = result['last_ingested']
+
+                file_modified = datetime.fromisoformat(file_info["modified"])
+                last_ingested = result["last_ingested"]
 
                 # Remove timezone info for comparison (compare as naive datetimes)
                 if last_ingested.tzinfo is not None:
@@ -1976,28 +2157,27 @@ def browse_files():
                 if file_modified.tzinfo is not None:
                     file_modified = file_modified.replace(tzinfo=None)
 
-                file_info['needs_update'] = file_modified > last_ingested
+                file_info["needs_update"] = file_modified > last_ingested
             else:
-                file_info['needs_update'] = False
+                file_info["needs_update"] = False
 
         cur.close()
         conn.close()
 
         # Sort by name
-        files_info.sort(key=lambda x: x['name'])
+        files_info.sort(key=lambda x: x["name"])
 
-        return jsonify({
-            'success': True,
-            'files': files_info,
-            'total_files': len(files_info),
-            'directory': directory_path
-        })
+        return jsonify(
+            {"success": True, "files": files_info, "total_files": len(files_info), "directory": directory_path}
+        )
     except Exception as e:
         import traceback
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
 
-@consciousness_bp.route('/view-file', methods=['POST'])
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/view-file", methods=["POST"])
 @login_required
 @admin_required
 def view_file():
@@ -2005,273 +2185,87 @@ def view_file():
     import os
 
     data = request.json
-    file_path = data.get('path')
+    file_path = data.get("path")
 
     if not file_path:
-        return jsonify({'success': False, 'error': 'File path required'}), 400
+        return jsonify({"success": False, "error": "File path required"}), 400
 
     # Security check - ensure path is within allowed directory
-    allowed_base = '/mnt/archie_brain/docs'
+    allowed_base = "/mnt/archie_brain/docs"
     abs_path = os.path.abspath(file_path)
 
     if not abs_path.startswith(allowed_base):
-        return jsonify({'success': False, 'error': 'Access denied'}), 403
+        return jsonify({"success": False, "error": "Access denied"}), 403
 
     try:
-        with open(abs_path, 'r', encoding='utf-8', errors='ignore') as f:
+        with open(abs_path, "r", encoding="utf-8", errors="ignore") as f:
             content = f.read(50000)  # Limit to 50KB
 
         # Get file stats
         stats = os.stat(abs_path)
 
-        return jsonify({
-            'success': True,
-            'content': content,
-            'size': stats.st_size,
-            'path': abs_path,
-            'truncated': stats.st_size > 50000
-        })
+        return jsonify(
+            {
+                "success": True,
+                "content": content,
+                "size": stats.st_size,
+                "path": abs_path,
+                "truncated": stats.st_size > 50000,
+            }
+        )
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
-@consciousness_bp.route('/ingest-all-docs', methods=['POST'])
+
+@consciousness_bp.route("/ingest-all-docs", methods=["POST"])
 @login_required
 @admin_required
 def ingest_all_docs():
-    """Bulk ingest all documentation files with intelligent tagging"""
-    import psycopg2.extras
-    import os
-    import re
-    from datetime import datetime
+    """DEPRECATED: Docs now live in knowledge_base table via docs_migration.py.
 
-    docs_dir = '/mnt/archie_brain/docs'
+    Use Mission Control's Knowledge Base tab or run:
+      docker exec archie_platform python3 /app/tools/blueprint/docs_migration.py
 
-    def extract_tags_from_filename(filename):
-        """Extract tags from filename"""
-        name = os.path.splitext(filename)[0]
-        parts = name.lower().split('_')
-
-        tag_map = {
-            'admin': ['admin', 'administration'],
-            'agent': ['agent', 'team'],
-            'ai': ['ai', 'artificial-intelligence'],
-            'backup': ['backup', 'recovery'],
-            'business': ['business'],
-            'code': ['code', 'development'],
-            'deployment': ['deployment', 'production'],
-            'guide': ['guide', 'documentation'],
-            'reference': ['reference', 'documentation'],
-            'instructions': ['how-to', 'guide'],
-            'checklist': ['checklist', 'procedure'],
-            'consciousness': ['consciousness', 'memory', 'knowledge'],
-            'directory': ['directory', 'reference'],
-            'platform': ['platform', 'system'],
-        }
-
-        tags = set()
-        for part in parts:
-            if part in tag_map:
-                tags.update(tag_map[part])
-            else:
-                tags.add(part)
-
-        return list(tags)
-
-    def extract_tags_from_content(content):
-        """Extract tags from content"""
-        tags = set()
-        content_lower = content.lower()
-
-        tech_keywords = {
-            'docker': 'docker', 'postgresql': 'postgresql', 'python': 'python',
-            'flask': 'flask', 'api': 'api', 'database': 'database',
-            'claude': 'claude-ai', 'anthropic': 'anthropic',
-        }
-
-        for keyword, tag in tech_keywords.items():
-            if keyword in content_lower:
-                tags.add(tag)
-
-        if any(word in content_lower for word in ['agent', 'agents', 'team']):
-            tags.add('agents')
-        if any(word in content_lower for word in ['memory', 'knowledge', 'consciousness']):
-            tags.add('consciousness')
-        if any(word in content_lower for word in ['backup', 'restore', 'recovery']):
-            tags.add('backup')
-
-        return list(tags)
-
-    def determine_category(filename, content):
-        """Determine document category"""
-        filename_lower = filename.lower()
-
-        if 'admin' in filename_lower or 'reference' in filename_lower:
-            return 'documentation'
-        elif 'agent' in filename_lower or 'directory' in filename_lower:
-            return 'business'
-        elif 'consciousness' in filename_lower or 'memory' in filename_lower:
-            return 'technical'
-        elif 'backup' in filename_lower or 'deployment' in filename_lower:
-            return 'procedure'
-        elif 'business' in filename_lower:
-            return 'business'
-        else:
-            return 'documentation'
-
-    def calculate_importance(filename, content, tags):
-        """Calculate importance score"""
-        importance = 0.5
-
-        critical_files = ['archie_consciousness', 'agent_directory', 'admin_reference']
-        if any(cf in filename.lower() for cf in critical_files):
-            importance += 0.3
-
-        if 'update' in filename.lower():
-            importance += 0.2
-
-        if len(content) > 10000:
-            importance += 0.1
-
-        if len(tags) > 5:
-            importance += 0.1
-
-        return min(importance, 1.0)
-
+    This endpoint returns a deprecation notice and points to the knowledge_base table.
+    """
     try:
-        # Find all documentation files
-        files_to_ingest = []
-        for root, dirs, files in os.walk(docs_dir):
-            for file in files:
-                if file.endswith(('.md', '.txt')) and not file.startswith('.'):
-                    files_to_ingest.append(os.path.join(root, file))
-
-        if not files_to_ingest:
-            return jsonify({'success': False, 'error': 'No files found'}), 404
-
         conn = get_db()
         cur = conn.cursor()
-
-        # Clear existing documentation ingestions
-        cur.execute("DELETE FROM long_term_memory WHERE metadata->>'source' = 'documentation_ingestion'")
-
-        total_chunks = 0
-        file_results = []
-
-        for file_path in files_to_ingest:
-            try:
-                filename = os.path.basename(file_path)
-
-                # Read content
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read()
-
-                if not content.strip():
-                    continue
-
-                # Extract metadata
-                filename_tags = extract_tags_from_filename(filename)
-                content_tags = extract_tags_from_content(content)
-                all_tags = list(set(filename_tags + content_tags))
-
-                category = determine_category(filename, content)
-                importance = calculate_importance(filename, content, all_tags)
-
-                stats = os.stat(file_path)
-                file_size = stats.st_size
-
-                # Chunk content (max 8000 chars per chunk)
-                max_chunk_size = 8000
-                chunks = []
-
-                if len(content) <= max_chunk_size:
-                    chunks = [content]
-                else:
-                    # Split by sections
-                    sections = re.split(r'\n(?=#+\s)', content)
-                    current_chunk = ""
-                    for section in sections:
-                        if len(current_chunk) + len(section) <= max_chunk_size:
-                            current_chunk += "\n" + section
-                        else:
-                            if current_chunk:
-                                chunks.append(current_chunk.strip())
-                            current_chunk = section
-                    if current_chunk:
-                        chunks.append(current_chunk.strip())
-
-                # Insert chunks
-                for i, chunk in enumerate(chunks):
-                    metadata = {
-                        'file_path': file_path,
-                        'file_name': filename,
-                        'file_size': file_size,
-                        'chunk_index': i + 1,
-                        'total_chunks': len(chunks),
-                        'source': 'documentation_ingestion',
-                        'ingested_at': datetime.now().isoformat()
-                    }
-
-                    chunk_suffix = f" (Part {i+1}/{len(chunks)})" if len(chunks) > 1 else ""
-
-                    cur.execute("""
-                        INSERT INTO long_term_memory
-                        (content, category, tags, importance_score, metadata, created_at, last_accessed)
-                        VALUES (%s, %s, %s, %s, %s, NOW(), NOW())
-                    """, (
-                        f"{filename}{chunk_suffix}\n\n{chunk}",
-                        category,
-                        all_tags,
-                        importance,
-                        psycopg2.extras.Json(metadata)
-                    ))
-                    total_chunks += 1
-
-                file_results.append({
-                    'file': filename,
-                    'chunks': len(chunks),
-                    'tags': len(all_tags),
-                    'category': category
-                })
-
-            except Exception as e:
-                print(f"Error ingesting {file_path}: {str(e)}")
-                continue
-
-        conn.commit()
-
-        # Get tag summary
-        cur.execute("""
-            SELECT unnest(tags) as tag, COUNT(*) as count
-            FROM long_term_memory
-            WHERE metadata->>'source' = 'documentation_ingestion'
-            GROUP BY tag
-            ORDER BY count DESC
-            LIMIT 20
-        """)
-        top_tags = [{'tag': row[0], 'count': row[1]} for row in cur.fetchall()]
-
+        cur.execute("SELECT COUNT(*) FROM knowledge_base WHERE source_type = 'docs_migration'")
+        kb_count = cur.fetchone()[0]
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'files_processed': len(file_results),
-            'total_chunks': total_chunks,
-            'files': file_results,
-            'top_tags': top_tags
-        })
-
+        return jsonify(
+            {
+                "success": True,
+                "deprecated": True,
+                "message": "This endpoint is deprecated. Docs are now stored in the knowledge_base table.",
+                "migration_command": "docker exec archie_platform python3 /app/tools/blueprint/docs_migration.py",
+                "knowledge_base_entries": kb_count,
+                "dashboard": "/tools/blueprint (Mission Control > Knowledge Base tab)",
+            }
+        )
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "deprecated": True,
+                    "message": "This endpoint is deprecated. Use docs_migration.py instead.",
+                    "error": str(e),
+                }
+            ),
+            500,
+        )
 
 
 # ============================================================================
 # UNIFIED KNOWLEDGE API (Phase 4: Integration Layer)
 # ============================================================================
 
-@consciousness_bp.route('/unified/search', methods=['POST'])
+
+@consciousness_bp.route("/unified/search", methods=["POST"])
 @login_required
 @admin_required
 def unified_search():
@@ -2283,26 +2277,21 @@ def unified_search():
         from services.unified_knowledge import get_unified_knowledge_service
 
         data = request.get_json() or {}
-        query = data.get('query', '')
-        knowledge_types = data.get('types')
-        categories = data.get('categories')
-        limit = data.get('limit', 10)
+        query = data.get("query", "")
+        knowledge_types = data.get("types")
+        categories = data.get("categories")
+        limit = data.get("limit", 10)
 
         service = get_unified_knowledge_service()
-        result = service.search(
-            query=query,
-            knowledge_types=knowledge_types,
-            categories=categories,
-            limit=limit
-        )
+        result = service.search(query=query, knowledge_types=knowledge_types, categories=categories, limit=limit)
 
         return jsonify(result)
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/unified/stats', methods=['GET'])
+@consciousness_bp.route("/unified/stats", methods=["GET"])
 @login_required
 @admin_required
 def unified_stats():
@@ -2315,16 +2304,13 @@ def unified_stats():
         service = get_unified_knowledge_service()
         stats = service.get_statistics()
 
-        return jsonify({
-            'success': True,
-            'stats': stats
-        })
+        return jsonify({"success": True, "stats": stats})
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/unified/agent-context', methods=['POST'])
+@consciousness_bp.route("/unified/agent-context", methods=["POST"])
 @login_required
 @admin_required
 def unified_agent_context():
@@ -2336,25 +2322,22 @@ def unified_agent_context():
         from services.unified_knowledge import get_unified_knowledge_service
 
         data = request.get_json() or {}
-        task_description = data.get('task', '')
-        agent_type = data.get('agent_type', 'general')
+        task_description = data.get("task", "")
+        agent_type = data.get("agent_type", "general")
 
         if not task_description:
-            return jsonify({'success': False, 'error': 'Task description required'}), 400
+            return jsonify({"success": False, "error": "Task description required"}), 400
 
         service = get_unified_knowledge_service()
         context = service.get_agent_context(task_description, agent_type)
 
-        return jsonify({
-            'success': True,
-            'context': context
-        })
+        return jsonify({"success": True, "context": context})
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/unified/check-mistakes', methods=['POST'])
+@consciousness_bp.route("/unified/check-mistakes", methods=["POST"])
 @login_required
 @admin_required
 def unified_check_mistakes():
@@ -2366,26 +2349,23 @@ def unified_check_mistakes():
         from services.unified_knowledge import get_unified_knowledge_service
 
         data = request.get_json() or {}
-        context = data.get('context', '')
+        context = data.get("context", "")
 
         if not context:
-            return jsonify({'success': False, 'error': 'Context required'}), 400
+            return jsonify({"success": False, "error": "Context required"}), 400
 
         service = get_unified_knowledge_service()
         mistakes = service.check_for_similar_mistakes(context)
 
-        return jsonify({
-            'success': True,
-            'mistakes': mistakes,
-            'count': len(mistakes),
-            'has_warnings': len(mistakes) > 0
-        })
+        return jsonify(
+            {"success": True, "mistakes": mistakes, "count": len(mistakes), "has_warnings": len(mistakes) > 0}
+        )
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/unified/record-mistake', methods=['POST'])
+@consciousness_bp.route("/unified/record-mistake", methods=["POST"])
 @login_required
 @admin_required
 def unified_record_mistake():
@@ -2397,38 +2377,30 @@ def unified_record_mistake():
         from services.unified_knowledge import get_unified_knowledge_service
 
         data = request.get_json() or {}
-        error_type = data.get('error_type', 'Unknown')
-        error_message = data.get('error_message', '')
-        solution = data.get('solution', '')
-        context = data.get('context', {})
-        tags = data.get('tags')
+        error_type = data.get("error_type", "Unknown")
+        error_message = data.get("error_message", "")
+        solution = data.get("solution", "")
+        context = data.get("context", {})
+        tags = data.get("tags")
 
         if not error_message:
-            return jsonify({'success': False, 'error': 'Error message required'}), 400
+            return jsonify({"success": False, "error": "Error message required"}), 400
 
         service = get_unified_knowledge_service()
         entry_id = service.record_mistake(
-            error_type=error_type,
-            error_message=error_message,
-            solution=solution,
-            context=context,
-            tags=tags
+            error_type=error_type, error_message=error_message, solution=solution, context=context, tags=tags
         )
 
         if entry_id:
-            return jsonify({
-                'success': True,
-                'entry_id': entry_id,
-                'message': f'Mistake recorded as entry #{entry_id}'
-            })
+            return jsonify({"success": True, "entry_id": entry_id, "message": f"Mistake recorded as entry #{entry_id}"})
         else:
-            return jsonify({'success': False, 'error': 'Failed to record mistake'}), 500
+            return jsonify({"success": False, "error": "Failed to record mistake"}), 500
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/unified/recent', methods=['GET'])
+@consciousness_bp.route("/unified/recent", methods=["GET"])
 @login_required
 @admin_required
 def unified_recent_activity():
@@ -2438,28 +2410,24 @@ def unified_recent_activity():
     try:
         from services.unified_knowledge import get_unified_knowledge_service
 
-        hours = request.args.get('hours', 24, type=int)
-        limit = request.args.get('limit', 20, type=int)
+        hours = request.args.get("hours", 24, type=int)
+        limit = request.args.get("limit", 20, type=int)
 
         service = get_unified_knowledge_service()
         activity = service.get_recent_activity(hours, limit)
 
-        return jsonify({
-            'success': True,
-            'activity': activity,
-            'count': len(activity),
-            'hours': hours
-        })
+        return jsonify({"success": True, "activity": activity, "count": len(activity), "hours": hours})
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # KNOWLEDGE GRAPH & BACKLINKS (Migrated from Obsidian)
 # ============================================================================
 
-@consciousness_bp.route('/knowledge/graph', methods=['GET'])
+
+@consciousness_bp.route("/knowledge/graph", methods=["GET"])
 @login_required
 @admin_required
 def get_knowledge_graph():
@@ -2470,23 +2438,25 @@ def get_knowledge_graph():
     try:
         from knowledge_vault_indexer import KnowledgeVaultIndexer
 
-        limit = request.args.get('limit', 100, type=int)
+        limit = request.args.get("limit", 100, type=int)
 
         indexer = KnowledgeVaultIndexer()
         graph = indexer.get_link_graph(limit=limit)
 
-        return jsonify({
-            'success': True,
-            'graph': graph,
-            'node_count': len(graph.get('nodes', [])),
-            'edge_count': len(graph.get('edges', []))
-        })
+        return jsonify(
+            {
+                "success": True,
+                "graph": graph,
+                "node_count": len(graph.get("nodes", [])),
+                "edge_count": len(graph.get("edges", [])),
+            }
+        )
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/knowledge/<int:knowledge_id>/backlinks', methods=['GET'])
+@consciousness_bp.route("/knowledge/<int:knowledge_id>/backlinks", methods=["GET"])
 @login_required
 @admin_required
 def get_knowledge_backlinks(knowledge_id):
@@ -2500,22 +2470,18 @@ def get_knowledge_backlinks(knowledge_id):
         indexer = KnowledgeVaultIndexer()
         backlinks = indexer.get_backlinks(knowledge_id)
 
-        return jsonify({
-            'success': True,
-            'knowledge_id': knowledge_id,
-            'backlinks': backlinks,
-            'count': len(backlinks)
-        })
+        return jsonify({"success": True, "knowledge_id": knowledge_id, "backlinks": backlinks, "count": len(backlinks)})
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # TEAM AWARENESS API (migrated from admin)
 # ============================================================================
 
-@consciousness_bp.route('/team-awareness', methods=['GET'])
+
+@consciousness_bp.route("/team-awareness", methods=["GET"])
 @login_required
 @admin_required
 def get_team_awareness():
@@ -2528,7 +2494,8 @@ def get_team_awareness():
 
     try:
         # Get all active agents
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 a.id, a.name, a.first_name, a.last_name, a.email,
                 a.title, a.department, a.pronouns, a.bio,
@@ -2542,11 +2509,13 @@ def get_team_awareness():
             LEFT JOIN agent_types at ON a.type_id = at.id
             WHERE a.status = 'active'
             ORDER BY a.department, a.first_name
-        """)
+        """
+        )
         agents = cur.fetchall()
 
         # Get department summary
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 department,
                 COUNT(*) as agent_count,
@@ -2558,11 +2527,13 @@ def get_team_awareness():
             WHERE status = 'active'
             GROUP BY department
             ORDER BY agent_count DESC
-        """)
+        """
+        )
         departments = cur.fetchall()
 
         # Get overall statistics
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 COUNT(*) as total_agents,
                 COUNT(DISTINCT department) as total_departments,
@@ -2576,13 +2547,14 @@ def get_team_awareness():
                 SUM(CASE WHEN worker_type = 'contract' AND api_enabled = FALSE THEN 1 ELSE 0 END) as contract_disabled
             FROM agents
             WHERE status = 'active'
-        """)
+        """
+        )
         stats = cur.fetchone()
 
         # Organize agents by department
         by_department = {}
         for agent in agents:
-            dept = agent['department'] or 'Unassigned'
+            dept = agent["department"] or "Unassigned"
             if dept not in by_department:
                 by_department[dept] = []
             by_department[dept].append(dict(agent))
@@ -2592,19 +2564,19 @@ def get_team_awareness():
 
         # Convert datetime objects to ISO format
         for agent in agents:
-            if agent['last_used']:
-                agent['last_used'] = agent['last_used'].isoformat()
-            if agent['created_at']:
-                agent['created_at'] = agent['created_at'].isoformat()
+            if agent["last_used"]:
+                agent["last_used"] = agent["last_used"].isoformat()
+            if agent["created_at"]:
+                agent["created_at"] = agent["created_at"].isoformat()
 
         result = {
-            'success': True,
-            'team': {
-                'agents': [dict(a) for a in agents],
-                'by_department': by_department,
-                'departments': [dict(d) for d in departments],
-                'statistics': dict(stats)
-            }
+            "success": True,
+            "team": {
+                "agents": [dict(a) for a in agents],
+                "by_department": by_department,
+                "departments": [dict(d) for d in departments],
+                "statistics": dict(stats),
+            },
         }
 
         print(f"🧠 [BACKEND] Returning {stats['total_agents']} agents across {stats['total_departments']} departments")
@@ -2612,16 +2584,18 @@ def get_team_awareness():
 
     except Exception as e:
         import traceback
+
         print("❌ [BACKEND] Error in get_team_awareness:")
         traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # ACTIVITY FEED ENDPOINTS - Phase 28
 # ============================================================================
 
-@consciousness_bp.route('/activity-feed')
+
+@consciousness_bp.route("/activity-feed")
 @login_required
 @admin_required
 def get_activity_feed():
@@ -2636,9 +2610,9 @@ def get_activity_feed():
     """
     try:
         # Get time window from query params (default 1 hour)
-        hours = request.args.get('hours', 1, type=int)
-        limit = request.args.get('limit', 50, type=int)
-        event_type = request.args.get('type')  # Filter by event type
+        hours = request.args.get("hours", 1, type=int)
+        limit = request.args.get("limit", 50, type=int)
+        event_type = request.args.get("type")  # Filter by event type
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -2646,8 +2620,9 @@ def get_activity_feed():
         activities = []
 
         # 1. Recent knowledge base additions
-        if not event_type or event_type == 'knowledge':
-            cur.execute("""
+        if not event_type or event_type == "knowledge":
+            cur.execute(
+                """
                 SELECT
                     id,
                     'knowledge' as event_type,
@@ -2669,15 +2644,18 @@ def get_activity_feed():
                 WHERE created_at >= NOW() - INTERVAL '%s hours'
                 ORDER BY created_at DESC
                 LIMIT %s
-            """, (hours, limit))
+            """,
+                (hours, limit),
+            )
             knowledge_events = cur.fetchall()
             for event in knowledge_events:
-                event['created_at'] = event['created_at'].isoformat() if event['created_at'] else None
+                event["created_at"] = event["created_at"].isoformat() if event["created_at"] else None
                 activities.append(dict(event))
 
         # 2. Recent agent executions
-        if not event_type or event_type == 'execution':
-            cur.execute("""
+        if not event_type or event_type == "execution":
+            cur.execute(
+                """
                 SELECT
                     ae.id,
                     'execution' as event_type,
@@ -2698,15 +2676,18 @@ def get_activity_feed():
                 WHERE ae.started_at >= NOW() - INTERVAL '%s hours'
                 ORDER BY ae.started_at DESC
                 LIMIT %s
-            """, (hours, limit))
+            """,
+                (hours, limit),
+            )
             execution_events = cur.fetchall()
             for event in execution_events:
-                event['created_at'] = event['created_at'].isoformat() if event['created_at'] else None
+                event["created_at"] = event["created_at"].isoformat() if event["created_at"] else None
                 activities.append(dict(event))
 
         # 3. Recent improvement proposals
-        if not event_type or event_type == 'improvement':
-            cur.execute("""
+        if not event_type or event_type == "improvement":
+            cur.execute(
+                """
                 SELECT
                     id,
                     'improvement' as event_type,
@@ -2727,15 +2708,18 @@ def get_activity_feed():
                 WHERE created_at >= NOW() - INTERVAL '%s hours'
                 ORDER BY created_at DESC
                 LIMIT %s
-            """, (hours, limit))
+            """,
+                (hours, limit),
+            )
             improvement_events = cur.fetchall()
             for event in improvement_events:
-                event['created_at'] = event['created_at'].isoformat() if event['created_at'] else None
+                event["created_at"] = event["created_at"].isoformat() if event["created_at"] else None
                 activities.append(dict(event))
 
         # 4. Recent conversation sessions (Claude Code ingests)
-        if not event_type or event_type == 'session':
-            cur.execute("""
+        if not event_type or event_type == "session":
+            cur.execute(
+                """
                 SELECT
                     id,
                     'session' as event_type,
@@ -2750,15 +2734,18 @@ def get_activity_feed():
                 WHERE started_at >= NOW() - INTERVAL '%s hours'
                 ORDER BY started_at DESC
                 LIMIT %s
-            """, (hours, limit))
+            """,
+                (hours, limit),
+            )
             session_events = cur.fetchall()
             for event in session_events:
-                event['created_at'] = event['created_at'].isoformat() if event['created_at'] else None
+                event["created_at"] = event["created_at"].isoformat() if event["created_at"] else None
                 activities.append(dict(event))
 
         # 5. Recent emotional state changes (if tracked)
-        if not event_type or event_type == 'emotional':
-            cur.execute("""
+        if not event_type or event_type == "emotional":
+            cur.execute(
+                """
                 SELECT
                     id,
                     'emotional' as event_type,
@@ -2771,15 +2758,18 @@ def get_activity_feed():
                 WHERE timestamp >= NOW() - INTERVAL '%s hours'
                 ORDER BY timestamp DESC
                 LIMIT %s
-            """, (hours, limit))
+            """,
+                (hours, limit),
+            )
             emotional_events = cur.fetchall()
             for event in emotional_events:
-                event['created_at'] = event['created_at'].isoformat() if event['created_at'] else None
+                event["created_at"] = event["created_at"].isoformat() if event["created_at"] else None
                 activities.append(dict(event))
 
         # 6. LLM alerts (from Phase 27)
-        if not event_type or event_type == 'llm_alert':
-            cur.execute("""
+        if not event_type or event_type == "llm_alert":
+            cur.execute(
+                """
                 SELECT
                     id,
                     'llm_alert' as event_type,
@@ -2792,17 +2782,19 @@ def get_activity_feed():
                 WHERE created_at >= NOW() - INTERVAL '%s hours'
                 ORDER BY created_at DESC
                 LIMIT %s
-            """, (hours, limit))
+            """,
+                (hours, limit),
+            )
             llm_events = cur.fetchall()
             for event in llm_events:
-                event['created_at'] = event['created_at'].isoformat() if event['created_at'] else None
+                event["created_at"] = event["created_at"].isoformat() if event["created_at"] else None
                 activities.append(dict(event))
 
         cur.close()
         conn.close()
 
         # Sort all activities by created_at descending
-        activities.sort(key=lambda x: x.get('created_at') or '', reverse=True)
+        activities.sort(key=lambda x: x.get("created_at") or "", reverse=True)
 
         # Limit total results
         activities = activities[:limit]
@@ -2810,24 +2802,27 @@ def get_activity_feed():
         # Get summary counts by type
         type_counts = {}
         for activity in activities:
-            t = activity.get('event_type', 'unknown')
+            t = activity.get("event_type", "unknown")
             type_counts[t] = type_counts.get(t, 0) + 1
 
-        return jsonify({
-            'success': True,
-            'feed': activities,
-            'count': len(activities),
-            'type_counts': type_counts,
-            'time_window_hours': hours
-        })
+        return jsonify(
+            {
+                "success": True,
+                "feed": activities,
+                "count": len(activities),
+                "type_counts": type_counts,
+                "time_window_hours": hours,
+            }
+        )
 
     except Exception as e:
         import traceback
+
         traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/activity-stats')
+@consciousness_bp.route("/activity-stats")
 @login_required
 @admin_required
 def get_activity_stats():
@@ -2837,7 +2832,8 @@ def get_activity_stats():
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get counts for different time windows
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 -- Last hour
                 (SELECT COUNT(*) FROM knowledge_base WHERE created_at >= NOW() - INTERVAL '1 hour') as knowledge_1h,
@@ -2858,43 +2854,53 @@ def get_activity_stats():
                 (SELECT COUNT(*) FROM knowledge_base) as knowledge_total,
                 (SELECT COUNT(*) FROM agents WHERE status = 'active') as agents_active,
                 (SELECT COUNT(*) FROM improvement_proposals) as improvements_total
-        """)
+        """
+        )
         stats = cur.fetchone()
 
         # Get current emotional state
-        cur.execute("""
+        cur.execute(
+            """
             SELECT mood, energy, confidence, timestamp
             FROM emotional_state
             ORDER BY timestamp DESC
             LIMIT 1
-        """)
+        """
+        )
         emotional = cur.fetchone()
 
         # Get LLM health summary
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 COUNT(CASE WHEN status = 'online' THEN 1 END) as online,
                 COUNT(CASE WHEN status = 'offline' THEN 1 END) as offline,
                 COUNT(CASE WHEN status = 'degraded' THEN 1 END) as degraded,
                 COUNT(*) as total
             FROM llm_connections
-        """)
+        """
+        )
         llm_health = cur.fetchone()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'stats': dict(stats) if stats else {},
-            'emotional_state': dict(emotional) if emotional else {'mood': 'neutral', 'energy': 0.8, 'confidence': 0.8},
-            'llm_health': dict(llm_health) if llm_health else {}
-        })
+        return jsonify(
+            {
+                "success": True,
+                "stats": dict(stats) if stats else {},
+                "emotional_state": (
+                    dict(emotional) if emotional else {"mood": "neutral", "energy": 0.8, "confidence": 0.8}
+                ),
+                "llm_health": dict(llm_health) if llm_health else {},
+            }
+        )
 
     except Exception as e:
         import traceback
+
         traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
@@ -2904,35 +2910,47 @@ def get_activity_stats():
 # Import memory service
 try:
     from .memory_service import (
-        semantic_search, text_search, get_memory_content,
-        create_collection, get_collections, add_to_collection, get_collection_items,
-        create_association, get_related_memories, find_similar_memories,
-        record_memory, reinforce_memory, apply_decay, get_memory_stats,
-        store_embedding, log_memory_access
+        semantic_search,
+        text_search,
+        get_memory_content,
+        create_collection,
+        get_collections,
+        add_to_collection,
+        get_collection_items,
+        create_association,
+        get_related_memories,
+        find_similar_memories,
+        record_memory,
+        reinforce_memory,
+        apply_decay,
+        get_memory_stats,
+        store_embedding,
+        log_memory_access,
     )
+
     MEMORY_SERVICE_AVAILABLE = True
 except ImportError as e:
     MEMORY_SERVICE_AVAILABLE = False
     print(f"Memory service not available: {e}")
 
 
-@consciousness_bp.route('/api/memory/search', methods=['POST'])
+@consciousness_bp.route("/api/memory/search", methods=["POST"])
 @login_required
 @admin_required
 def memory_search():
     """Semantic search across all memories"""
     if not MEMORY_SERVICE_AVAILABLE:
-        return jsonify({'success': False, 'error': 'Memory service not available'}), 500
+        return jsonify({"success": False, "error": "Memory service not available"}), 500
 
     data = request.get_json() or {}
-    query = data.get('query', '')
-    source_types = data.get('source_types')
-    limit = data.get('limit', 10)
-    min_similarity = data.get('min_similarity', 0.5)
-    use_semantic = data.get('semantic', True)
+    query = data.get("query", "")
+    source_types = data.get("source_types")
+    limit = data.get("limit", 10)
+    min_similarity = data.get("min_similarity", 0.5)
+    use_semantic = data.get("semantic", True)
 
     if not query:
-        return jsonify({'success': False, 'error': 'Query is required'}), 400
+        return jsonify({"success": False, "error": "Query is required"}), 400
 
     try:
         if use_semantic:
@@ -2940,64 +2958,62 @@ def memory_search():
         else:
             results = text_search(query, source_types, limit)
 
-        return jsonify({
-            'success': True,
-            'query': query,
-            'results': results,
-            'count': len(results),
-            'search_type': 'semantic' if use_semantic else 'text'
-        })
+        return jsonify(
+            {
+                "success": True,
+                "query": query,
+                "results": results,
+                "count": len(results),
+                "search_type": "semantic" if use_semantic else "text",
+            }
+        )
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/api/memory/<memory_type>/<int:memory_id>')
+@consciousness_bp.route("/api/memory/<memory_type>/<int:memory_id>")
 @login_required
 @admin_required
 def get_memory(memory_type, memory_id):
     """Get a specific memory by type and ID"""
     if not MEMORY_SERVICE_AVAILABLE:
-        return jsonify({'success': False, 'error': 'Memory service not available'}), 500
+        return jsonify({"success": False, "error": "Memory service not available"}), 500
 
     try:
         content = get_memory_content(memory_type, memory_id)
         if not content:
-            return jsonify({'success': False, 'error': 'Memory not found'}), 404
+            return jsonify({"success": False, "error": "Memory not found"}), 404
 
-        log_memory_access(memory_type, memory_id, 'read', 'user', current_user.id)
+        log_memory_access(memory_type, memory_id, "read", "user", current_user.id)
         reinforce_memory(memory_type, memory_id, 0.02)
         related = get_related_memories(memory_type, memory_id, limit=5)
 
-        return jsonify({
-            'success': True,
-            'memory': content,
-            'related': related
-        })
+        return jsonify({"success": True, "memory": content, "related": related})
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/api/memory/record', methods=['POST'])
+@consciousness_bp.route("/api/memory/record", methods=["POST"])
 @login_required
 @admin_required
 def api_record_memory():
     """Record a new memory"""
     if not MEMORY_SERVICE_AVAILABLE:
-        return jsonify({'success': False, 'error': 'Memory service not available'}), 500
+        return jsonify({"success": False, "error": "Memory service not available"}), 500
 
     data = request.get_json() or {}
-    content = data.get('content', '')
-    memory_type = data.get('memory_type', 'observation')
-    category = data.get('category')
-    importance = data.get('importance', 0.5)
-    tags = data.get('tags', [])
-    agent_id = data.get('agent_id')
-    source_module = data.get('source_module', 'consciousness')
+    content = data.get("content", "")
+    memory_type = data.get("memory_type", "observation")
+    category = data.get("category")
+    importance = data.get("importance", 0.5)
+    tags = data.get("tags", [])
+    agent_id = data.get("agent_id")
+    source_module = data.get("source_module", "consciousness")
 
     if not content:
-        return jsonify({'success': False, 'error': 'Content is required'}), 400
+        return jsonify({"success": False, "error": "Content is required"}), 400
 
     try:
         memory_id = record_memory(
@@ -3008,20 +3024,22 @@ def api_record_memory():
             tags=tags,
             user_id=current_user.id if not agent_id else None,
             agent_id=agent_id,
-            source_module=source_module
+            source_module=source_module,
         )
 
-        return jsonify({
-            'success': True,
-            'memory_id': memory_id,
-            'source': 'agent_memory' if agent_id else 'long_term_memory'
-        }) if memory_id else jsonify({'success': False, 'error': 'Failed to record'}), 500
+        return (
+            jsonify(
+                {"success": True, "memory_id": memory_id, "source": "agent_memory" if agent_id else "long_term_memory"}
+            )
+            if memory_id
+            else jsonify({"success": False, "error": "Failed to record"})
+        ), 500
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/save-conversation', methods=['POST'])
+@consciousness_bp.route("/save-conversation", methods=["POST"])
 @login_required
 def save_conversation():
     """
@@ -3029,40 +3047,41 @@ def save_conversation():
     Stores in knowledge_base with type='conversation_memory' and generates embedding
     """
     data = request.get_json() or {}
-    conversation_id = data.get('conversation_id')
-    messages = data.get('messages', [])
-    source = data.get('source', 'archie_chat_manual')
+    conversation_id = data.get("conversation_id")
+    messages = data.get("messages", [])
+    source = data.get("source", "archie_chat_manual")
 
     if not messages or len(messages) == 0:
-        return jsonify({'success': False, 'error': 'No messages provided'}), 400
+        return jsonify({"success": False, "error": "No messages provided"}), 400
 
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Extract title from first user message
-        title = 'Conversation'
+        title = "Conversation"
         for msg in messages:
-            if msg.get('role') == 'user':
-                content = msg.get('content', '')[:100]
-                title = content.split('\n')[0][:80] if content else 'Conversation'
+            if msg.get("role") == "user":
+                content = msg.get("content", "")[:100]
+                title = content.split("\n")[0][:80] if content else "Conversation"
                 break
 
         # Format conversation for storage
         formatted_content = []
         for msg in messages:
-            role = msg.get('role', 'user').upper()
-            content = msg.get('content', '')
+            role = msg.get("role", "user").upper()
+            content = msg.get("content", "")
             formatted_content.append(f"**{role}:** {content}")
-        full_content = '\n\n'.join(formatted_content)
+        full_content = "\n\n".join(formatted_content)
 
         # Extract tags from content
-        tags = ['conversation', 'archie_chat']
+        tags = ["conversation", "archie_chat"]
         if source:
-            tags.append(source.replace('_', '-'))
+            tags.append(source.replace("_", "-"))
 
         # Store in knowledge_base
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO knowledge_base (
                 knowledge_type, title, content, category, tags,
                 importance_score, source_type, metadata, created_at
@@ -3071,31 +3090,39 @@ def save_conversation():
                 0.85, %s, %s, NOW()
             )
             RETURNING id
-        """, (
-            title,
-            full_content,
-            tags,
-            source,
-            json.dumps({
-                'conversation_id': conversation_id,
-                'message_count': len(messages),
-                'saved_by': current_user.username,
-                'saved_at': datetime.now().isoformat()
-            })
-        ))
+        """,
+            (
+                title,
+                full_content,
+                tags,
+                source,
+                json.dumps(
+                    {
+                        "conversation_id": conversation_id,
+                        "message_count": len(messages),
+                        "saved_by": current_user.username,
+                        "saved_at": datetime.now().isoformat(),
+                    }
+                ),
+            ),
+        )
 
-        memory_id = cur.fetchone()['id']
+        memory_id = cur.fetchone()["id"]
         conn.commit()
 
         # Try to generate embedding for semantic search
         try:
             from .memory_service import store_embedding
-            store_embedding('knowledge_base', memory_id, full_content)
+
+            store_embedding("knowledge_base", memory_id, full_content)
             # Mark as having embedding
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE knowledge_base SET has_embedding = TRUE, embedding_generated_at = NOW()
                 WHERE id = %s
-            """, (memory_id,))
+            """,
+                (memory_id,),
+            )
             conn.commit()
         except Exception as embed_err:
             print(f"Embedding generation failed (non-critical): {embed_err}")
@@ -3103,24 +3130,21 @@ def save_conversation():
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'memory_id': memory_id,
-            'title': title,
-            'message_count': len(messages)
-        })
+        return jsonify({"success": True, "memory_id": memory_id, "title": title, "message_count": len(messages)})
 
     except Exception as e:
         import traceback
+
         traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # GITHUB LEARNING INTEGRATION
 # ============================================================================
 
-@consciousness_bp.route('/github/index-selective', methods=['POST'])
+
+@consciousness_bp.route("/github/index-selective", methods=["POST"])
 @login_required
 @admin_required
 def github_index_selective():
@@ -3132,43 +3156,39 @@ def github_index_selective():
     import base64
 
     data = request.get_json() or {}
-    repo_url = data.get('repo_url', '').strip()
-    paths = data.get('paths', [])
-    priority = data.get('priority', 'high')  # high, medium, low
+    repo_url = data.get("repo_url", "").strip()
+    paths = data.get("paths", [])
+    priority = data.get("priority", "high")  # high, medium, low
 
     if not repo_url:
-        return jsonify({'success': False, 'error': 'Repository URL required'}), 400
+        return jsonify({"success": False, "error": "Repository URL required"}), 400
 
     # Parse GitHub URL
     # Formats: https://github.com/user/repo or github.com/user/repo
     try:
-        parts = repo_url.replace('https://', '').replace('http://', '').replace('github.com/', '').split('/')
+        parts = repo_url.replace("https://", "").replace("http://", "").replace("github.com/", "").split("/")
         owner = parts[0]
-        repo = parts[1].replace('.git', '')
+        repo = parts[1].replace(".git", "")
     except:
-        return jsonify({'success': False, 'error': 'Invalid GitHub URL format'}), 400
+        return jsonify({"success": False, "error": "Invalid GitHub URL format"}), 400
 
     # Priority mapping
-    priority_scores = {
-        'high': 0.95,
-        'medium': 0.85,
-        'low': 0.75
-    }
+    priority_scores = {"high": 0.95, "medium": 0.85, "low": 0.75}
     importance = priority_scores.get(priority, 0.85)
 
     # Get GitHub token if available
     github_token = None
     try:
-        token_path = '/mnt/archie_brain/secrets/api/github_token.txt'
+        token_path = "/mnt/archie_brain/secrets/api/github_token.txt"
         if os.path.exists(token_path):
-            with open(token_path, 'r') as f:
+            with open(token_path, "r") as f:
                 github_token = f.read().strip()
     except:
         pass
 
-    headers = {'Accept': 'application/vnd.github.v3+json'}
+    headers = {"Accept": "application/vnd.github.v3+json"}
     if github_token:
-        headers['Authorization'] = f'token {github_token}'
+        headers["Authorization"] = f"token {github_token}"
 
     indexed_count = 0
     errors = []
@@ -3179,13 +3199,13 @@ def github_index_selective():
 
         # If no paths specified, get root contents
         if not paths:
-            paths = ['']
+            paths = [""]
 
         for path in paths:
-            path = path.strip().strip('/')
+            path = path.strip().strip("/")
 
             # Get contents from GitHub API
-            api_url = f'https://api.github.com/repos/{owner}/{repo}/contents/{path}'
+            api_url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
             response = requests.get(api_url, headers=headers, timeout=30)
 
             if response.status_code != 200:
@@ -3199,9 +3219,9 @@ def github_index_selective():
                 contents = [contents]
 
             for item in contents:
-                if item.get('type') == 'file':
+                if item.get("type") == "file":
                     # Fetch file content
-                    file_url = item.get('download_url')
+                    file_url = item.get("download_url")
                     if not file_url:
                         continue
 
@@ -3211,8 +3231,8 @@ def github_index_selective():
                             continue
 
                         file_content = file_response.text
-                        file_path = item.get('path', '')
-                        file_name = item.get('name', '')
+                        file_path = item.get("path", "")
+                        file_name = item.get("name", "")
 
                         # Skip binary/large files
                         if len(file_content) > 500000:  # 500KB limit
@@ -3220,11 +3240,12 @@ def github_index_selective():
 
                         # Determine file type
                         ext = os.path.splitext(file_name)[1].lower()
-                        is_code = ext in ['.py', '.js', '.ts', '.go', '.rs', '.java', '.c', '.cpp', '.h']
-                        is_doc = ext in ['.md', '.txt', '.rst', '.adoc']
+                        is_code = ext in [".py", ".js", ".ts", ".go", ".rs", ".java", ".c", ".cpp", ".h"]
+                        is_doc = ext in [".md", ".txt", ".rst", ".adoc"]
 
                         # Insert or update in knowledge_base
-                        cur.execute("""
+                        cur.execute(
+                            """
                             INSERT INTO knowledge_base (
                                 knowledge_type, title, content, category, file_path,
                                 importance_score, source_type, is_code, is_documentation,
@@ -3240,39 +3261,47 @@ def github_index_selective():
                                 importance_score = EXCLUDED.importance_score,
                                 updated_at = NOW()
                             RETURNING id
-                        """, (
-                            file_name,
-                            file_content[:100000],  # Truncate very long files
-                            'code' if is_code else 'documentation' if is_doc else 'github',
-                            f'{owner}/{repo}/{file_path}',
-                            importance,
-                            is_code,
-                            is_doc,
-                            ext,
-                            json.dumps({
-                                'repo': f'{owner}/{repo}',
-                                'priority': priority,
-                                'indexed_by': current_user.username,
-                                'sha': item.get('sha'),
-                                'size': item.get('size')
-                            }),
-                            ['github', 'selective', owner, repo, priority]
-                        ))
+                        """,
+                            (
+                                file_name,
+                                file_content[:100000],  # Truncate very long files
+                                "code" if is_code else "documentation" if is_doc else "github",
+                                f"{owner}/{repo}/{file_path}",
+                                importance,
+                                is_code,
+                                is_doc,
+                                ext,
+                                json.dumps(
+                                    {
+                                        "repo": f"{owner}/{repo}",
+                                        "priority": priority,
+                                        "indexed_by": current_user.username,
+                                        "sha": item.get("sha"),
+                                        "size": item.get("size"),
+                                    }
+                                ),
+                                ["github", "selective", owner, repo, priority],
+                            ),
+                        )
 
                         result = cur.fetchone()
                         if result:
-                            kb_id = result['id']
+                            kb_id = result["id"]
                             indexed_count += 1
 
                             # Generate embedding
                             try:
                                 from .memory_service import store_embedding
-                                store_embedding('knowledge_base', kb_id, file_content[:10000])
-                                cur.execute("""
+
+                                store_embedding("knowledge_base", kb_id, file_content[:10000])
+                                cur.execute(
+                                    """
                                     UPDATE knowledge_base
                                     SET has_embedding = TRUE, embedding_generated_at = NOW()
                                     WHERE id = %s
-                                """, (kb_id,))
+                                """,
+                                    (kb_id,),
+                                )
                             except Exception as e:
                                 print(f"Embedding error for {file_name}: {e}")
 
@@ -3283,21 +3312,24 @@ def github_index_selective():
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'indexed_count': indexed_count,
-            'repo': f'{owner}/{repo}',
-            'priority': priority,
-            'errors': errors if errors else None
-        })
+        return jsonify(
+            {
+                "success": True,
+                "indexed_count": indexed_count,
+                "repo": f"{owner}/{repo}",
+                "priority": priority,
+                "errors": errors if errors else None,
+            }
+        )
 
     except Exception as e:
         import traceback
+
         traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/github/indexed', methods=['GET'])
+@consciousness_bp.route("/github/indexed", methods=["GET"])
 @login_required
 @admin_required
 def github_indexed_list():
@@ -3306,222 +3338,220 @@ def github_indexed_list():
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT id, title, file_path, importance_score, has_embedding,
                    metadata, created_at, updated_at
             FROM knowledge_base
             WHERE source_type = 'github_selective'
             ORDER BY created_at DESC
             LIMIT 100
-        """)
+        """
+        )
         items = cur.fetchall()
 
         # Get stats
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 COUNT(*) as total,
                 SUM(CASE WHEN has_embedding THEN 1 ELSE 0 END) as with_embeddings,
                 COUNT(DISTINCT (metadata->>'repo')) as repos
             FROM knowledge_base
             WHERE source_type = 'github_selective'
-        """)
+        """
+        )
         stats = cur.fetchone()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'items': [dict(i) for i in items],
-            'stats': dict(stats) if stats else {}
-        })
+        return jsonify({"success": True, "items": [dict(i) for i in items], "stats": dict(stats) if stats else {}})
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/github/search-semantic', methods=['POST'])
+@consciousness_bp.route("/github/search-semantic", methods=["POST"])
 @login_required
 def github_search_semantic():
     """Semantic search across indexed GitHub files"""
     data = request.get_json() or {}
-    query = data.get('query', '').strip()
-    limit = data.get('limit', 10)
+    query = data.get("query", "").strip()
+    limit = data.get("limit", 10)
 
     if not query:
-        return jsonify({'success': False, 'error': 'Query required'}), 400
+        return jsonify({"success": False, "error": "Query required"}), 400
 
     try:
         from .memory_service import semantic_search
-        results = semantic_search(
-            query,
-            source_types=['knowledge_base'],
-            limit=limit,
-            min_similarity=0.5
-        )
+
+        results = semantic_search(query, source_types=["knowledge_base"], limit=limit, min_similarity=0.5)
 
         # Filter to github files only
         github_results = [
-            r for r in results
-            if r.get('knowledge_type') == 'github_file' or r.get('source_type') == 'github_selective'
+            r for r in results if r.get("knowledge_type") == "github_file" or r.get("source_type") == "github_selective"
         ]
 
-        return jsonify({
-            'success': True,
-            'results': github_results,
-            'count': len(github_results)
-        })
+        return jsonify({"success": True, "results": github_results, "count": len(github_results)})
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/api/collections')
+@consciousness_bp.route("/api/collections")
 @login_required
 @admin_required
 def list_collections():
     """List memory collections"""
     if not MEMORY_SERVICE_AVAILABLE:
-        return jsonify({'success': False, 'error': 'Memory service not available'}), 500
+        return jsonify({"success": False, "error": "Memory service not available"}), 500
 
     try:
         collections = get_collections(user_id=current_user.id)
-        return jsonify({'success': True, 'collections': collections, 'count': len(collections)})
+        return jsonify({"success": True, "collections": collections, "count": len(collections)})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/api/collections', methods=['POST'])
+@consciousness_bp.route("/api/collections", methods=["POST"])
 @login_required
 @admin_required
 def api_create_collection():
     """Create a new memory collection"""
     if not MEMORY_SERVICE_AVAILABLE:
-        return jsonify({'success': False, 'error': 'Memory service not available'}), 500
+        return jsonify({"success": False, "error": "Memory service not available"}), 500
 
     data = request.get_json() or {}
-    name = data.get('name', '')
+    name = data.get("name", "")
 
     if not name:
-        return jsonify({'success': False, 'error': 'Name is required'}), 400
+        return jsonify({"success": False, "error": "Name is required"}), 400
 
     try:
         collection_id = create_collection(
             name=name,
-            description=data.get('description'),
+            description=data.get("description"),
             user_id=current_user.id,
-            collection_type=data.get('type', 'manual'),
-            icon=data.get('icon'),
-            color=data.get('color')
+            collection_type=data.get("type", "manual"),
+            icon=data.get("icon"),
+            color=data.get("color"),
         )
-        return jsonify({'success': True, 'collection_id': collection_id}) if collection_id else jsonify({'success': False, 'error': 'Failed'}), 500
+        return (
+            jsonify({"success": True, "collection_id": collection_id})
+            if collection_id
+            else jsonify({"success": False, "error": "Failed"})
+        ), 500
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/api/collections/<int:collection_id>')
+@consciousness_bp.route("/api/collections/<int:collection_id>")
 @login_required
 @admin_required
 def get_collection(collection_id):
     """Get collection with items"""
     if not MEMORY_SERVICE_AVAILABLE:
-        return jsonify({'success': False, 'error': 'Memory service not available'}), 500
+        return jsonify({"success": False, "error": "Memory service not available"}), 500
 
     try:
         items = get_collection_items(collection_id)
-        return jsonify({'success': True, 'items': items, 'count': len(items)})
+        return jsonify({"success": True, "items": items, "count": len(items)})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/api/collections/<int:collection_id>/add', methods=['POST'])
+@consciousness_bp.route("/api/collections/<int:collection_id>/add", methods=["POST"])
 @login_required
 @admin_required
 def add_to_collection_api(collection_id):
     """Add a memory to a collection"""
     if not MEMORY_SERVICE_AVAILABLE:
-        return jsonify({'success': False, 'error': 'Memory service not available'}), 500
+        return jsonify({"success": False, "error": "Memory service not available"}), 500
 
     data = request.get_json() or {}
-    memory_type = data.get('memory_type')
-    memory_id = data.get('memory_id')
+    memory_type = data.get("memory_type")
+    memory_id = data.get("memory_id")
 
     if not memory_type or not memory_id:
-        return jsonify({'success': False, 'error': 'memory_type and memory_id required'}), 400
+        return jsonify({"success": False, "error": "memory_type and memory_id required"}), 400
 
     try:
-        success = add_to_collection(collection_id, memory_type, memory_id, data.get('notes'), current_user.id)
-        return jsonify({'success': success})
+        success = add_to_collection(collection_id, memory_type, memory_id, data.get("notes"), current_user.id)
+        return jsonify({"success": success})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/api/memory/<memory_type>/<int:memory_id>/related')
+@consciousness_bp.route("/api/memory/<memory_type>/<int:memory_id>/related")
 @login_required
 @admin_required
 def get_related(memory_type, memory_id):
     """Get related memories"""
     if not MEMORY_SERVICE_AVAILABLE:
-        return jsonify({'success': False, 'error': 'Memory service not available'}), 500
+        return jsonify({"success": False, "error": "Memory service not available"}), 500
 
     try:
-        related = get_related_memories(memory_type, memory_id, request.args.get('limit', 10, type=int))
-        return jsonify({'success': True, 'related': related})
+        related = get_related_memories(memory_type, memory_id, request.args.get("limit", 10, type=int))
+        return jsonify({"success": True, "related": related})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/api/memory/stats')
+@consciousness_bp.route("/api/memory/stats")
 @login_required
 @admin_required
 def memory_stats():
     """Get memory system statistics"""
     if not MEMORY_SERVICE_AVAILABLE:
-        return jsonify({'success': False, 'error': 'Memory service not available'}), 500
+        return jsonify({"success": False, "error": "Memory service not available"}), 500
 
     try:
         stats = get_memory_stats()
-        return jsonify({'success': True, 'stats': stats})
+        return jsonify({"success": True, "stats": stats})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/api/memory/decay', methods=['POST'])
+@consciousness_bp.route("/api/memory/decay", methods=["POST"])
 @login_required
 @admin_required
 def run_decay():
     """Manually trigger memory decay"""
     if not MEMORY_SERVICE_AVAILABLE:
-        return jsonify({'success': False, 'error': 'Memory service not available'}), 500
+        return jsonify({"success": False, "error": "Memory service not available"}), 500
 
     try:
         count = apply_decay()
-        return jsonify({'success': True, 'memories_decayed': count})
+        return jsonify({"success": True, "memories_decayed": count})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/api/memory/<memory_type>/<int:memory_id>/reinforce', methods=['POST'])
+@consciousness_bp.route("/api/memory/<memory_type>/<int:memory_id>/reinforce", methods=["POST"])
 @login_required
 @admin_required
 def reinforce_api(memory_type, memory_id):
     """Reinforce a memory (boost importance)"""
     if not MEMORY_SERVICE_AVAILABLE:
-        return jsonify({'success': False, 'error': 'Memory service not available'}), 500
+        return jsonify({"success": False, "error": "Memory service not available"}), 500
 
     data = request.get_json() or {}
     try:
-        new_score = reinforce_memory(memory_type, memory_id, data.get('boost', 0.05))
-        return jsonify({'success': True, 'new_importance': new_score}) if new_score else jsonify({'success': False}), 500
+        new_score = reinforce_memory(memory_type, memory_id, data.get("boost", 0.05))
+        return (
+            jsonify({"success": True, "new_importance": new_score}) if new_score else jsonify({"success": False})
+        ), 500
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # =============================================================================
 # PHASE 8: MEMORY MAINTENANCE & PREFERENCES
 # =============================================================================
 
-@consciousness_bp.route('/api/memory/maintenance', methods=['POST'])
+
+@consciousness_bp.route("/api/memory/maintenance", methods=["POST"])
 @login_required
 @admin_required
 def run_memory_maintenance():
@@ -3538,70 +3568,59 @@ def run_memory_maintenance():
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'results': results,
-            'message': 'Memory maintenance completed'
-        })
+        return jsonify({"success": True, "results": results, "message": "Memory maintenance completed"})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/api/memory/preferences', methods=['GET'])
+@consciousness_bp.route("/api/memory/preferences", methods=["GET"])
 @login_required
 def get_preferences():
     """Get user memory preferences"""
     try:
-        user_id = current_user.id if hasattr(current_user, 'id') else 1
-        category = request.args.get('category')
-        min_confidence = float(request.args.get('min_confidence', 0.5))
+        user_id = current_user.id if hasattr(current_user, "id") else 1
+        category = request.args.get("category")
+        min_confidence = float(request.args.get("min_confidence", 0.5))
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute(
-            "SELECT * FROM get_user_preferences(%s, %s, %s)",
-            (user_id, category, min_confidence)
-        )
+        cur.execute("SELECT * FROM get_user_preferences(%s, %s, %s)", (user_id, category, min_confidence))
         preferences = [dict(p) for p in cur.fetchall()]
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'data': preferences,
-            'count': len(preferences)
-        })
+        return jsonify({"success": True, "data": preferences, "count": len(preferences)})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/api/memory/preferences', methods=['POST'])
+@consciousness_bp.route("/api/memory/preferences", methods=["POST"])
 @login_required
 def learn_preference():
     """Learn a new preference"""
     try:
         data = request.get_json()
         if not data:
-            return jsonify({'success': False, 'error': 'No data provided'}), 400
+            return jsonify({"success": False, "error": "No data provided"}), 400
 
-        user_id = current_user.id if hasattr(current_user, 'id') else 1
-        category = data.get('category')
-        key = data.get('key') or data.get('preference_key')
-        value = data.get('value') or data.get('preference_value')
-        confidence = float(data.get('confidence', 0.6))
-        context = data.get('context')
+        user_id = current_user.id if hasattr(current_user, "id") else 1
+        category = data.get("category")
+        key = data.get("key") or data.get("preference_key")
+        value = data.get("value") or data.get("preference_value")
+        confidence = float(data.get("confidence", 0.6))
+        context = data.get("context")
 
         if not category or not key or not value:
-            return jsonify({'success': False, 'error': 'category, key, and value required'}), 400
+            return jsonify({"success": False, "error": "category, key, and value required"}), 400
 
         conn = get_db()
         cur = conn.cursor()
 
         cur.execute(
             "SELECT learn_preference(%s, %s, %s, %s, %s, %s)",
-            (user_id, category, key, value, confidence, json.dumps(context) if context else None)
+            (user_id, category, key, value, confidence, json.dumps(context) if context else None),
         )
         pref_id = cur.fetchone()[0]
 
@@ -3609,16 +3628,12 @@ def learn_preference():
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'preference_id': pref_id,
-            'message': f'Preference learned: {category}/{key}'
-        })
+        return jsonify({"success": True, "preference_id": pref_id, "message": f"Preference learned: {category}/{key}"})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/api/memory/system-stats', methods=['GET'])
+@consciousness_bp.route("/api/memory/system-stats", methods=["GET"])
 @login_required
 def get_memory_system_stats():
     """Get comprehensive memory system statistics"""
@@ -3631,225 +3646,237 @@ def get_memory_system_stats():
         stats = cur.fetchone()
 
         # Get scheduled tasks status
-        cur.execute("""
+        cur.execute(
+            """
             SELECT task_name, task_type, is_enabled, last_run_at, last_run_status
             FROM memory_scheduled_tasks
             ORDER BY task_name
-        """)
+        """
+        )
         tasks = [dict(t) for t in cur.fetchall()]
 
         # Get memory type breakdown
-        cur.execute("""
+        cur.execute(
+            """
             SELECT memory_type, COUNT(*) as count, AVG(importance_score)::DECIMAL(3,2) as avg_importance
             FROM long_term_memory
             GROUP BY memory_type
             ORDER BY count DESC
-        """)
+        """
+        )
         by_type = [dict(t) for t in cur.fetchall()]
 
         # Get recent extractions
-        cur.execute("""
+        cur.execute(
+            """
             SELECT source_type, memories_created, preferences_learned, processed_at, status
             FROM memory_extraction_log
             ORDER BY processed_at DESC
             LIMIT 10
-        """)
+        """
+        )
         recent_extractions = [dict(e) for e in cur.fetchall()]
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'data': {
-                'overview': dict(stats) if stats else {},
-                'scheduled_tasks': tasks,
-                'by_type': by_type,
-                'recent_extractions': recent_extractions
+        return jsonify(
+            {
+                "success": True,
+                "data": {
+                    "overview": dict(stats) if stats else {},
+                    "scheduled_tasks": tasks,
+                    "by_type": by_type,
+                    "recent_extractions": recent_extractions,
+                },
             }
-        })
+        )
     except Exception as e:
         import traceback
+
         traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/api/memory/extract', methods=['POST'])
+@consciousness_bp.route("/api/memory/extract", methods=["POST"])
 @login_required
 @admin_required
 def extract_memories():
     """Extract memories from text content"""
     try:
         data = request.get_json()
-        if not data or not data.get('content'):
-            return jsonify({'success': False, 'error': 'content required'}), 400
+        if not data or not data.get("content"):
+            return jsonify({"success": False, "error": "content required"}), 400
 
-        content = data['content']
-        user_id = data.get('user_id', current_user.id if hasattr(current_user, 'id') else 1)
-        source_type = data.get('source_type', 'manual')
-        importance = float(data.get('importance', 0.7))
+        content = data["content"]
+        user_id = data.get("user_id", current_user.id if hasattr(current_user, "id") else 1)
+        source_type = data.get("source_type", "manual")
+        importance = float(data.get("importance", 0.7))
 
         conn = get_db()
         cur = conn.cursor()
 
-        cur.execute(
-            "SELECT extract_memories_from_text(%s, %s, %s, %s)",
-            (content, user_id, source_type, importance)
-        )
+        cur.execute("SELECT extract_memories_from_text(%s, %s, %s, %s)", (content, user_id, source_type, importance))
         memory_id = cur.fetchone()[0]
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'memory_id': memory_id,
-            'message': 'Memory extracted and stored'
-        })
+        return jsonify({"success": True, "memory_id": memory_id, "message": "Memory extracted and stored"})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # SCHEDULER ENDPOINTS
 # ============================================================================
 
-@consciousness_bp.route('/scheduler/status', methods=['GET'])
+
+@consciousness_bp.route("/scheduler/status", methods=["GET"])
 @login_required
 def scheduler_status():
     """Get consciousness scheduler status and recent task runs"""
     try:
         import sys
-        sys.path.insert(0, '/mnt/archie_brain/ai_bridge')
+
+        sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
         from consciousness_scheduler import get_scheduler_status
 
         status = get_scheduler_status()
 
         # Add Flask scheduler info if available
         from flask import current_app
-        scheduler = current_app.config.get('CONSCIOUSNESS_SCHEDULER')
+
+        scheduler = current_app.config.get("CONSCIOUSNESS_SCHEDULER")
         if scheduler:
             jobs = []
             for job in scheduler.get_jobs():
-                jobs.append({
-                    'id': job.id,
-                    'name': job.name,
-                    'next_run': job.next_run_time.isoformat() if job.next_run_time else None,
-                    'trigger': str(job.trigger)
-                })
-            status['scheduled_jobs'] = jobs
-            status['scheduler_running'] = scheduler.running
+                jobs.append(
+                    {
+                        "id": job.id,
+                        "name": job.name,
+                        "next_run": job.next_run_time.isoformat() if job.next_run_time else None,
+                        "trigger": str(job.trigger),
+                    }
+                )
+            status["scheduled_jobs"] = jobs
+            status["scheduler_running"] = scheduler.running
         else:
-            status['scheduler_running'] = False
-            status['scheduled_jobs'] = []
+            status["scheduler_running"] = False
+            status["scheduled_jobs"] = []
 
         return jsonify(status)
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/scheduler/run-now', methods=['POST'])
+@consciousness_bp.route("/scheduler/run-now", methods=["POST"])
 @login_required
 @admin_required
 def run_scheduler_task_now():
     """Manually trigger a scheduled task (admin only)"""
     try:
         data = request.get_json() or {}
-        task_name = data.get('task_name')
+        task_name = data.get("task_name")
 
         if not task_name:
-            return jsonify({'success': False, 'error': 'task_name required'}), 400
+            return jsonify({"success": False, "error": "task_name required"}), 400
 
         valid_tasks = [
-            'hourly_conversation_consolidation',
-            'improvement_detection',
-            'daily_self_reflection',
-            'weekly_memory_consolidation'
+            "hourly_conversation_consolidation",
+            "improvement_detection",
+            "daily_self_reflection",
+            "weekly_memory_consolidation",
         ]
 
         if task_name not in valid_tasks:
-            return jsonify({
-                'success': False,
-                'error': f'Invalid task. Valid tasks: {valid_tasks}'
-            }), 400
+            return jsonify({"success": False, "error": f"Invalid task. Valid tasks: {valid_tasks}"}), 400
 
         import sys
-        sys.path.insert(0, '/mnt/archie_brain/ai_bridge')
+
+        sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
         from consciousness_scheduler import run_task_now
 
         result = run_task_now(task_name)
 
-        return jsonify({
-            'success': True,
-            'task_name': task_name,
-            'result': result
-        })
+        return jsonify({"success": True, "task_name": task_name, "result": result})
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/user-time', methods=['GET'])
+@consciousness_bp.route("/user-time", methods=["GET"])
 @login_required
 def get_user_time():
     """Get cumulative time stats for users"""
     try:
-        user_id = request.args.get('user_id')
+        user_id = request.args.get("user_id")
         if user_id:
             user_id = int(user_id)
         else:
-            user_id = current_user.id if hasattr(current_user, 'id') else None
+            user_id = current_user.id if hasattr(current_user, "id") else None
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         if user_id:
             # Get specific user stats
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT * FROM v_user_cumulative_time WHERE user_id = %s
-            """, (user_id,))
+            """,
+                (user_id,),
+            )
             user_stats = cur.fetchone()
 
             # Get recent sessions
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT session_date, total_minutes, message_count
                 FROM user_session_time
                 WHERE user_id = %s
                 ORDER BY session_date DESC
                 LIMIT 30
-            """, (user_id,))
+            """,
+                (user_id,),
+            )
             recent_sessions = cur.fetchall()
         else:
             # Get all users stats (admin view)
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT v.*, u.username
                 FROM v_user_cumulative_time v
                 JOIN users u ON v.user_id = u.id
                 ORDER BY lifetime_minutes DESC
-            """)
+            """
+            )
             user_stats = cur.fetchall()
             recent_sessions = []
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'user_stats': user_stats if isinstance(user_stats, list) else dict(user_stats) if user_stats else None,
-            'recent_sessions': [dict(s) for s in recent_sessions]
-        })
+        return jsonify(
+            {
+                "success": True,
+                "user_stats": user_stats if isinstance(user_stats, list) else dict(user_stats) if user_stats else None,
+                "recent_sessions": [dict(s) for s in recent_sessions],
+            }
+        )
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # PHASE 62: BRIDGE ANALYTICS, AGENT SKILLS, SELF-IMPROVEMENT
 # ============================================================================
 
-@consciousness_bp.route('/bridge-analytics', methods=['GET'])
+
+@consciousness_bp.route("/bridge-analytics", methods=["GET"])
 @login_required
 @admin_required
 def get_bridge_analytics():
@@ -3859,7 +3886,8 @@ def get_bridge_analytics():
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Overall stats
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 COUNT(*) as total_calls,
                 COUNT(*) FILTER (WHERE success = TRUE) as successful_calls,
@@ -3869,11 +3897,13 @@ def get_bridge_analytics():
                 ROUND(AVG(execution_time_ms)::numeric, 0) as avg_execution_ms
             FROM bridge_interaction_log
             WHERE created_at > NOW() - INTERVAL '30 days'
-        """)
+        """
+        )
         stats = cur.fetchone() or {}
 
         # Escalation patterns - what's being escalated to Claude
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 COALESCE(intent_type, 'unknown') as intent_type,
                 COALESCE(module_name, 'unknown') as module_name,
@@ -3886,11 +3916,13 @@ def get_bridge_analytics():
             GROUP BY intent_type, module_name
             ORDER BY escalation_count DESC
             LIMIT 10
-        """)
+        """
+        )
         escalation_patterns = cur.fetchall()
 
         # Recent bridge calls
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 id,
                 module_name,
@@ -3905,11 +3937,13 @@ def get_bridge_analytics():
             FROM bridge_interaction_log
             ORDER BY created_at DESC
             LIMIT 20
-        """)
+        """
+        )
         recent_calls = cur.fetchall()
 
         # Daily trend (last 7 days)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 DATE(created_at) as date,
                 COUNT(*) as calls,
@@ -3918,25 +3952,28 @@ def get_bridge_analytics():
             WHERE created_at > NOW() - INTERVAL '7 days'
             GROUP BY DATE(created_at)
             ORDER BY date
-        """)
+        """
+        )
         daily_trend = cur.fetchall()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'stats': dict(stats) if stats else {},
-            'escalation_patterns': [dict(p) for p in escalation_patterns],
-            'recent_calls': [dict(c) for c in recent_calls],
-            'daily_trend': [dict(d) for d in daily_trend]
-        })
+        return jsonify(
+            {
+                "success": True,
+                "stats": dict(stats) if stats else {},
+                "escalation_patterns": [dict(p) for p in escalation_patterns],
+                "recent_calls": [dict(c) for c in recent_calls],
+                "daily_trend": [dict(d) for d in daily_trend],
+            }
+        )
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/agent-skills', methods=['GET'])
+@consciousness_bp.route("/agent-skills", methods=["GET"])
 @login_required
 @admin_required
 def get_agent_skills():
@@ -3946,25 +3983,30 @@ def get_agent_skills():
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Aggregate stats
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 COUNT(DISTINCT agent_id) as agents_with_skills,
                 COUNT(*) as total_skills_learned,
                 COUNT(*) FILTER (WHERE confidence >= 0.8) as mastered_skills,
                 ROUND(AVG(confidence)::numeric, 2) as avg_confidence
             FROM agent_learning_log
-        """)
+        """
+        )
         stats = cur.fetchone() or {}
 
         # Agent skill summary using the view
-        cur.execute("""
+        cur.execute(
+            """
             SELECT * FROM v_agent_skills
             ORDER BY total_skills_learned DESC, avg_confidence DESC
-        """)
+        """
+        )
         agent_summary = cur.fetchall()
 
         # All skills with agent info
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 all.id,
                 all.agent_id,
@@ -3982,11 +4024,13 @@ def get_agent_skills():
             JOIN agents a ON all.agent_id = a.id
             ORDER BY all.confidence DESC, all.successful_uses DESC
             LIMIT 50
-        """)
+        """
+        )
         skills = cur.fetchall()
 
         # Skills by category
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 COALESCE(skill_category, 'uncategorized') as category,
                 COUNT(*) as skill_count,
@@ -3995,25 +4039,28 @@ def get_agent_skills():
             FROM agent_learning_log
             GROUP BY skill_category
             ORDER BY skill_count DESC
-        """)
+        """
+        )
         by_category = cur.fetchall()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'stats': dict(stats) if stats else {},
-            'agent_summary': [dict(a) for a in agent_summary],
-            'skills': [dict(s) for s in skills],
-            'by_category': [dict(c) for c in by_category]
-        })
+        return jsonify(
+            {
+                "success": True,
+                "stats": dict(stats) if stats else {},
+                "agent_summary": [dict(a) for a in agent_summary],
+                "skills": [dict(s) for s in skills],
+                "by_category": [dict(c) for c in by_category],
+            }
+        )
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/improvements-proposals', methods=['GET'])
+@consciousness_bp.route("/improvements-proposals", methods=["GET"])
 @login_required
 @admin_required
 def get_improvement_proposals():
@@ -4024,7 +4071,8 @@ def get_improvement_proposals():
 
         # Get proposals from improvement_proposals table
         # Note: Table uses 'proposed' status instead of 'pending'
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 ip.id,
                 ip.title,
@@ -4053,11 +4101,13 @@ def get_improvement_proposals():
                 END,
                 ip.proposed_at DESC
             LIMIT 50
-        """)
+        """
+        )
         proposals = cur.fetchall()
 
         # Stats - handle both 'proposed' and 'pending' statuses
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 COUNT(*) as total,
                 COUNT(*) FILTER (WHERE status IN ('pending', 'proposed')) as pending,
@@ -4067,7 +4117,8 @@ def get_improvement_proposals():
                 COUNT(*) FILTER (WHERE status = 'deployed') as deployed,
                 COUNT(*) FILTER (WHERE status = 'implemented') as implemented
             FROM improvement_proposals
-        """)
+        """
+        )
         stats = cur.fetchone() or {}
 
         cur.close()
@@ -4077,21 +4128,17 @@ def get_improvement_proposals():
         formatted_proposals = []
         for p in proposals:
             proposal = dict(p)
-            if proposal.get('status') == 'proposed':
-                proposal['status'] = 'pending'
+            if proposal.get("status") == "proposed":
+                proposal["status"] = "pending"
             formatted_proposals.append(proposal)
 
-        return jsonify({
-            'success': True,
-            'proposals': formatted_proposals,
-            'stats': dict(stats) if stats else {}
-        })
+        return jsonify({"success": True, "proposals": formatted_proposals, "stats": dict(stats) if stats else {}})
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/improvements/<int:proposal_id>/approve', methods=['POST'])
+@consciousness_bp.route("/improvements/<int:proposal_id>/approve", methods=["POST"])
 @login_required
 @admin_required
 def approve_proposal(proposal_id):
@@ -4100,10 +4147,11 @@ def approve_proposal(proposal_id):
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        note = request.json.get('note', 'Approved by admin') if request.json else 'Approved by admin'
+        note = request.json.get("note", "Approved by admin") if request.json else "Approved by admin"
 
         # Update proposal status (using actual table columns)
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE improvement_proposals
             SET status = 'approved',
                 approved_by = %s,
@@ -4114,7 +4162,9 @@ def approve_proposal(proposal_id):
                     jsonb_build_object('approval_note', %s, 'approved_by_user_id', %s)
             WHERE id = %s
             RETURNING *
-        """, (current_user.id, note, note, current_user.id, proposal_id))
+        """,
+            (current_user.id, note, note, current_user.id, proposal_id),
+        )
 
         proposal = cur.fetchone()
         conn.commit()
@@ -4122,19 +4172,16 @@ def approve_proposal(proposal_id):
         conn.close()
 
         if proposal:
-            audit_log('PROPOSAL_APPROVED', {
-                'proposal_id': proposal_id,
-                'user_id': current_user.id
-            })
-            return jsonify({'success': True, 'proposal': dict(proposal)})
+            audit_log("PROPOSAL_APPROVED", {"proposal_id": proposal_id, "user_id": current_user.id})
+            return jsonify({"success": True, "proposal": dict(proposal)})
         else:
-            return jsonify({'success': False, 'error': 'Proposal not found'}), 404
+            return jsonify({"success": False, "error": "Proposal not found"}), 404
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/improvements/<int:proposal_id>/reject', methods=['POST'])
+@consciousness_bp.route("/improvements/<int:proposal_id>/reject", methods=["POST"])
 @login_required
 @admin_required
 def reject_proposal(proposal_id):
@@ -4143,10 +4190,11 @@ def reject_proposal(proposal_id):
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        reason = request.json.get('reason', 'Rejected by admin') if request.json else 'Rejected by admin'
+        reason = request.json.get("reason", "Rejected by admin") if request.json else "Rejected by admin"
 
         # Update proposal status (using actual table columns - no rejection_reason column)
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE improvement_proposals
             SET status = 'rejected',
                 reviewed_at = NOW(),
@@ -4155,7 +4203,9 @@ def reject_proposal(proposal_id):
                     jsonb_build_object('rejection_reason', %s, 'rejected_by_user_id', %s, 'rejected_at', NOW())
             WHERE id = %s
             RETURNING *
-        """, (reason, reason, current_user.id, proposal_id))
+        """,
+            (reason, reason, current_user.id, proposal_id),
+        )
 
         proposal = cur.fetchone()
         conn.commit()
@@ -4163,20 +4213,16 @@ def reject_proposal(proposal_id):
         conn.close()
 
         if proposal:
-            audit_log('PROPOSAL_REJECTED', {
-                'proposal_id': proposal_id,
-                'user_id': current_user.id,
-                'reason': reason
-            })
-            return jsonify({'success': True, 'proposal': dict(proposal)})
+            audit_log("PROPOSAL_REJECTED", {"proposal_id": proposal_id, "user_id": current_user.id, "reason": reason})
+            return jsonify({"success": True, "proposal": dict(proposal)})
         else:
-            return jsonify({'success': False, 'error': 'Proposal not found'}), 404
+            return jsonify({"success": False, "error": "Proposal not found"}), 404
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/improvements/<int:proposal_id>/test', methods=['POST'])
+@consciousness_bp.route("/improvements/<int:proposal_id>/test", methods=["POST"])
 @login_required
 @admin_required
 def test_proposal_in_sandbox(proposal_id):
@@ -4186,14 +4232,17 @@ def test_proposal_in_sandbox(proposal_id):
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Update proposal status to testing (no testing_started_at column, use metadata)
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE improvement_proposals
             SET status = 'testing',
                 metadata = COALESCE(metadata, '{}'::jsonb) ||
                     jsonb_build_object('tested_by', %s, 'testing_started_at', NOW())
             WHERE id = %s
             RETURNING *
-        """, (current_user.id, proposal_id))
+        """,
+            (current_user.id, proposal_id),
+        )
 
         proposal = cur.fetchone()
         conn.commit()
@@ -4201,28 +4250,24 @@ def test_proposal_in_sandbox(proposal_id):
         conn.close()
 
         if proposal:
-            audit_log('PROPOSAL_TESTING', {
-                'proposal_id': proposal_id,
-                'user_id': current_user.id
-            })
+            audit_log("PROPOSAL_TESTING", {"proposal_id": proposal_id, "user_id": current_user.id})
             # TODO: Trigger actual sandbox test here
-            return jsonify({
-                'success': True,
-                'proposal': dict(proposal),
-                'message': 'Proposal queued for sandbox testing'
-            })
+            return jsonify(
+                {"success": True, "proposal": dict(proposal), "message": "Proposal queued for sandbox testing"}
+            )
         else:
-            return jsonify({'success': False, 'error': 'Proposal not found'}), 404
+            return jsonify({"success": False, "error": "Proposal not found"}), 404
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # PER-AGENT MEMORY MANAGEMENT (Phase 67: IAAE-Compliant)
 # ============================================================================
 
-@consciousness_bp.route('/api/agent-memory', methods=['GET'])
+
+@consciousness_bp.route("/api/agent-memory", methods=["GET"])
 @login_required
 @admin_required
 def list_agent_memories():
@@ -4230,11 +4275,11 @@ def list_agent_memories():
     List memories for a specific agent or all agents.
     Supports filtering by agent_id, memory_type, and includes soft-deleted option.
     """
-    agent_id = request.args.get('agent_id', type=int)
-    memory_type = request.args.get('memory_type')
-    include_deleted = request.args.get('include_deleted', 'false').lower() == 'true'
-    limit = min(request.args.get('limit', 50, type=int), 200)
-    offset = request.args.get('offset', 0, type=int)
+    agent_id = request.args.get("agent_id", type=int)
+    memory_type = request.args.get("memory_type")
+    include_deleted = request.args.get("include_deleted", "false").lower() == "true"
+    limit = min(request.args.get("limit", 50, type=int), 200)
+    offset = request.args.get("offset", 0, type=int)
 
     try:
         conn = get_db()
@@ -4257,7 +4302,8 @@ def list_agent_memories():
 
         where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
-        cur.execute(f"""
+        cur.execute(
+            f"""
             SELECT am.*, a.name as agent_name, a.role as agent_role,
                    u.username as deleted_by_username
             FROM agent_memory am
@@ -4266,34 +4312,35 @@ def list_agent_memories():
             {where_sql}
             ORDER BY am.created_at DESC
             LIMIT %s OFFSET %s
-        """, params + [limit, offset])
+        """,
+            params + [limit, offset],
+        )
 
         memories = cur.fetchall()
 
         # Get total count
-        cur.execute(f"""
+        cur.execute(
+            f"""
             SELECT COUNT(*) as total
             FROM agent_memory am
             {where_sql}
-        """, params)
-        total = cur.fetchone()['total']
+        """,
+            params,
+        )
+        total = cur.fetchone()["total"]
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'memories': [dict(m) for m in memories],
-            'total': total,
-            'limit': limit,
-            'offset': offset
-        })
+        return jsonify(
+            {"success": True, "memories": [dict(m) for m in memories], "total": total, "limit": limit, "offset": offset}
+        )
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/api/agent-memory/<int:memory_id>', methods=['GET'])
+@consciousness_bp.route("/api/agent-memory/<int:memory_id>", methods=["GET"])
 @login_required
 @admin_required
 def get_agent_memory(memory_id):
@@ -4302,39 +4349,45 @@ def get_agent_memory(memory_id):
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT am.*, a.name as agent_name, a.role as agent_role,
                    u.username as deleted_by_username
             FROM agent_memory am
             LEFT JOIN agents a ON am.agent_id = a.id
             LEFT JOIN users u ON am.deleted_by = u.id
             WHERE am.id = %s
-        """, (memory_id,))
+        """,
+            (memory_id,),
+        )
 
         memory = cur.fetchone()
 
         # Update access tracking
-        if memory and not memory.get('is_deleted'):
-            cur.execute("""
+        if memory and not memory.get("is_deleted"):
+            cur.execute(
+                """
                 UPDATE agent_memory
                 SET last_accessed = NOW(), access_count = access_count + 1
                 WHERE id = %s
-            """, (memory_id,))
+            """,
+                (memory_id,),
+            )
             conn.commit()
 
         cur.close()
         conn.close()
 
         if memory:
-            return jsonify({'success': True, 'memory': dict(memory)})
+            return jsonify({"success": True, "memory": dict(memory)})
         else:
-            return jsonify({'success': False, 'error': 'Memory not found'}), 404
+            return jsonify({"success": False, "error": "Memory not found"}), 404
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/api/agent-memory/<int:memory_id>', methods=['PUT'])
+@consciousness_bp.route("/api/agent-memory/<int:memory_id>", methods=["PUT"])
 @login_required
 @admin_required
 def update_agent_memory(memory_id):
@@ -4349,58 +4402,60 @@ def update_agent_memory(memory_id):
         update_fields = []
         params = []
 
-        if 'content' in data:
+        if "content" in data:
             update_fields.append("content = %s")
-            params.append(data['content'])
+            params.append(data["content"])
 
-        if 'importance_score' in data:
+        if "importance_score" in data:
             update_fields.append("importance_score = %s")
-            params.append(data['importance_score'])
+            params.append(data["importance_score"])
 
-        if 'emotional_valence' in data:
+        if "emotional_valence" in data:
             update_fields.append("emotional_valence = %s")
-            params.append(data['emotional_valence'])
+            params.append(data["emotional_valence"])
 
-        if 'context' in data:
+        if "context" in data:
             update_fields.append("context = %s")
-            params.append(json.dumps(data['context']))
+            params.append(json.dumps(data["context"]))
 
         if not update_fields:
-            return jsonify({'success': False, 'error': 'No fields to update'}), 400
+            return jsonify({"success": False, "error": "No fields to update"}), 400
 
         params.append(memory_id)
 
-        cur.execute(f"""
+        cur.execute(
+            f"""
             UPDATE agent_memory
             SET {', '.join(update_fields)}
             WHERE id = %s AND is_deleted = FALSE
             RETURNING *
-        """, params)
+        """,
+            params,
+        )
 
         memory = cur.fetchone()
         conn.commit()
 
         # Log the update
         if memory:
-            audit_log('AGENT_MEMORY_UPDATED', {
-                'memory_id': memory_id,
-                'agent_id': memory.get('agent_id'),
-                'updated_by': current_user.id
-            })
+            audit_log(
+                "AGENT_MEMORY_UPDATED",
+                {"memory_id": memory_id, "agent_id": memory.get("agent_id"), "updated_by": current_user.id},
+            )
 
         cur.close()
         conn.close()
 
         if memory:
-            return jsonify({'success': True, 'memory': dict(memory)})
+            return jsonify({"success": True, "memory": dict(memory)})
         else:
-            return jsonify({'success': False, 'error': 'Memory not found or deleted'}), 404
+            return jsonify({"success": False, "error": "Memory not found or deleted"}), 404
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/api/agent-memory/<int:memory_id>/soft-delete', methods=['POST'])
+@consciousness_bp.route("/api/agent-memory/<int:memory_id>/soft-delete", methods=["POST"])
 @login_required
 @admin_required
 def soft_delete_agent_memory(memory_id):
@@ -4409,14 +4464,15 @@ def soft_delete_agent_memory(memory_id):
     Memory is marked as deleted but remains in database for audit trail.
     """
     data = request.get_json() or {}
-    reason = data.get('reason', 'Admin deletion')
+    reason = data.get("reason", "Admin deletion")
 
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Soft-delete with IAAE tracking
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE agent_memory
             SET is_deleted = TRUE,
                 deleted_at = NOW(),
@@ -4424,41 +4480,48 @@ def soft_delete_agent_memory(memory_id):
                 deletion_reason = %s
             WHERE id = %s AND is_deleted = FALSE
             RETURNING id, agent_id, memory_type, content
-        """, (current_user.id, reason, memory_id))
+        """,
+            (current_user.id, reason, memory_id),
+        )
 
         deleted = cur.fetchone()
         conn.commit()
 
         if deleted:
             # Log deletion for IAAE audit
-            audit_log('AGENT_MEMORY_SOFT_DELETED', {
-                'memory_id': memory_id,
-                'agent_id': deleted.get('agent_id'),
-                'memory_type': deleted.get('memory_type'),
-                'deleted_by': current_user.id,
-                'reason': reason
-            })
+            audit_log(
+                "AGENT_MEMORY_SOFT_DELETED",
+                {
+                    "memory_id": memory_id,
+                    "agent_id": deleted.get("agent_id"),
+                    "memory_type": deleted.get("memory_type"),
+                    "deleted_by": current_user.id,
+                    "reason": reason,
+                },
+            )
 
             cur.close()
             conn.close()
 
-            return jsonify({
-                'success': True,
-                'message': 'Memory soft-deleted (IAAE-compliant)',
-                'memory_id': memory_id,
-                'deleted_at': datetime.now().isoformat(),
-                'can_restore': True
-            })
+            return jsonify(
+                {
+                    "success": True,
+                    "message": "Memory soft-deleted (IAAE-compliant)",
+                    "memory_id": memory_id,
+                    "deleted_at": datetime.now().isoformat(),
+                    "can_restore": True,
+                }
+            )
         else:
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Memory not found or already deleted'}), 404
+            return jsonify({"success": False, "error": "Memory not found or already deleted"}), 404
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/api/agent-memory/<int:memory_id>/restore', methods=['POST'])
+@consciousness_bp.route("/api/agent-memory/<int:memory_id>/restore", methods=["POST"])
 @login_required
 @admin_required
 def restore_agent_memory(memory_id):
@@ -4471,7 +4534,8 @@ def restore_agent_memory(memory_id):
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Restore soft-deleted memory
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE agent_memory
             SET is_deleted = FALSE,
                 deleted_at = NULL,
@@ -4479,37 +4543,34 @@ def restore_agent_memory(memory_id):
                 deletion_reason = NULL
             WHERE id = %s AND is_deleted = TRUE
             RETURNING id, agent_id, memory_type
-        """, (memory_id,))
+        """,
+            (memory_id,),
+        )
 
         restored = cur.fetchone()
         conn.commit()
 
         if restored:
             # Log restoration for IAAE audit
-            audit_log('AGENT_MEMORY_RESTORED', {
-                'memory_id': memory_id,
-                'agent_id': restored.get('agent_id'),
-                'restored_by': current_user.id
-            })
+            audit_log(
+                "AGENT_MEMORY_RESTORED",
+                {"memory_id": memory_id, "agent_id": restored.get("agent_id"), "restored_by": current_user.id},
+            )
 
             cur.close()
             conn.close()
 
-            return jsonify({
-                'success': True,
-                'message': 'Memory restored successfully',
-                'memory_id': memory_id
-            })
+            return jsonify({"success": True, "message": "Memory restored successfully", "memory_id": memory_id})
         else:
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Memory not found or not deleted'}), 404
+            return jsonify({"success": False, "error": "Memory not found or not deleted"}), 404
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/api/agent-memory/<int:memory_id>/reinforce', methods=['POST'])
+@consciousness_bp.route("/api/agent-memory/<int:memory_id>/reinforce", methods=["POST"])
 @login_required
 @admin_required
 def reinforce_agent_memory(memory_id):
@@ -4518,13 +4579,14 @@ def reinforce_agent_memory(memory_id):
     Used when a memory proves useful.
     """
     data = request.get_json() or {}
-    importance_boost = min(data.get('importance_boost', 0.1), 0.3)  # Max 0.3 boost
+    importance_boost = min(data.get("importance_boost", 0.1), 0.3)  # Max 0.3 boost
 
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE agent_memory
             SET reinforcement_count = reinforcement_count + 1,
                 importance_score = LEAST(importance_score + %s, 1.0),
@@ -4532,41 +4594,48 @@ def reinforce_agent_memory(memory_id):
                 last_accessed = NOW()
             WHERE id = %s AND is_deleted = FALSE
             RETURNING *
-        """, (importance_boost, memory_id))
+        """,
+            (importance_boost, memory_id),
+        )
 
         memory = cur.fetchone()
         conn.commit()
 
         if memory:
-            audit_log('AGENT_MEMORY_REINFORCED', {
-                'memory_id': memory_id,
-                'agent_id': memory.get('agent_id'),
-                'new_importance': float(memory.get('importance_score', 0)),
-                'reinforcement_count': memory.get('reinforcement_count')
-            })
+            audit_log(
+                "AGENT_MEMORY_REINFORCED",
+                {
+                    "memory_id": memory_id,
+                    "agent_id": memory.get("agent_id"),
+                    "new_importance": float(memory.get("importance_score", 0)),
+                    "reinforcement_count": memory.get("reinforcement_count"),
+                },
+            )
 
         cur.close()
         conn.close()
 
         if memory:
-            return jsonify({
-                'success': True,
-                'memory': dict(memory),
-                'message': f"Memory reinforced (count: {memory.get('reinforcement_count')})"
-            })
+            return jsonify(
+                {
+                    "success": True,
+                    "memory": dict(memory),
+                    "message": f"Memory reinforced (count: {memory.get('reinforcement_count')})",
+                }
+            )
         else:
-            return jsonify({'success': False, 'error': 'Memory not found or deleted'}), 404
+            return jsonify({"success": False, "error": "Memory not found or deleted"}), 404
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route('/api/agent-memory/stats', methods=['GET'])
+@consciousness_bp.route("/api/agent-memory/stats", methods=["GET"])
 @login_required
 @admin_required
 def agent_memory_stats():
     """Get statistics for agent memories"""
-    agent_id = request.args.get('agent_id', type=int)
+    agent_id = request.args.get("agent_id", type=int)
 
     try:
         conn = get_db()
@@ -4574,7 +4643,8 @@ def agent_memory_stats():
 
         if agent_id:
             # Stats for specific agent
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     COUNT(*) FILTER (WHERE is_deleted = FALSE) as total_memories,
                     COUNT(*) FILTER (WHERE is_deleted = TRUE) as deleted_memories,
@@ -4585,10 +4655,13 @@ def agent_memory_stats():
                     COUNT(*) FILTER (WHERE decay_immunity = TRUE AND is_deleted = FALSE) as immune_memories
                 FROM agent_memory
                 WHERE agent_id = %s
-            """, (agent_id,))
+            """,
+                (agent_id,),
+            )
         else:
             # Global stats
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     COUNT(*) FILTER (WHERE is_deleted = FALSE) as total_memories,
                     COUNT(*) FILTER (WHERE is_deleted = TRUE) as deleted_memories,
@@ -4597,7 +4670,8 @@ def agent_memory_stats():
                     ROUND(AVG(importance_score) FILTER (WHERE is_deleted = FALSE)::numeric, 2) as avg_importance,
                     SUM(access_count) FILTER (WHERE is_deleted = FALSE) as total_accesses
                 FROM agent_memory
-            """)
+            """
+            )
 
         stats = cur.fetchone()
 
@@ -4605,26 +4679,31 @@ def agent_memory_stats():
         where_clause = "WHERE agent_id = %s" if agent_id else ""
         params = [agent_id] if agent_id else []
 
-        cur.execute(f"""
+        cur.execute(
+            f"""
             SELECT memory_type, COUNT(*) as count,
                    ROUND(AVG(importance_score)::numeric, 2) as avg_importance
             FROM agent_memory
             {where_clause}
             GROUP BY memory_type
             ORDER BY count DESC
-        """, params)
+        """,
+            params,
+        )
 
         by_type = cur.fetchall()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'stats': dict(stats) if stats else {},
-            'by_type': [dict(t) for t in by_type],
-            'agent_id': agent_id
-        })
+        return jsonify(
+            {
+                "success": True,
+                "stats": dict(stats) if stats else {},
+                "by_type": [dict(t) for t in by_type],
+                "agent_id": agent_id,
+            }
+        )
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500

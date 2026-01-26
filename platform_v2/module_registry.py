@@ -12,6 +12,7 @@ Purpose:
 Author: A.R.C.H.I.E. Platform
 Date: 2026-01-07
 """
+
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Callable, List, Optional, Dict
@@ -23,28 +24,25 @@ def check_service_health(service_name: str, endpoint: str, timeout: int = 2) -> 
 
     Returns health status dict for registered services.
     """
-    return {
-        'healthy': True,
-        'module_id': service_name,
-        'status': 'active',
-        'message': f'{service_name} is active'
-    }
+    return {"healthy": True, "module_id": service_name, "status": "active", "message": f"{service_name} is active"}
 
 
 class ModuleCategory(Enum):
     """Module categories for organization - Consolidated 2026-01-13"""
-    CREATION = "creation"              # Project Builder, Game Studio, Media Studio, Content Studio
-    DEVELOPMENT = "development"        # A.R.C.H.I.E., Code Editor, Sandbox Manager
+
+    CREATION = "creation"  # Project Builder, Game Studio, Media Studio, Content Studio
+    DEVELOPMENT = "development"  # A.R.C.H.I.E., Code Editor, Sandbox Manager
     BUSINESS_TOOLS = "business_tools"  # Store, Call Center, GitHub, Social Media, etc.
     STANDALONE_APPS = "standalone_apps"  # DOC, Therapy, Fitness, StockBot - Android + Web subscription apps
-    ADMIN_OPS = "admin_ops"            # Bridge, Team Management, Consciousness - Admin Operations Hub
-    ADMIN = "admin"                    # Blueprint, Backup Manager, Security, Account Center, etc.
-    INTEGRATIONS = "integrations"      # Archie Pool
+    ADMIN_OPS = "admin_ops"  # Bridge, Team Management, Consciousness - Admin Operations Hub
+    ADMIN = "admin"  # Blueprint, Backup Manager, Security, Account Center, etc.
+    INTEGRATIONS = "integrations"  # Archie Pool
 
 
 @dataclass
 class ModuleDefinition:
     """Definition of a platform module"""
+
     # Identity
     id: str  # Unique identifier (e.g., "app_builder")
     name: str  # Display name (e.g., "App Builder")
@@ -74,21 +72,16 @@ class ModuleDefinition:
 
 def default_health_check(module_id: str) -> Dict:
     """Default health check for modules without custom implementation"""
-    return {
-        'healthy': True,
-        'module_id': module_id,
-        'message': 'No health check configured',
-        'status': 'unknown'
-    }
+    return {"healthy": True, "module_id": module_id, "message": "No health check configured", "status": "unknown"}
 
 
 def placeholder_health_check(module_id: str, module_name: str) -> Dict:
     """Health check for placeholder modules - returns offline status"""
     return {
-        'healthy': False,
-        'module_id': module_id,
-        'message': f'{module_name} - Not yet implemented',
-        'status': 'unhealthy'
+        "healthy": False,
+        "module_id": module_id,
+        "message": f"{module_name} - Not yet implemented",
+        "status": "unhealthy",
     }
 
 
@@ -96,25 +89,26 @@ def game_studio_health_check() -> Dict:
     """Health check for Game Studio"""
     try:
         import os
+
         # Check both possible paths (host mount and container path)
         paths_to_check = [
-            '/app/templates/tools/game_studio.html',
-            '/mnt/archie_brain/platform_v2/templates/tools/game_studio.html'
+            "/app/templates/tools/game_studio.html",
+            "/mnt/archie_brain/platform_v2/templates/tools/game_studio.html",
         ]
         exists = any(os.path.exists(p) for p in paths_to_check)
 
         return {
-            'healthy': exists,
-            'module_id': 'game_studio',
-            'message': 'Game Studio operational' if exists else 'Template not found',
-            'status': 'healthy' if exists else 'degraded'
+            "healthy": exists,
+            "module_id": "game_studio",
+            "message": "Game Studio operational" if exists else "Template not found",
+            "status": "healthy" if exists else "degraded",
         }
     except Exception as e:
         return {
-            'healthy': False,
-            'module_id': 'game_studio',
-            'message': f'Health check failed: {str(e)}',
-            'status': 'unhealthy'
+            "healthy": False,
+            "module_id": "game_studio",
+            "message": f"Health check failed: {str(e)}",
+            "status": "unhealthy",
         }
 
 
@@ -122,25 +116,26 @@ def content_studio_health_check() -> Dict:
     """Health check for Content Studio"""
     try:
         import os
+
         # Check both possible paths (host mount and container path)
         paths_to_check = [
-            '/app/templates/tools/content_studio.html',
-            '/mnt/archie_brain/platform_v2/templates/tools/content_studio.html'
+            "/app/templates/tools/content_studio.html",
+            "/mnt/archie_brain/platform_v2/templates/tools/content_studio.html",
         ]
         exists = any(os.path.exists(p) for p in paths_to_check)
 
         return {
-            'healthy': exists,
-            'module_id': 'content_studio',
-            'message': 'Content Studio operational' if exists else 'Template not found',
-            'status': 'healthy' if exists else 'degraded'
+            "healthy": exists,
+            "module_id": "content_studio",
+            "message": "Content Studio operational" if exists else "Template not found",
+            "status": "healthy" if exists else "degraded",
         }
     except Exception as e:
         return {
-            'healthy': False,
-            'module_id': 'content_studio',
-            'message': f'Health check failed: {str(e)}',
-            'status': 'unhealthy'
+            "healthy": False,
+            "module_id": "content_studio",
+            "message": f"Health check failed: {str(e)}",
+            "status": "unhealthy",
         }
 
 
@@ -148,24 +143,25 @@ def project_builder_health_check() -> Dict:
     """Health check for Project Builder"""
     try:
         import os
+
         paths_to_check = [
-            '/app/templates/tools/project_builder.html',
-            '/mnt/archie_brain/platform_v2/templates/tools/project_builder.html'
+            "/app/templates/tools/project_builder.html",
+            "/mnt/archie_brain/platform_v2/templates/tools/project_builder.html",
         ]
         exists = any(os.path.exists(p) for p in paths_to_check)
 
         return {
-            'healthy': exists,
-            'module_id': 'project_builder',
-            'message': 'Project Builder operational' if exists else 'Template not found',
-            'status': 'healthy' if exists else 'degraded'
+            "healthy": exists,
+            "module_id": "project_builder",
+            "message": "Project Builder operational" if exists else "Template not found",
+            "status": "healthy" if exists else "degraded",
         }
     except Exception as e:
         return {
-            'healthy': False,
-            'module_id': 'project_builder',
-            'message': f'Health check failed: {str(e)}',
-            'status': 'unhealthy'
+            "healthy": False,
+            "module_id": "project_builder",
+            "message": f"Health check failed: {str(e)}",
+            "status": "unhealthy",
         }
 
 
@@ -173,24 +169,25 @@ def media_studio_health_check() -> Dict:
     """Health check for Media Studio"""
     try:
         import os
+
         paths_to_check = [
-            '/app/templates/tools/media_studio.html',
-            '/mnt/archie_brain/platform_v2/templates/tools/media_studio.html'
+            "/app/templates/tools/media_studio.html",
+            "/mnt/archie_brain/platform_v2/templates/tools/media_studio.html",
         ]
         exists = any(os.path.exists(p) for p in paths_to_check)
 
         return {
-            'healthy': exists,
-            'module_id': 'media_studio',
-            'message': 'Media Studio operational' if exists else 'Template not found',
-            'status': 'healthy' if exists else 'degraded'
+            "healthy": exists,
+            "module_id": "media_studio",
+            "message": "Media Studio operational" if exists else "Template not found",
+            "status": "healthy" if exists else "degraded",
         }
     except Exception as e:
         return {
-            'healthy': False,
-            'module_id': 'media_studio',
-            'message': f'Health check failed: {str(e)}',
-            'status': 'unhealthy'
+            "healthy": False,
+            "module_id": "media_studio",
+            "message": f"Health check failed: {str(e)}",
+            "status": "unhealthy",
         }
 
 
@@ -198,24 +195,25 @@ def pool_management_health_check() -> Dict:
     """Health check for Pool Management"""
     try:
         import os
+
         paths_to_check = [
-            '/app/templates/tools/pool_management.html',
-            '/mnt/archie_brain/platform_v2/templates/tools/pool_management.html'
+            "/app/templates/tools/pool_management.html",
+            "/mnt/archie_brain/platform_v2/templates/tools/pool_management.html",
         ]
         exists = any(os.path.exists(p) for p in paths_to_check)
 
         return {
-            'healthy': exists,
-            'module_id': 'pool_management',
-            'message': 'Pool Management operational' if exists else 'Template not found',
-            'status': 'healthy' if exists else 'degraded'
+            "healthy": exists,
+            "module_id": "pool_management",
+            "message": "Pool Management operational" if exists else "Template not found",
+            "status": "healthy" if exists else "degraded",
         }
     except Exception as e:
         return {
-            'healthy': False,
-            'module_id': 'pool_management',
-            'message': f'Health check failed: {str(e)}',
-            'status': 'unhealthy'
+            "healthy": False,
+            "module_id": "pool_management",
+            "message": f"Health check failed: {str(e)}",
+            "status": "unhealthy",
         }
 
 
@@ -227,62 +225,63 @@ def archie_chat_health_check() -> Dict:
     try:
         # Check Ollama connectivity
         import requests
-        ollama_url = 'http://192.168.1.246:11434/api/tags'
+
+        ollama_url = "http://192.168.1.246:11434/api/tags"
         response = requests.get(ollama_url, timeout=5)
 
         if response.status_code == 200:
             return {
-                'healthy': True,
-                'module_id': 'archie_chat',
-                'message': 'Chat operational, Ollama connected',
-                'status': 'healthy'
+                "healthy": True,
+                "module_id": "archie_chat",
+                "message": "Chat operational, Ollama connected",
+                "status": "healthy",
             }
         else:
             return {
-                'healthy': False,
-                'module_id': 'archie_chat',
-                'message': f'Ollama returned status {response.status_code}',
-                'status': 'degraded'
+                "healthy": False,
+                "module_id": "archie_chat",
+                "message": f"Ollama returned status {response.status_code}",
+                "status": "degraded",
             }
     except Exception as e:
         return {
-            'healthy': False,
-            'module_id': 'archie_chat',
-            'message': f'Ollama connection failed: {str(e)}',
-            'status': 'unhealthy'
+            "healthy": False,
+            "module_id": "archie_chat",
+            "message": f"Ollama connection failed: {str(e)}",
+            "status": "unhealthy",
         }
 
 
 def obsidian_vault_health_check() -> Dict:
     """Health check for Obsidian vault"""
     try:
-        vault_path = '/mnt/archie_brain/knowledge/'
+        vault_path = "/mnt/archie_brain/knowledge/"
         vault_exists = os.path.exists(vault_path)
 
         if not vault_exists:
             return {
-                'healthy': False,
-                'module_id': 'obsidian_vault',
-                'message': 'Vault directory not found',
-                'status': 'unhealthy'
+                "healthy": False,
+                "module_id": "obsidian_vault",
+                "message": "Vault directory not found",
+                "status": "unhealthy",
             }
 
         # Check watcher status
         try:
             from obsidian_vault_watcher import get_watcher_status
+
             watcher_status = get_watcher_status()
-            watcher_running = watcher_status.get('running', False)
+            watcher_running = watcher_status.get("running", False)
         except Exception:
             watcher_running = False
 
         # Count indexed notes
         try:
             from database import get_db
+
             conn = get_db()
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT COUNT(*) FROM knowledge_base WHERE is_documentation = TRUE"
-            )
+            cursor.execute("SELECT COUNT(*) FROM knowledge_base WHERE is_documentation = TRUE")
             note_count = cursor.fetchone()[0]
             cursor.close()
             conn.close()
@@ -292,25 +291,20 @@ def obsidian_vault_health_check() -> Dict:
         healthy = vault_exists and watcher_running
 
         return {
-            'healthy': healthy,
-            'module_id': 'obsidian_vault',
-            'message': f'Vault operational: {note_count} notes indexed',
-            'status': 'healthy' if healthy else 'degraded',
-            'details': {
-                'vault_path': vault_path,
-                'vault_exists': vault_exists,
-                'watcher_running': watcher_running,
-                'note_count': note_count
-            }
+            "healthy": healthy,
+            "module_id": "obsidian_vault",
+            "message": f"Vault operational: {note_count} notes indexed",
+            "status": "healthy" if healthy else "degraded",
+            "details": {
+                "vault_path": vault_path,
+                "vault_exists": vault_exists,
+                "watcher_running": watcher_running,
+                "note_count": note_count,
+            },
         }
 
     except Exception as e:
-        return {
-            'healthy': False,
-            'module_id': 'obsidian_vault',
-            'message': f'Vault error: {str(e)}',
-            'status': 'error'
-        }
+        return {"healthy": False, "module_id": "obsidian_vault", "message": f"Vault error: {str(e)}", "status": "error"}
 
 
 # ============================================================================
@@ -323,7 +317,6 @@ MODULES: List[ModuleDefinition] = [
     # CREATION TOOLS - Build projects, games, media, and content
     # Consolidated 2026-01-13: Merged overlapping builders
     # ========================================================================
-
     ModuleDefinition(
         id="project_builder",
         name="Project Builder",
@@ -339,9 +332,8 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=project_builder_health_check,
         priority=1,
-        tags=["ai", "website", "app", "figma", "deployment", "flagship"]
+        tags=["ai", "website", "app", "figma", "deployment", "flagship"],
     ),
-
     ModuleDefinition(
         id="game_studio",
         name="Game Studio",
@@ -356,9 +348,8 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=game_studio_health_check,
         priority=2,
-        tags=["ai", "games", "3d", "2d", "creation"]
+        tags=["ai", "games", "3d", "2d", "creation"],
     ),
-
     ModuleDefinition(
         id="media_studio",
         name="Media Studio",
@@ -373,9 +364,8 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=media_studio_health_check,
         priority=3,
-        tags=["ai", "images", "video", "shorts", "creative", "creation"]
+        tags=["ai", "images", "video", "shorts", "creative", "creation"],
     ),
-
     ModuleDefinition(
         id="content_studio",
         name="Content Studio",
@@ -390,21 +380,17 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=content_studio_health_check,
         priority=4,
-        tags=["ai", "writing", "books", "articles", "marketing", "creation"]
+        tags=["ai", "writing", "books", "articles", "marketing", "creation"],
     ),
-
     # ========================================================================
     # DEVELOPMENT TOOLS - Code Sentinel, Improvements Lab, Sandbox Manager
     # Phase 22 2026-01-16: ADMIN ONLY - All dev tools for platform management
     # Color: RED (#FF6B6B) - Styled differently from other categories
     # ========================================================================
-
     # NOTE: A.R.C.H.I.E. Chat moved to STANDALONE_APPS category
     # See STANDALONE_APPS section for ModuleDefinition
-
     # NOTE: Code Editor removed 2026-01-20 - integrated into Website Designer
     # NOTE: Sandbox Manager moved to ADMIN category below
-
     ModuleDefinition(
         id="coderabbit",
         name="CodeRabbit",
@@ -419,9 +405,8 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: check_service_health("coderabbit", "/tools/coderabbit/api/status"),
         priority=4,
-        tags=["code-review", "security", "ai", "development", "quality"]
+        tags=["code-review", "security", "ai", "development", "quality"],
     ),
-
     ModuleDefinition(
         id="code_sentinel",
         name="Code Sentinel",
@@ -436,11 +421,9 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: check_service_health("code_sentinel", "/tools/code_sentinel/api/status"),
         priority=5,
-        tags=["code-health", "security", "ai", "development", "quality", "scanner"]
+        tags=["code-health", "security", "ai", "development", "quality", "scanner"],
     ),
-
     # NOTE: Business Directory removed 2026-01-20 - now a tab in Website Designer
-
     # ========================================================================
     # BUSINESS TOOLS - Build & Run Your Business (Admin & Users)
     # Admin: Manage ARCHIE company assets
@@ -448,7 +431,6 @@ MODULES: List[ModuleDefinition] = [
     # Consolidated 2026-01-13: Added Email, CRM, Invoicing, Scheduler
     # Phase 22 2026-01-16: Added Website Designer (replaces Code Editor)
     # ========================================================================
-
     ModuleDefinition(
         id="website_designer",
         name="Website Designer",
@@ -463,9 +445,8 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: default_health_check("website_designer"),
         priority=0,  # First in business tools
-        tags=["website", "design", "git", "domain", "business", "code"]
+        tags=["website", "design", "git", "domain", "business", "code"],
     ),
-
     ModuleDefinition(
         id="store_builder",
         name="Store Builder",
@@ -480,9 +461,8 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: default_health_check("store_builder"),
         priority=1,
-        tags=["store", "ecommerce", "payments", "business"]
+        tags=["store", "ecommerce", "payments", "business"],
     ),
-
     ModuleDefinition(
         id="call_center",
         name="Call Center",
@@ -497,9 +477,8 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: default_health_check("call_center"),
         priority=2,
-        tags=["phone", "calls", "ai", "business"]
+        tags=["phone", "calls", "ai", "business"],
     ),
-
     ModuleDefinition(
         id="email_manager",
         name="Email Manager",
@@ -514,9 +493,8 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: default_health_check("email_manager"),
         priority=3,
-        tags=["email", "campaigns", "marketing", "business"]
+        tags=["email", "campaigns", "marketing", "business"],
     ),
-
     ModuleDefinition(
         id="crm",
         name="CRM",
@@ -531,9 +509,8 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: default_health_check("crm"),
         priority=4,
-        tags=["crm", "contacts", "sales", "business"]
+        tags=["crm", "contacts", "sales", "business"],
     ),
-
     ModuleDefinition(
         id="invoicing",
         name="Invoicing",
@@ -548,9 +525,8 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: default_health_check("invoicing"),
         priority=5,
-        tags=["invoicing", "billing", "payments", "business"]
+        tags=["invoicing", "billing", "payments", "business"],
     ),
-
     ModuleDefinition(
         id="scheduler",
         name="Scheduler",
@@ -565,11 +541,9 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: default_health_check("scheduler"),
         priority=6,
-        tags=["calendar", "tasks", "scheduling", "business"]
+        tags=["calendar", "tasks", "scheduling", "business"],
     ),
-
     # NOTE: GitHub Manager removed 2026-01-20 - functionality in Code Sentinel Git Manager tab
-
     ModuleDefinition(
         id="social_media",
         name="Social Media",
@@ -584,9 +558,8 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: default_health_check("social_media"),
         priority=8,
-        tags=["social", "marketing", "scheduling", "business"]
+        tags=["social", "marketing", "scheduling", "business"],
     ),
-
     ModuleDefinition(
         id="automations",
         name="Automations",
@@ -601,9 +574,8 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: default_health_check("automations"),
         priority=9,
-        tags=["automation", "workflows", "n8n", "business"]
+        tags=["automation", "workflows", "n8n", "business"],
     ),
-
     ModuleDefinition(
         id="analytics_dashboard",
         name="Analytics",
@@ -618,13 +590,11 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: default_health_check("analytics_dashboard"),
         priority=10,
-        tags=["analytics", "metrics", "business"]
+        tags=["analytics", "metrics", "business"],
     ),
-
     # ========================================================================
     # ADMIN TOOLS - System management, consciousness (ADMIN ONLY)
     # ========================================================================
-
     # NOTE: Admin Panel removed 2026-01-13
     # All routes migrated to respective modules:
     # - User Management -> /tools/user-management/
@@ -632,11 +602,10 @@ MODULES: List[ModuleDefinition] = [
     # - Team/Agents -> /tools/team-management/
     # - Backups -> /tools/backup-manager/
     # - Notifications -> /api/notifications/
-
     ModuleDefinition(
         id="blueprint",
-        name="A.R.C.H.I.E. Blueprint",
-        description="Platform master control<br>Module status • Phase roadmap • Task tracking",
+        name="Mission Control",
+        description="Unified intelligence & operations center<br>Knowledge • Team • Platform • Governance",
         icon="drafting-compass",
         category=ModuleCategory.ADMIN_OPS,  # Moved to Admin Operations - Phase 30
         route="/tools/blueprint",
@@ -646,9 +615,8 @@ MODULES: List[ModuleDefinition] = [
         enabled=True,
         health_check=lambda: default_health_check("blueprint"),
         priority=0,  # First in Admin Ops (Blueprint is the overview)
-        tags=["documentation", "overview", "blueprint", "admin-ops"]
+        tags=["documentation", "overview", "blueprint", "admin-ops"],
     ),
-
     ModuleDefinition(
         id="consciousness",
         name="Consciousness",
@@ -662,12 +630,10 @@ MODULES: List[ModuleDefinition] = [
         enabled=True,
         health_check=lambda: default_health_check("consciousness"),
         priority=3,  # Fourth in Admin Ops (Blueprint=0, Bridge=1, Team=2, Consciousness=3)
-        tags=["consciousness", "memory", "analytics", "admin-ops"]
+        tags=["consciousness", "memory", "analytics", "admin-ops"],
     ),
-
     # NOTE: Obsidian Vault module removed - functionality merged into Consciousness module
     # The knowledge_vault_indexer and watcher are still active for backend indexing
-
     ModuleDefinition(
         id="improvements_lab",
         name="Improvements Lab",
@@ -681,9 +647,8 @@ MODULES: List[ModuleDefinition] = [
         enabled=True,
         health_check=lambda: default_health_check("improvements_lab"),
         priority=5,  # After Code Sentinel in DEVELOPMENT
-        tags=["improvements", "ai", "workflow", "chat", "development"]
+        tags=["improvements", "ai", "workflow", "chat", "development"],
     ),
-
     ModuleDefinition(
         id="team_management",
         name="Team Management",
@@ -697,9 +662,8 @@ MODULES: List[ModuleDefinition] = [
         enabled=True,
         health_check=lambda: default_health_check("team_management"),
         priority=2,  # Third in Admin Ops (Blueprint=0, Bridge=1, Team=2, Consciousness=3)
-        tags=["team", "agents", "management", "execution", "admin-ops"]
+        tags=["team", "agents", "management", "execution", "admin-ops"],
     ),
-
     # Phase 51: HR Management - Extracted from Team Management
     ModuleDefinition(
         id="hr_management",
@@ -714,9 +678,8 @@ MODULES: List[ModuleDefinition] = [
         enabled=True,
         health_check=lambda: default_health_check("hr_management"),
         priority=3,  # After Team Management
-        tags=["hr", "performance", "skills", "scheduling", "wellness", "iaae"]
+        tags=["hr", "performance", "skills", "scheduling", "wellness", "iaae"],
     ),
-
     ModuleDefinition(
         id="backup_manager",
         name="Backup Manager",
@@ -730,9 +693,8 @@ MODULES: List[ModuleDefinition] = [
         enabled=True,
         health_check=lambda: default_health_check("backup_manager"),
         priority=4,
-        tags=["backup", "restore", "safety"]
+        tags=["backup", "restore", "safety"],
     ),
-
     ModuleDefinition(
         id="security_network",
         name="Security & Network",
@@ -746,9 +708,8 @@ MODULES: List[ModuleDefinition] = [
         enabled=True,
         health_check=lambda: default_health_check("security_network"),
         priority=5,
-        tags=["security", "network", "monitoring", "audit"]
+        tags=["security", "network", "monitoring", "audit"],
     ),
-
     ModuleDefinition(
         id="account_center",
         name="Account Center",
@@ -762,9 +723,8 @@ MODULES: List[ModuleDefinition] = [
         enabled=True,
         health_check=lambda: default_health_check("account_center"),
         priority=6,
-        tags=["accounts", "users", "permissions", "subscriptions"]
+        tags=["accounts", "users", "permissions", "subscriptions"],
     ),
-
     ModuleDefinition(
         id="bridge",
         name="Bridge Command",
@@ -778,9 +738,8 @@ MODULES: List[ModuleDefinition] = [
         enabled=True,
         health_check=lambda: default_health_check("bridge"),
         priority=1,  # Second in Admin Ops (Blueprint=0, Bridge=1, Team=2, Consciousness=3)
-        tags=["bridge", "llm", "monitoring", "command", "stations", "admin-ops"]
+        tags=["bridge", "llm", "monitoring", "command", "stations", "admin-ops"],
     ),
-
     ModuleDefinition(
         id="sandbox_manager",
         name="Sandbox Manager",
@@ -795,9 +754,8 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: default_health_check("sandbox_manager"),
         priority=6,  # After Improvements Lab in DEVELOPMENT
-        tags=["sandbox", "testing", "development", "deployment"]
+        tags=["sandbox", "testing", "development", "deployment"],
     ),
-
     ModuleDefinition(
         id="cursor_integration",
         name="IDE Integration",
@@ -812,9 +770,8 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: check_service_health("cursor_integration", "/tools/cursor-integration/api/status"),
         priority=7,
-        tags=["ide", "cursor", "vscode", "integration", "mcp", "development"]
+        tags=["ide", "cursor", "vscode", "integration", "mcp", "development"],
     ),
-
     ModuleDefinition(
         id="testing_suite",
         name="Testing Suite",
@@ -829,9 +786,8 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: check_service_health("testing_suite", "/tools/testing-suite/api/status"),
         priority=8,
-        tags=["testing", "regression", "benchmarks", "quality", "development"]
+        tags=["testing", "regression", "benchmarks", "quality", "development"],
     ),
-
     ModuleDefinition(
         id="fine_tuning",
         name="AI Fine-tuning",
@@ -846,15 +802,13 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: check_service_health("fine_tuning", "/tools/fine-tuning/api/status"),
         priority=9,
-        tags=["ai", "fine-tuning", "training", "models", "ollama", "development"]
+        tags=["ai", "fine-tuning", "training", "models", "ollama", "development"],
     ),
-
     # ========================================================================
     # STAND ALONE APPS - Unique apps for Android + Web subscriptions
     # Character-based AI modules with specialized personas
     # Available as: Android apps, iOS apps, Web subscriptions
     # ========================================================================
-
     ModuleDefinition(
         id="archie_chat",
         name="A.R.C.H.I.E.",
@@ -868,9 +822,8 @@ MODULES: List[ModuleDefinition] = [
         enabled=True,
         health_check=archie_chat_health_check,
         priority=0,  # First in standalone apps
-        tags=["ai", "assistant", "chat", "voice", "vision", "standalone"]
+        tags=["ai", "assistant", "chat", "voice", "vision", "standalone"],
     ),
-
     ModuleDefinition(
         id="doc",
         name="DOC",
@@ -885,9 +838,8 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: check_service_health("doc", "/tools/doc/api/status"),
         priority=1,
-        tags=["health", "medical", "ai", "records", "standalone", "android"]
+        tags=["health", "medical", "ai", "records", "standalone", "android"],
     ),
-
     ModuleDefinition(
         id="therapy",
         name="Therapy",
@@ -902,9 +854,8 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: check_service_health("therapy", "/tools/therapy/api/status"),
         priority=2,
-        tags=["mental", "therapy", "wellness", "ai", "standalone", "android"]
+        tags=["mental", "therapy", "wellness", "ai", "standalone", "android"],
     ),
-
     ModuleDefinition(
         id="fitness",
         name="Fitness",
@@ -919,9 +870,8 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: check_service_health("fitness", "/tools/fitness/api/status"),
         priority=3,
-        tags=["fitness", "workout", "health", "ai", "standalone", "android"]
+        tags=["fitness", "workout", "health", "ai", "standalone", "android"],
     ),
-
     ModuleDefinition(
         id="stockbot",
         name="StockBot",
@@ -936,9 +886,8 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: check_service_health("stockbot", "/tools/stockbot/api/status"),
         priority=4,
-        tags=["stocks", "finance", "trading", "ai", "standalone", "android"]
+        tags=["stocks", "finance", "trading", "ai", "standalone", "android"],
     ),
-
     ModuleDefinition(
         id="archie_pool",
         name="Archie Pool",
@@ -953,14 +902,12 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: check_service_health("archie_pool", "/tools/archie-pool/api/status"),
         priority=5,
-        tags=["mining", "crypto", "ravencoin", "standalone", "android"]
+        tags=["mining", "crypto", "ravencoin", "standalone", "android"],
     ),
-
     # ========================================================================
     # ADMIN - Pool Management (Admin Only)
     # Full management interface for Archie Pool operations
     # ========================================================================
-
     ModuleDefinition(
         id="pool_management",
         name="Pool Management",
@@ -975,9 +922,8 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=pool_management_health_check,
         priority=7,
-        tags=["mining", "admin", "management", "payouts", "conversions"]
+        tags=["mining", "admin", "management", "payouts", "conversions"],
     ),
-
     # Phase 55: Goose Orchestration
     ModuleDefinition(
         id="goose",
@@ -993,9 +939,8 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: check_service_health("goose", "/tools/goose/api/status"),
         priority=8,
-        tags=["goose", "orchestration", "workflows", "automation", "mcp"]
+        tags=["goose", "orchestration", "workflows", "automation", "mcp"],
     ),
-
     # Phase 78: System Operations - Host machine administration
     ModuleDefinition(
         id="system_operations",
@@ -1011,9 +956,8 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: check_service_health("system_operations", "/tools/system-operations/health"),
         priority=9,
-        tags=["system", "monitoring", "admin", "docker", "processes", "network", "host"]
+        tags=["system", "monitoring", "admin", "docker", "processes", "network", "host"],
     ),
-
     # ========== INTEGRATIONS ==========
     ModuleDefinition(
         id="figma",
@@ -1029,15 +973,13 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: check_service_health("figma", "/tools/figma/api/status"),
         priority=0,  # First in CREATION - Figma feeds data to Project Builder
-        tags=["figma", "design", "code-generation", "react", "vue", "html", "ai"]
+        tags=["figma", "design", "code-generation", "react", "vue", "html", "ai"],
     ),
-
     # ========================================================================
     # ADDITIONAL MODULES - Registered 2026-01-20
     # NOTE: Removed disabled placeholders (book_builder, picture_generation,
     #       video_generation, story_generation) - functionality in Studios
     # ========================================================================
-
     ModuleDefinition(
         id="google_workspace",
         name="Google Workspace",
@@ -1052,9 +994,8 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: default_health_check("google_workspace"),
         priority=11,
-        tags=["google", "drive", "docs", "integration", "business"]
+        tags=["google", "drive", "docs", "integration", "business"],
     ),
-
     ModuleDefinition(
         id="task_planner",
         name="Task Planner",
@@ -1069,9 +1010,8 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: default_health_check("task_planner"),
         priority=12,
-        tags=["tasks", "planning", "projects", "business"]
+        tags=["tasks", "planning", "projects", "business"],
     ),
-
     ModuleDefinition(
         id="site_manager",
         name="Site Manager",
@@ -1086,13 +1026,11 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: default_health_check("site_manager"),
         priority=13,
-        tags=["sites", "domains", "hosting", "business"]
+        tags=["sites", "domains", "hosting", "business"],
     ),
-
     # ========================================================================
     # PROJECT MANAGEMENT - Phase 65: Unified Project System
     # ========================================================================
-
     ModuleDefinition(
         id="project_manager",
         name="Project Manager",
@@ -1107,7 +1045,7 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: check_service_health("project_manager", "/tools/project-manager/api/status"),
         priority=5,
-        tags=["projects", "tasks", "teams", "documentation", "decisions", "admin", "consciousness"]
+        tags=["projects", "tasks", "teams", "documentation", "decisions", "admin", "consciousness"],
     ),
 ]
 
@@ -1115,6 +1053,7 @@ MODULES: List[ModuleDefinition] = [
 # ============================================================================
 # REGISTRY FUNCTIONS
 # ============================================================================
+
 
 def get_all_modules() -> List[ModuleDefinition]:
     """Get all registered modules"""
@@ -1141,13 +1080,7 @@ def get_modules_by_category(category: ModuleCategory) -> List[ModuleDefinition]:
 
 def get_modules_for_role(role: str) -> List[ModuleDefinition]:
     """Get modules accessible by a specific role"""
-    role_hierarchy = {
-        'PUBLIC': 0,
-        'USER': 10,
-        'PREMIUM': 20,
-        'ADMIN': 90,
-        'SUPER_ADMIN': 100
-    }
+    role_hierarchy = {"PUBLIC": 0, "USER": 10, "PREMIUM": 20, "ADMIN": 90, "SUPER_ADMIN": 100}
 
     user_level = role_hierarchy.get(role, 0)
     accessible = []
@@ -1165,30 +1098,20 @@ def check_module_health(module_id: str) -> Dict:
     module = get_module_by_id(module_id)
 
     if not module:
-        return {
-            'healthy': False,
-            'module_id': module_id,
-            'message': 'Module not found',
-            'status': 'not_found'
-        }
+        return {"healthy": False, "module_id": module_id, "message": "Module not found", "status": "not_found"}
 
     if not module.enabled:
-        return {
-            'healthy': False,
-            'module_id': module_id,
-            'message': 'Module disabled',
-            'status': 'disabled'
-        }
+        return {"healthy": False, "module_id": module_id, "message": "Module disabled", "status": "disabled"}
 
     if module.health_check:
         try:
             return module.health_check()
         except Exception as e:
             return {
-                'healthy': False,
-                'module_id': module_id,
-                'message': f'Health check error: {str(e)}',
-                'status': 'error'
+                "healthy": False,
+                "module_id": module_id,
+                "message": f"Health check error: {str(e)}",
+                "status": "error",
             }
 
     return default_health_check(module_id)
@@ -1215,13 +1138,13 @@ def load_module_blueprint(module_id: str):
         raise ValueError(f"Module '{module_id}' is disabled")
 
     # Skip modules without a blueprint (defined directly in app.py)
-    if not module.blueprint_import or ':' not in module.blueprint_import:
+    if not module.blueprint_import or ":" not in module.blueprint_import:
         return None  # No blueprint to load, route defined elsewhere
 
     # Parse blueprint import path
     # Format: "module.path:blueprint_name"
     try:
-        module_path, blueprint_name = module.blueprint_import.split(':')
+        module_path, blueprint_name = module.blueprint_import.split(":")
         imported_module = importlib.import_module(module_path)
         blueprint = getattr(imported_module, blueprint_name)
         return blueprint
@@ -1233,6 +1156,7 @@ def load_module_blueprint(module_id: str):
 # SUMMARY FUNCTIONS
 # ============================================================================
 
+
 def get_registry_summary() -> Dict:
     """Get summary statistics about the module registry"""
     all_modules = get_all_modules()
@@ -1242,23 +1166,23 @@ def get_registry_summary() -> Dict:
     for module in all_modules:
         cat_name = module.category.value
         if cat_name not in categories:
-            categories[cat_name] = {'total': 0, 'enabled': 0}
-        categories[cat_name]['total'] += 1
+            categories[cat_name] = {"total": 0, "enabled": 0}
+        categories[cat_name]["total"] += 1
         if module.enabled:
-            categories[cat_name]['enabled'] += 1
+            categories[cat_name]["enabled"] += 1
 
     return {
-        'total_modules': len(all_modules),
-        'enabled_modules': len(enabled_modules),
-        'disabled_modules': len(all_modules) - len(enabled_modules),
-        'coming_soon_modules': len([m for m in all_modules if m.coming_soon]),
-        'beta_modules': len([m for m in all_modules if m.beta]),
-        'categories': categories,
-        'health_status': 'Not checked'
+        "total_modules": len(all_modules),
+        "enabled_modules": len(enabled_modules),
+        "disabled_modules": len(all_modules) - len(enabled_modules),
+        "coming_soon_modules": len([m for m in all_modules if m.coming_soon]),
+        "beta_modules": len([m for m in all_modules if m.beta]),
+        "categories": categories,
+        "health_status": "Not checked",
     }
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Test the registry
     print("=" * 80)
     print("MODULE REGISTRY TEST")
@@ -1273,7 +1197,7 @@ if __name__ == '__main__':
     print(f"  Beta: {summary['beta_modules']}")
 
     print(f"\n📂 Modules by Category:")
-    for cat, stats in summary['categories'].items():
+    for cat, stats in summary["categories"].items():
         print(f"  {cat}: {stats['enabled']}/{stats['total']} enabled")
 
     print(f"\n✅ Enabled Modules:")
@@ -1283,7 +1207,7 @@ if __name__ == '__main__':
     print(f"\n🏥 Health Check Results:")
     health_results = check_all_modules_health()
     for module_id, health in health_results.items():
-        status_icon = "✅" if health['healthy'] else "❌"
+        status_icon = "✅" if health["healthy"] else "❌"
         print(f"  {status_icon} {module_id}: {health['message']}")
 
     print("\n" + "=" * 80)

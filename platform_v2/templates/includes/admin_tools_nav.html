@@ -42,20 +42,6 @@
             </button>
         </div>
         <div class="nav-divider"></div>
-        <a href="{{ url_for('backup_manager.index') }}"
-           class="nav-module-btn {% if request.endpoint and 'backup_manager' in request.endpoint %}active{% endif %}"
-           onclick="showTransition(event, this.href)"
-           title="Backup Manager">
-            <i data-lucide="hard-drive"></i>
-            <span>Backup</span>
-        </a>
-        <a href="{{ url_for('security_network.index') }}"
-           class="nav-module-btn {% if request.endpoint and 'security_network' in request.endpoint %}active{% endif %}"
-           onclick="showTransition(event, this.href)"
-           title="Security & Network">
-            <i data-lucide="shield"></i>
-            <span>Security</span>
-        </a>
         <a href="{{ url_for('account_center.index') }}"
            class="nav-module-btn {% if request.endpoint and 'account_center' in request.endpoint %}active{% endif %}"
            onclick="showTransition(event, this.href)"
@@ -63,13 +49,7 @@
             <i data-lucide="user"></i>
             <span>Accounts</span>
         </a>
-        <a href="{{ url_for('pool_management.index') }}"
-           class="nav-module-btn {% if request.endpoint and 'pool_management' in request.endpoint %}active{% endif %}"
-           onclick="showTransition(event, this.href)"
-           title="Pool Management">
-            <i data-lucide="sliders"></i>
-            <span>Pool</span>
-        </a>
+        <!-- Additional Admin Tools modules will be added here -->
     </div>
 </nav>
 
@@ -78,7 +58,7 @@
    PAGE TRANSITION OVERLAY - ADMIN TOOLS (RED THEME)
    ═══════════════════════════════════════════════════════════════════════════════ */
 .admin-transition .transition-logo {
-    color: #FF6B6B;
+    color: #f97316;
     text-shadow: 0 0 30px rgba(255, 107, 107, 0.5), 0 0 60px rgba(255, 107, 107, 0.3);
 }
 
@@ -87,7 +67,7 @@
 }
 
 .admin-transition .transition-progress {
-    background: linear-gradient(90deg, #FF6B6B, #FF4757);
+    background: linear-gradient(90deg, #f97316, #fb923c);
 }
 
 .admin-transition .transition-text {
@@ -106,7 +86,7 @@
 }
 
 .admin-tools-nav .nav-category-label {
-    color: #FF6B6B;
+    color: #f97316;
     text-shadow: 0 0 10px rgba(255, 107, 107, 0.3);
 }
 
@@ -116,17 +96,17 @@
 }
 
 .admin-tools-nav .nav-module-btn::before {
-    background: #FF6B6B;
+    background: #f97316;
 }
 
 .admin-tools-nav .nav-module-btn:hover {
-    color: #FF6B6B;
+    color: #f97316;
     border-color: rgba(255, 107, 107, 0.4);
     background: rgba(255, 107, 107, 0.05);
 }
 
 .admin-tools-nav .nav-module-btn.active {
-    color: #FF6B6B;
+    color: #f97316;
     border-color: rgba(255, 107, 107, 0.5);
     background: rgba(255, 107, 107, 0.1);
     box-shadow: 0 0 15px rgba(255, 107, 107, 0.15);
@@ -153,7 +133,7 @@
 }
 
 .admin-tools-nav .nav-icon-btn:hover {
-    color: #FF6B6B;
+    color: #f97316;
     border-color: rgba(255, 107, 107, 0.5);
     background: rgba(255, 107, 107, 0.1);
     box-shadow: 0 0 15px rgba(255, 107, 107, 0.15);
@@ -182,7 +162,7 @@ body.light-mode .admin-tools-nav::after {
 }
 
 body.light-mode .admin-tools-nav .nav-category-label {
-    color: #cc2244;
+    color: #ea580c;
     text-shadow: none;
 }
 
@@ -192,17 +172,17 @@ body.light-mode .admin-tools-nav .nav-module-btn {
 }
 
 body.light-mode .admin-tools-nav .nav-module-btn:hover {
-    color: #cc2244;
+    color: #ea580c;
     border-color: rgba(204, 34, 68, 0.4);
     background: rgba(204, 34, 68, 0.05);
 }
 
 body.light-mode .admin-tools-nav .nav-module-btn::before {
-    background: #cc2244;
+    background: #ea580c;
 }
 
 body.light-mode .admin-tools-nav .nav-module-btn.active {
-    color: #cc2244;
+    color: #ea580c;
     border-color: rgba(204, 34, 68, 0.5);
     background: rgba(204, 34, 68, 0.08);
     box-shadow: 0 0 15px rgba(204, 34, 68, 0.1);
@@ -214,7 +194,7 @@ body.light-mode .admin-tools-nav .nav-icon-btn {
 }
 
 body.light-mode .admin-tools-nav .nav-icon-btn:hover {
-    color: #cc2244;
+    color: #ea580c;
     border-color: rgba(204, 34, 68, 0.5);
     background: rgba(204, 34, 68, 0.08);
     box-shadow: 0 0 15px rgba(204, 34, 68, 0.1);
@@ -225,7 +205,7 @@ body.light-mode .admin-tools-nav .nav-divider {
 }
 
 body.light-mode .admin-transition .transition-logo {
-    color: #cc2244;
+    color: #ea580c;
     text-shadow: 0 0 20px rgba(204, 34, 68, 0.3);
 }
 
@@ -234,7 +214,7 @@ body.light-mode .admin-transition .transition-bar {
 }
 
 body.light-mode .admin-transition .transition-progress {
-    background: linear-gradient(90deg, #cc2244, #ff4757);
+    background: linear-gradient(90deg, #ea580c, #fb923c);
 }
 
 body.light-mode .admin-transition .transition-text {

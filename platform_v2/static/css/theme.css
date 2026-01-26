@@ -477,6 +477,22 @@
     --archie-text-glow-accent: var(--archie-text-glow-green);
 }
 
+/* Account Center / Admin Tools - Orange Configuration */
+[data-module="account-center"],
+[data-module="admin-tools"],
+[data-module="settings"] {
+    --archie-accent: var(--archie-orange);
+    --archie-accent-dim: var(--archie-orange-dim);
+    --archie-accent-bright: var(--archie-orange-bright);
+    --archie-accent-alpha-10: var(--archie-orange-alpha-10);
+    --archie-accent-alpha-20: var(--archie-orange-alpha-20);
+    --archie-accent-alpha-30: var(--archie-orange-alpha-30);
+    --archie-glow-accent: var(--archie-glow-orange);
+    --archie-glow-accent-sm: var(--archie-glow-orange-sm);
+    --archie-glow-accent-lg: var(--archie-glow-orange-lg);
+    --archie-text-glow-accent: var(--archie-text-glow-orange);
+}
+
 
 /* ═══════════════════════════════════════════════════════════════════════════
    § 3. CSS RESET - Clean Slate Protocol

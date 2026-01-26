@@ -1462,6 +1462,22 @@
                                 </tr>
                             </tbody>
                         </table>
+                        <div class="pagination-controls" id="totp-pagination">
+                            <div class="page-size-selector">
+                                <span>Show</span>
+                                <select id="totp-page-size" onchange="changeTotpPageSize(this.value)">
+                                    <option value="5">5</option>
+                                    <option value="10" selected>10</option>
+                                    <option value="20">20</option>
+                                </select>
+                                <span>per page</span>
+                            </div>
+                            <div class="page-nav">
+                                <button class="btn btn-sm" onclick="changeTotpPage(-1)" id="totp-prev-btn" disabled>Previous</button>
+                                <span class="page-info" id="totp-pagination-info">Showing 1–10 of 0</span>
+                                <button class="btn btn-sm" onclick="changeTotpPage(1)" id="totp-next-btn" disabled>Next</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1509,6 +1525,22 @@
                                 </tr>
                             </tbody>
                         </table>
+                        <div class="pagination-controls" id="sessions-pagination">
+                            <div class="page-size-selector">
+                                <span>Show</span>
+                                <select id="sessions-page-size" onchange="changeSessionsPageSize(this.value)">
+                                    <option value="5">5</option>
+                                    <option value="10" selected>10</option>
+                                    <option value="20">20</option>
+                                </select>
+                                <span>per page</span>
+                            </div>
+                            <div class="page-nav">
+                                <button class="btn btn-sm" onclick="changeSessionsPage(-1)" id="sessions-prev-btn" disabled>Previous</button>
+                                <span class="page-info" id="sessions-pagination-info">Showing 1–10 of 0</span>
+                                <button class="btn btn-sm" onclick="changeSessionsPage(1)" id="sessions-next-btn" disabled>Next</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1555,6 +1587,22 @@
                                 </tr>
                             </tbody>
                         </table>
+                        <div class="pagination-controls" id="apikeys-pagination">
+                            <div class="page-size-selector">
+                                <span>Show</span>
+                                <select id="apikeys-page-size" onchange="changeApiKeysPageSize(this.value)">
+                                    <option value="5">5</option>
+                                    <option value="10" selected>10</option>
+                                    <option value="20">20</option>
+                                </select>
+                                <span>per page</span>
+                            </div>
+                            <div class="page-nav">
+                                <button class="btn btn-sm" onclick="changeApiKeysPage(-1)" id="apikeys-prev-btn" disabled>Previous</button>
+                                <span class="page-info" id="apikeys-pagination-info">Showing 1–10 of 0</span>
+                                <button class="btn btn-sm" onclick="changeApiKeysPage(1)" id="apikeys-next-btn" disabled>Next</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1703,6 +1751,21 @@
                     <div class="card-header">Activity Summary (Last 24h)</div>
                     <div class="card-body" style="height: 200px;">
                         <canvas id="activity-chart"></canvas>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--archie-space-4);">
+                    <div class="card">
+                        <div class="card-header">Top Actions (24h)</div>
+                        <div class="card-body" id="activity-top-actions">
+                            <div style="color: var(--archie-text-secondary); text-align: center; padding: var(--archie-space-4);">Loading...</div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">Most Active Users (24h)</div>
+                        <div class="card-body" id="activity-top-users">
+                            <div style="color: var(--archie-text-secondary); text-align: center; padding: var(--archie-space-4);">Loading...</div>
+                        </div>
                     </div>
                 </div>
 
@@ -4050,15 +4113,21 @@ async function loadActivity() {
     const module = document.getElementById('filter-activity-module').value;
     const action = document.getElementById('filter-activity-action').value;
 
-    // Load chart (separate try/catch so chart errors don't block list)
+    // Load summary data (chart + top actions/users with independent try/catch)
     try {
         const summaryRes = await fetch('/tools/account-center/api/activity/summary');
         const summaryData = await summaryRes.json();
         if (summaryData.success) {
-            renderActivityChart(summaryData.by_day);
+            try {
+                renderActivityChart(summaryData.by_day);
+            } catch (chartErr) {
+                console.error('Error rendering activity chart:', chartErr);
+            }
+            renderTopActions(summaryData.top_actions || []);
+            renderTopUsers(summaryData.top_users || []);
         }
-    } catch (chartErr) {
-        console.error('Error loading activity chart:', chartErr);
+    } catch (fetchErr) {
+        console.error('Error loading activity summary:', fetchErr);
     }
 
     // Load activity list (independent of chart)
@@ -4136,12 +4205,118 @@ function renderActivityChart(data) {
     });
 }
 
+function renderTopActions(actions) {
+    const container = document.getElementById('activity-top-actions');
+    container.textContent = '';
+    if (actions.length === 0) {
+        const empty = document.createElement('div');
+        empty.style.cssText = 'color: var(--archie-text-secondary); text-align: center; padding: var(--archie-space-4);';
+        empty.textContent = 'No actions recorded';
+        container.appendChild(empty);
+        return;
+    }
+    const maxCount = actions[0].count || 1;
+    actions.forEach(a => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display: flex; align-items: center; gap: var(--archie-space-3); margin-bottom: var(--archie-space-2);';
+        const label = document.createElement('span');
+        label.style.cssText = 'min-width: 140px; color: var(--archie-text-primary); font-size: var(--archie-text-sm);';
+        label.textContent = a.action;
+        const barWrap = document.createElement('div');
+        barWrap.style.cssText = 'flex: 1; height: 20px; background: var(--archie-bg-surface); border-radius: var(--archie-radius-sm); overflow: hidden;';
+        const bar = document.createElement('div');
+        const pct = Math.max((a.count / maxCount) * 100, 4);
+        bar.style.cssText = 'height: 100%; background: var(--archie-accent); border-radius: var(--archie-radius-sm); width: ' + pct + '%;';
+        barWrap.appendChild(bar);
+        const count = document.createElement('span');
+        count.style.cssText = 'min-width: 36px; text-align: right; color: var(--archie-text-secondary); font-size: var(--archie-text-sm);';
+        count.textContent = a.count;
+        row.appendChild(label);
+        row.appendChild(barWrap);
+        row.appendChild(count);
+        container.appendChild(row);
+    });
+}
+
+function renderTopUsers(topUsers) {
+    const container = document.getElementById('activity-top-users');
+    container.textContent = '';
+    if (topUsers.length === 0) {
+        const empty = document.createElement('div');
+        empty.style.cssText = 'color: var(--archie-text-secondary); text-align: center; padding: var(--archie-space-4);';
+        empty.textContent = 'No user activity recorded';
+        container.appendChild(empty);
+        return;
+    }
+    const maxCount = topUsers[0].count || 1;
+    topUsers.forEach(u => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display: flex; align-items: center; gap: var(--archie-space-3); margin-bottom: var(--archie-space-2);';
+        const label = document.createElement('span');
+        label.style.cssText = 'min-width: 140px; color: var(--archie-text-primary); font-size: var(--archie-text-sm); font-weight: 600;';
+        label.textContent = u.username || u.user_name || 'Unknown';
+        const barWrap = document.createElement('div');
+        barWrap.style.cssText = 'flex: 1; height: 20px; background: var(--archie-bg-surface); border-radius: var(--archie-radius-sm); overflow: hidden;';
+        const bar = document.createElement('div');
+        const pct = Math.max((u.count / maxCount) * 100, 4);
+        bar.style.cssText = 'height: 100%; background: var(--archie-green, #22c55e); border-radius: var(--archie-radius-sm); width: ' + pct + '%;';
+        barWrap.appendChild(bar);
+        const count = document.createElement('span');
+        count.style.cssText = 'min-width: 36px; text-align: right; color: var(--archie-text-secondary); font-size: var(--archie-text-sm);';
+        count.textContent = u.count;
+        row.appendChild(label);
+        row.appendChild(barWrap);
+        row.appendChild(count);
+        container.appendChild(row);
+    });
+}
+
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeDetailsModal(); closeApiKeyModal(); closeApiKeyCreatedModal(); } });
 document.querySelectorAll('.modal-overlay').forEach(overlay => { overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('active'); }); });
 
 // ============================================================================
 // SESSIONS MANAGEMENT
 // ============================================================================
+
+// Sessions pagination (client-side)
+let sessionsAllData = [];
+let sessionsPage = 1;
+let sessionsPageSize = 10;
+
+function changeSessionsPageSize(newSize) {
+    sessionsPageSize = parseInt(newSize);
+    sessionsPage = 1;
+    renderSessionsPage();
+}
+
+function changeSessionsPage(delta) {
+    var totalSessPages = Math.ceil(sessionsAllData.length / sessionsPageSize) || 1;
+    var newPage = sessionsPage + delta;
+    if (newPage >= 1 && newPage <= totalSessPages) {
+        sessionsPage = newPage;
+        renderSessionsPage();
+    }
+}
+
+function updateSessionsPagination() {
+    var total = sessionsAllData.length;
+    var totalSessPages = Math.ceil(total / sessionsPageSize) || 1;
+    var start = ((sessionsPage - 1) * sessionsPageSize) + 1;
+    var end = Math.min(sessionsPage * sessionsPageSize, total);
+    var info = document.getElementById('sessions-pagination-info');
+    if (info) info.textContent = 'Showing ' + start + '–' + end + ' of ' + total;
+    var prevBtn = document.getElementById('sessions-prev-btn');
+    var nextBtn = document.getElementById('sessions-next-btn');
+    if (prevBtn) prevBtn.disabled = sessionsPage <= 1;
+    if (nextBtn) nextBtn.disabled = sessionsPage >= totalSessPages;
+}
+
+function renderSessionsPage() {
+    const start = (sessionsPage - 1) * sessionsPageSize;
+    const pageSessions = sessionsAllData.slice(start, start + sessionsPageSize);
+    renderSessionsTable(pageSessions);
+    updateSessionsPagination();
+}
 
 async function loadSessions() {
     const userId = document.getElementById('filter-session-user').value;
@@ -4155,7 +4330,9 @@ async function loadSessions() {
         const res = await fetch(url);
         const data = await res.json();
         if (data.success) {
-            renderSessionsTable(data.sessions);
+            sessionsAllData = data.sessions || [];
+            sessionsPage = 1;
+            renderSessionsPage();
             populateSessionUserFilter(data.users || []);
         }
     } catch (err) {
@@ -4291,6 +4468,46 @@ async function revokeAllSessions() {
 // API KEYS MANAGEMENT
 // ============================================================================
 
+// API Keys pagination (client-side)
+let apiKeysAllData = [];
+let apiKeysPage = 1;
+let apiKeysPageSize = 10;
+
+function changeApiKeysPageSize(newSize) {
+    apiKeysPageSize = parseInt(newSize);
+    apiKeysPage = 1;
+    renderApiKeysPage();
+}
+
+function changeApiKeysPage(delta) {
+    var totalAkPages = Math.ceil(apiKeysAllData.length / apiKeysPageSize) || 1;
+    var newPage = apiKeysPage + delta;
+    if (newPage >= 1 && newPage <= totalAkPages) {
+        apiKeysPage = newPage;
+        renderApiKeysPage();
+    }
+}
+
+function updateApiKeysPagination() {
+    var total = apiKeysAllData.length;
+    var totalAkPages = Math.ceil(total / apiKeysPageSize) || 1;
+    var start = ((apiKeysPage - 1) * apiKeysPageSize) + 1;
+    var end = Math.min(apiKeysPage * apiKeysPageSize, total);
+    var info = document.getElementById('apikeys-pagination-info');
+    if (info) info.textContent = 'Showing ' + start + '–' + end + ' of ' + total;
+    var prevBtn = document.getElementById('apikeys-prev-btn');
+    var nextBtn = document.getElementById('apikeys-next-btn');
+    if (prevBtn) prevBtn.disabled = apiKeysPage <= 1;
+    if (nextBtn) nextBtn.disabled = apiKeysPage >= totalAkPages;
+}
+
+function renderApiKeysPage() {
+    const start = (apiKeysPage - 1) * apiKeysPageSize;
+    const pageKeys = apiKeysAllData.slice(start, start + apiKeysPageSize);
+    renderApiKeysTable(pageKeys);
+    updateApiKeysPagination();
+}
+
 async function loadApiKeys() {
     const userId = document.getElementById('filter-apikey-user').value;
     const status = document.getElementById('filter-apikey-status').value;
@@ -4303,7 +4520,9 @@ async function loadApiKeys() {
         const res = await fetch(url);
         const data = await res.json();
         if (data.success) {
-            renderApiKeysTable(data.keys);
+            apiKeysAllData = data.keys || [];
+            apiKeysPage = 1;
+            renderApiKeysPage();
             populateApiKeyUserFilters(data.users || []);
         }
     } catch (err) {
@@ -4766,91 +4985,133 @@ async function loadFailedLogins() {
     }
 }
 
+// 2FA pagination (client-side)
+let totpAllUsers = [];
+let totpPage = 1;
+let totpPageSize = 10;
+
+function changeTotpPageSize(newSize) {
+    totpPageSize = parseInt(newSize);
+    totpPage = 1;
+    renderTotpPage();
+}
+
+function changeTotpPage(delta) {
+    var totalTotpPages = Math.ceil(totpAllUsers.length / totpPageSize) || 1;
+    var newPage = totpPage + delta;
+    if (newPage >= 1 && newPage <= totalTotpPages) {
+        totpPage = newPage;
+        renderTotpPage();
+    }
+}
+
+function updateTotpPagination() {
+    var total = totpAllUsers.length;
+    var totalTotpPages = Math.ceil(total / totpPageSize) || 1;
+    var start = ((totpPage - 1) * totpPageSize) + 1;
+    var end = Math.min(totpPage * totpPageSize, total);
+    var info = document.getElementById('totp-pagination-info');
+    if (info) info.textContent = 'Showing ' + start + '–' + end + ' of ' + total;
+    var prevBtn = document.getElementById('totp-prev-btn');
+    var nextBtn = document.getElementById('totp-next-btn');
+    if (prevBtn) prevBtn.disabled = totpPage <= 1;
+    if (nextBtn) nextBtn.disabled = totpPage >= totalTotpPages;
+}
+
+function renderTotpPage() {
+    const tbody = document.getElementById('totp-users-table');
+    tbody.textContent = '';
+
+    if (totpAllUsers.length === 0) {
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 5;
+        td.className = 'empty-state';
+        td.textContent = 'No users configured';
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+        updateTotpPagination();
+        return;
+    }
+
+    const start = (totpPage - 1) * totpPageSize;
+    const pageUsers = totpAllUsers.slice(start, start + totpPageSize);
+
+    pageUsers.forEach(u => {
+        const tr = document.createElement('tr');
+
+        const tdUser = document.createElement('td');
+        const strong = document.createElement('strong');
+        strong.textContent = u.username;
+        tdUser.appendChild(strong);
+
+        const tdEmail = document.createElement('td');
+        tdEmail.textContent = u.email || '-';
+
+        const tdStatus = document.createElement('td');
+        const badge = document.createElement('span');
+        badge.className = 'badge ' + (u.totp_enabled ? 'badge-success' : 'badge-danger');
+        badge.textContent = u.totp_enabled ? 'Enabled' : 'Disabled';
+        tdStatus.appendChild(badge);
+
+        const tdSince = document.createElement('td');
+        tdSince.textContent = u.totp_verified_at ? new Date(u.totp_verified_at).toLocaleDateString() : '-';
+
+        const tdActions = document.createElement('td');
+        const actionsDiv = document.createElement('div');
+        actionsDiv.style.display = 'flex';
+        actionsDiv.style.gap = '8px';
+
+        if (u.totp_enabled) {
+            const disableBtn = document.createElement('button');
+            disableBtn.className = 'btn btn-sm btn-danger';
+            disableBtn.textContent = 'Disable';
+            disableBtn.onclick = () => toggle2FA(u.id, false);
+            actionsDiv.appendChild(disableBtn);
+
+            const resetBtn = document.createElement('button');
+            resetBtn.className = 'btn btn-sm btn-warning';
+            resetBtn.textContent = 'Reset';
+            resetBtn.onclick = () => toggle2FA(u.id, 'reset');
+            actionsDiv.appendChild(resetBtn);
+        } else {
+            const enableBtn = document.createElement('button');
+            enableBtn.className = 'btn btn-sm';
+            enableBtn.style.cssText = 'background: rgba(34,197,94,0.15); color: #22c55e; border: 1px solid rgba(34,197,94,0.3);';
+            enableBtn.textContent = 'Enable';
+            enableBtn.onclick = () => toggle2FA(u.id, true);
+            actionsDiv.appendChild(enableBtn);
+        }
+
+        if (u.locked_until && new Date(u.locked_until) > new Date()) {
+            const unlockBtn = document.createElement('button');
+            unlockBtn.className = 'btn btn-sm btn-warning';
+            unlockBtn.textContent = 'Unlock';
+            unlockBtn.onclick = () => unlockUser(u.id);
+            actionsDiv.appendChild(unlockBtn);
+        }
+
+        tdActions.appendChild(actionsDiv);
+
+        tr.appendChild(tdUser);
+        tr.appendChild(tdEmail);
+        tr.appendChild(tdStatus);
+        tr.appendChild(tdSince);
+        tr.appendChild(tdActions);
+        tbody.appendChild(tr);
+    });
+
+    updateTotpPagination();
+}
+
 async function loadTotpUsers() {
     try {
         const res = await fetch('/tools/account-center/api/security/2fa');
         const data = await res.json();
         if (data.success) {
-            const tbody = document.getElementById('totp-users-table');
-            tbody.textContent = '';
-
-            if (data.users.length === 0) {
-                const tr = document.createElement('tr');
-                const td = document.createElement('td');
-                td.colSpan = 5;
-                td.className = 'empty-state';
-                td.textContent = 'No users configured';
-                tr.appendChild(td);
-                tbody.appendChild(tr);
-                return;
-            }
-
-            data.users.forEach(u => {
-                const tr = document.createElement('tr');
-
-                const tdUser = document.createElement('td');
-                const strong = document.createElement('strong');
-                strong.textContent = u.username;
-                tdUser.appendChild(strong);
-
-                const tdEmail = document.createElement('td');
-                tdEmail.textContent = u.email || '-';
-
-                const tdStatus = document.createElement('td');
-                const badge = document.createElement('span');
-                badge.className = 'badge ' + (u.totp_enabled ? 'badge-success' : 'badge-danger');
-                badge.textContent = u.totp_enabled ? 'Enabled' : 'Disabled';
-                tdStatus.appendChild(badge);
-
-                const tdSince = document.createElement('td');
-                tdSince.textContent = u.totp_verified_at ? new Date(u.totp_verified_at).toLocaleDateString() : '-';
-
-                const tdActions = document.createElement('td');
-                const actionsDiv = document.createElement('div');
-                actionsDiv.style.display = 'flex';
-                actionsDiv.style.gap = '8px';
-
-                if (u.totp_enabled) {
-                    // Disable button - removes 2FA
-                    const disableBtn = document.createElement('button');
-                    disableBtn.className = 'btn btn-sm btn-danger';
-                    disableBtn.textContent = 'Disable';
-                    disableBtn.onclick = () => toggle2FA(u.id, false);
-                    actionsDiv.appendChild(disableBtn);
-
-                    // Reset button - regenerate secret
-                    const resetBtn = document.createElement('button');
-                    resetBtn.className = 'btn btn-sm btn-warning';
-                    resetBtn.textContent = 'Reset';
-                    resetBtn.onclick = () => toggle2FA(u.id, 'reset');
-                    actionsDiv.appendChild(resetBtn);
-                } else {
-                    // Enable button - generate TOTP secret
-                    const enableBtn = document.createElement('button');
-                    enableBtn.className = 'btn btn-sm';
-                    enableBtn.style.cssText = 'background: rgba(34,197,94,0.15); color: #22c55e; border: 1px solid rgba(34,197,94,0.3);';
-                    enableBtn.textContent = 'Enable';
-                    enableBtn.onclick = () => toggle2FA(u.id, true);
-                    actionsDiv.appendChild(enableBtn);
-                }
-
-                if (u.locked_until && new Date(u.locked_until) > new Date()) {
-                    const unlockBtn = document.createElement('button');
-                    unlockBtn.className = 'btn btn-sm btn-warning';
-                    unlockBtn.textContent = 'Unlock';
-                    unlockBtn.onclick = () => unlockUser(u.id);
-                    actionsDiv.appendChild(unlockBtn);
-                }
-
-                tdActions.appendChild(actionsDiv);
-
-                tr.appendChild(tdUser);
-                tr.appendChild(tdEmail);
-                tr.appendChild(tdStatus);
-                tr.appendChild(tdSince);
-                tr.appendChild(tdActions);
-                tbody.appendChild(tr);
-            });
+            totpAllUsers = data.users || [];
+            totpPage = 1;
+            renderTotpPage();
         }
     } catch (err) {
         console.error('Error loading 2FA users:', err);

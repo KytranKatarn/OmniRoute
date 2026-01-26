@@ -15,6 +15,8 @@ Flask-Login==0.6.3
 bcrypt==4.1.2
 Authlib==1.3.0
 httpx==0.27.0
+pyotp>=2.9.0
+qrcode[pil]>=7.4
 
 # Forms & Validation
 WTForms==3.1.1

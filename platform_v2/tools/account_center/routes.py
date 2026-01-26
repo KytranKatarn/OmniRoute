@@ -476,7 +476,7 @@ def api_reset_password(user_id):
 @admin_required
 def api_list_roles():
     """List available roles with permission counts and tier mappings"""
-    from rbac import ROLE_PERMISSIONS, Role  # noqa: F401
+    from rbac import ROLE_PERMISSIONS, Role
 
     # Tier-to-role mapping (role_level from subscription_tiers table)
     tier_role_map = {
@@ -540,7 +540,7 @@ def api_list_roles():
 def api_list_permissions():
     """List permissions grouped by category with human-readable labels"""
     try:
-        from rbac import Permission, ROLE_PERMISSIONS, Role  # noqa: F401
+        from rbac import Permission, ROLE_PERMISSIONS
 
         # Human-readable labels and category groupings
         PERM_META = {
@@ -694,7 +694,7 @@ def api_update_user_role(user_id):
 def api_list_tiers():
     """List subscription tiers with role mapping, permissions, and module access"""
     try:
-        from rbac import Role, ROLE_PERMISSIONS, Permission  # noqa: F401
+        from rbac import Role, ROLE_PERMISSIONS
         from module_registry import get_enabled_modules
 
         conn = get_db()

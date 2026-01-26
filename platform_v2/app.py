@@ -2,7 +2,8 @@
 A.R.C.H.I.E. Platform - Main Application
 With User Signup and Admin Approval System
 """
-from flask import Flask, render_template, redirect, url_for, flash, request, jsonify
+
+from flask import Flask, render_template, redirect, url_for, flash, request, jsonify, session
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import check_password_hash, generate_password_hash
 import psycopg2
@@ -11,7 +12,9 @@ from datetime import datetime, timedelta
 import os
 import time
 import json
+import secrets
 from config import Config
+
 
 # Custom JSON encoder for datetime objects
 class DateTimeEncoder(json.JSONEncoder):
@@ -19,6 +22,7 @@ class DateTimeEncoder(json.JSONEncoder):
         if isinstance(obj, datetime):
             return obj.isoformat()
         return super().default(obj)
+
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -32,21 +36,21 @@ start_time = time.time()
 # CENTRALIZED LOGGING SETUP
 # ============================================================================
 
-from logging_config import init_flask_logging, audit_log, log_performance
+from logging_config import init_flask_logging, audit_log, log_performance  # noqa: E402
 
 # Initialize JSON logging with request tracking
 logger = init_flask_logging(app)
 logger.info("A.R.C.H.I.E. Platform starting up...")
 
 # Make logging utilities available to app
-app.config['AUDIT_LOG'] = audit_log
-app.config['LOG_PERFORMANCE'] = log_performance
+app.config["AUDIT_LOG"] = audit_log
+app.config["LOG_PERFORMANCE"] = log_performance
 
 # ============================================================================
 # RATE LIMITING SETUP
 # ============================================================================
 
-from rate_limiting import init_rate_limiting
+from rate_limiting import init_rate_limiting  # noqa: E402
 
 # Initialize rate limiting with role-based limits
 init_rate_limiting(app)
@@ -55,11 +59,12 @@ logger.info("Rate limiting initialized")
 # Initialize Flask-Login
 login_manager = LoginManager()
 login_manager.init_app(app)
-login_manager.login_view = 'login'
+login_manager.login_view = "login"
 
 # ============================================================================
 # DATABASE CONNECTION
 # ============================================================================
+
 
 def get_db():
     """
@@ -67,48 +72,85 @@ def get_db():
     Checks session for sandbox_mode and sets search_path accordingly
     """
     conn = psycopg2.connect(
-        host=app.config['DB_HOST'],
-        port=app.config['DB_PORT'],
-        database=app.config['DB_NAME'],
-        user=app.config['DB_USER'],
-        password=app.config['DB_PASSWORD']
+        host=app.config["DB_HOST"],
+        port=app.config["DB_PORT"],
+        database=app.config["DB_NAME"],
+        user=app.config["DB_USER"],
+        password=app.config["DB_PASSWORD"],
     )
 
     # Check if in sandbox mode and set schema accordingly
     try:
         from flask import session, has_request_context
+
         if has_request_context():
-            schema = session.get('db_schema', 'public')
+            schema = session.get("db_schema", "public")
             cur = conn.cursor()
-            if schema == 'sandbox':
+            if schema == "sandbox":
                 # Sandbox mode: search sandbox first, then public for system tables
                 cur.execute("SET search_path TO sandbox, public")
             else:
                 # Production mode: only public schema
                 cur.execute("SET search_path TO public")
             cur.close()
-    except:
+    except Exception:
         # If no request context or error, default to public
         pass
 
     return conn
 
+
+def create_user_session(user_id):
+    """Insert a row into active_sessions for the logged-in user and store the token in the Flask session."""
+    try:
+        token = secrets.token_hex(32)
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            """INSERT INTO active_sessions
+               (user_id, session_token, ip_address, user_agent,
+                created_at, last_activity, expires_at)
+               VALUES (%s, %s, %s, %s, NOW(), NOW(),
+                NOW() + INTERVAL '24 hours')""",
+            (user_id, token, request.remote_addr, request.headers.get("User-Agent", "")),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+        session["_session_token"] = token
+    except Exception as e:
+        print(f"[A.R.C.H.I.E.] Session tracking insert error: {e}")
+
+
 # ============================================================================
 # USER CLASS
 # ============================================================================
 
+
 class User(UserMixin):
     """User class for Flask-Login with RBAC support"""
-    def __init__(self, id, username, email, role, is_admin=False, is_super_admin=False, subscription_tier=None, subscription_expires_at=None):
+
+    def __init__(
+        self,
+        id,
+        username,
+        email,
+        role,
+        is_admin=False,
+        is_super_admin=False,
+        subscription_tier=None,
+        subscription_expires_at=None,
+    ):
         self.id = id
         self.username = username
         self.email = email
         self.role = role
         self.is_admin = is_admin
         self.is_super_admin = is_super_admin
-        self.subscription_tier = subscription_tier or 'free'
+        self.subscription_tier = subscription_tier or "free"
         self.subscription_expires_at = subscription_expires_at
         # Note: is_authenticated, is_active, is_anonymous are provided by UserMixin
+
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -123,47 +165,50 @@ def load_user(user_id):
 
         if user_data:
             return User(
-                id=user_data['id'],
-                username=user_data['username'],
-                email=user_data['email'],
-                role=user_data['role'],
-                is_admin=user_data.get('is_admin', False),
-                is_super_admin=user_data.get('is_super_admin', False),
-                subscription_tier=user_data.get('subscription_tier', 'free'),
-                subscription_expires_at=user_data.get('subscription_expires_at')
+                id=user_data["id"],
+                username=user_data["username"],
+                email=user_data["email"],
+                role=user_data["role"],
+                is_admin=user_data.get("is_admin", False),
+                is_super_admin=user_data.get("is_super_admin", False),
+                subscription_tier=user_data.get("subscription_tier", "free"),
+                subscription_expires_at=user_data.get("subscription_expires_at"),
             )
     except Exception as e:
         print(f"Error loading user: {e}")
     return None
 
+
 # ============================================================================
 # AI BRIDGE INTEGRATION
 # ============================================================================
 
-import sys
-sys.path.insert(0, '/mnt/archie_brain')
+import sys  # noqa: E402
+
+sys.path.insert(0, "/mnt/archie_brain")
 
 try:
-    from ai_bridge.archie_bridge import archie_bridge, get_available_models
+    from ai_bridge.archie_bridge import archie_bridge, get_available_models, classify_task
+
     AI_BRIDGE_AVAILABLE = True
     print("✅ A.R.C.H.I.E. Bridge loaded successfully")
-    
+
     # Make available to blueprints
-    app.config['AI_BRIDGE'] = archie_bridge
-    app.config['AI_BRIDGE_AVAILABLE'] = True
-    
+    app.config["AI_BRIDGE"] = archie_bridge
+    app.config["AI_BRIDGE_AVAILABLE"] = True
+
 except ImportError as e:
     print(f"⚠️ A.R.C.H.I.E. Bridge not available: {e}")
     AI_BRIDGE_AVAILABLE = False
-    app.config['AI_BRIDGE_AVAILABLE'] = False
-    
-    
-    
+    app.config["AI_BRIDGE_AVAILABLE"] = False
+
+
 # ============================================================================
 # AI BRIDGE ROUTES
 # ============================================================================
 
-@app.route('/api/ai/chat', methods=['POST'])
+
+@app.route("/api/ai/chat", methods=["POST"])
 @login_required
 def ai_chat():
     """
@@ -171,129 +216,91 @@ def ai_chat():
     Routes to best model automatically
     """
     if not AI_BRIDGE_AVAILABLE:
-        return jsonify({
-            'success': False,
-            'error': 'A.R.C.H.I.E. Bridge not available'
-        }), 503
-    
+        return jsonify({"success": False, "error": "A.R.C.H.I.E. Bridge not available"}), 503
+
     try:
         data = request.json
-        prompt = data.get('prompt', '')
-        context = data.get('context', {})
-        force_model = data.get('model')  # Optional: force specific model
-        
-        if not prompt:
-            return jsonify({
-                'success': False,
-                'error': 'Prompt is required'
-            }), 400
-        
-        # Use A.R.C.H.I.E. Bridge
-        result = archie_bridge(
-            prompt=prompt,
-            context=context,
-            user_id=current_user.id,
-            force_model=force_model
-        )
-        
-        return jsonify(result)
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        prompt = data.get("prompt", "")
+        context = data.get("context", {})
+        force_model = data.get("model")  # Optional: force specific model
 
-@app.route('/api/ai/models', methods=['GET'])
+        if not prompt:
+            return jsonify({"success": False, "error": "Prompt is required"}), 400
+
+        # Use A.R.C.H.I.E. Bridge
+        result = archie_bridge(prompt=prompt, context=context, user_id=current_user.id, force_model=force_model)
+
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/ai/models", methods=["GET"])
 @login_required
 def get_ai_models():
     """Get available AI models"""
     if not AI_BRIDGE_AVAILABLE:
-        return jsonify({
-            'success': False,
-            'error': 'A.R.C.H.I.E. Bridge not available'
-        }), 503
-    
+        return jsonify({"success": False, "error": "A.R.C.H.I.E. Bridge not available"}), 503
+
     try:
         models = get_available_models()
-        return jsonify({
-            'success': True,
-            'models': models
-        })
+        return jsonify({"success": True, "models": models})
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
-@app.route('/api/ai/classify', methods=['POST'])
+
+@app.route("/api/ai/classify", methods=["POST"])
 @login_required
 def classify_ai_task():
     """Classify what type of task this is"""
     if not AI_BRIDGE_AVAILABLE:
-        return jsonify({
-            'success': False,
-            'error': 'A.R.C.H.I.E. Bridge not available'
-        }), 503
-    
+        return jsonify({"success": False, "error": "A.R.C.H.I.E. Bridge not available"}), 503
+
     try:
         data = request.json
-        prompt = data.get('prompt', '')
-        context = data.get('context')
-        
-        task_type = classify_task(prompt, context)
-        
-        return jsonify({
-            'success': True,
-            'task_type': task_type
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        prompt = data.get("prompt", "")
+        context = data.get("context")
 
-@app.route('/api/ai/preferences', methods=['GET', 'POST'])
+        task_type = classify_task(prompt, context)
+
+        return jsonify({"success": True, "task_type": task_type})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/ai/preferences", methods=["GET", "POST"])
 @login_required
 def ai_preferences():
     """Get or update user's AI preferences"""
     if not AI_BRIDGE_AVAILABLE:
-        return jsonify({
-            'success': False,
-            'error': 'A.R.C.H.I.E. Bridge not available'
-        }), 503
-    
-    if request.method == 'GET':
+        return jsonify({"success": False, "error": "A.R.C.H.I.E. Bridge not available"}), 503
+
+    if request.method == "GET":
         try:
-            prefs = get_user_api_preferences(current_user.id)
-            return jsonify({
-                'success': True,
-                'preferences': prefs
-            })
+            return jsonify({"success": True, "preferences": {}})
         except Exception as e:
-            return jsonify({
-                'success': False,
-                'error': str(e)
-            }), 500
-    
-    elif request.method == 'POST':
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    elif request.method == "POST":
         try:
             data = request.json
-            
+
             conn = psycopg2.connect(
-                host=os.getenv('DB_HOST', 'archie_database'),
-                port=os.getenv('DB_PORT', '5432'),
-                database=os.getenv('DB_NAME', 'archie'),
-                user=os.getenv('DB_USER', 'archie'),
-                password=os.getenv('DB_PASSWORD', '')
+                host=os.getenv("DB_HOST", "archie_database"),
+                port=os.getenv("DB_PORT", "5432"),
+                database=os.getenv("DB_NAME", "archie"),
+                user=os.getenv("DB_USER", "archie"),
+                password=os.getenv("DB_PASSWORD", ""),
             )
             cur = conn.cursor()
-            
+
             # Update user preferences
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO user_api_config (
-                    user_id, preferred_provider, anthropic_api_key, 
-                    openai_api_key, use_ollama, preferred_code_model, 
+                    user_id, preferred_provider, anthropic_api_key,
+                    openai_api_key, use_ollama, preferred_code_model,
                     preferred_chat_model
                 )
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
@@ -305,270 +312,450 @@ def ai_preferences():
                     preferred_code_model = EXCLUDED.preferred_code_model,
                     preferred_chat_model = EXCLUDED.preferred_chat_model,
                     updated_at = NOW()
-            """, (
-                current_user.id,
-                data.get('preferred_provider', 'ollama'),
-                data.get('anthropic_api_key'),
-                data.get('openai_api_key'),
-                data.get('use_ollama', True),
-                data.get('preferred_code_model'),
-                data.get('preferred_chat_model')
-            ))
-            
+            """,
+                (
+                    current_user.id,
+                    data.get("preferred_provider", "ollama"),
+                    data.get("anthropic_api_key"),
+                    data.get("openai_api_key"),
+                    data.get("use_ollama", True),
+                    data.get("preferred_code_model"),
+                    data.get("preferred_chat_model"),
+                ),
+            )
+
             conn.commit()
             cur.close()
             conn.close()
-            
-            return jsonify({
-                'success': True,
-                'message': 'Preferences updated'
-            })
-            
+
+            return jsonify({"success": True, "message": "Preferences updated"})
+
         except Exception as e:
-            return jsonify({
-                'success': False,
-                'error': str(e)
-            }), 500
+            return jsonify({"success": False, "error": str(e)}), 500
+
 
 # ============================================================================
 # CODE EDITOR WITH AI - Route
 # ============================================================================
 
-@app.route('/tools/code-editor')
+
+@app.route("/tools/code-editor")
 @login_required
 def code_editor():
     """Enhanced code editor with AI assistance"""
-    return render_template('tools/code_editor.html',
-        ai_available=AI_BRIDGE_AVAILABLE,
-        user=current_user
-    )
+    return render_template("tools/code_editor.html", ai_available=AI_BRIDGE_AVAILABLE, user=current_user)
+
 
 # ============================================================================
 # USAGE EXAMPLE IN OTHER ROUTES
 # ============================================================================
 
+
 # Example: Using AI Bridge in chat route
-@app.route('/tools/chat/send', methods=['POST'])
+@app.route("/tools/chat/send", methods=["POST"])
 @login_required
 def chat_send():
     """Send message to A.R.C.H.I.E."""
     try:
         data = request.json
-        message = data.get('message', '')
-        
+        message = data.get("message", "")
+
         if not message:
-            return jsonify({'success': False, 'error': 'Message required'}), 400
-        
+            return jsonify({"success": False, "error": "Message required"}), 400
+
         if AI_BRIDGE_AVAILABLE:
             # Use A.R.C.H.I.E. Bridge for intelligent routing
-            result = archie_bridge(
-                prompt=message,
-                user_id=current_user.id
-            )
-            
-            if result['success']:
+            result = archie_bridge(prompt=message, user_id=current_user.id)
+
+            if result["success"]:
                 # Store conversation
                 conn = get_db()
                 cur = conn.cursor()
-                cur.execute("""
+                cur.execute(
+                    """
                     INSERT INTO ai_conversations (user_id, message, response, model_used)
                     VALUES (%s, %s, %s, %s)
-                """, (current_user.id, message, result['response'], result['model']))
+                """,
+                    (current_user.id, message, result["response"], result["model"]),
+                )
                 conn.commit()
                 cur.close()
                 conn.close()
-                
-                return jsonify({
-                    'success': True,
-                    'response': result['response'],
-                    'model': result['model'],
-                    'task_type': result.get('task_type')
-                })
+
+                return jsonify(
+                    {
+                        "success": True,
+                        "response": result["response"],
+                        "model": result["model"],
+                        "task_type": result.get("task_type"),
+                    }
+                )
             else:
                 return jsonify(result), 500
         else:
-            return jsonify({
-                'success': False,
-                'error': 'AI Bridge not available'
-            }), 503
-            
+            return jsonify({"success": False, "error": "AI Bridge not available"}), 503
+
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # AUTHENTICATION ROUTES
 # ============================================================================
 
-@app.route('/')
+
+@app.route("/")
 def index():
     """Landing page - redirect to dashboard if logged in"""
     if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
-    return redirect(url_for('login'))
+        return redirect(url_for("dashboard"))
+    return redirect(url_for("login"))
 
-@app.route('/login', methods=['GET', 'POST'])
+
+@app.route("/login", methods=["GET", "POST"])
 def login():
     """Login page"""
     if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
-    
-    if request.method == 'POST':
-        username = request.form.get('username', '').strip()
-        password = request.form.get('password', '')
-        
+        return redirect(url_for("dashboard"))
+
+    # Clear stale pending 2FA session vars on fresh login page load
+    if request.method == "GET":
+        session.pop("pending_2fa_user_id", None)
+        session.pop("pending_2fa_username", None)
+
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+
         if not username or not password:
-            flash('Please enter both username and password', 'error')
-            return render_template('login.html')
-        
+            flash("Please enter both username and password", "error")
+            return render_template("login.html")
+
         try:
             conn = get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute("SELECT * FROM users WHERE username = %s", (username,))
             user_data = cur.fetchone()
-            
+
             if not user_data:
-                flash('Invalid username or password', 'error')
+                # Record failed login for unknown username
+                try:
+                    cur.execute(
+                        "INSERT INTO failed_logins (username, ip_address, user_agent, reason) VALUES (%s, %s, %s, %s)",
+                        (username, request.remote_addr, request.headers.get("User-Agent"), "unknown_username"),
+                    )
+                    conn.commit()
+                except Exception:
+                    pass
+                flash("Invalid username or password", "error")
                 cur.close()
                 conn.close()
-                return render_template('login.html')
-            
+                return render_template("login.html")
+
             # Check if account is inactive (pending approval)
-            if not user_data.get('is_active', False):
-                flash('Your account is pending admin approval. Please wait for activation.', 'error')
+            if not user_data.get("is_active", False):
+                flash("Your account is pending admin approval. Please wait for activation.", "error")
                 cur.close()
                 conn.close()
-                return render_template('login.html')
-            
-            if check_password_hash(user_data['password_hash'], password):
+                return render_template("login.html")
+
+            if check_password_hash(user_data["password_hash"], password):
                 # Update last login
                 cur.execute(
                     "UPDATE users SET last_login = %s, last_login_ip = %s WHERE id = %s",
-                    (datetime.now(), request.remote_addr, user_data['id'])
+                    (datetime.now(), request.remote_addr, user_data["id"]),
                 )
                 conn.commit()
-                
-                # Log in user
+
+                # Check if 2FA is enabled for this user
+                if user_data.get("totp_enabled", False):
+                    session["pending_2fa_user_id"] = user_data["id"]
+                    session["pending_2fa_username"] = user_data["username"]
+                    cur.close()
+                    conn.close()
+                    return redirect(url_for("verify_2fa"))
+
+                # Log in user (no 2FA required)
                 user = User(
-                    id=user_data['id'],
-                    username=user_data['username'],
-                    email=user_data['email'],
-                    role=user_data['role'],
-                    is_admin=user_data.get('is_admin', False),
-                    is_super_admin=user_data.get('is_super_admin', False),
-                    subscription_tier=user_data.get('subscription_tier', 'free'),
-                    subscription_expires_at=user_data.get('subscription_expires_at')
+                    id=user_data["id"],
+                    username=user_data["username"],
+                    email=user_data["email"],
+                    role=user_data["role"],
+                    is_admin=user_data.get("is_admin", False),
+                    is_super_admin=user_data.get("is_super_admin", False),
+                    subscription_tier=user_data.get("subscription_tier", "free"),
+                    subscription_expires_at=user_data.get("subscription_expires_at"),
                 )
                 login_user(user, remember=True)
-                
-                # Log audit
+                create_user_session(user_data["id"])
+
+                # Log audit + activity
                 try:
                     cur.execute(
                         "INSERT INTO audit_log (user_id, action, ip_address, user_agent) VALUES (%s, %s, %s, %s)",
-                        (user_data['id'], 'login', request.remote_addr, request.headers.get('User-Agent'))
+                        (user_data["id"], "login", request.remote_addr, request.headers.get("User-Agent")),
                     )
+                    cur.execute(
+                        "INSERT INTO user_activity_log"
+                        " (user_id, username, action, module, ip_address, user_agent)"
+                        " VALUES (%s, %s, %s, %s, %s, %s)",
+                        (
+                            user_data["id"],
+                            user_data["username"],
+                            "login_success",
+                            "auth",
+                            request.remote_addr,
+                            request.headers.get("User-Agent"),
+                        ),
+                    )
+                    # Reset failed login count on successful login
+                    cur.execute("UPDATE users SET failed_login_count = 0 WHERE id = %s", (user_data["id"],))
                     conn.commit()
-                except:
+                except Exception:
                     pass
-                
-                flash('Login successful!', 'success')
+
+                flash("Login successful!", "success")
                 cur.close()
                 conn.close()
-                return redirect(url_for('dashboard'))
+                return redirect(url_for("dashboard"))
             else:
-                flash('Invalid username or password', 'error')
-            
+                # Record failed login for wrong password
+                try:
+                    cur.execute(
+                        "INSERT INTO failed_logins (username, ip_address, user_agent, reason) VALUES (%s, %s, %s, %s)",
+                        (username, request.remote_addr, request.headers.get("User-Agent"), "invalid_password"),
+                    )
+                    cur.execute(
+                        "UPDATE users SET failed_login_count = COALESCE(failed_login_count, 0) + 1 WHERE id = %s",
+                        (user_data["id"],),
+                    )
+                    cur.execute(
+                        "INSERT INTO user_activity_log"
+                        " (user_id, username, action, module, ip_address, user_agent)"
+                        " VALUES (%s, %s, %s, %s, %s, %s)",
+                        (
+                            user_data["id"],
+                            user_data["username"],
+                            "login_failed",
+                            "auth",
+                            request.remote_addr,
+                            request.headers.get("User-Agent"),
+                        ),
+                    )
+                    conn.commit()
+                except Exception:
+                    pass
+                flash("Invalid username or password", "error")
+
             cur.close()
             conn.close()
         except Exception as e:
             print(f"Login error: {e}")
-            flash('An error occurred. Please try again.', 'error')
-    
-    return render_template('login.html')
+            flash("An error occurred. Please try again.", "error")
 
-@app.route('/signup', methods=['GET', 'POST'])
+    return render_template("login.html")
+
+
+@app.route("/verify-2fa", methods=["GET", "POST"])
+def verify_2fa():
+    """Two-factor authentication verification page"""
+    # Must have a pending 2FA user in session
+    pending_user_id = session.get("pending_2fa_user_id")
+    pending_username = session.get("pending_2fa_username")
+    if not pending_user_id:
+        return redirect(url_for("login"))
+
+    if request.method == "POST":
+        code = request.form.get("code", "").strip()
+
+        if not code or len(code) != 6 or not code.isdigit():
+            flash("Please enter a valid 6-digit code", "error")
+            return render_template("verify_2fa.html", username=pending_username)
+
+        try:
+            import pyotp
+
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute("SELECT * FROM users WHERE id = %s AND is_active = TRUE", (pending_user_id,))
+            user_data = cur.fetchone()
+
+            if not user_data:
+                session.pop("pending_2fa_user_id", None)
+                session.pop("pending_2fa_username", None)
+                cur.close()
+                conn.close()
+                flash("User account not found or inactive", "error")
+                return redirect(url_for("login"))
+
+            totp = pyotp.TOTP(user_data["totp_secret"])
+            if totp.verify(code, valid_window=1):
+                # 2FA verified - complete login
+                user = User(
+                    id=user_data["id"],
+                    username=user_data["username"],
+                    email=user_data["email"],
+                    role=user_data["role"],
+                    is_admin=user_data.get("is_admin", False),
+                    is_super_admin=user_data.get("is_super_admin", False),
+                    subscription_tier=user_data.get("subscription_tier", "free"),
+                    subscription_expires_at=user_data.get("subscription_expires_at"),
+                )
+                login_user(user, remember=True)
+                create_user_session(user_data["id"])
+
+                # Clear pending 2FA session
+                session.pop("pending_2fa_user_id", None)
+                session.pop("pending_2fa_username", None)
+
+                # Log audit + activity
+                try:
+                    cur.execute(
+                        "INSERT INTO audit_log (user_id, action, ip_address, user_agent)" " VALUES (%s, %s, %s, %s)",
+                        (user_data["id"], "login_2fa_verified", request.remote_addr, request.headers.get("User-Agent")),
+                    )
+                    cur.execute(
+                        "INSERT INTO user_activity_log"
+                        " (user_id, username, action, module, ip_address, user_agent)"
+                        " VALUES (%s, %s, %s, %s, %s, %s)",
+                        (
+                            user_data["id"],
+                            user_data["username"],
+                            "login_success",
+                            "auth",
+                            request.remote_addr,
+                            request.headers.get("User-Agent"),
+                        ),
+                    )
+                    cur.execute("UPDATE users SET failed_login_count = 0 WHERE id = %s", (user_data["id"],))
+                    conn.commit()
+                except Exception:
+                    pass
+
+                flash("Login successful!", "success")
+                cur.close()
+                conn.close()
+                return redirect(url_for("dashboard"))
+            else:
+                # Log failed 2FA attempt
+                try:
+                    cur.execute(
+                        "INSERT INTO user_activity_log"
+                        " (user_id, username, action, module, ip_address, user_agent)"
+                        " VALUES (%s, %s, %s, %s, %s, %s)",
+                        (
+                            user_data["id"],
+                            user_data["username"],
+                            "login_2fa_failed",
+                            "auth",
+                            request.remote_addr,
+                            request.headers.get("User-Agent"),
+                        ),
+                    )
+                    conn.commit()
+                except Exception:
+                    pass
+                flash("Invalid verification code. Please try again.", "error")
+                cur.close()
+                conn.close()
+                return render_template("verify_2fa.html", username=pending_username)
+
+        except Exception as e:
+            print(f"2FA verification error: {e}")
+            flash("An error occurred during verification. Please try again.", "error")
+            return render_template("verify_2fa.html", username=pending_username)
+
+    return render_template("verify_2fa.html", username=pending_username)
+
+
+@app.route("/signup", methods=["GET", "POST"])
 def signup():
     """User signup page with admin approval"""
     if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
-    
-    if request.method == 'POST':
-        username = request.form.get('username', '').strip()
-        email = request.form.get('email', '').strip()
-        password = request.form.get('password', '')
-        confirm_password = request.form.get('confirm_password', '')
-        
+        return redirect(url_for("dashboard"))
+
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        email = request.form.get("email", "").strip()
+        password = request.form.get("password", "")
+        confirm_password = request.form.get("confirm_password", "")
+
         # Validation
         if not username or not email or not password:
-            flash('All fields are required', 'error')
-            return render_template('signup.html')
-        
+            flash("All fields are required", "error")
+            return render_template("signup.html")
+
         if password != confirm_password:
-            flash('Passwords do not match', 'error')
-            return render_template('signup.html')
-        
+            flash("Passwords do not match", "error")
+            return render_template("signup.html")
+
         if len(password) < 8:
-            flash('Password must be at least 8 characters', 'error')
-            return render_template('signup.html')
-        
+            flash("Password must be at least 8 characters", "error")
+            return render_template("signup.html")
+
         # Validate username (alphanumeric only)
-        if not username.replace('_', '').isalnum():
-            flash('Username must be alphanumeric (underscores allowed)', 'error')
-            return render_template('signup.html')
-        
+        if not username.replace("_", "").isalnum():
+            flash("Username must be alphanumeric (underscores allowed)", "error")
+            return render_template("signup.html")
+
         try:
             conn = get_db()
             cur = conn.cursor()
-            
+
             # Check if username exists
             cur.execute("SELECT id FROM users WHERE username = %s", (username,))
             if cur.fetchone():
-                flash('Username already exists', 'error')
+                flash("Username already exists", "error")
                 cur.close()
                 conn.close()
-                return render_template('signup.html')
-            
+                return render_template("signup.html")
+
             # Check if email exists
             cur.execute("SELECT id FROM users WHERE email = %s", (email,))
             if cur.fetchone():
-                flash('Email already registered', 'error')
+                flash("Email already registered", "error")
                 cur.close()
                 conn.close()
-                return render_template('signup.html')
-            
+                return render_template("signup.html")
+
             # Create inactive user (pending admin approval)
             password_hash = generate_password_hash(password)
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO users (username, email, password_hash, role, is_active, is_admin)
                 VALUES (%s, %s, %s, 'user', FALSE, FALSE)
-            """, (username, email, password_hash))
+            """,
+                (username, email, password_hash),
+            )
             conn.commit()
-            
+
             # Log audit
             try:
                 cur.execute(
                     "INSERT INTO audit_log (action, details, ip_address) VALUES (%s, %s, %s)",
-                    ('user_signup', f'New signup: {username}', request.remote_addr)
+                    ("user_signup", f"New signup: {username}", request.remote_addr),
                 )
                 conn.commit()
-            except:
+            except Exception:
                 pass
-            
+
             cur.close()
             conn.close()
-            
-            flash('Registration successful! Your account is pending admin approval.', 'success')
-            return redirect(url_for('login'))
-            
+
+            flash("Registration successful! Your account is pending admin approval.", "success")
+            return redirect(url_for("login"))
+
         except Exception as e:
             print(f"Signup error: {e}")
             import traceback
-            traceback.print_exc()
-            flash('An error occurred. Please try again.', 'error')
-    
-    return render_template('signup.html')
 
-@app.route('/logout')
+            traceback.print_exc()
+            flash("An error occurred. Please try again.", "error")
+
+    return render_template("signup.html")
+
+
+@app.route("/logout")
 @login_required
 def logout():
     """Logout"""
@@ -577,33 +764,41 @@ def logout():
         cur = conn.cursor()
         cur.execute(
             "INSERT INTO audit_log (user_id, action, ip_address) VALUES (%s, %s, %s)",
-            (current_user.id, 'logout', request.remote_addr)
+            (current_user.id, "logout", request.remote_addr),
         )
+        # Remove this user's active session record
+        token = session.get("_session_token")
+        if token:
+            cur.execute("DELETE FROM active_sessions WHERE session_token = %s", (token,))
         conn.commit()
         cur.close()
         conn.close()
     except Exception as e:
         print(f"Logout logging error: {e}")
-    
+
     logout_user()
-    flash('Logged out successfully', 'info')
-    return redirect(url_for('login'))
+    flash("Logged out successfully", "info")
+    return redirect(url_for("login"))
+
 
 # ============================================================================
 # DASHBOARD
 # ============================================================================
 
-@app.route('/directory')
+
+@app.route("/directory")
 def directory():
     """Redirect old directory URL to new Business Directory"""
-    return redirect('/business/directory')
+    return redirect("/business/directory")
 
-@app.route('/api/directory')
+
+@app.route("/api/directory")
 def api_directory():
     """Redirect old API endpoint to new Business Directory API"""
-    return redirect('/business/api/directory')
+    return redirect("/business/api/directory")
 
-@app.route('/dashboard')
+
+@app.route("/dashboard")
 @login_required
 def dashboard():
     """Main dashboard - dynamic based on user permissions"""
@@ -624,15 +819,16 @@ def dashboard():
 
         # Get user's project count
         cur.execute("SELECT COUNT(*) as count FROM projects WHERE user_id = %s", (current_user.id,))
-        project_count = cur.fetchone()['count']
+        project_count = cur.fetchone()["count"]
 
         # Get relationship strength
         cur.execute(
-            "SELECT relationship_strength FROM archie_emotional_state WHERE user_id = %s ORDER BY timestamp DESC LIMIT 1",
-            (current_user.id,)
+            "SELECT relationship_strength FROM archie_emotional_state"
+            " WHERE user_id = %s ORDER BY timestamp DESC LIMIT 1",
+            (current_user.id,),
         )
         relationship = cur.fetchone()
-        relationship_strength = relationship['relationship_strength'] if relationship else 0.5
+        relationship_strength = relationship["relationship_strength"] if relationship else 0.5
 
         # Calculate uptime
         uptime_seconds = int(time.time() - start_time)
@@ -644,17 +840,19 @@ def dashboard():
         # Get dynamic dashboard data based on user permissions
         dashboard_data = get_user_dashboard_data(current_user)
 
-        return render_template('dashboard_dynamic.html',
+        return render_template(
+            "dashboard_dynamic.html",
             services=services,
             archie=archie,
             project_count=project_count,
             relationship_strength=relationship_strength,
             uptime=uptime,
-            dashboard_data=dashboard_data
+            dashboard_data=dashboard_data,
         )
     except Exception as e:
         logger.error(f"Dashboard error: {e}")
         import traceback
+
         traceback.print_exc()
 
         uptime_seconds = int(time.time() - start_time)
@@ -662,18 +860,21 @@ def dashboard():
 
         # Fallback to basic dashboard on error
         from dashboard_generator import get_user_dashboard_data
+
         dashboard_data = get_user_dashboard_data(current_user)
 
-        return render_template('dashboard_dynamic.html',
+        return render_template(
+            "dashboard_dynamic.html",
             services=[],
             archie=None,
             project_count=0,
             relationship_strength=0.5,
             uptime=uptime,
-            dashboard_data=dashboard_data
+            dashboard_data=dashboard_data,
         )
 
-@app.route('/health')
+
+@app.route("/health")
 def health():
     """Health check endpoint with uptime"""
     try:
@@ -682,29 +883,31 @@ def health():
         cur.execute("SELECT 1")
         cur.close()
         conn.close()
-        
+
         uptime_seconds = int(time.time() - start_time)
         uptime_str = str(timedelta(seconds=uptime_seconds))
-        
-        return jsonify({
-            'status': 'healthy',
-            'service': 'archie_platform',
-            'version': app.config.get('ARCHIE_VERSION', '2.0'),
-            'timestamp': datetime.now().isoformat(),
-            'uptime': uptime_str
-        }), 200
+
+        return (
+            jsonify(
+                {
+                    "status": "healthy",
+                    "service": "archie_platform",
+                    "version": app.config.get("ARCHIE_VERSION", "2.0"),
+                    "timestamp": datetime.now().isoformat(),
+                    "uptime": uptime_str,
+                }
+            ),
+            200,
+        )
     except Exception as e:
-        return jsonify({
-            'status': 'unhealthy',
-            'error': str(e),
-            'timestamp': datetime.now().isoformat()
-        }), 500
+        return jsonify({"status": "unhealthy", "error": str(e), "timestamp": datetime.now().isoformat()}), 500
+
 
 # ============================================================================
 # MODULE REGISTRY - Dynamic Blueprint Loading
 # ============================================================================
 
-from module_registry import get_enabled_modules, load_module_blueprint, check_all_modules_health
+from module_registry import get_enabled_modules, load_module_blueprint  # noqa: E402
 
 # Load enabled modules dynamically from registry
 print("[Module Registry] Loading enabled modules...")
@@ -731,8 +934,8 @@ if failed_modules:
     print(f"[Module Registry] Failed modules: {[name for name, _ in failed_modules]}")
 
 # Make module registry available to templates
-app.config['MODULE_REGISTRY_LOADED'] = loaded_modules
-app.config['MODULE_REGISTRY_FAILED'] = failed_modules
+app.config["MODULE_REGISTRY_LOADED"] = loaded_modules
+app.config["MODULE_REGISTRY_FAILED"] = failed_modules
 
 # ============================================================================
 # ADDITIONAL BLUEPRINTS (Not in module registry yet)
@@ -740,16 +943,18 @@ app.config['MODULE_REGISTRY_FAILED'] = failed_modules
 
 # Import additional blueprints not yet in module registry
 # NOTE: consciousness_bp and backup_manager_bp are now loaded via module_registry
-from tools.improvements.routes import improvements_bp
-from tools.archie_core.api import archie_api_bp
-from tools.github_integration.github_routes import github_bp
-from sandbox_routes import sandbox_bp
+from tools.improvements.routes import improvements_bp  # noqa: E402
+from tools.archie_core.api import archie_api_bp  # noqa: E402
+from tools.github_integration.github_routes import github_bp  # noqa: E402
+from sandbox_routes import sandbox_bp  # noqa: E402
+
 # NOTE: sandbox_manager_bp is loaded via module_registry (ModuleCategory.DEVELOPMENT)
-from cursor_api import cursor_bp
+from cursor_api import cursor_bp  # noqa: E402
+
 # OAuth authentication (Phase 6.5 - User Management & Subscription System)
-from oauth_routes import oauth_bp, init_oauth
-from git_commit_poller import start_poller, get_poller_status
-from conversation_triage.routes import triage_bp  # Phase 42: Knowledge extraction pipeline
+from oauth_routes import oauth_bp, init_oauth  # noqa: E402
+from git_commit_poller import start_poller  # noqa: E402
+from conversation_triage.routes import triage_bp  # noqa: E402
 
 # Initialize OAuth (Phase 6.5)
 init_oauth(app)
@@ -767,13 +972,15 @@ app.register_blueprint(triage_bp)  # Phase 42: Conversation triage pipeline
 # OAuth authentication (Phase 6.5)
 app.register_blueprint(oauth_bp)  # OAuth authentication (Google Sign-In)
 # IAAE Compliance APIs (Phase 32-37)
-from tools.team_management.iaae_routes import iaae_bp
+from tools.team_management.iaae_routes import iaae_bp  # noqa: E402
+
 app.register_blueprint(iaae_bp)
 
 # HR Management Module (Phase 51) - Registered via module_registry
 
 # API Documentation (OpenAPI/Swagger)
-from tools.api_docs import api_docs_bp
+from tools.api_docs import api_docs_bp  # noqa: E402
+
 app.register_blueprint(api_docs_bp)
 
 # NOTE: System Operations (Phase 78) loaded via module_registry
@@ -785,26 +992,27 @@ app.register_blueprint(api_docs_bp)
 # ============================================================================
 print("[A.R.C.H.I.E.] Checking Obsidian Vault database migration...")
 try:
-    import os
-    migration_file = '/mnt/archie_brain/platform_v2/migrations/006_add_obsidian_vault_tables.sql'
+    migration_file = "/mnt/archie_brain/platform_v2/migrations/006_add_obsidian_vault_tables.sql"
 
     if os.path.exists(migration_file):
         conn = get_db()
         cur = conn.cursor()
 
         # Check if migration already run (check if vault_links table exists)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT EXISTS (
                 SELECT FROM information_schema.tables
                 WHERE table_schema = 'public'
                 AND table_name = 'vault_links'
             )
-        """)
+        """
+        )
         migration_exists = cur.fetchone()[0]
 
         if not migration_exists:
             print("[A.R.C.H.I.E.] Running Obsidian Vault migration...")
-            with open(migration_file, 'r') as f:
+            with open(migration_file, "r") as f:
                 migration_sql = f.read()
             cur.execute(migration_sql)
             conn.commit()
@@ -820,6 +1028,7 @@ try:
 except Exception as e:
     print(f"[A.R.C.H.I.E.] ⚠️ Migration error: {e}")
     import traceback
+
     traceback.print_exc()
 
 # ============================================================================
@@ -839,7 +1048,7 @@ try:
 
     if vault_count == 0:
         print("[A.R.C.H.I.E.] Vault not indexed - running initial indexing...")
-        stats = reindex_all_notes(vault_path='/mnt/archie_brain/knowledge/')
+        stats = reindex_all_notes(vault_path="/mnt/archie_brain/knowledge/")
         print(f"[A.R.C.H.I.E.] ✅ Indexed {stats.get('notes_indexed', 0)} vault notes")
     else:
         print(f"[A.R.C.H.I.E.] ✅ Vault already indexed ({vault_count} notes)")
@@ -848,6 +1057,7 @@ except Exception as e:
     print(f"[A.R.C.H.I.E.] ⚠️ Vault indexing failed: {e}")
     # Don't crash app if indexing fails
     import traceback
+
     traceback.print_exc()
 
 # ============================================================================
@@ -877,6 +1087,7 @@ except Exception as e:
 # SANDBOX MODE CONTEXT PROCESSOR
 # ============================================================================
 
+
 @app.before_request
 def clear_sandbox_mode_for_production():
     """
@@ -886,9 +1097,44 @@ def clear_sandbox_mode_for_production():
     from flask import session, request
 
     # If accessing production route (not /sandbox/*), clear sandbox mode
-    if not request.path.startswith('/sandbox/'):
-        session.pop('sandbox_mode', None)
-        session.pop('db_schema', None)
+    if not request.path.startswith("/sandbox/"):
+        session.pop("sandbox_mode", None)
+        session.pop("db_schema", None)
+
+
+@app.before_request
+def enforce_2fa_verification():
+    """
+    If a user has passed password auth but not yet completed 2FA,
+    restrict access to only the verification and login routes.
+    """
+    if session.get("pending_2fa_user_id") and not current_user.is_authenticated:
+        allowed_paths = ("/verify-2fa", "/login", "/logout", "/static/")
+        if not any(request.path.startswith(p) for p in allowed_paths):
+            return redirect(url_for("verify_2fa"))
+
+
+@app.before_request
+def update_session_activity():
+    """Update last_activity timestamp for the current user's active session."""
+    if current_user.is_authenticated and session.get("_session_token"):
+        # Throttle updates to once per 60 seconds to avoid DB spam
+        last_update = session.get("_session_last_update", 0)
+        now = time.time()
+        if now - last_update > 60:
+            try:
+                conn = get_db()
+                cur = conn.cursor()
+                cur.execute(
+                    "UPDATE active_sessions SET last_activity = NOW() WHERE session_token = %s",
+                    (session["_session_token"],),
+                )
+                conn.commit()
+                cur.close()
+                conn.close()
+                session["_session_last_update"] = now
+            except Exception:
+                pass
 
 
 @app.context_processor
@@ -897,35 +1143,33 @@ def inject_sandbox_context():
     Make sandbox mode available to all templates
     Provides sandbox-aware URL generation
     """
-    from flask import session, request
+    from flask import request
 
     # ONLY use request path to determine sandbox mode
     # Don't persist in session to avoid contaminating production
-    is_sandbox = request.path.startswith('/sandbox/')
-    sandbox_prefix = '/sandbox' if is_sandbox else ''
+    is_sandbox = request.path.startswith("/sandbox/")
+    sandbox_prefix = "/sandbox" if is_sandbox else ""
 
     def sandbox_url(path):
         """
         Generate sandbox-aware URL
         If in sandbox mode, prepends /sandbox to path
         """
-        if is_sandbox and not path.startswith('/sandbox'):
+        if is_sandbox and not path.startswith("/sandbox"):
             # Don't double-prefix
-            if path.startswith('/'):
-                return f'/sandbox{path}'
+            if path.startswith("/"):
+                return f"/sandbox{path}"
             else:
-                return f'/sandbox/{path}'
+                return f"/sandbox/{path}"
         return path
 
-    return {
-        'sandbox_mode': is_sandbox,
-        'sandbox_prefix': sandbox_prefix,
-        'sandbox_url': sandbox_url
-    }
+    return {"sandbox_mode": is_sandbox, "sandbox_prefix": sandbox_prefix, "sandbox_url": sandbox_url}
+
 
 # ============================================================================
 # MODULE REGISTRY CONTEXT PROCESSOR
 # ============================================================================
+
 
 @app.context_processor
 def inject_module_registry():
@@ -934,7 +1178,7 @@ def inject_module_registry():
     Provides module information and access checking
     """
     from module_registry import get_enabled_modules, get_all_modules
-    from rbac import get_user_role, can_access_module
+    from rbac import can_access_module
 
     def get_user_modules():
         """Get modules accessible to current user"""
@@ -949,16 +1193,18 @@ def inject_module_registry():
         return sorted(accessible, key=lambda m: m.priority)
 
     return {
-        'get_user_modules': get_user_modules,
-        'all_modules': get_all_modules,
-        'enabled_modules': get_enabled_modules
+        "get_user_modules": get_user_modules,
+        "all_modules": get_all_modules,
+        "enabled_modules": get_enabled_modules,
     }
+
 
 # ============================================================================
 # MODULE REGISTRY API ENDPOINTS
 # ============================================================================
 
-@app.route('/api/modules', methods=['GET'])
+
+@app.route("/api/modules", methods=["GET"])
 @login_required
 def get_modules():
     """Get all modules accessible to current user"""
@@ -969,30 +1215,27 @@ def get_modules():
         accessible = []
         for module in get_enabled_modules():
             if can_access_module(module.id, current_user):
-                accessible.append({
-                    'id': module.id,
-                    'name': module.name,
-                    'description': module.description,
-                    'icon': module.icon,
-                    'category': module.category.value,
-                    'route': module.route,
-                    'enabled': module.enabled,
-                    'beta': module.beta,
-                    'coming_soon': module.coming_soon,
-                    'tags': module.tags
-                })
+                accessible.append(
+                    {
+                        "id": module.id,
+                        "name": module.name,
+                        "description": module.description,
+                        "icon": module.icon,
+                        "category": module.category.value,
+                        "route": module.route,
+                        "enabled": module.enabled,
+                        "beta": module.beta,
+                        "coming_soon": module.coming_soon,
+                        "tags": module.tags,
+                    }
+                )
 
-        return jsonify({
-            'success': True,
-            'modules': sorted(accessible, key=lambda m: m.get('name', ''))
-        })
+        return jsonify({"success": True, "modules": sorted(accessible, key=lambda m: m.get("name", ""))})
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
-@app.route('/api/modules/health', methods=['GET'])
+
+@app.route("/api/modules/health", methods=["GET"])
 @login_required
 def get_modules_health():
     """Get health status of all enabled modules
@@ -1004,22 +1247,22 @@ def get_modules_health():
     try:
         health_results = check_all_modules_health()
 
-        return jsonify({
-            'success': True,
-            'health': health_results,
-            'summary': {
-                'total': len(health_results),
-                'healthy': sum(1 for h in health_results.values() if h.get('healthy', False)),
-                'unhealthy': sum(1 for h in health_results.values() if not h.get('healthy', False))
+        return jsonify(
+            {
+                "success": True,
+                "health": health_results,
+                "summary": {
+                    "total": len(health_results),
+                    "healthy": sum(1 for h in health_results.values() if h.get("healthy", False)),
+                    "unhealthy": sum(1 for h in health_results.values() if not h.get("healthy", False)),
+                },
             }
-        })
+        )
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
-@app.route('/api/modules/<module_id>/health', methods=['GET'])
+
+@app.route("/api/modules/<module_id>/health", methods=["GET"])
 @login_required
 def get_module_health(module_id):
     """Get health status of a specific module"""
@@ -1028,42 +1271,37 @@ def get_module_health(module_id):
 
     # Check if user can access this module
     if not can_access_module(module_id, current_user):
-        return jsonify({
-            'success': False,
-            'error': 'Access denied'
-        }), 403
+        return jsonify({"success": False, "error": "Access denied"}), 403
 
     try:
         health = check_module_health(module_id)
 
-        return jsonify({
-            'success': True,
-            'health': health
-        })
+        return jsonify({"success": True, "health": health})
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
+
 
 # ============================================================================
 # NOTIFICATION ROUTES - Migrated from admin/routes.py
 # These routes are accessible from the dashboard for all authenticated users
 # ============================================================================
 
-@app.route('/api/notifications', methods=['GET'])
+
+@app.route("/api/notifications", methods=["GET"])
 @login_required
 def get_notifications():
     """Get all notifications as JSON"""
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT id, type, title, message, source, is_read, created_at
             FROM system_notifications
             ORDER BY created_at DESC
             LIMIT 50
-        """)
+        """
+        )
         notifications = cur.fetchall()
         cur.close()
         conn.close()
@@ -1071,25 +1309,24 @@ def get_notifications():
         # Convert to JSON-serializable format
         notifications_list = []
         for notif in notifications:
-            notifications_list.append({
-                'id': notif['id'],
-                'type': notif['type'],
-                'title': notif['title'],
-                'message': notif['message'],
-                'source': notif['source'],
-                'is_read': notif['is_read'],
-                'created_at': notif['created_at'].isoformat() if notif['created_at'] else None
-            })
+            notifications_list.append(
+                {
+                    "id": notif["id"],
+                    "type": notif["type"],
+                    "title": notif["title"],
+                    "message": notif["message"],
+                    "source": notif["source"],
+                    "is_read": notif["is_read"],
+                    "created_at": notif["created_at"].isoformat() if notif["created_at"] else None,
+                }
+            )
 
-        return jsonify({
-            'success': True,
-            'notifications': notifications_list
-        })
+        return jsonify({"success": True, "notifications": notifications_list})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@app.route('/api/notifications/mark-read/<int:notification_id>', methods=['POST'])
+@app.route("/api/notifications/mark-read/<int:notification_id>", methods=["POST"])
 @login_required
 def mark_notification_read(notification_id):
     """Mark notification as read"""
@@ -1100,12 +1337,12 @@ def mark_notification_read(notification_id):
         conn.commit()
         cur.close()
         conn.close()
-        return jsonify({'success': True})
+        return jsonify({"success": True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@app.route('/api/notifications/mark-all-read', methods=['POST'])
+@app.route("/api/notifications/mark-all-read", methods=["POST"])
 @login_required
 def mark_all_notifications_read():
     """Mark all notifications as read"""
@@ -1116,12 +1353,12 @@ def mark_all_notifications_read():
         conn.commit()
         cur.close()
         conn.close()
-        return jsonify({'success': True})
+        return jsonify({"success": True})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@app.route('/api/notifications', methods=['POST'])
+@app.route("/api/notifications", methods=["POST"])
 @login_required
 def create_notification_endpoint():
     """
@@ -1132,19 +1369,20 @@ def create_notification_endpoint():
     """
     try:
         data = request.json
-        notification_type = data.get('type', 'info')
-        title = data.get('title', 'Notification')
-        message = data.get('message', '')
-        source = data.get('source', 'dashboard')
-        priority = data.get('priority', 'normal')
-        source_icon = data.get('source_icon', '')
-        related_action = data.get('related_action', None)
+        notification_type = data.get("type", "info")
+        title = data.get("title", "Notification")
+        message = data.get("message", "")
+        source = data.get("source", "dashboard")
+        priority = data.get("priority", "normal")
+        source_icon = data.get("source_icon", "")
+        related_action = data.get("related_action", None)
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # DEDUPLICATION: Check for duplicate in last 5 minutes
-        cur.execute("""
+        cur.execute(
+            """
             SELECT id, grouped_count FROM system_notifications
             WHERE message = %s
             AND type = %s
@@ -1153,41 +1391,51 @@ def create_notification_endpoint():
             AND is_read = FALSE
             ORDER BY created_at DESC
             LIMIT 1
-        """, (message, notification_type, source))
+        """,
+            (message, notification_type, source),
+        )
 
         existing = cur.fetchone()
 
         if existing:
             # Update grouped count instead of creating duplicate
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE system_notifications
                 SET grouped_count = grouped_count + 1,
                     created_at = NOW()
                 WHERE id = %s
-            """, (existing['id'],))
+            """,
+                (existing["id"],),
+            )
             conn.commit()
             cur.close()
             conn.close()
-            return jsonify({'success': True, 'grouped': True, 'count': existing['grouped_count'] + 1})
+            return jsonify({"success": True, "grouped": True, "count": existing["grouped_count"] + 1})
 
         # Create new notification
-        cur.execute("""
-            INSERT INTO system_notifications (type, title, message, source, priority, source_icon, related_action, is_read, created_at)
+        cur.execute(
+            """
+            INSERT INTO system_notifications
+                (type, title, message, source, priority,
+                 source_icon, related_action, is_read, created_at)
             VALUES (%s, %s, %s, %s, %s, %s, %s, FALSE, NOW())
             RETURNING id
-        """, (notification_type, title, message, source, priority, source_icon, related_action))
+        """,
+            (notification_type, title, message, source, priority, source_icon, related_action),
+        )
 
-        notification_id = cur.fetchone()['id']
+        notification_id = cur.fetchone()["id"]
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({'success': True, 'id': notification_id})
+        return jsonify({"success": True, "id": notification_id})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@app.route('/api/notifications/count', methods=['GET'])
+@app.route("/api/notifications/count", methods=["GET"])
 @login_required
 def get_notification_count():
     """Get unread notification count for auto-refresh"""
@@ -1195,42 +1443,41 @@ def get_notification_count():
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 COUNT(*) FILTER (WHERE is_read = FALSE AND is_archived = FALSE) as unread,
                 COUNT(*) FILTER (WHERE priority = 'critical' AND is_read = FALSE) as critical,
                 COUNT(*) FILTER (WHERE type = 'error' AND is_read = FALSE) as errors
             FROM system_notifications
-        """)
+        """
+        )
 
         counts = cur.fetchone()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'unread': counts['unread'],
-            'critical': counts['critical'],
-            'errors': counts['errors']
-        })
+        return jsonify(
+            {"success": True, "unread": counts["unread"], "critical": counts["critical"], "errors": counts["errors"]}
+        )
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@app.route('/api/notifications/search', methods=['GET'])
+@app.route("/api/notifications/search", methods=["GET"])
 @login_required
 def search_notifications():
     """Search and filter notifications with pagination"""
     try:
         # Get query parameters
-        filter_type = request.args.get('filter', 'all')
-        notification_type = request.args.get('type', 'all')
-        priority = request.args.get('priority', 'all')
-        source = request.args.get('source', 'all')
-        search_query = request.args.get('q', '')
-        date_range = request.args.get('date_range', 'all')
-        page = int(request.args.get('page', 1))
-        per_page = int(request.args.get('per_page', 20))
+        filter_type = request.args.get("filter", "all")
+        notification_type = request.args.get("type", "all")
+        priority = request.args.get("priority", "all")
+        source = request.args.get("source", "all")
+        search_query = request.args.get("q", "")
+        date_range = request.args.get("date_range", "all")
+        page = int(request.args.get("page", 1))
+        per_page = int(request.args.get("per_page", 20))
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -1239,45 +1486,46 @@ def search_notifications():
         where_clauses = ["is_archived = FALSE"]
         params = []
 
-        if filter_type == 'unread':
+        if filter_type == "unread":
             where_clauses.append("is_read = FALSE")
-        elif filter_type == 'read':
+        elif filter_type == "read":
             where_clauses.append("is_read = TRUE")
 
-        if notification_type != 'all':
+        if notification_type != "all":
             where_clauses.append("type = %s")
             params.append(notification_type)
 
-        if priority != 'all':
+        if priority != "all":
             where_clauses.append("priority = %s")
             params.append(priority)
 
-        if source != 'all':
+        if source != "all":
             where_clauses.append("source = %s")
             params.append(source)
 
         if search_query:
             where_clauses.append("(message ILIKE %s OR title ILIKE %s)")
-            params.extend([f'%{search_query}%', f'%{search_query}%'])
+            params.extend([f"%{search_query}%", f"%{search_query}%"])
 
-        if date_range == '24h':
+        if date_range == "24h":
             where_clauses.append("created_at > NOW() - INTERVAL '24 hours'")
-        elif date_range == '7d':
+        elif date_range == "7d":
             where_clauses.append("created_at > NOW() - INTERVAL '7 days'")
-        elif date_range == '30d':
+        elif date_range == "30d":
             where_clauses.append("created_at > NOW() - INTERVAL '30 days'")
 
         where_sql = " AND ".join(where_clauses)
 
         # Get total count
         cur.execute(f"SELECT COUNT(*) as total FROM system_notifications WHERE {where_sql}", params)
-        total = cur.fetchone()['total']
+        total = cur.fetchone()["total"]
 
         # Get paginated results
         offset = (page - 1) * per_page
         params.extend([per_page, offset])
 
-        cur.execute(f"""
+        cur.execute(
+            f"""
             SELECT id, type, title, message, source, source_icon, priority,
                    grouped_count, related_action, is_read, created_at
             FROM system_notifications
@@ -1291,25 +1539,29 @@ def search_notifications():
                 END,
                 created_at DESC
             LIMIT %s OFFSET %s
-        """, params)
+        """,
+            params,
+        )
 
         notifications = cur.fetchall()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'notifications': [dict(n) for n in notifications],
-            'total': total,
-            'page': page,
-            'per_page': per_page,
-            'total_pages': (total + per_page - 1) // per_page
-        })
+        return jsonify(
+            {
+                "success": True,
+                "notifications": [dict(n) for n in notifications],
+                "total": total,
+                "page": page,
+                "per_page": per_page,
+                "total_pages": (total + per_page - 1) // per_page,
+            }
+        )
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@app.route('/api/notifications/export', methods=['GET'])
+@app.route("/api/notifications/export", methods=["GET"])
 @login_required
 def export_notifications():
     """Export notifications as CSV or JSON"""
@@ -1318,27 +1570,32 @@ def export_notifications():
     import csv
 
     try:
-        format_type = request.args.get('format', 'csv')
+        format_type = request.args.get("format", "csv")
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT id, type, title, message, source, priority, is_read, created_at
             FROM system_notifications
             WHERE is_archived = FALSE
             ORDER BY created_at DESC
             LIMIT 1000
-        """)
+        """
+        )
 
         notifications = cur.fetchall()
         cur.close()
         conn.close()
 
-        if format_type == 'json':
+        if format_type == "json":
             output = json.dumps([dict(n) for n in notifications], indent=2, default=str)
-            return Response(output, mimetype='application/json',
-                          headers={'Content-Disposition': 'attachment; filename=notifications.json'})
+            return Response(
+                output,
+                mimetype="application/json",
+                headers={"Content-Disposition": "attachment; filename=notifications.json"},
+            )
         else:  # CSV
             output = StringIO()
             if notifications:
@@ -1347,34 +1604,40 @@ def export_notifications():
                 for notif in notifications:
                     writer.writerow({k: str(v) for k, v in notif.items()})
 
-            return Response(output.getvalue(), mimetype='text/csv',
-                          headers={'Content-Disposition': 'attachment; filename=notifications.csv'})
+            return Response(
+                output.getvalue(),
+                mimetype="text/csv",
+                headers={"Content-Disposition": "attachment; filename=notifications.csv"},
+            )
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@app.route('/api/notifications/archive-old', methods=['POST'])
+@app.route("/api/notifications/archive-old", methods=["POST"])
 @login_required
 def archive_old_notifications():
     """Archive notifications older than specified days"""
     # Check if user is admin
-    if not getattr(current_user, 'is_admin', False):
-        return jsonify({'success': False, 'error': 'Admin access required'}), 403
+    if not getattr(current_user, "is_admin", False):
+        return jsonify({"success": False, "error": "Admin access required"}), 403
 
     try:
-        days = request.json.get('days', 30)
+        days = request.json.get("days", 30)
 
         conn = get_db()
         cur = conn.cursor()
 
         # Archive old read notifications
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE system_notifications
             SET is_archived = TRUE
             WHERE is_read = TRUE
             AND created_at < NOW() - INTERVAL '%s days'
             AND is_archived = FALSE
-        """, (days,))
+        """,
+            (days,),
+        )
 
         archived_count = cur.rowcount
 
@@ -1382,9 +1645,9 @@ def archive_old_notifications():
         cur.close()
         conn.close()
 
-        return jsonify({'success': True, 'archived': archived_count})
+        return jsonify({"success": True, "archived": archived_count})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
@@ -1396,13 +1659,15 @@ def archive_old_notifications():
 # Automatic error detection and learning system
 # ============================================================================
 
-from mistake_detector import get_mistake_detector
+from mistake_detector import get_mistake_detector  # noqa: E402
+
 
 @app.errorhandler(404)
 def not_found(e):
     """Handle 404 errors"""
-    flash('Page not found', 'error')
-    return redirect(url_for('dashboard'))
+    flash("Page not found", "error")
+    return redirect(url_for("dashboard"))
+
 
 @app.errorhandler(500)
 def server_error(e):
@@ -1413,11 +1678,11 @@ def server_error(e):
     try:
         detector = get_mistake_detector()
         context = {
-            'route': request.path if request else 'unknown',
-            'method': request.method if request else 'unknown',
-            'user_id': current_user.id if hasattr(current_user, 'id') and current_user.is_authenticated else None,
-            'error_type': '500',
-            'timestamp': datetime.now().isoformat()
+            "route": request.path if request else "unknown",
+            "method": request.method if request else "unknown",
+            "user_id": current_user.id if hasattr(current_user, "id") and current_user.is_authenticated else None,
+            "error_type": "500",
+            "timestamp": datetime.now().isoformat(),
         }
 
         mistake = detector.detect_and_learn(str(e), context)
@@ -1426,8 +1691,9 @@ def server_error(e):
     except Exception as learn_error:
         logger.error(f"[Mistake Detector] Failed to learn from error: {learn_error}")
 
-    flash('Server error occurred', 'error')
-    return redirect(url_for('dashboard'))
+    flash("Server error occurred", "error")
+    return redirect(url_for("dashboard"))
+
 
 @app.errorhandler(Exception)
 def handle_exception(e):
@@ -1447,13 +1713,13 @@ def handle_exception(e):
         detector = get_mistake_detector()
 
         context = {
-            'route': request.path if request else 'unknown',
-            'method': request.method if request else 'unknown',
-            'user_id': current_user.id if hasattr(current_user, 'id') and current_user.is_authenticated else None,
-            'error_type': error_type,
-            'timestamp': datetime.now().isoformat(),
-            'url': request.url if request else None,
-            'referrer': request.referrer if request else None
+            "route": request.path if request else "unknown",
+            "method": request.method if request else "unknown",
+            "user_id": current_user.id if hasattr(current_user, "id") and current_user.is_authenticated else None,
+            "error_type": error_type,
+            "timestamp": datetime.now().isoformat(),
+            "url": request.url if request else None,
+            "referrer": request.referrer if request else None,
         }
 
         # Detect and potentially learn from this error
@@ -1468,8 +1734,8 @@ def handle_exception(e):
             if solution:
                 logger.info(f"[Mistake Detector] 📚 Known solution available: {solution[:200]}")
                 # You could add this to the flash message for admins
-                if current_user.is_authenticated and hasattr(current_user, 'is_admin') and current_user.is_admin():
-                    flash(f"Known issue detected. Solution: {solution[:100]}...", 'warning')
+                if current_user.is_authenticated and hasattr(current_user, "is_admin") and current_user.is_admin():
+                    flash(f"Known issue detected. Solution: {solution[:100]}...", "warning")
         else:
             logger.info(f"[Mistake Detector] No pattern match for: {error_type}")
 
@@ -1478,23 +1744,19 @@ def handle_exception(e):
         logger.error(f"[Mistake Detector] Error during learning: {learn_error}")
 
     # Return appropriate error response
-    if request and request.path.startswith('/api/'):
+    if request and request.path.startswith("/api/"):
         # API error - return JSON
-        return jsonify({
-            'success': False,
-            'error': error_message,
-            'error_type': error_type
-        }), 500
+        return jsonify({"success": False, "error": error_message, "error_type": error_type}), 500
     else:
         # Web error - flash and redirect
-        flash(f'An error occurred: {error_message}', 'error')
-        return redirect(url_for('dashboard'))
-
+        flash(f"An error occurred: {error_message}", "error")
+        return redirect(url_for("dashboard"))
 
 
 # ============================================================================
 # CONSCIOUSNESS SCHEDULER
 # ============================================================================
+
 
 def init_consciousness_scheduler(flask_app):
     """Initialize the consciousness scheduler with APScheduler"""
@@ -1505,12 +1767,13 @@ def init_consciousness_scheduler(flask_app):
 
         # Import scheduler functions
         import sys
-        sys.path.insert(0, '/mnt/archie_brain/ai_bridge')
+
+        sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
         from consciousness_scheduler import (
             hourly_conversation_consolidation,
             improvement_detection,
             daily_self_reflection,
-            weekly_memory_consolidation
+            weekly_memory_consolidation,
         )
 
         scheduler = BackgroundScheduler()
@@ -1519,40 +1782,40 @@ def init_consciousness_scheduler(flask_app):
         scheduler.add_job(
             hourly_conversation_consolidation,
             trigger=IntervalTrigger(hours=1),
-            id='hourly_consolidation',
-            name='Hourly Conversation Consolidation',
-            replace_existing=True
+            id="hourly_consolidation",
+            name="Hourly Conversation Consolidation",
+            replace_existing=True,
         )
 
         # Improvement detection every 6 hours
         scheduler.add_job(
             improvement_detection,
             trigger=IntervalTrigger(hours=6),
-            id='improvement_detection',
-            name='Improvement Detection',
-            replace_existing=True
+            id="improvement_detection",
+            name="Improvement Detection",
+            replace_existing=True,
         )
 
         # Daily self-reflection at midnight
         scheduler.add_job(
             daily_self_reflection,
             trigger=CronTrigger(hour=0, minute=0),
-            id='daily_self_reflection',
-            name='Daily Self-Reflection',
-            replace_existing=True
+            id="daily_self_reflection",
+            name="Daily Self-Reflection",
+            replace_existing=True,
         )
 
         # Weekly memory consolidation on Sundays at 3 AM
         scheduler.add_job(
             weekly_memory_consolidation,
-            trigger=CronTrigger(day_of_week='sun', hour=3, minute=0),
-            id='weekly_memory_consolidation',
-            name='Weekly Memory Consolidation',
-            replace_existing=True
+            trigger=CronTrigger(day_of_week="sun", hour=3, minute=0),
+            id="weekly_memory_consolidation",
+            name="Weekly Memory Consolidation",
+            replace_existing=True,
         )
 
         scheduler.start()
-        flask_app.config['CONSCIOUSNESS_SCHEDULER'] = scheduler
+        flask_app.config["CONSCIOUSNESS_SCHEDULER"] = scheduler
         logger.info("Consciousness scheduler started with 4 scheduled tasks")
 
         return scheduler
@@ -1566,8 +1829,7 @@ def init_consciousness_scheduler(flask_app):
 
 
 # Initialize scheduler when not in debug reload mode
-import os
-if os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or not app.debug:
+if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
     init_consciousness_scheduler(app)
 
 
@@ -1575,5 +1837,5 @@ if os.environ.get('WERKZEUG_RUN_MAIN') == 'true' or not app.debug:
 # MAIN
 # ============================================================================
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=3000, debug=True)
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=3000, debug=True)

@@ -1,0 +1,519 @@
+{% extends "base.html" %}
+
+{% block title %}A.R.C.H.I.E. - Two-Factor Verification{% endblock %}
+
+{% block module_name %}verify-2fa{% endblock %}
+
+{% block styles %}
+/* Reuses login.html cyberpunk theme */
+
+:root {
+    --login-green: #00ff41;
+    --login-cyan: #00ffff;
+    --login-void: #000000;
+    --login-surface: #0d1117;
+    --login-border: #21262d;
+    --login-text: #e6edf3;
+    --login-muted: #8b949e;
+    --login-glow: 0 0 20px rgba(0, 255, 65, 0.4), 0 0 40px rgba(0, 255, 65, 0.2);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background: var(--login-void);
+    font-family: 'JetBrains Mono', monospace;
+    overflow: hidden;
+}
+
+/* Animated Background */
+.login-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+}
+
+.login-bg canvas {
+    width: 100%;
+    height: 100%;
+    opacity: 0.15;
+}
+
+.login-bg::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(ellipse at 30% 20%, rgba(0, 255, 65, 0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 70% 80%, rgba(0, 255, 255, 0.05) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, 0.5) 0%, transparent 100%);
+    pointer-events: none;
+}
+
+/* Grid Lines */
+.grid-overlay {
+    position: fixed;
+    inset: 0;
+    background-image:
+        linear-gradient(rgba(0, 255, 65, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 255, 65, 0.03) 1px, transparent 1px);
+    background-size: 50px 50px;
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* Login Container */
+.login-container {
+    position: relative;
+    z-index: 10;
+    width: 100%;
+    max-width: 440px;
+    margin: 20px;
+    animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Login Card */
+.login-card {
+    background: linear-gradient(135deg, rgba(13, 17, 23, 0.9) 0%, rgba(22, 27, 34, 0.8) 100%);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(0, 255, 65, 0.2);
+    border-radius: 20px;
+    padding: 50px 40px;
+    box-shadow:
+        0 25px 50px rgba(0, 0, 0, 0.5),
+        0 0 100px rgba(0, 255, 65, 0.05),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    position: relative;
+    overflow: hidden;
+}
+
+.login-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 150px;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--login-green), transparent);
+}
+
+.login-card::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--login-cyan), transparent);
+    opacity: 0.5;
+}
+
+/* Header */
+.login-header {
+    text-align: center;
+    margin-bottom: 35px;
+}
+
+.login-logo {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2.8rem;
+    font-weight: 900;
+    letter-spacing: 0.2em;
+    color: var(--login-green);
+    text-shadow: var(--login-glow);
+    margin-bottom: 12px;
+    animation: glow 3s ease-in-out infinite;
+}
+
+@keyframes glow {
+    0%, 100% {
+        text-shadow: 0 0 20px rgba(0, 255, 65, 0.5), 0 0 40px rgba(0, 255, 65, 0.3);
+        filter: brightness(1);
+    }
+    50% {
+        text-shadow: 0 0 30px rgba(0, 255, 65, 0.7), 0 0 60px rgba(0, 255, 65, 0.4), 0 0 80px rgba(0, 255, 65, 0.2);
+        filter: brightness(1.1);
+    }
+}
+
+.login-subtitle {
+    font-size: 0.7rem;
+    letter-spacing: 0.3em;
+    color: var(--login-cyan);
+    text-transform: uppercase;
+    opacity: 0.8;
+}
+
+/* User badge */
+.auth-user-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 16px;
+    padding: 8px 16px;
+    background: rgba(0, 255, 65, 0.08);
+    border: 1px solid rgba(0, 255, 65, 0.15);
+    border-radius: 8px;
+    font-size: 0.75rem;
+    color: var(--login-muted);
+    letter-spacing: 0.05em;
+}
+
+.auth-user-badge .user-icon {
+    color: var(--login-green);
+}
+
+.auth-user-badge .username {
+    color: var(--login-text);
+    font-weight: 600;
+}
+
+/* Form */
+.login-form {
+    margin-top: 30px;
+}
+
+.form-group {
+    margin-bottom: 24px;
+    position: relative;
+}
+
+.form-label {
+    display: block;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    color: var(--login-muted);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    transition: color 0.3s;
+}
+
+.form-input {
+    width: 100%;
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--login-border);
+    border-radius: 10px;
+    color: var(--login-text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 2rem;
+    letter-spacing: 0.5em;
+    text-align: center;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.form-input::placeholder {
+    color: var(--login-muted);
+    opacity: 0.3;
+    font-size: 1rem;
+    letter-spacing: 0.2em;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: var(--login-green);
+    background: rgba(0, 255, 65, 0.05);
+    box-shadow:
+        0 0 0 3px rgba(0, 255, 65, 0.1),
+        0 0 20px rgba(0, 255, 65, 0.1);
+}
+
+.form-group:focus-within .form-label {
+    color: var(--login-green);
+}
+
+/* Help text */
+.form-help {
+    font-size: 0.65rem;
+    color: var(--login-muted);
+    margin-top: 10px;
+    text-align: center;
+    letter-spacing: 0.05em;
+}
+
+/* Submit Button */
+.login-btn {
+    width: 100%;
+    padding: 18px 24px;
+    margin-top: 10px;
+    background: transparent;
+    border: 2px solid var(--login-green);
+    border-radius: 10px;
+    color: var(--login-green);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.login-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--login-green);
+    transform: translateY(100%);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    z-index: -1;
+}
+
+.login-btn:hover {
+    color: var(--login-void);
+    box-shadow:
+        0 0 30px rgba(0, 255, 65, 0.4),
+        0 10px 40px rgba(0, 255, 65, 0.2);
+    transform: translateY(-2px);
+}
+
+.login-btn:hover::before {
+    transform: translateY(0);
+}
+
+.login-btn:active {
+    transform: translateY(0);
+}
+
+.login-btn.loading {
+    pointer-events: none;
+    color: transparent;
+}
+
+.login-btn.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid transparent;
+    border-top-color: var(--login-void);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Cancel link */
+.cancel-section {
+    text-align: center;
+    margin-top: 24px;
+}
+
+.cancel-link {
+    font-size: 0.75rem;
+    color: var(--login-muted);
+    text-decoration: none;
+    letter-spacing: 0.1em;
+    transition: color 0.3s;
+}
+
+.cancel-link:hover {
+    color: var(--login-green);
+    text-shadow: 0 0 15px rgba(0, 255, 65, 0.3);
+}
+
+/* Corner Decorations */
+.corner-decoration {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border: 1px solid rgba(0, 255, 65, 0.3);
+}
+
+.corner-decoration.top-left {
+    top: 15px; left: 15px;
+    border-right: none; border-bottom: none;
+}
+
+.corner-decoration.top-right {
+    top: 15px; right: 15px;
+    border-left: none; border-bottom: none;
+}
+
+.corner-decoration.bottom-left {
+    bottom: 15px; left: 15px;
+    border-right: none; border-top: none;
+}
+
+.corner-decoration.bottom-right {
+    bottom: 15px; right: 15px;
+    border-left: none; border-top: none;
+}
+
+/* Shield icon */
+.shield-icon {
+    display: block;
+    margin: 0 auto 20px;
+    width: 48px;
+    height: 48px;
+    color: var(--login-cyan);
+    opacity: 0.6;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+    .login-card {
+        padding: 40px 25px;
+        border-radius: 16px;
+    }
+
+    .login-logo {
+        font-size: 2rem;
+        letter-spacing: 0.15em;
+    }
+
+    .form-input {
+        padding: 16px;
+        font-size: 1.5rem;
+    }
+
+    .login-btn {
+        padding: 16px 20px;
+        font-size: 0.8rem;
+    }
+}
+{% endblock %}
+
+{% block content %}
+<!-- Background -->
+<div class="login-bg">
+    <canvas id="matrix-bg"></canvas>
+</div>
+<div class="grid-overlay"></div>
+
+<!-- 2FA Verification Container -->
+<div class="login-container">
+    <div class="login-card">
+        <!-- Corner Decorations -->
+        <div class="corner-decoration top-left"></div>
+        <div class="corner-decoration top-right"></div>
+        <div class="corner-decoration bottom-left"></div>
+        <div class="corner-decoration bottom-right"></div>
+
+        <!-- Shield Icon -->
+        <svg class="shield-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <path d="M9 12l2 2 4-4"/>
+        </svg>
+
+        <!-- Header -->
+        <div class="login-header">
+            <h1 class="login-logo">A.R.C.H.I.E.</h1>
+            <p class="login-subtitle">TWO-FACTOR VERIFICATION</p>
+
+            <!-- Show username -->
+            <div class="auth-user-badge">
+                <span class="user-icon">&#9679;</span>
+                Authenticating as: <span class="username">{{ username }}</span>
+            </div>
+        </div>
+
+        <!-- 2FA Form -->
+        <form method="POST" action="/verify-2fa" class="login-form" id="verifyForm">
+            <div class="form-group">
+                <label class="form-label" for="code">Verification Code</label>
+                <input
+                    type="text"
+                    id="code"
+                    name="code"
+                    class="form-input"
+                    placeholder="000000"
+                    required
+                    autofocus
+                    autocomplete="one-time-code"
+                    inputmode="numeric"
+                    pattern="[0-9]{6}"
+                    maxlength="6"
+                >
+                <p class="form-help">Enter the 6-digit code from your authenticator app</p>
+            </div>
+
+            <button type="submit" class="login-btn" id="verifyBtn">
+                Verify Identity
+            </button>
+        </form>
+
+        <!-- Cancel -->
+        <div class="cancel-section">
+            <a href="/login" class="cancel-link">Cancel and return to login</a>
+        </div>
+    </div>
+</div>
+
+<script>
+// Matrix rain background
+const canvas = document.getElementById('matrix-bg');
+const ctx = canvas.getContext('2d');
+
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+const chars = 'ARCHIE01\u30A2\u30A4\u30A6\u30A8\u30AA\u30AB\u30AD\u30AF\u30B1\u30B3<>{}[]';
+const charArray = chars.split('');
+const fontSize = 14;
+let columns = Math.floor(canvas.width / fontSize);
+const drops = [];
+
+for (let i = 0; i < columns; i++) {
+    drops[i] = Math.random() * -100;
+}
+
+function draw() {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#00ff41';
+    ctx.font = fontSize + 'px monospace';
+
+    for (let i = 0; i < drops.length; i++) {
+        const char = charArray[Math.floor(Math.random() * charArray.length)];
+        ctx.fillText(char, i * fontSize, drops[i] * fontSize);
+
+        if (drops[i] * fontSize > canvas.height && Math.random() > 0.98) {
+            drops[i] = 0;
+        }
+        drops[i]++;
+    }
+}
+
+setInterval(draw, 35);
+
+// Form submit loading state
+document.getElementById('verifyForm').addEventListener('submit', function() {
+    const btn = document.getElementById('verifyBtn');
+    btn.classList.add('loading');
+    btn.textContent = 'VERIFYING...';
+});
+
+// Auto-focus and filter non-numeric input
+const codeInput = document.getElementById('code');
+codeInput.addEventListener('input', function() {
+    this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6);
+});
+</script>
+{% endblock %}

@@ -1191,6 +1191,7 @@
 }
 
 .modal {
+    position: relative; /* Override Bootstrap 5 position:fixed which breaks flex centering */
     background: var(--archie-bg-secondary);
     border: 2px solid var(--archie-accent);
     border-radius: var(--archie-radius-xl);

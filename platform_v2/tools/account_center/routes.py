@@ -438,14 +438,27 @@ def api_reset_password(user_id):
 @login_required
 @admin_required
 def api_list_roles():
-    """List available roles"""
+    """List available roles with permission counts"""
+    from rbac import Permission, ROLE_PERMISSIONS, Role
+
     roles = [
-        {'name': 'PUBLIC', 'level': 0, 'description': 'Not logged in'},
-        {'name': 'USER', 'level': 10, 'description': 'Basic authenticated user'},
-        {'name': 'PREMIUM', 'level': 20, 'description': 'Paid subscriber'},
-        {'name': 'ADMIN', 'level': 90, 'description': 'Administrator'},
-        {'name': 'SUPER_ADMIN', 'level': 100, 'description': 'System owner'}
+        {'name': 'PUBLIC', 'level': 0, 'color': '#6b7280', 'icon': 'globe',
+         'description': 'Unauthenticated visitors with read-only access to public pages'},
+        {'name': 'USER', 'level': 10, 'color': '#06b6d4', 'icon': 'user',
+         'description': 'Free registered users with basic tools, chat, and limited app building'},
+        {'name': 'PREMIUM', 'level': 20, 'color': '#f97316', 'icon': 'crown',
+         'description': 'Paid subscribers with full creation tools, analytics, and deployment'},
+        {'name': 'ADMIN', 'level': 90, 'color': '#ef4444', 'icon': 'shield',
+         'description': 'Administrators with system management, backups, and user control'},
+        {'name': 'SUPER_ADMIN', 'level': 100, 'color': '#a855f7', 'icon': 'shield-check',
+         'description': 'System owner with unrestricted access to all permissions'}
     ]
+
+    for role_info in roles:
+        role_enum = Role[role_info['name']]
+        perms = ROLE_PERMISSIONS.get(role_enum, set())
+        role_info['permission_count'] = len(perms)
+
     return jsonify({'success': True, 'roles': roles})
 
 
@@ -453,19 +466,115 @@ def api_list_roles():
 @login_required
 @admin_required
 def api_list_permissions():
-    """List available permissions"""
+    """List permissions grouped by category with human-readable labels"""
     try:
         from rbac import Permission, ROLE_PERMISSIONS, Role
 
-        permissions = []
+        # Human-readable labels and category groupings
+        PERM_META = {
+            'public:view': {'label': 'View Public Pages', 'category': 'Public Access'},
+            'directory:view': {'label': 'View Directory', 'category': 'Public Access'},
+            'archie:chat': {'label': 'Chat with A.R.C.H.I.E.', 'category': 'Core Features'},
+            'code_editor:read': {'label': 'Code Editor (Read)', 'category': 'Core Features'},
+            'code_editor:write': {'label': 'Code Editor (Write)', 'category': 'Core Features'},
+            'user:settings': {'label': 'User Settings', 'category': 'Core Features'},
+            'read:own': {'label': 'Read Own Data', 'category': 'Core Features'},
+            'write:own': {'label': 'Write Own Data', 'category': 'Core Features'},
+            'automation:create': {'label': 'Create Automations', 'category': 'Automation & Tasks'},
+            'automation:manage': {'label': 'Manage Automations', 'category': 'Automation & Tasks'},
+            'task_planner:schedule': {'label': 'Schedule Tasks', 'category': 'Automation & Tasks'},
+            'task_planner:calendar': {'label': 'Calendar Access', 'category': 'Automation & Tasks'},
+            'google:email': {'label': 'Google Email', 'category': 'Google Workspace'},
+            'google:contacts': {'label': 'Google Contacts', 'category': 'Google Workspace'},
+            'google:calendar': {'label': 'Google Calendar', 'category': 'Google Workspace'},
+            'app_builder:create': {'label': 'Create Apps', 'category': 'App Building'},
+            'app_builder:deploy': {'label': 'Deploy Apps', 'category': 'App Building'},
+            'app_builder:unlimited': {'label': 'Unlimited Projects', 'category': 'App Building'},
+            'website_builder:create': {'label': 'Create Websites', 'category': 'Website & Store'},
+            'website_builder:deploy': {'label': 'Deploy Websites', 'category': 'Website & Store'},
+            'store:create': {'label': 'Create Store', 'category': 'Website & Store'},
+            'store:manage': {'label': 'Manage Store', 'category': 'Website & Store'},
+            'telephony:access': {'label': 'Phone System Access', 'category': 'Website & Store'},
+            'telephony:admin': {'label': 'Phone System Admin', 'category': 'Website & Store'},
+            'social_media:create': {'label': 'Create Social Posts', 'category': 'Content & Media'},
+            'social_media:schedule': {'label': 'Schedule Social Posts', 'category': 'Content & Media'},
+            'figma:import': {'label': 'Figma Import', 'category': 'Content & Media'},
+            'analytics:view': {'label': 'View Analytics', 'category': 'Content & Media'},
+            'stock_bot:scan': {'label': 'Stock Scanner', 'category': 'Finance'},
+            'stock_bot:alerts': {'label': 'Stock Alerts', 'category': 'Finance'},
+            'obsidian:read': {'label': 'Read Vault Notes', 'category': 'Obsidian Vault'},
+            'obsidian:write': {'label': 'Write Vault Notes', 'category': 'Obsidian Vault'},
+            'obsidian:delete': {'label': 'Delete Vault Notes', 'category': 'Obsidian Vault'},
+            'obsidian:admin': {'label': 'Vault Administration', 'category': 'Obsidian Vault'},
+            'admin:access': {'label': 'Admin Panel Access', 'category': 'Administration'},
+            'admin:agents': {'label': 'Manage Agents', 'category': 'Administration'},
+            'admin:improvements': {'label': 'Improvement Workflow', 'category': 'Administration'},
+            'admin:users': {'label': 'Manage Users', 'category': 'Administration'},
+            'admin:backups': {'label': 'Backup Management', 'category': 'Administration'},
+            'admin:logs': {'label': 'View System Logs', 'category': 'Administration'},
+            'admin:sandbox': {'label': 'Sandbox Access', 'category': 'Administration'},
+            'admin:fine_tuning': {'label': 'AI Fine-Tuning', 'category': 'Administration'},
+            'admin:ide': {'label': 'IDE Access', 'category': 'Administration'},
+            'admin:testing': {'label': 'Testing Tools', 'category': 'Administration'},
+            'admin:projects': {'label': 'Project Management', 'category': 'Administration'},
+            'read:all': {'label': 'Read All Data', 'category': 'Administration'},
+            'write:all': {'label': 'Write All Data', 'category': 'Administration'},
+            'admin:mining': {'label': 'Mining Operations', 'category': 'Super Admin'},
+            'admin:system': {'label': 'System Operations', 'category': 'Super Admin'},
+            'admin:security': {'label': 'Security Management', 'category': 'Super Admin'},
+            'superadmin:all': {'label': 'Full System Access', 'category': 'Super Admin'},
+        }
+
+        all_roles = ['PUBLIC', 'USER', 'PREMIUM', 'ADMIN', 'SUPER_ADMIN']
+
+        # Build grouped permissions
+        groups = {}
         for perm in Permission:
-            permissions.append({
+            meta = PERM_META.get(perm.value, {
+                'label': perm.value.replace(':', ' ').replace('_', ' ').title(),
+                'category': 'Other'
+            })
+            category = meta['category']
+            if category not in groups:
+                groups[category] = []
+
+            granted_roles = [role.name for role, perms in ROLE_PERMISSIONS.items() if perm in perms]
+
+            groups[category].append({
                 'value': perm.value,
                 'name': perm.name,
-                'roles': [role.name for role, perms in ROLE_PERMISSIONS.items() if perm in perms]
+                'label': meta['label'],
+                'roles': {r: r in granted_roles for r in all_roles}
             })
 
-        return jsonify({'success': True, 'permissions': permissions})
+        # Define category order
+        CATEGORY_ORDER = [
+            'Public Access', 'Core Features', 'Automation & Tasks', 'Google Workspace',
+            'App Building', 'Website & Store', 'Content & Media', 'Finance',
+            'Obsidian Vault', 'Administration', 'Super Admin', 'Other'
+        ]
+
+        ordered_groups = []
+        for cat in CATEGORY_ORDER:
+            if cat in groups:
+                ordered_groups.append({
+                    'category': cat,
+                    'permissions': groups[cat]
+                })
+
+        # Include any categories not in the predefined order
+        for cat in groups:
+            if cat not in CATEGORY_ORDER:
+                ordered_groups.append({
+                    'category': cat,
+                    'permissions': groups[cat]
+                })
+
+        return jsonify({
+            'success': True,
+            'groups': ordered_groups,
+            'roles': all_roles
+        })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 

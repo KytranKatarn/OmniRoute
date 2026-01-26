@@ -129,37 +129,265 @@
         flex-wrap: wrap;
     }
 
-    /* Permissions Grid */
-    .permissions-grid {
+    /* Role Overview Cards */
+    .roles-overview {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-        gap: var(--archie-space-4);
+        grid-template-columns: repeat(5, 1fr);
+        gap: var(--archie-space-3);
+        margin-bottom: var(--archie-space-6);
     }
 
-    .permission-item {
+    @media (max-width: 1200px) {
+        .roles-overview { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    @media (max-width: 768px) {
+        .roles-overview { grid-template-columns: 1fr; }
+    }
+
+    .role-overview-card {
+        background: var(--archie-bg-surface);
+        border: 1px solid var(--archie-border-default);
+        border-radius: var(--archie-radius-lg);
+        padding: var(--archie-space-4);
+        text-align: center;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .role-overview-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: var(--role-color);
+    }
+
+    .role-overview-card:hover {
+        border-color: var(--role-color);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+
+    .role-overview-card.active {
+        border-color: var(--role-color);
+        background: var(--archie-bg-elevated);
+        box-shadow: 0 0 20px color-mix(in srgb, var(--role-color) 20%, transparent);
+    }
+
+    .role-overview-card .role-icon {
+        width: 40px;
+        height: 40px;
+        margin: 0 auto var(--archie-space-2);
+        color: var(--role-color);
+    }
+
+    .role-overview-card .role-card-name {
+        font-family: var(--archie-font-heading);
+        font-size: var(--archie-text-base);
+        color: var(--role-color);
+        margin-bottom: var(--archie-space-1);
+    }
+
+    .role-overview-card .role-card-level {
+        font-size: var(--archie-text-xs);
+        color: var(--archie-text-tertiary);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: var(--archie-space-2);
+    }
+
+    .role-overview-card .role-card-desc {
+        font-size: var(--archie-text-xs);
+        color: var(--archie-text-secondary);
+        line-height: 1.4;
+        margin-bottom: var(--archie-space-3);
+    }
+
+    .role-overview-card .role-perm-count {
+        font-family: var(--archie-font-heading);
+        font-size: var(--archie-text-2xl);
+        color: var(--role-color);
+    }
+
+    .role-overview-card .role-perm-label {
+        font-size: var(--archie-text-xs);
+        color: var(--archie-text-tertiary);
+        text-transform: uppercase;
+    }
+
+    /* Permission Matrix Table */
+    .perm-matrix-controls {
+        display: flex;
+        align-items: center;
+        gap: var(--archie-space-3);
+        margin-bottom: var(--archie-space-4);
+    }
+
+    .perm-search {
+        flex: 1;
+        max-width: 300px;
+        padding: var(--archie-space-2) var(--archie-space-3);
         background: var(--archie-bg-elevated);
         border: 1px solid var(--archie-border-default);
         border-radius: var(--archie-radius-md);
-        padding: var(--archie-space-3);
+        color: var(--archie-text-primary);
+        font-size: var(--archie-text-sm);
+    }
+
+    .perm-search:focus {
+        outline: none;
+        border-color: var(--archie-accent);
+    }
+
+    .perm-filter-btn {
+        padding: var(--archie-space-2) var(--archie-space-3);
+        background: var(--archie-bg-elevated);
+        border: 1px solid var(--archie-border-default);
+        border-radius: var(--archie-radius-md);
+        color: var(--archie-text-secondary);
+        font-size: var(--archie-text-xs);
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .perm-filter-btn:hover {
+        border-color: var(--archie-accent);
+        color: var(--archie-accent);
+    }
+
+    .perm-filter-btn.active {
+        background: var(--archie-accent-alpha-10);
+        border-color: var(--archie-accent);
+        color: var(--archie-accent);
+    }
+
+    .perm-matrix-wrap {
+        overflow-x: auto;
+    }
+
+    .perm-matrix-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: var(--archie-text-sm);
+    }
+
+    .perm-matrix-table th {
+        padding: var(--archie-space-2) var(--archie-space-3);
+        text-align: center;
+        font-size: var(--archie-text-xs);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--archie-text-tertiary);
+        border-bottom: 2px solid var(--archie-border-default);
+        white-space: nowrap;
+    }
+
+    .perm-matrix-table th:first-child {
+        text-align: left;
+        min-width: 200px;
+    }
+
+    .perm-matrix-table th .th-role-name {
+        display: block;
+        font-weight: 600;
+    }
+
+    .perm-matrix-table th .th-role-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-top: 4px;
+    }
+
+    .perm-matrix-table .category-row td {
+        padding: var(--archie-space-3) var(--archie-space-3);
+        font-family: var(--archie-font-heading);
+        font-size: var(--archie-text-xs);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--archie-accent);
+        background: var(--archie-accent-alpha-5);
+        border-bottom: 1px solid var(--archie-accent-alpha-20);
+        cursor: pointer;
+    }
+
+    .perm-matrix-table .category-row td:first-child::before {
+        content: '';
+        display: inline-block;
+        width: 0;
+        height: 0;
+        border-left: 5px solid var(--archie-accent);
+        border-top: 4px solid transparent;
+        border-bottom: 4px solid transparent;
+        margin-right: var(--archie-space-2);
+        transition: transform 0.2s ease;
+    }
+
+    .perm-matrix-table .category-row.expanded td:first-child::before {
+        transform: rotate(90deg);
+    }
+
+    .perm-matrix-table .perm-row td {
+        padding: var(--archie-space-2) var(--archie-space-3);
+        border-bottom: 1px solid var(--archie-border-subtle);
+        text-align: center;
+    }
+
+    .perm-matrix-table .perm-row td:first-child {
+        text-align: left;
+        color: var(--archie-text-primary);
+    }
+
+    .perm-matrix-table .perm-row td:first-child .perm-code {
+        display: block;
+        font-size: 10px;
+        color: var(--archie-text-tertiary);
+        font-family: var(--archie-font-mono);
+        margin-top: 1px;
+    }
+
+    .perm-matrix-table .perm-row:hover td {
+        background: var(--archie-bg-elevated);
+    }
+
+    .perm-matrix-table .perm-row.hidden {
+        display: none;
+    }
+
+    .perm-check {
+        color: #22c55e;
+        font-size: var(--archie-text-base);
+    }
+
+    .perm-x {
+        color: var(--archie-border-default);
+        font-size: var(--archie-text-xs);
+    }
+
+    .perm-matrix-summary {
         display: flex;
-        justify-content: space-between;
+        gap: var(--archie-space-4);
+        margin-top: var(--archie-space-4);
+        padding: var(--archie-space-3);
+        background: var(--archie-bg-elevated);
+        border-radius: var(--archie-radius-md);
+        font-size: var(--archie-text-xs);
+        color: var(--archie-text-tertiary);
         align-items: center;
     }
 
-    .permission-roles {
+    .perm-matrix-summary .legend-item {
         display: flex;
-        gap: 5px;
-    }
-
-    .role-dot {
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        background: var(--archie-border-default);
-    }
-
-    .role-dot.active {
-        background: var(--archie-accent);
+        align-items: center;
+        gap: var(--archie-space-1);
     }
 
     /* Tier Cards */
@@ -266,30 +494,7 @@
         color: var(--archie-text-tertiary);
     }
 
-    /* Role Hierarchy Display */
-    .role-hierarchy {
-        display: flex;
-        gap: var(--archie-space-4);
-        margin-bottom: var(--archie-space-4);
-    }
-
-    .role-box {
-        flex: 1;
-        text-align: center;
-        padding: var(--archie-space-4);
-        background: var(--archie-bg-elevated);
-        border-radius: var(--archie-radius-md);
-    }
-
-    .role-level {
-        font-size: var(--archie-text-xs);
-        color: var(--archie-text-tertiary);
-    }
-
-    .role-name {
-        font-size: var(--archie-text-lg);
-        margin-top: var(--archie-space-1);
-    }
+    /* (Role hierarchy styles moved to role-overview-card above) */
 
     /* Empty State */
     .empty-state {
@@ -422,42 +627,38 @@
 
             <!-- PERMISSIONS Tab -->
             <div class="tab-content" id="tab-permissions">
-                <div class="card">
-                    <div class="card-header">Role Hierarchy</div>
-                    <div class="card-body">
-                        <div class="role-hierarchy">
-                            <div class="role-box">
-                                <div class="role-level">Level 0</div>
-                                <div class="role-name">PUBLIC</div>
-                            </div>
-                            <div class="role-box">
-                                <div class="role-level">Level 10</div>
-                                <div class="role-name" style="color: var(--archie-cyan);">USER</div>
-                            </div>
-                            <div class="role-box">
-                                <div class="role-level">Level 20</div>
-                                <div class="role-name" style="color: var(--archie-orange);">PREMIUM</div>
-                            </div>
-                            <div class="role-box">
-                                <div class="role-level">Level 90</div>
-                                <div class="role-name" style="color: var(--archie-red);">ADMIN</div>
-                            </div>
-                            <div class="role-box">
-                                <div class="role-level">Level 100</div>
-                                <div class="role-name" style="color: var(--archie-red-bright);">SUPER_ADMIN</div>
-                            </div>
-                        </div>
+                <!-- Role Overview Cards -->
+                <div class="roles-overview" id="roles-overview">
+                    <div class="loading">
+                        <div class="loading-spinner"></div>
+                        <p>Loading roles...</p>
                     </div>
                 </div>
 
+                <!-- Permission Matrix -->
                 <div class="card">
                     <div class="card-header">Permission Matrix</div>
                     <div class="card-body">
-                        <div class="permissions-grid" id="permissions-grid">
-                            <div class="loading">
-                                <div class="loading-spinner"></div>
-                                <p>Loading permissions...</p>
-                            </div>
+                        <div class="perm-matrix-controls">
+                            <input type="text" class="perm-search" id="perm-search" placeholder="Search permissions..." oninput="filterPermissions()">
+                            <button class="perm-filter-btn active" data-filter="all" onclick="setPermFilter('all')">All</button>
+                            <button class="perm-filter-btn" data-filter="differences" onclick="setPermFilter('differences')">Differences Only</button>
+                        </div>
+                        <div class="perm-matrix-wrap">
+                            <table class="perm-matrix-table" id="perm-matrix-table">
+                                <thead id="perm-matrix-head"></thead>
+                                <tbody id="perm-matrix-body">
+                                    <tr><td colspan="6" style="text-align:center; padding: var(--archie-space-8);">
+                                        <div class="loading-spinner"></div>
+                                        <p style="color: var(--archie-text-tertiary); margin-top: var(--archie-space-2);">Loading permissions...</p>
+                                    </td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="perm-matrix-summary">
+                            <div class="legend-item"><span class="perm-check">&#10003;</span> Granted</div>
+                            <div class="legend-item"><span class="perm-x">&mdash;</span> Not granted</div>
+                            <div style="margin-left: auto;" id="perm-count-label"></div>
                         </div>
                     </div>
                 </div>
@@ -1351,38 +1552,245 @@ function closeDetailsModal() {
     document.getElementById('details-modal').classList.remove('active');
 }
 
+let permissionsData = null;
+let permFilterMode = 'all';
+let selectedRole = null;
+
 async function loadPermissions() {
     try {
-        const res = await fetch('/tools/account-center/api/permissions');
-        const data = await res.json();
-        if (data.success) {
-            const grid = document.getElementById('permissions-grid');
-            grid.textContent = '';
-            data.permissions.forEach(p => {
-                const item = document.createElement('div');
-                item.className = 'permission-item';
+        // Load roles and permissions in parallel
+        const [rolesRes, permsRes] = await Promise.all([
+            fetch('/tools/account-center/api/roles'),
+            fetch('/tools/account-center/api/permissions')
+        ]);
+        const rolesData = await rolesRes.json();
+        const permsData = await permsRes.json();
 
-                const name = document.createElement('span');
-                name.style.fontSize = 'var(--archie-text-sm)';
-                name.textContent = p.value;
-
-                const roles = document.createElement('div');
-                roles.className = 'permission-roles';
-                ['USER', 'PREMIUM', 'ADMIN'].forEach(role => {
-                    const dot = document.createElement('span');
-                    dot.className = 'role-dot' + (p.roles.includes(role) ? ' active' : '');
-                    dot.title = role;
-                    roles.appendChild(dot);
-                });
-
-                item.appendChild(name);
-                item.appendChild(roles);
-                grid.appendChild(item);
-            });
+        if (rolesData.success) renderRoleCards(rolesData.roles);
+        if (permsData.success) {
+            permissionsData = permsData;
+            renderPermissionMatrix(permsData);
         }
     } catch (err) {
         console.error('Error loading permissions:', err);
     }
+}
+
+function renderRoleCards(roles) {
+    const container = document.getElementById('roles-overview');
+    container.textContent = '';
+
+    roles.forEach(role => {
+        const card = document.createElement('div');
+        card.className = 'role-overview-card';
+        card.style.setProperty('--role-color', role.color);
+        card.onclick = () => toggleRoleHighlight(role.name, card);
+
+        const icon = document.createElement('div');
+        icon.className = 'role-icon';
+        icon.innerHTML = '<i data-lucide="' + role.icon + '"></i>';
+
+        const name = document.createElement('div');
+        name.className = 'role-card-name';
+        name.textContent = role.name.replace('_', ' ');
+
+        const level = document.createElement('div');
+        level.className = 'role-card-level';
+        level.textContent = 'Level ' + role.level;
+
+        const desc = document.createElement('div');
+        desc.className = 'role-card-desc';
+        desc.textContent = role.description;
+
+        const count = document.createElement('div');
+        count.className = 'role-perm-count';
+        count.textContent = role.permission_count;
+
+        const label = document.createElement('div');
+        label.className = 'role-perm-label';
+        label.textContent = 'Permissions';
+
+        card.appendChild(icon);
+        card.appendChild(name);
+        card.appendChild(level);
+        card.appendChild(desc);
+        card.appendChild(count);
+        card.appendChild(label);
+        container.appendChild(card);
+    });
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function toggleRoleHighlight(roleName, cardEl) {
+    const cards = document.querySelectorAll('.role-overview-card');
+    if (selectedRole === roleName) {
+        selectedRole = null;
+        cards.forEach(c => c.classList.remove('active'));
+        // Remove column highlight
+        document.querySelectorAll('.perm-matrix-table th, .perm-matrix-table td').forEach(el => {
+            el.style.removeProperty('background');
+        });
+    } else {
+        selectedRole = roleName;
+        cards.forEach(c => c.classList.remove('active'));
+        cardEl.classList.add('active');
+        highlightRoleColumn(roleName);
+    }
+}
+
+function highlightRoleColumn(roleName) {
+    if (!permissionsData) return;
+    const roleIdx = permissionsData.roles.indexOf(roleName);
+    if (roleIdx === -1) return;
+    const colIdx = roleIdx + 1; // +1 for the permission name column
+
+    // Reset all columns
+    document.querySelectorAll('.perm-matrix-table th, .perm-matrix-table td').forEach(el => {
+        el.style.removeProperty('background');
+    });
+
+    // Highlight the selected column
+    document.querySelectorAll('.perm-matrix-table tr').forEach(tr => {
+        const cells = tr.querySelectorAll('th, td');
+        if (cells[colIdx]) {
+            cells[colIdx].style.background = 'var(--archie-accent-alpha-10)';
+        }
+    });
+}
+
+function renderPermissionMatrix(data) {
+    const head = document.getElementById('perm-matrix-head');
+    const body = document.getElementById('perm-matrix-body');
+    head.textContent = '';
+    body.textContent = '';
+
+    const roleColors = {
+        'PUBLIC': '#6b7280', 'USER': '#06b6d4', 'PREMIUM': '#f97316',
+        'ADMIN': '#ef4444', 'SUPER_ADMIN': '#a855f7'
+    };
+
+    // Build header
+    const headerRow = document.createElement('tr');
+    const permTh = document.createElement('th');
+    permTh.textContent = 'Permission';
+    headerRow.appendChild(permTh);
+
+    data.roles.forEach(role => {
+        const th = document.createElement('th');
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'th-role-name';
+        nameSpan.textContent = role.replace('_', ' ');
+        const dot = document.createElement('span');
+        dot.className = 'th-role-dot';
+        dot.style.background = roleColors[role] || '#6b7280';
+        th.appendChild(nameSpan);
+        th.appendChild(dot);
+        headerRow.appendChild(th);
+    });
+    head.appendChild(headerRow);
+
+    // Build rows grouped by category
+    let totalPerms = 0;
+    data.groups.forEach(group => {
+        // Category header row
+        const catRow = document.createElement('tr');
+        catRow.className = 'category-row expanded';
+        catRow.dataset.category = group.category;
+        const catTd = document.createElement('td');
+        catTd.colSpan = data.roles.length + 1;
+        catTd.textContent = group.category + ' (' + group.permissions.length + ')';
+        catRow.appendChild(catTd);
+        catRow.onclick = () => toggleCategory(group.category, catRow);
+        body.appendChild(catRow);
+
+        // Permission rows
+        group.permissions.forEach(perm => {
+            const row = document.createElement('tr');
+            row.className = 'perm-row';
+            row.dataset.category = group.category;
+            row.dataset.label = perm.label.toLowerCase();
+            row.dataset.code = perm.value.toLowerCase();
+
+            // Check if all roles have same value (for "differences" filter)
+            const values = data.roles.map(r => perm.roles[r]);
+            const allSame = values.every(v => v === values[0]);
+            row.dataset.allSame = allSame ? '1' : '0';
+
+            // Permission name cell
+            const nameTd = document.createElement('td');
+            const labelSpan = document.createElement('span');
+            labelSpan.textContent = perm.label;
+            const codeSpan = document.createElement('span');
+            codeSpan.className = 'perm-code';
+            codeSpan.textContent = perm.value;
+            nameTd.appendChild(labelSpan);
+            nameTd.appendChild(codeSpan);
+            row.appendChild(nameTd);
+
+            // Role checkmarks
+            data.roles.forEach(role => {
+                const td = document.createElement('td');
+                if (perm.roles[role]) {
+                    const check = document.createElement('span');
+                    check.className = 'perm-check';
+                    check.textContent = '\u2713';
+                    td.appendChild(check);
+                } else {
+                    const x = document.createElement('span');
+                    x.className = 'perm-x';
+                    x.textContent = '\u2014';
+                    td.appendChild(x);
+                }
+                row.appendChild(td);
+            });
+
+            body.appendChild(row);
+            totalPerms++;
+        });
+    });
+
+    document.getElementById('perm-count-label').textContent = totalPerms + ' permissions across ' + data.groups.length + ' categories';
+
+    // Re-apply role highlight if active
+    if (selectedRole) highlightRoleColumn(selectedRole);
+}
+
+function toggleCategory(category, catRow) {
+    const isExpanded = catRow.classList.contains('expanded');
+    catRow.classList.toggle('expanded');
+
+    document.querySelectorAll('.perm-row[data-category="' + category + '"]').forEach(row => {
+        row.style.display = isExpanded ? 'none' : '';
+    });
+}
+
+function filterPermissions() {
+    const query = document.getElementById('perm-search').value.toLowerCase().trim();
+    let visibleCount = 0;
+
+    document.querySelectorAll('.perm-row').forEach(row => {
+        const matchesSearch = !query || row.dataset.label.includes(query) || row.dataset.code.includes(query);
+        const matchesFilter = permFilterMode === 'all' || row.dataset.allSame === '0';
+        const show = matchesSearch && matchesFilter;
+        row.classList.toggle('hidden', !show);
+        if (show) visibleCount++;
+    });
+
+    // Show/hide category headers based on whether they have visible children
+    document.querySelectorAll('.category-row').forEach(catRow => {
+        const cat = catRow.dataset.category;
+        const hasVisible = document.querySelector('.perm-row[data-category="' + cat + '"]:not(.hidden)');
+        catRow.style.display = hasVisible ? '' : 'none';
+    });
+}
+
+function setPermFilter(mode) {
+    permFilterMode = mode;
+    document.querySelectorAll('.perm-filter-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.filter === mode);
+    });
+    filterPermissions();
 }
 
 async function loadTiers() {

@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}Knowledge Analytics{% endblock %}
+
+{% block content %}
+<div class="analytics-dashboard">
+    <h1>📊 Knowledge Analytics</h1>
+    <p class="subtitle">Track A.R.C.H.I.E.'s knowledge growth and usage patterns</p>
+
+    <div class="analytics-grid">
+        <div class="analytics-card">
+            <h2>Knowledge Growth (Last 30 Days)</h2>
+            <div id="growth-chart"></div>
+        </div>
+
+        <div class="analytics-card">
+            <h2>Knowledge Distribution by Type</h2>
+            <div id="type-distribution"></div>
+        </div>
+
+        <div class="analytics-card">
+            <h2>Top Categories</h2>
+            <div id="category-distribution"></div>
+        </div>
+
+        <div class="analytics-card">
+            <h2>Access Patterns</h2>
+            <div id="access-patterns"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+function loadAnalytics() {
+    // Load statistics
+    fetch('/tools/consciousness/stats')
+        .then(response => response.json())
+        .then(data => {
+            // Display knowledge distribution
+            const typeDiv = document.getElementById('type-distribution');
+            typeDiv.innerHTML = '<table class="table"><thead><tr><th>Type</th><th>Count</th><th>Avg Importance</th></tr></thead><tbody></tbody></table>';
+            const tbody = typeDiv.querySelector('tbody');
+
+            data.knowledge_distribution.forEach(item => {
+                const row = tbody.insertRow();
+                row.innerHTML = `
+                    <td>${item.knowledge_type}</td>
+                    <td>${item.count}</td>
+                    <td>${item.avg_importance}</td>
+                `;
+            });
+
+            // Display category distribution
+            const catDiv = document.getElementById('category-distribution');
+            catDiv.innerHTML = '<ul class="category-list"></ul>';
+            const ul = catDiv.querySelector('ul');
+
+            data.category_distribution.forEach(item => {
+                const li = document.createElement('li');
+                li.innerHTML = `<strong>${item.category}:</strong> ${item.count} entries`;
+                ul.appendChild(li);
+            });
+
+            // Display access stats
+            const accessDiv = document.getElementById('access-patterns');
+            accessDiv.innerHTML = `
+                <p><strong>Accessed Today:</strong> ${data.access_stats.accessed_today || 0}</p>
+                <p><strong>Accessed This Week:</strong> ${data.access_stats.accessed_week || 0}</p>
+                <p><strong>Average Access Count:</strong> ${(data.access_stats.avg_access_count || 0).toFixed(2)}</p>
+                <p><strong>Recent Additions (7 days):</strong> ${data.recent_additions}</p>
+            `;
+        });
+
+    // Load growth data
+    fetch('/tools/consciousness/analytics/knowledge-growth')
+        .then(response => response.json())
+        .then(data => {
+            const growthDiv = document.getElementById('growth-chart');
+            growthDiv.innerHTML = '<table class="table"><thead><tr><th>Date</th><th>Type</th><th>Entries Added</th></tr></thead><tbody></tbody></table>';
+            const tbody = growthDiv.querySelector('tbody');
+
+            data.growth_data.forEach(item => {
+                const row = tbody.insertRow();
+                row.innerHTML = `
+                    <td>${new Date(item.date).toLocaleDateString()}</td>
+                    <td>${item.knowledge_type}</td>
+                    <td>${item.entries_added}</td>
+                `;
+            });
+        });
+}
+
+// Load analytics on page load
+loadAnalytics();
+</script>
+
+<style>
+.analytics-dashboard {
+    padding: 2rem;
+}
+
+.analytics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 1.5rem;
+    margin-top: 2rem;
+}
+
+.analytics-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.analytics-card h2 {
+    margin-top: 0;
+    font-size: 1.125rem;
+    margin-bottom: 1rem;
+}
+
+.category-list {
+    list-style: none;
+    padding: 0;
+}
+
+.category-list li {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #eee;
+}
+</style>
+{% endblock %}

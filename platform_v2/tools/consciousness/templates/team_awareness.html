@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}Team Awareness{% endblock %}
+
+{% block content %}
+<div class="team-awareness">
+    <h1>👥 Team Awareness</h1>
+    <p class="subtitle">A.R.C.H.I.E.'s knowledge of all agents and team members</p>
+
+    <div class="team-tabs">
+        <button class="tab-btn active" onclick="showTab('agents')">All Agents</button>
+        <button class="tab-btn" onclick="showTab('leaderboard')">Performance Leaderboard</button>
+    </div>
+
+    <div id="agents-tab" class="tab-content">
+        <h2>Agent Directory</h2>
+        <div id="agent-list" class="agent-list">
+            <!-- Agents will be loaded here -->
+        </div>
+    </div>
+
+    <div id="leaderboard-tab" class="tab-content" style="display:none;">
+        <h2>Performance Leaderboard</h2>
+        <div id="leaderboard" class="leaderboard">
+            <!-- Leaderboard will be loaded here -->
+        </div>
+    </div>
+</div>
+
+<script>
+function showTab(tabName) {
+    document.querySelectorAll('.tab-content').forEach(tab => tab.style.display = 'none');
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+
+    document.getElementById(`${tabName}-tab`).style.display = 'block';
+    event.target.classList.add('active');
+
+    if (tabName === 'agents') loadAgents();
+    if (tabName === 'leaderboard') loadLeaderboard();
+}
+
+function loadAgents() {
+    fetch('/tools/consciousness/team/agents')
+        .then(response => response.json())
+        .then(data => {
+            const agentList = document.getElementById('agent-list');
+            agentList.innerHTML = '';
+
+            data.agents.forEach(agent => {
+                const card = document.createElement('div');
+                card.className = 'agent-card';
+                card.innerHTML = `
+                    <h3>${agent.full_name || agent.username}</h3>
+                    <p>Type: ${agent.agent_type || 'General'}</p>
+                    <p>Email: ${agent.email}</p>
+                    <p>Total Tasks: ${agent.total_tasks || 0}</p>
+                    <p>Completion Rate: ${((agent.completion_rate || 0) * 100).toFixed(1)}%</p>
+                `;
+                agentList.appendChild(card);
+            });
+        });
+}
+
+function loadLeaderboard() {
+    fetch('/tools/consciousness/team/leaderboard')
+        .then(response => response.json())
+        .then(data => {
+            const leaderboard = document.getElementById('leaderboard');
+            leaderboard.innerHTML = '<table class="table"><thead><tr><th>Rank</th><th>Agent</th><th>Completed Tasks</th><th>Success Rate</th></tr></thead><tbody></tbody></table>';
+
+            const tbody = leaderboard.querySelector('tbody');
+            data.leaderboard.forEach((agent, index) => {
+                const row = tbody.insertRow();
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${agent.full_name || agent.username}</td>
+                    <td>${agent.completed_tasks}</td>
+                    <td>${(agent.success_rate * 100).toFixed(1)}%</td>
+                `;
+            });
+        });
+}
+
+// Load agents by default
+loadAgents();
+</script>
+
+<style>
+.team-awareness {
+    padding: 2rem;
+}
+
+.team-tabs {
+    display: flex;
+    gap: 1rem;
+    margin: 2rem 0;
+}
+
+.tab-btn {
+    padding: 0.5rem 1rem;
+    background: #f0f0f0;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.tab-btn.active {
+    background: #007bff;
+    color: white;
+}
+
+.agent-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+}
+
+.agent-card {
+    background: white;
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+</style>
+{% endblock %}

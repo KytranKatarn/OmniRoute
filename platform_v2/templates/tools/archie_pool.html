@@ -1,0 +1,2695 @@
+{% extends 'base.html' %}
+
+{% block title %}Archie Pool - RVN Mining{% endblock %}
+
+{% block module_name %}archie_pool{% endblock %}
+
+{% block content %}
+<!-- Include Standalone Apps Navigation -->
+{% include 'includes/standalone_apps_nav.html' %}
+
+<!-- Scanline Overlay -->
+<div class="scanline-overlay"></div>
+
+<!-- Main Container -->
+<div class="pool-container">
+    <!-- Page Header -->
+    <header class="pool-header">
+        <div class="pool-title-section">
+            <h1 class="pool-title">
+                <i data-lucide="pickaxe"></i>
+                ARCHIE POOL
+            </h1>
+            <p class="pool-subtitle">Ravencoin (RVN) Mining Pool - KawPow Algorithm</p>
+        </div>
+        <div class="pool-status">
+            <span class="status-indicator status-online" id="poolStatusIndicator"></span>
+            <span id="poolStatusText">Pool Online</span>
+        </div>
+    </header>
+
+    <!-- Connection Info Banner -->
+    <div class="pool-connection-banner">
+        <div class="connection-info">
+            <div class="connection-item">
+                <span class="connection-label">STRATUM URL</span>
+                <code class="connection-value" id="stratumUrl">stratum+tcp://pool.kytranempowerment.com:3333</code>
+                <button class="copy-btn" onclick="copyToClipboard('stratum+tcp://pool.kytranempowerment.com:3333')" title="Copy">
+                    <i data-lucide="copy"></i>
+                </button>
+            </div>
+            <div class="connection-item">
+                <span class="connection-label">ALGORITHM</span>
+                <code class="connection-value">KawPow</code>
+            </div>
+            <div class="connection-item">
+                <span class="connection-label">POOL FEE</span>
+                <code class="connection-value">1.0%</code>
+            </div>
+            <div class="connection-item">
+                <span class="connection-label">MIN PAYOUT</span>
+                <code class="connection-value">10 RVN</code>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Overview -->
+    <section class="pool-stats">
+        <div class="pool-stat-card" style="animation-delay: 0.1s">
+            <div class="pool-stat-icon">
+                <i data-lucide="gauge"></i>
+            </div>
+            <div class="pool-stat-info">
+                <span class="pool-stat-value" id="currentHashrate">0.00</span>
+                <span class="pool-stat-unit">MH/s</span>
+                <span class="pool-stat-label">CURRENT HASHRATE</span>
+            </div>
+            <div class="pool-stat-trend positive" id="hashrateTrend">
+                <i data-lucide="trending-up"></i>
+                <span>+0%</span>
+            </div>
+        </div>
+        <div class="pool-stat-card" style="animation-delay: 0.2s">
+            <div class="pool-stat-icon pool-stat-icon--earnings">
+                <i data-lucide="coins"></i>
+            </div>
+            <div class="pool-stat-info">
+                <span class="pool-stat-value" id="earnings24h">0.00</span>
+                <span class="pool-stat-unit">RVN</span>
+                <span class="pool-stat-label">24H EARNINGS</span>
+            </div>
+            <div class="pool-stat-trend positive" id="earningsTrend">
+                <i data-lucide="trending-up"></i>
+                <span>+0%</span>
+            </div>
+        </div>
+        <div class="pool-stat-card" style="animation-delay: 0.3s">
+            <div class="pool-stat-icon pool-stat-icon--pending">
+                <i data-lucide="clock"></i>
+            </div>
+            <div class="pool-stat-info">
+                <span class="pool-stat-value" id="pendingPayout">0.00</span>
+                <span class="pool-stat-unit">RVN</span>
+                <span class="pool-stat-label">PENDING PAYOUT</span>
+            </div>
+            <div class="pool-stat-progress">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="payoutProgress" style="width: 0%"></div>
+                </div>
+                <span class="progress-text" id="payoutProgressText">0%</span>
+            </div>
+        </div>
+        <div class="pool-stat-card" style="animation-delay: 0.4s">
+            <div class="pool-stat-icon pool-stat-icon--workers">
+                <i data-lucide="server"></i>
+            </div>
+            <div class="pool-stat-info">
+                <span class="pool-stat-value" id="workersOnline">0</span>
+                <span class="pool-stat-unit">/ <span id="workersTotal">0</span></span>
+                <span class="pool-stat-label">WORKERS ONLINE</span>
+            </div>
+            <div class="pool-stat-indicator" id="workerHealth">
+                <span class="health-dot"></span>
+                <span>All Healthy</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Tab Navigation -->
+    <nav class="pool-tabs">
+        <button class="pool-tab active" data-tab="dashboard" onclick="switchTab('dashboard')">
+            <i data-lucide="layout-dashboard"></i>
+            Dashboard
+        </button>
+        <button class="pool-tab" data-tab="workers" onclick="switchTab('workers')">
+            <i data-lucide="server"></i>
+            Workers
+        </button>
+        <button class="pool-tab" data-tab="payouts" onclick="switchTab('payouts')">
+            <i data-lucide="wallet"></i>
+            Payouts
+        </button>
+        <button class="pool-tab" data-tab="settings" onclick="switchTab('settings')">
+            <i data-lucide="settings"></i>
+            Settings
+        </button>
+    </nav>
+
+    <!-- Tab Content -->
+    <div class="pool-tab-content">
+        <!-- Dashboard Tab -->
+        <div class="pool-tab-panel active" id="dashboard-panel">
+            <div class="dashboard-grid">
+                <!-- Hashrate Chart -->
+                <div class="pool-card pool-chart-card">
+                    <div class="pool-card-header">
+                        <h3>
+                            <i data-lucide="activity"></i>
+                            Hashrate History (24h)
+                        </h3>
+                        <div class="chart-controls">
+                            <button class="chart-btn active" data-range="24h">24H</button>
+                            <button class="chart-btn" data-range="7d">7D</button>
+                            <button class="chart-btn" data-range="30d">30D</button>
+                        </div>
+                    </div>
+                    <div class="pool-chart" id="hashrateChart">
+                        <div class="chart-placeholder">
+                            <div class="chart-line"></div>
+                            <div class="chart-grid">
+                                <span>100 MH/s</span>
+                                <span>75 MH/s</span>
+                                <span>50 MH/s</span>
+                                <span>25 MH/s</span>
+                                <span>0 MH/s</span>
+                            </div>
+                            <div class="chart-data-points" id="hashrateDataPoints">
+                                <!-- Data points rendered here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pool Statistics -->
+                <div class="pool-card pool-stats-card">
+                    <div class="pool-card-header">
+                        <h3>
+                            <i data-lucide="bar-chart-3"></i>
+                            Pool Statistics
+                        </h3>
+                        <span class="live-indicator">
+                            <span class="live-dot"></span>
+                            LIVE
+                        </span>
+                    </div>
+                    <div class="pool-stats-grid">
+                        <div class="pool-mini-stat">
+                            <span class="mini-stat-label">Pool Hashrate</span>
+                            <span class="mini-stat-value" id="poolHashrate">0.00 GH/s</span>
+                        </div>
+                        <div class="pool-mini-stat">
+                            <span class="mini-stat-label">Active Miners</span>
+                            <span class="mini-stat-value" id="activeMiners">0</span>
+                        </div>
+                        <div class="pool-mini-stat">
+                            <span class="mini-stat-label">Blocks Found (24h)</span>
+                            <span class="mini-stat-value" id="blocksFound">0</span>
+                        </div>
+                        <div class="pool-mini-stat">
+                            <span class="mini-stat-label">Network Difficulty</span>
+                            <span class="mini-stat-value" id="networkDifficulty">0.00</span>
+                        </div>
+                        <div class="pool-mini-stat">
+                            <span class="mini-stat-label">Network Hashrate</span>
+                            <span class="mini-stat-value" id="networkHashrate">0.00 TH/s</span>
+                        </div>
+                        <div class="pool-mini-stat">
+                            <span class="mini-stat-label">Block Height</span>
+                            <span class="mini-stat-value" id="blockHeight">0</span>
+                        </div>
+                        <div class="pool-mini-stat">
+                            <span class="mini-stat-label">RVN Price (USD)</span>
+                            <span class="mini-stat-value" id="rvnPrice">$0.000</span>
+                        </div>
+                        <div class="pool-mini-stat">
+                            <span class="mini-stat-label">Est. Daily Earnings</span>
+                            <span class="mini-stat-value" id="estDailyEarnings">0.00 RVN</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Shares -->
+                <div class="pool-card">
+                    <div class="pool-card-header">
+                        <h3>
+                            <i data-lucide="check-circle"></i>
+                            Recent Shares
+                        </h3>
+                        <span class="share-counter">
+                            <span id="validShares">0</span> valid / <span id="invalidShares">0</span> invalid
+                        </span>
+                    </div>
+                    <div class="shares-feed" id="sharesFeed">
+                        <div class="share-item valid">
+                            <i data-lucide="check"></i>
+                            <span class="share-worker">Worker_01</span>
+                            <span class="share-diff">Diff: 32</span>
+                            <span class="share-time">Just now</span>
+                        </div>
+                        <div class="share-item valid">
+                            <i data-lucide="check"></i>
+                            <span class="share-worker">Worker_02</span>
+                            <span class="share-diff">Diff: 32</span>
+                            <span class="share-time">2s ago</span>
+                        </div>
+                        <div class="share-item valid">
+                            <i data-lucide="check"></i>
+                            <span class="share-worker">Worker_01</span>
+                            <span class="share-diff">Diff: 32</span>
+                            <span class="share-time">5s ago</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Blocks -->
+                <div class="pool-card">
+                    <div class="pool-card-header">
+                        <h3>
+                            <i data-lucide="cube"></i>
+                            Recent Blocks
+                        </h3>
+                    </div>
+                    <div class="blocks-list" id="blocksList">
+                        <div class="block-item">
+                            <div class="block-info">
+                                <span class="block-height">#2,847,392</span>
+                                <span class="block-hash">0x8a7f...3c2d</span>
+                            </div>
+                            <div class="block-reward">
+                                <span class="reward-amount">2500 RVN</span>
+                                <span class="block-time">2 hours ago</span>
+                            </div>
+                        </div>
+                        <div class="block-item">
+                            <div class="block-info">
+                                <span class="block-height">#2,847,156</span>
+                                <span class="block-hash">0x3f2a...9e1b</span>
+                            </div>
+                            <div class="block-reward">
+                                <span class="reward-amount">2500 RVN</span>
+                                <span class="block-time">5 hours ago</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Workers Tab -->
+        <div class="pool-tab-panel" id="workers-panel">
+            <div class="workers-layout">
+                <!-- Workers Toolbar -->
+                <div class="workers-toolbar">
+                    <div class="toolbar-left">
+                        <button class="pool-btn pool-btn-primary" onclick="showAddWorkerModal()">
+                            <i data-lucide="plus"></i>
+                            Add Worker
+                        </button>
+                        <button class="pool-btn pool-btn-secondary" onclick="refreshWorkers()">
+                            <i data-lucide="refresh-cw"></i>
+                            Refresh
+                        </button>
+                    </div>
+                    <div class="toolbar-right">
+                        <div class="pool-search">
+                            <i data-lucide="search"></i>
+                            <input type="text" placeholder="Search workers..." id="workerSearch" onkeyup="filterWorkers()">
+                        </div>
+                        <select class="pool-select" id="workerFilter" onchange="filterWorkers()">
+                            <option value="all">All Workers</option>
+                            <option value="online">Online</option>
+                            <option value="offline">Offline</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Workers Table -->
+                <div class="pool-card workers-table-card">
+                    <table class="pool-table" id="workersTable">
+                        <thead>
+                            <tr>
+                                <th>Status</th>
+                                <th>Worker Name</th>
+                                <th>Hashrate</th>
+                                <th>Shares (Valid/Invalid)</th>
+                                <th>Last Seen</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="workersTableBody">
+                            <tr class="worker-row online">
+                                <td>
+                                    <span class="worker-status-badge online">
+                                        <span class="status-dot"></span>
+                                        Online
+                                    </span>
+                                </td>
+                                <td class="worker-name">
+                                    <i data-lucide="server"></i>
+                                    <span>RIG_3080_01</span>
+                                </td>
+                                <td class="worker-hashrate">
+                                    <span class="hashrate-value">32.5</span>
+                                    <span class="hashrate-unit">MH/s</span>
+                                </td>
+                                <td class="worker-shares">
+                                    <span class="shares-valid">12,458</span> /
+                                    <span class="shares-invalid">3</span>
+                                </td>
+                                <td class="worker-lastseen">Just now</td>
+                                <td class="worker-actions">
+                                    <button class="action-btn" onclick="showWorkerDetails('RIG_3080_01')" title="Details">
+                                        <i data-lucide="eye"></i>
+                                    </button>
+                                    <button class="action-btn" onclick="editWorker('RIG_3080_01')" title="Edit">
+                                        <i data-lucide="edit-2"></i>
+                                    </button>
+                                    <button class="action-btn danger" onclick="removeWorker('RIG_3080_01')" title="Remove">
+                                        <i data-lucide="trash-2"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr class="worker-row online">
+                                <td>
+                                    <span class="worker-status-badge online">
+                                        <span class="status-dot"></span>
+                                        Online
+                                    </span>
+                                </td>
+                                <td class="worker-name">
+                                    <i data-lucide="server"></i>
+                                    <span>RIG_3070_02</span>
+                                </td>
+                                <td class="worker-hashrate">
+                                    <span class="hashrate-value">28.2</span>
+                                    <span class="hashrate-unit">MH/s</span>
+                                </td>
+                                <td class="worker-shares">
+                                    <span class="shares-valid">9,847</span> /
+                                    <span class="shares-invalid">1</span>
+                                </td>
+                                <td class="worker-lastseen">5s ago</td>
+                                <td class="worker-actions">
+                                    <button class="action-btn" onclick="showWorkerDetails('RIG_3070_02')" title="Details">
+                                        <i data-lucide="eye"></i>
+                                    </button>
+                                    <button class="action-btn" onclick="editWorker('RIG_3070_02')" title="Edit">
+                                        <i data-lucide="edit-2"></i>
+                                    </button>
+                                    <button class="action-btn danger" onclick="removeWorker('RIG_3070_02')" title="Remove">
+                                        <i data-lucide="trash-2"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr class="worker-row offline">
+                                <td>
+                                    <span class="worker-status-badge offline">
+                                        <span class="status-dot"></span>
+                                        Offline
+                                    </span>
+                                </td>
+                                <td class="worker-name">
+                                    <i data-lucide="server"></i>
+                                    <span>RIG_1660S_03</span>
+                                </td>
+                                <td class="worker-hashrate">
+                                    <span class="hashrate-value">0.0</span>
+                                    <span class="hashrate-unit">MH/s</span>
+                                </td>
+                                <td class="worker-shares">
+                                    <span class="shares-valid">3,291</span> /
+                                    <span class="shares-invalid">0</span>
+                                </td>
+                                <td class="worker-lastseen">2h ago</td>
+                                <td class="worker-actions">
+                                    <button class="action-btn" onclick="showWorkerDetails('RIG_1660S_03')" title="Details">
+                                        <i data-lucide="eye"></i>
+                                    </button>
+                                    <button class="action-btn" onclick="editWorker('RIG_1660S_03')" title="Edit">
+                                        <i data-lucide="edit-2"></i>
+                                    </button>
+                                    <button class="action-btn danger" onclick="removeWorker('RIG_1660S_03')" title="Remove">
+                                        <i data-lucide="trash-2"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Miner Configuration -->
+                <div class="pool-card miner-config-card">
+                    <div class="pool-card-header">
+                        <h3>
+                            <i data-lucide="terminal"></i>
+                            Miner Configuration
+                        </h3>
+                    </div>
+                    <div class="miner-configs">
+                        <div class="config-section">
+                            <h4>NBMiner (Recommended)</h4>
+                            <code class="config-command">nbminer -a kawpow -o stratum+tcp://pool.kytranempowerment.com:3333 -u YOUR_RVN_ADDRESS.WORKER_NAME</code>
+                            <button class="copy-btn" onclick="copyConfig('nbminer')" title="Copy">
+                                <i data-lucide="copy"></i>
+                            </button>
+                        </div>
+                        <div class="config-section">
+                            <h4>T-Rex Miner</h4>
+                            <code class="config-command">t-rex -a kawpow -o stratum+tcp://pool.kytranempowerment.com:3333 -u YOUR_RVN_ADDRESS.WORKER_NAME -p x</code>
+                            <button class="copy-btn" onclick="copyConfig('trex')" title="Copy">
+                                <i data-lucide="copy"></i>
+                            </button>
+                        </div>
+                        <div class="config-section">
+                            <h4>Gminer</h4>
+                            <code class="config-command">miner --algo kawpow --server stratum+tcp://pool.kytranempowerment.com:3333 --user YOUR_RVN_ADDRESS.WORKER_NAME</code>
+                            <button class="copy-btn" onclick="copyConfig('gminer')" title="Copy">
+                                <i data-lucide="copy"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Payouts Tab -->
+        <div class="pool-tab-panel" id="payouts-panel">
+            <div class="payouts-layout">
+                <!-- Payout Summary -->
+                <div class="payout-summary-grid">
+                    <div class="pool-card payout-summary-card">
+                        <div class="payout-icon">
+                            <i data-lucide="clock"></i>
+                        </div>
+                        <div class="payout-info">
+                            <span class="payout-amount" id="summaryPending">0.00 RVN</span>
+                            <span class="payout-label">Pending Balance</span>
+                        </div>
+                    </div>
+                    <div class="pool-card payout-summary-card">
+                        <div class="payout-icon paid">
+                            <i data-lucide="check-circle"></i>
+                        </div>
+                        <div class="payout-info">
+                            <span class="payout-amount" id="summaryPaid">0.00 RVN</span>
+                            <span class="payout-label">Total Paid</span>
+                        </div>
+                    </div>
+                    <div class="pool-card payout-summary-card">
+                        <div class="payout-icon next">
+                            <i data-lucide="calendar"></i>
+                        </div>
+                        <div class="payout-info">
+                            <span class="payout-amount" id="nextPayout">--</span>
+                            <span class="payout-label">Next Payout</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pending Payouts -->
+                <div class="pool-card">
+                    <div class="pool-card-header">
+                        <h3>
+                            <i data-lucide="hourglass"></i>
+                            Pending Payouts
+                        </h3>
+                    </div>
+                    <div class="pending-payouts" id="pendingPayouts">
+                        <div class="pending-payout-item">
+                            <div class="pending-info">
+                                <span class="pending-address">RVNaddress...xyz123</span>
+                                <span class="pending-amount">125.50 RVN</span>
+                            </div>
+                            <div class="pending-status">
+                                <span class="status-badge pending">Processing</span>
+                                <span class="pending-eta">ETA: ~30 min</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Payout History -->
+                <div class="pool-card">
+                    <div class="pool-card-header">
+                        <h3>
+                            <i data-lucide="history"></i>
+                            Payout History
+                        </h3>
+                        <button class="pool-btn pool-btn-secondary" onclick="exportPayoutHistory()">
+                            <i data-lucide="download"></i>
+                            Export CSV
+                        </button>
+                    </div>
+                    <table class="pool-table" id="payoutHistoryTable">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Amount</th>
+                                <th>TX Hash</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="payoutHistoryBody">
+                            <tr>
+                                <td>2026-01-17 14:32</td>
+                                <td class="payout-amount">250.00 RVN</td>
+                                <td class="tx-hash">
+                                    <a href="#" target="_blank">8a7f2c1d...3e9b</a>
+                                    <button class="copy-btn-small" onclick="copyToClipboard('8a7f2c1d...3e9b')">
+                                        <i data-lucide="copy"></i>
+                                    </button>
+                                </td>
+                                <td><span class="status-badge confirmed">Confirmed</span></td>
+                            </tr>
+                            <tr>
+                                <td>2026-01-15 09:15</td>
+                                <td class="payout-amount">187.25 RVN</td>
+                                <td class="tx-hash">
+                                    <a href="#" target="_blank">3f2a9e1b...7c4d</a>
+                                    <button class="copy-btn-small" onclick="copyToClipboard('3f2a9e1b...7c4d')">
+                                        <i data-lucide="copy"></i>
+                                    </button>
+                                </td>
+                                <td><span class="status-badge confirmed">Confirmed</span></td>
+                            </tr>
+                            <tr>
+                                <td>2026-01-12 22:47</td>
+                                <td class="payout-amount">312.75 RVN</td>
+                                <td class="tx-hash">
+                                    <a href="#" target="_blank">c5d8f4a2...1b6e</a>
+                                    <button class="copy-btn-small" onclick="copyToClipboard('c5d8f4a2...1b6e')">
+                                        <i data-lucide="copy"></i>
+                                    </button>
+                                </td>
+                                <td><span class="status-badge confirmed">Confirmed</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Tab -->
+        <div class="pool-tab-panel" id="settings-panel">
+            <div class="settings-layout">
+                <!-- Payout Settings -->
+                <div class="pool-card settings-card">
+                    <div class="pool-card-header">
+                        <h3>
+                            <i data-lucide="wallet"></i>
+                            Payout Settings
+                        </h3>
+                    </div>
+                    <div class="settings-form">
+                        <div class="form-group">
+                            <label for="payoutAddress">RVN Payout Address</label>
+                            <div class="input-with-action">
+                                <input type="text" id="payoutAddress" class="pool-input"
+                                       placeholder="Enter your Ravencoin wallet address"
+                                       value="">
+                                <button class="pool-btn pool-btn-secondary" onclick="validateAddress()">
+                                    <i data-lucide="check"></i>
+                                    Verify
+                                </button>
+                            </div>
+                            <span class="input-hint">Your RVN address starting with 'R'</span>
+                        </div>
+                        <div class="form-group">
+                            <label for="payoutThreshold">Minimum Payout Threshold</label>
+                            <div class="input-with-unit">
+                                <input type="number" id="payoutThreshold" class="pool-input"
+                                       min="10" max="10000" step="1" value="50">
+                                <span class="input-unit">RVN</span>
+                            </div>
+                            <span class="input-hint">Minimum: 10 RVN | Maximum: 10,000 RVN</span>
+                        </div>
+                        <div class="form-group">
+                            <label for="payoutFrequency">Payout Frequency</label>
+                            <select id="payoutFrequency" class="pool-select">
+                                <option value="auto">Automatic (when threshold reached)</option>
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                                <option value="manual">Manual Request Only</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Notification Settings -->
+                <div class="pool-card settings-card">
+                    <div class="pool-card-header">
+                        <h3>
+                            <i data-lucide="bell"></i>
+                            Notification Settings
+                        </h3>
+                    </div>
+                    <div class="settings-form">
+                        <div class="form-group">
+                            <label for="notifyEmail">Email Notifications</label>
+                            <input type="email" id="notifyEmail" class="pool-input"
+                                   placeholder="your@email.com">
+                        </div>
+                        <div class="toggle-group">
+                            <div class="toggle-item">
+                                <div class="toggle-info">
+                                    <span class="toggle-label">Worker Offline Alert</span>
+                                    <span class="toggle-desc">Get notified when a worker goes offline</span>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="alertWorkerOffline" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="toggle-item">
+                                <div class="toggle-info">
+                                    <span class="toggle-label">Payout Notifications</span>
+                                    <span class="toggle-desc">Get notified when payouts are processed</span>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="alertPayout" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="toggle-item">
+                                <div class="toggle-info">
+                                    <span class="toggle-label">Block Found Alert</span>
+                                    <span class="toggle-desc">Get notified when the pool finds a block</span>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="alertBlockFound">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="toggle-item">
+                                <div class="toggle-info">
+                                    <span class="toggle-label">Daily Summary</span>
+                                    <span class="toggle-desc">Receive daily mining statistics</span>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="alertDailySummary">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- API Access -->
+                <div class="pool-card settings-card">
+                    <div class="pool-card-header">
+                        <h3>
+                            <i data-lucide="key"></i>
+                            API Access
+                        </h3>
+                    </div>
+                    <div class="settings-form">
+                        <div class="form-group">
+                            <label>API Key</label>
+                            <div class="api-key-display">
+                                <code class="api-key" id="apiKey">••••••••••••••••••••••••••••••••</code>
+                                <button class="pool-btn pool-btn-icon" onclick="toggleApiKey()" title="Show/Hide">
+                                    <i data-lucide="eye" id="apiKeyIcon"></i>
+                                </button>
+                                <button class="pool-btn pool-btn-icon" onclick="copyApiKey()" title="Copy">
+                                    <i data-lucide="copy"></i>
+                                </button>
+                                <button class="pool-btn pool-btn-icon danger" onclick="regenerateApiKey()" title="Regenerate">
+                                    <i data-lucide="refresh-cw"></i>
+                                </button>
+                            </div>
+                            <span class="input-hint">Use this key to access pool statistics via API</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Save Button -->
+                <div class="settings-actions">
+                    <button class="pool-btn pool-btn-primary pool-btn-large" onclick="saveSettings()">
+                        <i data-lucide="save"></i>
+                        Save Settings
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Worker Modal -->
+<div class="pool-modal" id="addWorkerModal">
+    <div class="pool-modal-content">
+        <div class="pool-modal-header">
+            <h3>
+                <i data-lucide="plus-circle"></i>
+                Add New Worker
+            </h3>
+            <button class="modal-close" onclick="closeModal('addWorkerModal')">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <div class="pool-modal-body">
+            <div class="form-group">
+                <label for="newWorkerName">Worker Name</label>
+                <input type="text" id="newWorkerName" class="pool-input"
+                       placeholder="e.g., RIG_3080_01" maxlength="32">
+                <span class="input-hint">Alphanumeric characters and underscores only</span>
+            </div>
+            <div class="form-group">
+                <label for="workerPassword">Worker Password (Optional)</label>
+                <input type="password" id="workerPassword" class="pool-input"
+                       placeholder="Leave empty for no password">
+            </div>
+            <div class="connection-preview">
+                <label>Connection String</label>
+                <code id="workerConnectionString">YOUR_RVN_ADDRESS.WORKER_NAME</code>
+            </div>
+        </div>
+        <div class="pool-modal-footer">
+            <button class="pool-btn pool-btn-secondary" onclick="closeModal('addWorkerModal')">Cancel</button>
+            <button class="pool-btn pool-btn-primary" onclick="addWorker()">
+                <i data-lucide="plus"></i>
+                Add Worker
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+/* ========================================================================
+   ARCHIE POOL - RAVENCOIN MINING (RED THEME)
+   ======================================================================== */
+
+:root {
+    --pool-accent: #EF4444;
+    --pool-accent-rgb: 239, 68, 68;
+    --pool-accent-light: #FCA5A5;
+    --pool-accent-dark: #DC2626;
+    --pool-success: #10B981;
+    --pool-warning: #F59E0B;
+    --pool-info: #3B82F6;
+    --pool-danger: #EF4444;
+    --pool-bg-primary: #0a0a0f;
+    --pool-bg-secondary: #0d1117;
+    --pool-bg-card: rgba(13, 17, 23, 0.95);
+    --pool-border: rgba(239, 68, 68, 0.2);
+    --pool-text-primary: #ffffff;
+    --pool-text-secondary: rgba(255, 255, 255, 0.7);
+    --pool-text-muted: rgba(255, 255, 255, 0.5);
+}
+
+.pool-container {
+    min-height: 100vh;
+    background: var(--pool-bg-primary);
+    padding: 20px 30px 40px;
+    padding-top: 80px;
+}
+
+.scanline-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 0, 0, 0.03) 0px,
+        rgba(0, 0, 0, 0.03) 1px,
+        transparent 1px,
+        transparent 2px
+    );
+    pointer-events: none;
+    z-index: 1000;
+}
+
+/* ========================================================================
+   HEADER
+   ======================================================================== */
+
+.pool-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    animation: fadeInUp 0.5s ease-out;
+}
+
+.pool-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--pool-accent);
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    text-shadow: 0 0 20px rgba(var(--pool-accent-rgb), 0.5);
+    margin: 0;
+}
+
+.pool-title i {
+    width: 36px;
+    height: 36px;
+}
+
+.pool-subtitle {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--pool-text-secondary);
+    margin: 8px 0 0 51px;
+}
+
+.pool-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--pool-success);
+}
+
+.status-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+}
+
+.status-online {
+    background: var(--pool-success);
+    box-shadow: 0 0 10px var(--pool-success);
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* ========================================================================
+   CONNECTION BANNER
+   ======================================================================== */
+
+.pool-connection-banner {
+    background: linear-gradient(135deg, rgba(var(--pool-accent-rgb), 0.1), rgba(var(--pool-accent-rgb), 0.05));
+    border: 1px solid var(--pool-border);
+    border-radius: 12px;
+    padding: 16px 24px;
+    margin-bottom: 24px;
+}
+
+.connection-info {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    align-items: center;
+}
+
+.connection-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.connection-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--pool-text-muted);
+    letter-spacing: 1px;
+}
+
+.connection-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--pool-accent);
+    background: rgba(0, 0, 0, 0.3);
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--pool-border);
+}
+
+.copy-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: transparent;
+    border: 1px solid var(--pool-border);
+    border-radius: 6px;
+    color: var(--pool-text-secondary);
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.copy-btn:hover {
+    color: var(--pool-accent);
+    border-color: var(--pool-accent);
+    background: rgba(var(--pool-accent-rgb), 0.1);
+}
+
+.copy-btn i {
+    width: 16px;
+    height: 16px;
+}
+
+/* ========================================================================
+   STATS CARDS
+   ======================================================================== */
+
+.pool-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.pool-stat-card {
+    background: var(--pool-bg-card);
+    border: 1px solid var(--pool-border);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    backdrop-filter: blur(10px);
+    animation: fadeInUp 0.5s ease-out both;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.pool-stat-card:hover {
+    border-color: rgba(var(--pool-accent-rgb), 0.5);
+    box-shadow: 0 0 20px rgba(var(--pool-accent-rgb), 0.15);
+    transform: translateY(-2px);
+}
+
+.pool-stat-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(var(--pool-accent-rgb), 0.1);
+    color: var(--pool-accent);
+    flex-shrink: 0;
+}
+
+.pool-stat-icon i {
+    width: 24px;
+    height: 24px;
+}
+
+.pool-stat-icon--earnings {
+    background: rgba(245, 158, 11, 0.1);
+    color: #F59E0B;
+}
+
+.pool-stat-icon--pending {
+    background: rgba(59, 130, 246, 0.1);
+    color: #3B82F6;
+}
+
+.pool-stat-icon--workers {
+    background: rgba(16, 185, 129, 0.1);
+    color: #10B981;
+}
+
+.pool-stat-info {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.pool-stat-value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--pool-text-primary);
+    line-height: 1;
+}
+
+.pool-stat-unit {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--pool-text-secondary);
+    margin-left: 4px;
+}
+
+.pool-stat-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--pool-text-muted);
+    letter-spacing: 1px;
+    margin-top: 6px;
+}
+
+.pool-stat-trend {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+}
+
+.pool-stat-trend.positive {
+    color: var(--pool-success);
+}
+
+.pool-stat-trend.negative {
+    color: var(--pool-danger);
+}
+
+.pool-stat-trend i {
+    width: 14px;
+    height: 14px;
+}
+
+.pool-stat-progress {
+    position: absolute;
+    bottom: 16px;
+    right: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.progress-bar {
+    width: 60px;
+    height: 6px;
+    background: rgba(59, 130, 246, 0.2);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: #3B82F6;
+    border-radius: 3px;
+    transition: width 0.5s ease;
+}
+
+.progress-text {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: #3B82F6;
+}
+
+.pool-stat-indicator {
+    position: absolute;
+    bottom: 16px;
+    right: 16px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--pool-success);
+}
+
+.health-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--pool-success);
+    border-radius: 50%;
+}
+
+/* ========================================================================
+   TABS
+   ======================================================================== */
+
+.pool-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--pool-border);
+}
+
+.pool-tab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--pool-text-muted);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.25s ease;
+}
+
+.pool-tab i {
+    width: 18px;
+    height: 18px;
+}
+
+.pool-tab::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--pool-accent);
+    transform: scaleX(0);
+    transition: transform 0.25s ease;
+}
+
+.pool-tab:hover {
+    color: var(--pool-text-secondary);
+}
+
+.pool-tab.active {
+    color: var(--pool-accent);
+}
+
+.pool-tab.active::after {
+    transform: scaleX(1);
+}
+
+/* ========================================================================
+   TAB PANELS
+   ======================================================================== */
+
+.pool-tab-panel {
+    display: none;
+    animation: fadeIn 0.3s ease;
+}
+
+.pool-tab-panel.active {
+    display: block;
+}
+
+/* ========================================================================
+   DASHBOARD GRID
+   ======================================================================== */
+
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 24px;
+}
+
+.pool-card {
+    background: var(--pool-bg-card);
+    border: 1px solid var(--pool-border);
+    border-radius: 12px;
+    padding: 24px;
+    backdrop-filter: blur(10px);
+}
+
+.pool-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.pool-card-header h3 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    color: var(--pool-text-primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+}
+
+.pool-card-header h3 i {
+    width: 20px;
+    height: 20px;
+    color: var(--pool-accent);
+}
+
+/* Chart */
+.pool-chart-card {
+    grid-column: 1;
+}
+
+.chart-controls {
+    display: flex;
+    gap: 4px;
+}
+
+.chart-btn {
+    padding: 6px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    background: transparent;
+    border: 1px solid var(--pool-border);
+    border-radius: 6px;
+    color: var(--pool-text-muted);
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.chart-btn:hover, .chart-btn.active {
+    color: var(--pool-accent);
+    border-color: var(--pool-accent);
+    background: rgba(var(--pool-accent-rgb), 0.1);
+}
+
+.pool-chart {
+    height: 200px;
+    position: relative;
+}
+
+.chart-placeholder {
+    height: 100%;
+    position: relative;
+    border-left: 1px solid var(--pool-border);
+    border-bottom: 1px solid var(--pool-border);
+}
+
+.chart-line {
+    position: absolute;
+    bottom: 30%;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg,
+        transparent,
+        var(--pool-accent) 10%,
+        var(--pool-accent) 30%,
+        rgba(var(--pool-accent-rgb), 0.5) 50%,
+        var(--pool-accent) 70%,
+        var(--pool-accent) 90%,
+        transparent);
+    animation: chartGlow 2s infinite;
+}
+
+@keyframes chartGlow {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+}
+
+.chart-grid {
+    position: absolute;
+    left: -50px;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--pool-text-muted);
+}
+
+/* Pool Stats */
+.pool-stats-card {
+    grid-column: 2;
+    grid-row: 1 / 3;
+}
+
+.live-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--pool-success);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.live-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--pool-success);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+}
+
+.pool-stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.pool-mini-stat {
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    border: 1px solid rgba(var(--pool-accent-rgb), 0.1);
+}
+
+.mini-stat-label {
+    display: block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--pool-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+}
+
+.mini-stat-value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.95rem;
+    color: var(--pool-text-primary);
+}
+
+/* Shares Feed */
+.shares-feed {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.share-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    margin-bottom: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+}
+
+.share-item.valid i {
+    color: var(--pool-success);
+    width: 16px;
+    height: 16px;
+}
+
+.share-item.invalid i {
+    color: var(--pool-danger);
+}
+
+.share-worker {
+    color: var(--pool-text-primary);
+    flex: 1;
+}
+
+.share-diff {
+    color: var(--pool-text-muted);
+}
+
+.share-time {
+    color: var(--pool-text-muted);
+    font-size: 0.7rem;
+}
+
+.share-counter {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--pool-text-muted);
+}
+
+/* Blocks List */
+.blocks-list {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.block-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    border-left: 3px solid var(--pool-accent);
+}
+
+.block-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.block-height {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.9rem;
+    color: var(--pool-text-primary);
+}
+
+.block-hash {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--pool-text-muted);
+}
+
+.block-reward {
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.reward-amount {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.9rem;
+    color: var(--pool-warning);
+}
+
+.block-time {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--pool-text-muted);
+}
+
+/* ========================================================================
+   WORKERS TAB
+   ======================================================================== */
+
+.workers-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.workers-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.toolbar-left, .toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Buttons */
+.pool-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    font-weight: 500;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.pool-btn i {
+    width: 18px;
+    height: 18px;
+}
+
+.pool-btn-primary {
+    background: transparent;
+    color: var(--pool-accent);
+    border: 2px solid var(--pool-accent);
+}
+
+.pool-btn-primary:hover {
+    background: var(--pool-accent);
+    color: white;
+    box-shadow: 0 0 20px rgba(var(--pool-accent-rgb), 0.4);
+}
+
+.pool-btn-secondary {
+    background: transparent;
+    color: var(--pool-text-secondary);
+    border: 1px solid var(--pool-border);
+}
+
+.pool-btn-secondary:hover {
+    color: var(--pool-text-primary);
+    border-color: var(--pool-text-secondary);
+}
+
+.pool-btn-icon {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    justify-content: center;
+}
+
+.pool-btn-icon.danger {
+    color: var(--pool-danger);
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.pool-btn-icon.danger:hover {
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.pool-btn-large {
+    padding: 14px 28px;
+    font-size: 1rem;
+}
+
+/* Search */
+.pool-search {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--pool-bg-card);
+    border: 1px solid var(--pool-border);
+    border-radius: 8px;
+    padding: 0 16px;
+    min-width: 250px;
+}
+
+.pool-search i {
+    width: 18px;
+    height: 18px;
+    color: var(--pool-text-muted);
+}
+
+.pool-search input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    padding: 10px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--pool-text-primary);
+}
+
+.pool-search input:focus {
+    outline: none;
+}
+
+/* Select */
+.pool-select {
+    background: var(--pool-bg-card);
+    border: 1px solid var(--pool-border);
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--pool-text-primary);
+    cursor: pointer;
+}
+
+/* Workers Table */
+.workers-table-card {
+    overflow-x: auto;
+}
+
+.pool-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.pool-table th {
+    text-align: left;
+    padding: 12px 16px;
+    font-size: 0.7rem;
+    color: var(--pool-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-bottom: 1px solid var(--pool-border);
+}
+
+.pool-table td {
+    padding: 16px;
+    border-bottom: 1px solid rgba(var(--pool-accent-rgb), 0.1);
+}
+
+.pool-table tbody tr:hover {
+    background: rgba(var(--pool-accent-rgb), 0.05);
+}
+
+.worker-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+}
+
+.worker-status-badge.online {
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--pool-success);
+}
+
+.worker-status-badge.offline {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--pool-danger);
+}
+
+.status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.worker-name {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--pool-text-primary);
+}
+
+.worker-name i {
+    width: 18px;
+    height: 18px;
+    color: var(--pool-accent);
+}
+
+.worker-hashrate {
+    color: var(--pool-text-primary);
+}
+
+.hashrate-value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+}
+
+.hashrate-unit {
+    font-size: 0.75rem;
+    color: var(--pool-text-muted);
+    margin-left: 4px;
+}
+
+.worker-shares {
+    font-size: 0.85rem;
+}
+
+.shares-valid {
+    color: var(--pool-success);
+}
+
+.shares-invalid {
+    color: var(--pool-danger);
+}
+
+.worker-lastseen {
+    color: var(--pool-text-muted);
+    font-size: 0.8rem;
+}
+
+.worker-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: transparent;
+    border: 1px solid var(--pool-border);
+    border-radius: 6px;
+    color: var(--pool-text-secondary);
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.action-btn i {
+    width: 16px;
+    height: 16px;
+}
+
+.action-btn:hover {
+    color: var(--pool-accent);
+    border-color: var(--pool-accent);
+}
+
+.action-btn.danger:hover {
+    color: var(--pool-danger);
+    border-color: var(--pool-danger);
+    background: rgba(239, 68, 68, 0.1);
+}
+
+/* Miner Config */
+.miner-config-card {
+    margin-top: 24px;
+}
+
+.miner-configs {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.config-section {
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    position: relative;
+}
+
+.config-section h4 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.85rem;
+    color: var(--pool-text-primary);
+    margin: 0 0 10px;
+}
+
+.config-command {
+    display: block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--pool-accent);
+    background: rgba(0, 0, 0, 0.3);
+    padding: 12px;
+    border-radius: 6px;
+    word-break: break-all;
+    padding-right: 50px;
+}
+
+.config-section .copy-btn {
+    position: absolute;
+    top: 50%;
+    right: 16px;
+    transform: translateY(-50%);
+}
+
+/* ========================================================================
+   PAYOUTS TAB
+   ======================================================================== */
+
+.payouts-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.payout-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+}
+
+.payout-summary-card {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.payout-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(59, 130, 246, 0.1);
+    color: #3B82F6;
+}
+
+.payout-icon i {
+    width: 28px;
+    height: 28px;
+}
+
+.payout-icon.paid {
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--pool-success);
+}
+
+.payout-icon.next {
+    background: rgba(245, 158, 11, 0.1);
+    color: var(--pool-warning);
+}
+
+.payout-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.payout-amount {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.5rem;
+    color: var(--pool-text-primary);
+}
+
+.payout-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--pool-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Pending Payouts */
+.pending-payouts {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.pending-payout-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    border-left: 3px solid var(--pool-warning);
+}
+
+.pending-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.pending-address {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--pool-text-primary);
+}
+
+.pending-amount {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.1rem;
+    color: var(--pool-warning);
+}
+
+.pending-status {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+}
+
+.pending-eta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--pool-text-muted);
+}
+
+/* Status Badges */
+.status-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.status-badge.confirmed {
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--pool-success);
+}
+
+.status-badge.pending {
+    background: rgba(245, 158, 11, 0.1);
+    color: var(--pool-warning);
+}
+
+/* Payout Table */
+.tx-hash {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tx-hash a {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--pool-accent);
+    text-decoration: none;
+}
+
+.tx-hash a:hover {
+    text-decoration: underline;
+}
+
+.copy-btn-small {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: transparent;
+    border: none;
+    color: var(--pool-text-muted);
+    cursor: pointer;
+    transition: color 0.25s ease;
+}
+
+.copy-btn-small:hover {
+    color: var(--pool-accent);
+}
+
+.copy-btn-small i {
+    width: 14px;
+    height: 14px;
+}
+
+/* ========================================================================
+   SETTINGS TAB
+   ======================================================================== */
+
+.settings-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    max-width: 800px;
+}
+
+.settings-card {
+    padding: 24px;
+}
+
+.settings-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.form-group label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--pool-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.pool-input {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--pool-border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--pool-text-primary);
+    transition: border-color 0.25s ease;
+}
+
+.pool-input:focus {
+    outline: none;
+    border-color: var(--pool-accent);
+}
+
+.input-with-action {
+    display: flex;
+    gap: 12px;
+}
+
+.input-with-action .pool-input {
+    flex: 1;
+}
+
+.input-with-unit {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.input-with-unit .pool-input {
+    flex: 1;
+    max-width: 200px;
+}
+
+.input-unit {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.9rem;
+    color: var(--pool-text-secondary);
+}
+
+.input-hint {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--pool-text-muted);
+}
+
+/* Toggle Switches */
+.toggle-group {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.toggle-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+}
+
+.toggle-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.toggle-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--pool-text-primary);
+}
+
+.toggle-desc {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--pool-text-muted);
+}
+
+.toggle-switch {
+    position: relative;
+    width: 48px;
+    height: 26px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(var(--pool-accent-rgb), 0.2);
+    border-radius: 26px;
+    transition: 0.3s;
+}
+
+.toggle-slider::before {
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 3px;
+    bottom: 3px;
+    background: white;
+    border-radius: 50%;
+    transition: 0.3s;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background: var(--pool-accent);
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+    transform: translateX(22px);
+}
+
+/* API Key */
+.api-key-display {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.api-key {
+    flex: 1;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--pool-text-secondary);
+    background: rgba(0, 0, 0, 0.3);
+    padding: 12px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--pool-border);
+}
+
+/* Settings Actions */
+.settings-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* ========================================================================
+   MODAL
+   ======================================================================== */
+
+.pool-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 2000;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+}
+
+.pool-modal.active {
+    display: flex;
+}
+
+.pool-modal-content {
+    background: var(--pool-bg-secondary);
+    border: 1px solid var(--pool-border);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 500px;
+    animation: modalSlideIn 0.3s ease;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.pool-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--pool-border);
+}
+
+.pool-modal-header h3 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.1rem;
+    color: var(--pool-text-primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+}
+
+.pool-modal-header h3 i {
+    width: 22px;
+    height: 22px;
+    color: var(--pool-accent);
+}
+
+.modal-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: transparent;
+    border: 1px solid var(--pool-border);
+    border-radius: 8px;
+    color: var(--pool-text-secondary);
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.modal-close:hover {
+    color: var(--pool-danger);
+    border-color: var(--pool-danger);
+}
+
+.modal-close i {
+    width: 20px;
+    height: 20px;
+}
+
+.pool-modal-body {
+    padding: 24px;
+}
+
+.connection-preview {
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    margin-top: 16px;
+}
+
+.connection-preview label {
+    display: block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--pool-text-muted);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+
+.connection-preview code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--pool-accent);
+}
+
+.pool-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 20px 24px;
+    border-top: 1px solid var(--pool-border);
+}
+
+/* ========================================================================
+   ANIMATIONS
+   ======================================================================== */
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ========================================================================
+   LIGHT MODE
+   ======================================================================== */
+
+body.light-mode .pool-container {
+    background: #f8f9fa;
+}
+
+body.light-mode .pool-title {
+    color: #DC2626;
+    text-shadow: none;
+}
+
+body.light-mode .pool-stat-card,
+body.light-mode .pool-card,
+body.light-mode .pool-connection-banner {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: rgba(220, 38, 38, 0.2);
+}
+
+body.light-mode .pool-stat-value,
+body.light-mode .pool-card-header h3,
+body.light-mode .mini-stat-value,
+body.light-mode .worker-name,
+body.light-mode .hashrate-value,
+body.light-mode .block-height,
+body.light-mode .payout-amount,
+body.light-mode .toggle-label {
+    color: #1a1a2e;
+}
+
+body.light-mode .pool-tab {
+    color: #666;
+}
+
+body.light-mode .pool-tab.active {
+    color: #DC2626;
+}
+
+body.light-mode .pool-btn-primary {
+    color: #DC2626;
+    border-color: #DC2626;
+}
+
+body.light-mode .pool-btn-primary:hover {
+    background: #DC2626;
+}
+
+body.light-mode .pool-table th {
+    color: #666;
+}
+
+body.light-mode .pool-table td {
+    border-color: rgba(220, 38, 38, 0.1);
+}
+
+body.light-mode .pool-input,
+body.light-mode .pool-select,
+body.light-mode .pool-search {
+    background: rgba(255, 255, 255, 0.8);
+    border-color: rgba(220, 38, 38, 0.2);
+    color: #1a1a2e;
+}
+
+body.light-mode .pool-modal-content {
+    background: #ffffff;
+    border-color: rgba(220, 38, 38, 0.2);
+}
+
+body.light-mode .connection-value,
+body.light-mode .config-command,
+body.light-mode .api-key {
+    background: rgba(220, 38, 38, 0.05);
+    border-color: rgba(220, 38, 38, 0.2);
+}
+
+/* ========================================================================
+   RESPONSIVE
+   ======================================================================== */
+
+@media (max-width: 1400px) {
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .pool-stats-card {
+        grid-column: 1;
+        grid-row: auto;
+    }
+}
+
+@media (max-width: 1200px) {
+    .pool-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .payout-summary-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .pool-container {
+        padding: 20px;
+        padding-top: 80px;
+    }
+
+    .pool-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .pool-title {
+        font-size: 1.5rem;
+    }
+
+    .pool-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .pool-tabs {
+        overflow-x: auto;
+    }
+
+    .pool-tab {
+        white-space: nowrap;
+    }
+
+    .connection-info {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .workers-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .toolbar-left, .toolbar-right {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .pool-search {
+        min-width: auto;
+        width: 100%;
+    }
+
+    .pool-table {
+        font-size: 0.75rem;
+    }
+
+    .pool-stats-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
+<script>
+// Initialize Lucide icons
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+    loadPoolData();
+    startLiveUpdates();
+});
+
+// Tab switching
+function switchTab(tabId) {
+    document.querySelectorAll('.pool-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.tab === tabId);
+    });
+    document.querySelectorAll('.pool-tab-panel').forEach(panel => {
+        panel.classList.toggle('active', panel.id === tabId + '-panel');
+    });
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+}
+
+// Load pool data
+function loadPoolData() {
+    // Simulated data - replace with actual API calls
+    const data = {
+        currentHashrate: 60.7,
+        hashrateTrend: '+5.2',
+        earnings24h: 847.25,
+        earningsTrend: '+12.3',
+        pendingPayout: 125.50,
+        payoutThreshold: 50,
+        workersOnline: 2,
+        workersTotal: 3,
+        poolHashrate: '12.45 GH/s',
+        activeMiners: 342,
+        blocksFound: 8,
+        networkDifficulty: '87,432.15',
+        networkHashrate: '5.82 TH/s',
+        blockHeight: '2,847,392',
+        rvnPrice: '$0.0142',
+        estDailyEarnings: '285.50 RVN',
+        validShares: 25549,
+        invalidShares: 4
+    };
+
+    // Update stats
+    document.getElementById('currentHashrate').textContent = data.currentHashrate.toFixed(2);
+    document.getElementById('hashrateTrend').innerHTML = `<i data-lucide="trending-up"></i><span>${data.hashrateTrend}%</span>`;
+    document.getElementById('earnings24h').textContent = data.earnings24h.toFixed(2);
+    document.getElementById('earningsTrend').innerHTML = `<i data-lucide="trending-up"></i><span>${data.earningsTrend}%</span>`;
+    document.getElementById('pendingPayout').textContent = data.pendingPayout.toFixed(2);
+    document.getElementById('workersOnline').textContent = data.workersOnline;
+    document.getElementById('workersTotal').textContent = data.workersTotal;
+
+    // Calculate payout progress
+    const payoutProgress = Math.min((data.pendingPayout / data.payoutThreshold) * 100, 100);
+    document.getElementById('payoutProgress').style.width = payoutProgress + '%';
+    document.getElementById('payoutProgressText').textContent = payoutProgress.toFixed(0) + '%';
+
+    // Pool statistics
+    document.getElementById('poolHashrate').textContent = data.poolHashrate;
+    document.getElementById('activeMiners').textContent = data.activeMiners;
+    document.getElementById('blocksFound').textContent = data.blocksFound;
+    document.getElementById('networkDifficulty').textContent = data.networkDifficulty;
+    document.getElementById('networkHashrate').textContent = data.networkHashrate;
+    document.getElementById('blockHeight').textContent = data.blockHeight;
+    document.getElementById('rvnPrice').textContent = data.rvnPrice;
+    document.getElementById('estDailyEarnings').textContent = data.estDailyEarnings;
+
+    // Shares counter
+    document.getElementById('validShares').textContent = data.validShares.toLocaleString();
+    document.getElementById('invalidShares').textContent = data.invalidShares;
+
+    // Payout summary
+    document.getElementById('summaryPending').textContent = data.pendingPayout.toFixed(2) + ' RVN';
+    document.getElementById('summaryPaid').textContent = '750.00 RVN';
+    document.getElementById('nextPayout').textContent = 'In ~2 hours';
+
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+}
+
+// Start live updates
+function startLiveUpdates() {
+    setInterval(() => {
+        // Simulate hashrate fluctuation
+        const currentHashrate = parseFloat(document.getElementById('currentHashrate').textContent);
+        const variation = (Math.random() - 0.5) * 2;
+        const newHashrate = Math.max(0, currentHashrate + variation).toFixed(2);
+        document.getElementById('currentHashrate').textContent = newHashrate;
+
+        // Add new share to feed
+        addShare();
+    }, 5000);
+}
+
+// Add simulated share
+function addShare() {
+    const feed = document.getElementById('sharesFeed');
+    const workers = ['Worker_01', 'Worker_02', 'RIG_3080_01', 'RIG_3070_02'];
+    const worker = workers[Math.floor(Math.random() * workers.length)];
+
+    const shareItem = document.createElement('div');
+    shareItem.className = 'share-item valid';
+    shareItem.innerHTML = `
+        <i data-lucide="check"></i>
+        <span class="share-worker">${worker}</span>
+        <span class="share-diff">Diff: 32</span>
+        <span class="share-time">Just now</span>
+    `;
+
+    feed.insertBefore(shareItem, feed.firstChild);
+
+    // Remove old shares
+    while (feed.children.length > 10) {
+        feed.removeChild(feed.lastChild);
+    }
+
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+}
+
+// Copy to clipboard
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(() => {
+        showToast('Copied to clipboard!', 'success');
+    });
+}
+
+// Copy miner config
+function copyConfig(miner) {
+    const configs = {
+        nbminer: 'nbminer -a kawpow -o stratum+tcp://pool.kytranempowerment.com:3333 -u YOUR_RVN_ADDRESS.WORKER_NAME',
+        trex: 't-rex -a kawpow -o stratum+tcp://pool.kytranempowerment.com:3333 -u YOUR_RVN_ADDRESS.WORKER_NAME -p x',
+        gminer: 'miner --algo kawpow --server stratum+tcp://pool.kytranempowerment.com:3333 --user YOUR_RVN_ADDRESS.WORKER_NAME'
+    };
+    copyToClipboard(configs[miner]);
+}
+
+// Modal functions
+function showAddWorkerModal() {
+    document.getElementById('addWorkerModal').classList.add('active');
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).classList.remove('active');
+}
+
+// Worker functions
+function addWorker() {
+    const name = document.getElementById('newWorkerName').value.trim();
+    if (!name) {
+        showToast('Please enter a worker name', 'warning');
+        return;
+    }
+    showToast(`Worker "${name}" added successfully!`, 'success');
+    closeModal('addWorkerModal');
+}
+
+function refreshWorkers() {
+    showToast('Refreshing workers...', 'info');
+    loadPoolData();
+}
+
+function filterWorkers() {
+    const search = document.getElementById('workerSearch').value.toLowerCase();
+    const filter = document.getElementById('workerFilter').value;
+    const rows = document.querySelectorAll('.worker-row');
+
+    rows.forEach(row => {
+        const name = row.querySelector('.worker-name span').textContent.toLowerCase();
+        const isOnline = row.classList.contains('online');
+        const matchesSearch = name.includes(search);
+        const matchesFilter = filter === 'all' ||
+                             (filter === 'online' && isOnline) ||
+                             (filter === 'offline' && !isOnline);
+
+        row.style.display = matchesSearch && matchesFilter ? '' : 'none';
+    });
+}
+
+function showWorkerDetails(workerName) {
+    showToast(`Viewing details for ${workerName}`, 'info');
+}
+
+function editWorker(workerName) {
+    showToast(`Editing ${workerName}`, 'info');
+}
+
+function removeWorker(workerName) {
+    if (confirm(`Are you sure you want to remove worker "${workerName}"?`)) {
+        showToast(`Worker "${workerName}" removed`, 'success');
+    }
+}
+
+// Settings functions
+function validateAddress() {
+    const address = document.getElementById('payoutAddress').value.trim();
+    if (address.startsWith('R') && address.length >= 26) {
+        showToast('Address validated successfully!', 'success');
+    } else {
+        showToast('Invalid RVN address format', 'error');
+    }
+}
+
+function saveSettings() {
+    showToast('Settings saved successfully!', 'success');
+}
+
+function exportPayoutHistory() {
+    showToast('Exporting payout history...', 'info');
+}
+
+// API Key functions
+let apiKeyVisible = false;
+function toggleApiKey() {
+    apiKeyVisible = !apiKeyVisible;
+    const keyElement = document.getElementById('apiKey');
+    const iconElement = document.getElementById('apiKeyIcon');
+
+    if (apiKeyVisible) {
+        keyElement.textContent = 'ap_sk_live_7f8g9h0j1k2l3m4n5o6p7q8r9s0t';
+        iconElement.setAttribute('data-lucide', 'eye-off');
+    } else {
+        keyElement.textContent = '••••••••••••••••••••••••••••••••';
+        iconElement.setAttribute('data-lucide', 'eye');
+    }
+
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+}
+
+function copyApiKey() {
+    copyToClipboard('ap_sk_live_7f8g9h0j1k2l3m4n5o6p7q8r9s0t');
+}
+
+function regenerateApiKey() {
+    if (confirm('Are you sure you want to regenerate your API key? The old key will stop working immediately.')) {
+        showToast('New API key generated!', 'success');
+    }
+}
+
+// Toast notification
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `flash ${type}`;
+    toast.innerHTML = `> ${message}`;
+
+    let container = document.querySelector('.flash-messages');
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'flash-messages';
+        document.body.appendChild(container);
+    }
+
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+// Update worker name preview in modal
+document.getElementById('newWorkerName')?.addEventListener('input', function() {
+    const name = this.value.trim() || 'WORKER_NAME';
+    document.getElementById('workerConnectionString').textContent = `YOUR_RVN_ADDRESS.${name}`;
+});
+</script>
+{% endblock %}

@@ -1,0 +1,1898 @@
+{% extends 'base.html' %}
+
+{% block title %}Game Studio - A.R.C.H.I.E.{% endblock %}
+
+{% block module_name %}game_studio{% endblock %}
+
+{% block content %}
+<!-- Include Creation Tools Navigation -->
+{% include 'includes/creation_tools_nav.html' %}
+
+<!-- Scanline Overlay -->
+<div class="scanline-overlay"></div>
+
+<!-- Main Container -->
+<div class="gs-container">
+    <!-- Page Header -->
+    <header class="gs-header">
+        <div class="gs-title-section">
+            <h1 class="gs-title">
+                <i data-lucide="gamepad-2"></i>
+                GAME STUDIO
+            </h1>
+            <p class="gs-subtitle">Build games with AI-powered tools</p>
+        </div>
+        <div class="gs-actions">
+            <button class="gs-btn gs-btn-secondary" onclick="showImportModal()">
+                <i data-lucide="download"></i>
+                Import
+            </button>
+            <button class="gs-btn gs-btn-primary" onclick="showNewGameModal()">
+                <i data-lucide="plus"></i>
+                New Game
+            </button>
+        </div>
+    </header>
+
+    <!-- Stats Overview -->
+    <section class="gs-stats">
+        <div class="gs-stat-card" style="animation-delay: 0.1s">
+            <div class="gs-stat-icon">
+                <i data-lucide="folder-kanban"></i>
+            </div>
+            <div class="gs-stat-info">
+                <span class="gs-stat-value" id="totalGames">0</span>
+                <span class="gs-stat-label">TOTAL GAMES</span>
+            </div>
+        </div>
+        <div class="gs-stat-card" style="animation-delay: 0.2s">
+            <div class="gs-stat-icon gs-stat-icon--dev">
+                <i data-lucide="code-2"></i>
+            </div>
+            <div class="gs-stat-info">
+                <span class="gs-stat-value" id="inDevelopment">0</span>
+                <span class="gs-stat-label">IN DEVELOPMENT</span>
+            </div>
+        </div>
+        <div class="gs-stat-card" style="animation-delay: 0.3s">
+            <div class="gs-stat-icon gs-stat-icon--published">
+                <i data-lucide="rocket"></i>
+            </div>
+            <div class="gs-stat-info">
+                <span class="gs-stat-value" id="publishedGames">0</span>
+                <span class="gs-stat-label">PUBLISHED</span>
+            </div>
+        </div>
+        <div class="gs-stat-card" style="animation-delay: 0.4s">
+            <div class="gs-stat-icon gs-stat-icon--assets">
+                <i data-lucide="shapes"></i>
+            </div>
+            <div class="gs-stat-info">
+                <span class="gs-stat-value" id="totalAssets">0</span>
+                <span class="gs-stat-label">ASSETS</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Tab Navigation -->
+    <nav class="gs-tabs">
+        <button class="gs-tab active" data-tab="projects" onclick="switchTab('projects')">
+            <i data-lucide="folder-kanban"></i>
+            Projects
+        </button>
+        <button class="gs-tab" data-tab="scene-editor" onclick="switchTab('scene-editor')">
+            <i data-lucide="layers"></i>
+            Scene Editor
+        </button>
+        <button class="gs-tab" data-tab="assets" onclick="switchTab('assets')">
+            <i data-lucide="shapes"></i>
+            Assets
+        </button>
+        <button class="gs-tab" data-tab="ai-assistant" onclick="switchTab('ai-assistant')">
+            <i data-lucide="bot"></i>
+            AI Assistant
+        </button>
+        <button class="gs-tab" data-tab="settings" onclick="switchTab('settings')">
+            <i data-lucide="settings"></i>
+            Settings
+        </button>
+    </nav>
+
+    <!-- Tab Content -->
+    <div class="gs-tab-content">
+        <!-- Projects Tab -->
+        <div class="gs-tab-panel active" id="projects-panel">
+            <div class="gs-toolbar">
+                <div class="gs-search">
+                    <i data-lucide="search"></i>
+                    <input type="text" placeholder="Search games..." id="gameSearch" onkeyup="filterGames()">
+                </div>
+                <div class="gs-filters">
+                    <select class="gs-select" id="engineFilter" onchange="filterGames()">
+                        <option value="">All Engines</option>
+                        <option value="2d">2D Engine</option>
+                        <option value="3d">3D Engine</option>
+                        <option value="visual-novel">Visual Novel</option>
+                        <option value="rpg">RPG Maker</option>
+                    </select>
+                    <select class="gs-select" id="statusFilter" onchange="filterGames()">
+                        <option value="">All Status</option>
+                        <option value="development">In Development</option>
+                        <option value="testing">Testing</option>
+                        <option value="published">Published</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="gs-projects-grid" id="projectsGrid">
+                <div class="gs-empty-state" id="emptyState">
+                    <div class="gs-empty-icon">
+                        <i data-lucide="gamepad-2"></i>
+                    </div>
+                    <h3>No Games Yet</h3>
+                    <p>Create your first game project</p>
+                    <button class="gs-btn gs-btn-primary" onclick="showNewGameModal()">
+                        <i data-lucide="plus"></i>
+                        New Game
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scene Editor Tab -->
+        <div class="gs-tab-panel" id="scene-editor-panel">
+            <div class="gs-editor-layout">
+                <div class="gs-editor-sidebar">
+                    <div class="gs-panel">
+                        <div class="gs-panel-header">
+                            <i data-lucide="layers"></i>
+                            <span>Layers</span>
+                        </div>
+                        <div class="gs-panel-content" id="layersList">
+                            <div class="gs-layer-item">
+                                <i data-lucide="eye"></i>
+                                <span>Background</span>
+                                <i data-lucide="lock"></i>
+                            </div>
+                            <div class="gs-layer-item active">
+                                <i data-lucide="eye"></i>
+                                <span>Game Objects</span>
+                            </div>
+                            <div class="gs-layer-item">
+                                <i data-lucide="eye"></i>
+                                <span>UI Layer</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="gs-panel">
+                        <div class="gs-panel-header">
+                            <i data-lucide="box"></i>
+                            <span>Objects</span>
+                        </div>
+                        <div class="gs-panel-content" id="objectsList">
+                            <p class="gs-hint">Select a project to view objects</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="gs-editor-canvas">
+                    <div class="gs-canvas-toolbar">
+                        <button class="gs-tool-btn active" title="Select">
+                            <i data-lucide="mouse-pointer-2"></i>
+                        </button>
+                        <button class="gs-tool-btn" title="Move">
+                            <i data-lucide="move"></i>
+                        </button>
+                        <button class="gs-tool-btn" title="Scale">
+                            <i data-lucide="maximize-2"></i>
+                        </button>
+                        <button class="gs-tool-btn" title="Rotate">
+                            <i data-lucide="rotate-cw"></i>
+                        </button>
+                        <div class="gs-tool-divider"></div>
+                        <button class="gs-tool-btn" title="Play">
+                            <i data-lucide="play"></i>
+                        </button>
+                        <button class="gs-tool-btn" title="Pause">
+                            <i data-lucide="pause"></i>
+                        </button>
+                    </div>
+                    <div class="gs-canvas-area" id="sceneCanvas">
+                        <div class="gs-canvas-grid"></div>
+                        <div class="gs-canvas-placeholder">
+                            <i data-lucide="layout-grid"></i>
+                            <p>Select a project to edit scenes</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="gs-editor-properties">
+                    <div class="gs-panel">
+                        <div class="gs-panel-header">
+                            <i data-lucide="sliders-horizontal"></i>
+                            <span>Properties</span>
+                        </div>
+                        <div class="gs-panel-content" id="propertiesPanel">
+                            <p class="gs-hint">Select an object to edit properties</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Assets Tab -->
+        <div class="gs-tab-panel" id="assets-panel">
+            <div class="gs-toolbar">
+                <div class="gs-search">
+                    <i data-lucide="search"></i>
+                    <input type="text" placeholder="Search assets..." id="assetSearch">
+                </div>
+                <div class="gs-filters">
+                    <select class="gs-select" id="assetTypeFilter">
+                        <option value="">All Types</option>
+                        <option value="sprite">Sprites</option>
+                        <option value="sound">Sounds</option>
+                        <option value="music">Music</option>
+                        <option value="model">3D Models</option>
+                        <option value="script">Scripts</option>
+                    </select>
+                    <button class="gs-btn gs-btn-primary" onclick="showUploadAssetModal()">
+                        <i data-lucide="upload"></i>
+                        Upload
+                    </button>
+                </div>
+            </div>
+
+            <div class="gs-assets-grid" id="assetsGrid">
+                <div class="gs-empty-state">
+                    <div class="gs-empty-icon">
+                        <i data-lucide="shapes"></i>
+                    </div>
+                    <h3>No Assets Yet</h3>
+                    <p>Upload sprites, sounds, and more</p>
+                    <button class="gs-btn gs-btn-primary" onclick="showUploadAssetModal()">
+                        <i data-lucide="upload"></i>
+                        Upload Assets
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Assistant Tab -->
+        <div class="gs-tab-panel" id="ai-assistant-panel">
+            <div class="gs-ai-layout">
+                <div class="gs-ai-chat">
+                    <div class="gs-chat-messages" id="aiChatMessages">
+                        <div class="gs-chat-welcome">
+                            <div class="gs-ai-avatar">
+                                <i data-lucide="bot"></i>
+                            </div>
+                            <h3>Game Development Assistant</h3>
+                            <p>I can help you with game logic, AI behavior, level design, and more!</p>
+                            <div class="gs-quick-prompts">
+                                <button onclick="sendQuickPrompt('Create enemy AI behavior')">Enemy AI</button>
+                                <button onclick="sendQuickPrompt('Design a level layout')">Level Design</button>
+                                <button onclick="sendQuickPrompt('Add player movement script')">Movement</button>
+                                <button onclick="sendQuickPrompt('Create inventory system')">Inventory</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="gs-chat-input">
+                        <input type="text" placeholder="Ask about game development..." id="aiInput" onkeypress="handleAiKeypress(event)">
+                        <button class="gs-btn gs-btn-primary" onclick="sendAiMessage()">
+                            <i data-lucide="send"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="gs-ai-sidebar">
+                    <div class="gs-panel">
+                        <div class="gs-panel-header">
+                            <i data-lucide="history"></i>
+                            <span>Recent Chats</span>
+                        </div>
+                        <div class="gs-panel-content" id="chatHistory">
+                            <p class="gs-hint">No chat history yet</p>
+                        </div>
+                    </div>
+                    <div class="gs-panel">
+                        <div class="gs-panel-header">
+                            <i data-lucide="code-2"></i>
+                            <span>Generated Code</span>
+                        </div>
+                        <div class="gs-panel-content" id="generatedCode">
+                            <p class="gs-hint">Code snippets will appear here</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Tab -->
+        <div class="gs-tab-panel" id="settings-panel">
+            <div class="gs-settings-layout">
+                <div class="gs-settings-section">
+                    <h3><i data-lucide="monitor"></i> Display Settings</h3>
+                    <div class="gs-setting-row">
+                        <label>Default Resolution</label>
+                        <select class="gs-select">
+                            <option>1920x1080 (Full HD)</option>
+                            <option>1280x720 (HD)</option>
+                            <option>800x600 (Retro)</option>
+                            <option>Custom</option>
+                        </select>
+                    </div>
+                    <div class="gs-setting-row">
+                        <label>Target FPS</label>
+                        <select class="gs-select">
+                            <option>60 FPS</option>
+                            <option>30 FPS</option>
+                            <option>Unlimited</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="gs-settings-section">
+                    <h3><i data-lucide="cpu"></i> Engine Settings</h3>
+                    <div class="gs-setting-row">
+                        <label>Physics Engine</label>
+                        <select class="gs-select">
+                            <option>Box2D (2D)</option>
+                            <option>Matter.js</option>
+                            <option>Cannon.js (3D)</option>
+                        </select>
+                    </div>
+                    <div class="gs-setting-row">
+                        <label>Render Engine</label>
+                        <select class="gs-select">
+                            <option>PixiJS</option>
+                            <option>Three.js</option>
+                            <option>Phaser</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="gs-settings-section">
+                    <h3><i data-lucide="download"></i> Export Settings</h3>
+                    <div class="gs-setting-row">
+                        <label>Export Format</label>
+                        <select class="gs-select">
+                            <option>Web (HTML5)</option>
+                            <option>Desktop (Electron)</option>
+                            <option>Mobile (Cordova)</option>
+                        </select>
+                    </div>
+                    <div class="gs-export-actions">
+                        <button class="gs-btn gs-btn-secondary">
+                            <i data-lucide="eye"></i>
+                            Preview
+                        </button>
+                        <button class="gs-btn gs-btn-primary">
+                            <i data-lucide="package"></i>
+                            Build & Export
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Game Modal -->
+<div class="gs-modal" id="newGameModal">
+    <div class="gs-modal-content">
+        <div class="gs-modal-header">
+            <h2><i data-lucide="plus"></i> Create New Game</h2>
+            <button class="gs-modal-close" onclick="closeModal('newGameModal')">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <div class="gs-modal-body">
+            <div class="gs-form-group">
+                <label>Game Title</label>
+                <input type="text" id="newGameTitle" placeholder="My Awesome Game">
+            </div>
+            <div class="gs-form-group">
+                <label>Engine Type</label>
+                <select id="newGameEngine" class="gs-select">
+                    <option value="2d">2D Platformer</option>
+                    <option value="3d">3D Adventure</option>
+                    <option value="visual-novel">Visual Novel</option>
+                    <option value="rpg">RPG</option>
+                    <option value="puzzle">Puzzle</option>
+                </select>
+            </div>
+            <div class="gs-form-group">
+                <label>Template</label>
+                <div class="gs-template-grid">
+                    <div class="gs-template-card active" data-template="blank">
+                        <i data-lucide="file"></i>
+                        <span>Blank</span>
+                    </div>
+                    <div class="gs-template-card" data-template="platformer">
+                        <i data-lucide="joystick"></i>
+                        <span>Platformer</span>
+                    </div>
+                    <div class="gs-template-card" data-template="shooter">
+                        <i data-lucide="crosshair"></i>
+                        <span>Shooter</span>
+                    </div>
+                    <div class="gs-template-card" data-template="rpg">
+                        <i data-lucide="sword"></i>
+                        <span>RPG</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="gs-modal-footer">
+            <button class="gs-btn gs-btn-secondary" onclick="closeModal('newGameModal')">Cancel</button>
+            <button class="gs-btn gs-btn-primary" onclick="createNewGame()">
+                <i data-lucide="plus"></i>
+                Create Game
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Asset Modal -->
+<div class="gs-modal" id="uploadAssetModal">
+    <div class="gs-modal-content">
+        <div class="gs-modal-header">
+            <h2><i data-lucide="upload"></i> Upload Assets</h2>
+            <button class="gs-modal-close" onclick="closeModal('uploadAssetModal')">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <div class="gs-modal-body">
+            <div class="gs-upload-zone" id="uploadZone">
+                <i data-lucide="cloud-upload"></i>
+                <p>Drag & drop files here or click to browse</p>
+                <span>Supports: PNG, JPG, SVG, MP3, WAV, OGG, GLTF, FBX</span>
+                <input type="file" id="assetFileInput" multiple hidden>
+            </div>
+            <div class="gs-upload-list" id="uploadList"></div>
+        </div>
+        <div class="gs-modal-footer">
+            <button class="gs-btn gs-btn-secondary" onclick="closeModal('uploadAssetModal')">Cancel</button>
+            <button class="gs-btn gs-btn-primary" onclick="uploadAssets()">
+                <i data-lucide="upload"></i>
+                Upload
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════════
+   GAME STUDIO - ARCADE COMMAND CENTER THEME
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+:root {
+    --gs-primary: #F59E0B;
+    --gs-primary-dim: rgba(245, 158, 11, 0.2);
+    --gs-primary-glow: rgba(245, 158, 11, 0.5);
+    --gs-secondary: #EF4444;
+    --gs-success: #10B981;
+    --gs-bg-dark: #0a0a0f;
+    --gs-bg-card: #111118;
+    --gs-bg-panel: #16161f;
+    --gs-border: rgba(245, 158, 11, 0.15);
+    --gs-text: #f0f0f0;
+    --gs-text-dim: rgba(240, 240, 240, 0.6);
+}
+
+.gs-container {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 0 24px 40px;
+}
+
+/* Header */
+.gs-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    padding: 20px 0;
+    border-bottom: 1px solid var(--gs-border);
+}
+
+.gs-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2rem;
+    font-weight: 900;
+    color: var(--gs-primary);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-shadow: 0 0 30px var(--gs-primary-glow);
+    margin: 0;
+}
+
+.gs-title i {
+    width: 36px;
+    height: 36px;
+}
+
+.gs-subtitle {
+    color: var(--gs-text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    margin-top: 4px;
+}
+
+.gs-actions {
+    display: flex;
+    gap: 12px;
+}
+
+/* Buttons */
+.gs-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    border: 1px solid transparent;
+}
+
+.gs-btn i {
+    width: 16px;
+    height: 16px;
+}
+
+.gs-btn-primary {
+    background: linear-gradient(135deg, var(--gs-primary), #D97706);
+    color: #000;
+    border-color: var(--gs-primary);
+}
+
+.gs-btn-primary:hover {
+    box-shadow: 0 0 25px var(--gs-primary-glow);
+    transform: translateY(-2px);
+}
+
+.gs-btn-secondary {
+    background: transparent;
+    color: var(--gs-primary);
+    border-color: var(--gs-primary);
+}
+
+.gs-btn-secondary:hover {
+    background: var(--gs-primary-dim);
+}
+
+/* Stats Cards */
+.gs-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.gs-stat-card {
+    background: var(--gs-bg-card);
+    border: 1px solid var(--gs-border);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    animation: slideUp 0.5s ease forwards;
+    opacity: 0;
+}
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.gs-stat-icon {
+    width: 48px;
+    height: 48px;
+    background: var(--gs-primary-dim);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--gs-primary);
+}
+
+.gs-stat-icon i {
+    width: 24px;
+    height: 24px;
+}
+
+.gs-stat-icon--dev { background: rgba(59, 130, 246, 0.2); color: #3B82F6; }
+.gs-stat-icon--published { background: rgba(16, 185, 129, 0.2); color: #10B981; }
+.gs-stat-icon--assets { background: rgba(168, 85, 247, 0.2); color: #A855F7; }
+
+.gs-stat-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.gs-stat-value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--gs-text);
+}
+
+.gs-stat-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--gs-text-dim);
+    letter-spacing: 0.1em;
+}
+
+/* Tabs */
+.gs-tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--gs-bg-card);
+    padding: 6px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    border: 1px solid var(--gs-border);
+}
+
+.gs-tab {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    color: var(--gs-text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.gs-tab i {
+    width: 18px;
+    height: 18px;
+}
+
+.gs-tab:hover {
+    color: var(--gs-text);
+    background: rgba(255,255,255,0.05);
+}
+
+.gs-tab.active {
+    background: var(--gs-primary);
+    color: #000;
+    font-weight: 600;
+}
+
+/* Tab Panels */
+.gs-tab-panel {
+    display: none;
+}
+
+.gs-tab-panel.active {
+    display: block;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* Toolbar */
+.gs-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    gap: 16px;
+}
+
+.gs-search {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--gs-bg-card);
+    border: 1px solid var(--gs-border);
+    border-radius: 8px;
+    padding: 10px 16px;
+    flex: 1;
+    max-width: 400px;
+}
+
+.gs-search i {
+    width: 18px;
+    height: 18px;
+    color: var(--gs-text-dim);
+}
+
+.gs-search input {
+    flex: 1;
+    background: none;
+    border: none;
+    color: var(--gs-text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    outline: none;
+}
+
+.gs-filters {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.gs-select {
+    background: var(--gs-bg-card);
+    border: 1px solid var(--gs-border);
+    border-radius: 8px;
+    padding: 10px 16px;
+    color: var(--gs-text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+/* Projects Grid */
+.gs-projects-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+}
+
+.gs-project-card {
+    background: var(--gs-bg-card);
+    border: 1px solid var(--gs-border);
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.gs-project-card:hover {
+    border-color: var(--gs-primary);
+    box-shadow: 0 0 30px var(--gs-primary-dim);
+    transform: translateY(-4px);
+}
+
+.gs-project-thumb {
+    height: 160px;
+    background: var(--gs-bg-panel);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.gs-project-thumb i {
+    width: 48px;
+    height: 48px;
+    color: var(--gs-text-dim);
+}
+
+.gs-project-info {
+    padding: 16px;
+}
+
+.gs-project-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    color: var(--gs-text);
+    margin-bottom: 8px;
+}
+
+.gs-project-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.gs-project-engine {
+    font-size: 0.75rem;
+    color: var(--gs-primary);
+    background: var(--gs-primary-dim);
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.gs-project-status {
+    font-size: 0.7rem;
+    color: var(--gs-text-dim);
+}
+
+.gs-project-progress {
+    height: 4px;
+    background: var(--gs-bg-panel);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.gs-project-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gs-primary), var(--gs-secondary));
+    transition: width 0.5s ease;
+}
+
+/* Empty State */
+.gs-empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--gs-text-dim);
+}
+
+.gs-empty-icon {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 20px;
+    background: var(--gs-primary-dim);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.gs-empty-icon i {
+    width: 40px;
+    height: 40px;
+    color: var(--gs-primary);
+}
+
+.gs-empty-state h3 {
+    font-family: 'Orbitron', sans-serif;
+    color: var(--gs-text);
+    margin-bottom: 8px;
+}
+
+.gs-empty-state p {
+    margin-bottom: 20px;
+}
+
+/* Editor Layout */
+.gs-editor-layout {
+    display: grid;
+    grid-template-columns: 220px 1fr 280px;
+    gap: 16px;
+    height: calc(100vh - 400px);
+    min-height: 500px;
+}
+
+.gs-editor-sidebar, .gs-editor-properties {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.gs-panel {
+    background: var(--gs-bg-card);
+    border: 1px solid var(--gs-border);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.gs-panel-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: var(--gs-bg-panel);
+    border-bottom: 1px solid var(--gs-border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--gs-primary);
+}
+
+.gs-panel-header i {
+    width: 16px;
+    height: 16px;
+}
+
+.gs-panel-content {
+    padding: 12px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.gs-hint {
+    color: var(--gs-text-dim);
+    font-size: 0.8rem;
+    text-align: center;
+    padding: 20px;
+}
+
+.gs-layer-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--gs-text-dim);
+}
+
+.gs-layer-item:hover {
+    background: rgba(255,255,255,0.05);
+}
+
+.gs-layer-item.active {
+    background: var(--gs-primary-dim);
+    color: var(--gs-primary);
+}
+
+.gs-layer-item i {
+    width: 14px;
+    height: 14px;
+}
+
+/* Canvas Area */
+.gs-editor-canvas {
+    background: var(--gs-bg-card);
+    border: 1px solid var(--gs-border);
+    border-radius: 10px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.gs-canvas-toolbar {
+    display: flex;
+    gap: 4px;
+    padding: 8px 12px;
+    background: var(--gs-bg-panel);
+    border-bottom: 1px solid var(--gs-border);
+}
+
+.gs-tool-btn {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: var(--gs-text-dim);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.gs-tool-btn i {
+    width: 18px;
+    height: 18px;
+}
+
+.gs-tool-btn:hover {
+    background: rgba(255,255,255,0.05);
+    color: var(--gs-text);
+}
+
+.gs-tool-btn.active {
+    background: var(--gs-primary);
+    color: #000;
+}
+
+.gs-tool-divider {
+    width: 1px;
+    background: var(--gs-border);
+    margin: 0 8px;
+}
+
+.gs-canvas-area {
+    flex: 1;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.gs-canvas-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+        linear-gradient(var(--gs-border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--gs-border) 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.5;
+}
+
+.gs-canvas-placeholder {
+    text-align: center;
+    color: var(--gs-text-dim);
+    z-index: 1;
+}
+
+.gs-canvas-placeholder i {
+    width: 64px;
+    height: 64px;
+    margin-bottom: 16px;
+    opacity: 0.3;
+}
+
+/* Assets Grid */
+.gs-assets-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 16px;
+}
+
+.gs-asset-card {
+    background: var(--gs-bg-card);
+    border: 1px solid var(--gs-border);
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.gs-asset-card:hover {
+    border-color: var(--gs-primary);
+    transform: translateY(-2px);
+}
+
+.gs-asset-preview {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 12px;
+    background: var(--gs-bg-panel);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.gs-asset-preview i {
+    width: 32px;
+    height: 32px;
+    color: var(--gs-text-dim);
+}
+
+.gs-asset-name {
+    font-size: 0.8rem;
+    color: var(--gs-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.gs-asset-type {
+    font-size: 0.7rem;
+    color: var(--gs-text-dim);
+    margin-top: 4px;
+}
+
+/* AI Layout */
+.gs-ai-layout {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 20px;
+    height: calc(100vh - 400px);
+    min-height: 500px;
+}
+
+.gs-ai-chat {
+    background: var(--gs-bg-card);
+    border: 1px solid var(--gs-border);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.gs-chat-messages {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.gs-chat-welcome {
+    text-align: center;
+    padding: 40px;
+}
+
+.gs-ai-avatar {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 20px;
+    background: var(--gs-primary-dim);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.gs-ai-avatar i {
+    width: 40px;
+    height: 40px;
+    color: var(--gs-primary);
+}
+
+.gs-chat-welcome h3 {
+    font-family: 'Orbitron', sans-serif;
+    color: var(--gs-text);
+    margin-bottom: 8px;
+}
+
+.gs-chat-welcome p {
+    color: var(--gs-text-dim);
+    margin-bottom: 24px;
+}
+
+.gs-quick-prompts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+}
+
+.gs-quick-prompts button {
+    padding: 8px 16px;
+    background: var(--gs-bg-panel);
+    border: 1px solid var(--gs-border);
+    border-radius: 20px;
+    color: var(--gs-text);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.gs-quick-prompts button:hover {
+    border-color: var(--gs-primary);
+    color: var(--gs-primary);
+}
+
+.gs-chat-input {
+    display: flex;
+    gap: 12px;
+    padding: 16px;
+    border-top: 1px solid var(--gs-border);
+}
+
+.gs-chat-input input {
+    flex: 1;
+    background: var(--gs-bg-panel);
+    border: 1px solid var(--gs-border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    color: var(--gs-text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+}
+
+.gs-chat-input input:focus {
+    outline: none;
+    border-color: var(--gs-primary);
+}
+
+.gs-ai-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* Settings */
+.gs-settings-layout {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 24px;
+}
+
+.gs-settings-section {
+    background: var(--gs-bg-card);
+    border: 1px solid var(--gs-border);
+    border-radius: 12px;
+    padding: 24px;
+}
+
+.gs-settings-section h3 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    color: var(--gs-primary);
+    margin-bottom: 20px;
+}
+
+.gs-settings-section h3 i {
+    width: 20px;
+    height: 20px;
+}
+
+.gs-setting-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--gs-border);
+}
+
+.gs-setting-row:last-child {
+    border-bottom: none;
+}
+
+.gs-setting-row label {
+    color: var(--gs-text);
+    font-size: 0.9rem;
+}
+
+.gs-setting-row .gs-select {
+    min-width: 180px;
+}
+
+.gs-export-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+/* Modals */
+.gs-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.8);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(4px);
+}
+
+.gs-modal.active {
+    display: flex;
+}
+
+.gs-modal-content {
+    background: var(--gs-bg-card);
+    border: 1px solid var(--gs-border);
+    border-radius: 16px;
+    width: 90%;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow: hidden;
+    animation: modalSlide 0.3s ease;
+}
+
+@keyframes modalSlide {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.gs-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--gs-border);
+}
+
+.gs-modal-header h2 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.2rem;
+    color: var(--gs-primary);
+    margin: 0;
+}
+
+.gs-modal-header h2 i {
+    width: 24px;
+    height: 24px;
+}
+
+.gs-modal-close {
+    background: none;
+    border: none;
+    color: var(--gs-text-dim);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+.gs-modal-close:hover {
+    background: rgba(255,255,255,0.1);
+    color: var(--gs-text);
+}
+
+.gs-modal-close i {
+    width: 20px;
+    height: 20px;
+}
+
+.gs-modal-body {
+    padding: 24px;
+    overflow-y: auto;
+}
+
+.gs-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 20px 24px;
+    border-top: 1px solid var(--gs-border);
+}
+
+.gs-form-group {
+    margin-bottom: 20px;
+}
+
+.gs-form-group label {
+    display: block;
+    color: var(--gs-text);
+    font-size: 0.9rem;
+    margin-bottom: 8px;
+}
+
+.gs-form-group input {
+    width: 100%;
+    background: var(--gs-bg-panel);
+    border: 1px solid var(--gs-border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    color: var(--gs-text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+}
+
+.gs-form-group input:focus {
+    outline: none;
+    border-color: var(--gs-primary);
+}
+
+.gs-form-group .gs-select {
+    width: 100%;
+}
+
+.gs-template-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+}
+
+.gs-template-card {
+    background: var(--gs-bg-panel);
+    border: 2px solid var(--gs-border);
+    border-radius: 10px;
+    padding: 20px 12px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.gs-template-card:hover {
+    border-color: var(--gs-primary);
+}
+
+.gs-template-card.active {
+    border-color: var(--gs-primary);
+    background: var(--gs-primary-dim);
+}
+
+.gs-template-card i {
+    width: 28px;
+    height: 28px;
+    color: var(--gs-text-dim);
+    margin-bottom: 8px;
+}
+
+.gs-template-card.active i {
+    color: var(--gs-primary);
+}
+
+.gs-template-card span {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--gs-text);
+}
+
+.gs-upload-zone {
+    border: 2px dashed var(--gs-border);
+    border-radius: 12px;
+    padding: 40px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.gs-upload-zone:hover {
+    border-color: var(--gs-primary);
+    background: var(--gs-primary-dim);
+}
+
+.gs-upload-zone i {
+    width: 48px;
+    height: 48px;
+    color: var(--gs-text-dim);
+    margin-bottom: 16px;
+}
+
+.gs-upload-zone p {
+    color: var(--gs-text);
+    margin-bottom: 8px;
+}
+
+.gs-upload-zone span {
+    font-size: 0.8rem;
+    color: var(--gs-text-dim);
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+    .gs-editor-layout {
+        grid-template-columns: 200px 1fr;
+    }
+    .gs-editor-properties {
+        display: none;
+    }
+    .gs-ai-layout {
+        grid-template-columns: 1fr;
+    }
+    .gs-ai-sidebar {
+        display: none;
+    }
+}
+
+@media (max-width: 900px) {
+    .gs-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .gs-editor-layout {
+        grid-template-columns: 1fr;
+    }
+    .gs-editor-sidebar {
+        display: none;
+    }
+}
+
+@media (max-width: 600px) {
+    .gs-header {
+        flex-direction: column;
+        gap: 16px;
+        text-align: center;
+    }
+    .gs-stats {
+        grid-template-columns: 1fr;
+    }
+    .gs-tabs {
+        flex-wrap: wrap;
+    }
+    .gs-tab span {
+        display: none;
+    }
+    .gs-toolbar {
+        flex-direction: column;
+    }
+    .gs-search {
+        max-width: none;
+    }
+}
+</style>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════════
+// GAME STUDIO - JavaScript
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let games = [];
+let assets = [];
+let currentGame = null;
+
+// Initialize on load
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+    loadStats();
+    loadGames();
+    loadAssets();
+    initTemplateCards();
+    initUploadZone();
+});
+
+// Tab switching
+function switchTab(tabName) {
+    document.querySelectorAll('.gs-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.tab === tabName);
+    });
+    document.querySelectorAll('.gs-tab-panel').forEach(panel => {
+        panel.classList.toggle('active', panel.id === tabName + '-panel');
+    });
+}
+
+// Load stats
+async function loadStats() {
+    try {
+        const response = await fetch('/tools/game-studio/api/stats');
+        if (response.ok) {
+            const data = await response.json();
+            document.getElementById('totalGames').textContent = data.total_games || 0;
+            document.getElementById('inDevelopment').textContent = data.in_development || 0;
+            document.getElementById('publishedGames').textContent = data.published || 0;
+            document.getElementById('totalAssets').textContent = data.total_assets || 0;
+        }
+    } catch (error) {
+        console.log('Using placeholder stats');
+    }
+}
+
+// Load games
+async function loadGames() {
+    try {
+        const response = await fetch('/tools/game-studio/api/games');
+        if (response.ok) {
+            const data = await response.json();
+            games = data.games || [];
+            renderGames();
+        }
+    } catch (error) {
+        console.log('Using placeholder games');
+        renderGames();
+    }
+}
+
+// Render games grid
+function renderGames() {
+    const grid = document.getElementById('projectsGrid');
+    const empty = document.getElementById('emptyState');
+
+    if (games.length === 0) {
+        empty.style.display = 'block';
+        return;
+    }
+
+    empty.style.display = 'none';
+    grid.innerHTML = games.map(game => `
+        <div class="gs-project-card" onclick="openGame(${game.id})">
+            <div class="gs-project-thumb">
+                ${game.thumbnail ? `<img src="${game.thumbnail}" alt="${game.title}">` : '<i data-lucide="gamepad-2"></i>'}
+            </div>
+            <div class="gs-project-info">
+                <div class="gs-project-title">${game.title}</div>
+                <div class="gs-project-meta">
+                    <span class="gs-project-engine">${game.engine}</span>
+                    <span class="gs-project-status">${game.status}</span>
+                </div>
+                <div class="gs-project-progress">
+                    <div class="gs-project-progress-bar" style="width: ${game.progress || 0}%"></div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+}
+
+// Filter games
+function filterGames() {
+    const search = document.getElementById('gameSearch').value.toLowerCase();
+    const engine = document.getElementById('engineFilter').value;
+    const status = document.getElementById('statusFilter').value;
+
+    const filtered = games.filter(game => {
+        const matchSearch = game.title.toLowerCase().includes(search);
+        const matchEngine = !engine || game.engine === engine;
+        const matchStatus = !status || game.status === status;
+        return matchSearch && matchEngine && matchStatus;
+    });
+
+    renderFilteredGames(filtered);
+}
+
+function renderFilteredGames(filtered) {
+    const grid = document.getElementById('projectsGrid');
+    const empty = document.getElementById('emptyState');
+
+    if (filtered.length === 0) {
+        empty.style.display = 'block';
+        grid.innerHTML = '';
+        grid.appendChild(empty);
+        return;
+    }
+
+    empty.style.display = 'none';
+    grid.innerHTML = filtered.map(game => `
+        <div class="gs-project-card" onclick="openGame(${game.id})">
+            <div class="gs-project-thumb">
+                <i data-lucide="gamepad-2"></i>
+            </div>
+            <div class="gs-project-info">
+                <div class="gs-project-title">${game.title}</div>
+                <div class="gs-project-meta">
+                    <span class="gs-project-engine">${game.engine}</span>
+                    <span class="gs-project-status">${game.status}</span>
+                </div>
+                <div class="gs-project-progress">
+                    <div class="gs-project-progress-bar" style="width: ${game.progress || 0}%"></div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+}
+
+// Open game in editor
+function openGame(gameId) {
+    currentGame = games.find(g => g.id === gameId);
+    if (currentGame) {
+        switchTab('scene-editor');
+        // Load game scenes and assets
+    }
+}
+
+// Load assets
+async function loadAssets() {
+    try {
+        const response = await fetch('/tools/game-studio/api/assets');
+        if (response.ok) {
+            const data = await response.json();
+            assets = data.assets || [];
+            renderAssets();
+        }
+    } catch (error) {
+        console.log('Using placeholder assets');
+        renderAssets();
+    }
+}
+
+// Render assets grid
+function renderAssets() {
+    const grid = document.getElementById('assetsGrid');
+
+    if (assets.length === 0) {
+        return; // Keep empty state
+    }
+
+    grid.innerHTML = assets.map(asset => `
+        <div class="gs-asset-card" onclick="selectAsset(${asset.id})">
+            <div class="gs-asset-preview">
+                <i data-lucide="${getAssetIcon(asset.type)}"></i>
+            </div>
+            <div class="gs-asset-name">${asset.name}</div>
+            <div class="gs-asset-type">${asset.type}</div>
+        </div>
+    `).join('');
+
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+}
+
+function getAssetIcon(type) {
+    const icons = {
+        'sprite': 'image',
+        'sound': 'volume-2',
+        'music': 'music',
+        'model': 'box',
+        'script': 'file-code'
+    };
+    return icons[type] || 'file';
+}
+
+function selectAsset(assetId) {
+    console.log('Selected asset:', assetId);
+}
+
+// Modal functions
+function showNewGameModal() {
+    document.getElementById('newGameModal').classList.add('active');
+}
+
+function showUploadAssetModal() {
+    document.getElementById('uploadAssetModal').classList.add('active');
+}
+
+function showImportModal() {
+    alert('Import functionality coming soon!');
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).classList.remove('active');
+}
+
+// Template card selection
+function initTemplateCards() {
+    document.querySelectorAll('.gs-template-card').forEach(card => {
+        card.addEventListener('click', () => {
+            document.querySelectorAll('.gs-template-card').forEach(c => c.classList.remove('active'));
+            card.classList.add('active');
+        });
+    });
+}
+
+// Create new game
+async function createNewGame() {
+    const title = document.getElementById('newGameTitle').value;
+    const engine = document.getElementById('newGameEngine').value;
+    const template = document.querySelector('.gs-template-card.active')?.dataset.template || 'blank';
+
+    if (!title) {
+        alert('Please enter a game title');
+        return;
+    }
+
+    try {
+        const response = await fetch('/tools/game-studio/api/games', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, engine, template })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            closeModal('newGameModal');
+            loadStats();
+            loadGames();
+        } else {
+            alert('Failed to create game');
+        }
+    } catch (error) {
+        console.error('Error creating game:', error);
+        alert('Error creating game');
+    }
+}
+
+// Upload zone
+function initUploadZone() {
+    const zone = document.getElementById('uploadZone');
+    const input = document.getElementById('assetFileInput');
+
+    zone.addEventListener('click', () => input.click());
+
+    zone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        zone.style.borderColor = 'var(--gs-primary)';
+        zone.style.background = 'var(--gs-primary-dim)';
+    });
+
+    zone.addEventListener('dragleave', () => {
+        zone.style.borderColor = 'var(--gs-border)';
+        zone.style.background = 'transparent';
+    });
+
+    zone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        zone.style.borderColor = 'var(--gs-border)';
+        zone.style.background = 'transparent';
+        handleFiles(e.dataTransfer.files);
+    });
+
+    input.addEventListener('change', () => handleFiles(input.files));
+}
+
+function handleFiles(files) {
+    const list = document.getElementById('uploadList');
+    list.innerHTML = Array.from(files).map(file => `
+        <div class="gs-upload-item">
+            <span>${file.name}</span>
+            <span>${(file.size / 1024).toFixed(1)} KB</span>
+        </div>
+    `).join('');
+}
+
+async function uploadAssets() {
+    const input = document.getElementById('assetFileInput');
+    if (input.files.length === 0) {
+        alert('Please select files to upload');
+        return;
+    }
+
+    const formData = new FormData();
+    Array.from(input.files).forEach(file => formData.append('files', file));
+
+    try {
+        const response = await fetch('/tools/game-studio/api/assets/upload', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (response.ok) {
+            closeModal('uploadAssetModal');
+            loadStats();
+            loadAssets();
+        }
+    } catch (error) {
+        console.error('Upload error:', error);
+    }
+}
+
+// AI Assistant
+function sendQuickPrompt(prompt) {
+    document.getElementById('aiInput').value = prompt;
+    sendAiMessage();
+}
+
+function handleAiKeypress(event) {
+    if (event.key === 'Enter') {
+        sendAiMessage();
+    }
+}
+
+async function sendAiMessage() {
+    const input = document.getElementById('aiInput');
+    const message = input.value.trim();
+
+    if (!message) return;
+
+    const messagesDiv = document.getElementById('aiChatMessages');
+
+    // Hide welcome screen
+    const welcome = messagesDiv.querySelector('.gs-chat-welcome');
+    if (welcome) welcome.style.display = 'none';
+
+    // Add user message
+    messagesDiv.innerHTML += `
+        <div class="gs-chat-message gs-chat-user">
+            <div class="gs-message-content">${message}</div>
+        </div>
+    `;
+
+    input.value = '';
+
+    // Add loading indicator
+    messagesDiv.innerHTML += `
+        <div class="gs-chat-message gs-chat-ai gs-loading">
+            <div class="gs-ai-avatar"><i data-lucide="bot"></i></div>
+            <div class="gs-message-content">Thinking...</div>
+        </div>
+    `;
+
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+    try {
+        const response = await fetch('/tools/game-studio/api/ai/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message, game_id: currentGame?.id })
+        });
+
+        // Remove loading
+        const loading = messagesDiv.querySelector('.gs-loading');
+        if (loading) loading.remove();
+
+        if (response.ok) {
+            const data = await response.json();
+            messagesDiv.innerHTML += `
+                <div class="gs-chat-message gs-chat-ai">
+                    <div class="gs-ai-avatar"><i data-lucide="bot"></i></div>
+                    <div class="gs-message-content">${data.response}</div>
+                </div>
+            `;
+        } else {
+            messagesDiv.innerHTML += `
+                <div class="gs-chat-message gs-chat-ai">
+                    <div class="gs-ai-avatar"><i data-lucide="bot"></i></div>
+                    <div class="gs-message-content">Sorry, I encountered an error. Please try again.</div>
+                </div>
+            `;
+        }
+
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    } catch (error) {
+        console.error('AI error:', error);
+    }
+}
+</script>
+{% endblock %}

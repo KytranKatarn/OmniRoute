@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block title %}A.R.C.H.I.E. Sign Up{% endblock %}
+
+{% block styles %}
+body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+}
+
+.signup-container {
+    width: 550px;
+    border: 2px solid #00FF00;
+    padding: 40px;
+}
+
+.signup-header {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.signup-header h1 {
+    font-size: 2.5rem;
+    letter-spacing: 15px;
+    margin-bottom: 10px;
+    text-shadow: 0 0 10px #00FF00;
+}
+
+.signup-header p {
+    font-size: 0.8rem;
+    letter-spacing: 3px;
+    opacity: 0.7;
+}
+
+.form-group {
+    margin-bottom: 25px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 10px;
+    letter-spacing: 2px;
+    font-size: 0.9rem;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 12px;
+    background: #000000;
+    border: 1px solid #00FF00;
+    color: #00FF00;
+    font-family: 'Courier New', monospace;
+    font-size: 1rem;
+    letter-spacing: 2px;
+}
+
+.form-group input:focus {
+    outline: none;
+    box-shadow: 0 0 10px #00FF00;
+}
+
+.form-note {
+    font-size: 0.75rem;
+    opacity: 0.6;
+    margin-top: 5px;
+    letter-spacing: 1px;
+}
+
+.signup-btn {
+    width: 100%;
+    padding: 15px;
+    background: #000000;
+    border: 2px solid #00FF00;
+    color: #00FF00;
+    font-family: 'Courier New', monospace;
+    font-size: 1rem;
+    letter-spacing: 5px;
+    cursor: pointer;
+    transition: all 0.3s;
+    margin-bottom: 15px;
+}
+
+.signup-btn:hover {
+    background: #00FF00;
+    color: #000000;
+    box-shadow: 0 0 20px #00FF00;
+}
+
+.back-link {
+    text-align: center;
+    margin-top: 20px;
+}
+
+.back-link a {
+    color: #00FF00;
+    text-decoration: none;
+    letter-spacing: 2px;
+    font-size: 0.9rem;
+}
+
+.back-link a:hover {
+    text-shadow: 0 0 10px #00FF00;
+}
+
+.approval-notice {
+    margin-top: 30px;
+    padding: 20px;
+    border: 1px solid #FFD700;
+    font-size: 0.75rem;
+    line-height: 1.8;
+    color: #FFD700;
+}
+
+.blink {
+    animation: blink 1s infinite;
+}
+
+@keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+}
+{% endblock %}
+
+{% block content %}
+<div class="signup-container">
+    <div class="signup-header">
+        <h1>A.R.C.H.I.E.</h1>
+        <p>NEW USER REGISTRATION</p>
+    </div>
+
+    <form method="POST" action="/signup">
+        <div class="form-group">
+            <label for="username">> USERNAME:</label>
+            <input type="text" id="username" name="username" required autofocus>
+            <div class="form-note">ALPHANUMERIC ONLY • NO SPACES</div>
+        </div>
+
+        <div class="form-group">
+            <label for="email">> EMAIL ADDRESS:</label>
+            <input type="email" id="email" name="email" required>
+            <div class="form-note">VALID EMAIL REQUIRED</div>
+        </div>
+
+        <div class="form-group">
+            <label for="password">> PASSWORD:</label>
+            <input type="password" id="password" name="password" required minlength="8">
+            <div class="form-note">MINIMUM 8 CHARACTERS</div>
+        </div>
+
+        <div class="form-group">
+            <label for="confirm_password">> CONFIRM PASSWORD:</label>
+            <input type="password" id="confirm_password" name="confirm_password" required>
+        </div>
+
+        <button type="submit" class="signup-btn">
+            [ SUBMIT REGISTRATION ]
+        </button>
+    </form>
+
+    <div class="back-link">
+        <a href="{{ url_for('login') }}">← BACK TO LOGIN</a>
+    </div>
+
+    <div class="approval-notice">
+        ⚠️ NOTICE: ADMIN APPROVAL REQUIRED<br>
+        <br>
+        > Your account will be created but INACTIVE<br>
+        > An administrator must approve your access<br>
+        > You will receive email confirmation when approved<br>
+        > Status: <span class="blink">● PENDING REVIEW</span>
+    </div>
+</div>
+{% endblock %}

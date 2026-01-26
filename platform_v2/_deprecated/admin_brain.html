@@ -1,0 +1,503 @@
+{% extends "base.html" %}
+
+{% block title %}A.R.C.H.I.E. Brain - Unified Knowledge{% endblock %}
+
+{% block content %}
+<div class="brain-interface">
+    <header class="brain-header">
+        <h1>🧠 A.R.C.H.I.E. BRAIN</h1>
+        <p class="subtitle">Unified Knowledge Architecture - Local-First Intelligence</p>
+    </header>
+
+    <!-- Knowledge Stats Overview -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <h3>Total Knowledge</h3>
+            <div class="stat-value">{{ stats.total_entries }}</div>
+            <div class="stat-label">entries across all types</div>
+        </div>
+        <div class="stat-card mistake-card">
+            <h3>⚠️ Mistake Learnings</h3>
+            <div class="stat-value">{{ stats.mistake_count }}</div>
+            <div class="stat-label">errors prevented</div>
+        </div>
+        <div class="stat-card">
+            <h3>Recent Additions</h3>
+            <div class="stat-value">{{ stats.recent_additions }}</div>
+            <div class="stat-label">last 7 days</div>
+        </div>
+    </div>
+
+    <!-- Unified Search -->
+    <div class="search-section">
+        <h2>🔍 Unified Knowledge Search</h2>
+        <p>Search across vault notes, memories, improvements, and mistake learnings</p>
+
+        <div class="search-box">
+            <input type="text" id="brain-search-input" placeholder="Search A.R.C.H.I.E.'s entire knowledge base..." class="search-input">
+            <button onclick="performSearch()" class="btn btn-primary">Search</button>
+        </div>
+
+        <div class="search-filters">
+            <label><input type="checkbox" name="type" value="vault_note" checked> 📚 Vault Notes</label>
+            <label><input type="checkbox" name="type" value="mistake_learned" checked> ⚠️ Mistakes</label>
+            <label><input type="checkbox" name="type" value="improvement" checked> 🔧 Improvements</label>
+            <label><input type="checkbox" name="type" value="conversation_memory"> 💭 Memories</label>
+            <label><input type="checkbox" name="type" value="code_snippet"> 💻 Code</label>
+            <label><input type="checkbox" name="type" value="github_file"> 📁 GitHub</label>
+        </div>
+
+        <div id="search-results" class="search-results"></div>
+    </div>
+
+    <!-- Knowledge Systems Navigation -->
+    <div class="systems-grid">
+        <div class="system-card vault-card">
+            <h2>📚 Knowledge Vault</h2>
+            <p>Curated Obsidian documentation</p>
+            <div class="system-stats">
+                {% for dist in stats.type_distribution %}
+                {% if dist.knowledge_type == 'vault_note' %}
+                <div><strong>{{ dist.count }}</strong> vault notes</div>
+                <div>Avg importance: <strong>{{ dist.avg_importance }}</strong></div>
+                {% endif %}
+                {% endfor %}
+            </div>
+            <a href="/tools/consciousness" class="btn btn-primary">Open Knowledge Hub</a>
+        </div>
+
+        <div class="system-card consciousness-card">
+            <h2>🧠 Consciousness</h2>
+            <p>Dynamic learning & team awareness</p>
+            <div class="system-stats">
+                {% for dist in stats.type_distribution %}
+                {% if dist.knowledge_type == 'conversation_memory' %}
+                <div><strong>{{ dist.count }}</strong> memories</div>
+                {% endif %}
+                {% endfor %}
+            </div>
+            <a href="/tools/consciousness" class="btn btn-primary">Open Consciousness</a>
+        </div>
+
+        <div class="system-card improvements-card">
+            <h2>🔧 Improvements</h2>
+            <p>Code changes & deployments</p>
+            <div class="system-stats">
+                {% for dist in stats.type_distribution %}
+                {% if dist.knowledge_type == 'improvement' %}
+                <div><strong>{{ dist.count }}</strong> improvements tracked</div>
+                {% endif %}
+                {% endfor %}
+            </div>
+            <a href="/tools/improvements-lab/proposals" class="btn btn-primary">View Improvements</a>
+        </div>
+
+        <div class="system-card mistakes-card">
+            <h2>⚠️ Mistake Learnings</h2>
+            <p>Documented errors to prevent repetition</p>
+            <div class="system-stats">
+                <div><strong>{{ stats.mistake_count }}</strong> mistakes documented</div>
+                <div>Never repeat the same error!</div>
+            </div>
+            <button onclick="loadMistakes()" class="btn btn-primary">View Mistakes</button>
+        </div>
+
+        <div class="system-card conversations-card">
+            <h2>💬 Conversation Memory</h2>
+            <p>Claude Code development sessions</p>
+            <div class="system-stats">
+                <div>Full session history & AI summaries</div>
+                <div>Track productivity & learnings</div>
+            </div>
+            <a href="/tools/admin/brain/conversations" class="btn btn-primary">View Sessions</a>
+        </div>
+    </div>
+
+    <!-- Top Categories -->
+    <div class="categories-section">
+        <h2>📊 Top Knowledge Categories</h2>
+        <div class="categories-list">
+            {% for cat in stats.category_distribution %}
+            <div class="category-item">
+                <span class="category-name">{{ cat.category }}</span>
+                <span class="category-count">{{ cat.count }} entries</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Mistake Learnings Modal -->
+    <div id="mistakes-modal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h2>⚠️ Mistake Learnings</h2>
+            <div id="mistakes-list"></div>
+        </div>
+    </div>
+</div>
+
+<style>
+.brain-interface {
+    padding: 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.brain-header {
+    text-align: center;
+    margin-bottom: 3rem;
+}
+
+.brain-header h1 {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.subtitle {
+    color: #666;
+    font-size: 1.125rem;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 3rem;
+}
+
+.stat-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    text-align: center;
+}
+
+.mistake-card {
+    background: linear-gradient(135deg, #fff5f5 0%, #ffffff 100%);
+    border: 2px solid #ff6b6b;
+}
+
+.stat-value {
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: #007bff;
+    margin: 0.5rem 0;
+}
+
+.stat-label {
+    color: #666;
+    font-size: 0.875rem;
+}
+
+.search-section {
+    background: white;
+    padding: 2rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    margin-bottom: 3rem;
+}
+
+.search-section h2 {
+    margin-top: 0;
+}
+
+.search-box {
+    display: flex;
+    gap: 1rem;
+    margin: 1.5rem 0;
+}
+
+.search-input {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    border: 2px solid #ddd;
+    border-radius: 4px;
+}
+
+.search-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.search-filters label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: #f5f5f5;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.search-filters label:hover {
+    background: #e5e5e5;
+}
+
+.search-results {
+    margin-top: 2rem;
+}
+
+.result-item {
+    padding: 1rem;
+    border-left: 4px solid #007bff;
+    background: #f9f9f9;
+    margin-bottom: 1rem;
+    border-radius: 4px;
+}
+
+.result-item.mistake {
+    border-left-color: #ff6b6b;
+    background: #fff5f5;
+}
+
+.result-type {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    background: #007bff;
+    color: white;
+    border-radius: 3px;
+    font-size: 0.75rem;
+    margin-right: 0.5rem;
+}
+
+.result-title {
+    font-weight: bold;
+    margin: 0.5rem 0;
+}
+
+.result-content {
+    color: #666;
+    margin: 0.5rem 0;
+}
+
+.systems-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 3rem;
+}
+
+.system-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    border-top: 4px solid #007bff;
+}
+
+.vault-card { border-top-color: #28a745; }
+.consciousness-card { border-top-color: #6f42c1; }
+.improvements-card { border-top-color: #fd7e14; }
+.mistakes-card { border-top-color: #dc3545; }
+.conversations-card { border-top-color: #17a2b8; }
+
+.system-stats {
+    margin: 1rem 0;
+    padding: 1rem;
+    background: #f9f9f9;
+    border-radius: 4px;
+}
+
+.system-stats div {
+    margin: 0.5rem 0;
+}
+
+.categories-section {
+    background: white;
+    padding: 2rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.categories-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.category-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    background: #f9f9f9;
+    border-radius: 4px;
+    border-left: 3px solid #007bff;
+}
+
+.category-name {
+    font-weight: 500;
+}
+
+.category-count {
+    color: #666;
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.modal-content {
+    background-color: white;
+    margin: 5% auto;
+    padding: 2rem;
+    border-radius: 8px;
+    width: 80%;
+    max-width: 900px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.close {
+    float: right;
+    font-size: 2rem;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.close:hover {
+    color: #ff0000;
+}
+
+.mistake-item {
+    padding: 1rem;
+    background: #fff5f5;
+    border-left: 4px solid #dc3545;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+}
+
+.mistake-title {
+    font-weight: bold;
+    color: #dc3545;
+    margin-bottom: 0.5rem;
+}
+
+.mistake-content {
+    color: #666;
+    white-space: pre-wrap;
+}
+</style>
+
+<script>
+function performSearch() {
+    const query = document.getElementById('brain-search-input').value;
+
+    // Get selected types
+    const selectedTypes = Array.from(document.querySelectorAll('.search-filters input[name="type"]:checked'))
+        .map(cb => cb.value);
+
+    if (!query) {
+        alert('Please enter a search query');
+        return;
+    }
+
+    fetch('/tools/admin/brain/search', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            query: query,
+            types: selectedTypes.length > 0 ? selectedTypes : null,
+            limit: 20
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        const resultsDiv = document.getElementById('search-results');
+
+        if (data.results && data.results.length > 0) {
+            resultsDiv.innerHTML = `<h3>Found ${data.total} results</h3>`;
+
+            data.results.forEach(result => {
+                const div = document.createElement('div');
+                div.className = 'result-item' + (result.knowledge_type === 'mistake_learned' ? ' mistake' : '');
+
+                const typeEmoji = {
+                    'vault_note': '📚',
+                    'mistake_learned': '⚠️',
+                    'improvement': '🔧',
+                    'conversation_memory': '💭',
+                    'code_snippet': '💻',
+                    'github_file': '📁'
+                };
+
+                div.innerHTML = `
+                    <span class="result-type">${typeEmoji[result.knowledge_type] || '📄'} ${result.knowledge_type}</span>
+                    <div class="result-title">${result.title || 'Untitled'}</div>
+                    <div class="result-content">${(result.content || '').substring(0, 200)}...</div>
+                    <small>Category: ${result.category || 'None'} | Importance: ${result.importance_score}</small>
+                `;
+                resultsDiv.appendChild(div);
+            });
+        } else {
+            resultsDiv.innerHTML = '<p>No results found. Try a different search query.</p>';
+        }
+    })
+    .catch(error => {
+        console.error('Search error:', error);
+        alert('Search failed: ' + error);
+    });
+}
+
+function loadMistakes() {
+    fetch('/tools/admin/brain/mistakes')
+        .then(response => response.json())
+        .then(data => {
+            const modal = document.getElementById('mistakes-modal');
+            const list = document.getElementById('mistakes-list');
+
+            if (data.results && data.results.length > 0) {
+                list.innerHTML = '';
+                data.results.forEach(mistake => {
+                    const div = document.createElement('div');
+                    div.className = 'mistake-item';
+                    div.innerHTML = `
+                        <div class="mistake-title">${mistake.title}</div>
+                        <div class="mistake-content">${mistake.content}</div>
+                        <small>Category: ${mistake.category} | Created: ${new Date(mistake.created_at).toLocaleDateString()}</small>
+                    `;
+                    list.appendChild(div);
+                });
+            } else {
+                list.innerHTML = '<p>No mistakes documented yet.</p>';
+            }
+
+            modal.style.display = 'block';
+        })
+        .catch(error => {
+            console.error('Error loading mistakes:', error);
+            alert('Failed to load mistakes: ' + error);
+        });
+}
+
+function closeModal() {
+    document.getElementById('mistakes-modal').style.display = 'none';
+}
+
+// Allow Enter key to search
+document.getElementById('brain-search-input').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        performSearch();
+    }
+});
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+    const modal = document.getElementById('mistakes-modal');
+    if (event.target === modal) {
+        modal.style.display = 'none';
+    }
+}
+</script>
+{% endblock %}

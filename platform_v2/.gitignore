@@ -1,0 +1,59 @@
+# A.R.C.H.I.E. Platform - Git Ignore Rules
+# Created: 2026-01-05
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+.env.local
+*.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Backups (handled separately in /backups/)
+*.backup
+*.bak
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node modules (if any)
+node_modules/
+
+# Sensitive data
+secrets/
+credentials/
+*.key
+*.pem
+
+# Test coverage
+.coverage
+htmlcov/

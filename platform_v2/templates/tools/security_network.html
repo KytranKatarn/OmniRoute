@@ -1,0 +1,672 @@
+{% extends "base.html" %}
+
+{% block title %}Security & Network - Admin Tools{% endblock %}
+
+{% block module_name %}security-network{% endblock %}
+
+{% block styles %}
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background: #010409;
+            color: #00ff41;
+            min-height: 100vh;
+        }
+
+        /* Navigation */
+        nav {
+            background: #0d1117;
+            border-bottom: 2px solid #00ff41;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        nav h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            color: #39ff14;
+            text-shadow: 0 0 10px #39ff14;
+        }
+
+        nav a {
+            color: #00ff41;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border: 1px solid #00ff41;
+            border-radius: 4px;
+            transition: all 0.3s;
+        }
+
+        nav a:hover {
+            background: #00ff41;
+            color: #010409;
+            box-shadow: 0 0 10px #00ff41;
+        }
+
+        /* Main Container */
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 30px;
+        }
+
+        /* Section Headers */
+        .section-header {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            color: #39ff14;
+            margin: 30px 0 10px 0;
+            text-shadow: 0 0 10px rgba(57, 255, 20, 0.5);
+        }
+
+        .section-header:first-of-type {
+            margin-top: 0;
+        }
+
+        .section-subtitle {
+            color: #888;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: #0d1117;
+            border: 1px solid #00FF00;
+            padding: 20px;
+            text-align: center;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+
+        .stat-card:hover {
+            box-shadow: 0 0 15px rgba(0,255,0,0.3);
+            transform: translateY(-2px);
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: #888;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #00FF00;
+        }
+
+        .stat-value.warning {
+            color: #FFA500;
+        }
+
+        .stat-value.danger {
+            color: #FF4444;
+        }
+
+        .stat-subtitle {
+            font-size: 0.75rem;
+            margin-top: 5px;
+            opacity: 0.7;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 10px 20px;
+            border: 1px solid #00FF00;
+            background: transparent;
+            color: #00FF00;
+            font-family: 'JetBrains Mono', monospace;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn:hover {
+            background: #00FF00;
+            color: #000;
+            box-shadow: 0 0 10px #00FF00;
+        }
+
+        .btn-danger {
+            border-color: #FF4444;
+            color: #FF4444;
+        }
+
+        .btn-danger:hover {
+            background: #FF4444;
+            color: #000;
+            box-shadow: 0 0 10px #FF4444;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 0.85rem;
+        }
+
+        .action-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        /* Health Panel */
+        .health-panel {
+            background: #0d1117;
+            border: 1px solid #00FF00;
+            padding: 25px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+
+        .progress-container {
+            margin: 15px 0;
+        }
+
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+            color: #888;
+        }
+
+        .progress-label span:last-child {
+            color: #00FF00;
+            font-weight: bold;
+        }
+
+        .progress-bar {
+            height: 12px;
+            background: #010409;
+            border: 1px solid #333;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #003300, #00FF00);
+            border-radius: 6px;
+            transition: width 0.5s ease;
+        }
+
+        .progress-fill.warning {
+            background: linear-gradient(90deg, #332200, #FFA500);
+        }
+
+        .progress-fill.danger {
+            background: linear-gradient(90deg, #330000, #FF4444);
+        }
+
+        /* Network Grid */
+        .network-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .network-card {
+            background: #0d1117;
+            border: 1px solid #333;
+            padding: 25px;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+
+        .network-card:hover {
+            border-color: #00FF00;
+            box-shadow: 0 0 15px rgba(0,255,0,0.2);
+            transform: translateY(-2px);
+        }
+
+        .network-card h3 {
+            color: #39ff14;
+            font-family: 'Orbitron', sans-serif;
+            margin-bottom: 10px;
+            font-size: 1rem;
+        }
+
+        .network-card p {
+            color: #888;
+            font-size: 0.85rem;
+            margin-bottom: 15px;
+        }
+
+        .network-card .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        .network-card .status.online {
+            background: rgba(0,255,0,0.1);
+            border: 1px solid #00FF00;
+            color: #00FF00;
+        }
+
+        /* Audit Log */
+        .audit-panel {
+            background: #0d1117;
+            border: 1px solid #00FF00;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .audit-header {
+            background: rgba(0,255,0,0.05);
+            padding: 15px 20px;
+            border-bottom: 1px solid #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .audit-log {
+            max-height: 350px;
+            overflow-y: auto;
+        }
+
+        .audit-entry {
+            padding: 12px 20px;
+            border-bottom: 1px solid #1a1a1a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s;
+        }
+
+        .audit-entry:hover {
+            background: rgba(0,255,0,0.02);
+        }
+
+        .audit-action {
+            font-weight: bold;
+        }
+
+        .audit-action.success {
+            color: #00FF00;
+        }
+
+        .audit-action.failed {
+            color: #FF4444;
+        }
+
+        .audit-time {
+            color: #666;
+            font-size: 0.8rem;
+        }
+
+        /* Empty State */
+        .empty-state {
+            padding: 40px;
+            text-align: center;
+            color: #666;
+        }
+
+        .empty-state .icon {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            color: #00FF00;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.95);
+            z-index: 1000;
+            overflow-y: auto;
+        }
+
+        .modal-content {
+            max-width: 800px;
+            margin: 50px auto;
+            background: #0d1117;
+            border: 2px solid #00FF00;
+            border-radius: 8px;
+            padding: 30px;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #333;
+        }
+
+        .modal-header h2 {
+            color: #39ff14;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.2rem;
+        }
+
+        .failed-logins {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .failed-login-entry {
+            padding: 12px 20px;
+            border-bottom: 1px solid rgba(255,68,68,0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .failed-login-entry:hover {
+            background: rgba(255,68,68,0.02);
+        }
+
+        .failed-ip {
+            color: #FF4444;
+            font-family: monospace;
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 30px;
+            color: #00FF00;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #010409;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #00FF00;
+            border-radius: 4px;
+        }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .stats-grid, .network-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        @media (max-width: 768px) {
+            .stats-grid, .network-grid { grid-template-columns: 1fr; }
+            nav { flex-direction: column; gap: 10px; }
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="category-container admin-tools-container">
+    <!-- Admin Tools Navigation -->
+    {% include 'includes/admin_tools_nav.html' %}
+
+    <div class="category-content">
+
+    <!-- Page Header -->
+    <div class="category-header" style="color: #FF6B6B;">
+        <i data-lucide="shield" style="width: 32px; height: 32px;"></i>
+        <div class="category-header-text">
+            <h1>SECURITY & NETWORK</h1>
+            <p>Security monitoring, network health, audit logs</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Security Monitoring -->
+        <div class="section-header">🛡️ SECURITY MONITORING</div>
+        <div class="section-subtitle">Real-time security status and threat detection</div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">FAILED LOGINS (24H)</div>
+                <div class="stat-value {% if failed_logins_24h > 10 %}danger{% elif failed_logins_24h > 5 %}warning{% endif %}" id="stat-failed-logins">{{ failed_logins_24h }}</div>
+                <div class="stat-subtitle">authentication failures</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">BLOCKED IPS</div>
+                <div class="stat-value" id="stat-blocked-ips">0</div>
+                <div class="stat-subtitle">threat prevention</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">ACTIVE SESSIONS</div>
+                <div class="stat-value" id="stat-active-sessions">{{ active_sessions }}</div>
+                <div class="stat-subtitle">logged in users</div>
+            </div>
+            <div class="stat-card" style="{% if failed_logins_24h > 10 %}background: linear-gradient(135deg, rgba(255,68,68,0.1) 0%, rgba(255,0,0,0.05) 100%);{% else %}background: linear-gradient(135deg, rgba(0,255,0,0.1) 0%, rgba(0,200,0,0.05) 100%);{% endif %}">
+                <div class="stat-label">SECURITY STATUS</div>
+                <div class="stat-value" style="font-size: 1.8rem;">{% if failed_logins_24h > 10 %}⚠️ ALERT{% else %}✓ SECURE{% endif %}</div>
+                <div class="stat-subtitle">{% if failed_logins_24h > 10 %}review needed{% else %}all systems normal{% endif %}</div>
+            </div>
+        </div>
+
+        <div class="action-bar">
+            <button class="btn btn-danger" onclick="autoBlockThreats()">🛡️ AUTO-BLOCK THREATS</button>
+            <button class="btn" onclick="viewFailedLogins()">VIEW FAILED LOGINS</button>
+            <button class="btn" onclick="refreshStats()">↻ REFRESH</button>
+        </div>
+
+        <!-- System Health -->
+        <div class="section-header">🖥️ SYSTEM HEALTH</div>
+        <div class="section-subtitle">Real-time resource utilization</div>
+
+        {% if system_health %}
+        <div class="health-panel">
+            <div class="progress-container">
+                <div class="progress-label">
+                    <span>CPU USAGE</span>
+                    <span id="cpu-value">{{ "%.1f"|format(system_health.cpu.percent) }}%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill {% if system_health.cpu.percent > 80 %}danger{% elif system_health.cpu.percent > 60 %}warning{% endif %}"
+                         style="width: {{ system_health.cpu.percent }}%"></div>
+                </div>
+            </div>
+
+            <div class="progress-container">
+                <div class="progress-label">
+                    <span>MEMORY USAGE</span>
+                    <span id="memory-value">{{ "%.1f"|format(system_health.memory.percent) }}%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill {% if system_health.memory.percent > 80 %}danger{% elif system_health.memory.percent > 60 %}warning{% endif %}"
+                         style="width: {{ system_health.memory.percent }}%"></div>
+                </div>
+            </div>
+
+            <div class="progress-container">
+                <div class="progress-label">
+                    <span>DISK USAGE</span>
+                    <span id="disk-value">{{ "%.1f"|format(system_health.disk.percent) }}%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill {% if system_health.disk.percent > 80 %}danger{% elif system_health.disk.percent > 60 %}warning{% endif %}"
+                         style="width: {{ system_health.disk.percent }}%"></div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Network Tools -->
+        <div class="section-header">🌐 NETWORK TOOLS</div>
+        <div class="section-subtitle">Quick access to network management tools</div>
+
+        <div class="network-grid">
+            <div class="network-card">
+                <h3>🛡️ ADGUARD DNS</h3>
+                <p>DNS filtering and ad blocking</p>
+                <span class="status online">AVAILABLE</span>
+                <br><br>
+                <a href="http://192.168.1.250:5354" target="_blank" class="btn btn-small">OPEN ADGUARD</a>
+            </div>
+            <div class="network-card">
+                <h3>📡 NTOPNG</h3>
+                <p>Network traffic monitoring</p>
+                <span class="status online">AVAILABLE</span>
+                <br><br>
+                <a href="http://192.168.1.250:3001" target="_blank" class="btn btn-small">OPEN NTOPNG</a>
+            </div>
+            <div class="network-card">
+                <h3>🚨 NAGIOS</h3>
+                <p>Server and service monitoring</p>
+                <span class="status online">AVAILABLE</span>
+                <br><br>
+                <a href="http://192.168.1.250:8082" target="_blank" class="btn btn-small">OPEN NAGIOS</a>
+            </div>
+            <div class="network-card">
+                <h3>⚡ NGINX PROXY</h3>
+                <p>Reverse proxy manager</p>
+                <span class="status online">AVAILABLE</span>
+                <br><br>
+                <a href="http://192.168.1.250:81" target="_blank" class="btn btn-small">OPEN NGINX</a>
+            </div>
+        </div>
+
+        <!-- Audit Log -->
+        <div class="section-header">📊 AUDIT LOG</div>
+        <div class="section-subtitle">Recent system activity and security events</div>
+
+        <div class="audit-panel">
+            <div class="audit-header">
+                <div class="action-bar" style="margin: 0;">
+                    <button class="btn btn-small" onclick="loadAuditLog('all')">ALL</button>
+                    <button class="btn btn-small" onclick="loadAuditLog('login_success')">LOGINS</button>
+                    <button class="btn btn-small" onclick="loadAuditLog('login_failed')">FAILURES</button>
+                </div>
+            </div>
+            <div class="audit-log" id="audit-log-container">
+                <div class="empty-state">
+                    <div class="icon">📜</div>
+                    <p>Click a filter above to load audit entries</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Failed Logins Modal -->
+    <div class="modal" id="failed-logins-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🚨 FAILED LOGIN ATTEMPTS</h2>
+                <button class="btn btn-small" onclick="closeModal()">✕ CLOSE</button>
+            </div>
+            <div id="failed-logins-list" class="failed-logins">
+                <div class="loading">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    async function refreshStats() {
+        try {
+            const response = await fetch('/tools/security-network/api/stats');
+            const data = await response.json();
+            if (data.success) {
+                document.getElementById('stat-failed-logins').textContent = data.failed_logins_24h;
+                if (data.system_health) {
+                    document.getElementById('cpu-value').textContent = data.system_health.cpu.percent.toFixed(1) + '%';
+                    document.getElementById('memory-value').textContent = data.system_health.memory.percent.toFixed(1) + '%';
+                    document.getElementById('disk-value').textContent = data.system_health.disk.percent.toFixed(1) + '%';
+                }
+            }
+        } catch (error) {
+            console.error('Error refreshing stats:', error);
+        }
+    }
+
+    async function autoBlockThreats() {
+        if (!confirm('Auto-block detected threats?')) return;
+        try {
+            const response = await fetch('/tools/security-network/api/auto-block', { method: 'POST', credentials: 'same-origin' });
+            const result = await response.json();
+            alert(result.success ? `Blocked ${result.blocked} threats. ${result.message}` : 'Error: ' + result.error);
+            if (result.success) refreshStats();
+        } catch (error) {
+            alert('Error: ' + error.message);
+        }
+    }
+
+    async function viewFailedLogins() {
+        document.getElementById('failed-logins-modal').style.display = 'block';
+        const container = document.getElementById('failed-logins-list');
+        container.innerHTML = '<div class="loading">Loading...</div>';
+        try {
+            const response = await fetch('/tools/security-network/api/stats');
+            const data = await response.json();
+            if (!data.success || !data.recent_failures?.length) {
+                container.innerHTML = '<div class="empty-state"><div class="icon">✓</div><p>No failed logins in the last 24 hours</p></div>';
+                return;
+            }
+            container.innerHTML = data.recent_failures.map(f => {
+                const details = f.details || {};
+                const time = new Date(f.created_at).toLocaleString();
+                return `<div class="failed-login-entry"><div><span class="failed-ip">${details.ip || 'Unknown'}</span><span style="color: #888; margin-left: 10px;">User: ${details.username || 'Unknown'}</span></div><div class="audit-time">${time}</div></div>`;
+            }).join('');
+        } catch (error) {
+            container.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><p>Error: ${error.message}</p></div>`;
+        }
+    }
+
+    function closeModal() {
+        document.getElementById('failed-logins-modal').style.display = 'none';
+    }
+
+    async function loadAuditLog(action) {
+        const container = document.getElementById('audit-log-container');
+        container.innerHTML = '<div class="loading">Loading audit log...</div>';
+        try {
+            let url = '/tools/security-network/api/audit-log?limit=50';
+            if (action && action !== 'all') url += `&action=${action}`;
+            const response = await fetch(url);
+            const data = await response.json();
+            if (!data.success || !data.entries?.length) {
+                container.innerHTML = '<div class="empty-state"><div class="icon">📜</div><p>No audit entries found</p></div>';
+                return;
+            }
+            container.innerHTML = data.entries.map(e => {
+                const actionClass = e.action.includes('success') ? 'success' : e.action.includes('failed') ? 'failed' : '';
+                const time = new Date(e.created_at).toLocaleString();
+                return `<div class="audit-entry"><div><span class="audit-action ${actionClass}">${e.action}</span><span style="color: #666; margin-left: 15px;">${e.user_id ? 'User #' + e.user_id : 'System'}</span></div><div class="audit-time">${time}</div></div>`;
+            }).join('');
+        } catch (error) {
+            container.innerHTML = `<div class="empty-state"><div class="icon">⚠️</div><p>Error: ${error.message}</p></div>`;
+        }
+    }
+
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+    setInterval(refreshStats, 30000);
+    </script>
+
+    </div><!-- /container -->
+    </div><!-- /category-content -->
+</div><!-- /category-container -->
+{% endblock %}

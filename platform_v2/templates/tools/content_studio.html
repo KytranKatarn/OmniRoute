@@ -1,0 +1,1628 @@
+{% extends 'base.html' %}
+
+{% block title %}Content Studio - A.R.C.H.I.E.{% endblock %}
+
+{% block module_name %}content_studio{% endblock %}
+
+{% block content %}
+<!-- Include Creation Tools Navigation -->
+{% include 'includes/creation_tools_nav.html' %}
+
+<!-- Scanline Overlay -->
+<div class="scanline-overlay"></div>
+
+<!-- Main Container -->
+<div class="cs-container">
+    <!-- Page Header -->
+    <header class="cs-header">
+        <div class="cs-title-section">
+            <h1 class="cs-title">
+                <i data-lucide="file-text"></i>
+                CONTENT STUDIO
+            </h1>
+            <p class="cs-subtitle">AI-powered writing for books, articles & copy</p>
+        </div>
+        <div class="cs-actions">
+            <button class="cs-btn cs-btn-secondary" onclick="showImportModal()">
+                <i data-lucide="upload"></i>
+                Import
+            </button>
+            <button class="cs-btn cs-btn-primary" onclick="showNewDocModal()">
+                <i data-lucide="plus"></i>
+                New Document
+            </button>
+        </div>
+    </header>
+
+    <!-- Stats Overview -->
+    <section class="cs-stats">
+        <div class="cs-stat-card" style="animation-delay: 0.1s">
+            <div class="cs-stat-icon">
+                <i data-lucide="files"></i>
+            </div>
+            <div class="cs-stat-info">
+                <span class="cs-stat-value" id="totalDocs">0</span>
+                <span class="cs-stat-label">DOCUMENTS</span>
+            </div>
+        </div>
+        <div class="cs-stat-card" style="animation-delay: 0.2s">
+            <div class="cs-stat-icon cs-stat-icon--words">
+                <i data-lucide="text"></i>
+            </div>
+            <div class="cs-stat-info">
+                <span class="cs-stat-value" id="totalWords">0</span>
+                <span class="cs-stat-label">WORDS</span>
+            </div>
+        </div>
+        <div class="cs-stat-card" style="animation-delay: 0.3s">
+            <div class="cs-stat-icon cs-stat-icon--published">
+                <i data-lucide="book-open"></i>
+            </div>
+            <div class="cs-stat-info">
+                <span class="cs-stat-value" id="publishedDocs">0</span>
+                <span class="cs-stat-label">PUBLISHED</span>
+            </div>
+        </div>
+        <div class="cs-stat-card" style="animation-delay: 0.4s">
+            <div class="cs-stat-icon cs-stat-icon--templates">
+                <i data-lucide="layout-template"></i>
+            </div>
+            <div class="cs-stat-info">
+                <span class="cs-stat-value" id="totalTemplates">12</span>
+                <span class="cs-stat-label">TEMPLATES</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Tab Navigation -->
+    <nav class="cs-tabs">
+        <button class="cs-tab active" data-tab="documents" onclick="switchTab('documents')">
+            <i data-lucide="files"></i>
+            Documents
+        </button>
+        <button class="cs-tab" data-tab="editor" onclick="switchTab('editor')">
+            <i data-lucide="edit-3"></i>
+            Editor
+        </button>
+        <button class="cs-tab" data-tab="ai-writer" onclick="switchTab('ai-writer')">
+            <i data-lucide="sparkles"></i>
+            AI Writer
+        </button>
+        <button class="cs-tab" data-tab="templates" onclick="switchTab('templates')">
+            <i data-lucide="layout-template"></i>
+            Templates
+        </button>
+        <button class="cs-tab" data-tab="export" onclick="switchTab('export')">
+            <i data-lucide="download"></i>
+            Export
+        </button>
+    </nav>
+
+    <!-- Tab Content -->
+    <div class="cs-tab-content">
+        <!-- Documents Tab -->
+        <div class="cs-tab-panel active" id="documents-panel">
+            <div class="cs-toolbar">
+                <div class="cs-search">
+                    <i data-lucide="search"></i>
+                    <input type="text" placeholder="Search documents..." id="docSearch" onkeyup="filterDocs()">
+                </div>
+                <div class="cs-filters">
+                    <select class="cs-select" id="typeFilter" onchange="filterDocs()">
+                        <option value="">All Types</option>
+                        <option value="book">Books</option>
+                        <option value="article">Articles</option>
+                        <option value="blog">Blog Posts</option>
+                        <option value="copy">Marketing Copy</option>
+                        <option value="script">Scripts</option>
+                    </select>
+                    <select class="cs-select" id="statusFilter" onchange="filterDocs()">
+                        <option value="">All Status</option>
+                        <option value="draft">Draft</option>
+                        <option value="review">In Review</option>
+                        <option value="published">Published</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="cs-docs-grid" id="docsGrid">
+                <div class="cs-empty-state" id="emptyState">
+                    <div class="cs-empty-icon">
+                        <i data-lucide="file-text"></i>
+                    </div>
+                    <h3>No Documents Yet</h3>
+                    <p>Create your first document or use a template</p>
+                    <div class="cs-empty-actions">
+                        <button class="cs-btn cs-btn-secondary" onclick="switchTab('templates')">
+                            <i data-lucide="layout-template"></i>
+                            Browse Templates
+                        </button>
+                        <button class="cs-btn cs-btn-primary" onclick="showNewDocModal()">
+                            <i data-lucide="plus"></i>
+                            New Document
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Editor Tab -->
+        <div class="cs-tab-panel" id="editor-panel">
+            <div class="cs-editor-layout">
+                <div class="cs-editor-sidebar">
+                    <div class="cs-panel">
+                        <div class="cs-panel-header">
+                            <i data-lucide="list"></i>
+                            <span>Outline</span>
+                        </div>
+                        <div class="cs-panel-content" id="outlineList">
+                            <p class="cs-hint">Select a document to view outline</p>
+                        </div>
+                    </div>
+                    <div class="cs-panel">
+                        <div class="cs-panel-header">
+                            <i data-lucide="bar-chart-3"></i>
+                            <span>Stats</span>
+                        </div>
+                        <div class="cs-panel-content">
+                            <div class="cs-doc-stats">
+                                <div class="cs-doc-stat">
+                                    <span class="cs-doc-stat-value" id="editorWords">0</span>
+                                    <span class="cs-doc-stat-label">Words</span>
+                                </div>
+                                <div class="cs-doc-stat">
+                                    <span class="cs-doc-stat-value" id="editorChars">0</span>
+                                    <span class="cs-doc-stat-label">Characters</span>
+                                </div>
+                                <div class="cs-doc-stat">
+                                    <span class="cs-doc-stat-value" id="editorReadTime">0m</span>
+                                    <span class="cs-doc-stat-label">Read Time</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="cs-editor-main">
+                    <div class="cs-editor-toolbar">
+                        <div class="cs-format-group">
+                            <button class="cs-format-btn" onclick="formatText('bold')" title="Bold">
+                                <i data-lucide="bold"></i>
+                            </button>
+                            <button class="cs-format-btn" onclick="formatText('italic')" title="Italic">
+                                <i data-lucide="italic"></i>
+                            </button>
+                            <button class="cs-format-btn" onclick="formatText('underline')" title="Underline">
+                                <i data-lucide="underline"></i>
+                            </button>
+                        </div>
+                        <div class="cs-format-divider"></div>
+                        <div class="cs-format-group">
+                            <button class="cs-format-btn" onclick="formatText('h1')" title="Heading 1">H1</button>
+                            <button class="cs-format-btn" onclick="formatText('h2')" title="Heading 2">H2</button>
+                            <button class="cs-format-btn" onclick="formatText('h3')" title="Heading 3">H3</button>
+                        </div>
+                        <div class="cs-format-divider"></div>
+                        <div class="cs-format-group">
+                            <button class="cs-format-btn" onclick="formatText('ul')" title="Bullet List">
+                                <i data-lucide="list"></i>
+                            </button>
+                            <button class="cs-format-btn" onclick="formatText('ol')" title="Numbered List">
+                                <i data-lucide="list-ordered"></i>
+                            </button>
+                            <button class="cs-format-btn" onclick="formatText('quote')" title="Quote">
+                                <i data-lucide="quote"></i>
+                            </button>
+                        </div>
+                        <div class="cs-toolbar-spacer"></div>
+                        <button class="cs-btn cs-btn-ai" onclick="showAiAssist()">
+                            <i data-lucide="sparkles"></i>
+                            AI Assist
+                        </button>
+                        <button class="cs-btn cs-btn-primary" onclick="saveDocument()">
+                            <i data-lucide="save"></i>
+                            Save
+                        </button>
+                    </div>
+                    <div class="cs-editor-area">
+                        <input type="text" class="cs-editor-title" id="editorTitle" placeholder="Document Title" onkeyup="updateStats()">
+                        <div class="cs-editor-content" id="editorContent" contenteditable="true" onkeyup="updateStats()">
+                            <p>Start writing your content here...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="cs-editor-ai">
+                    <div class="cs-panel">
+                        <div class="cs-panel-header">
+                            <i data-lucide="sparkles"></i>
+                            <span>AI Suggestions</span>
+                        </div>
+                        <div class="cs-panel-content" id="aiSuggestions">
+                            <div class="cs-ai-hint">
+                                <i data-lucide="lightbulb"></i>
+                                <p>Select text and click "AI Assist" for suggestions</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Writer Tab -->
+        <div class="cs-tab-panel" id="ai-writer-panel">
+            <div class="cs-ai-layout">
+                <div class="cs-ai-input-section">
+                    <h3><i data-lucide="wand-2"></i> Generate Content</h3>
+                    <div class="cs-form-group">
+                        <label>Content Type</label>
+                        <select class="cs-select" id="aiContentType">
+                            <option value="blog">Blog Post</option>
+                            <option value="article">Article</option>
+                            <option value="book-chapter">Book Chapter</option>
+                            <option value="product-desc">Product Description</option>
+                            <option value="email">Email Copy</option>
+                            <option value="social">Social Media Post</option>
+                            <option value="ad">Advertisement</option>
+                        </select>
+                    </div>
+                    <div class="cs-form-group">
+                        <label>Topic / Brief</label>
+                        <textarea class="cs-textarea" id="aiTopic" placeholder="Describe what you want to write about..."></textarea>
+                    </div>
+                    <div class="cs-form-row">
+                        <div class="cs-form-group">
+                            <label>Tone</label>
+                            <select class="cs-select" id="aiTone">
+                                <option value="professional">Professional</option>
+                                <option value="casual">Casual</option>
+                                <option value="formal">Formal</option>
+                                <option value="friendly">Friendly</option>
+                                <option value="persuasive">Persuasive</option>
+                                <option value="informative">Informative</option>
+                            </select>
+                        </div>
+                        <div class="cs-form-group">
+                            <label>Length</label>
+                            <select class="cs-select" id="aiLength">
+                                <option value="short">Short (~300 words)</option>
+                                <option value="medium">Medium (~600 words)</option>
+                                <option value="long">Long (~1000 words)</option>
+                                <option value="extended">Extended (~2000 words)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="cs-form-group">
+                        <label>Keywords (optional)</label>
+                        <input type="text" class="cs-input" id="aiKeywords" placeholder="keyword1, keyword2, keyword3">
+                    </div>
+                    <button class="cs-btn cs-btn-primary cs-btn-generate" onclick="generateContent()">
+                        <i data-lucide="sparkles"></i>
+                        Generate Content
+                    </button>
+                </div>
+                <div class="cs-ai-output-section">
+                    <div class="cs-ai-output-header">
+                        <h3><i data-lucide="file-text"></i> Generated Content</h3>
+                        <div class="cs-ai-output-actions">
+                            <button class="cs-btn cs-btn-secondary" onclick="copyGenerated()">
+                                <i data-lucide="copy"></i>
+                                Copy
+                            </button>
+                            <button class="cs-btn cs-btn-primary" onclick="useGenerated()">
+                                <i data-lucide="file-plus"></i>
+                                Use as Document
+                            </button>
+                        </div>
+                    </div>
+                    <div class="cs-ai-output" id="aiOutput">
+                        <div class="cs-ai-placeholder">
+                            <i data-lucide="pen-tool"></i>
+                            <p>Generated content will appear here</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Templates Tab -->
+        <div class="cs-tab-panel" id="templates-panel">
+            <div class="cs-templates-header">
+                <h3>Content Templates</h3>
+                <p>Start with a professionally crafted template</p>
+            </div>
+            <div class="cs-templates-grid" id="templatesGrid">
+                <!-- Templates will be loaded here -->
+            </div>
+        </div>
+
+        <!-- Export Tab -->
+        <div class="cs-tab-panel" id="export-panel">
+            <div class="cs-export-layout">
+                <div class="cs-export-options">
+                    <h3><i data-lucide="settings"></i> Export Settings</h3>
+                    <div class="cs-form-group">
+                        <label>Document to Export</label>
+                        <select class="cs-select" id="exportDoc">
+                            <option value="">Select a document...</option>
+                        </select>
+                    </div>
+                    <div class="cs-form-group">
+                        <label>Export Format</label>
+                        <div class="cs-export-formats">
+                            <div class="cs-format-card active" data-format="pdf">
+                                <i data-lucide="file-text"></i>
+                                <span>PDF</span>
+                            </div>
+                            <div class="cs-format-card" data-format="docx">
+                                <i data-lucide="file"></i>
+                                <span>DOCX</span>
+                            </div>
+                            <div class="cs-format-card" data-format="md">
+                                <i data-lucide="hash"></i>
+                                <span>Markdown</span>
+                            </div>
+                            <div class="cs-format-card" data-format="html">
+                                <i data-lucide="code"></i>
+                                <span>HTML</span>
+                            </div>
+                            <div class="cs-format-card" data-format="epub">
+                                <i data-lucide="book"></i>
+                                <span>EPUB</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="cs-form-group">
+                        <label>Page Size</label>
+                        <select class="cs-select" id="exportPageSize">
+                            <option value="letter">Letter (8.5" x 11")</option>
+                            <option value="a4">A4 (210mm x 297mm)</option>
+                            <option value="a5">A5 (148mm x 210mm)</option>
+                        </select>
+                    </div>
+                    <button class="cs-btn cs-btn-primary" onclick="exportDocument()">
+                        <i data-lucide="download"></i>
+                        Export Document
+                    </button>
+                </div>
+                <div class="cs-export-preview">
+                    <h3><i data-lucide="eye"></i> Preview</h3>
+                    <div class="cs-preview-area" id="exportPreview">
+                        <p class="cs-hint">Select a document to preview</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Document Modal -->
+<div class="cs-modal" id="newDocModal">
+    <div class="cs-modal-content">
+        <div class="cs-modal-header">
+            <h2><i data-lucide="plus"></i> Create New Document</h2>
+            <button class="cs-modal-close" onclick="closeModal('newDocModal')">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <div class="cs-modal-body">
+            <div class="cs-form-group">
+                <label>Document Title</label>
+                <input type="text" id="newDocTitle" placeholder="Untitled Document">
+            </div>
+            <div class="cs-form-group">
+                <label>Document Type</label>
+                <select id="newDocType" class="cs-select">
+                    <option value="article">Article</option>
+                    <option value="blog">Blog Post</option>
+                    <option value="book">Book / Chapter</option>
+                    <option value="copy">Marketing Copy</option>
+                    <option value="script">Script</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+            <div class="cs-form-group">
+                <label>Description (optional)</label>
+                <textarea id="newDocDesc" class="cs-textarea" placeholder="Brief description of this document..."></textarea>
+            </div>
+        </div>
+        <div class="cs-modal-footer">
+            <button class="cs-btn cs-btn-secondary" onclick="closeModal('newDocModal')">Cancel</button>
+            <button class="cs-btn cs-btn-primary" onclick="createNewDoc()">
+                <i data-lucide="plus"></i>
+                Create Document
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════════
+   CONTENT STUDIO - WRITER'S WORKSHOP THEME
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+:root {
+    --cs-primary: #F59E0B;
+    --cs-primary-dim: rgba(245, 158, 11, 0.2);
+    --cs-primary-glow: rgba(245, 158, 11, 0.5);
+    --cs-secondary: #8B5CF6;
+    --cs-success: #10B981;
+    --cs-bg-dark: #0a0a0f;
+    --cs-bg-card: #111118;
+    --cs-bg-panel: #16161f;
+    --cs-border: rgba(245, 158, 11, 0.15);
+    --cs-text: #f0f0f0;
+    --cs-text-dim: rgba(240, 240, 240, 0.6);
+}
+
+.cs-container {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 0 24px 40px;
+}
+
+/* Header */
+.cs-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    padding: 20px 0;
+    border-bottom: 1px solid var(--cs-border);
+}
+
+.cs-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2rem;
+    font-weight: 900;
+    color: var(--cs-primary);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-shadow: 0 0 30px var(--cs-primary-glow);
+    margin: 0;
+}
+
+.cs-title i { width: 36px; height: 36px; }
+
+.cs-subtitle {
+    color: var(--cs-text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    margin-top: 4px;
+}
+
+.cs-actions { display: flex; gap: 12px; }
+
+/* Buttons */
+.cs-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    border: 1px solid transparent;
+}
+
+.cs-btn i { width: 16px; height: 16px; }
+
+.cs-btn-primary {
+    background: linear-gradient(135deg, var(--cs-primary), #D97706);
+    color: #000;
+    border-color: var(--cs-primary);
+}
+
+.cs-btn-primary:hover {
+    box-shadow: 0 0 25px var(--cs-primary-glow);
+    transform: translateY(-2px);
+}
+
+.cs-btn-secondary {
+    background: transparent;
+    color: var(--cs-primary);
+    border-color: var(--cs-primary);
+}
+
+.cs-btn-secondary:hover { background: var(--cs-primary-dim); }
+
+.cs-btn-ai {
+    background: linear-gradient(135deg, #8B5CF6, #6366F1);
+    color: #fff;
+    border-color: #8B5CF6;
+}
+
+.cs-btn-generate {
+    width: 100%;
+    padding: 14px;
+    font-size: 1rem;
+}
+
+/* Stats Cards */
+.cs-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.cs-stat-card {
+    background: var(--cs-bg-card);
+    border: 1px solid var(--cs-border);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    animation: slideUp 0.5s ease forwards;
+    opacity: 0;
+}
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.cs-stat-icon {
+    width: 48px;
+    height: 48px;
+    background: var(--cs-primary-dim);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--cs-primary);
+}
+
+.cs-stat-icon i { width: 24px; height: 24px; }
+.cs-stat-icon--words { background: rgba(59, 130, 246, 0.2); color: #3B82F6; }
+.cs-stat-icon--published { background: rgba(16, 185, 129, 0.2); color: #10B981; }
+.cs-stat-icon--templates { background: rgba(139, 92, 246, 0.2); color: #8B5CF6; }
+
+.cs-stat-info { display: flex; flex-direction: column; }
+
+.cs-stat-value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--cs-text);
+}
+
+.cs-stat-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--cs-text-dim);
+    letter-spacing: 0.1em;
+}
+
+/* Tabs */
+.cs-tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--cs-bg-card);
+    padding: 6px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    border: 1px solid var(--cs-border);
+}
+
+.cs-tab {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    color: var(--cs-text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.cs-tab i { width: 18px; height: 18px; }
+.cs-tab:hover { color: var(--cs-text); background: rgba(255,255,255,0.05); }
+.cs-tab.active { background: var(--cs-primary); color: #000; font-weight: 600; }
+
+/* Tab Panels */
+.cs-tab-panel { display: none; }
+.cs-tab-panel.active { display: block; animation: fadeIn 0.3s ease; }
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* Toolbar */
+.cs-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    gap: 16px;
+}
+
+.cs-search {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--cs-bg-card);
+    border: 1px solid var(--cs-border);
+    border-radius: 8px;
+    padding: 10px 16px;
+    flex: 1;
+    max-width: 400px;
+}
+
+.cs-search i { width: 18px; height: 18px; color: var(--cs-text-dim); }
+
+.cs-search input {
+    flex: 1;
+    background: none;
+    border: none;
+    color: var(--cs-text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    outline: none;
+}
+
+.cs-filters { display: flex; gap: 12px; align-items: center; }
+
+.cs-select {
+    background: var(--cs-bg-card);
+    border: 1px solid var(--cs-border);
+    border-radius: 8px;
+    padding: 10px 16px;
+    color: var(--cs-text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+/* Documents Grid */
+.cs-docs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.cs-doc-card {
+    background: var(--cs-bg-card);
+    border: 1px solid var(--cs-border);
+    border-radius: 12px;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.cs-doc-card:hover {
+    border-color: var(--cs-primary);
+    box-shadow: 0 0 30px var(--cs-primary-dim);
+    transform: translateY(-4px);
+}
+
+.cs-doc-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.cs-doc-icon {
+    width: 40px;
+    height: 40px;
+    background: var(--cs-primary-dim);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--cs-primary);
+}
+
+.cs-doc-icon i { width: 20px; height: 20px; }
+
+.cs-doc-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    color: var(--cs-text);
+    margin-bottom: 4px;
+}
+
+.cs-doc-type {
+    font-size: 0.75rem;
+    color: var(--cs-primary);
+    background: var(--cs-primary-dim);
+    padding: 2px 8px;
+    border-radius: 4px;
+    display: inline-block;
+}
+
+.cs-doc-excerpt {
+    color: var(--cs-text-dim);
+    font-size: 0.85rem;
+    line-height: 1.5;
+    margin-bottom: 16px;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.cs-doc-meta {
+    display: flex;
+    justify-content: space-between;
+    color: var(--cs-text-dim);
+    font-size: 0.75rem;
+}
+
+/* Empty State */
+.cs-empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--cs-text-dim);
+}
+
+.cs-empty-icon {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 20px;
+    background: var(--cs-primary-dim);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cs-empty-icon i { width: 40px; height: 40px; color: var(--cs-primary); }
+.cs-empty-state h3 { font-family: 'Orbitron', sans-serif; color: var(--cs-text); margin-bottom: 8px; }
+.cs-empty-state p { margin-bottom: 20px; }
+.cs-empty-actions { display: flex; gap: 12px; justify-content: center; }
+
+/* Editor Layout */
+.cs-editor-layout {
+    display: grid;
+    grid-template-columns: 220px 1fr 280px;
+    gap: 16px;
+    height: calc(100vh - 400px);
+    min-height: 500px;
+}
+
+.cs-editor-sidebar, .cs-editor-ai {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.cs-panel {
+    background: var(--cs-bg-card);
+    border: 1px solid var(--cs-border);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.cs-panel-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: var(--cs-bg-panel);
+    border-bottom: 1px solid var(--cs-border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--cs-primary);
+}
+
+.cs-panel-header i { width: 16px; height: 16px; }
+.cs-panel-content { padding: 12px; max-height: 300px; overflow-y: auto; }
+
+.cs-hint {
+    color: var(--cs-text-dim);
+    font-size: 0.8rem;
+    text-align: center;
+    padding: 20px;
+}
+
+.cs-doc-stats { display: flex; flex-direction: column; gap: 12px; }
+
+.cs-doc-stat {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--cs-border);
+}
+
+.cs-doc-stat-value { color: var(--cs-text); font-weight: 600; }
+.cs-doc-stat-label { color: var(--cs-text-dim); font-size: 0.8rem; }
+
+/* Editor Main */
+.cs-editor-main {
+    background: var(--cs-bg-card);
+    border: 1px solid var(--cs-border);
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.cs-editor-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: var(--cs-bg-panel);
+    border-bottom: 1px solid var(--cs-border);
+    flex-wrap: wrap;
+}
+
+.cs-format-group { display: flex; gap: 4px; }
+
+.cs-format-btn {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: var(--cs-text-dim);
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 700;
+    transition: all 0.2s ease;
+}
+
+.cs-format-btn i { width: 16px; height: 16px; }
+.cs-format-btn:hover { background: rgba(255,255,255,0.1); color: var(--cs-text); }
+.cs-format-btn.active { background: var(--cs-primary); color: #000; }
+
+.cs-format-divider {
+    width: 1px;
+    height: 24px;
+    background: var(--cs-border);
+    margin: 0 8px;
+}
+
+.cs-toolbar-spacer { flex: 1; }
+
+.cs-editor-area {
+    flex: 1;
+    padding: 24px;
+    overflow-y: auto;
+}
+
+.cs-editor-title {
+    width: 100%;
+    background: none;
+    border: none;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.5rem;
+    color: var(--cs-text);
+    margin-bottom: 16px;
+    padding: 0;
+}
+
+.cs-editor-title:focus { outline: none; }
+.cs-editor-title::placeholder { color: var(--cs-text-dim); }
+
+.cs-editor-content {
+    min-height: 300px;
+    color: var(--cs-text);
+    font-size: 1rem;
+    line-height: 1.8;
+}
+
+.cs-editor-content:focus { outline: none; }
+.cs-editor-content p { margin-bottom: 1em; }
+
+.cs-ai-hint {
+    text-align: center;
+    padding: 20px;
+    color: var(--cs-text-dim);
+}
+
+.cs-ai-hint i { width: 32px; height: 32px; margin-bottom: 12px; opacity: 0.5; }
+
+/* AI Writer Layout */
+.cs-ai-layout {
+    display: grid;
+    grid-template-columns: 400px 1fr;
+    gap: 24px;
+    min-height: 500px;
+}
+
+.cs-ai-input-section, .cs-ai-output-section {
+    background: var(--cs-bg-card);
+    border: 1px solid var(--cs-border);
+    border-radius: 12px;
+    padding: 24px;
+}
+
+.cs-ai-input-section h3, .cs-ai-output-section h3 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    color: var(--cs-primary);
+    margin-bottom: 20px;
+}
+
+.cs-ai-input-section h3 i, .cs-ai-output-section h3 i { width: 20px; height: 20px; }
+
+.cs-form-group { margin-bottom: 16px; }
+.cs-form-group label { display: block; color: var(--cs-text); font-size: 0.85rem; margin-bottom: 8px; }
+
+.cs-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+.cs-textarea, .cs-input {
+    width: 100%;
+    background: var(--cs-bg-panel);
+    border: 1px solid var(--cs-border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    color: var(--cs-text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+}
+
+.cs-textarea { min-height: 100px; resize: vertical; }
+.cs-textarea:focus, .cs-input:focus { outline: none; border-color: var(--cs-primary); }
+
+.cs-ai-output-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.cs-ai-output-actions { display: flex; gap: 8px; }
+
+.cs-ai-output {
+    background: var(--cs-bg-panel);
+    border: 1px solid var(--cs-border);
+    border-radius: 8px;
+    padding: 20px;
+    min-height: 300px;
+    max-height: 500px;
+    overflow-y: auto;
+    color: var(--cs-text);
+    line-height: 1.8;
+}
+
+.cs-ai-placeholder {
+    text-align: center;
+    color: var(--cs-text-dim);
+    padding: 60px 20px;
+}
+
+.cs-ai-placeholder i { width: 48px; height: 48px; margin-bottom: 16px; opacity: 0.3; }
+
+/* Templates Grid */
+.cs-templates-header {
+    text-align: center;
+    margin-bottom: 24px;
+}
+
+.cs-templates-header h3 {
+    font-family: 'Orbitron', sans-serif;
+    color: var(--cs-text);
+    margin-bottom: 8px;
+}
+
+.cs-templates-header p { color: var(--cs-text-dim); }
+
+.cs-templates-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 20px;
+}
+
+.cs-template-card {
+    background: var(--cs-bg-card);
+    border: 1px solid var(--cs-border);
+    border-radius: 12px;
+    padding: 24px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    text-align: center;
+}
+
+.cs-template-card:hover {
+    border-color: var(--cs-primary);
+    transform: translateY(-4px);
+}
+
+.cs-template-icon {
+    width: 60px;
+    height: 60px;
+    margin: 0 auto 16px;
+    background: var(--cs-primary-dim);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cs-template-icon i { width: 28px; height: 28px; color: var(--cs-primary); }
+
+.cs-template-name {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    color: var(--cs-text);
+    margin-bottom: 8px;
+}
+
+.cs-template-desc { color: var(--cs-text-dim); font-size: 0.85rem; }
+
+/* Export Layout */
+.cs-export-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+}
+
+.cs-export-options, .cs-export-preview {
+    background: var(--cs-bg-card);
+    border: 1px solid var(--cs-border);
+    border-radius: 12px;
+    padding: 24px;
+}
+
+.cs-export-options h3, .cs-export-preview h3 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    color: var(--cs-primary);
+    margin-bottom: 20px;
+}
+
+.cs-export-formats {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+}
+
+.cs-format-card {
+    background: var(--cs-bg-panel);
+    border: 2px solid var(--cs-border);
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.cs-format-card:hover { border-color: var(--cs-primary); }
+.cs-format-card.active { border-color: var(--cs-primary); background: var(--cs-primary-dim); }
+.cs-format-card i { width: 24px; height: 24px; color: var(--cs-text-dim); margin-bottom: 8px; }
+.cs-format-card.active i { color: var(--cs-primary); }
+.cs-format-card span { display: block; font-size: 0.8rem; color: var(--cs-text); }
+
+.cs-preview-area {
+    background: var(--cs-bg-panel);
+    border-radius: 8px;
+    padding: 20px;
+    min-height: 300px;
+}
+
+/* Modal */
+.cs-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.8);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(4px);
+}
+
+.cs-modal.active { display: flex; }
+
+.cs-modal-content {
+    background: var(--cs-bg-card);
+    border: 1px solid var(--cs-border);
+    border-radius: 16px;
+    width: 90%;
+    max-width: 500px;
+    animation: modalSlide 0.3s ease;
+}
+
+@keyframes modalSlide {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.cs-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--cs-border);
+}
+
+.cs-modal-header h2 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.2rem;
+    color: var(--cs-primary);
+    margin: 0;
+}
+
+.cs-modal-header h2 i { width: 24px; height: 24px; }
+
+.cs-modal-close {
+    background: none;
+    border: none;
+    color: var(--cs-text-dim);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 6px;
+}
+
+.cs-modal-close:hover { background: rgba(255,255,255,0.1); }
+.cs-modal-close i { width: 20px; height: 20px; }
+.cs-modal-body { padding: 24px; }
+.cs-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 20px 24px;
+    border-top: 1px solid var(--cs-border);
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+    .cs-editor-layout { grid-template-columns: 200px 1fr; }
+    .cs-editor-ai { display: none; }
+    .cs-ai-layout { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 900px) {
+    .cs-stats { grid-template-columns: repeat(2, 1fr); }
+    .cs-editor-layout { grid-template-columns: 1fr; }
+    .cs-editor-sidebar { display: none; }
+    .cs-export-layout { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 600px) {
+    .cs-header { flex-direction: column; gap: 16px; text-align: center; }
+    .cs-stats { grid-template-columns: 1fr; }
+    .cs-tabs { flex-wrap: wrap; }
+    .cs-tab span { display: none; }
+    .cs-toolbar { flex-direction: column; }
+    .cs-search { max-width: none; }
+    .cs-export-formats { grid-template-columns: repeat(3, 1fr); }
+}
+</style>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════════
+// CONTENT STUDIO - JavaScript
+// ═══════════════════════════════════════════════════════════════════════════════
+
+let documents = [];
+let currentDoc = null;
+let templates = [
+    { id: 1, name: 'Blog Post', desc: 'Engaging blog article template', icon: 'rss', type: 'blog' },
+    { id: 2, name: 'Press Release', desc: 'Professional PR announcement', icon: 'newspaper', type: 'article' },
+    { id: 3, name: 'Book Chapter', desc: 'Novel chapter with structure', icon: 'book-open', type: 'book' },
+    { id: 4, name: 'Product Description', desc: 'E-commerce product copy', icon: 'shopping-bag', type: 'copy' },
+    { id: 5, name: 'Email Newsletter', desc: 'Marketing email template', icon: 'mail', type: 'copy' },
+    { id: 6, name: 'Landing Page', desc: 'Conversion-focused copy', icon: 'layout', type: 'copy' },
+    { id: 7, name: 'Social Media Pack', desc: 'Multi-platform posts', icon: 'share-2', type: 'copy' },
+    { id: 8, name: 'Technical Article', desc: 'How-to guide template', icon: 'wrench', type: 'article' },
+    { id: 9, name: 'Case Study', desc: 'Business success story', icon: 'briefcase', type: 'article' },
+    { id: 10, name: 'Script/Screenplay', desc: 'Video/film script format', icon: 'video', type: 'script' },
+    { id: 11, name: 'Research Paper', desc: 'Academic paper structure', icon: 'graduation-cap', type: 'article' },
+    { id: 12, name: 'White Paper', desc: 'In-depth industry report', icon: 'file-text', type: 'article' }
+];
+
+// Initialize on load
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+    loadStats();
+    loadDocuments();
+    renderTemplates();
+    initFormatCards();
+});
+
+// Tab switching
+function switchTab(tabName) {
+    document.querySelectorAll('.cs-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.tab === tabName);
+    });
+    document.querySelectorAll('.cs-tab-panel').forEach(panel => {
+        panel.classList.toggle('active', panel.id === tabName + '-panel');
+    });
+}
+
+// Load stats
+async function loadStats() {
+    try {
+        const response = await fetch('/tools/content-studio/api/stats');
+        if (response.ok) {
+            const data = await response.json();
+            document.getElementById('totalDocs').textContent = data.total_documents || 0;
+            document.getElementById('totalWords').textContent = formatNumber(data.total_words || 0);
+            document.getElementById('publishedDocs').textContent = data.published || 0;
+        }
+    } catch (error) {
+        console.log('Using placeholder stats');
+    }
+}
+
+function formatNumber(num) {
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+    return num.toString();
+}
+
+// Load documents
+async function loadDocuments() {
+    try {
+        const response = await fetch('/tools/content-studio/api/documents');
+        if (response.ok) {
+            const data = await response.json();
+            documents = data.documents || [];
+            renderDocuments();
+            populateExportSelect();
+        }
+    } catch (error) {
+        console.log('Using placeholder documents');
+        renderDocuments();
+    }
+}
+
+// Render documents grid
+function renderDocuments() {
+    const grid = document.getElementById('docsGrid');
+    const empty = document.getElementById('emptyState');
+
+    if (documents.length === 0) {
+        empty.style.display = 'block';
+        return;
+    }
+
+    empty.style.display = 'none';
+    grid.innerHTML = documents.map(doc => `
+        <div class="cs-doc-card" onclick="openDocument(${doc.id})">
+            <div class="cs-doc-header">
+                <div class="cs-doc-icon">
+                    <i data-lucide="${getDocIcon(doc.doc_type)}"></i>
+                </div>
+                <div>
+                    <div class="cs-doc-title">${doc.title}</div>
+                    <span class="cs-doc-type">${doc.doc_type}</span>
+                </div>
+            </div>
+            <p class="cs-doc-excerpt">${doc.excerpt || 'No preview available'}</p>
+            <div class="cs-doc-meta">
+                <span>${doc.word_count || 0} words</span>
+                <span>${formatDate(doc.updated_at)}</span>
+            </div>
+        </div>
+    `).join('');
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function getDocIcon(type) {
+    const icons = {
+        'book': 'book-open', 'article': 'newspaper', 'blog': 'rss',
+        'copy': 'megaphone', 'script': 'film', 'other': 'file-text'
+    };
+    return icons[type] || 'file-text';
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// Filter documents
+function filterDocs() {
+    const search = document.getElementById('docSearch').value.toLowerCase();
+    const type = document.getElementById('typeFilter').value;
+    const status = document.getElementById('statusFilter').value;
+
+    const filtered = documents.filter(doc => {
+        const matchSearch = doc.title.toLowerCase().includes(search);
+        const matchType = !type || doc.doc_type === type;
+        const matchStatus = !status || doc.status === status;
+        return matchSearch && matchType && matchStatus;
+    });
+
+    renderFilteredDocs(filtered);
+}
+
+function renderFilteredDocs(filtered) {
+    const grid = document.getElementById('docsGrid');
+    const empty = document.getElementById('emptyState');
+
+    if (filtered.length === 0) {
+        grid.innerHTML = '';
+        empty.style.display = 'block';
+        grid.appendChild(empty);
+        return;
+    }
+
+    empty.style.display = 'none';
+    grid.innerHTML = filtered.map(doc => `
+        <div class="cs-doc-card" onclick="openDocument(${doc.id})">
+            <div class="cs-doc-header">
+                <div class="cs-doc-icon"><i data-lucide="${getDocIcon(doc.doc_type)}"></i></div>
+                <div>
+                    <div class="cs-doc-title">${doc.title}</div>
+                    <span class="cs-doc-type">${doc.doc_type}</span>
+                </div>
+            </div>
+            <p class="cs-doc-excerpt">${doc.excerpt || 'No preview available'}</p>
+            <div class="cs-doc-meta">
+                <span>${doc.word_count || 0} words</span>
+                <span>${formatDate(doc.updated_at)}</span>
+            </div>
+        </div>
+    `).join('');
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+// Open document in editor
+function openDocument(docId) {
+    currentDoc = documents.find(d => d.id === docId);
+    if (currentDoc) {
+        document.getElementById('editorTitle').value = currentDoc.title;
+        document.getElementById('editorContent').innerHTML = currentDoc.content || '<p>Start writing...</p>';
+        updateStats();
+        switchTab('editor');
+    }
+}
+
+// Editor functions
+function formatText(format) {
+    document.execCommand(format === 'h1' ? 'formatBlock' : format === 'h2' ? 'formatBlock' : format === 'h3' ? 'formatBlock' : format, false, format.startsWith('h') ? format.toUpperCase() : null);
+}
+
+function updateStats() {
+    const content = document.getElementById('editorContent').innerText || '';
+    const words = content.trim().split(/\s+/).filter(w => w.length > 0).length;
+    const chars = content.length;
+    const readTime = Math.ceil(words / 200);
+
+    document.getElementById('editorWords').textContent = words;
+    document.getElementById('editorChars').textContent = chars;
+    document.getElementById('editorReadTime').textContent = readTime + 'm';
+}
+
+async function saveDocument() {
+    const title = document.getElementById('editorTitle').value || 'Untitled';
+    const content = document.getElementById('editorContent').innerHTML;
+
+    try {
+        const method = currentDoc ? 'PUT' : 'POST';
+        const url = currentDoc
+            ? `/tools/content-studio/api/documents/${currentDoc.id}`
+            : '/tools/content-studio/api/documents';
+
+        const response = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, content })
+        });
+
+        if (response.ok) {
+            alert('Document saved successfully!');
+            loadDocuments();
+            loadStats();
+        }
+    } catch (error) {
+        console.error('Save error:', error);
+        alert('Failed to save document');
+    }
+}
+
+function showAiAssist() {
+    const selection = window.getSelection().toString();
+    if (!selection) {
+        alert('Select some text to get AI suggestions');
+        return;
+    }
+    // Request AI suggestions for selected text
+    getAiSuggestions(selection);
+}
+
+async function getAiSuggestions(text) {
+    const panel = document.getElementById('aiSuggestions');
+    panel.innerHTML = '<p class="cs-hint">Generating suggestions...</p>';
+
+    try {
+        const response = await fetch('/tools/content-studio/api/ai/suggest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            panel.innerHTML = `<div class="cs-suggestion">${data.suggestion}</div>`;
+        }
+    } catch (error) {
+        panel.innerHTML = '<p class="cs-hint">Unable to get suggestions</p>';
+    }
+}
+
+// AI Writer
+async function generateContent() {
+    const type = document.getElementById('aiContentType').value;
+    const topic = document.getElementById('aiTopic').value;
+    const tone = document.getElementById('aiTone').value;
+    const length = document.getElementById('aiLength').value;
+    const keywords = document.getElementById('aiKeywords').value;
+
+    if (!topic) {
+        alert('Please enter a topic or brief');
+        return;
+    }
+
+    const output = document.getElementById('aiOutput');
+    output.innerHTML = '<div class="cs-ai-placeholder"><p>Generating content...</p></div>';
+
+    try {
+        const response = await fetch('/tools/content-studio/api/ai/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type, topic, tone, length, keywords })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            output.innerHTML = `<div class="cs-generated-content">${data.content}</div>`;
+        } else {
+            output.innerHTML = '<div class="cs-ai-placeholder"><p>Generation failed. Please try again.</p></div>';
+        }
+    } catch (error) {
+        console.error('Generation error:', error);
+        output.innerHTML = '<div class="cs-ai-placeholder"><p>Error generating content</p></div>';
+    }
+}
+
+function copyGenerated() {
+    const content = document.getElementById('aiOutput').innerText;
+    navigator.clipboard.writeText(content);
+    alert('Content copied to clipboard!');
+}
+
+function useGenerated() {
+    const content = document.getElementById('aiOutput').innerHTML;
+    document.getElementById('editorContent').innerHTML = content;
+    document.getElementById('editorTitle').value = document.getElementById('aiTopic').value.substring(0, 50);
+    currentDoc = null;
+    updateStats();
+    switchTab('editor');
+}
+
+// Templates
+function renderTemplates() {
+    const grid = document.getElementById('templatesGrid');
+    grid.innerHTML = templates.map(t => `
+        <div class="cs-template-card" onclick="useTemplate(${t.id})">
+            <div class="cs-template-icon">
+                <i data-lucide="${t.icon}"></i>
+            </div>
+            <div class="cs-template-name">${t.name}</div>
+            <p class="cs-template-desc">${t.desc}</p>
+        </div>
+    `).join('');
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function useTemplate(templateId) {
+    const template = templates.find(t => t.id === templateId);
+    if (template) {
+        document.getElementById('newDocTitle').value = template.name;
+        document.getElementById('newDocType').value = template.type;
+        showNewDocModal();
+    }
+}
+
+// Export
+function populateExportSelect() {
+    const select = document.getElementById('exportDoc');
+    select.innerHTML = '<option value="">Select a document...</option>' +
+        documents.map(d => `<option value="${d.id}">${d.title}</option>`).join('');
+}
+
+function initFormatCards() {
+    document.querySelectorAll('.cs-format-card').forEach(card => {
+        card.addEventListener('click', () => {
+            document.querySelectorAll('.cs-format-card').forEach(c => c.classList.remove('active'));
+            card.classList.add('active');
+        });
+    });
+}
+
+async function exportDocument() {
+    const docId = document.getElementById('exportDoc').value;
+    const format = document.querySelector('.cs-format-card.active')?.dataset.format || 'pdf';
+
+    if (!docId) {
+        alert('Please select a document to export');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/tools/content-studio/api/documents/${docId}/export`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ format })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            if (data.download_url) {
+                window.open(data.download_url, '_blank');
+            } else {
+                alert('Export initiated. Download will be available shortly.');
+            }
+        }
+    } catch (error) {
+        console.error('Export error:', error);
+        alert('Export failed');
+    }
+}
+
+// Modal functions
+function showNewDocModal() {
+    document.getElementById('newDocModal').classList.add('active');
+}
+
+function showImportModal() {
+    alert('Import functionality coming soon!');
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).classList.remove('active');
+}
+
+async function createNewDoc() {
+    const title = document.getElementById('newDocTitle').value || 'Untitled Document';
+    const docType = document.getElementById('newDocType').value;
+    const description = document.getElementById('newDocDesc').value;
+
+    try {
+        const response = await fetch('/tools/content-studio/api/documents', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, doc_type: docType, description })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            closeModal('newDocModal');
+            loadStats();
+            loadDocuments();
+            // Open the new document in editor
+            currentDoc = data.document;
+            document.getElementById('editorTitle').value = title;
+            document.getElementById('editorContent').innerHTML = '<p>Start writing...</p>';
+            switchTab('editor');
+        }
+    } catch (error) {
+        console.error('Create error:', error);
+        alert('Failed to create document');
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,4784 @@
+{% extends "base.html" %}
+
+{% block extra_head %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+{% endblock %}
+
+{% block module_name %}A.R.C.H.I.E. Bridge{% endblock %}
+
+{% block content %}
+<style>
+/* ============================================================================
+   A.R.C.H.I.E. BRIDGE - LCARS-Inspired Command Center
+   Redesigned for clarity: ONE unified station grid, drag-drop agents
+   ============================================================================ */
+
+:root {
+    /* Core Colors */
+    --bridge-bg: #0a0a0f;
+    --bridge-panel: #12121a;
+    --bridge-border: #1e1e2e;
+    --bridge-glow: #00FFFF;
+    --bridge-gold: #FFD700;
+    --bridge-text: #c9d1d9;
+    --bridge-muted: #6e7681;
+
+    /* Status Colors */
+    --status-online: #00ff41;
+    --status-warning: #FFAA00;
+    --status-error: #ff4444;
+    --status-rest: #8B5CF6;
+
+    /* Station Theme Colors */
+    --station-command: #FFD700;
+    --station-consciousness: #FF00FF;
+    --station-hr: #10B981;
+    --station-rnd: #8B5CF6;
+    --station-engineering: #0EA5E9;
+    --station-operations: #FFAA00;
+    --station-creative: #F472B6;
+    --station-security: #EF4444;
+    --station-medical: #84CC16;
+    --station-away: #F59E0B;
+    --station-infrastructure: #3B82F6;
+    --station-finance: #A855F7;
+    --station-documentation: #22C55E;
+    --station-qa: #F97316;
+    --station-admin: #6366F1;
+    --station-support: #EC4899;
+
+    /* Typography */
+    --font-display: 'Orbitron', sans-serif;
+    --font-mono: 'IBM Plex Mono', monospace;
+}
+
+/* Scanline overlay effect */
+@keyframes scanline {
+    0% { transform: translateY(-100%); }
+    100% { transform: translateY(100vh); }
+}
+
+@keyframes pulse-glow {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+}
+
+@keyframes status-pulse {
+    0%, 100% { box-shadow: 0 0 4px currentColor; }
+    50% { box-shadow: 0 0 12px currentColor, 0 0 20px currentColor; }
+}
+
+/* Main Container */
+.bridge-container {
+    min-height: 100vh;
+    background: var(--bridge-bg);
+    background-image:
+        radial-gradient(ellipse at 20% 30%, rgba(0, 255, 255, 0.03) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 70%, rgba(139, 92, 246, 0.03) 0%, transparent 50%),
+        radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.01) 0%, transparent 100%);
+    padding: 0;
+    font-family: var(--font-mono);
+    color: var(--bridge-text);
+    position: relative;
+    overflow-x: hidden;
+}
+
+/* Subtle scan line effect */
+.bridge-container::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(0, 255, 255, 0.3), transparent);
+    animation: scanline 8s linear infinite;
+    pointer-events: none;
+    z-index: 1000;
+}
+
+/* ============================================================================
+   TOP STATUS BAR - LCARS Style
+   ============================================================================ */
+
+.bridge-status-bar {
+    display: flex;
+    align-items: stretch;
+    background: var(--bridge-panel);
+    border-bottom: 3px solid var(--bridge-glow);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.bridge-status-bar::before {
+    content: '';
+    position: absolute;
+    bottom: -3px;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--bridge-glow);
+    box-shadow: 0 0 20px var(--bridge-glow), 0 0 40px var(--bridge-glow);
+}
+
+.bridge-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 24px;
+    background: linear-gradient(135deg, var(--bridge-gold) 0%, #DAA520 100%);
+    color: #000;
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: 2px;
+    clip-path: polygon(0 0, 100% 0, 90% 100%, 0 100%);
+    padding-right: 40px;
+}
+
+.bridge-logo i {
+    width: 24px;
+    height: 24px;
+}
+
+.bridge-logo-text {
+    font-size: 0.9rem;
+}
+
+.bridge-status-center {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 32px;
+    padding: 8px 24px;
+}
+
+.bridge-status-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.bridge-status-item .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    animation: status-pulse 2s ease-in-out infinite;
+}
+
+.bridge-status-item .status-dot.online { background: var(--status-online); color: var(--status-online); }
+.bridge-status-item .status-dot.warning { background: var(--status-warning); color: var(--status-warning); }
+.bridge-status-item .status-dot.error { background: var(--status-error); color: var(--status-error); }
+
+.bridge-status-item .status-label {
+    color: var(--bridge-muted);
+}
+
+.bridge-status-item .status-value {
+    color: var(--bridge-glow);
+    font-weight: 500;
+}
+
+.bridge-status-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 24px;
+}
+
+.bridge-time {
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    color: var(--bridge-glow);
+    letter-spacing: 2px;
+}
+
+/* Staffing Badge */
+.staffing-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.staffing-badge.full-staff {
+    background: rgba(0, 255, 65, 0.15);
+    border: 1px solid var(--status-online);
+    color: var(--status-online);
+}
+
+.staffing-badge.reduced-staff {
+    background: rgba(255, 170, 0, 0.15);
+    border: 1px solid var(--status-warning);
+    color: var(--status-warning);
+}
+
+/* ============================================================================
+   MAIN LAYOUT - Sidebar + Main Content
+   ============================================================================ */
+
+.bridge-main {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 0;
+    min-height: calc(100vh - 60px);
+}
+
+@media (max-width: 1200px) {
+    .bridge-main {
+        grid-template-columns: 1fr;
+    }
+    .bridge-sidebar {
+        display: none; /* Collapse on mobile */
+    }
+}
+
+/* ============================================================================
+   COMMAND STATION - Hero Section
+   ============================================================================ */
+
+.bridge-command-section {
+    padding: 24px;
+    background: linear-gradient(180deg, rgba(255, 215, 0, 0.05) 0%, transparent 100%);
+    border-bottom: 1px solid var(--bridge-border);
+}
+
+.command-station {
+    display: grid;
+    grid-template-columns: 1fr 2fr 1fr;
+    gap: 24px;
+    padding: 20px;
+    background: var(--bridge-panel);
+    border: 2px solid var(--bridge-gold);
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+}
+
+.command-station::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, transparent, var(--bridge-gold), transparent);
+}
+
+.command-slot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px;
+    background: rgba(255, 215, 0, 0.05);
+    border-radius: 8px;
+    border: 1px dashed rgba(255, 215, 0, 0.3);
+    min-height: 120px;
+}
+
+.command-slot.commander {
+    border-color: var(--bridge-gold);
+    background: rgba(255, 215, 0, 0.1);
+}
+
+.command-slot-label {
+    font-family: var(--font-display);
+    font-size: 0.65rem;
+    color: var(--bridge-gold);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 12px;
+}
+
+.command-center-display {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.command-title {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--bridge-gold);
+    text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+    letter-spacing: 3px;
+}
+
+.command-subtitle {
+    font-size: 0.65rem;
+    color: var(--bridge-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.command-modules {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+/* ============================================================================
+   STATIONS GRID - Unified Layout
+   ============================================================================ */
+
+.bridge-stations-section {
+    padding: 24px;
+}
+
+.bridge-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--bridge-border);
+}
+
+.bridge-section-title {
+    font-family: var(--font-display);
+    font-size: 0.9rem;
+    color: var(--bridge-glow);
+    text-transform: uppercase;
+    letter-spacing: 3px;
+}
+
+.bridge-section-count {
+    font-size: 0.75rem;
+    color: var(--bridge-muted);
+}
+
+/* Station Cards Grid */
+.bridge-stations-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+/* Station Card */
+.bridge-station-card {
+    background: var(--bridge-panel);
+    border: 1px solid var(--bridge-border);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    position: relative;
+}
+
+.bridge-station-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: var(--station-color, var(--bridge-glow));
+}
+
+.bridge-station-card:hover {
+    border-color: var(--station-color, var(--bridge-glow));
+    box-shadow: 0 0 20px rgba(0, 255, 255, 0.1);
+    transform: translateY(-2px);
+}
+
+.bridge-station-card.drag-over {
+    border-color: var(--bridge-gold);
+    box-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
+    background: rgba(255, 215, 0, 0.05);
+}
+
+/* Station Header */
+.bridge-station-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: rgba(0, 0, 0, 0.3);
+    border-bottom: 1px solid var(--bridge-border);
+}
+
+.bridge-station-status {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--status-online);
+    animation: status-pulse 3s ease-in-out infinite;
+}
+
+.bridge-station-status.warning { background: var(--status-warning); }
+.bridge-station-status.error { background: var(--status-error); }
+
+.bridge-station-name {
+    flex: 1;
+    font-family: var(--font-display);
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--station-color, var(--bridge-text));
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.bridge-station-badge {
+    font-size: 0.6rem;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: rgba(0, 255, 255, 0.1);
+    color: var(--bridge-glow);
+    text-transform: uppercase;
+}
+
+/* Station Modules Section */
+.bridge-station-modules {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--bridge-border);
+}
+
+.bridge-module-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: rgba(0, 255, 255, 0.08);
+    border: 1px solid var(--bridge-border);
+    border-radius: 6px;
+    color: var(--bridge-text);
+    transition: all 0.2s ease;
+    text-decoration: none;
+}
+
+.bridge-module-btn:hover {
+    background: rgba(0, 255, 255, 0.15);
+    border-color: var(--bridge-glow);
+    color: var(--bridge-glow);
+    transform: scale(1.1);
+}
+
+.bridge-module-btn i {
+    width: 18px;
+    height: 18px;
+}
+
+/* Station Team Section */
+.bridge-station-team {
+    padding: 12px 16px;
+    min-height: 60px;
+}
+
+.bridge-station-team-label {
+    font-size: 0.6rem;
+    color: var(--bridge-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+}
+
+/* Station Node Support Section */
+.bridge-station-nodes {
+    padding: 8px 16px 12px;
+    border-top: 1px solid var(--bridge-border);
+    background: rgba(0, 255, 255, 0.02);
+}
+
+.bridge-station-nodes-label {
+    font-size: 0.6rem;
+    color: var(--bridge-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.node-count-badge {
+    background: rgba(0, 255, 255, 0.15);
+    color: var(--bridge-glow);
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 0.55rem;
+    font-weight: 600;
+    margin-left: auto;
+}
+
+.station-node-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+}
+
+.station-node-chip {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    background: rgba(110, 118, 129, 0.15);
+    border: 1px solid rgba(110, 118, 129, 0.3);
+    border-radius: 4px;
+    font-size: 0.65rem;
+    color: var(--bridge-text);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.station-node-chip:hover {
+    background: rgba(0, 255, 255, 0.1);
+    border-color: var(--bridge-glow);
+}
+
+.node-status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+}
+
+.node-chip-name {
+    max-width: 60px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.more-nodes {
+    font-size: 0.6rem;
+    color: var(--bridge-muted);
+    padding: 2px 6px;
+}
+
+.bridge-agent-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* Agent Chip - Draggable */
+.bridge-agent-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: rgba(0, 255, 255, 0.05);
+    border: 1px solid var(--bridge-border);
+    border-radius: 6px;
+    cursor: grab;
+    transition: all 0.2s ease;
+}
+
+.bridge-agent-chip:hover {
+    background: rgba(0, 255, 255, 0.1);
+    border-color: var(--bridge-glow);
+}
+
+.bridge-agent-chip.dragging {
+    opacity: 0.5;
+    cursor: grabbing;
+}
+
+.bridge-agent-chip.primary {
+    border-left: 3px solid var(--station-color, var(--bridge-glow));
+}
+
+.bridge-agent-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid var(--bridge-border);
+}
+
+.bridge-agent-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.bridge-agent-name {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--bridge-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.bridge-agent-role {
+    font-size: 0.6rem;
+    color: var(--bridge-muted);
+}
+
+.bridge-agent-skill-badge {
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.6rem;
+}
+
+.bridge-agent-skill-badge.match { color: var(--status-online); }
+.bridge-agent-skill-badge.warning { color: var(--status-warning); }
+
+/* Expand Button */
+.bridge-expand-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    width: 100%;
+    padding: 6px;
+    margin-top: 6px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px dashed var(--bridge-border);
+    border-radius: 4px;
+    color: var(--bridge-muted);
+    font-size: 0.65rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.bridge-expand-btn:hover {
+    border-color: var(--bridge-glow);
+    color: var(--bridge-glow);
+}
+
+.bridge-expand-btn i {
+    width: 12px;
+    height: 12px;
+    transition: transform 0.3s ease;
+}
+
+.bridge-expand-btn.expanded i {
+    transform: rotate(180deg);
+}
+
+.bridge-hidden-agents {
+    display: none;
+}
+
+.bridge-hidden-agents.visible {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+/* Empty State */
+.bridge-station-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    color: var(--status-warning);
+    font-size: 0.7rem;
+}
+
+/* ============================================================================
+   SIDEBAR - Utility Areas
+   ============================================================================ */
+
+.bridge-sidebar {
+    background: var(--bridge-panel);
+    border-left: 1px solid var(--bridge-border);
+    display: flex;
+    flex-direction: column;
+}
+
+.bridge-sidebar-section {
+    padding: 16px;
+    border-bottom: 1px solid var(--bridge-border);
+}
+
+.bridge-sidebar-title {
+    font-family: var(--font-display);
+    font-size: 0.7rem;
+    color: var(--bridge-muted);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.bridge-sidebar-title i {
+    width: 14px;
+    height: 14px;
+}
+
+/* IAAE Health Panel */
+.bridge-iaae-panel {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+
+.bridge-iaae-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 6px;
+    border: 1px solid var(--bridge-border);
+}
+
+.bridge-iaae-value {
+    font-family: var(--font-display);
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--bridge-glow);
+}
+
+.bridge-iaae-stat.warning .bridge-iaae-value { color: var(--status-warning); }
+.bridge-iaae-stat.error .bridge-iaae-value { color: var(--status-error); }
+
+.bridge-iaae-label {
+    font-size: 0.55rem;
+    color: var(--bridge-muted);
+    text-transform: uppercase;
+    margin-top: 4px;
+}
+
+/* Drop Zones - Training & Lounge */
+.bridge-drop-zone {
+    min-height: 80px;
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 2px dashed var(--bridge-border);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: all 0.3s ease;
+}
+
+.bridge-drop-zone.drag-over {
+    border-color: var(--bridge-gold);
+    background: rgba(255, 215, 0, 0.05);
+}
+
+.bridge-drop-zone-hint {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    color: var(--bridge-muted);
+    font-size: 0.65rem;
+    padding: 20px;
+}
+
+.bridge-drop-zone-hint i {
+    width: 14px;
+    height: 14px;
+}
+
+/* Remote Connections Section (VPN Nodes) */
+.bridge-remote-connections {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.bridge-remote-placeholder {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--bridge-muted);
+    font-size: 0.7rem;
+    text-align: center;
+    padding: 20px;
+}
+
+.bridge-remote-placeholder i {
+    width: 32px;
+    height: 32px;
+    opacity: 0.5;
+}
+
+/* ============================================================================
+   NODE NETWORK SECTION
+   ============================================================================ */
+
+.bridge-nodes-section {
+    margin-top: 2rem;
+    background: var(--bridge-panel);
+    border-radius: 8px;
+    border: 1px solid var(--bridge-border);
+    overflow: hidden;
+}
+
+.bridge-nodes-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.5rem;
+    background: linear-gradient(90deg, rgba(0, 255, 255, 0.1), transparent);
+    border-bottom: 1px solid var(--bridge-border);
+}
+
+.bridge-nodes-header h2 {
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--bridge-glow);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+}
+
+.node-stats {
+    display: flex;
+    gap: 1.5rem;
+    font-size: 0.75rem;
+}
+
+.node-stats .stat {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.node-stats .stat.online { color: var(--status-online); }
+.node-stats .stat.offline { color: var(--bridge-muted); }
+.node-stats .stat.pending { color: #58a6ff; }
+
+.btn-add-node {
+    background: linear-gradient(135deg, var(--bridge-glow), #00cccc);
+    color: #000;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 4px;
+    font-family: var(--font-display);
+    font-size: 0.7rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-add-node:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 255, 255, 0.3);
+}
+
+/* Pending Nodes Alert */
+.pending-nodes-section {
+    background: rgba(88, 166, 255, 0.1);
+    border-bottom: 1px solid rgba(88, 166, 255, 0.3);
+    padding: 1rem 1.5rem;
+}
+
+.pending-nodes-section h3 {
+    font-size: 0.85rem;
+    color: #58a6ff;
+    margin: 0 0 0.75rem 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Node Grid */
+.node-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+    padding: 1.5rem;
+}
+
+.node-grid:empty::after {
+    content: 'No nodes registered yet';
+    color: var(--bridge-muted);
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 2rem;
+}
+
+/* Node Card */
+.node-card {
+    background: linear-gradient(135deg, #1a1f2e, #0d1117);
+    border: 1px solid var(--bridge-border);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+/* ============================================================================
+   STATION ASSIGNMENTS SECTION
+   ============================================================================ */
+
+.station-assignments-section {
+    margin-top: 2rem;
+    background: var(--bridge-panel);
+    border-radius: 8px;
+    border: 1px solid var(--bridge-border);
+    overflow: hidden;
+}
+
+.station-assignments-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.5rem;
+    background: linear-gradient(90deg, rgba(139, 92, 246, 0.1), transparent);
+    border-bottom: 1px solid var(--bridge-border);
+}
+
+.station-assignments-header h2 {
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-weight: 600;
+    color: #8B5CF6;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+}
+
+.assignment-stats {
+    display: flex;
+    gap: 1.5rem;
+    font-size: 0.75rem;
+}
+
+.assignment-stats .stat {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.assignment-stats .stat.covered { color: var(--status-online); }
+.assignment-stats .stat.uncovered { color: var(--status-warning); }
+.assignment-stats .stat.total { color: var(--bridge-glow); }
+
+/* Station Coverage Grid */
+.station-coverage-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+    padding: 1.5rem;
+}
+
+.station-coverage-card {
+    background: linear-gradient(135deg, #1a1f2e, #0d1117);
+    border: 1px solid var(--bridge-border);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    border-left: 3px solid var(--bridge-muted);
+}
+
+.station-coverage-card:hover {
+    border-color: var(--bridge-glow);
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.15);
+}
+
+.station-coverage-card.has-nodes {
+    border-left-color: var(--status-online);
+}
+
+.station-coverage-card.no-primary {
+    border-left-color: var(--status-warning);
+}
+
+.station-coverage-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border-bottom: 1px solid var(--bridge-border);
+}
+
+.station-coverage-name {
+    font-family: var(--font-display);
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.station-coverage-name .station-color {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+.station-coverage-code {
+    font-size: 0.65rem;
+    color: var(--bridge-muted);
+    background: rgba(255,255,255,0.05);
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+
+.station-coverage-body {
+    padding: 12px;
+}
+
+.station-node-counts {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 10px;
+    font-size: 0.75rem;
+}
+
+.station-node-counts .count {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.station-node-counts .count.primary { color: var(--status-online); }
+.station-node-counts .count.backup { color: var(--status-warning); }
+.station-node-counts .count.worker { color: var(--bridge-glow); }
+
+.station-assigned-nodes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.assigned-node-chip {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(139, 92, 246, 0.15);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    border-radius: 12px;
+    padding: 3px 8px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.assigned-node-chip:hover {
+    background: rgba(139, 92, 246, 0.25);
+    border-color: rgba(139, 92, 246, 0.5);
+}
+
+.assigned-node-chip .role-badge {
+    font-size: 0.6rem;
+    padding: 1px 4px;
+    border-radius: 3px;
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.assigned-node-chip .role-badge.primary { background: var(--status-online); color: #000; }
+.assigned-node-chip .role-badge.backup { background: var(--status-warning); color: #000; }
+.assigned-node-chip .role-badge.worker { background: var(--bridge-glow); color: #000; }
+.assigned-node-chip .role-badge.relief { background: #8B5CF6; color: #fff; }
+
+.station-coverage-actions {
+    display: flex;
+    gap: 6px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--bridge-border);
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.station-coverage-actions button {
+    flex: 1;
+    background: rgba(139, 92, 246, 0.15);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    color: #c9d1d9;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-family: var(--font-display);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.station-coverage-actions button:hover {
+    background: rgba(139, 92, 246, 0.25);
+    border-color: rgba(139, 92, 246, 0.5);
+}
+
+/* Assignment Modal */
+.assignment-modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+}
+
+.assignment-modal-overlay.active {
+    display: flex;
+}
+
+.assignment-modal {
+    background: var(--bridge-panel);
+    border: 1px solid var(--bridge-border);
+    border-radius: 12px;
+    width: 500px;
+    max-width: 90vw;
+    max-height: 80vh;
+    overflow: hidden;
+    box-shadow: 0 0 40px rgba(139, 92, 246, 0.3);
+}
+
+.assignment-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.5rem;
+    background: linear-gradient(90deg, rgba(139, 92, 246, 0.2), transparent);
+    border-bottom: 1px solid var(--bridge-border);
+}
+
+.assignment-modal-header h3 {
+    font-family: var(--font-display);
+    font-size: 1rem;
+    margin: 0;
+    color: #8B5CF6;
+}
+
+.assignment-modal-close {
+    background: none;
+    border: none;
+    color: var(--bridge-muted);
+    cursor: pointer;
+    font-size: 1.2rem;
+    padding: 4px;
+}
+
+.assignment-modal-body {
+    padding: 1.5rem;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.assignment-form-group {
+    margin-bottom: 1rem;
+}
+
+.assignment-form-group label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--bridge-muted);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.assignment-form-group select,
+.assignment-form-group input {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--bridge-border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    color: var(--bridge-text);
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+}
+
+.assignment-form-group select:focus,
+.assignment-form-group input:focus {
+    outline: none;
+    border-color: #8B5CF6;
+}
+
+.assignment-modal-footer {
+    display: flex;
+    gap: 10px;
+    padding: 1rem 1.5rem;
+    border-top: 1px solid var(--bridge-border);
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.assignment-modal-footer button {
+    flex: 1;
+    padding: 10px;
+    border-radius: 6px;
+    font-family: var(--font-display);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.assignment-modal-footer .btn-cancel {
+    background: transparent;
+    border: 1px solid var(--bridge-border);
+    color: var(--bridge-muted);
+}
+
+.assignment-modal-footer .btn-submit {
+    background: linear-gradient(135deg, #8B5CF6, #6d28d9);
+    border: none;
+    color: #fff;
+}
+
+.assignment-modal-footer .btn-submit:hover {
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+}
+
+.assignment-modal-footer .btn-delete {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    border: none;
+    color: #fff;
+    flex: 0 0 auto;
+    padding: 10px 20px;
+}
+
+.assignment-modal-footer .btn-danger {
+    background: rgba(239, 68, 68, 0.2);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #ef4444;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.assignment-modal-footer .btn-danger:hover {
+    background: rgba(239, 68, 68, 0.3);
+}
+
+/* Node Details Modal */
+.node-detail-modal {
+    width: 800px;
+    max-width: 95vw;
+}
+
+.node-detail-header-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.node-detail-status {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--bridge-muted);
+}
+
+.node-detail-status.online { background: var(--status-online); }
+.node-detail-status.offline { background: var(--bridge-muted); }
+.node-detail-status.degraded { background: var(--status-warning); }
+
+.node-detail-tabs {
+    display: flex;
+    gap: 2px;
+    padding: 0 1rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid var(--bridge-border);
+}
+
+.node-tab {
+    padding: 10px 16px;
+    background: transparent;
+    border: none;
+    color: var(--bridge-muted);
+    font-family: var(--font-display);
+    font-size: 0.75rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+}
+
+.node-tab:hover {
+    color: var(--bridge-text);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.node-tab.active {
+    color: var(--bridge-glow);
+    border-bottom-color: var(--bridge-glow);
+}
+
+.node-tab i {
+    width: 14px;
+    height: 14px;
+}
+
+.node-detail-body {
+    max-height: 500px;
+    padding: 1rem !important;
+}
+
+.node-tab-content {
+    display: none;
+}
+
+.node-tab-content.active {
+    display: block;
+}
+
+.node-detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.node-detail-section {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--bridge-border);
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+.node-detail-section.full-width {
+    grid-column: 1 / -1;
+}
+
+.node-detail-section h4 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-display);
+    font-size: 0.8rem;
+    color: var(--bridge-glow);
+    margin: 0 0 12px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.node-detail-section h4 i {
+    width: 14px;
+    height: 14px;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.section-header h4 {
+    margin: 0;
+}
+
+.btn-small {
+    padding: 6px 12px;
+    background: rgba(139, 92, 246, 0.2);
+    border: 1px solid rgba(139, 92, 246, 0.4);
+    border-radius: 4px;
+    color: #8B5CF6;
+    font-size: 0.7rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.btn-small:hover {
+    background: rgba(139, 92, 246, 0.3);
+}
+
+.node-detail-info {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+}
+
+.info-row .label {
+    color: var(--bridge-muted);
+}
+
+.info-row .value {
+    color: var(--bridge-text);
+    font-family: var(--font-mono);
+}
+
+.node-status-cards {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+}
+
+.status-card {
+    background: rgba(0, 255, 255, 0.05);
+    border: 1px solid var(--bridge-border);
+    border-radius: 6px;
+    padding: 12px;
+    text-align: center;
+}
+
+.status-card-value {
+    font-family: var(--font-display);
+    font-size: 1.2rem;
+    color: var(--bridge-glow);
+    margin-bottom: 4px;
+}
+
+.status-card-label {
+    font-size: 0.65rem;
+    color: var(--bridge-muted);
+    text-transform: uppercase;
+}
+
+/* Stations Toggle List */
+.node-stations-toggle-list {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+
+.station-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--bridge-border);
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.station-toggle-row.active {
+    background: rgba(0, 255, 255, 0.05);
+    border-color: var(--bridge-glow);
+}
+
+.station-toggle-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+}
+
+.station-color-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.station-toggle-name {
+    font-size: 0.8rem;
+    color: var(--bridge-text);
+    flex: 1;
+}
+
+.station-toggle-row.active .station-toggle-name {
+    color: var(--bridge-glow);
+}
+
+.station-role-select {
+    padding: 4px 8px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--bridge-border);
+    border-radius: 4px;
+    color: var(--bridge-text);
+    font-size: 0.7rem;
+    margin-right: 8px;
+}
+
+.station-role-select:disabled {
+    opacity: 0.4;
+}
+
+/* Toggle Switch */
+.toggle-switch-small {
+    position: relative;
+    width: 36px;
+    height: 20px;
+}
+
+.toggle-switch-small input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider-small {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(110, 118, 129, 0.4);
+    transition: 0.3s;
+    border-radius: 20px;
+}
+
+.toggle-slider-small:before {
+    position: absolute;
+    content: "";
+    height: 14px;
+    width: 14px;
+    left: 3px;
+    bottom: 3px;
+    background-color: #fff;
+    transition: 0.3s;
+    border-radius: 50%;
+}
+
+.toggle-switch-small input:checked + .toggle-slider-small {
+    background-color: var(--bridge-glow);
+}
+
+.toggle-switch-small input:checked + .toggle-slider-small:before {
+    transform: translateX(16px);
+}
+
+/* Legacy station list styles */
+.node-stations-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.station-assignment-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--bridge-border);
+    border-radius: 6px;
+}
+
+.station-assignment-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.station-assignment-name {
+    font-size: 0.85rem;
+    color: var(--bridge-text);
+}
+
+.station-assignment-role {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+}
+
+.station-assignment-role.primary {
+    background: rgba(255, 215, 0, 0.2);
+    color: #FFD700;
+}
+
+.station-assignment-role.backup {
+    background: rgba(16, 185, 129, 0.2);
+    color: #10B981;
+}
+
+.station-assignment-role.worker {
+    background: rgba(110, 118, 129, 0.2);
+    color: #6e7681;
+}
+
+.station-assignment-actions button {
+    padding: 4px 8px;
+    background: transparent;
+    border: 1px solid var(--bridge-border);
+    border-radius: 4px;
+    color: var(--bridge-muted);
+    font-size: 0.65rem;
+    cursor: pointer;
+}
+
+.station-assignment-actions button:hover {
+    border-color: #ef4444;
+    color: #ef4444;
+}
+
+/* AI Services Grid */
+.node-services-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 1rem;
+}
+
+.service-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--bridge-border);
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.service-card.online {
+    border-color: var(--status-online);
+    background: rgba(16, 185, 129, 0.1);
+}
+
+.service-card.offline {
+    opacity: 0.5;
+}
+
+.service-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+}
+
+.service-icon.ollama { background: rgba(139, 92, 246, 0.2); color: #8B5CF6; }
+.service-icon.foocus { background: rgba(244, 114, 182, 0.2); color: #F472B6; }
+.service-icon.comfyui { background: rgba(14, 165, 233, 0.2); color: #0EA5E9; }
+.service-icon.auto1111 { background: rgba(249, 115, 22, 0.2); color: #F97316; }
+.service-icon.docker { background: rgba(59, 130, 246, 0.2); color: #3B82F6; }
+.service-icon.wsl { background: rgba(96, 165, 250, 0.2); color: #60A5FA; }
+
+.service-info {
+    flex: 1;
+}
+
+.service-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--bridge-text);
+}
+
+.service-status {
+    font-size: 0.7rem;
+    color: var(--bridge-muted);
+}
+
+.service-card.online .service-status {
+    color: var(--status-online);
+}
+
+/* Models Grid */
+.node-models-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 8px;
+}
+
+.model-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--bridge-border);
+    border-radius: 6px;
+}
+
+.model-card.available {
+    border-left: 3px solid var(--status-online);
+}
+
+.model-card.unavailable {
+    border-left: 3px solid var(--bridge-muted);
+    opacity: 0.6;
+}
+
+.model-icon {
+    width: 32px;
+    height: 32px;
+    background: rgba(0, 255, 255, 0.1);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.model-icon i {
+    width: 16px;
+    height: 16px;
+    color: var(--bridge-glow);
+}
+
+.model-info {
+    flex: 1;
+}
+
+.model-name {
+    font-size: 0.8rem;
+    color: var(--bridge-text);
+    font-family: var(--font-mono);
+}
+
+.model-provider {
+    font-size: 0.65rem;
+    color: var(--bridge-muted);
+}
+
+/* Health Chart */
+.health-charts {
+    margin-bottom: 1rem;
+}
+
+.health-table {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.health-table table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.7rem;
+}
+
+.health-table th,
+.health-table td {
+    padding: 6px 8px;
+    text-align: left;
+    border-bottom: 1px solid var(--bridge-border);
+}
+
+.health-table th {
+    color: var(--bridge-muted);
+    text-transform: uppercase;
+    font-size: 0.6rem;
+}
+
+/* Config Form */
+.config-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.form-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.form-row label {
+    font-size: 0.75rem;
+    color: var(--bridge-muted);
+}
+
+.form-row input,
+.form-row select,
+.form-row textarea {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--bridge-border);
+    border-radius: 4px;
+    padding: 8px 10px;
+    color: var(--bridge-text);
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+}
+
+.form-row input:focus,
+.form-row select:focus,
+.form-row textarea:focus {
+    outline: none;
+    border-color: var(--bridge-glow);
+}
+
+.form-row .help-text {
+    font-size: 0.65rem;
+    color: var(--bridge-muted);
+    font-style: italic;
+}
+
+.form-row.checkbox-row {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+}
+
+.form-row.checkbox-row label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--bridge-text);
+}
+
+.form-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 2rem;
+    color: var(--bridge-muted);
+}
+
+.empty-state i {
+    width: 48px;
+    height: 48px;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+.node-card:hover {
+    border-color: var(--bridge-glow);
+    box-shadow: 0 0 20px rgba(0, 255, 255, 0.15);
+}
+
+.node-card.online { border-left: 3px solid var(--status-online); }
+.node-card.offline { border-left: 3px solid var(--bridge-muted); }
+.node-card.degraded { border-left: 3px solid var(--status-warning); }
+.node-card.pending { border-left: 3px solid #58a6ff; }
+
+.node-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.3);
+    border-bottom: 1px solid var(--bridge-border);
+    font-size: 0.7rem;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.status-dot.online { background: var(--status-online); animation: status-pulse 2s infinite; }
+.status-dot.offline { background: var(--bridge-muted); }
+.status-dot.degraded { background: var(--status-warning); animation: status-pulse 1s infinite; }
+.status-dot.pending { background: #58a6ff; animation: status-pulse 1.5s infinite; }
+
+.node-id {
+    font-family: var(--font-mono);
+    color: var(--bridge-muted);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.status-badge {
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.status-badge.online { background: rgba(0, 255, 65, 0.2); color: var(--status-online); }
+.status-badge.offline { background: rgba(110, 118, 129, 0.2); color: var(--bridge-muted); }
+.status-badge.degraded { background: rgba(255, 170, 0, 0.2); color: var(--status-warning); }
+.status-badge.pending { background: rgba(88, 166, 255, 0.2); color: #58a6ff; }
+
+.node-body {
+    padding: 12px;
+}
+
+.node-name {
+    font-family: var(--font-display);
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--bridge-text);
+    margin-bottom: 4px;
+}
+
+.node-connection {
+    font-size: 0.75rem;
+    color: var(--bridge-muted);
+    margin-bottom: 10px;
+}
+
+.node-specs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 0.7rem;
+    color: var(--bridge-muted);
+}
+
+.node-specs span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.node-models {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.model-pill {
+    background: rgba(0, 255, 255, 0.1);
+    border: 1px solid rgba(0, 255, 255, 0.3);
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.65rem;
+    color: var(--bridge-glow);
+}
+
+.node-load {
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border-top: 1px solid var(--bridge-border);
+}
+
+.load-bar-container {
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 4px;
+}
+
+.load-bar {
+    height: 100%;
+    background: var(--bridge-glow);
+    transition: width 0.3s ease;
+}
+
+.load-bar.idle {
+    background: var(--status-online);
+}
+
+.load-bar.active {
+    background: #FFAA00;
+}
+
+.load-bar.full {
+    background: #EF4444;
+}
+
+.load-text {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.65rem;
+    color: var(--bridge-muted);
+}
+
+.capacity-status {
+    font-weight: 600;
+}
+
+.capacity-status.idle {
+    color: var(--status-online);
+}
+
+.capacity-status.active {
+    color: #FFAA00;
+}
+
+.capacity-status.full {
+    color: #EF4444;
+}
+
+.capacity-available {
+    font-size: 0.6rem;
+    opacity: 0.8;
+}
+
+.load-latency {
+    font-size: 0.55rem;
+    color: var(--bridge-muted);
+    margin-top: 2px;
+    text-align: right;
+}
+
+.node-actions {
+    display: flex;
+    gap: 6px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--bridge-border);
+}
+
+.node-actions button {
+    flex: 1;
+    padding: 6px 10px;
+    border: 1px solid var(--bridge-border);
+    background: transparent;
+    color: var(--bridge-text);
+    font-size: 0.65rem;
+    font-family: var(--font-display);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.node-actions button:hover {
+    background: rgba(0, 255, 255, 0.1);
+    border-color: var(--bridge-glow);
+    color: var(--bridge-glow);
+}
+
+.node-actions button.approve {
+    background: rgba(0, 255, 65, 0.1);
+    border-color: var(--status-online);
+    color: var(--status-online);
+}
+
+.node-actions button.reject {
+    background: rgba(255, 68, 68, 0.1);
+    border-color: var(--status-error);
+    color: var(--status-error);
+}
+
+/* Bridge Toggle Switch */
+.bridge-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border-top: 1px solid var(--bridge-border);
+    font-size: 0.75rem;
+}
+
+.bridge-toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--bridge-muted);
+}
+
+.bridge-toggle-label i {
+    width: 14px;
+    height: 14px;
+}
+
+.bridge-toggle-label.enabled {
+    color: var(--status-online);
+}
+
+.toggle-switch {
+    position: relative;
+    width: 40px;
+    height: 20px;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(110, 118, 129, 0.3);
+    border: 1px solid var(--bridge-border);
+    border-radius: 20px;
+    transition: all 0.3s ease;
+}
+
+.toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 14px;
+    width: 14px;
+    left: 2px;
+    bottom: 2px;
+    background: var(--bridge-muted);
+    border-radius: 50%;
+    transition: all 0.3s ease;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background: rgba(0, 255, 65, 0.2);
+    border-color: var(--status-online);
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+    transform: translateX(20px);
+    background: var(--status-online);
+}
+
+/* Model Availability Section */
+.model-availability-section {
+    margin-top: 1.5rem;
+    background: var(--bridge-panel);
+    border: 1px solid var(--bridge-border);
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+.model-availability-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--bridge-border);
+}
+
+.model-availability-header h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    color: var(--bridge-glow);
+    margin: 0;
+}
+
+.model-stats {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.75rem;
+}
+
+.model-stats .stat {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--bridge-muted);
+}
+
+.model-stats .stat span {
+    color: var(--bridge-text);
+    font-weight: 600;
+}
+
+.model-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 0.75rem;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.model-card {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--bridge-border);
+    border-radius: 6px;
+    padding: 10px;
+    font-size: 0.75rem;
+}
+
+.model-card:hover {
+    border-color: var(--bridge-glow);
+}
+
+.model-name {
+    font-family: var(--font-mono);
+    color: var(--bridge-text);
+    font-weight: 600;
+    margin-bottom: 6px;
+    word-break: break-all;
+}
+
+.model-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    color: var(--bridge-muted);
+}
+
+.model-meta .tag {
+    background: rgba(0, 255, 255, 0.1);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.65rem;
+}
+
+.model-meta .nodes {
+    color: var(--status-online);
+}
+
+.model-meta .requests {
+    color: var(--bridge-glow);
+}
+
+/* Add Node Modal */
+.node-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.node-modal-overlay.active {
+    display: flex;
+}
+
+.node-modal {
+    background: var(--bridge-panel);
+    border: 1px solid var(--bridge-glow);
+    border-radius: 8px;
+    padding: 2rem;
+    max-width: 500px;
+    width: 90%;
+    box-shadow: 0 0 40px rgba(0, 255, 255, 0.2);
+}
+
+.node-modal h2 {
+    font-family: var(--font-display);
+    color: var(--bridge-glow);
+    margin: 0 0 1.5rem 0;
+    font-size: 1.2rem;
+}
+
+.node-modal code {
+    display: block;
+    background: #0d1117;
+    padding: 1rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    color: var(--status-online);
+    word-break: break-all;
+    margin: 1rem 0;
+}
+
+.node-modal hr {
+    border: none;
+    border-top: 1px solid var(--bridge-border);
+    margin: 1.5rem 0;
+}
+
+.node-modal .close-btn {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: none;
+    border: none;
+    color: var(--bridge-muted);
+    cursor: pointer;
+    font-size: 1.5rem;
+}
+
+/* ============================================================================
+   RESPONSIVE ADJUSTMENTS
+   ============================================================================ */
+
+@media (max-width: 768px) {
+    .node-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .bridge-nodes-header {
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .node-stats {
+        order: 3;
+        width: 100%;
+    }
+}
+
+@media (max-width: 768px) {
+    .bridge-status-bar {
+        flex-wrap: wrap;
+    }
+
+    .bridge-status-center {
+        order: 3;
+        width: 100%;
+        justify-content: space-around;
+        border-top: 1px solid var(--bridge-border);
+    }
+
+    .command-station {
+        grid-template-columns: 1fr;
+    }
+
+    .bridge-stations-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
+<!-- Admin Operations Navigation -->
+{% include 'includes/admin_ops_nav.html' %}
+
+<!-- Bridge Container -->
+<div class="bridge-container">
+    <!-- Status Bar -->
+    <div class="bridge-status-bar">
+        <div class="bridge-logo">
+            <i data-lucide="command"></i>
+            <span class="bridge-logo-text">A.R.C.H.I.E. BRIDGE</span>
+        </div>
+
+        <div class="bridge-status-center">
+            <div class="bridge-status-item">
+                <span class="status-dot online" id="system-status-dot"></span>
+                <span class="status-label">System</span>
+                <span class="status-value" id="system-status">Online</span>
+            </div>
+            <div class="bridge-status-item">
+                <span class="status-label">Stations</span>
+                <span class="status-value" id="station-count">--</span>
+            </div>
+            <div class="bridge-status-item">
+                <span class="status-label">Agents</span>
+                <span class="status-value" id="agent-count">--</span>
+            </div>
+            <div class="bridge-status-item">
+                <span class="status-label">IAAE</span>
+                <span class="status-value" id="iaae-status">--</span>
+            </div>
+        </div>
+
+        <div class="bridge-status-right">
+            <div class="staffing-badge full-staff" id="staffing-badge">
+                <i data-lucide="users" style="width:12px;height:12px;"></i>
+                <span id="staffing-text">Full Staff</span>
+            </div>
+            <div class="bridge-time" id="bridge-time">00:00:00</div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="bridge-main">
+        <div class="bridge-content">
+            <!-- Command Station Hero -->
+            <div class="bridge-command-section">
+                <div class="command-station">
+                    <div class="command-slot" id="commander-slot">
+                        <div class="command-slot-label">Commander</div>
+                        <div id="commander-agent">
+                            <span style="color:var(--bridge-muted);font-size:0.7rem;">Loading...</span>
+                        </div>
+                    </div>
+
+                    <div class="command-center-display">
+                        <div class="command-title">COMMAND CENTER</div>
+                        <div class="command-subtitle">A.R.C.H.I.E. Bridge Control</div>
+                        <div class="command-modules" id="command-modules">
+                            <!-- Command modules rendered here -->
+                        </div>
+                    </div>
+
+                    <div class="command-slot" id="cocommander-slot">
+                        <div class="command-slot-label">Co-Commander</div>
+                        <div id="cocommander-agent">
+                            <span style="color:var(--bridge-muted);font-size:0.7rem;">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stations Grid -->
+            <div class="bridge-stations-section">
+                <div class="bridge-section-header">
+                    <h2 class="bridge-section-title">Active Stations</h2>
+                    <span class="bridge-section-count" id="stations-summary">Loading stations...</span>
+                </div>
+
+                <div class="bridge-stations-grid" id="stations-grid">
+                    <!-- Station cards rendered by JavaScript -->
+                </div>
+            </div>
+
+            <!-- Node Network Section -->
+            <div class="bridge-nodes-section">
+                <div class="bridge-nodes-header">
+                    <h2><i data-lucide="network"></i> NODE NETWORK</h2>
+                    <div class="node-stats">
+                        <span class="stat online"><span id="nodes-online">0</span> Online</span>
+                        <span class="stat offline"><span id="nodes-offline">0</span> Offline</span>
+                        <span class="stat pending"><span id="nodes-pending">0</span> Pending</span>
+                    </div>
+                    <button class="btn-add-node" onclick="showAddNodeModal()">+ Add Node</button>
+                </div>
+
+                <!-- Pending Approvals Section -->
+                <div class="pending-nodes-section" id="pending-nodes-section" style="display: none;">
+                    <h3><i data-lucide="clock"></i> Pending Approval</h3>
+                    <div class="node-grid" id="pending-nodes-grid"></div>
+                </div>
+
+                <!-- Active Nodes Grid -->
+                <div class="node-grid" id="active-nodes-grid">
+                    <!-- Node cards rendered by JavaScript -->
+                </div>
+            </div>
+
+            <!-- Model Availability Section (Phase 72) -->
+            <div class="model-availability-section" id="model-availability-section">
+                <div class="model-availability-header">
+                    <h3><i data-lucide="box"></i> Bridge Model Availability</h3>
+                    <div class="model-stats">
+                        <div class="stat"><span>0</span> Models</div>
+                        <div class="stat"><span>0</span> Nodes</div>
+                        <div class="stat"><span>0</span> Requests</div>
+                    </div>
+                </div>
+                <div class="model-grid" id="model-grid">
+                    <div style="color: var(--bridge-muted); font-size: 0.8rem; grid-column: 1/-1; text-align: center; padding: 2rem;">
+                        Loading models...
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Sidebar -->
+        <div class="bridge-sidebar">
+            <!-- IAAE Health Monitor -->
+            <div class="bridge-sidebar-section">
+                <div class="bridge-sidebar-title">
+                    <i data-lucide="heart-pulse"></i>
+                    IAAE Health Monitor
+                </div>
+                <div class="bridge-iaae-panel">
+                    <div class="bridge-iaae-stat">
+                        <div class="bridge-iaae-value" id="iaae-healthy">--</div>
+                        <div class="bridge-iaae-label">Healthy</div>
+                    </div>
+                    <div class="bridge-iaae-stat warning">
+                        <div class="bridge-iaae-value" id="iaae-warnings">--</div>
+                        <div class="bridge-iaae-label">Warnings</div>
+                    </div>
+                    <div class="bridge-iaae-stat">
+                        <div class="bridge-iaae-value" id="iaae-energy">--%</div>
+                        <div class="bridge-iaae-label">Avg Energy</div>
+                    </div>
+                    <div class="bridge-iaae-stat">
+                        <div class="bridge-iaae-value" id="iaae-stress">--%</div>
+                        <div class="bridge-iaae-label">Avg Stress</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Training Rooms -->
+            <div class="bridge-sidebar-section">
+                <div class="bridge-sidebar-title">
+                    <i data-lucide="graduation-cap"></i>
+                    Training Rooms
+                </div>
+                <div class="bridge-drop-zone" id="training-drop-zone"
+                     ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)"
+                     ondrop="handleDrop(event, 'training')">
+                    <div class="bridge-drop-zone-hint" id="training-hint">
+                        <i data-lucide="user-plus"></i>
+                        Drop agent here for training
+                    </div>
+                    <div id="training-agents"></div>
+                </div>
+            </div>
+
+            <!-- Lounge -->
+            <div class="bridge-sidebar-section">
+                <div class="bridge-sidebar-title">
+                    <i data-lucide="coffee"></i>
+                    Lounge / Rest
+                </div>
+                <div class="bridge-drop-zone" id="lounge-drop-zone"
+                     ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)"
+                     ondrop="handleDrop(event, 'lounge')">
+                    <div class="bridge-drop-zone-hint" id="lounge-hint">
+                        <i data-lucide="moon"></i>
+                        Drop agent here for rest
+                    </div>
+                    <div id="lounge-agents"></div>
+                </div>
+            </div>
+
+            <!-- Remote Connections (VPN Nodes) -->
+            <div class="bridge-sidebar-section bridge-remote-connections">
+                <div class="bridge-sidebar-title">
+                    <i data-lucide="wifi"></i>
+                    Remote Connections
+                </div>
+                <div class="bridge-remote-list" id="remote-connections-list">
+                    <div class="bridge-remote-placeholder">
+                        <i data-lucide="globe-2"></i>
+                        <span>VPN Connected Nodes</span>
+                        <span style="opacity:0.6;">vpn.kytranempowerment.com</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Station Assignment Modal -->
+<div class="assignment-modal-overlay" id="assignment-modal">
+    <div class="assignment-modal">
+        <div class="assignment-modal-header">
+            <h3 id="assignment-modal-title">Assign Node to Station</h3>
+            <button class="assignment-modal-close" onclick="closeAssignmentModal()">&times;</button>
+        </div>
+        <div class="assignment-modal-body">
+            <div class="assignment-form-group">
+                <label>Node</label>
+                <select id="assignment-node-select">
+                    <option value="">Select a node...</option>
+                </select>
+            </div>
+            <div class="assignment-form-group">
+                <label>Station</label>
+                <select id="assignment-station-select" disabled>
+                    <option value="">Select station first</option>
+                </select>
+            </div>
+            <div class="assignment-form-group">
+                <label>Role</label>
+                <select id="assignment-role-select">
+                    <option value="worker">Worker</option>
+                    <option value="primary">Primary</option>
+                    <option value="backup">Backup</option>
+                    <option value="relief">Relief</option>
+                </select>
+            </div>
+            <div class="assignment-form-group">
+                <label>Priority (1 = Highest)</label>
+                <input type="number" id="assignment-priority" value="10" min="1" max="100">
+            </div>
+            <div class="assignment-form-group">
+                <label>Shift Preference</label>
+                <select id="assignment-shift-select">
+                    <option value="any">Any Shift</option>
+                    <option value="alpha">Alpha (Morning)</option>
+                    <option value="beta">Beta (Afternoon)</option>
+                    <option value="gamma">Gamma (Night)</option>
+                </select>
+            </div>
+        </div>
+        <div class="assignment-modal-footer">
+            <button class="btn-delete" id="assignment-delete-btn" style="display:none;" onclick="deleteAssignment()">Delete</button>
+            <button class="btn-cancel" onclick="closeAssignmentModal()">Cancel</button>
+            <button class="btn-submit" id="assignment-submit-btn" onclick="submitAssignment()">Assign</button>
+        </div>
+    </div>
+</div>
+
+<!-- Station Detail Modal -->
+<div class="assignment-modal-overlay" id="station-detail-modal">
+    <div class="assignment-modal" style="width: 600px;">
+        <div class="assignment-modal-header">
+            <h3 id="station-detail-title">Station Nodes</h3>
+            <button class="assignment-modal-close" onclick="closeStationDetailModal()">&times;</button>
+        </div>
+        <div class="assignment-modal-body" id="station-detail-body">
+            <!-- Filled by JavaScript -->
+        </div>
+        <div class="assignment-modal-footer">
+            <button class="btn-cancel" onclick="closeStationDetailModal()">Close</button>
+            <button class="btn-submit" onclick="openAssignModalForStation()">+ Add Node</button>
+        </div>
+    </div>
+</div>
+
+<!-- Node Details Modal -->
+<div class="assignment-modal-overlay" id="node-detail-modal">
+    <div class="assignment-modal node-detail-modal">
+        <div class="assignment-modal-header">
+            <div class="node-detail-header-info">
+                <span class="node-detail-status" id="node-detail-status"></span>
+                <h3 id="node-detail-title">Node Details</h3>
+            </div>
+            <button class="assignment-modal-close" onclick="closeNodeDetailModal()">&times;</button>
+        </div>
+
+        <!-- Tabs -->
+        <div class="node-detail-tabs">
+            <button class="node-tab active" data-tab="overview" onclick="switchNodeTab('overview')">
+                <i data-lucide="info"></i> Overview
+            </button>
+            <button class="node-tab" data-tab="stations" onclick="switchNodeTab('stations')">
+                <i data-lucide="git-branch"></i> Stations
+            </button>
+            <button class="node-tab" data-tab="models" onclick="switchNodeTab('models')">
+                <i data-lucide="box"></i> Models
+            </button>
+            <button class="node-tab" data-tab="health" onclick="switchNodeTab('health')">
+                <i data-lucide="activity"></i> Health
+            </button>
+            <button class="node-tab" data-tab="config" onclick="switchNodeTab('config')">
+                <i data-lucide="settings"></i> Config
+            </button>
+        </div>
+
+        <div class="assignment-modal-body node-detail-body">
+            <!-- Overview Tab -->
+            <div class="node-tab-content active" id="tab-overview">
+                <div class="node-detail-grid">
+                    <div class="node-detail-section">
+                        <h4><i data-lucide="server"></i> System Information</h4>
+                        <div class="node-detail-info">
+                            <div class="info-row"><span class="label">Node ID:</span><span class="value" id="nd-node-id">--</span></div>
+                            <div class="info-row"><span class="label">Hostname:</span><span class="value" id="nd-hostname">--</span></div>
+                            <div class="info-row"><span class="label">IP Address:</span><span class="value" id="nd-ip">--</span></div>
+                            <div class="info-row"><span class="label">Port:</span><span class="value" id="nd-port">--</span></div>
+                            <div class="info-row"><span class="label">OS:</span><span class="value" id="nd-os">--</span></div>
+                            <div class="info-row"><span class="label">Registered:</span><span class="value" id="nd-registered">--</span></div>
+                            <div class="info-row"><span class="label">Last Heartbeat:</span><span class="value" id="nd-heartbeat">--</span></div>
+                        </div>
+                    </div>
+                    <div class="node-detail-section">
+                        <h4><i data-lucide="cpu"></i> Hardware Specs</h4>
+                        <div class="node-detail-info">
+                            <div class="info-row"><span class="label">CPU:</span><span class="value" id="nd-cpu">--</span></div>
+                            <div class="info-row"><span class="label">CPU Cores:</span><span class="value" id="nd-cores">--</span></div>
+                            <div class="info-row"><span class="label">RAM:</span><span class="value" id="nd-ram">--</span></div>
+                            <div class="info-row"><span class="label">Disk:</span><span class="value" id="nd-disk">--</span></div>
+                            <div class="info-row"><span class="label">GPU:</span><span class="value" id="nd-gpu">--</span></div>
+                            <div class="info-row"><span class="label">GPU VRAM:</span><span class="value" id="nd-vram">--</span></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="node-detail-section full-width">
+                    <h4><i data-lucide="gauge"></i> Current Status</h4>
+                    <div class="node-status-cards">
+                        <div class="status-card">
+                            <div class="status-card-value" id="nd-status-load">0/5</div>
+                            <div class="status-card-label">Active Tasks</div>
+                        </div>
+                        <div class="status-card">
+                            <div class="status-card-value" id="nd-status-latency">--</div>
+                            <div class="status-card-label">Avg Latency</div>
+                        </div>
+                        <div class="status-card">
+                            <div class="status-card-value" id="nd-status-models">0</div>
+                            <div class="status-card-label">Models</div>
+                        </div>
+                        <div class="status-card">
+                            <div class="status-card-value" id="nd-status-stations">0</div>
+                            <div class="status-card-label">Stations</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stations Tab -->
+            <div class="node-tab-content" id="tab-stations">
+                <div class="node-detail-section full-width">
+                    <h4><i data-lucide="git-branch"></i> Station Assignments</h4>
+                    <p style="font-size:0.7rem;color:var(--bridge-muted);margin-bottom:12px;">
+                        Toggle stations on/off to assign this node. Select a role for active assignments.
+                    </p>
+                    <div id="node-stations-list" class="node-stations-toggle-list">
+                        <!-- Filled by JavaScript - shows ALL stations with toggles -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Models/Services Tab -->
+            <div class="node-tab-content" id="tab-models">
+                <!-- AI Services Overview -->
+                <div class="node-detail-section full-width">
+                    <h4><i data-lucide="cpu"></i> AI Services</h4>
+                    <div id="node-services-grid" class="node-services-grid">
+                        <!-- Filled by JavaScript -->
+                    </div>
+                </div>
+
+                <!-- LLM Models -->
+                <div class="node-detail-section full-width">
+                    <div class="section-header">
+                        <h4><i data-lucide="box"></i> LLM Models (Ollama)</h4>
+                        <button class="btn-small" onclick="syncNodeModels()"><i data-lucide="refresh-cw"></i> Sync</button>
+                    </div>
+                    <div id="node-models-list" class="node-models-grid">
+                        <!-- Filled by JavaScript -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Health Tab -->
+            <div class="node-tab-content" id="tab-health">
+                <div class="node-detail-section full-width">
+                    <h4><i data-lucide="activity"></i> Health History (Last 50 Heartbeats)</h4>
+                    <div class="health-charts">
+                        <canvas id="health-chart" height="200"></canvas>
+                    </div>
+                    <div id="node-health-table" class="health-table">
+                        <!-- Filled by JavaScript -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Config Tab -->
+            <div class="node-tab-content" id="tab-config">
+                <div class="node-detail-section full-width">
+                    <h4><i data-lucide="settings"></i> Node Configuration</h4>
+                    <div class="config-form">
+                        <div class="form-row">
+                            <label>Node Name:</label>
+                            <input type="text" id="nd-config-name" placeholder="Node name">
+                        </div>
+                        <div class="form-row">
+                            <label>Description:</label>
+                            <textarea id="nd-config-desc" rows="2" placeholder="Optional description"></textarea>
+                        </div>
+                        <div class="form-row">
+                            <label>Max Concurrent Tasks:</label>
+                            <input type="number" id="nd-config-max" value="5" min="1" max="50">
+                            <span class="help-text">How many tasks this node can handle simultaneously</span>
+                        </div>
+                        <div class="form-row">
+                            <label>Priority:</label>
+                            <input type="number" id="nd-config-priority" value="10" min="1" max="100">
+                            <span class="help-text">Lower = higher priority for task assignment</span>
+                        </div>
+                        <div class="form-row">
+                            <label>Weight:</label>
+                            <input type="number" id="nd-config-weight" value="100" min="1" max="1000">
+                            <span class="help-text">Load balancing weight (higher = more tasks)</span>
+                        </div>
+                        <div class="form-row checkbox-row">
+                            <label>
+                                <input type="checkbox" id="nd-config-bridge">
+                                Enable Bridge LLM Sharing
+                            </label>
+                            <span class="help-text">Allow this node's models to be used by other stations</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="assignment-modal-footer">
+            <button class="btn-danger" onclick="confirmDeleteNode()" style="margin-right:auto;">
+                <i data-lucide="trash-2"></i> Delete Node
+            </button>
+            <button class="btn-cancel" onclick="closeNodeDetailModal()">Close</button>
+            <button class="btn-submit" onclick="saveNodeConfig()">Save Changes</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ============================================================================
+// A.R.C.H.I.E. BRIDGE - JavaScript Controller
+// ============================================================================
+
+// Module info mapping for icons
+const MODULE_INFO = {
+    // CREATION TOOLS
+    'project_builder': { icon: 'building-2', route: '/tools/project-builder', name: 'Project Builder' },
+    'game_studio': { icon: 'gamepad-2', route: '/tools/game-studio', name: 'Game Studio' },
+    'media_studio': { icon: 'video', route: '/tools/media-studio', name: 'Media Studio' },
+    'content_studio': { icon: 'pen-tool', route: '/tools/content-studio', name: 'Content Studio' },
+    'app_builder': { icon: 'smartphone', route: '/tools/app-builder', name: 'App Builder' },
+    'website_builder': { icon: 'globe-2', route: '/tools/website-builder', name: 'Website Builder' },
+    'website_designer': { icon: 'globe', route: '/tools/website-designer', name: 'Website Designer' },
+    'book_builder': { icon: 'book-open', route: '/tools/book-builder', name: 'Book Builder' },
+    'picture_generation': { icon: 'image', route: '/tools/picture-generation', name: 'Picture Generation' },
+    'video_generation': { icon: 'film', route: '/tools/video-generation', name: 'Video Generation' },
+    'story_generation': { icon: 'scroll', route: '/tools/story-generation', name: 'Story Generation' },
+
+    // DEVELOPMENT TOOLS
+    'code_editor': { icon: 'code-2', route: '/tools/code-editor', name: 'Code Editor' },
+    'code_sentinel': { icon: 'shield-check', route: '/tools/code_sentinel', name: 'Code Sentinel' },
+    'improvements_lab': { icon: 'flask-conical', route: '/tools/improvements-lab', name: 'Improvements Lab' },
+    'sandbox_manager': { icon: 'box', route: '/tools/sandbox-manager', name: 'Sandbox Manager' },
+    'blueprint': { icon: 'layout-dashboard', route: '/tools/blueprint', name: 'Blueprint' },
+    'testing_suite': { icon: 'test-tube-2', route: '/tools/testing-suite', name: 'Testing Suite' },
+    'cursor_integration': { icon: 'mouse-pointer', route: '/tools/cursor-integration', name: 'Cursor Integration' },
+    'fine_tuning': { icon: 'sliders', route: '/tools/fine-tuning', name: 'Fine Tuning' },
+    'api_docs': { icon: 'file-json', route: '/tools/api-docs', name: 'API Documentation' },
+
+    // BUSINESS TOOLS
+    'crm': { icon: 'users', route: '/tools/crm', name: 'CRM' },
+    'invoicing': { icon: 'receipt', route: '/tools/invoicing', name: 'Invoicing' },
+    'scheduler': { icon: 'calendar', route: '/tools/scheduler', name: 'Scheduler' },
+    'email_manager': { icon: 'mail', route: '/tools/email-manager', name: 'Email Manager' },
+    'automations': { icon: 'workflow', route: '/tools/automations', name: 'Automations' },
+    'google_workspace': { icon: 'mail-check', route: '/tools/google-workspace', name: 'Google Workspace' },
+    'task_planner': { icon: 'check-square', route: '/tools/task-planner', name: 'Task Planner' },
+    'site_manager': { icon: 'layout', route: '/tools/site-manager', name: 'Site Manager' },
+    'call_center': { icon: 'phone', route: '/tools/call-center', name: 'Call Center' },
+    'store_builder': { icon: 'shopping-cart', route: '/tools/store-builder', name: 'Store Builder' },
+    'social_media': { icon: 'share-2', route: '/tools/social-media', name: 'Social Media' },
+    'github_manager': { icon: 'github', route: '/tools/github-manager', name: 'GitHub Manager' },
+    'analytics_dashboard': { icon: 'bar-chart-3', route: '/tools/analytics', name: 'Analytics Dashboard' },
+
+    // STANDALONE APPS
+    'archie_chat': { icon: 'message-circle', route: '/tools/archie-chat', name: 'A.R.C.H.I.E. Chat' },
+    'archie_pool': { icon: 'droplets', route: '/tools/archie-pool', name: 'Archie Pool' },
+    'pool_management': { icon: 'waves', route: '/tools/pool-management', name: 'Pool Management' },
+    'doc': { icon: 'file-text', route: '/tools/doc', name: 'DOC Medical' },
+    'therapy': { icon: 'heart-pulse', route: '/tools/therapy', name: 'Therapy' },
+    'fitness': { icon: 'dumbbell', route: '/tools/fitness', name: 'Fitness' },
+    'stockbot': { icon: 'trending-up', route: '/tools/stockbot', name: 'StockBot' },
+
+    // ADMIN OPS
+    'team_management': { icon: 'users-2', route: '/tools/team-management', name: 'Team Management' },
+    'hr_management': { icon: 'clipboard-list', route: '/tools/hr-management', name: 'HR Management' },
+    'consciousness': { icon: 'brain', route: '/tools/consciousness', name: 'Consciousness' },
+    'obsidian_vault': { icon: 'book-open', route: '/tools/consciousness', name: 'Obsidian Vault' },
+
+    // ADMIN TOOLS
+    'admin_tools': { icon: 'settings', route: '/tools/admin', name: 'Admin Tools' },
+    'general_tasks': { icon: 'list-todo', route: '/tools/admin', name: 'General Tasks' },
+    'backup_manager': { icon: 'hard-drive', route: '/tools/backup-manager', name: 'Backup Manager' },
+    'security_network': { icon: 'shield', route: '/tools/security-network', name: 'Security & Network' },
+    'account_center': { icon: 'user-cog', route: '/tools/account-center', name: 'Account Center' },
+    'automation_services': { icon: 'cog', route: '/tools/automations', name: 'Automation Services' },
+
+    // INFRASTRUCTURE
+    'network_monitor': { icon: 'activity', route: '/tools/network-monitor', name: 'Network Monitor' },
+    'server_dashboard': { icon: 'server', route: '/tools/server-dashboard', name: 'Server Dashboard' },
+    'home_automation': { icon: 'home', route: '/tools/home-automation', name: 'Home Automation' },
+
+    // DOCUMENTATION
+    'docs_manager': { icon: 'file-text', route: '/tools/docs-manager', name: 'Docs Manager' },
+    'technical_writing': { icon: 'pencil', route: '/tools/technical-writing', name: 'Technical Writing' },
+
+    // QA
+    'qa_dashboard': { icon: 'clipboard-check', route: '/tools/qa-dashboard', name: 'QA Dashboard' },
+    'test_runner': { icon: 'play-circle', route: '/tools/test-runner', name: 'Test Runner' },
+
+    // RESEARCH
+    'web_scraper': { icon: 'globe-2', route: '/tools/web-scraper', name: 'Web Scraper' },
+    'research_agent': { icon: 'search', route: '/tools/research', name: 'Research Agent' },
+    'data_collector': { icon: 'database', route: '/tools/data-collector', name: 'Data Collector' },
+};
+
+// Station color mapping
+const STATION_COLORS = {
+    'COMMAND': '#FFD700',
+    'CONSCIOUSNESS': '#FF00FF',
+    'HR': '#10B981',
+    'RND': '#8B5CF6',
+    'RND_CORE': '#8B5CF6',
+    'RND_AI': '#A855F7',
+    'ENGINEERING': '#0EA5E9',
+    'ENGINEERING_BUILD': '#0EA5E9',
+    'ENGINEERING_CODE': '#06B6D4',
+    'OPERATIONS': '#FFAA00',
+    'OPERATIONS_CORE': '#FFAA00',
+    'OPERATIONS_AUTO': '#F59E0B',
+    'CREATIVE': '#F472B6',
+    'CREATIVE_MEDIA': '#F472B6',
+    'CREATIVE_CONTENT': '#EC4899',
+    'SECURITY': '#EF4444',
+    'MEDICAL': '#84CC16',
+    'AWAY_TEAM': '#F59E0B',
+    'INFRASTRUCTURE': '#3B82F6',
+    'FINANCE': '#A855F7',
+    'DOCUMENTATION': '#22C55E',
+    'QA': '#F97316',
+    'ADMIN': '#6366F1',
+    'SUPPORT': '#EC4899'
+};
+
+// Global state
+let draggedAgent = null;
+let allStations = [];
+let stationNodeCoverage = {}; // Maps station_id to node data
+
+// ============================================================================
+// INITIALIZATION
+// ============================================================================
+
+document.addEventListener('DOMContentLoaded', function() {
+    updateClock();
+    setInterval(updateClock, 1000);
+
+    loadStations();
+    loadIAAEStatus();
+    loadStaffingStatus();
+
+    // Refresh intervals
+    setInterval(loadStations, 60000);
+    setInterval(loadIAAEStatus, 30000);
+    setInterval(loadStaffingStatus, 60000);
+
+    // Initialize Lucide icons
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+});
+
+// ============================================================================
+// CLOCK
+// ============================================================================
+
+function updateClock() {
+    const now = new Date();
+    const time = now.toLocaleTimeString('en-US', { hour12: false });
+    document.getElementById('bridge-time').textContent = time;
+}
+
+// ============================================================================
+// LOAD STATIONS
+// ============================================================================
+
+async function loadStations() {
+    try {
+        // Fetch stations and coverage in parallel
+        const [stationsResp, coverageResp] = await Promise.all([
+            fetch('/tools/bridge/api/stations'),
+            fetch('/tools/bridge/api/stations/coverage')
+        ]);
+
+        const stationsData = await stationsResp.json();
+        const coverageData = await coverageResp.json();
+
+        if (stationsData.success) {
+            allStations = stationsData.stations;
+
+            // Build coverage map by station code
+            if (coverageData.success && coverageData.coverage) {
+                stationNodeCoverage = {};
+                for (const cov of coverageData.coverage) {
+                    stationNodeCoverage[cov.station_code] = cov;
+                }
+
+                // Fetch node details for each station with nodes
+                for (const cov of coverageData.coverage) {
+                    if (cov.total_nodes > 0) {
+                        try {
+                            const nodesResp = await fetch(`/tools/bridge/api/stations/${cov.station_id}/nodes`);
+                            const nodesData = await nodesResp.json();
+                            if (nodesData.success) {
+                                stationNodeCoverage[cov.station_code].nodes = nodesData.nodes;
+                            }
+                        } catch (e) {
+                            console.error('Error loading nodes for station:', cov.station_code, e);
+                        }
+                    }
+                }
+            }
+
+            renderStations(stationsData.stations);
+            updateStationStats(stationsData.stations);
+        }
+    } catch (error) {
+        console.error('Error loading stations:', error);
+    }
+}
+
+function renderStations(stations) {
+    const grid = document.getElementById('stations-grid');
+    grid.innerHTML = '';
+
+    // Separate command station
+    const commandStation = stations.find(s => s.code === 'COMMAND');
+    const otherStations = stations.filter(s => s.code !== 'COMMAND');
+
+    // Render command station
+    if (commandStation) {
+        renderCommandStation(commandStation);
+    }
+
+    // Render other stations
+    otherStations.forEach(station => {
+        const card = createStationCard(station);
+        grid.appendChild(card);
+    });
+
+    // Reinitialize Lucide icons
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+}
+
+function renderCommandStation(station) {
+    const agents = station.assigned_agents || [];
+
+    const commander = agents.find(a => a.assignment_type === 'commander' || a.first_name === 'Kytran');
+    const cocommander = agents.find(a => a.assignment_type === 'co-commander' || (a.first_name && a.first_name.includes('A.R.C.H.I.E')));
+
+    // Commander slot
+    const commanderEl = document.getElementById('commander-agent');
+    if (commander) {
+        commanderEl.innerHTML = renderCommandAgentChip(commander);
+    } else {
+        commanderEl.innerHTML = `<div class="bridge-agent-chip primary" style="border-color:var(--bridge-gold);">
+            <div class="bridge-agent-info">
+                <div class="bridge-agent-name" style="color:var(--bridge-gold);">Kytran</div>
+                <div class="bridge-agent-role">Administrator</div>
+            </div>
+        </div>`;
+    }
+
+    // Co-commander slot (A.R.C.H.I.E.)
+    const cocommanderEl = document.getElementById('cocommander-agent');
+    if (cocommander) {
+        cocommanderEl.innerHTML = renderCommandAgentChip(cocommander, true);
+    } else {
+        cocommanderEl.innerHTML = `<div class="bridge-agent-chip" style="border-color:var(--bridge-glow);">
+            <div class="bridge-agent-info">
+                <div class="bridge-agent-name" style="color:var(--bridge-glow);">A.R.C.H.I.E.</div>
+                <div class="bridge-agent-role" style="font-size:0.55rem;">(Autonomous Resource...)</div>
+            </div>
+        </div>`;
+    }
+
+    // Command modules
+    const modulesEl = document.getElementById('command-modules');
+    const modules = station.modules || [];
+    modulesEl.innerHTML = modules.map(m => {
+        const info = MODULE_INFO[m] || { icon: 'box', route: '#', name: m };
+        return `<a href="${info.route}" class="bridge-module-btn" title="${info.name}">
+            <i data-lucide="${info.icon}"></i>
+        </a>`;
+    }).join('');
+}
+
+function renderCommandAgentChip(agent, isArchie = false) {
+    const firstName = agent.first_name || '';
+    const lastName = agent.last_name || '';
+    let fullName = `${firstName} ${lastName}`.trim() || agent.name || 'Unknown';
+
+    let displayName = fullName;
+    let subtitle = '';
+
+    if (isArchie || firstName.includes('A.R.C.H.I.E')) {
+        displayName = 'A.R.C.H.I.E.';
+        subtitle = '(Autonomous Resource...)';
+    }
+
+    const position = agent.title || agent.name || 'Staff';
+    const avatar = agent.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=0d1117&color=00ffff`;
+
+    return `
+        <div class="bridge-agent-chip primary" style="border-color:${isArchie ? 'var(--bridge-glow)' : 'var(--bridge-gold)'};">
+            <img src="${avatar}" alt="${displayName}" class="bridge-agent-avatar">
+            <div class="bridge-agent-info">
+                <div class="bridge-agent-name" style="color:${isArchie ? 'var(--bridge-glow)' : 'var(--bridge-gold)'};">${displayName}</div>
+                ${subtitle ? `<div class="bridge-agent-role" style="font-size:0.5rem;">${subtitle}</div>` : ''}
+                <div class="bridge-agent-role">${position}</div>
+            </div>
+        </div>
+    `;
+}
+
+function createStationCard(station) {
+    const card = document.createElement('div');
+    card.className = 'bridge-station-card';
+    card.dataset.stationId = station.id;
+    card.dataset.stationCode = station.code;
+    card.style.setProperty('--station-color', STATION_COLORS[station.code] || '#00FFFF');
+
+    // Drag and drop handlers for station
+    card.ondragover = (e) => handleDragOver(e);
+    card.ondragleave = (e) => handleDragLeave(e);
+    card.ondrop = (e) => handleDrop(e, 'station', station.id);
+
+    const modules = station.modules || [];
+    const agents = station.assigned_agents || [];
+    const maxVisible = 3;
+    const visibleAgents = agents.slice(0, maxVisible);
+    const hiddenAgents = agents.slice(maxVisible);
+
+    // Get node coverage for this station
+    const coverage = stationNodeCoverage[station.code] || {};
+    const nodes = coverage.nodes || [];
+    const totalNodes = coverage.total_nodes || 0;
+    const primaryNodes = coverage.primary_nodes || 0;
+
+    // Module buttons
+    const moduleButtons = modules.map(m => {
+        const info = MODULE_INFO[m] || { icon: 'box', route: '#', name: m };
+        return `<a href="${info.route}" class="bridge-module-btn" title="${info.name}" onclick="event.stopPropagation();">
+            <i data-lucide="${info.icon}"></i>
+        </a>`;
+    }).join('');
+
+    // Agent chips
+    const agentChips = visibleAgents.map(agent => renderAgentChip(agent, station.code)).join('');
+
+    // Hidden agents
+    let hiddenSection = '';
+    if (hiddenAgents.length > 0) {
+        const hiddenChips = hiddenAgents.map(agent => renderAgentChip(agent, station.code)).join('');
+        hiddenSection = `
+            <div class="bridge-hidden-agents" id="hidden-${station.id}">
+                ${hiddenChips}
+            </div>
+            <button class="bridge-expand-btn" onclick="event.stopPropagation(); toggleExpand('${station.id}', this)">
+                <span>Show all (${agents.length})</span>
+                <i data-lucide="chevron-down"></i>
+            </button>
+        `;
+    }
+
+    // Node support chips
+    const nodeChips = nodes.slice(0, 3).map(node => {
+        const roleIcon = node.role === 'primary' ? 'star' : (node.role === 'backup' ? 'shield' : 'cpu');
+        const roleColor = node.role === 'primary' ? '#FFD700' : (node.role === 'backup' ? '#10B981' : '#6e7681');
+        const statusDot = node.status === 'online' ? 'var(--status-online)' : 'var(--bridge-muted)';
+        return `
+            <div class="station-node-chip" title="${node.node_name} (${node.role})" onclick="event.stopPropagation(); showNodeDetail('${node.node_id}')">
+                <span class="node-status-dot" style="background:${statusDot};"></span>
+                <i data-lucide="${roleIcon}" style="width:10px;height:10px;color:${roleColor};"></i>
+                <span class="node-chip-name">${escapeHtml((node.node_name || '').substring(0, 10))}${(node.node_name || '').length > 10 ? '...' : ''}</span>
+            </div>
+        `;
+    }).join('');
+
+    const moreNodes = totalNodes > 3 ? `<span class="more-nodes">+${totalNodes - 3}</span>` : '';
+
+    // Node support section HTML
+    const nodeSection = totalNodes > 0 ? `
+        <div class="bridge-station-nodes">
+            <div class="bridge-station-nodes-label">
+                <i data-lucide="server" style="width:12px;height:12px;"></i>
+                Node Support
+                <span class="node-count-badge">${primaryNodes}P/${totalNodes}</span>
+            </div>
+            <div class="station-node-list">
+                ${nodeChips}${moreNodes}
+            </div>
+        </div>
+    ` : '';
+
+    card.innerHTML = `
+        <div class="bridge-station-header">
+            <div class="bridge-station-status ${station.status || 'online'}"></div>
+            <div class="bridge-station-name">${station.name}</div>
+            <div class="bridge-station-badge">${modules.length} modules</div>
+        </div>
+        <div class="bridge-station-modules">
+            ${moduleButtons || '<span style="color:var(--bridge-muted);font-size:0.65rem;">No modules</span>'}
+        </div>
+        <div class="bridge-station-team">
+            <div class="bridge-station-team-label">Assigned Team</div>
+            <div class="bridge-agent-list">
+                ${agentChips || '<div class="bridge-station-empty"><i data-lucide="alert-triangle" style="width:14px;height:14px;margin-right:4px;"></i> Unstaffed</div>'}
+            </div>
+            ${hiddenSection}
+        </div>
+        ${nodeSection}
+    `;
+
+    return card;
+}
+
+function renderAgentChip(agent, stationCode) {
+    const firstName = agent.first_name || '';
+    const lastName = agent.last_name || '';
+    const fullName = `${firstName} ${lastName}`.trim() || agent.name || 'Unknown';
+    const position = agent.title || agent.name || 'Staff';
+    const isPrimary = agent.assignment_type === 'primary';
+    const avatar = agent.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=0d1117&color=00ffff&size=32`;
+
+    // Skill match indicator (simplified - would need API for real validation)
+    const skillMatch = true; // TODO: Get from skill validation API
+
+    return `
+        <div class="bridge-agent-chip ${isPrimary ? 'primary' : ''}"
+             draggable="true"
+             data-agent-id="${agent.id}"
+             data-agent-name="${fullName}"
+             ondragstart="handleDragStart(event, ${agent.id}, '${fullName}')"
+             ondragend="handleDragEnd(event)">
+            <img src="${avatar}" alt="${fullName}" class="bridge-agent-avatar">
+            <div class="bridge-agent-info">
+                <div class="bridge-agent-name">${fullName}</div>
+                <div class="bridge-agent-role">${position}</div>
+            </div>
+            <div class="bridge-agent-skill-badge ${skillMatch ? 'match' : 'warning'}">
+                <i data-lucide="${skillMatch ? 'check' : 'alert-triangle'}"></i>
+            </div>
+        </div>
+    `;
+}
+
+function toggleExpand(stationId, button) {
+    const hiddenDiv = document.getElementById(`hidden-${stationId}`);
+    if (!hiddenDiv) return;
+
+    const isExpanded = hiddenDiv.classList.contains('visible');
+    hiddenDiv.classList.toggle('visible', !isExpanded);
+    button.classList.toggle('expanded', !isExpanded);
+
+    const text = button.querySelector('span');
+    if (text) {
+        const totalAgents = button.parentElement.querySelectorAll('.bridge-agent-chip').length;
+        text.textContent = isExpanded ? `Show all (${totalAgents})` : 'Show less';
+    }
+
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons({ nodes: [button] });
+    }
+}
+
+function updateStationStats(stations) {
+    const totalStations = stations.length;
+    const totalAgents = stations.reduce((sum, s) => sum + (s.assigned_agents?.length || 0), 0);
+
+    document.getElementById('station-count').textContent = totalStations;
+    document.getElementById('agent-count').textContent = totalAgents;
+    document.getElementById('stations-summary').textContent = `${totalStations} stations active`;
+}
+
+// ============================================================================
+// DRAG AND DROP
+// ============================================================================
+
+function handleDragStart(event, agentId, agentName) {
+    draggedAgent = { id: agentId, name: agentName };
+    event.target.classList.add('dragging');
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', JSON.stringify(draggedAgent));
+}
+
+function handleDragEnd(event) {
+    event.target.classList.remove('dragging');
+    draggedAgent = null;
+}
+
+function handleDragOver(event) {
+    event.preventDefault();
+    event.currentTarget.classList.add('drag-over');
+}
+
+function handleDragLeave(event) {
+    event.currentTarget.classList.remove('drag-over');
+}
+
+async function handleDrop(event, targetType, targetId = null) {
+    event.preventDefault();
+    event.currentTarget.classList.remove('drag-over');
+
+    if (!draggedAgent) return;
+
+    console.log(`Moving agent ${draggedAgent.name} to ${targetType}`, targetId);
+
+    // TODO: API call to update assignment
+    // For now, just show feedback
+    if (targetType === 'training') {
+        showNotification(`${draggedAgent.name} moved to Training`);
+    } else if (targetType === 'lounge') {
+        showNotification(`${draggedAgent.name} moved to Lounge (Rest)`);
+    } else if (targetType === 'station') {
+        showNotification(`${draggedAgent.name} assigned to station`);
+    }
+
+    // Reload stations to reflect changes
+    // loadStations();
+}
+
+function showNotification(message) {
+    // Simple notification - could be enhanced
+    console.log('Notification:', message);
+}
+
+// ============================================================================
+// IAAE STATUS
+// ============================================================================
+
+async function loadIAAEStatus() {
+    try {
+        const response = await fetch('/tools/hr-management/api/iaae/summary');
+        const data = await response.json();
+
+        if (data.success && data.summary) {
+            const s = data.summary;
+            document.getElementById('iaae-healthy').textContent = s.healthy_agents || 0;
+            document.getElementById('iaae-warnings').textContent = (s.warning_agents || 0) + (s.critical_agents || 0);
+            document.getElementById('iaae-energy').textContent = `${Math.round((s.avg_energy || 0) * 100)}%`;
+            document.getElementById('iaae-stress').textContent = `${Math.round((s.avg_stress || 0) * 100)}%`;
+            document.getElementById('iaae-status').textContent = `${s.healthy_agents || 0} OK`;
+        }
+    } catch (error) {
+        console.error('Error loading IAAE status:', error);
+    }
+}
+
+// ============================================================================
+// STAFFING STATUS
+// ============================================================================
+
+async function loadStaffingStatus() {
+    try {
+        const response = await fetch('/tools/hr-management/api/shifts/status');
+        const data = await response.json();
+
+        if (data.success && data.staffing) {
+            const s = data.staffing;
+            const badge = document.getElementById('staffing-badge');
+            const text = document.getElementById('staffing-text');
+
+            if (s.staffing_status.includes('Full')) {
+                badge.className = 'staffing-badge full-staff';
+                text.textContent = 'Full Staff (9-5)';
+            } else {
+                badge.className = 'staffing-badge reduced-staff';
+                text.textContent = s.staffing_status;
+            }
+        }
+    } catch (error) {
+        console.error('Error loading staffing status:', error);
+    }
+}
+
+// ============================================================================
+// NODE NETWORK MANAGEMENT
+// ============================================================================
+
+async function loadNodes() {
+    try {
+        const response = await fetch('/tools/bridge/api/nodes');
+        const data = await response.json();
+
+        if (data.success) {
+            renderNodeStats(data.summary);
+            renderNodeGrid(data.nodes);
+        }
+    } catch (error) {
+        console.error('Error loading nodes:', error);
+    }
+}
+
+function renderNodeStats(summary) {
+    document.getElementById('nodes-online').textContent = summary.online || 0;
+    document.getElementById('nodes-offline').textContent = summary.offline || 0;
+    document.getElementById('nodes-pending').textContent = summary.pending || 0;
+}
+
+function renderNodeGrid(nodes) {
+    const pendingGrid = document.getElementById('pending-nodes-grid');
+    const activeGrid = document.getElementById('active-nodes-grid');
+    const pendingSection = document.getElementById('pending-nodes-section');
+
+    const pendingNodes = nodes.filter(n => n.approval_status === 'pending');
+    const approvedNodes = nodes.filter(n => n.approval_status === 'approved');
+
+    // Show/hide pending section
+    pendingSection.style.display = pendingNodes.length > 0 ? 'block' : 'none';
+
+    // Render pending nodes
+    pendingGrid.innerHTML = pendingNodes.map(renderNodeCard).join('');
+
+    // Render approved nodes
+    activeGrid.innerHTML = approvedNodes.length > 0
+        ? approvedNodes.map(renderNodeCard).join('')
+        : '';
+
+    // Initialize lucide icons for new elements
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+}
+
+function renderNodeCard(node) {
+    const status = node.approval_status === 'pending' ? 'pending' : (node.status || 'offline');
+    const currentLoad = node.current_load || 0;
+    const maxConcurrent = node.max_concurrent || 5;
+    const loadPercent = maxConcurrent > 0 ? (currentLoad / maxConcurrent * 100) : 0;
+    const available = maxConcurrent - currentLoad;
+    const isPending = node.approval_status === 'pending';
+    const bridgeEnabled = node.bridge_enabled || false;
+    const hasOllama = node.ollama_available || false;
+
+    // Friendly capacity status
+    let capacityStatus, capacityClass;
+    if (currentLoad === 0) {
+        capacityStatus = 'Idle';
+        capacityClass = 'idle';
+    } else if (currentLoad >= maxConcurrent) {
+        capacityStatus = 'At Capacity';
+        capacityClass = 'full';
+    } else {
+        capacityStatus = `${currentLoad} Active`;
+        capacityClass = 'active';
+    }
+
+    return `
+        <div class="node-card ${status}" data-node-id="${node.node_id}">
+            <div class="node-header">
+                <span class="status-dot ${status}"></span>
+                <span class="node-id">${node.node_id.substring(0, 16)}...</span>
+                <span class="status-badge ${status}">${status.toUpperCase()}</span>
+            </div>
+            <div class="node-body">
+                <div class="node-name">${escapeHtml(node.node_name)}</div>
+                <div class="node-connection">${node.vpn_ip || node.hostname || 'Unknown'}:${node.port || 11434}</div>
+                <div class="node-specs">
+                    <span><i data-lucide="cpu" style="width:12px;height:12px;"></i> ${node.cpu_cores || '?'} cores</span>
+                    <span><i data-lucide="memory-stick" style="width:12px;height:12px;"></i> ${node.ram_gb || '?'}GB</span>
+                    ${node.gpu_model ? `<span><i data-lucide="monitor" style="width:12px;height:12px;"></i> ${node.gpu_model}</span>` : ''}
+                </div>
+            </div>
+            ${!isPending ? `
+            <div class="node-load">
+                <div class="load-bar-container">
+                    <div class="load-bar ${capacityClass}" style="width: ${loadPercent}%"></div>
+                </div>
+                <div class="load-text">
+                    <span class="capacity-status ${capacityClass}">${capacityStatus}</span>
+                    <span class="capacity-available">${available} of ${maxConcurrent} available</span>
+                </div>
+                <div class="load-latency">${node.avg_latency_ms ? Math.round(node.avg_latency_ms) + 'ms latency' : ''}</div>
+            </div>
+            ${hasOllama ? `
+            <div class="bridge-toggle">
+                <div class="bridge-toggle-label ${bridgeEnabled ? 'enabled' : ''}">
+                    <i data-lucide="share-2"></i>
+                    <span>Bridge LLM</span>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox"
+                           id="bridge-${node.node_id}"
+                           ${bridgeEnabled ? 'checked' : ''}
+                           onchange="toggleBridgeSharing('${node.node_id}', this.checked)">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            ` : ''}
+            ` : ''}
+            <div class="node-actions">
+                ${isPending ? `
+                    <button class="approve" onclick="approveNode('${node.node_id}')">APPROVE</button>
+                    <button class="reject" onclick="rejectNode('${node.node_id}')">REJECT</button>
+                ` : `
+                    <button onclick="testNode('${node.node_id}')">TEST</button>
+                    <button onclick="showNodeDetail('${node.node_id}')">DETAIL</button>
+                `}
+            </div>
+        </div>
+    `;
+}
+
+async function approveNode(nodeId) {
+    try {
+        const response = await fetch(`/tools/bridge/api/nodes/${nodeId}/approve`, { method: 'POST' });
+        const data = await response.json();
+
+        if (data.success) {
+            showToast(`Node approved: ${data.node_name}`, 'success');
+            loadNodes();
+        } else {
+            showToast(`Failed to approve: ${data.error}`, 'error');
+        }
+    } catch (error) {
+        console.error('Error approving node:', error);
+        showToast('Error approving node', 'error');
+    }
+}
+
+async function rejectNode(nodeId) {
+    const reason = prompt('Reason for rejection (optional):');
+
+    try {
+        const response = await fetch(`/tools/bridge/api/nodes/${nodeId}/reject`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reason: reason || 'Rejected by admin' })
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            showToast(`Node rejected: ${data.node_name}`, 'warning');
+            loadNodes();
+        } else {
+            showToast(`Failed to reject: ${data.error}`, 'error');
+        }
+    } catch (error) {
+        console.error('Error rejecting node:', error);
+        showToast('Error rejecting node', 'error');
+    }
+}
+
+async function testNode(nodeId) {
+    const btn = event.target;
+    btn.textContent = 'TESTING...';
+    btn.disabled = true;
+
+    try {
+        const response = await fetch(`/tools/bridge/api/nodes/${nodeId}/test`, { method: 'POST' });
+        const data = await response.json();
+
+        if (data.reachable) {
+            showToast(`Node reachable! Latency: ${data.latency_ms}ms, ${data.models_count} models`, 'success');
+        } else {
+            showToast(`Node unreachable: ${data.error}`, 'error');
+        }
+    } catch (error) {
+        console.error('Error testing node:', error);
+        showToast('Error testing node', 'error');
+    } finally {
+        btn.textContent = 'TEST';
+        btn.disabled = false;
+    }
+}
+
+// ============================================================================
+// NODE DETAILS MODAL
+// ============================================================================
+
+let currentNodeId = null;
+let currentNodeData = null;
+let healthChart = null;
+
+async function showNodeDetail(nodeId) {
+    currentNodeId = nodeId;
+
+    try {
+        // Fetch node details, models, and stations in parallel
+        const [nodeResp, stationsResp, modelsResp] = await Promise.all([
+            fetch(`/tools/bridge/api/nodes/${nodeId}`),
+            fetch(`/tools/bridge/api/nodes/${nodeId}/stations`),
+            fetch(`/tools/bridge/api/nodes/${nodeId}/models`)
+        ]);
+
+        const nodeData = await nodeResp.json();
+        const stationsData = await stationsResp.json();
+        const modelsData = await modelsResp.json();
+
+        if (!nodeData.success) {
+            showToast('Failed to load node details', 'error');
+            return;
+        }
+
+        currentNodeData = nodeData;
+
+        // Populate Overview Tab
+        const node = nodeData.node;
+        document.getElementById('node-detail-title').textContent = node.node_name || 'Unknown Node';
+        document.getElementById('node-detail-status').className = `node-detail-status ${node.status || 'offline'}`;
+
+        document.getElementById('nd-node-id').textContent = node.node_id || '--';
+        document.getElementById('nd-hostname').textContent = node.hostname || '--';
+        document.getElementById('nd-ip').textContent = node.vpn_ip || '--';
+        document.getElementById('nd-port').textContent = node.port || '11434';
+        document.getElementById('nd-os').textContent = node.os_info || '--';
+        document.getElementById('nd-registered').textContent = node.created_at ? new Date(node.created_at).toLocaleDateString() : '--';
+        document.getElementById('nd-heartbeat').textContent = node.last_heartbeat ? formatTimeAgo(node.last_heartbeat) : '--';
+
+        document.getElementById('nd-cpu').textContent = node.cpu_model || '--';
+        document.getElementById('nd-cores').textContent = node.cpu_cores || '--';
+        document.getElementById('nd-ram').textContent = node.ram_gb ? `${node.ram_gb} GB` : '--';
+        document.getElementById('nd-disk').textContent = node.disk_gb ? `${node.disk_gb} GB` : '--';
+        document.getElementById('nd-gpu').textContent = node.gpu_model || 'None';
+        document.getElementById('nd-vram').textContent = node.gpu_vram_gb ? `${node.gpu_vram_gb} GB` : '--';
+
+        // Status cards
+        document.getElementById('nd-status-load').textContent = `${node.current_load || 0}/${node.max_concurrent || 5}`;
+        document.getElementById('nd-status-latency').textContent = node.avg_latency_ms ? `${Math.round(node.avg_latency_ms)}ms` : '--';
+        document.getElementById('nd-status-models').textContent = (nodeData.capabilities || []).length;
+        document.getElementById('nd-status-stations').textContent = (stationsData.stations || []).length;
+
+        // Populate Stations Tab
+        renderNodeStations(stationsData.stations || []);
+
+        // Populate Models/Services Tab
+        renderNodeServices(node);  // Render AI services grid
+        renderNodeModels(nodeData.capabilities || [], modelsData.models || []);
+
+        // Populate Health Tab
+        renderNodeHealth(nodeData.heartbeats || []);
+
+        // Populate Config Tab
+        document.getElementById('nd-config-name').value = node.node_name || '';
+        document.getElementById('nd-config-desc').value = node.description || '';
+        document.getElementById('nd-config-max').value = node.max_concurrent || 5;
+        document.getElementById('nd-config-priority').value = node.priority || 10;
+        document.getElementById('nd-config-weight').value = node.weight || 100;
+        document.getElementById('nd-config-bridge').checked = node.bridge_enabled || false;
+
+        // Load available stations for assignment dropdown
+        await loadStationsForAssignment();
+
+        // Show modal
+        document.getElementById('node-detail-modal').classList.add('active');
+        switchNodeTab('overview');
+
+        // Reinitialize Lucide icons
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+
+    } catch (error) {
+        console.error('Error loading node details:', error);
+        showToast('Error loading node details', 'error');
+    }
+}
+
+function closeNodeDetailModal() {
+    document.getElementById('node-detail-modal').classList.remove('active');
+    currentNodeId = null;
+    currentNodeData = null;
+    hideAddStationToNode();
+}
+
+function switchNodeTab(tabName) {
+    // Update tab buttons
+    document.querySelectorAll('.node-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.tab === tabName);
+    });
+
+    // Update tab content
+    document.querySelectorAll('.node-tab-content').forEach(content => {
+        content.classList.toggle('active', content.id === `tab-${tabName}`);
+    });
+
+    // Reinitialize icons
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+}
+
+function formatTimeAgo(dateStr) {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return `${diffDays}d ago`;
+}
+
+// Store for all stations with assignment status
+let allStationsForNode = [];
+
+async function renderNodeStations(assignedStations) {
+    const container = document.getElementById('node-stations-list');
+
+    const stationColors = {
+        'COMMAND': '#FFD700', 'CONSCIOUSNESS': '#FF00FF', 'HR': '#10B981',
+        'RND': '#8B5CF6', 'ENGINEERING': '#0EA5E9', 'OPERATIONS': '#FFAA00',
+        'CREATIVE': '#F472B6', 'SECURITY': '#EF4444', 'MEDICAL': '#84CC16',
+        'AWAY_TEAM': '#F59E0B', 'INFRASTRUCTURE': '#3B82F6', 'FINANCE': '#A855F7',
+        'DOCUMENTATION': '#22C55E', 'QA': '#F97316', 'ADMIN': '#6366F1'
+    };
+
+    // Fetch all stations if not cached
+    if (allStationsForNode.length === 0) {
+        try {
+            const resp = await fetch('/tools/bridge/api/stations');
+            const data = await resp.json();
+            if (data.success) {
+                allStationsForNode = data.stations;
+            }
+        } catch (e) {
+            console.error('Error fetching stations:', e);
+        }
+    }
+
+    // Create a map of assigned stations by station_id
+    const assignedMap = new Map();
+    (assignedStations || []).forEach(s => {
+        assignedMap.set(s.station_id, s);
+    });
+
+    // Render all stations with toggle switches
+    container.innerHTML = allStationsForNode.map(station => {
+        const assigned = assignedMap.get(station.id);
+        const isActive = !!assigned;
+        const role = assigned?.role || 'worker';
+        const color = stationColors[station.code] || '#6e7681';
+
+        return `
+            <div class="station-toggle-row ${isActive ? 'active' : ''}" data-station-id="${station.id}">
+                <div class="station-toggle-info">
+                    <div class="station-color-dot" style="background: ${color}"></div>
+                    <span class="station-toggle-name">${escapeHtml(station.name)}</span>
+                </div>
+                <select class="station-role-select"
+                        id="role-${station.id}"
+                        ${!isActive ? 'disabled' : ''}
+                        onchange="updateNodeStationRole(${station.id}, this.value)">
+                    <option value="worker" ${role === 'worker' ? 'selected' : ''}>Worker</option>
+                    <option value="primary" ${role === 'primary' ? 'selected' : ''}>Primary</option>
+                    <option value="backup" ${role === 'backup' ? 'selected' : ''}>Backup</option>
+                </select>
+                <label class="toggle-switch-small">
+                    <input type="checkbox"
+                           ${isActive ? 'checked' : ''}
+                           onchange="toggleNodeStation(${station.id}, this.checked)">
+                    <span class="toggle-slider-small"></span>
+                </label>
+            </div>
+        `;
+    }).join('');
+}
+
+async function toggleNodeStation(stationId, enabled) {
+    if (enabled) {
+        // Assign node to station
+        const role = document.getElementById(`role-${stationId}`).value || 'worker';
+        try {
+            const response = await fetch(`/tools/bridge/api/nodes/${currentNodeId}/stations`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    station_id: stationId,
+                    role: role,
+                    priority: 10
+                })
+            });
+            const data = await response.json();
+            if (data.success) {
+                showToast('Node assigned to station', 'success');
+                // Enable role select and update row style
+                const row = document.querySelector(`[data-station-id="${stationId}"]`);
+                row.classList.add('active');
+                document.getElementById(`role-${stationId}`).disabled = false;
+                loadStations(); // Refresh main view
+            } else {
+                showToast(data.error || 'Failed to assign', 'error');
+                // Revert toggle
+                event.target.checked = false;
+            }
+        } catch (error) {
+            console.error('Error assigning:', error);
+            showToast('Error assigning node', 'error');
+            event.target.checked = false;
+        }
+    } else {
+        // Remove node from station
+        try {
+            const response = await fetch(`/tools/bridge/api/nodes/${currentNodeId}/stations/${stationId}`, {
+                method: 'DELETE'
+            });
+            const data = await response.json();
+            if (data.success) {
+                showToast('Node removed from station', 'success');
+                // Disable role select and update row style
+                const row = document.querySelector(`[data-station-id="${stationId}"]`);
+                row.classList.remove('active');
+                document.getElementById(`role-${stationId}`).disabled = true;
+                loadStations(); // Refresh main view
+            } else {
+                showToast(data.error || 'Failed to remove', 'error');
+                event.target.checked = true;
+            }
+        } catch (error) {
+            console.error('Error removing:', error);
+            showToast('Error removing node', 'error');
+            event.target.checked = true;
+        }
+    }
+}
+
+async function updateNodeStationRole(stationId, newRole) {
+    try {
+        const response = await fetch(`/tools/bridge/api/nodes/${currentNodeId}/stations/${stationId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ role: newRole })
+        });
+        const data = await response.json();
+        if (data.success) {
+            showToast(`Role updated to ${newRole}`, 'success');
+            loadStations();
+        } else {
+            showToast(data.error || 'Failed to update role', 'error');
+        }
+    } catch (error) {
+        console.error('Error updating role:', error);
+        showToast('Error updating role', 'error');
+    }
+}
+
+function renderNodeServices(node) {
+    const container = document.getElementById('node-services-grid');
+
+    const services = [
+        {
+            id: 'ollama',
+            name: 'Ollama',
+            icon: '🦙',
+            available: node.ollama_available,
+            status: node.ollama_available ? 'Online' : 'Not detected'
+        },
+        {
+            id: 'foocus',
+            name: 'Foocus',
+            icon: '🎨',
+            available: node.foocus_available,
+            status: node.foocus_available ? 'Online' : 'Not detected'
+        },
+        {
+            id: 'comfyui',
+            name: 'ComfyUI',
+            icon: '🔗',
+            available: node.comfyui_available,
+            status: node.comfyui_available ? 'Online' : 'Not detected'
+        },
+        {
+            id: 'auto1111',
+            name: 'Auto1111',
+            icon: '🖼️',
+            available: node.auto1111_available,
+            status: node.auto1111_available ? 'Online' : 'Not detected'
+        },
+        {
+            id: 'docker',
+            name: 'Docker',
+            icon: '🐳',
+            available: node.docker_available,
+            status: node.docker_available
+                ? `v${node.docker_version || '?'}${node.nvidia_docker ? ' + NVIDIA' : ''}`
+                : 'Not installed'
+        },
+        {
+            id: 'wsl',
+            name: 'WSL',
+            icon: '🪟',
+            available: node.wsl_available,
+            status: node.wsl_available ? 'Available' : 'N/A'
+        }
+    ];
+
+    container.innerHTML = services.map(svc => `
+        <div class="service-card ${svc.available ? 'online' : 'offline'}">
+            <div class="service-icon ${svc.id}">
+                ${svc.icon}
+            </div>
+            <div class="service-info">
+                <div class="service-name">${svc.name}</div>
+                <div class="service-status">${svc.status}</div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function renderNodeModels(capabilities, models) {
+    const container = document.getElementById('node-models-list');
+
+    // Merge capabilities and live models
+    const allModels = new Map();
+
+    // Add from capabilities (database)
+    capabilities.forEach(cap => {
+        allModels.set(cap.model_name, {
+            name: cap.model_name,
+            provider: cap.provider,
+            available: cap.is_available,
+            tokens_per_sec: cap.avg_tokens_per_sec
+        });
+    });
+
+    // Add from live models (Ollama)
+    if (models && models.length > 0) {
+        models.forEach(m => {
+            if (!allModels.has(m.name)) {
+                allModels.set(m.name, {
+                    name: m.name,
+                    provider: 'ollama',
+                    available: true,
+                    size: m.size
+                });
+            }
+        });
+    }
+
+    if (allModels.size === 0) {
+        container.innerHTML = `
+            <div class="empty-state" style="grid-column: 1/-1;">
+                <i data-lucide="box"></i>
+                <p>No models detected</p>
+                <p style="font-size:0.7rem;">Make sure Ollama is running on this node</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = Array.from(allModels.values()).map(model => `
+        <div class="model-card ${model.available ? 'available' : 'unavailable'}">
+            <div class="model-icon">
+                <i data-lucide="box"></i>
+            </div>
+            <div class="model-info">
+                <div class="model-name">${escapeHtml(model.name)}</div>
+                <div class="model-provider">${model.provider}${model.tokens_per_sec ? ` · ${model.tokens_per_sec.toFixed(1)} t/s` : ''}</div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function renderNodeHealth(heartbeats) {
+    const tableContainer = document.getElementById('node-health-table');
+
+    if (!heartbeats || heartbeats.length === 0) {
+        tableContainer.innerHTML = `
+            <div class="empty-state">
+                <i data-lucide="activity"></i>
+                <p>No health data available</p>
+            </div>
+        `;
+        return;
+    }
+
+    // Create health chart
+    const canvas = document.getElementById('health-chart');
+    const ctx = canvas.getContext('2d');
+
+    if (healthChart) {
+        healthChart.destroy();
+    }
+
+    const labels = heartbeats.slice(0, 20).reverse().map((h, i) => i + 1);
+    const cpuData = heartbeats.slice(0, 20).reverse().map(h => h.cpu_usage || 0);
+    const memData = heartbeats.slice(0, 20).reverse().map(h => h.memory_usage || 0);
+    const gpuData = heartbeats.slice(0, 20).reverse().map(h => h.gpu_usage || 0);
+
+    healthChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'CPU %',
+                    data: cpuData,
+                    borderColor: '#00FFFF',
+                    backgroundColor: 'rgba(0, 255, 255, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                },
+                {
+                    label: 'Memory %',
+                    data: memData,
+                    borderColor: '#8B5CF6',
+                    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                },
+                {
+                    label: 'GPU %',
+                    data: gpuData,
+                    borderColor: '#10B981',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: { color: '#9ca3af', font: { size: 10 } }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    ticks: { color: '#6e7681' }
+                },
+                y: {
+                    min: 0,
+                    max: 100,
+                    grid: { color: 'rgba(255,255,255,0.05)' },
+                    ticks: { color: '#6e7681' }
+                }
+            }
+        }
+    });
+
+    // Create table
+    tableContainer.innerHTML = `
+        <table>
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Status</th>
+                    <th>CPU</th>
+                    <th>Memory</th>
+                    <th>GPU</th>
+                    <th>Load</th>
+                    <th>Latency</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${heartbeats.slice(0, 10).map(h => `
+                    <tr>
+                        <td>${formatTimeAgo(h.created_at)}</td>
+                        <td><span style="color:${h.status === 'online' ? 'var(--status-online)' : 'var(--bridge-muted)'}">${h.status}</span></td>
+                        <td>${h.cpu_usage ? h.cpu_usage.toFixed(1) + '%' : '--'}</td>
+                        <td>${h.memory_usage ? h.memory_usage.toFixed(1) + '%' : '--'}</td>
+                        <td>${h.gpu_usage ? h.gpu_usage.toFixed(1) + '%' : '--'}</td>
+                        <td>${h.current_load || 0}</td>
+                        <td>${h.latency_ms ? h.latency_ms + 'ms' : '--'}</td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+}
+
+async function loadStationsForAssignment() {
+    try {
+        const response = await fetch('/tools/bridge/api/stations');
+        const data = await response.json();
+
+        if (data.success) {
+            const select = document.getElementById('nd-station-select');
+            select.innerHTML = data.stations.map(s =>
+                `<option value="${s.id}">${escapeHtml(s.name)} (${s.code})</option>`
+            ).join('');
+        }
+    } catch (error) {
+        console.error('Error loading stations:', error);
+    }
+}
+
+function showAddStationToNode() {
+    document.getElementById('add-station-form').style.display = 'block';
+}
+
+function hideAddStationToNode() {
+    document.getElementById('add-station-form').style.display = 'none';
+}
+
+async function assignNodeToStationFromDetail() {
+    const stationId = document.getElementById('nd-station-select').value;
+    const role = document.getElementById('nd-role-select').value;
+    const priority = document.getElementById('nd-priority-input').value;
+
+    try {
+        const response = await fetch(`/tools/bridge/api/nodes/${currentNodeId}/stations`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                station_id: parseInt(stationId),
+                role: role,
+                priority: parseInt(priority)
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showToast('Node assigned to station', 'success');
+            hideAddStationToNode();
+            // Refresh the node details
+            showNodeDetail(currentNodeId);
+            // Refresh stations in main view
+            loadStations();
+        } else {
+            showToast(data.error || 'Failed to assign', 'error');
+        }
+    } catch (error) {
+        console.error('Error assigning node:', error);
+        showToast('Error assigning node', 'error');
+    }
+}
+
+async function removeNodeFromStation(stationId) {
+    if (!confirm('Remove this node from the station?')) return;
+
+    try {
+        const response = await fetch(`/tools/bridge/api/nodes/${currentNodeId}/stations/${stationId}`, {
+            method: 'DELETE'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showToast('Node removed from station', 'success');
+            showNodeDetail(currentNodeId);
+            loadStations();
+        } else {
+            showToast(data.error || 'Failed to remove', 'error');
+        }
+    } catch (error) {
+        console.error('Error removing node:', error);
+        showToast('Error removing node', 'error');
+    }
+}
+
+async function syncNodeModels() {
+    const btn = event.target.closest('button');
+    btn.disabled = true;
+    btn.innerHTML = '<i data-lucide="loader"></i> Syncing...';
+
+    try {
+        const response = await fetch(`/tools/bridge/api/nodes/${currentNodeId}/models/sync`, {
+            method: 'POST'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showToast(`Synced ${data.models_count} models`, 'success');
+            showNodeDetail(currentNodeId);
+        } else {
+            showToast(data.error || 'Failed to sync', 'error');
+        }
+    } catch (error) {
+        console.error('Error syncing models:', error);
+        showToast('Error syncing models', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i data-lucide="refresh-cw"></i> Sync';
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    }
+}
+
+async function saveNodeConfig() {
+    const config = {
+        node_name: document.getElementById('nd-config-name').value,
+        description: document.getElementById('nd-config-desc').value,
+        max_concurrent: parseInt(document.getElementById('nd-config-max').value),
+        priority: parseInt(document.getElementById('nd-config-priority').value),
+        weight: parseInt(document.getElementById('nd-config-weight').value)
+    };
+
+    try {
+        const response = await fetch(`/tools/bridge/api/nodes/${currentNodeId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(config)
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showToast('Node configuration saved', 'success');
+            document.getElementById('node-detail-title').textContent = config.node_name;
+            loadNodes();
+        } else {
+            showToast(data.error || 'Failed to save', 'error');
+        }
+    } catch (error) {
+        console.error('Error saving config:', error);
+        showToast('Error saving configuration', 'error');
+    }
+
+    // Handle bridge toggle separately
+    const bridgeEnabled = document.getElementById('nd-config-bridge').checked;
+    if (currentNodeData && currentNodeData.node.bridge_enabled !== bridgeEnabled) {
+        toggleBridgeSharing(currentNodeId, bridgeEnabled);
+    }
+}
+
+async function confirmDeleteNode() {
+    const nodeName = currentNodeData?.node?.node_name || currentNodeId;
+
+    if (!confirm(`Are you sure you want to delete node "${nodeName}"?\n\nThis will remove all station assignments and history.`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/tools/bridge/api/nodes/${currentNodeId}`, {
+            method: 'DELETE'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showToast('Node deleted', 'success');
+            closeNodeDetailModal();
+            loadNodes();
+            loadStations();
+        } else {
+            showToast(data.error || 'Failed to delete', 'error');
+        }
+    } catch (error) {
+        console.error('Error deleting node:', error);
+        showToast('Error deleting node', 'error');
+    }
+}
+
+// Toggle Bridge LLM sharing for a node (Phase 72)
+async function toggleBridgeSharing(nodeId, enabled) {
+    try {
+        const response = await fetch(`/tools/bridge/api/nodes/${nodeId}/bridge-sharing`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled: enabled, priority: 50 })
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            showToast(`Bridge LLM ${enabled ? 'enabled' : 'disabled'}`, 'success');
+            // Update the label color
+            const label = document.querySelector(`#bridge-${nodeId}`).closest('.bridge-toggle').querySelector('.bridge-toggle-label');
+            if (enabled) {
+                label.classList.add('enabled');
+            } else {
+                label.classList.remove('enabled');
+            }
+            // Refresh model availability
+            loadModelAvailability();
+        } else {
+            showToast(`Failed: ${data.error}`, 'error');
+            // Revert checkbox
+            document.getElementById(`bridge-${nodeId}`).checked = !enabled;
+        }
+    } catch (error) {
+        console.error('Error toggling bridge sharing:', error);
+        showToast('Error updating bridge sharing', 'error');
+        document.getElementById(`bridge-${nodeId}`).checked = !enabled;
+    }
+}
+
+// Load and display available models across bridge-enabled nodes (Phase 72)
+async function loadModelAvailability() {
+    try {
+        const response = await fetch('/tools/bridge/api/bridge/models');
+        const data = await response.json();
+
+        if (data.success) {
+            renderModelAvailability(data.models, data.summary);
+        }
+    } catch (error) {
+        console.error('Error loading model availability:', error);
+    }
+}
+
+function renderModelAvailability(models, summary) {
+    const container = document.getElementById('model-availability-section');
+    if (!container) return;
+
+    const grid = container.querySelector('.model-grid');
+    const statsContainer = container.querySelector('.model-stats');
+
+    // Update stats
+    if (statsContainer) {
+        statsContainer.innerHTML = `
+            <div class="stat"><span>${summary?.total_models || 0}</span> Models</div>
+            <div class="stat"><span>${summary?.total_nodes || 0}</span> Nodes</div>
+            <div class="stat"><span>${summary?.total_requests || 0}</span> Requests</div>
+        `;
+    }
+
+    // Render model cards
+    if (grid) {
+        if (models.length === 0) {
+            grid.innerHTML = '<div style="color: var(--bridge-muted); font-size: 0.8rem; grid-column: 1/-1; text-align: center; padding: 2rem;">No models available. Enable Bridge LLM on nodes with Ollama.</div>';
+        } else {
+            grid.innerHTML = models.map(model => `
+                <div class="model-card">
+                    <div class="model-name">${escapeHtml(model.model_name)}</div>
+                    <div class="model-meta">
+                        ${model.model_family ? `<span class="tag">${model.model_family}</span>` : ''}
+                        ${model.parameter_size ? `<span class="tag">${model.parameter_size}</span>` : ''}
+                        <span class="nodes">${model.node_count} node${model.node_count !== 1 ? 's' : ''}</span>
+                        ${model.total_requests > 0 ? `<span class="requests">${model.total_requests} req</span>` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+    }
+}
+
+function showAddNodeModal() {
+    const modal = document.createElement('div');
+    modal.className = 'node-modal-overlay active';
+    modal.innerHTML = `
+        <div class="node-modal" style="max-width: 600px;">
+            <h2><i data-lucide="plus-circle"></i> Add New Node</h2>
+
+            <div style="margin-bottom: 1.5rem;">
+                <h3 style="color: var(--status-online); font-size: 0.9rem; margin-bottom: 0.5rem;">
+                    <i data-lucide="terminal" style="width: 16px; height: 16px; display: inline;"></i> Linux / macOS
+                </h3>
+                <p style="font-size: 0.8rem; color: var(--bridge-muted); margin-bottom: 0.5rem;">
+                    Run this command on the target machine:
+                </p>
+                <code style="font-size: 0.7rem;">curl -sSL http://192.168.1.200:3000/tools/bridge/api/nodes/install.sh | sudo bash</code>
+            </div>
+
+            <div style="margin-bottom: 1.5rem;">
+                <h3 style="color: #58a6ff; font-size: 0.9rem; margin-bottom: 0.5rem;">
+                    <i data-lucide="monitor" style="width: 16px; height: 16px; display: inline;"></i> Windows (PowerShell Admin)
+                </h3>
+                <p style="font-size: 0.8rem; color: var(--bridge-muted); margin-bottom: 0.5rem;">
+                    Run in PowerShell as Administrator:
+                </p>
+                <code style="font-size: 0.7rem;">iwr -useb http://192.168.1.200:3000/tools/bridge/api/nodes/install.ps1 | iex</code>
+            </div>
+
+            <p style="color: var(--bridge-muted); font-size: 0.75rem; margin-top: 1rem; padding: 0.75rem; background: rgba(0,255,255,0.05); border-radius: 4px;">
+                <i data-lucide="info" style="width: 14px; height: 14px; display: inline;"></i>
+                The installer will collect system info (CPU, RAM, GPU, Ollama models) and register the node.
+                It will appear in "Pending Approval" for you to approve.
+            </p>
+
+            <hr>
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 1rem;">
+                <button onclick="this.closest('.node-modal-overlay').remove()"
+                        style="padding: 8px 16px; background: var(--bridge-border); border: none; color: var(--bridge-text); border-radius: 4px; cursor: pointer;">
+                    Close
+                </button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    // Close on overlay click
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+    });
+
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function showToast(message, type = 'info') {
+    // Simple toast notification
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        padding: 12px 20px;
+        border-radius: 4px;
+        color: #fff;
+        font-size: 0.85rem;
+        z-index: 9999;
+        animation: fadeIn 0.3s ease;
+        background: ${type === 'success' ? 'var(--status-online)' : type === 'error' ? 'var(--status-error)' : type === 'warning' ? 'var(--status-warning)' : 'var(--bridge-glow)'};
+    `;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+// ============================================================================
+// STATION ASSIGNMENTS MANAGEMENT
+// ============================================================================
+
+let currentStationId = null;
+let currentAssignmentId = null;
+let availableNodes = [];
+
+async function loadStationCoverage() {
+    try {
+        const response = await fetch('/tools/bridge/api/stations/coverage');
+        const data = await response.json();
+
+        if (data.success) {
+            renderStationCoverageStats(data.summary);
+            renderStationCoverageGrid(data.coverage);
+        }
+    } catch (error) {
+        console.error('Error loading station coverage:', error);
+    }
+}
+
+function renderStationCoverageStats(summary) {
+    document.getElementById('stations-covered').textContent = summary.stations_with_nodes || 0;
+    document.getElementById('stations-uncovered').textContent = summary.stations_without_primary || 0;
+    document.getElementById('total-assignments').textContent = summary.total_assignments || 0;
+}
+
+async function renderStationCoverageGrid(coverage) {
+    const grid = document.getElementById('station-coverage-grid');
+
+    // Sort: stations with nodes first, then by name
+    const sorted = [...coverage].sort((a, b) => {
+        if (a.total_nodes > 0 && b.total_nodes === 0) return -1;
+        if (a.total_nodes === 0 && b.total_nodes > 0) return 1;
+        return a.station_name.localeCompare(b.station_name);
+    });
+
+    // For each station with nodes, fetch the node details
+    const stationsWithDetails = await Promise.all(sorted.map(async (station) => {
+        if (station.total_nodes > 0) {
+            try {
+                const resp = await fetch(`/tools/bridge/api/stations/${station.station_id}/nodes`);
+                const data = await resp.json();
+                return { ...station, nodes: data.success ? data.nodes : [] };
+            } catch (e) {
+                return { ...station, nodes: [] };
+            }
+        }
+        return { ...station, nodes: [] };
+    }));
+
+    grid.innerHTML = stationsWithDetails.map(station => renderStationCoverageCard(station)).join('');
+
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+}
+
+function renderStationCoverageCard(station) {
+    const hasNodes = station.total_nodes > 0;
+    const noPrimary = hasNodes && station.primary_nodes === 0;
+    const statusClass = hasNodes ? (noPrimary ? 'no-primary' : 'has-nodes') : '';
+
+    // Get station color from CSS variable or use default
+    const stationColors = {
+        'COMMAND': '#FFD700', 'CONSCIOUSNESS': '#FF00FF', 'HR': '#10B981',
+        'RND': '#8B5CF6', 'ENGINEERING': '#0EA5E9', 'OPERATIONS': '#FFAA00',
+        'CREATIVE': '#F472B6', 'SECURITY': '#EF4444', 'MEDICAL': '#84CC16',
+        'AWAY_TEAM': '#F59E0B', 'INFRASTRUCTURE': '#3B82F6', 'FINANCE': '#A855F7',
+        'DOCUMENTATION': '#22C55E', 'QA': '#F97316', 'ADMIN': '#6366F1'
+    };
+    const color = stationColors[station.station_code] || '#6e7681';
+
+    const nodeChips = station.nodes ? station.nodes.slice(0, 5).map(node => `
+        <div class="assigned-node-chip" onclick="showNodeAssignmentDetail('${node.node_id}', ${station.station_id})" title="${node.node_name}">
+            <span class="role-badge ${node.role}">${node.role.charAt(0).toUpperCase()}</span>
+            <span>${escapeHtml(node.node_name.substring(0, 12))}${node.node_name.length > 12 ? '...' : ''}</span>
+        </div>
+    `).join('') : '';
+
+    const moreCount = station.nodes && station.nodes.length > 5 ? station.nodes.length - 5 : 0;
+
+    return `
+        <div class="station-coverage-card ${statusClass}">
+            <div class="station-coverage-header">
+                <div class="station-coverage-name">
+                    <span class="station-color" style="background: ${color}"></span>
+                    ${escapeHtml(station.station_name)}
+                </div>
+                <span class="station-coverage-code">${station.station_code}</span>
+            </div>
+            <div class="station-coverage-body">
+                <div class="station-node-counts">
+                    <span class="count primary">
+                        <i data-lucide="star" style="width:12px;height:12px;"></i> ${station.primary_nodes} Primary
+                    </span>
+                    <span class="count backup">
+                        <i data-lucide="shield" style="width:12px;height:12px;"></i> ${station.backup_nodes} Backup
+                    </span>
+                    <span class="count worker">
+                        <i data-lucide="user" style="width:12px;height:12px;"></i> ${station.worker_nodes} Worker
+                    </span>
+                </div>
+                ${hasNodes ? `
+                    <div class="station-assigned-nodes">
+                        ${nodeChips}
+                        ${moreCount > 0 ? `<span style="font-size:0.7rem;color:var(--bridge-muted);">+${moreCount} more</span>` : ''}
+                    </div>
+                ` : `
+                    <div style="font-size:0.75rem;color:var(--bridge-muted);text-align:center;padding:10px 0;">
+                        No nodes assigned
+                    </div>
+                `}
+            </div>
+            <div class="station-coverage-actions">
+                <button onclick="showStationDetail(${station.station_id}, '${escapeHtml(station.station_name)}')">
+                    <i data-lucide="list" style="width:12px;height:12px;"></i> View All
+                </button>
+                <button onclick="openAssignModal(${station.station_id}, '${escapeHtml(station.station_name)}')">
+                    <i data-lucide="plus" style="width:12px;height:12px;"></i> Assign Node
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+async function showStationDetail(stationId, stationName) {
+    currentStationId = stationId;
+
+    try {
+        const response = await fetch(`/tools/bridge/api/stations/${stationId}/nodes`);
+        const data = await response.json();
+
+        if (data.success) {
+            document.getElementById('station-detail-title').textContent = `${stationName} - Assigned Nodes`;
+
+            const body = document.getElementById('station-detail-body');
+
+            if (data.nodes.length === 0) {
+                body.innerHTML = `
+                    <div style="text-align:center;padding:2rem;color:var(--bridge-muted);">
+                        <i data-lucide="inbox" style="width:48px;height:48px;margin-bottom:1rem;"></i>
+                        <p>No nodes assigned to this station</p>
+                    </div>
+                `;
+            } else {
+                body.innerHTML = `
+                    <table style="width:100%;font-size:0.8rem;border-collapse:collapse;">
+                        <thead>
+                            <tr style="border-bottom:1px solid var(--bridge-border);text-align:left;">
+                                <th style="padding:8px;">Node</th>
+                                <th style="padding:8px;">Role</th>
+                                <th style="padding:8px;">Priority</th>
+                                <th style="padding:8px;">Status</th>
+                                <th style="padding:8px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.nodes.map(node => `
+                                <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                                    <td style="padding:8px;">
+                                        <strong>${escapeHtml(node.node_name)}</strong>
+                                        <div style="font-size:0.7rem;color:var(--bridge-muted);">${node.hostname || ''}</div>
+                                    </td>
+                                    <td style="padding:8px;">
+                                        <span class="role-badge ${node.role}" style="padding:2px 8px;border-radius:4px;">${node.role}</span>
+                                    </td>
+                                    <td style="padding:8px;">${node.priority}</td>
+                                    <td style="padding:8px;">
+                                        <span style="color:${node.status === 'online' ? 'var(--status-online)' : 'var(--bridge-muted)'};">
+                                            ${node.status}
+                                        </span>
+                                    </td>
+                                    <td style="padding:8px;">
+                                        <button onclick="editAssignment('${node.node_id}', ${stationId})" style="padding:4px 8px;font-size:0.7rem;background:rgba(139,92,246,0.2);border:1px solid rgba(139,92,246,0.3);color:#fff;border-radius:3px;cursor:pointer;margin-right:4px;">Edit</button>
+                                        <button onclick="removeAssignment('${node.node_id}', ${stationId})" style="padding:4px 8px;font-size:0.7rem;background:rgba(239,68,68,0.2);border:1px solid rgba(239,68,68,0.3);color:#fff;border-radius:3px;cursor:pointer;">Remove</button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            }
+
+            document.getElementById('station-detail-modal').classList.add('active');
+
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        }
+    } catch (error) {
+        console.error('Error loading station detail:', error);
+        showToast('Error loading station details', 'error');
+    }
+}
+
+function closeStationDetailModal() {
+    document.getElementById('station-detail-modal').classList.remove('active');
+}
+
+function openAssignModalForStation() {
+    closeStationDetailModal();
+    if (currentStationId) {
+        openAssignModal(currentStationId);
+    }
+}
+
+async function openAssignModal(stationId, stationName = null) {
+    currentStationId = stationId;
+    currentAssignmentId = null;
+
+    document.getElementById('assignment-modal-title').textContent = stationName
+        ? `Assign Node to ${stationName}`
+        : 'Assign Node to Station';
+
+    // Load available nodes
+    try {
+        const response = await fetch('/tools/bridge/api/nodes');
+        const data = await response.json();
+
+        if (data.success) {
+            availableNodes = data.nodes.filter(n => n.approval_status === 'approved');
+
+            const nodeSelect = document.getElementById('assignment-node-select');
+            nodeSelect.innerHTML = '<option value="">Select a node...</option>' +
+                availableNodes.map(n => `<option value="${n.node_id}">${escapeHtml(n.node_name)} (${n.status})</option>`).join('');
+        }
+    } catch (error) {
+        console.error('Error loading nodes:', error);
+    }
+
+    // Set station select
+    const stationSelect = document.getElementById('assignment-station-select');
+    stationSelect.innerHTML = `<option value="${stationId}">${stationName || 'Station #' + stationId}</option>`;
+    stationSelect.value = stationId;
+
+    // Reset other fields
+    document.getElementById('assignment-role-select').value = 'worker';
+    document.getElementById('assignment-priority').value = '10';
+    document.getElementById('assignment-shift-select').value = 'any';
+
+    // Hide delete button for new assignments
+    document.getElementById('assignment-delete-btn').style.display = 'none';
+    document.getElementById('assignment-submit-btn').textContent = 'Assign';
+
+    document.getElementById('assignment-modal').classList.add('active');
+}
+
+async function editAssignment(nodeId, stationId) {
+    currentStationId = stationId;
+
+    // Get node's current assignments
+    try {
+        const response = await fetch(`/tools/bridge/api/nodes/${nodeId}/stations`);
+        const data = await response.json();
+
+        if (data.success) {
+            const assignment = data.assignments.find(a => a.station_id === stationId);
+
+            if (assignment) {
+                currentAssignmentId = assignment.assignment_id;
+
+                document.getElementById('assignment-modal-title').textContent = `Edit Assignment: ${data.node_name}`;
+
+                // Set node (disabled for editing)
+                const nodeSelect = document.getElementById('assignment-node-select');
+                nodeSelect.innerHTML = `<option value="${nodeId}">${escapeHtml(data.node_name)}</option>`;
+                nodeSelect.value = nodeId;
+                nodeSelect.disabled = true;
+
+                // Set station
+                const stationSelect = document.getElementById('assignment-station-select');
+                stationSelect.innerHTML = `<option value="${stationId}">${assignment.station_name}</option>`;
+                stationSelect.value = stationId;
+
+                // Set current values
+                document.getElementById('assignment-role-select').value = assignment.role;
+                document.getElementById('assignment-priority').value = assignment.priority;
+                document.getElementById('assignment-shift-select').value = assignment.shift_preference;
+
+                // Show delete button
+                document.getElementById('assignment-delete-btn').style.display = 'block';
+                document.getElementById('assignment-submit-btn').textContent = 'Update';
+
+                document.getElementById('assignment-modal').classList.add('active');
+            }
+        }
+    } catch (error) {
+        console.error('Error loading assignment:', error);
+        showToast('Error loading assignment', 'error');
+    }
+}
+
+function closeAssignmentModal() {
+    document.getElementById('assignment-modal').classList.remove('active');
+    document.getElementById('assignment-node-select').disabled = false;
+    currentAssignmentId = null;
+}
+
+async function submitAssignment() {
+    const nodeId = document.getElementById('assignment-node-select').value;
+    const stationId = document.getElementById('assignment-station-select').value;
+    const role = document.getElementById('assignment-role-select').value;
+    const priority = parseInt(document.getElementById('assignment-priority').value) || 10;
+    const shiftPreference = document.getElementById('assignment-shift-select').value;
+
+    if (!nodeId || !stationId) {
+        showToast('Please select a node and station', 'warning');
+        return;
+    }
+
+    const isEdit = currentAssignmentId !== null;
+    const url = isEdit
+        ? `/tools/bridge/api/nodes/${nodeId}/stations/${stationId}`
+        : `/tools/bridge/api/nodes/${nodeId}/stations`;
+
+    try {
+        const response = await fetch(url, {
+            method: isEdit ? 'PUT' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                station_id: parseInt(stationId),
+                role: role,
+                priority: priority,
+                shift_preference: shiftPreference
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showToast(data.message || (isEdit ? 'Assignment updated!' : 'Node assigned!'), 'success');
+            closeAssignmentModal();
+            loadStations(); // Refresh stations to show updated node assignments
+        } else {
+            showToast(data.error || 'Failed to save assignment', 'error');
+        }
+    } catch (error) {
+        console.error('Error saving assignment:', error);
+        showToast('Error saving assignment', 'error');
+    }
+}
+
+async function deleteAssignment() {
+    const nodeId = document.getElementById('assignment-node-select').value;
+    const stationId = document.getElementById('assignment-station-select').value;
+
+    if (!confirm('Remove this node from the station?')) return;
+
+    try {
+        const response = await fetch(`/tools/bridge/api/nodes/${nodeId}/stations/${stationId}`, {
+            method: 'DELETE'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showToast(data.message || 'Assignment removed', 'success');
+            closeAssignmentModal();
+            loadStations(); // Refresh stations to show updated node assignments
+        } else {
+            showToast(data.error || 'Failed to remove assignment', 'error');
+        }
+    } catch (error) {
+        console.error('Error removing assignment:', error);
+        showToast('Error removing assignment', 'error');
+    }
+}
+
+async function removeAssignment(nodeId, stationId) {
+    if (!confirm('Remove this node from the station?')) return;
+
+    try {
+        const response = await fetch(`/tools/bridge/api/nodes/${nodeId}/stations/${stationId}`, {
+            method: 'DELETE'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showToast(data.message || 'Assignment removed', 'success');
+            showStationDetail(stationId, document.getElementById('station-detail-title').textContent.split(' - ')[0]);
+            loadStations(); // Refresh stations to show updated node assignments
+        } else {
+            showToast(data.error || 'Failed to remove assignment', 'error');
+        }
+    } catch (error) {
+        console.error('Error removing assignment:', error);
+        showToast('Error removing assignment', 'error');
+    }
+}
+
+function showNodeAssignmentDetail(nodeId, stationId) {
+    editAssignment(nodeId, stationId);
+}
+
+// Load nodes and models on page load (stations loaded separately via main init)
+document.addEventListener('DOMContentLoaded', function() {
+    loadNodes();
+    loadModelAvailability();  // Phase 72: Load available models
+    setInterval(loadNodes, 30000);
+    setInterval(loadModelAvailability, 60000);  // Refresh models every 60 seconds
+});
+</script>
+{% endblock %}

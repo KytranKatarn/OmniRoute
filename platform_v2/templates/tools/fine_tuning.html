@@ -1,0 +1,1659 @@
+{% extends 'base.html' %}
+
+{% block title %}AI Model Fine-tuning - A.R.C.H.I.E.{% endblock %}
+
+{% block module_name %}fine_tuning{% endblock %}
+
+{% block extra_head %}
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+    :root {
+        --ft-primary: #8B5CF6;
+        --ft-primary-light: #A78BFA;
+        --ft-primary-dark: #7C3AED;
+        --ft-indigo: #6366F1;
+        --ft-bg: #0a0a12;
+        --ft-card: #12121a;
+        --ft-card-hover: #1a1a24;
+        --ft-border: rgba(139, 92, 246, 0.15);
+        --ft-border-bright: rgba(139, 92, 246, 0.4);
+        --ft-text: #E5E7EB;
+        --ft-text-dim: #9CA3AF;
+        --ft-text-muted: #6B7280;
+        --ft-success: #10B981;
+        --ft-warning: #F59E0B;
+        --ft-danger: #EF4444;
+        --ft-glow: 0 0 20px rgba(139, 92, 246, 0.3);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       NEURAL GRID BACKGROUND
+       ═══════════════════════════════════════════════════════════════ */
+    .ft-container {
+        min-height: 100vh;
+        background: var(--ft-bg);
+        position: relative;
+        overflow-x: hidden;
+    }
+
+    .ft-container::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        background-image:
+            linear-gradient(rgba(139, 92, 246, 0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(139, 92, 246, 0.03) 1px, transparent 1px);
+        background-size: 40px 40px;
+        pointer-events: none;
+        z-index: 0;
+    }
+
+    .ft-container::after {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 800px;
+        height: 600px;
+        background: radial-gradient(ellipse, rgba(139, 92, 246, 0.08) 0%, transparent 70%);
+        pointer-events: none;
+        z-index: 0;
+    }
+
+    .ft-main {
+        position: relative;
+        z-index: 1;
+        padding: 24px 32px;
+        max-width: 1600px;
+        margin: 0 auto;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       TYPOGRAPHY
+       ═══════════════════════════════════════════════════════════════ */
+    .ft-container {
+        font-family: 'Outfit', sans-serif;
+        color: var(--ft-text);
+    }
+
+    .ft-mono {
+        font-family: 'IBM Plex Mono', monospace;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       HEADER
+       ═══════════════════════════════════════════════════════════════ */
+    .ft-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 32px;
+        padding-bottom: 24px;
+        border-bottom: 1px solid var(--ft-border);
+    }
+
+    .ft-title-group {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .ft-icon-wrapper {
+        width: 56px;
+        height: 56px;
+        background: linear-gradient(135deg, var(--ft-primary) 0%, var(--ft-indigo) 100%);
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: var(--ft-glow);
+        animation: ft-pulse 3s ease-in-out infinite;
+    }
+
+    @keyframes ft-pulse {
+        0%, 100% { box-shadow: 0 0 20px rgba(139, 92, 246, 0.3); }
+        50% { box-shadow: 0 0 30px rgba(139, 92, 246, 0.5); }
+    }
+
+    .ft-icon-wrapper i {
+        width: 28px;
+        height: 28px;
+        color: white;
+    }
+
+    .ft-title {
+        font-size: 28px;
+        font-weight: 700;
+        letter-spacing: -0.5px;
+        background: linear-gradient(135deg, #fff 0%, var(--ft-primary-light) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .ft-subtitle {
+        font-size: 14px;
+        color: var(--ft-text-dim);
+        margin-top: 4px;
+        font-weight: 400;
+    }
+
+    .ft-header-actions {
+        display: flex;
+        gap: 12px;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       BUTTONS
+       ═══════════════════════════════════════════════════════════════ */
+    .ft-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 18px;
+        border-radius: 10px;
+        font-family: 'Outfit', sans-serif;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: none;
+    }
+
+    .ft-btn i {
+        width: 16px;
+        height: 16px;
+    }
+
+    .ft-btn-primary {
+        background: linear-gradient(135deg, var(--ft-primary) 0%, var(--ft-indigo) 100%);
+        color: white;
+        box-shadow: 0 2px 10px rgba(139, 92, 246, 0.3);
+    }
+
+    .ft-btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 20px rgba(139, 92, 246, 0.4);
+    }
+
+    .ft-btn-secondary {
+        background: var(--ft-card);
+        color: var(--ft-text);
+        border: 1px solid var(--ft-border);
+    }
+
+    .ft-btn-secondary:hover {
+        background: var(--ft-card-hover);
+        border-color: var(--ft-border-bright);
+    }
+
+    .ft-btn-ghost {
+        background: transparent;
+        color: var(--ft-text-dim);
+        padding: 8px 12px;
+    }
+
+    .ft-btn-ghost:hover {
+        color: var(--ft-primary-light);
+        background: rgba(139, 92, 246, 0.1);
+    }
+
+    .ft-btn-sm {
+        padding: 6px 12px;
+        font-size: 12px;
+    }
+
+    .ft-btn-sm i {
+        width: 14px;
+        height: 14px;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       STATS CARDS
+       ═══════════════════════════════════════════════════════════════ */
+    .ft-stats {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+        margin-bottom: 32px;
+    }
+
+    .ft-stat-card {
+        background: var(--ft-card);
+        border: 1px solid var(--ft-border);
+        border-radius: 14px;
+        padding: 20px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        transition: all 0.3s ease;
+        animation: ft-fadeIn 0.5s ease backwards;
+    }
+
+    .ft-stat-card:nth-child(1) { animation-delay: 0.1s; }
+    .ft-stat-card:nth-child(2) { animation-delay: 0.15s; }
+    .ft-stat-card:nth-child(3) { animation-delay: 0.2s; }
+    .ft-stat-card:nth-child(4) { animation-delay: 0.25s; }
+
+    @keyframes ft-fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .ft-stat-card:hover {
+        border-color: var(--ft-border-bright);
+        transform: translateY(-2px);
+    }
+
+    .ft-stat-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(139, 92, 246, 0.1);
+        color: var(--ft-primary-light);
+    }
+
+    .ft-stat-icon i {
+        width: 24px;
+        height: 24px;
+    }
+
+    .ft-stat-icon--active {
+        background: rgba(16, 185, 129, 0.1);
+        color: var(--ft-success);
+    }
+
+    .ft-stat-icon--models {
+        background: rgba(99, 102, 241, 0.1);
+        color: var(--ft-indigo);
+    }
+
+    .ft-stat-icon--training {
+        background: rgba(245, 158, 11, 0.1);
+        color: var(--ft-warning);
+    }
+
+    .ft-stat-info {
+        flex: 1;
+    }
+
+    .ft-stat-value {
+        font-size: 28px;
+        font-weight: 700;
+        color: white;
+        line-height: 1;
+    }
+
+    .ft-stat-label {
+        font-size: 12px;
+        color: var(--ft-text-muted);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-top: 4px;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       TABS
+       ═══════════════════════════════════════════════════════════════ */
+    .ft-tabs {
+        display: flex;
+        gap: 4px;
+        background: var(--ft-card);
+        padding: 6px;
+        border-radius: 12px;
+        margin-bottom: 24px;
+        border: 1px solid var(--ft-border);
+        width: fit-content;
+    }
+
+    .ft-tab {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--ft-text-dim);
+        cursor: pointer;
+        transition: all 0.2s ease;
+        background: transparent;
+        border: none;
+        font-family: 'Outfit', sans-serif;
+    }
+
+    .ft-tab i {
+        width: 16px;
+        height: 16px;
+    }
+
+    .ft-tab:hover {
+        color: var(--ft-text);
+        background: rgba(139, 92, 246, 0.1);
+    }
+
+    .ft-tab.active {
+        background: linear-gradient(135deg, var(--ft-primary) 0%, var(--ft-indigo) 100%);
+        color: white;
+        box-shadow: 0 2px 10px rgba(139, 92, 246, 0.3);
+    }
+
+    .ft-tab-panel {
+        display: none;
+        animation: ft-fadeIn 0.3s ease;
+    }
+
+    .ft-tab-panel.active {
+        display: block;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       CARDS & PANELS
+       ═══════════════════════════════════════════════════════════════ */
+    .ft-panel {
+        background: var(--ft-card);
+        border: 1px solid var(--ft-border);
+        border-radius: 14px;
+        overflow: hidden;
+    }
+
+    .ft-panel-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--ft-border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .ft-panel-title {
+        font-size: 15px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .ft-panel-title i {
+        width: 18px;
+        height: 18px;
+        color: var(--ft-primary-light);
+    }
+
+    .ft-panel-body {
+        padding: 20px;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       DATASET LIST
+       ═══════════════════════════════════════════════════════════════ */
+    .ft-dataset-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 16px;
+    }
+
+    .ft-dataset-card {
+        background: var(--ft-card);
+        border: 1px solid var(--ft-border);
+        border-radius: 12px;
+        padding: 20px;
+        transition: all 0.2s ease;
+    }
+
+    .ft-dataset-card:hover {
+        border-color: var(--ft-border-bright);
+        transform: translateY(-2px);
+    }
+
+    .ft-dataset-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        margin-bottom: 12px;
+    }
+
+    .ft-dataset-name {
+        font-size: 16px;
+        font-weight: 600;
+        color: white;
+    }
+
+    .ft-dataset-type {
+        font-size: 11px;
+        padding: 4px 8px;
+        border-radius: 6px;
+        background: rgba(139, 92, 246, 0.1);
+        color: var(--ft-primary-light);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .ft-dataset-meta {
+        display: flex;
+        gap: 16px;
+        margin-bottom: 16px;
+    }
+
+    .ft-dataset-stat {
+        font-size: 12px;
+        color: var(--ft-text-dim);
+    }
+
+    .ft-dataset-stat strong {
+        color: var(--ft-text);
+        font-weight: 600;
+    }
+
+    .ft-dataset-status {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+    }
+
+    .ft-status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+
+    .ft-status-dot--ready { background: var(--ft-success); box-shadow: 0 0 8px var(--ft-success); }
+    .ft-status-dot--pending { background: var(--ft-warning); }
+    .ft-status-dot--error { background: var(--ft-danger); }
+
+    /* ═══════════════════════════════════════════════════════════════
+       TRAINING JOBS
+       ═══════════════════════════════════════════════════════════════ */
+    .ft-job-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .ft-job-item {
+        background: var(--ft-card);
+        border: 1px solid var(--ft-border);
+        border-radius: 12px;
+        padding: 16px 20px;
+        display: grid;
+        grid-template-columns: 1fr 200px 140px 120px;
+        align-items: center;
+        gap: 20px;
+        transition: all 0.2s ease;
+    }
+
+    .ft-job-item:hover {
+        border-color: var(--ft-border-bright);
+    }
+
+    .ft-job-info h4 {
+        font-size: 15px;
+        font-weight: 600;
+        color: white;
+        margin: 0 0 4px 0;
+    }
+
+    .ft-job-info p {
+        font-size: 12px;
+        color: var(--ft-text-dim);
+        margin: 0;
+    }
+
+    .ft-job-progress {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .ft-progress-bar {
+        height: 6px;
+        background: rgba(139, 92, 246, 0.1);
+        border-radius: 3px;
+        overflow: hidden;
+    }
+
+    .ft-progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--ft-primary) 0%, var(--ft-indigo) 100%);
+        border-radius: 3px;
+        transition: width 0.5s ease;
+    }
+
+    .ft-progress-text {
+        font-size: 11px;
+        color: var(--ft-text-dim);
+        font-family: 'IBM Plex Mono', monospace;
+    }
+
+    .ft-job-status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        font-weight: 500;
+    }
+
+    .ft-job-status--queued { color: var(--ft-text-dim); }
+    .ft-job-status--training { color: var(--ft-warning); }
+    .ft-job-status--completed { color: var(--ft-success); }
+    .ft-job-status--failed { color: var(--ft-danger); }
+
+    /* ═══════════════════════════════════════════════════════════════
+       MODEL CARDS
+       ═══════════════════════════════════════════════════════════════ */
+    .ft-model-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 16px;
+    }
+
+    .ft-model-card {
+        background: var(--ft-card);
+        border: 1px solid var(--ft-border);
+        border-radius: 14px;
+        padding: 20px;
+        transition: all 0.2s ease;
+    }
+
+    .ft-model-card:hover {
+        border-color: var(--ft-border-bright);
+        box-shadow: var(--ft-glow);
+    }
+
+    .ft-model-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .ft-model-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        background: linear-gradient(135deg, var(--ft-primary) 0%, var(--ft-indigo) 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+    }
+
+    .ft-model-icon i {
+        width: 22px;
+        height: 22px;
+    }
+
+    .ft-model-name {
+        font-size: 16px;
+        font-weight: 600;
+        color: white;
+    }
+
+    .ft-model-base {
+        font-size: 12px;
+        color: var(--ft-text-dim);
+    }
+
+    .ft-model-metrics {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+        margin-bottom: 16px;
+        padding: 12px;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 8px;
+    }
+
+    .ft-metric {
+        text-align: center;
+    }
+
+    .ft-metric-value {
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--ft-primary-light);
+        font-family: 'IBM Plex Mono', monospace;
+    }
+
+    .ft-metric-label {
+        font-size: 10px;
+        color: var(--ft-text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .ft-model-actions {
+        display: flex;
+        gap: 8px;
+    }
+
+    .ft-model-actions .ft-btn {
+        flex: 1;
+        justify-content: center;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       PLAYGROUND
+       ═══════════════════════════════════════════════════════════════ */
+    .ft-playground {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+    }
+
+    .ft-playground-input,
+    .ft-playground-output {
+        background: var(--ft-card);
+        border: 1px solid var(--ft-border);
+        border-radius: 14px;
+        overflow: hidden;
+    }
+
+    .ft-playground-header {
+        padding: 14px 20px;
+        border-bottom: 1px solid var(--ft-border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .ft-playground-title {
+        font-size: 14px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .ft-playground-title i {
+        width: 16px;
+        height: 16px;
+        color: var(--ft-primary-light);
+    }
+
+    .ft-textarea {
+        width: 100%;
+        min-height: 300px;
+        padding: 20px;
+        background: transparent;
+        border: none;
+        color: var(--ft-text);
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 13px;
+        line-height: 1.6;
+        resize: vertical;
+    }
+
+    .ft-textarea:focus {
+        outline: none;
+    }
+
+    .ft-textarea::placeholder {
+        color: var(--ft-text-muted);
+    }
+
+    .ft-output-content {
+        padding: 20px;
+        min-height: 300px;
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 13px;
+        line-height: 1.6;
+        white-space: pre-wrap;
+        color: var(--ft-success);
+    }
+
+    .ft-output-content.empty {
+        color: var(--ft-text-muted);
+        font-style: italic;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       FORM ELEMENTS
+       ═══════════════════════════════════════════════════════════════ */
+    .ft-form-group {
+        margin-bottom: 20px;
+    }
+
+    .ft-label {
+        display: block;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--ft-text-dim);
+        margin-bottom: 8px;
+    }
+
+    .ft-input,
+    .ft-select {
+        width: 100%;
+        padding: 12px 16px;
+        background: var(--ft-bg);
+        border: 1px solid var(--ft-border);
+        border-radius: 10px;
+        color: var(--ft-text);
+        font-family: 'Outfit', sans-serif;
+        font-size: 14px;
+        transition: all 0.2s ease;
+    }
+
+    .ft-input:focus,
+    .ft-select:focus {
+        outline: none;
+        border-color: var(--ft-primary);
+        box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+    }
+
+    .ft-select {
+        cursor: pointer;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       EMPTY STATES
+       ═══════════════════════════════════════════════════════════════ */
+    .ft-empty {
+        text-align: center;
+        padding: 60px 40px;
+        color: var(--ft-text-dim);
+    }
+
+    .ft-empty-icon {
+        width: 64px;
+        height: 64px;
+        margin: 0 auto 16px;
+        color: var(--ft-text-muted);
+        opacity: 0.5;
+    }
+
+    .ft-empty h3 {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--ft-text);
+        margin: 0 0 8px 0;
+    }
+
+    .ft-empty p {
+        font-size: 14px;
+        margin: 0 0 24px 0;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       MODAL
+       ═══════════════════════════════════════════════════════════════ */
+    .ft-modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(4px);
+        z-index: 1000;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        animation: ft-fadeIn 0.2s ease;
+    }
+
+    .ft-modal-overlay.active {
+        display: flex;
+    }
+
+    .ft-modal {
+        background: var(--ft-card);
+        border: 1px solid var(--ft-border);
+        border-radius: 16px;
+        width: 90%;
+        max-width: 560px;
+        max-height: 90vh;
+        overflow-y: auto;
+        animation: ft-slideUp 0.3s ease;
+    }
+
+    @keyframes ft-slideUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .ft-modal-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--ft-border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .ft-modal-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: white;
+    }
+
+    .ft-modal-close {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        background: transparent;
+        border: none;
+        color: var(--ft-text-dim);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+    }
+
+    .ft-modal-close:hover {
+        background: rgba(239, 68, 68, 0.1);
+        color: var(--ft-danger);
+    }
+
+    .ft-modal-body {
+        padding: 24px;
+    }
+
+    .ft-modal-footer {
+        padding: 16px 24px;
+        border-top: 1px solid var(--ft-border);
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       RESPONSIVE
+       ═══════════════════════════════════════════════════════════════ */
+    @media (max-width: 1200px) {
+        .ft-stats { grid-template-columns: repeat(2, 1fr); }
+        .ft-playground { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 768px) {
+        .ft-main { padding: 16px; }
+        .ft-header { flex-direction: column; align-items: flex-start; gap: 16px; }
+        .ft-stats { grid-template-columns: 1fr; }
+        .ft-tabs { width: 100%; overflow-x: auto; }
+        .ft-job-item { grid-template-columns: 1fr; gap: 12px; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ft-container">
+    <main class="ft-main">
+        <!-- Header -->
+        <header class="ft-header">
+            <div class="ft-title-group">
+                <div class="ft-icon-wrapper">
+                    <i data-lucide="brain"></i>
+                </div>
+                <div>
+                    <h1 class="ft-title">AI MODEL FINE-TUNING</h1>
+                    <p class="ft-subtitle">Train custom models with your data</p>
+                </div>
+            </div>
+            <div class="ft-header-actions">
+                <button class="ft-btn ft-btn-secondary" onclick="loadStats()">
+                    <i data-lucide="refresh-cw"></i>
+                    Refresh
+                </button>
+                <button class="ft-btn ft-btn-primary" onclick="showNewJobModal()">
+                    <i data-lucide="sparkles"></i>
+                    New Training Job
+                </button>
+            </div>
+        </header>
+
+        <!-- Stats -->
+        <section class="ft-stats">
+            <div class="ft-stat-card">
+                <div class="ft-stat-icon">
+                    <i data-lucide="database"></i>
+                </div>
+                <div class="ft-stat-info">
+                    <div class="ft-stat-value" id="statDatasets">0</div>
+                    <div class="ft-stat-label">Datasets</div>
+                </div>
+            </div>
+            <div class="ft-stat-card">
+                <div class="ft-stat-icon ft-stat-icon--training">
+                    <i data-lucide="activity"></i>
+                </div>
+                <div class="ft-stat-info">
+                    <div class="ft-stat-value" id="statJobs">0</div>
+                    <div class="ft-stat-label">Training Jobs</div>
+                </div>
+            </div>
+            <div class="ft-stat-card">
+                <div class="ft-stat-icon ft-stat-icon--active">
+                    <i data-lucide="zap"></i>
+                </div>
+                <div class="ft-stat-info">
+                    <div class="ft-stat-value" id="statActive">0</div>
+                    <div class="ft-stat-label">Active Training</div>
+                </div>
+            </div>
+            <div class="ft-stat-card">
+                <div class="ft-stat-icon ft-stat-icon--models">
+                    <i data-lucide="box"></i>
+                </div>
+                <div class="ft-stat-info">
+                    <div class="ft-stat-value" id="statModels">0</div>
+                    <div class="ft-stat-label">Fine-tuned Models</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tabs -->
+        <nav class="ft-tabs">
+            <button class="ft-tab active" data-tab="datasets" onclick="switchTab('datasets')">
+                <i data-lucide="database"></i>
+                Datasets
+            </button>
+            <button class="ft-tab" data-tab="training" onclick="switchTab('training')">
+                <i data-lucide="cpu"></i>
+                Training
+            </button>
+            <button class="ft-tab" data-tab="models" onclick="switchTab('models')">
+                <i data-lucide="box"></i>
+                Models
+            </button>
+            <button class="ft-tab" data-tab="playground" onclick="switchTab('playground')">
+                <i data-lucide="terminal"></i>
+                Playground
+            </button>
+        </nav>
+
+        <!-- Tab Panels -->
+        <div class="ft-tab-panels">
+            <!-- Datasets Panel -->
+            <div class="ft-tab-panel active" id="panel-datasets">
+                <div class="ft-panel">
+                    <div class="ft-panel-header">
+                        <div class="ft-panel-title">
+                            <i data-lucide="folder-open"></i>
+                            Your Datasets
+                        </div>
+                        <button class="ft-btn ft-btn-primary ft-btn-sm" onclick="showNewDatasetModal()">
+                            <i data-lucide="plus"></i>
+                            New Dataset
+                        </button>
+                    </div>
+                    <div class="ft-panel-body">
+                        <div class="ft-dataset-grid" id="datasetGrid">
+                            <!-- Populated by JS -->
+                        </div>
+                        <div class="ft-empty" id="datasetsEmpty" style="display: none;">
+                            <i data-lucide="database" class="ft-empty-icon"></i>
+                            <h3>No Datasets Yet</h3>
+                            <p>Upload your first dataset to start training custom models</p>
+                            <button class="ft-btn ft-btn-primary" onclick="showNewDatasetModal()">
+                                <i data-lucide="upload"></i>
+                                Upload Dataset
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Training Panel -->
+            <div class="ft-tab-panel" id="panel-training">
+                <div class="ft-panel">
+                    <div class="ft-panel-header">
+                        <div class="ft-panel-title">
+                            <i data-lucide="cpu"></i>
+                            Training Jobs
+                        </div>
+                        <button class="ft-btn ft-btn-primary ft-btn-sm" onclick="showNewJobModal()">
+                            <i data-lucide="plus"></i>
+                            New Job
+                        </button>
+                    </div>
+                    <div class="ft-panel-body">
+                        <div class="ft-job-list" id="jobList">
+                            <!-- Populated by JS -->
+                        </div>
+                        <div class="ft-empty" id="jobsEmpty" style="display: none;">
+                            <i data-lucide="cpu" class="ft-empty-icon"></i>
+                            <h3>No Training Jobs</h3>
+                            <p>Start your first training job to create a custom model</p>
+                            <button class="ft-btn ft-btn-primary" onclick="showNewJobModal()">
+                                <i data-lucide="sparkles"></i>
+                                Start Training
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Models Panel -->
+            <div class="ft-tab-panel" id="panel-models">
+                <div class="ft-panel">
+                    <div class="ft-panel-header">
+                        <div class="ft-panel-title">
+                            <i data-lucide="box"></i>
+                            Fine-tuned Models
+                        </div>
+                    </div>
+                    <div class="ft-panel-body">
+                        <div class="ft-model-grid" id="modelGrid">
+                            <!-- Populated by JS -->
+                        </div>
+                        <div class="ft-empty" id="modelsEmpty" style="display: none;">
+                            <i data-lucide="box" class="ft-empty-icon"></i>
+                            <h3>No Models Yet</h3>
+                            <p>Complete a training job to create your first fine-tuned model</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Playground Panel -->
+            <div class="ft-tab-panel" id="panel-playground">
+                <div style="margin-bottom: 16px; display: flex; align-items: center; gap: 16px;">
+                    <label class="ft-label" style="margin: 0;">Select Model:</label>
+                    <select class="ft-select" id="playgroundModel" style="width: 300px;">
+                        <option value="">-- Select a model --</option>
+                    </select>
+                    <button class="ft-btn ft-btn-primary" onclick="runInference()">
+                        <i data-lucide="play"></i>
+                        Run
+                    </button>
+                </div>
+                <div class="ft-playground">
+                    <div class="ft-playground-input">
+                        <div class="ft-playground-header">
+                            <div class="ft-playground-title">
+                                <i data-lucide="edit-3"></i>
+                                Input Prompt
+                            </div>
+                            <button class="ft-btn ft-btn-ghost ft-btn-sm" onclick="clearInput()">
+                                <i data-lucide="trash-2"></i>
+                                Clear
+                            </button>
+                        </div>
+                        <textarea class="ft-textarea" id="promptInput" placeholder="Enter your prompt here..."></textarea>
+                    </div>
+                    <div class="ft-playground-output">
+                        <div class="ft-playground-header">
+                            <div class="ft-playground-title">
+                                <i data-lucide="message-square"></i>
+                                Model Response
+                            </div>
+                            <button class="ft-btn ft-btn-ghost ft-btn-sm" onclick="copyOutput()">
+                                <i data-lucide="copy"></i>
+                                Copy
+                            </button>
+                        </div>
+                        <div class="ft-output-content empty" id="responseOutput">Response will appear here...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- New Dataset Modal -->
+<div class="ft-modal-overlay" id="datasetModal">
+    <div class="ft-modal">
+        <div class="ft-modal-header">
+            <h2 class="ft-modal-title">Create New Dataset</h2>
+            <button class="ft-modal-close" onclick="closeModal('datasetModal')">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <div class="ft-modal-body">
+            <div class="ft-form-group">
+                <label class="ft-label">Dataset Name</label>
+                <input type="text" class="ft-input" id="datasetName" placeholder="e.g., customer-support-v1">
+            </div>
+            <div class="ft-form-group">
+                <label class="ft-label">Description</label>
+                <input type="text" class="ft-input" id="datasetDesc" placeholder="Brief description of your dataset">
+            </div>
+            <div class="ft-form-group">
+                <label class="ft-label">Dataset Type</label>
+                <select class="ft-select" id="datasetType">
+                    <option value="conversation">Conversation (chat format)</option>
+                    <option value="completion">Completion (prompt/response)</option>
+                    <option value="instruction">Instruction (task-based)</option>
+                    <option value="classification">Classification</option>
+                </select>
+            </div>
+        </div>
+        <div class="ft-modal-footer">
+            <button class="ft-btn ft-btn-secondary" onclick="closeModal('datasetModal')">Cancel</button>
+            <button class="ft-btn ft-btn-primary" onclick="createDataset()">Create Dataset</button>
+        </div>
+    </div>
+</div>
+
+<!-- New Job Modal -->
+<div class="ft-modal-overlay" id="jobModal">
+    <div class="ft-modal">
+        <div class="ft-modal-header">
+            <h2 class="ft-modal-title">New Training Job</h2>
+            <button class="ft-modal-close" onclick="closeModal('jobModal')">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <div class="ft-modal-body">
+            <div class="ft-form-group">
+                <label class="ft-label">Job Name</label>
+                <input type="text" class="ft-input" id="jobName" placeholder="e.g., support-bot-v1">
+            </div>
+            <div class="ft-form-group">
+                <label class="ft-label">Base Model</label>
+                <select class="ft-select" id="baseModel">
+                    <!-- Populated by JS -->
+                </select>
+            </div>
+            <div class="ft-form-group">
+                <label class="ft-label">Dataset</label>
+                <select class="ft-select" id="jobDataset">
+                    <!-- Populated by JS -->
+                </select>
+            </div>
+            <div class="ft-form-group">
+                <label class="ft-label">Training Method</label>
+                <select class="ft-select" id="trainingMethod">
+                    <option value="lora">LoRA (Recommended)</option>
+                    <option value="qlora">QLoRA (Memory Efficient)</option>
+                    <option value="full">Full Fine-tuning</option>
+                </select>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="ft-form-group">
+                    <label class="ft-label">Epochs</label>
+                    <input type="number" class="ft-input" id="epochs" value="3" min="1" max="10">
+                </div>
+                <div class="ft-form-group">
+                    <label class="ft-label">Batch Size</label>
+                    <input type="number" class="ft-input" id="batchSize" value="4" min="1" max="32">
+                </div>
+            </div>
+        </div>
+        <div class="ft-modal-footer">
+            <button class="ft-btn ft-btn-secondary" onclick="closeModal('jobModal')">Cancel</button>
+            <button class="ft-btn ft-btn-primary" onclick="createJob()">Start Training</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // State
+    let datasets = [];
+    let jobs = [];
+    let models = [];
+    let baseModels = [];
+
+    // Initialize
+    function initFineTuning() {
+        console.log('Fine-Tuning initializing...');
+        lucide.createIcons();
+        loadStats();
+        loadDatasets();
+        loadJobs();
+        loadModels();
+        loadBaseModels();
+    }
+
+    // Handle both cases: DOM already ready or not yet ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initFineTuning);
+    } else {
+        initFineTuning();
+    }
+
+    // Tab Switching
+    function switchTab(tabName) {
+        document.querySelectorAll('.ft-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.ft-tab-panel').forEach(p => p.classList.remove('active'));
+
+        document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+        document.getElementById(`panel-${tabName}`).classList.add('active');
+    }
+
+    // Load Stats
+    async function loadStats() {
+        try {
+            const response = await fetch('/tools/fine-tuning/api/stats');
+            const data = await response.json();
+
+            if (data.success) {
+                document.getElementById('statDatasets').textContent = data.stats.total_datasets;
+                document.getElementById('statJobs').textContent = data.stats.total_jobs;
+                document.getElementById('statActive').textContent = data.stats.active_jobs;
+                document.getElementById('statModels').textContent = data.stats.total_models;
+            }
+        } catch (error) {
+            console.error('Failed to load stats:', error);
+        }
+    }
+
+    // Load Datasets
+    async function loadDatasets() {
+        try {
+            const response = await fetch('/tools/fine-tuning/api/datasets');
+            const data = await response.json();
+
+            if (data.success) {
+                datasets = data.datasets;
+                renderDatasets();
+                updateDatasetSelect();
+            }
+        } catch (error) {
+            console.error('Failed to load datasets:', error);
+        }
+    }
+
+    function renderDatasets() {
+        const grid = document.getElementById('datasetGrid');
+        const empty = document.getElementById('datasetsEmpty');
+
+        if (datasets.length === 0) {
+            grid.innerHTML = '';
+            empty.style.display = 'block';
+            return;
+        }
+
+        empty.style.display = 'none';
+        grid.innerHTML = datasets.map(d => `
+            <div class="ft-dataset-card">
+                <div class="ft-dataset-header">
+                    <div class="ft-dataset-name">${d.name}</div>
+                    <span class="ft-dataset-type">${d.dataset_type}</span>
+                </div>
+                <div class="ft-dataset-meta">
+                    <div class="ft-dataset-stat"><strong>${d.total_samples || 0}</strong> samples</div>
+                    <div class="ft-dataset-stat"><strong>${formatBytes(d.size_bytes || 0)}</strong></div>
+                </div>
+                <div class="ft-dataset-status">
+                    <span class="ft-status-dot ft-status-dot--${d.status}"></span>
+                    ${d.status}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // Load Jobs
+    async function loadJobs() {
+        try {
+            const response = await fetch('/tools/fine-tuning/api/jobs');
+            const data = await response.json();
+
+            if (data.success) {
+                jobs = data.jobs;
+                renderJobs();
+            }
+        } catch (error) {
+            console.error('Failed to load jobs:', error);
+        }
+    }
+
+    function renderJobs() {
+        const list = document.getElementById('jobList');
+        const empty = document.getElementById('jobsEmpty');
+
+        if (jobs.length === 0) {
+            list.innerHTML = '';
+            empty.style.display = 'block';
+            return;
+        }
+
+        empty.style.display = 'none';
+        list.innerHTML = jobs.map(j => `
+            <div class="ft-job-item">
+                <div class="ft-job-info">
+                    <h4>${j.job_name}</h4>
+                    <p>${j.base_model_name || 'Unknown model'} + ${j.dataset_name || 'Unknown dataset'}</p>
+                </div>
+                <div class="ft-job-progress">
+                    <div class="ft-progress-bar">
+                        <div class="ft-progress-fill" style="width: ${j.progress || 0}%"></div>
+                    </div>
+                    <span class="ft-progress-text">${j.current_step || 0} / ${j.total_steps || 0} steps</span>
+                </div>
+                <div class="ft-job-status ft-job-status--${j.status}">
+                    <i data-lucide="${getStatusIcon(j.status)}"></i>
+                    ${j.status}
+                </div>
+                <div>
+                    ${j.status === 'queued' ? `<button class="ft-btn ft-btn-primary ft-btn-sm" onclick="startJob(${j.id})"><i data-lucide="play"></i> Start</button>` : ''}
+                    ${['queued', 'training'].includes(j.status) ? `<button class="ft-btn ft-btn-secondary ft-btn-sm" onclick="cancelJob(${j.id})"><i data-lucide="x"></i></button>` : ''}
+                </div>
+            </div>
+        `).join('');
+        lucide.createIcons();
+    }
+
+    // Load Models
+    async function loadModels() {
+        try {
+            const response = await fetch('/tools/fine-tuning/api/models');
+            const data = await response.json();
+
+            if (data.success) {
+                models = data.models;
+                renderModels();
+                updatePlaygroundSelect();
+            }
+        } catch (error) {
+            console.error('Failed to load models:', error);
+        }
+    }
+
+    function renderModels() {
+        const grid = document.getElementById('modelGrid');
+        const empty = document.getElementById('modelsEmpty');
+
+        if (models.length === 0) {
+            grid.innerHTML = '';
+            empty.style.display = 'block';
+            return;
+        }
+
+        empty.style.display = 'none';
+        grid.innerHTML = models.map(m => `
+            <div class="ft-model-card">
+                <div class="ft-model-header">
+                    <div class="ft-model-icon">
+                        <i data-lucide="box"></i>
+                    </div>
+                    <div>
+                        <div class="ft-model-name">${m.model_name}</div>
+                        <div class="ft-model-base">Based on ${m.base_model_name || 'Unknown'}</div>
+                    </div>
+                </div>
+                <div class="ft-model-metrics">
+                    <div class="ft-metric">
+                        <div class="ft-metric-value">${(m.eval_metrics?.loss || 0).toFixed(3)}</div>
+                        <div class="ft-metric-label">Loss</div>
+                    </div>
+                    <div class="ft-metric">
+                        <div class="ft-metric-value">${m.api_calls || 0}</div>
+                        <div class="ft-metric-label">API Calls</div>
+                    </div>
+                </div>
+                <div class="ft-model-actions">
+                    <button class="ft-btn ft-btn-secondary ft-btn-sm" onclick="testModel(${m.id})">
+                        <i data-lucide="play"></i>
+                        Test
+                    </button>
+                    <button class="ft-btn ft-btn-primary ft-btn-sm" onclick="deployModel(${m.id})" ${m.is_deployed ? 'disabled' : ''}>
+                        <i data-lucide="rocket"></i>
+                        ${m.is_deployed ? 'Deployed' : 'Deploy'}
+                    </button>
+                </div>
+            </div>
+        `).join('');
+        lucide.createIcons();
+    }
+
+    // Load Base Models
+    async function loadBaseModels() {
+        try {
+            const response = await fetch('/tools/fine-tuning/api/base-models');
+            const data = await response.json();
+
+            if (data.success) {
+                baseModels = data.models;
+                updateBaseModelSelect();
+            }
+        } catch (error) {
+            console.error('Failed to load base models:', error);
+        }
+    }
+
+    function updateBaseModelSelect() {
+        const select = document.getElementById('baseModel');
+        select.innerHTML = baseModels.map(m =>
+            `<option value="${m.id}">${m.model_name} (${m.parameters})</option>`
+        ).join('');
+    }
+
+    function updateDatasetSelect() {
+        const select = document.getElementById('jobDataset');
+        const ready = datasets.filter(d => d.status === 'ready');
+        select.innerHTML = ready.length
+            ? ready.map(d => `<option value="${d.id}">${d.name}</option>`).join('')
+            : '<option value="">No ready datasets</option>';
+    }
+
+    function updatePlaygroundSelect() {
+        const select = document.getElementById('playgroundModel');
+        select.innerHTML = '<option value="">-- Select a model --</option>' +
+            models.map(m => `<option value="${m.id}">${m.model_name}</option>`).join('');
+    }
+
+    // Modals
+    function showNewDatasetModal() {
+        document.getElementById('datasetModal').classList.add('active');
+    }
+
+    function showNewJobModal() {
+        document.getElementById('jobModal').classList.add('active');
+    }
+
+    function closeModal(id) {
+        document.getElementById(id).classList.remove('active');
+    }
+
+    // Create Dataset
+    async function createDataset() {
+        const name = document.getElementById('datasetName').value.trim();
+        const description = document.getElementById('datasetDesc').value.trim();
+        const type = document.getElementById('datasetType').value;
+
+        if (!name) {
+            showToast('Please enter a dataset name', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch('/tools/fine-tuning/api/datasets', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, description, type })
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                showToast('Dataset created successfully', 'success');
+                closeModal('datasetModal');
+                loadDatasets();
+                loadStats();
+            } else {
+                showToast(data.error || 'Failed to create dataset', 'error');
+            }
+        } catch (error) {
+            showToast('Failed to create dataset', 'error');
+        }
+    }
+
+    // Create Job
+    async function createJob() {
+        const name = document.getElementById('jobName').value.trim();
+        const baseModelId = document.getElementById('baseModel').value;
+        const datasetId = document.getElementById('jobDataset').value;
+        const method = document.getElementById('trainingMethod').value;
+        const epochs = parseInt(document.getElementById('epochs').value);
+        const batchSize = parseInt(document.getElementById('batchSize').value);
+
+        if (!name) {
+            showToast('Please enter a job name', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch('/tools/fine-tuning/api/jobs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name,
+                    base_model_id: parseInt(baseModelId),
+                    dataset_id: parseInt(datasetId),
+                    training_method: method,
+                    epochs,
+                    batch_size: batchSize
+                })
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                showToast('Training job created', 'success');
+                closeModal('jobModal');
+                loadJobs();
+                loadStats();
+            } else {
+                showToast(data.error || 'Failed to create job', 'error');
+            }
+        } catch (error) {
+            showToast('Failed to create job', 'error');
+        }
+    }
+
+    // Job Actions
+    async function startJob(jobId) {
+        try {
+            const response = await fetch(`/tools/fine-tuning/api/jobs/${jobId}/start`, { method: 'POST' });
+            const data = await response.json();
+            if (data.success) {
+                showToast('Training started', 'success');
+                loadJobs();
+                loadStats();
+            }
+        } catch (error) {
+            showToast('Failed to start job', 'error');
+        }
+    }
+
+    async function cancelJob(jobId) {
+        try {
+            const response = await fetch(`/tools/fine-tuning/api/jobs/${jobId}/cancel`, { method: 'POST' });
+            const data = await response.json();
+            if (data.success) {
+                showToast('Job cancelled', 'success');
+                loadJobs();
+                loadStats();
+            }
+        } catch (error) {
+            showToast('Failed to cancel job', 'error');
+        }
+    }
+
+    // Model Actions
+    async function deployModel(modelId) {
+        try {
+            const response = await fetch(`/tools/fine-tuning/api/models/${modelId}/deploy`, { method: 'POST' });
+            const data = await response.json();
+            if (data.success) {
+                showToast('Model deployed', 'success');
+                loadModels();
+            }
+        } catch (error) {
+            showToast('Failed to deploy model', 'error');
+        }
+    }
+
+    function testModel(modelId) {
+        switchTab('playground');
+        document.getElementById('playgroundModel').value = modelId;
+    }
+
+    // Playground
+    async function runInference() {
+        const modelId = document.getElementById('playgroundModel').value;
+        const prompt = document.getElementById('promptInput').value.trim();
+        const output = document.getElementById('responseOutput');
+
+        if (!modelId) {
+            showToast('Please select a model', 'error');
+            return;
+        }
+
+        if (!prompt) {
+            showToast('Please enter a prompt', 'error');
+            return;
+        }
+
+        output.textContent = 'Generating response...';
+        output.classList.remove('empty');
+
+        try {
+            const response = await fetch(`/tools/fine-tuning/api/models/${modelId}/test`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt })
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                output.textContent = data.response;
+            } else {
+                output.textContent = 'Error: ' + (data.error || 'Unknown error');
+            }
+        } catch (error) {
+            output.textContent = 'Error: Failed to run inference';
+        }
+    }
+
+    function clearInput() {
+        document.getElementById('promptInput').value = '';
+    }
+
+    function copyOutput() {
+        const output = document.getElementById('responseOutput').textContent;
+        navigator.clipboard.writeText(output);
+        showToast('Copied to clipboard', 'success');
+    }
+
+    // Helpers
+    function getStatusIcon(status) {
+        const icons = {
+            'queued': 'clock',
+            'preparing': 'loader',
+            'training': 'activity',
+            'completed': 'check-circle',
+            'failed': 'x-circle',
+            'cancelled': 'x'
+        };
+        return icons[status] || 'circle';
+    }
+
+    function formatBytes(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.style.cssText = `
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 14px 24px;
+            border-radius: 10px;
+            color: white;
+            font-family: 'Outfit', sans-serif;
+            font-size: 14px;
+            z-index: 9999;
+            animation: ft-fadeIn 0.3s ease;
+        `;
+        const colors = {
+            info: '#6366F1',
+            success: '#10B981',
+            error: '#EF4444',
+            warning: '#F59E0B'
+        };
+        toast.style.background = colors[type] || colors.info;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+</script>
+{% endblock %}

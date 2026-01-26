@@ -1,0 +1,301 @@
+<!-- ═══════════════════════════════════════════════════════════════════════════════
+   Business Tools Navigation Bar
+   Shared component for Social Media, Website Studio, Call Center, CRM, Email Manager
+   Phase 31: Business Tools UI Standardization
+   ═══════════════════════════════════════════════════════════════════════════════ -->
+
+<!-- Page Transition Overlay -->
+<div class="page-transition-overlay business-transition" id="pageTransition">
+    <div class="transition-content">
+        <div class="transition-logo">A.R.C.H.I.E.</div>
+        <div class="transition-bar">
+            <div class="transition-progress"></div>
+        </div>
+        <div class="transition-text">LOADING MODULE...</div>
+    </div>
+</div>
+
+<!-- Business Tools Navigation -->
+<nav class="category-nav business-tools-nav">
+    <div class="nav-left">
+        <a href="{{ url_for('dashboard') }}" class="nav-back-btn" onclick="showTransition(event, this.href)">
+            <i data-lucide="arrow-left"></i>
+            <span>DASHBOARD</span>
+        </a>
+    </div>
+
+    <div class="nav-center">
+        <span class="nav-category-label">
+            <i data-lucide="briefcase"></i>
+            BUSINESS TOOLS
+        </span>
+    </div>
+
+    <div class="nav-right">
+        <!-- Theme Controls -->
+        <div class="theme-controls">
+            <button class="nav-icon-btn" onclick="toggleTheme()" title="Toggle Light/Dark Mode">
+                <i data-lucide="sun" id="themeIcon"></i>
+            </button>
+            <button class="nav-icon-btn" onclick="showLanguageMenu()" title="Language (Coming Soon)">
+                <i data-lucide="globe"></i>
+            </button>
+        </div>
+        <div class="nav-divider"></div>
+        <a href="{{ url_for('social_media.index') }}"
+           class="nav-module-btn {% if request.endpoint and 'social_media' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="Social Media">
+            <i data-lucide="share-2"></i>
+            <span>Social</span>
+        </a>
+        <a href="{{ url_for('website_studio.index') }}"
+           class="nav-module-btn {% if request.endpoint and 'website_studio' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="Website Studio">
+            <i data-lucide="globe"></i>
+            <span>Website</span>
+        </a>
+        <a href="{{ url_for('call_center.index') }}"
+           class="nav-module-btn {% if request.endpoint and 'call_center' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="Call Center">
+            <i data-lucide="phone"></i>
+            <span>Calls</span>
+        </a>
+        <a href="{{ url_for('crm.index') }}"
+           class="nav-module-btn {% if request.endpoint and 'crm' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="CRM">
+            <i data-lucide="users"></i>
+            <span>CRM</span>
+        </a>
+        <a href="{{ url_for('email_manager.index') }}"
+           class="nav-module-btn {% if request.endpoint and 'email_manager' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="Email Manager">
+            <i data-lucide="mail"></i>
+            <span>Email</span>
+        </a>
+    </div>
+</nav>
+
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════════
+   PAGE TRANSITION OVERLAY - BUSINESS TOOLS (PINK THEME)
+   ═══════════════════════════════════════════════════════════════════════════════ */
+.business-transition .transition-logo {
+    color: #FF69B4;
+    text-shadow: 0 0 30px rgba(255, 105, 180, 0.5), 0 0 60px rgba(255, 105, 180, 0.3);
+}
+
+.business-transition .transition-bar {
+    background: rgba(255, 105, 180, 0.2);
+}
+
+.business-transition .transition-progress {
+    background: linear-gradient(90deg, #FF69B4, #8B5CF6);
+}
+
+.business-transition .transition-text {
+    color: rgba(255, 105, 180, 0.7);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   BUSINESS TOOLS NAVIGATION BAR (PINK THEME)
+   ═══════════════════════════════════════════════════════════════════════════════ */
+.business-tools-nav {
+    border-bottom: 1px solid rgba(255, 105, 180, 0.2);
+}
+
+.business-tools-nav::after {
+    background: linear-gradient(90deg, transparent, rgba(255, 105, 180, 0.5), transparent);
+}
+
+.business-tools-nav .nav-category-label {
+    color: #FF69B4;
+    text-shadow: 0 0 10px rgba(255, 105, 180, 0.3);
+}
+
+.business-tools-nav .nav-module-btn {
+    border-color: rgba(255, 105, 180, 0.2);
+    color: rgba(255, 105, 180, 0.6);
+}
+
+.business-tools-nav .nav-module-btn::before {
+    background: #FF69B4;
+}
+
+.business-tools-nav .nav-module-btn:hover {
+    color: #FF69B4;
+    border-color: rgba(255, 105, 180, 0.4);
+    background: rgba(255, 105, 180, 0.05);
+}
+
+.business-tools-nav .nav-module-btn.active {
+    color: #FF69B4;
+    border-color: rgba(255, 105, 180, 0.5);
+    background: rgba(255, 105, 180, 0.1);
+    box-shadow: 0 0 15px rgba(255, 105, 180, 0.15);
+}
+
+/* Theme Controls */
+.business-tools-nav .theme-controls {
+    display: flex;
+    gap: 4px;
+}
+
+.business-tools-nav .nav-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: transparent;
+    border: 1px solid rgba(255, 105, 180, 0.2);
+    border-radius: 8px;
+    color: rgba(255, 105, 180, 0.6);
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.business-tools-nav .nav-icon-btn:hover {
+    color: #FF69B4;
+    border-color: rgba(255, 105, 180, 0.5);
+    background: rgba(255, 105, 180, 0.1);
+    box-shadow: 0 0 15px rgba(255, 105, 180, 0.15);
+}
+
+.business-tools-nav .nav-icon-btn i {
+    width: 18px;
+    height: 18px;
+}
+
+.business-tools-nav .nav-divider {
+    width: 1px;
+    height: 24px;
+    background: rgba(255, 105, 180, 0.2);
+    margin: 0 8px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - BUSINESS TOOLS NAV
+   ═══════════════════════════════════════════════════════════════════════════════ */
+body.light-mode .business-tools-nav {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 249, 250, 0.9) 100%);
+    border-bottom: 1px solid rgba(204, 68, 145, 0.2);
+}
+
+body.light-mode .business-tools-nav::after {
+    background: linear-gradient(90deg, transparent, rgba(204, 68, 145, 0.4), transparent);
+}
+
+body.light-mode .business-tools-nav .nav-category-label {
+    color: #CC4491;
+    text-shadow: none;
+}
+
+body.light-mode .business-tools-nav .nav-module-btn {
+    color: rgba(204, 68, 145, 0.7);
+    border-color: rgba(204, 68, 145, 0.2);
+}
+
+body.light-mode .business-tools-nav .nav-module-btn:hover {
+    color: #CC4491;
+    border-color: rgba(204, 68, 145, 0.4);
+    background: rgba(204, 68, 145, 0.05);
+}
+
+body.light-mode .business-tools-nav .nav-module-btn::before {
+    background: #CC4491;
+}
+
+body.light-mode .business-tools-nav .nav-module-btn.active {
+    color: #CC4491;
+    border-color: rgba(204, 68, 145, 0.5);
+    background: rgba(204, 68, 145, 0.08);
+    box-shadow: 0 0 15px rgba(204, 68, 145, 0.1);
+}
+
+body.light-mode .business-tools-nav .nav-icon-btn {
+    color: rgba(204, 68, 145, 0.6);
+    border-color: rgba(204, 68, 145, 0.2);
+}
+
+body.light-mode .business-tools-nav .nav-icon-btn:hover {
+    color: #CC4491;
+    border-color: rgba(204, 68, 145, 0.5);
+    background: rgba(204, 68, 145, 0.08);
+    box-shadow: 0 0 15px rgba(204, 68, 145, 0.1);
+}
+
+body.light-mode .business-tools-nav .nav-divider {
+    background: rgba(204, 68, 145, 0.2);
+}
+
+body.light-mode .business-transition {
+    background: #f8f9fa;
+}
+
+body.light-mode .business-transition .transition-logo {
+    color: #CC4491;
+    text-shadow: 0 0 20px rgba(204, 68, 145, 0.3);
+}
+
+body.light-mode .business-transition .transition-bar {
+    background: rgba(204, 68, 145, 0.1);
+}
+
+body.light-mode .business-transition .transition-progress {
+    background: linear-gradient(90deg, #CC4491, #8B5CF6);
+}
+
+body.light-mode .business-transition .transition-text {
+    color: rgba(204, 68, 145, 0.7);
+}
+</style>
+
+<script>
+// Page Transition Handler
+function showTransition(event, targetUrl) {
+    // Don't transition if clicking current page
+    if (event.currentTarget.classList.contains('active')) {
+        event.preventDefault();
+        return;
+    }
+
+    event.preventDefault();
+    const overlay = document.getElementById('pageTransition');
+    overlay.classList.add('active');
+
+    // Navigate after animation
+    setTimeout(() => {
+        window.location.href = targetUrl;
+    }, 600);
+}
+
+// Language menu placeholder
+function showLanguageMenu() {
+    // Show toast notification
+    if (typeof showToast === 'function') {
+        showToast('Language selection coming soon!', 'info');
+    } else {
+        alert('Language selection coming soon!');
+    }
+}
+
+// Initialize Lucide icons in nav
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+});
+
+// Hide transition on page load (for back button)
+window.addEventListener('pageshow', function(event) {
+    const overlay = document.getElementById('pageTransition');
+    if (overlay) {
+        overlay.classList.remove('active');
+    }
+});
+</script>

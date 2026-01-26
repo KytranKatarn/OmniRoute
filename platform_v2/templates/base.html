@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}A.R.C.H.I.E.{% endblock %}</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <!-- Bootstrap 5 (for legacy modules) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- A.R.C.H.I.E. Design System -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/animations.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/category-nav.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin-ops.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/light-mode.css') }}">
+
+    <!-- A.R.C.H.I.E. Theme System (light/dark mode) -->
+    <script src="{{ url_for('static', filename='js/archie-theme.js') }}"></script>
+
+    <style>
+        /* Legacy Flash Messages - Override with theme */
+        .flash-messages {
+            position: fixed;
+            top: var(--archie-space-5, 20px);
+            right: var(--archie-space-5, 20px);
+            z-index: var(--archie-z-notification, 10000);
+            max-width: 400px;
+        }
+
+        .flash {
+            padding: var(--archie-space-4, 15px) var(--archie-space-5, 20px);
+            border: 2px solid var(--archie-green, #00FF00);
+            background: var(--archie-bg-secondary, #0d1117);
+            margin-bottom: var(--archie-space-3, 10px);
+            animation: slideIn 0.3s var(--archie-ease-out, ease);
+            font-family: var(--archie-font-mono, 'Courier New', monospace);
+            letter-spacing: 1px;
+            border-radius: var(--archie-radius-md, 6px);
+            box-shadow: var(--archie-glow-green-sm, 0 0 8px rgba(0, 255, 65, 0.3));
+        }
+
+        .flash.success {
+            color: var(--archie-success, #00FF00);
+            border-color: var(--archie-success, #00FF00);
+        }
+
+        .flash.error {
+            color: var(--archie-danger, #FF6B6B);
+            border-color: var(--archie-danger, #FF6B6B);
+            box-shadow: var(--archie-glow-red-sm, 0 0 8px rgba(255, 107, 107, 0.3));
+        }
+
+        .flash.info {
+            color: var(--archie-info, #00FFFF);
+            border-color: var(--archie-info, #00FFFF);
+            box-shadow: var(--archie-glow-cyan-sm, 0 0 8px rgba(0, 255, 255, 0.3));
+        }
+
+        .flash.warning {
+            color: var(--archie-warning, #FFAA00);
+            border-color: var(--archie-warning, #FFAA00);
+            box-shadow: var(--archie-glow-orange-sm, 0 0 8px rgba(255, 170, 0, 0.3));
+        }
+
+        {% block styles %}{% endblock %}
+    </style>
+
+    {% block extra_head %}{% endblock %}
+    {% block extra_css %}{% endblock %}
+</head>
+<body data-module="{% block module_name %}default{% endblock %}">
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                    <div class="flash {{ category }}">
+                        > {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Page Content -->
+    {% block content %}{% endblock %}
+
+    <!-- Bootstrap JS (for legacy modules) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Extra JS Block -->
+    {% block extra_js %}{% endblock %}
+
+    <script>
+        // Auto-hide flash messages
+        setTimeout(() => {
+            const flashes = document.querySelectorAll('.flash');
+            flashes.forEach(flash => {
+                flash.style.opacity = '0';
+                flash.style.transition = 'opacity 0.3s';
+                setTimeout(() => flash.remove(), 300);
+            });
+        }, 5000);
+
+        // Initialize Lucide icons on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        });
+    </script>
+</body>
+</html>

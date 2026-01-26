@@ -1,0 +1,2060 @@
+{% extends 'base.html' %}
+
+{% block title %}Project Builder - A.R.C.H.I.E.{% endblock %}
+
+{% block module_name %}project_builder{% endblock %}
+
+{% block content %}
+<!-- Include Creation Tools Navigation -->
+{% include 'includes/creation_tools_nav.html' %}
+
+<!-- Scanline Overlay -->
+<div class="scanline-overlay"></div>
+
+<!-- Main Container -->
+<div class="pb-container">
+    <!-- Page Header -->
+    <header class="pb-header">
+        <div class="pb-title-section">
+            <h1 class="pb-title">
+                <i data-lucide="building-2"></i>
+                PROJECT BUILDER
+            </h1>
+            <p class="pb-subtitle">AI-powered website and application builder</p>
+        </div>
+        <div class="pb-actions">
+            <button class="pb-btn pb-btn-primary" onclick="showNewProjectModal()">
+                <i data-lucide="plus"></i>
+                New Project
+            </button>
+        </div>
+    </header>
+
+    <!-- Stats Overview -->
+    <section class="pb-stats">
+        <div class="pb-stat-card" style="animation-delay: 0.1s">
+            <div class="pb-stat-icon">
+                <i data-lucide="folder"></i>
+            </div>
+            <div class="pb-stat-info">
+                <span class="pb-stat-value" id="totalProjects">0</span>
+                <span class="pb-stat-label">PROJECTS</span>
+            </div>
+        </div>
+        <div class="pb-stat-card" style="animation-delay: 0.2s">
+            <div class="pb-stat-icon pb-stat-icon--active">
+                <i data-lucide="activity"></i>
+            </div>
+            <div class="pb-stat-info">
+                <span class="pb-stat-value" id="activeProjects">0</span>
+                <span class="pb-stat-label">ACTIVE</span>
+            </div>
+        </div>
+        <div class="pb-stat-card" style="animation-delay: 0.3s">
+            <div class="pb-stat-icon pb-stat-icon--templates">
+                <i data-lucide="layout-template"></i>
+            </div>
+            <div class="pb-stat-info">
+                <span class="pb-stat-value" id="templatesAvailable">12</span>
+                <span class="pb-stat-label">TEMPLATES</span>
+            </div>
+        </div>
+        <div class="pb-stat-card" style="animation-delay: 0.4s">
+            <div class="pb-stat-icon pb-stat-icon--deployed">
+                <i data-lucide="rocket"></i>
+            </div>
+            <div class="pb-stat-info">
+                <span class="pb-stat-value" id="deployedProjects">0</span>
+                <span class="pb-stat-label">DEPLOYED</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Tab Navigation -->
+    <nav class="pb-tabs">
+        <button class="pb-tab active" data-tab="projects" onclick="switchTab('projects')">
+            <i data-lucide="folder-open"></i>
+            Projects
+        </button>
+        <button class="pb-tab" data-tab="templates" onclick="switchTab('templates')">
+            <i data-lucide="layout-template"></i>
+            Templates
+        </button>
+        <button class="pb-tab" data-tab="ai-assistant" onclick="switchTab('ai-assistant')">
+            <i data-lucide="bot"></i>
+            AI Assistant
+        </button>
+        <button class="pb-tab" data-tab="settings" onclick="switchTab('settings')">
+            <i data-lucide="settings"></i>
+            Settings
+        </button>
+    </nav>
+
+    <!-- Tab Content -->
+    <div class="pb-tab-content">
+        <!-- Projects Tab -->
+        <div class="pb-tab-panel active" id="projects-panel">
+            <!-- Search and Filter -->
+            <div class="pb-toolbar">
+                <div class="pb-search">
+                    <i data-lucide="search"></i>
+                    <input type="text" placeholder="Search projects..." id="projectSearch" onkeyup="filterProjects()">
+                </div>
+                <div class="pb-filters">
+                    <select class="pb-select" id="statusFilter" onchange="filterProjects()">
+                        <option value="">All Status</option>
+                        <option value="active">Active</option>
+                        <option value="draft">Draft</option>
+                        <option value="deployed">Deployed</option>
+                        <option value="archived">Archived</option>
+                    </select>
+                    <select class="pb-select" id="typeFilter" onchange="filterProjects()">
+                        <option value="">All Types</option>
+                        <option value="website">Website</option>
+                        <option value="webapp">Web App</option>
+                        <option value="mobile">Mobile App</option>
+                        <option value="api">API</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Projects Grid -->
+            <div class="pb-projects-grid" id="projectsGrid">
+                <!-- Empty State -->
+                <div class="pb-empty-state" id="emptyState">
+                    <div class="pb-empty-icon">
+                        <i data-lucide="folder-plus"></i>
+                    </div>
+                    <h3>No Projects Yet</h3>
+                    <p>Create your first project to get started</p>
+                    <button class="pb-btn pb-btn-primary" onclick="showNewProjectModal()">
+                        <i data-lucide="plus"></i>
+                        Create Project
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Templates Tab -->
+        <div class="pb-tab-panel" id="templates-panel">
+            <div class="pb-templates-grid">
+                <!-- Website Templates -->
+                <div class="pb-template-category">
+                    <h3 class="pb-category-title">
+                        <i data-lucide="globe"></i>
+                        Website Templates
+                    </h3>
+                    <div class="pb-template-cards">
+                        <div class="pb-template-card" onclick="selectTemplate('landing-page')">
+                            <div class="pb-template-preview">
+                                <i data-lucide="layout"></i>
+                            </div>
+                            <div class="pb-template-info">
+                                <h4>Landing Page</h4>
+                                <p>Modern single-page marketing site</p>
+                            </div>
+                        </div>
+                        <div class="pb-template-card" onclick="selectTemplate('portfolio')">
+                            <div class="pb-template-preview">
+                                <i data-lucide="user"></i>
+                            </div>
+                            <div class="pb-template-info">
+                                <h4>Portfolio</h4>
+                                <p>Showcase your work beautifully</p>
+                            </div>
+                        </div>
+                        <div class="pb-template-card" onclick="selectTemplate('blog')">
+                            <div class="pb-template-preview">
+                                <i data-lucide="file-text"></i>
+                            </div>
+                            <div class="pb-template-info">
+                                <h4>Blog</h4>
+                                <p>Content-focused publishing platform</p>
+                            </div>
+                        </div>
+                        <div class="pb-template-card" onclick="selectTemplate('ecommerce')">
+                            <div class="pb-template-preview">
+                                <i data-lucide="shopping-cart"></i>
+                            </div>
+                            <div class="pb-template-info">
+                                <h4>E-Commerce</h4>
+                                <p>Online store with cart & checkout</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Web App Templates -->
+                <div class="pb-template-category">
+                    <h3 class="pb-category-title">
+                        <i data-lucide="code-2"></i>
+                        Web App Templates
+                    </h3>
+                    <div class="pb-template-cards">
+                        <div class="pb-template-card" onclick="selectTemplate('dashboard')">
+                            <div class="pb-template-preview">
+                                <i data-lucide="layout-dashboard"></i>
+                            </div>
+                            <div class="pb-template-info">
+                                <h4>Dashboard</h4>
+                                <p>Admin panel with analytics</p>
+                            </div>
+                        </div>
+                        <div class="pb-template-card" onclick="selectTemplate('saas')">
+                            <div class="pb-template-preview">
+                                <i data-lucide="cloud"></i>
+                            </div>
+                            <div class="pb-template-info">
+                                <h4>SaaS App</h4>
+                                <p>Full-featured web application</p>
+                            </div>
+                        </div>
+                        <div class="pb-template-card" onclick="selectTemplate('crm')">
+                            <div class="pb-template-preview">
+                                <i data-lucide="users"></i>
+                            </div>
+                            <div class="pb-template-info">
+                                <h4>CRM</h4>
+                                <p>Customer management system</p>
+                            </div>
+                        </div>
+                        <div class="pb-template-card" onclick="selectTemplate('api')">
+                            <div class="pb-template-preview">
+                                <i data-lucide="server"></i>
+                            </div>
+                            <div class="pb-template-info">
+                                <h4>API Service</h4>
+                                <p>RESTful backend scaffold</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mobile Templates -->
+                <div class="pb-template-category">
+                    <h3 class="pb-category-title">
+                        <i data-lucide="smartphone"></i>
+                        Mobile App Templates
+                    </h3>
+                    <div class="pb-template-cards">
+                        <div class="pb-template-card" onclick="selectTemplate('mobile-app')">
+                            <div class="pb-template-preview">
+                                <i data-lucide="smartphone"></i>
+                            </div>
+                            <div class="pb-template-info">
+                                <h4>Mobile App</h4>
+                                <p>React Native starter</p>
+                            </div>
+                        </div>
+                        <div class="pb-template-card" onclick="selectTemplate('pwa')">
+                            <div class="pb-template-preview">
+                                <i data-lucide="wifi"></i>
+                            </div>
+                            <div class="pb-template-info">
+                                <h4>PWA</h4>
+                                <p>Progressive Web App</p>
+                            </div>
+                        </div>
+                        <div class="pb-template-card" onclick="selectTemplate('flutter')">
+                            <div class="pb-template-preview">
+                                <i data-lucide="layers"></i>
+                            </div>
+                            <div class="pb-template-info">
+                                <h4>Flutter</h4>
+                                <p>Cross-platform mobile app</p>
+                            </div>
+                        </div>
+                        <div class="pb-template-card" onclick="selectTemplate('expo')">
+                            <div class="pb-template-preview">
+                                <i data-lucide="box"></i>
+                            </div>
+                            <div class="pb-template-info">
+                                <h4>Expo</h4>
+                                <p>Expo React Native starter</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Assistant Tab -->
+        <div class="pb-tab-panel" id="ai-assistant-panel">
+            <div class="pb-ai-container">
+                <div class="pb-ai-chat">
+                    <div class="pb-ai-header">
+                        <div class="pb-ai-avatar">
+                            <i data-lucide="bot"></i>
+                        </div>
+                        <div class="pb-ai-info">
+                            <h3>A.R.C.H.I.E. Project Assistant</h3>
+                            <span class="pb-ai-status">Online</span>
+                        </div>
+                    </div>
+                    <div class="pb-ai-messages" id="aiMessages">
+                        <div class="pb-ai-message pb-ai-message--assistant">
+                            <div class="pb-ai-message-content">
+                                Hello! I'm your AI project assistant. I can help you:
+                                <ul>
+                                    <li>Generate project scaffolds</li>
+                                    <li>Write code and components</li>
+                                    <li>Debug issues</li>
+                                    <li>Suggest optimizations</li>
+                                </ul>
+                                What would you like to build today?
+                            </div>
+                        </div>
+                    </div>
+                    <div class="pb-ai-input">
+                        <textarea id="aiInput" placeholder="Describe what you want to build..." rows="3"></textarea>
+                        <button class="pb-btn pb-btn-primary" onclick="sendAiMessage()">
+                            <i data-lucide="send"></i>
+                            Send
+                        </button>
+                    </div>
+                </div>
+                <div class="pb-ai-suggestions">
+                    <h4>Quick Prompts</h4>
+                    <div class="pb-suggestions-list">
+                        <button class="pb-suggestion" onclick="usePrompt('Create a responsive landing page with hero section, features, and contact form')">
+                            <i data-lucide="layout"></i>
+                            Landing page with hero
+                        </button>
+                        <button class="pb-suggestion" onclick="usePrompt('Build a user authentication system with login, register, and password reset')">
+                            <i data-lucide="lock"></i>
+                            Auth system
+                        </button>
+                        <button class="pb-suggestion" onclick="usePrompt('Create a REST API with CRUD operations for a product catalog')">
+                            <i data-lucide="server"></i>
+                            REST API scaffold
+                        </button>
+                        <button class="pb-suggestion" onclick="usePrompt('Build a dashboard with charts, stats cards, and data tables')">
+                            <i data-lucide="bar-chart-2"></i>
+                            Admin dashboard
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Tab -->
+        <div class="pb-tab-panel" id="settings-panel">
+            <div class="pb-settings">
+                <div class="pb-settings-section">
+                    <h3>
+                        <i data-lucide="folder-cog"></i>
+                        Project Defaults
+                    </h3>
+                    <div class="pb-settings-grid">
+                        <div class="pb-setting">
+                            <label>Default Framework</label>
+                            <select class="pb-select">
+                                <option value="react">React</option>
+                                <option value="vue">Vue.js</option>
+                                <option value="svelte">Svelte</option>
+                                <option value="nextjs">Next.js</option>
+                                <option value="flask">Flask (Python)</option>
+                            </select>
+                        </div>
+                        <div class="pb-setting">
+                            <label>Default Styling</label>
+                            <select class="pb-select">
+                                <option value="tailwind">Tailwind CSS</option>
+                                <option value="css">Plain CSS</option>
+                                <option value="scss">SCSS</option>
+                                <option value="styled">Styled Components</option>
+                            </select>
+                        </div>
+                        <div class="pb-setting">
+                            <label>Project Path</label>
+                            <input type="text" class="pb-input" value="/mnt/archie_brain/projects/">
+                        </div>
+                        <div class="pb-setting">
+                            <label>Git Integration</label>
+                            <div class="pb-toggle">
+                                <input type="checkbox" id="gitToggle" checked>
+                                <label for="gitToggle"></label>
+                                <span>Auto-initialize git repository</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pb-settings-section">
+                    <h3>
+                        <i data-lucide="cpu"></i>
+                        AI Settings
+                    </h3>
+                    <div class="pb-settings-grid">
+                        <div class="pb-setting">
+                            <label>AI Model</label>
+                            <select class="pb-select">
+                                <option value="claude">Claude (Anthropic)</option>
+                                <option value="gpt4">GPT-4 (OpenAI)</option>
+                                <option value="ollama">Ollama (Local)</option>
+                            </select>
+                        </div>
+                        <div class="pb-setting">
+                            <label>Code Style</label>
+                            <select class="pb-select">
+                                <option value="clean">Clean & Minimal</option>
+                                <option value="documented">Well-Documented</option>
+                                <option value="verbose">Verbose with Comments</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Project Modal -->
+<div class="pb-modal" id="newProjectModal">
+    <div class="pb-modal-content">
+        <div class="pb-modal-header">
+            <h2>
+                <i data-lucide="plus-circle"></i>
+                Create New Project
+            </h2>
+            <button class="pb-modal-close" onclick="closeNewProjectModal()">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <div class="pb-modal-body">
+            <div class="pb-form-group">
+                <label>Project Name</label>
+                <input type="text" class="pb-input" id="projectName" placeholder="my-awesome-project">
+            </div>
+            <div class="pb-form-group">
+                <label>Project Type</label>
+                <select class="pb-select" id="projectType">
+                    <option value="website">Website</option>
+                    <option value="webapp">Web Application</option>
+                    <option value="mobile">Mobile App</option>
+                    <option value="api">API Service</option>
+                </select>
+            </div>
+            <div class="pb-form-group">
+                <label>Template</label>
+                <select class="pb-select" id="projectTemplate">
+                    <option value="blank">Blank Project</option>
+                    <option value="landing-page">Landing Page</option>
+                    <option value="portfolio">Portfolio</option>
+                    <option value="dashboard">Dashboard</option>
+                    <option value="saas">SaaS App</option>
+                </select>
+            </div>
+            <div class="pb-form-group">
+                <label>Description (optional)</label>
+                <textarea class="pb-textarea" id="projectDescription" placeholder="Brief description of your project..."></textarea>
+            </div>
+
+            <!-- Figma Import Section -->
+            <div class="pb-form-group pb-figma-import">
+                <label>
+                    <input type="checkbox" id="useFigmaImport" onchange="toggleFigmaImport()">
+                    Import from Figma Design
+                </label>
+                <div id="figmaImportFields" class="pb-figma-fields" style="display: none;">
+                    <input type="text" class="pb-input" id="figmaExportId" placeholder="Enter Figma export ID">
+                    <small class="pb-help-text">Get the export ID from Figma Integration module</small>
+                </div>
+            </div>
+        </div>
+        <div class="pb-modal-footer">
+            <button class="pb-btn pb-btn-secondary" onclick="closeNewProjectModal()">Cancel</button>
+            <button class="pb-btn pb-btn-primary" onclick="createProject()">
+                <i data-lucide="rocket"></i>
+                Create Project
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════════
+   PROJECT BUILDER - NEO-COMMAND CENTER AESTHETIC (ORANGE THEME)
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+:root {
+    --pb-accent: #F59E0B;
+    --pb-accent-rgb: 245, 158, 11;
+    --pb-accent-light: #FCD34D;
+    --pb-accent-dark: #D97706;
+    --pb-secondary: #EF4444;
+    --pb-success: #10B981;
+    --pb-warning: #F59E0B;
+    --pb-danger: #EF4444;
+    --pb-bg-primary: #0a0a0f;
+    --pb-bg-secondary: #0d1117;
+    --pb-bg-card: rgba(13, 17, 23, 0.95);
+    --pb-border: rgba(245, 158, 11, 0.2);
+    --pb-text-primary: #ffffff;
+    --pb-text-secondary: rgba(255, 255, 255, 0.7);
+    --pb-text-muted: rgba(255, 255, 255, 0.5);
+}
+
+/* Container */
+.pb-container {
+    min-height: 100vh;
+    background: var(--pb-bg-primary);
+    padding: 20px 30px 40px;
+    padding-top: 80px;
+}
+
+/* Scanline Overlay */
+.scanline-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 0, 0, 0.03) 0px,
+        rgba(0, 0, 0, 0.03) 1px,
+        transparent 1px,
+        transparent 2px
+    );
+    pointer-events: none;
+    z-index: 1000;
+}
+
+/* Header */
+.pb-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    animation: fadeInUp 0.5s ease-out;
+}
+
+.pb-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--pb-accent);
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    text-shadow: 0 0 20px rgba(var(--pb-accent-rgb), 0.5);
+    margin: 0;
+}
+
+.pb-title i {
+    width: 36px;
+    height: 36px;
+}
+
+.pb-subtitle {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--pb-text-secondary);
+    margin: 8px 0 0 51px;
+    letter-spacing: 0.5px;
+}
+
+/* Buttons */
+.pb-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    text-transform: uppercase;
+}
+
+.pb-btn i {
+    width: 18px;
+    height: 18px;
+}
+
+.pb-btn-primary {
+    background: transparent;
+    color: var(--pb-accent);
+    border: 2px solid var(--pb-accent);
+}
+
+.pb-btn-primary:hover {
+    background: var(--pb-accent);
+    color: #000;
+    box-shadow: 0 0 20px rgba(var(--pb-accent-rgb), 0.4);
+}
+
+.pb-btn-secondary {
+    background: transparent;
+    color: var(--pb-text-secondary);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.pb-btn-secondary:hover {
+    border-color: rgba(255, 255, 255, 0.4);
+    color: var(--pb-text-primary);
+}
+
+/* Stats Section */
+.pb-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.pb-stat-card {
+    background: var(--pb-bg-card);
+    border: 1px solid var(--pb-border);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    backdrop-filter: blur(10px);
+    animation: fadeInUp 0.5s ease-out both;
+    transition: all 0.3s ease;
+}
+
+.pb-stat-card:hover {
+    border-color: rgba(var(--pb-accent-rgb), 0.5);
+    box-shadow: 0 0 20px rgba(var(--pb-accent-rgb), 0.15);
+    transform: translateY(-2px);
+}
+
+.pb-stat-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(var(--pb-accent-rgb), 0.1);
+    color: var(--pb-accent);
+}
+
+.pb-stat-icon i {
+    width: 24px;
+    height: 24px;
+}
+
+.pb-stat-icon--active {
+    background: rgba(16, 185, 129, 0.1);
+    color: #10B981;
+}
+
+.pb-stat-icon--templates {
+    background: rgba(139, 92, 246, 0.1);
+    color: #8B5CF6;
+}
+
+.pb-stat-icon--deployed {
+    background: rgba(59, 130, 246, 0.1);
+    color: #3B82F6;
+}
+
+.pb-stat-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.pb-stat-value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--pb-text-primary);
+}
+
+.pb-stat-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--pb-text-muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+/* Tab Navigation */
+.pb-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--pb-border);
+    padding-bottom: 0;
+}
+
+.pb-tab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--pb-text-muted);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.25s ease;
+}
+
+.pb-tab i {
+    width: 18px;
+    height: 18px;
+}
+
+.pb-tab::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--pb-accent);
+    transform: scaleX(0);
+    transition: transform 0.25s ease;
+}
+
+.pb-tab:hover {
+    color: var(--pb-text-secondary);
+}
+
+.pb-tab.active {
+    color: var(--pb-accent);
+}
+
+.pb-tab.active::after {
+    transform: scaleX(1);
+}
+
+/* Tab Content */
+.pb-tab-panel {
+    display: none;
+    animation: fadeIn 0.3s ease;
+}
+
+.pb-tab-panel.active {
+    display: block;
+}
+
+/* Toolbar */
+.pb-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    gap: 20px;
+}
+
+.pb-search {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--pb-bg-card);
+    border: 1px solid var(--pb-border);
+    border-radius: 8px;
+    padding: 0 16px;
+    flex: 1;
+    max-width: 400px;
+}
+
+.pb-search i {
+    width: 18px;
+    height: 18px;
+    color: var(--pb-text-muted);
+}
+
+.pb-search input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    padding: 12px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--pb-text-primary);
+}
+
+.pb-search input::placeholder {
+    color: var(--pb-text-muted);
+}
+
+.pb-search input:focus {
+    outline: none;
+}
+
+.pb-filters {
+    display: flex;
+    gap: 12px;
+}
+
+.pb-select {
+    background: var(--pb-bg-card);
+    border: 1px solid var(--pb-border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--pb-text-primary);
+    cursor: pointer;
+    min-width: 150px;
+}
+
+.pb-select:focus {
+    outline: none;
+    border-color: var(--pb-accent);
+}
+
+/* Projects Grid */
+.pb-projects-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 20px;
+}
+
+/* Empty State */
+.pb-empty-state {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 80px 40px;
+    text-align: center;
+    background: var(--pb-bg-card);
+    border: 1px dashed var(--pb-border);
+    border-radius: 12px;
+}
+
+.pb-empty-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: rgba(var(--pb-accent-rgb), 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+}
+
+.pb-empty-icon i {
+    width: 40px;
+    height: 40px;
+    color: var(--pb-accent);
+}
+
+.pb-empty-state h3 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.25rem;
+    color: var(--pb-text-primary);
+    margin: 0 0 8px;
+}
+
+.pb-empty-state p {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--pb-text-muted);
+    margin: 0 0 24px;
+}
+
+/* Project Card */
+.pb-project-card {
+    background: var(--pb-bg-card);
+    border: 1px solid var(--pb-border);
+    border-radius: 12px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.pb-project-card:hover {
+    border-color: rgba(var(--pb-accent-rgb), 0.5);
+    box-shadow: 0 0 20px rgba(var(--pb-accent-rgb), 0.15);
+    transform: translateY(-2px);
+}
+
+.pb-project-preview {
+    height: 140px;
+    background: linear-gradient(135deg, rgba(var(--pb-accent-rgb), 0.1), rgba(139, 92, 246, 0.1));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pb-project-preview i {
+    width: 48px;
+    height: 48px;
+    color: var(--pb-accent);
+    opacity: 0.5;
+}
+
+.pb-project-info {
+    padding: 20px;
+}
+
+.pb-project-name {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    color: var(--pb-text-primary);
+    margin: 0 0 8px;
+}
+
+.pb-project-type {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--pb-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.pb-project-desc {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--pb-text-secondary);
+    margin: 8px 0 0;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.pb-project-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.pb-project-actions .pb-btn {
+    flex: 1;
+    justify-content: center;
+    padding: 8px 12px;
+    font-size: 0.75rem;
+}
+
+/* Templates */
+.pb-templates-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+}
+
+.pb-template-category {
+    animation: fadeInUp 0.5s ease-out both;
+}
+
+.pb-category-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    color: var(--pb-text-primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 20px;
+}
+
+.pb-category-title i {
+    width: 20px;
+    height: 20px;
+    color: var(--pb-accent);
+}
+
+.pb-template-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+}
+
+.pb-template-card {
+    background: var(--pb-bg-card);
+    border: 1px solid var(--pb-border);
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.pb-template-card:hover {
+    border-color: var(--pb-accent);
+    box-shadow: 0 0 20px rgba(var(--pb-accent-rgb), 0.2);
+    transform: translateY(-2px);
+}
+
+.pb-template-preview {
+    height: 100px;
+    background: linear-gradient(135deg, rgba(var(--pb-accent-rgb), 0.05), rgba(139, 92, 246, 0.05));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pb-template-preview i {
+    width: 36px;
+    height: 36px;
+    color: var(--pb-accent);
+    opacity: 0.6;
+}
+
+.pb-template-info {
+    padding: 16px;
+}
+
+.pb-template-info h4 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.9rem;
+    color: var(--pb-text-primary);
+    margin: 0 0 6px;
+}
+
+.pb-template-info p {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--pb-text-muted);
+    margin: 0;
+}
+
+/* AI Assistant */
+.pb-ai-container {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 24px;
+    min-height: 500px;
+}
+
+.pb-ai-chat {
+    background: var(--pb-bg-card);
+    border: 1px solid var(--pb-border);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.pb-ai-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+    border-bottom: 1px solid var(--pb-border);
+}
+
+.pb-ai-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--pb-accent), var(--pb-secondary));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pb-ai-avatar i {
+    width: 24px;
+    height: 24px;
+    color: white;
+}
+
+.pb-ai-info h3 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    color: var(--pb-text-primary);
+    margin: 0 0 4px;
+}
+
+.pb-ai-status {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--pb-success);
+}
+
+.pb-ai-messages {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.pb-ai-message {
+    margin-bottom: 16px;
+}
+
+.pb-ai-message--assistant .pb-ai-message-content {
+    background: rgba(var(--pb-accent-rgb), 0.1);
+    border: 1px solid rgba(var(--pb-accent-rgb), 0.2);
+    border-radius: 12px;
+    padding: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--pb-text-primary);
+    line-height: 1.6;
+}
+
+.pb-ai-message--assistant ul {
+    margin: 12px 0 0 20px;
+    padding: 0;
+}
+
+.pb-ai-message--assistant li {
+    margin: 8px 0;
+}
+
+.pb-ai-message--user .pb-ai-message-content {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--pb-text-secondary);
+}
+
+.pb-ai-input {
+    display: flex;
+    gap: 12px;
+    padding: 20px;
+    border-top: 1px solid var(--pb-border);
+}
+
+.pb-ai-input textarea {
+    flex: 1;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--pb-border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--pb-text-primary);
+    resize: none;
+}
+
+.pb-ai-input textarea:focus {
+    outline: none;
+    border-color: var(--pb-accent);
+}
+
+.pb-ai-suggestions {
+    background: var(--pb-bg-card);
+    border: 1px solid var(--pb-border);
+    border-radius: 12px;
+    padding: 20px;
+}
+
+.pb-ai-suggestions h4 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.9rem;
+    color: var(--pb-text-primary);
+    margin: 0 0 16px;
+}
+
+.pb-suggestions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.pb-suggestion {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: transparent;
+    border: 1px solid var(--pb-border);
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--pb-text-secondary);
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.25s ease;
+}
+
+.pb-suggestion i {
+    width: 16px;
+    height: 16px;
+    color: var(--pb-accent);
+}
+
+.pb-suggestion:hover {
+    border-color: var(--pb-accent);
+    background: rgba(var(--pb-accent-rgb), 0.05);
+    color: var(--pb-text-primary);
+}
+
+/* Settings */
+.pb-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+}
+
+.pb-settings-section {
+    background: var(--pb-bg-card);
+    border: 1px solid var(--pb-border);
+    border-radius: 12px;
+    padding: 24px;
+}
+
+.pb-settings-section h3 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    color: var(--pb-text-primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 20px;
+}
+
+.pb-settings-section h3 i {
+    width: 20px;
+    height: 20px;
+    color: var(--pb-accent);
+}
+
+.pb-settings-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+}
+
+.pb-setting {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.pb-setting label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--pb-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.pb-input {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--pb-border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--pb-text-primary);
+}
+
+.pb-input:focus {
+    outline: none;
+    border-color: var(--pb-accent);
+}
+
+.pb-toggle {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.pb-toggle input {
+    display: none;
+}
+
+.pb-toggle label {
+    width: 48px;
+    height: 24px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.pb-toggle label::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    background: white;
+    border-radius: 50%;
+    transition: all 0.25s ease;
+}
+
+.pb-toggle input:checked + label {
+    background: var(--pb-accent);
+}
+
+.pb-toggle input:checked + label::after {
+    left: 26px;
+}
+
+.pb-toggle span {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--pb-text-secondary);
+}
+
+/* Modal */
+.pb-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+
+.pb-modal.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.pb-modal-content {
+    background: var(--pb-bg-secondary);
+    border: 1px solid var(--pb-border);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 500px;
+    transform: translateY(20px);
+    transition: transform 0.3s ease;
+}
+
+.pb-modal.active .pb-modal-content {
+    transform: translateY(0);
+}
+
+.pb-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 24px;
+    border-bottom: 1px solid var(--pb-border);
+}
+
+.pb-modal-header h2 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.25rem;
+    color: var(--pb-text-primary);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 0;
+}
+
+.pb-modal-header h2 i {
+    width: 24px;
+    height: 24px;
+    color: var(--pb-accent);
+}
+
+.pb-modal-close {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: transparent;
+    border: 1px solid var(--pb-border);
+    color: var(--pb-text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.25s ease;
+}
+
+.pb-modal-close:hover {
+    border-color: var(--pb-danger);
+    color: var(--pb-danger);
+}
+
+.pb-modal-body {
+    padding: 24px;
+}
+
+.pb-form-group {
+    margin-bottom: 20px;
+}
+
+.pb-form-group:last-child {
+    margin-bottom: 0;
+}
+
+.pb-form-group label {
+    display: block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--pb-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.pb-form-group .pb-input,
+.pb-form-group .pb-select {
+    width: 100%;
+}
+
+.pb-textarea {
+    width: 100%;
+    min-height: 80px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--pb-border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--pb-text-primary);
+    resize: vertical;
+}
+
+.pb-textarea:focus {
+    outline: none;
+    border-color: var(--pb-accent);
+}
+
+/* Figma Import Section */
+.pb-figma-import label {
+    display: flex !important;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+}
+
+.pb-figma-import input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--pb-accent);
+}
+
+.pb-figma-fields {
+    margin-top: 12px;
+    padding: 16px;
+    background: rgba(var(--pb-accent-rgb), 0.05);
+    border: 1px solid rgba(var(--pb-accent-rgb), 0.2);
+    border-radius: 8px;
+}
+
+.pb-figma-fields .pb-input {
+    margin-bottom: 8px;
+}
+
+.pb-help-text {
+    font-size: 0.75rem;
+    color: var(--pb-text-muted);
+}
+
+.pb-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 24px;
+    border-top: 1px solid var(--pb-border);
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   LIGHT MODE OVERRIDES
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+body.light-mode .pb-container {
+    background: #f8f9fa;
+}
+
+body.light-mode .pb-title {
+    color: #D97706;
+    text-shadow: none;
+}
+
+body.light-mode .pb-subtitle {
+    color: #666;
+}
+
+body.light-mode .pb-stat-card,
+body.light-mode .pb-ai-chat,
+body.light-mode .pb-ai-suggestions,
+body.light-mode .pb-settings-section,
+body.light-mode .pb-template-card,
+body.light-mode .pb-project-card {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: rgba(217, 119, 6, 0.2);
+}
+
+body.light-mode .pb-stat-value,
+body.light-mode .pb-category-title,
+body.light-mode .pb-ai-info h3,
+body.light-mode .pb-settings-section h3,
+body.light-mode .pb-ai-suggestions h4,
+body.light-mode .pb-template-info h4,
+body.light-mode .pb-project-name,
+body.light-mode .pb-empty-state h3 {
+    color: #1a1a2e;
+}
+
+body.light-mode .pb-stat-label,
+body.light-mode .pb-text-muted,
+body.light-mode .pb-project-type,
+body.light-mode .pb-template-info p,
+body.light-mode .pb-empty-state p {
+    color: #666;
+}
+
+body.light-mode .pb-tab {
+    color: #666;
+}
+
+body.light-mode .pb-tab.active {
+    color: #D97706;
+}
+
+body.light-mode .pb-search,
+body.light-mode .pb-select,
+body.light-mode .pb-input,
+body.light-mode .pb-textarea,
+body.light-mode .pb-ai-input textarea {
+    background: rgba(255, 255, 255, 0.8);
+    border-color: rgba(217, 119, 6, 0.2);
+    color: #1a1a2e;
+}
+
+body.light-mode .pb-btn-primary {
+    color: #D97706;
+    border-color: #D97706;
+}
+
+body.light-mode .pb-btn-primary:hover {
+    background: #D97706;
+    color: white;
+}
+
+body.light-mode .pb-empty-state {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: rgba(217, 119, 6, 0.2);
+}
+
+body.light-mode .pb-modal-content {
+    background: #f8f9fa;
+    border-color: rgba(217, 119, 6, 0.3);
+}
+
+body.light-mode .pb-modal-header h2,
+body.light-mode .pb-form-group label {
+    color: #1a1a2e;
+}
+
+body.light-mode .pb-ai-message--assistant .pb-ai-message-content {
+    background: rgba(217, 119, 6, 0.08);
+    border-color: rgba(217, 119, 6, 0.2);
+    color: #1a1a2e;
+}
+
+body.light-mode .pb-suggestion {
+    color: #666;
+    border-color: rgba(217, 119, 6, 0.2);
+}
+
+body.light-mode .pb-suggestion:hover {
+    border-color: #D97706;
+    background: rgba(217, 119, 6, 0.05);
+    color: #1a1a2e;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   RESPONSIVE DESIGN
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 1200px) {
+    .pb-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .pb-ai-container {
+        grid-template-columns: 1fr;
+    }
+
+    .pb-ai-suggestions {
+        order: -1;
+    }
+
+    .pb-suggestions-list {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+
+    .pb-suggestion {
+        flex: 1 1 calc(50% - 8px);
+    }
+}
+
+@media (max-width: 992px) {
+    .pb-container {
+        padding: 20px;
+        padding-top: 80px;
+    }
+
+    .pb-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+    }
+
+    .pb-settings-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .pb-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .pb-title {
+        font-size: 1.5rem;
+    }
+
+    .pb-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .pb-search {
+        max-width: none;
+    }
+
+    .pb-filters {
+        flex-direction: column;
+    }
+
+    .pb-tabs {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .pb-tab {
+        white-space: nowrap;
+    }
+
+    .pb-template-cards {
+        grid-template-columns: 1fr;
+    }
+
+    .pb-suggestion {
+        flex: 1 1 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .pb-container {
+        padding: 15px;
+        padding-top: 70px;
+    }
+
+    .pb-title {
+        font-size: 1.25rem;
+    }
+
+    .pb-subtitle {
+        margin-left: 0;
+    }
+
+    .pb-btn {
+        padding: 10px 16px;
+        font-size: 0.8rem;
+    }
+
+    .pb-modal-content {
+        margin: 15px;
+        max-width: calc(100% - 30px);
+    }
+}
+</style>
+
+<script>
+// Initialize Lucide icons
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+    loadProjects();
+});
+
+// Tab switching
+function switchTab(tabId) {
+    // Update tab buttons
+    document.querySelectorAll('.pb-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.tab === tabId);
+    });
+
+    // Update panels
+    document.querySelectorAll('.pb-tab-panel').forEach(panel => {
+        panel.classList.toggle('active', panel.id === tabId + '-panel');
+    });
+
+    // Reinitialize icons
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+}
+
+// Project management
+const API_BASE = '/tools/project-builder/api';
+let projects = [];
+
+async function loadProjects() {
+    try {
+        const response = await fetch(`${API_BASE}/projects`);
+        const data = await response.json();
+        if (data.success) {
+            projects = data.projects || [];
+        } else {
+            projects = [];
+        }
+    } catch (error) {
+        console.error('Failed to load projects:', error);
+        projects = [];
+    }
+    renderProjects();
+    loadStats();
+}
+
+async function loadStats() {
+    try {
+        const response = await fetch(`${API_BASE}/stats`);
+        const data = await response.json();
+        if (data.success && data.stats) {
+            document.getElementById('totalProjects').textContent = data.stats.total_projects || 0;
+            document.getElementById('activeProjects').textContent = data.stats.active_projects || 0;
+            document.getElementById('deployedProjects').textContent = data.stats.deployed_projects || 0;
+            document.getElementById('templatesAvailable').textContent = data.stats.templates || 12;
+        }
+    } catch (error) {
+        console.error('Failed to load stats:', error);
+        updateStats();
+    }
+}
+
+function renderProjects() {
+    const grid = document.getElementById('projectsGrid');
+    const emptyState = document.getElementById('emptyState');
+
+    if (projects.length === 0) {
+        emptyState.style.display = 'flex';
+        return;
+    }
+
+    emptyState.style.display = 'none';
+
+    const filtered = filterProjectsList();
+
+    let html = '';
+    filtered.forEach((project, index) => {
+        const projectType = project.project_type || project.type || 'website';
+        const projectStatus = project.status || 'draft';
+        html += `
+            <div class="pb-project-card" style="animation-delay: ${0.1 * (index + 1)}s">
+                <div class="pb-project-preview">
+                    <i data-lucide="${getProjectIcon(projectType)}"></i>
+                </div>
+                <div class="pb-project-info">
+                    <h4 class="pb-project-name">${escapeHtml(project.name)}</h4>
+                    <span class="pb-project-type">${projectType.toUpperCase()} - ${projectStatus}</span>
+                    ${project.description ? `<p class="pb-project-desc">${escapeHtml(project.description)}</p>` : ''}
+                    <div class="pb-project-actions">
+                        <button class="pb-btn pb-btn-secondary" onclick="openProject('${project.id}')" title="Open Project">
+                            <i data-lucide="folder-open"></i>
+                            Open
+                        </button>
+                        <button class="pb-btn pb-btn-secondary" onclick="generateProjectCode('${project.id}')" title="Generate Code">
+                            <i data-lucide="wand-2"></i>
+                        </button>
+                        <button class="pb-btn pb-btn-secondary" onclick="deleteProject('${project.id}')" title="Delete Project">
+                            <i data-lucide="trash-2"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    grid.innerHTML = html + emptyState.outerHTML;
+
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+}
+
+function getProjectIcon(type) {
+    const icons = {
+        'website': 'globe',
+        'webapp': 'layout-dashboard',
+        'mobile': 'smartphone',
+        'api': 'server'
+    };
+    return icons[type] || 'folder';
+}
+
+function updateStats() {
+    document.getElementById('totalProjects').textContent = projects.length;
+    document.getElementById('activeProjects').textContent = projects.filter(p => p.status === 'active').length;
+    document.getElementById('deployedProjects').textContent = projects.filter(p => p.status === 'deployed').length;
+}
+
+function filterProjects() {
+    renderProjects();
+}
+
+function filterProjectsList() {
+    const search = document.getElementById('projectSearch').value.toLowerCase();
+    const status = document.getElementById('statusFilter').value;
+    const type = document.getElementById('typeFilter').value;
+
+    return projects.filter(p => {
+        const matchSearch = p.name.toLowerCase().includes(search);
+        const matchStatus = !status || p.status === status;
+        const matchType = !type || p.type === type;
+        return matchSearch && matchStatus && matchType;
+    });
+}
+
+// Modal functions
+function showNewProjectModal() {
+    document.getElementById('newProjectModal').classList.add('active');
+}
+
+function closeNewProjectModal() {
+    document.getElementById('newProjectModal').classList.remove('active');
+    document.getElementById('projectName').value = '';
+    document.getElementById('projectDescription').value = '';
+}
+
+async function createProject() {
+    const name = document.getElementById('projectName').value.trim();
+    const type = document.getElementById('projectType').value;
+    const template = document.getElementById('projectTemplate').value;
+    const description = document.getElementById('projectDescription').value.trim();
+    const useFigma = document.getElementById('useFigmaImport')?.checked || false;
+    const figmaExportId = document.getElementById('figmaExportId')?.value.trim() || null;
+
+    if (!name) {
+        showToast('Please enter a project name', 'warning');
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/projects`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: name,
+                project_type: type,
+                template_id: template,
+                description: description
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showToast('Project created successfully!', 'success');
+
+            // If Figma import is enabled, trigger the import
+            if (useFigma && figmaExportId && data.project_id) {
+                await importFigmaDesign(data.project_id, figmaExportId);
+            }
+
+            closeNewProjectModal();
+            loadProjects();
+        } else {
+            showToast(data.error || 'Failed to create project', 'error');
+        }
+    } catch (error) {
+        console.error('Create project error:', error);
+        showToast('Failed to create project', 'error');
+    }
+}
+
+async function importFigmaDesign(projectId, exportId) {
+    try {
+        showToast('Importing Figma design...', 'info');
+        const response = await fetch(`${API_BASE}/projects/${projectId}/import-figma`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ export_id: exportId })
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            showToast('Figma design imported!', 'success');
+        } else {
+            showToast(data.error || 'Failed to import Figma design', 'warning');
+        }
+    } catch (error) {
+        console.error('Figma import error:', error);
+    }
+}
+
+function toggleFigmaImport() {
+    const checkbox = document.getElementById('useFigmaImport');
+    const fields = document.getElementById('figmaImportFields');
+    fields.style.display = checkbox.checked ? 'block' : 'none';
+}
+
+function openProject(id) {
+    const project = projects.find(p => p.id === id);
+    if (project) {
+        showToast(`Opening ${project.name}...`, 'info');
+        // TODO: Navigate to project editor
+    }
+}
+
+async function deleteProject(id) {
+    if (confirm('Are you sure you want to delete this project?')) {
+        try {
+            const response = await fetch(`${API_BASE}/projects/${id}`, {
+                method: 'DELETE'
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                showToast('Project deleted', 'success');
+                loadProjects();
+            } else {
+                showToast(data.error || 'Failed to delete project', 'error');
+            }
+        } catch (error) {
+            console.error('Delete project error:', error);
+            showToast('Failed to delete project', 'error');
+        }
+    }
+}
+
+async function generateProjectCode(projectId) {
+    try {
+        showToast('Generating code...', 'info');
+        const response = await fetch(`${API_BASE}/projects/${projectId}/generate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            showToast(`Generated ${data.files_created || 0} files!`, 'success');
+            loadProjects();
+        } else {
+            showToast(data.error || 'Generation failed', 'error');
+        }
+    } catch (error) {
+        console.error('Generate code error:', error);
+        showToast('Failed to generate code', 'error');
+    }
+}
+
+// Template selection
+function selectTemplate(templateId) {
+    document.getElementById('projectTemplate').value = templateId;
+    showNewProjectModal();
+    showToast(`Template "${templateId}" selected`, 'info');
+}
+
+// AI Assistant
+function sendAiMessage() {
+    const input = document.getElementById('aiInput');
+    const message = input.value.trim();
+
+    if (!message) return;
+
+    const messagesContainer = document.getElementById('aiMessages');
+
+    // Add user message
+    messagesContainer.innerHTML += `
+        <div class="pb-ai-message pb-ai-message--user">
+            <div class="pb-ai-message-content">${escapeHtml(message)}</div>
+        </div>
+    `;
+
+    input.value = '';
+
+    // Simulate AI response
+    setTimeout(() => {
+        messagesContainer.innerHTML += `
+            <div class="pb-ai-message pb-ai-message--assistant">
+                <div class="pb-ai-message-content">
+                    I understand you want to ${message.toLowerCase()}. Let me help you with that!
+                    <br><br>
+                    This feature is currently being developed. Soon I'll be able to generate complete project scaffolds and code for you.
+                </div>
+            </div>
+        `;
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }, 1000);
+
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+function usePrompt(prompt) {
+    document.getElementById('aiInput').value = prompt;
+    switchTab('ai-assistant');
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Toast notification
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `flash ${type}`;
+    toast.innerHTML = `> ${message}`;
+
+    let container = document.querySelector('.flash-messages');
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'flash-messages';
+        document.body.appendChild(container);
+    }
+
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.3s';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+// Close modal on background click
+document.getElementById('newProjectModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        closeNewProjectModal();
+    }
+});
+
+// Close modal on Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeNewProjectModal();
+    }
+});
+</script>
+{% endblock %}

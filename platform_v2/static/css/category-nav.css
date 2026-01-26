@@ -1,0 +1,301 @@
+/* ═══════════════════════════════════════════════════════════════════════════════
+   CATEGORY NAVIGATION - SHARED BASE STYLES
+   Phase 29.8: Category Navigation System
+
+   Used by:
+   - Admin Operations (orange): admin_ops_nav.html
+   - Development Tools (cyan): dev_tools_nav.html
+   - Admin Tools (red): admin_tools_nav.html
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   PAGE TRANSITION OVERLAY (BASE)
+   ═══════════════════════════════════════════════════════════════════════════════ */
+.page-transition-overlay {
+    position: fixed;
+    inset: 0;
+    background: #000;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.page-transition-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.transition-content {
+    text-align: center;
+}
+
+.transition-logo {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2rem;
+    font-weight: 900;
+    letter-spacing: 0.2em;
+    margin-bottom: 24px;
+    animation: transitionPulse 1s ease-in-out infinite;
+}
+
+@keyframes transitionPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+.transition-bar {
+    width: 200px;
+    height: 4px;
+    border-radius: 2px;
+    margin: 0 auto 16px;
+    overflow: hidden;
+}
+
+.transition-progress {
+    height: 100%;
+    width: 0;
+    border-radius: 2px;
+    animation: transitionLoad 0.8s ease-out forwards;
+}
+
+@keyframes transitionLoad {
+    0% { width: 0; }
+    100% { width: 100%; }
+}
+
+.transition-text {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   CATEGORY NAVIGATION BAR (BASE)
+   ═══════════════════════════════════════════════════════════════════════════════ */
+.category-nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 24px;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.85) 100%);
+    backdrop-filter: blur(10px);
+    margin-bottom: 24px;
+}
+
+.category-nav::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+}
+
+/* Nav Left - Back Button */
+.nav-left {
+    flex: 1;
+}
+
+.nav-back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: transparent;
+    border: 1px solid rgba(0, 255, 65, 0.3);
+    border-radius: 8px;
+    color: #00FF41;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    text-decoration: none;
+    text-transform: uppercase;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nav-back-btn:hover {
+    background: rgba(0, 255, 65, 0.1);
+    border-color: rgba(0, 255, 65, 0.5);
+    box-shadow: 0 0 20px rgba(0, 255, 65, 0.2);
+    transform: translateX(-3px);
+}
+
+.nav-back-btn i {
+    width: 16px;
+    height: 16px;
+}
+
+/* Nav Center - Category Label */
+.nav-center {
+    flex: 1;
+    text-align: center;
+}
+
+.nav-category-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+}
+
+.nav-category-label i {
+    width: 18px;
+    height: 18px;
+}
+
+/* Nav Right - Module Buttons */
+.nav-right {
+    flex: 1;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.nav-module-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    background: transparent;
+    border: 1px solid;
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.05em;
+    text-decoration: none;
+    text-transform: uppercase;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.nav-module-btn::before {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 2px;
+    transition: width 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nav-module-btn:hover::before {
+    width: 60%;
+}
+
+.nav-module-btn.active::before {
+    width: 80%;
+}
+
+.nav-module-btn i {
+    width: 14px;
+    height: 14px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   CATEGORY CONTAINER & CONTENT
+   ═══════════════════════════════════════════════════════════════════════════════ */
+.category-container {
+    min-height: 100vh;
+    background: #010409;
+}
+
+.category-content {
+    padding: 0 24px 24px;
+    max-width: 1800px;
+    margin: 0 auto;
+}
+
+.category-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 32px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.category-header i {
+    color: inherit;
+}
+
+.category-header-text h1 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    margin: 0;
+}
+
+.category-header-text p {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.5);
+    margin: 4px 0 0;
+    letter-spacing: 0.1em;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+    .category-nav {
+        flex-wrap: wrap;
+        gap: 12px;
+        padding: 12px 16px;
+    }
+
+    .nav-left, .nav-center, .nav-right {
+        flex: none;
+    }
+
+    .nav-center {
+        order: -1;
+        width: 100%;
+        margin-bottom: 8px;
+    }
+
+    .nav-module-btn span {
+        display: none;
+    }
+
+    .nav-module-btn {
+        padding: 10px;
+    }
+
+    .nav-module-btn i {
+        width: 18px;
+        height: 18px;
+    }
+}
+
+@media (max-width: 500px) {
+    .nav-back-btn span {
+        display: none;
+    }
+
+    .nav-back-btn {
+        padding: 10px;
+    }
+
+    .category-content {
+        padding: 0 16px 16px;
+    }
+
+    .category-header {
+        flex-direction: column;
+        text-align: center;
+        gap: 12px;
+    }
+}

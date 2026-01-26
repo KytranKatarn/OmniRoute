@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ module_name }} - Coming Soon | ARCHIE Platform</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        .coming-soon-container {
+            max-width: 800px;
+            margin: 60px auto;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .module-icon {
+            font-size: 120px;
+            margin-bottom: 30px;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+        }
+
+        .coming-soon-title {
+            font-size: 48px;
+            color: #00ff00;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+        }
+
+        .coming-soon-subtitle {
+            font-size: 24px;
+            color: #00cc00;
+            margin-bottom: 30px;
+        }
+
+        .module-description {
+            font-size: 18px;
+            color: #00ff00;
+            line-height: 1.8;
+            margin-bottom: 40px;
+            padding: 20px;
+            background: rgba(0, 255, 0, 0.05);
+            border: 1px solid #00ff00;
+            border-radius: 8px;
+        }
+
+        .coming-soon-badge {
+            display: inline-block;
+            padding: 12px 30px;
+            background: #000;
+            border: 2px solid #00ff00;
+            color: #00ff00;
+            font-size: 20px;
+            font-weight: bold;
+            border-radius: 8px;
+            margin-bottom: 40px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { border-color: #00ff00; box-shadow: 0 0 10px rgba(0, 255, 0, 0.3); }
+            50% { border-color: #00cc00; box-shadow: 0 0 20px rgba(0, 255, 0, 0.6); }
+        }
+
+        .back-button {
+            display: inline-block;
+            padding: 15px 40px;
+            background: #000;
+            border: 2px solid #00ff00;
+            color: #00ff00;
+            text-decoration: none;
+            font-size: 18px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .back-button:hover {
+            background: #00ff00;
+            color: #000;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
+        }
+
+        .development-status {
+            margin-top: 50px;
+            padding: 20px;
+            border-top: 1px solid #00ff00;
+            color: #00cc00;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="coming-soon-container">
+        <div class="module-icon">{{ module_icon }}</div>
+
+        <h1 class="coming-soon-title">{{ module_name }}</h1>
+
+        <div class="coming-soon-badge">🚧 COMING SOON 🚧</div>
+
+        <div class="module-description">
+            {{ module_description }}
+        </div>
+
+        <p class="coming-soon-subtitle">
+            This module is currently under development and will be available soon.
+        </p>
+
+        <a href="{{ url_for('dashboard') }}" class="back-button">← BACK TO DASHBOARD</a>
+
+        <div class="development-status">
+            <p><strong>Status:</strong> In Development</p>
+            <p><strong>Expected Release:</strong> TBD</p>
+            <p>Stay tuned for updates on the ARCHIE Platform!</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,610 @@
+{% extends "base.html" %}
+
+{% block title %}Goose Orchestration - A.R.C.H.I.E.{% endblock %}
+
+{% block extra_css %}
+<style>
+    .goose-container {
+        padding: 20px;
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+
+    .goose-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--border-color, #333);
+    }
+
+    .goose-header h1 {
+        font-size: 24px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .goose-header h1 span {
+        font-size: 28px;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+
+    .stat-card {
+        background: var(--card-bg, #1a1a2e);
+        border: 1px solid var(--border-color, #333);
+        border-radius: 8px;
+        padding: 20px;
+        text-align: center;
+    }
+
+    .stat-card .stat-value {
+        font-size: 36px;
+        font-weight: bold;
+        color: var(--accent-color, #4fc3f7);
+    }
+
+    .stat-card .stat-label {
+        font-size: 14px;
+        color: var(--text-secondary, #888);
+        margin-top: 4px;
+    }
+
+    .stat-card.running .stat-value { color: #66bb6a; }
+    .stat-card.pending .stat-value { color: #ffb74d; }
+    .stat-card.failed .stat-value { color: #ef5350; }
+
+    .content-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 24px;
+    }
+
+    @media (max-width: 1024px) {
+        .content-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .panel {
+        background: var(--card-bg, #1a1a2e);
+        border: 1px solid var(--border-color, #333);
+        border-radius: 8px;
+        padding: 20px;
+    }
+
+    .panel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--border-color, #333);
+    }
+
+    .panel-header h2 {
+        font-size: 16px;
+        font-weight: 600;
+    }
+
+    .workflow-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .workflow-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px;
+        border-bottom: 1px solid var(--border-color, #222);
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .workflow-item:hover {
+        background: rgba(79, 195, 247, 0.1);
+    }
+
+    .workflow-item:last-child {
+        border-bottom: none;
+    }
+
+    .workflow-info h3 {
+        font-size: 14px;
+        font-weight: 500;
+        margin-bottom: 4px;
+    }
+
+    .workflow-info .meta {
+        font-size: 12px;
+        color: var(--text-secondary, #888);
+    }
+
+    .status-badge {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 500;
+        text-transform: uppercase;
+    }
+
+    .status-badge.completed { background: #1b5e20; color: #a5d6a7; }
+    .status-badge.running { background: #0d47a1; color: #90caf9; }
+    .status-badge.pending { background: #e65100; color: #ffcc80; }
+    .status-badge.failed { background: #b71c1c; color: #ef9a9a; }
+    .status-badge.cancelled { background: #424242; color: #bdbdbd; }
+
+    .btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+
+    .btn-primary {
+        background: var(--accent-color, #4fc3f7);
+        color: #000;
+    }
+
+    .btn-primary:hover {
+        background: #29b6f6;
+    }
+
+    .btn-secondary {
+        background: transparent;
+        border: 1px solid var(--border-color, #333);
+        color: var(--text-color, #fff);
+    }
+
+    .btn-secondary:hover {
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+    .quick-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .blueprint-card {
+        background: rgba(79, 195, 247, 0.1);
+        border: 1px solid rgba(79, 195, 247, 0.3);
+        border-radius: 6px;
+        padding: 12px;
+        margin-bottom: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .blueprint-card:hover {
+        background: rgba(79, 195, 247, 0.2);
+        transform: translateX(4px);
+    }
+
+    .blueprint-card h4 {
+        font-size: 14px;
+        margin-bottom: 4px;
+    }
+
+    .blueprint-card p {
+        font-size: 12px;
+        color: var(--text-secondary, #888);
+        margin: 0;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 40px 20px;
+        color: var(--text-secondary, #888);
+    }
+
+    .empty-state span {
+        font-size: 48px;
+        display: block;
+        margin-bottom: 16px;
+    }
+
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .modal-overlay.active {
+        display: flex;
+    }
+
+    .modal {
+        background: var(--card-bg, #1a1a2e);
+        border: 1px solid var(--border-color, #333);
+        border-radius: 8px;
+        padding: 24px;
+        width: 90%;
+        max-width: 600px;
+        max-height: 80vh;
+        overflow-y: auto;
+    }
+
+    .modal h2 {
+        margin-bottom: 16px;
+    }
+
+    .form-group {
+        margin-bottom: 16px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 14px;
+        font-weight: 500;
+    }
+
+    .form-group input,
+    .form-group textarea,
+    .form-group select {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid var(--border-color, #333);
+        border-radius: 4px;
+        background: var(--bg-color, #0f0f23);
+        color: var(--text-color, #fff);
+        font-size: 14px;
+    }
+
+    .form-group textarea {
+        min-height: 100px;
+        resize: vertical;
+    }
+
+    .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="goose-container">
+    <!-- Header -->
+    <div class="goose-header">
+        <h1><span>&#129302;</span> Goose Orchestration</h1>
+        <div class="quick-actions">
+            <button class="btn btn-primary" onclick="showCreateWorkflow()">+ New Workflow</button>
+            <button class="btn btn-secondary" onclick="refreshDashboard()">Refresh</button>
+        </div>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.total_workflows or 0 }}</div>
+            <div class="stat-label">Total Workflows (7d)</div>
+        </div>
+        <div class="stat-card running">
+            <div class="stat-value">{{ stats.running or 0 }}</div>
+            <div class="stat-label">Running</div>
+        </div>
+        <div class="stat-card pending">
+            <div class="stat-value">{{ stats.pending or 0 }}</div>
+            <div class="stat-label">Pending</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.completed or 0 }}</div>
+            <div class="stat-label">Completed</div>
+        </div>
+        <div class="stat-card failed">
+            <div class="stat-value">{{ stats.failed or 0 }}</div>
+            <div class="stat-label">Failed</div>
+        </div>
+    </div>
+
+    <!-- Content Grid -->
+    <div class="content-grid">
+        <!-- Recent Executions -->
+        <div class="panel">
+            <div class="panel-header">
+                <h2>Recent Executions</h2>
+                <button class="btn btn-secondary" onclick="loadWorkflows()">View All</button>
+            </div>
+
+            <ul class="workflow-list" id="workflow-list">
+                {% if recent_executions %}
+                    {% for wf in recent_executions %}
+                    <li class="workflow-item" onclick="viewWorkflow('{{ wf.workflow_id }}')">
+                        <div class="workflow-info">
+                            <h3>{{ wf.workflow_name }}</h3>
+                            <div class="meta">
+                                {{ wf.initiated_by }} &bull;
+                                {{ wf.created_at.strftime('%Y-%m-%d %H:%M') if wf.created_at else 'N/A' }}
+                            </div>
+                        </div>
+                        <span class="status-badge {{ wf.status }}">{{ wf.status }}</span>
+                    </li>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-state">
+                        <span>&#128640;</span>
+                        <p>No workflow executions yet.</p>
+                        <p>Create a workflow to get started!</p>
+                    </div>
+                {% endif %}
+            </ul>
+        </div>
+
+        <!-- Blueprints Panel -->
+        <div class="panel">
+            <div class="panel-header">
+                <h2>Workflow Blueprints</h2>
+                <button class="btn btn-secondary" onclick="showCreateBlueprint()">+ Create</button>
+            </div>
+
+            <div id="blueprints-list">
+                <!-- Loaded via JS -->
+                <div class="empty-state">
+                    <span>&#128220;</span>
+                    <p>Loading blueprints...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Workflow Modal -->
+<div class="modal-overlay" id="create-workflow-modal">
+    <div class="modal">
+        <h2>Create New Workflow</h2>
+
+        <div class="form-group">
+            <label>Workflow Name</label>
+            <input type="text" id="workflow-name" placeholder="e.g., daily_code_review">
+        </div>
+
+        <div class="form-group">
+            <label>Description</label>
+            <textarea id="workflow-description" placeholder="What does this workflow do?"></textarea>
+        </div>
+
+        <div class="form-group">
+            <label>Blueprint (optional)</label>
+            <select id="workflow-blueprint">
+                <option value="">-- Select a blueprint --</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Steps (JSON)</label>
+            <textarea id="workflow-steps" placeholder='[{"name": "step1", "tool": "search_knowledge", "params": {}}]'></textarea>
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="closeModal('create-workflow-modal')">Cancel</button>
+            <button class="btn btn-primary" onclick="createWorkflow()">Create Workflow</button>
+        </div>
+    </div>
+</div>
+
+<!-- View Workflow Modal -->
+<div class="modal-overlay" id="view-workflow-modal">
+    <div class="modal">
+        <h2 id="view-workflow-title">Workflow Details</h2>
+        <div id="view-workflow-content">
+            <!-- Populated by JS -->
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="closeModal('view-workflow-modal')">Close</button>
+            <button class="btn btn-primary" id="trigger-workflow-btn" onclick="triggerWorkflow()">Trigger</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentWorkflowId = null;
+
+    // Load blueprints on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        loadBlueprints();
+    });
+
+    async function loadBlueprints() {
+        try {
+            const response = await fetch('/tools/goose/api/blueprints');
+            const data = await response.json();
+
+            const container = document.getElementById('blueprints-list');
+
+            if (data.success && data.blueprints.length > 0) {
+                container.innerHTML = data.blueprints.map(bp => `
+                    <div class="blueprint-card" onclick="useBlueprint('${bp.name || bp.filename}')">
+                        <h4>${bp.name || bp.filename}</h4>
+                        <p>${bp.description || 'No description'}</p>
+                    </div>
+                `).join('');
+
+                // Update select dropdown
+                const select = document.getElementById('workflow-blueprint');
+                select.innerHTML = '<option value="">-- Select a blueprint --</option>' +
+                    data.blueprints.map(bp => `<option value="${bp.name}">${bp.name}</option>`).join('');
+            } else {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <span>&#128220;</span>
+                        <p>No blueprints found.</p>
+                        <p>Create a blueprint to define reusable workflows.</p>
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('Error loading blueprints:', error);
+        }
+    }
+
+    async function loadWorkflows() {
+        try {
+            const response = await fetch('/tools/goose/api/workflows');
+            const data = await response.json();
+
+            if (data.success) {
+                const container = document.getElementById('workflow-list');
+                container.innerHTML = data.workflows.map(wf => `
+                    <li class="workflow-item" onclick="viewWorkflow('${wf.workflow_id}')">
+                        <div class="workflow-info">
+                            <h3>${wf.workflow_name}</h3>
+                            <div class="meta">${wf.initiated_by} &bull; ${new Date(wf.created_at).toLocaleString()}</div>
+                        </div>
+                        <span class="status-badge ${wf.status}">${wf.status}</span>
+                    </li>
+                `).join('');
+            }
+        } catch (error) {
+            console.error('Error loading workflows:', error);
+        }
+    }
+
+    function showCreateWorkflow() {
+        document.getElementById('create-workflow-modal').classList.add('active');
+    }
+
+    function closeModal(modalId) {
+        document.getElementById(modalId).classList.remove('active');
+    }
+
+    async function createWorkflow() {
+        const name = document.getElementById('workflow-name').value;
+        const description = document.getElementById('workflow-description').value;
+        const stepsJson = document.getElementById('workflow-steps').value;
+
+        if (!name) {
+            alert('Workflow name is required');
+            return;
+        }
+
+        let steps = [];
+        if (stepsJson) {
+            try {
+                steps = JSON.parse(stepsJson);
+            } catch (e) {
+                alert('Invalid JSON in steps field');
+                return;
+            }
+        }
+
+        try {
+            const response = await fetch('/tools/goose/api/workflows', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: name,
+                    steps: steps,
+                    parameters: { description: description }
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                closeModal('create-workflow-modal');
+                refreshDashboard();
+                alert('Workflow created successfully!');
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch (error) {
+            console.error('Error creating workflow:', error);
+            alert('Failed to create workflow');
+        }
+    }
+
+    async function viewWorkflow(workflowId) {
+        currentWorkflowId = workflowId;
+
+        try {
+            const response = await fetch(`/tools/goose/api/workflows/${workflowId}`);
+            const data = await response.json();
+
+            if (data.success) {
+                const wf = data.workflow;
+                document.getElementById('view-workflow-title').textContent = wf.workflow_name;
+                document.getElementById('view-workflow-content').innerHTML = `
+                    <p><strong>ID:</strong> ${wf.workflow_id}</p>
+                    <p><strong>Status:</strong> <span class="status-badge ${wf.status}">${wf.status}</span></p>
+                    <p><strong>Initiated By:</strong> ${wf.initiated_by}</p>
+                    <p><strong>Created:</strong> ${new Date(wf.created_at).toLocaleString()}</p>
+                    ${wf.completed_at ? `<p><strong>Completed:</strong> ${new Date(wf.completed_at).toLocaleString()}</p>` : ''}
+                    ${wf.current_step ? `<p><strong>Current Step:</strong> ${wf.current_step}</p>` : ''}
+                    ${wf.error_message ? `<p><strong>Error:</strong> <span style="color: #ef5350;">${wf.error_message}</span></p>` : ''}
+                    <h3 style="margin-top: 16px;">Steps</h3>
+                    <pre style="background: #0f0f23; padding: 12px; border-radius: 4px; overflow-x: auto;">${JSON.stringify(wf.steps, null, 2)}</pre>
+                `;
+
+                const triggerBtn = document.getElementById('trigger-workflow-btn');
+                triggerBtn.style.display = (wf.status === 'pending' || wf.status === 'failed') ? 'block' : 'none';
+
+                document.getElementById('view-workflow-modal').classList.add('active');
+            }
+        } catch (error) {
+            console.error('Error viewing workflow:', error);
+        }
+    }
+
+    async function triggerWorkflow() {
+        if (!currentWorkflowId) return;
+
+        try {
+            const response = await fetch(`/tools/goose/api/workflows/${currentWorkflowId}/trigger`, {
+                method: 'POST'
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                closeModal('view-workflow-modal');
+                refreshDashboard();
+                alert('Workflow triggered!');
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch (error) {
+            console.error('Error triggering workflow:', error);
+        }
+    }
+
+    function useBlueprint(blueprintName) {
+        document.getElementById('workflow-blueprint').value = blueprintName;
+        document.getElementById('workflow-name').value = blueprintName + '_' + Date.now();
+        showCreateWorkflow();
+    }
+
+    function refreshDashboard() {
+        window.location.reload();
+    }
+
+    function showCreateBlueprint() {
+        alert('Blueprint editor coming soon! For now, create YAML files in /mnt/archie_brain/goose/blueprints/');
+    }
+</script>
+{% endblock %}

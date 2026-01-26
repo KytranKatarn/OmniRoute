@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Team Directory - A.R.C.H.I.E. Solutions</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #f8fafc;
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: rgba(15, 23, 42, 0.95);
+            border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+            padding: 20px 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+
+        .header-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            width: 45px;
+            height: 45px;
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+
+        .logo-text {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 30px;
+        }
+
+        .nav-links a {
+            color: #94a3b8;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s ease;
+        }
+
+        .nav-links a:hover {
+            color: #f8fafc;
+        }
+
+        /* Hero Section */
+        .hero {
+            padding: 60px 30px;
+            text-align: center;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .hero h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 15px;
+            background: linear-gradient(135deg, #f8fafc 0%, #94a3b8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero p {
+            font-size: 1.2rem;
+            color: #94a3b8;
+            max-width: 600px;
+            margin: 0 auto 30px;
+        }
+
+        /* Stats */
+        .stats-row {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin-bottom: 40px;
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #3b82f6;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Search & Filters */
+        .controls {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 30px 30px;
+        }
+
+        .search-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .search-input {
+            flex: 1;
+            min-width: 300px;
+            padding: 15px 20px;
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 10px;
+            color: #f8fafc;
+            font-size: 1rem;
+            font-family: inherit;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        }
+
+        .search-input::placeholder {
+            color: #64748b;
+        }
+
+        .filter-select {
+            padding: 15px 20px;
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 10px;
+            color: #f8fafc;
+            font-size: 1rem;
+            font-family: inherit;
+            min-width: 180px;
+            cursor: pointer;
+        }
+
+        .filter-chips {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .filter-chip {
+            padding: 8px 16px;
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 20px;
+            color: #94a3b8;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .filter-chip:hover {
+            border-color: #3b82f6;
+            color: #f8fafc;
+        }
+
+        .filter-chip.active {
+            background: #3b82f6;
+            border-color: #3b82f6;
+            color: white;
+        }
+
+        /* Directory Grid */
+        .directory-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 30px 60px;
+        }
+
+        .directory-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 25px;
+        }
+
+        /* Employee Card */
+        .employee-card {
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid rgba(148, 163, 184, 0.1);
+            border-radius: 16px;
+            padding: 25px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .employee-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(59, 130, 246, 0.5);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .card-header {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .avatar {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid rgba(59, 130, 246, 0.5);
+        }
+
+        .employee-info {
+            flex: 1;
+        }
+
+        .employee-name {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .employee-title {
+            color: #3b82f6;
+            font-weight: 500;
+            font-size: 0.95rem;
+            margin-bottom: 4px;
+        }
+
+        .employee-dept {
+            color: #64748b;
+            font-size: 0.85rem;
+        }
+
+        .employee-type-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-ai {
+            background: rgba(139, 92, 246, 0.2);
+            color: #a78bfa;
+        }
+
+        .badge-human {
+            background: rgba(34, 197, 94, 0.2);
+            color: #4ade80;
+        }
+
+        .employee-bio {
+            color: #94a3b8;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            margin-bottom: 15px;
+        }
+
+        .specialties {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .specialty-tag {
+            padding: 4px 10px;
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 6px;
+            font-size: 0.75rem;
+            color: #60a5fa;
+        }
+
+        /* Department Header */
+        .department-header {
+            grid-column: 1 / -1;
+            padding: 15px 0;
+            margin-top: 20px;
+        }
+
+        .department-header h2 {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #f8fafc;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .department-header h2::before {
+            content: '';
+            width: 4px;
+            height: 24px;
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            border-radius: 2px;
+        }
+
+        .dept-count {
+            color: #64748b;
+            font-weight: 400;
+            font-size: 1rem;
+        }
+
+        /* Loading State */
+        .loading {
+            text-align: center;
+            padding: 60px;
+            color: #64748b;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(59, 130, 246, 0.2);
+            border-radius: 50%;
+            border-top-color: #3b82f6;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            overflow-y: auto;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            max-width: 600px;
+            margin: 50px auto;
+            background: #1e293b;
+            border-radius: 20px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            padding: 30px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .modal-avatar {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            object-fit: cover;
+        }
+
+        .modal-name {
+            font-size: 1.8rem;
+            font-weight: 700;
+        }
+
+        .modal-title {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 36px;
+            height: 36px;
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            border-radius: 50%;
+            color: white;
+            font-size: 1.2rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-close:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .modal-body {
+            padding: 30px;
+        }
+
+        .detail-section {
+            margin-bottom: 25px;
+        }
+
+        .detail-label {
+            font-size: 0.8rem;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .detail-value {
+            color: #f8fafc;
+            line-height: 1.6;
+        }
+
+        /* Footer */
+        .footer {
+            background: rgba(15, 23, 42, 0.95);
+            border-top: 1px solid rgba(148, 163, 184, 0.1);
+            padding: 40px 30px;
+            text-align: center;
+        }
+
+        .footer p {
+            color: #64748b;
+            font-size: 0.9rem;
+        }
+
+        .footer a {
+            color: #3b82f6;
+            text-decoration: none;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2rem;
+            }
+
+            .stats-row {
+                gap: 20px;
+            }
+
+            .stat-value {
+                font-size: 1.8rem;
+            }
+
+            .search-input {
+                min-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-container">
+            <div class="logo">
+                <div class="logo-icon">&#129302;</div>
+                <span class="logo-text">A.R.C.H.I.E.</span>
+            </div>
+            <nav class="nav-links">
+                <a href="/">Home</a>
+                <a href="/business/directory">Directory</a>
+                <a href="/login">Login</a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <h1>Meet Our Team</h1>
+        <p>Our diverse team of AI and human experts work together to deliver exceptional solutions.</p>
+
+        <!-- Stats -->
+        <div class="stats-row">
+            <div class="stat-item">
+                <div class="stat-value" id="stat-total">--</div>
+                <div class="stat-label">Team Members</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="stat-departments">--</div>
+                <div class="stat-label">Departments</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="stat-ai">--</div>
+                <div class="stat-label">AI Specialists</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="stat-human">--</div>
+                <div class="stat-label">Human Experts</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Controls -->
+    <section class="controls">
+        <div class="search-bar">
+            <input type="text" class="search-input" id="searchInput" placeholder="Search by name, title, or department..." oninput="handleSearch()">
+            <select class="filter-select" id="typeFilter" onchange="handleFilter()">
+                <option value="all">All Team Members</option>
+                <option value="ai">AI Specialists</option>
+                <option value="human">Human Experts</option>
+            </select>
+        </div>
+        <div class="filter-chips" id="departmentFilters">
+            <!-- Department filters will be inserted here -->
+        </div>
+    </section>
+
+    <!-- Directory Grid -->
+    <section class="directory-container">
+        <div class="directory-grid" id="directoryGrid">
+            <div class="loading" style="grid-column: 1 / -1;">
+                <div class="loading-spinner"></div>
+                <div>Loading team directory...</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>&copy; 2026 A.R.C.H.I.E. Solutions. All rights reserved. | <a href="/login">Admin Login</a></p>
+    </footer>
+
+    <!-- Employee Detail Modal -->
+    <div id="employeeModal" class="modal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+            <div id="modalContent"></div>
+        </div>
+    </div>
+
+    <script>
+    let allMembers = [];
+    let currentDepartment = 'all';
+    let searchTimeout = null;
+
+    // Load directory on page load
+    document.addEventListener('DOMContentLoaded', loadDirectory);
+
+    async function loadDirectory() {
+        try {
+            const response = await fetch('/business/api/directory');
+            const data = await response.json();
+
+            if (data.success) {
+                allMembers = data.members;
+
+                // Update stats
+                document.getElementById('stat-total').textContent = data.statistics.total_members;
+                document.getElementById('stat-departments').textContent = data.statistics.total_departments;
+                document.getElementById('stat-ai').textContent = data.statistics.ai_count;
+                document.getElementById('stat-human').textContent = data.statistics.human_count;
+
+                // Build department filters
+                buildDepartmentFilters(data.departments);
+
+                // Display members
+                displayMembers(allMembers, data.by_department);
+            } else {
+                document.getElementById('directoryGrid').innerHTML =
+                    '<div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #ef4444;">Error loading directory</div>';
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            document.getElementById('directoryGrid').innerHTML =
+                '<div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #ef4444;">Failed to load directory</div>';
+        }
+    }
+
+    function buildDepartmentFilters(departments) {
+        const container = document.getElementById('departmentFilters');
+        let html = '<div class="filter-chip active" onclick="filterByDepartment(\'all\')">All Departments</div>';
+
+        departments.forEach(dept => {
+            html += `<div class="filter-chip" onclick="filterByDepartment('${dept}')">${dept}</div>`;
+        });
+
+        container.innerHTML = html;
+    }
+
+    function filterByDepartment(department) {
+        currentDepartment = department;
+
+        // Update chip styles
+        document.querySelectorAll('.filter-chip').forEach(chip => {
+            chip.classList.remove('active');
+            if ((department === 'all' && chip.textContent === 'All Departments') ||
+                chip.textContent === department) {
+                chip.classList.add('active');
+            }
+        });
+
+        applyFilters();
+    }
+
+    function handleSearch() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(applyFilters, 300);
+    }
+
+    function handleFilter() {
+        applyFilters();
+    }
+
+    function applyFilters() {
+        const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+        const typeFilter = document.getElementById('typeFilter').value;
+
+        let filtered = allMembers.filter(member => {
+            // Search filter
+            const matchesSearch = !searchTerm ||
+                (member.full_name && member.full_name.toLowerCase().includes(searchTerm)) ||
+                (member.title && member.title.toLowerCase().includes(searchTerm)) ||
+                (member.department && member.department.toLowerCase().includes(searchTerm));
+
+            // Department filter
+            const matchesDept = currentDepartment === 'all' || member.department === currentDepartment;
+
+            // Type filter
+            const matchesType = typeFilter === 'all' ||
+                (typeFilter === 'ai' && member.employee_type === 'AI') ||
+                (typeFilter === 'human' && member.employee_type === 'Human');
+
+            return matchesSearch && matchesDept && matchesType;
+        });
+
+        // Group by department
+        const byDept = {};
+        filtered.forEach(member => {
+            const dept = member.department || 'General';
+            if (!byDept[dept]) byDept[dept] = [];
+            byDept[dept].push(member);
+        });
+
+        displayMembers(filtered, byDept);
+    }
+
+    function displayMembers(members, byDepartment) {
+        const grid = document.getElementById('directoryGrid');
+
+        if (!members || members.length === 0) {
+            grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; padding: 60px; color: #64748b;">No team members found matching your criteria.</div>';
+            return;
+        }
+
+        let html = '';
+
+        // Display by department
+        Object.keys(byDepartment).sort().forEach(dept => {
+            html += `
+                <div class="department-header">
+                    <h2>${dept} <span class="dept-count">(${byDepartment[dept].length})</span></h2>
+                </div>
+            `;
+
+            byDepartment[dept].forEach(member => {
+                const avatarUrl = member.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(member.full_name)}`;
+                const badgeClass = member.employee_type === 'AI' ? 'badge-ai' : 'badge-human';
+                const specialtiesHTML = (member.specialties || []).slice(0, 3).map(s =>
+                    `<span class="specialty-tag">${s.replace(/_/g, ' ')}</span>`
+                ).join('');
+
+                html += `
+                    <div class="employee-card" onclick="viewEmployee(${member.id})">
+                        <div class="card-header">
+                            <img src="${avatarUrl}" alt="${member.full_name}" class="avatar">
+                            <div class="employee-info">
+                                <div class="employee-name">${member.full_name}</div>
+                                <div class="employee-title">${member.title || 'Team Member'}</div>
+                                <div class="employee-dept">${member.department || 'General'}</div>
+                            </div>
+                            <span class="employee-type-badge ${badgeClass}">${member.employee_type}</span>
+                        </div>
+                        <p class="employee-bio">${(member.bio || 'No bio available.').substring(0, 120)}${member.bio && member.bio.length > 120 ? '...' : ''}</p>
+                        <div class="specialties">
+                            ${specialtiesHTML}
+                        </div>
+                    </div>
+                `;
+            });
+        });
+
+        grid.innerHTML = html;
+    }
+
+    async function viewEmployee(employeeId) {
+        try {
+            const response = await fetch(`/business/api/directory/${employeeId}`);
+            const data = await response.json();
+
+            if (data.success) {
+                const emp = data.employee;
+                const avatarUrl = emp.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(emp.full_name)}`;
+
+                const specialtiesHTML = (emp.specialties || []).map(s =>
+                    `<span class="specialty-tag">${s.replace(/_/g, ' ')}</span>`
+                ).join('');
+
+                const toolsHTML = (emp.tools || []).map(t =>
+                    `<span class="specialty-tag" style="border-color: rgba(139, 92, 246, 0.3); color: #a78bfa;">${t.replace(/_/g, ' ')}</span>`
+                ).join('');
+
+                document.getElementById('modalContent').innerHTML = `
+                    <div class="modal-header">
+                        <img src="${avatarUrl}" alt="${emp.full_name}" class="modal-avatar">
+                        <div>
+                            <div class="modal-name">${emp.full_name}</div>
+                            <div class="modal-title">${emp.title || 'Team Member'} | ${emp.department || 'General'}</div>
+                        </div>
+                    </div>
+                    <div class="modal-body">
+                        <div class="detail-section">
+                            <div class="detail-label">About</div>
+                            <div class="detail-value">${emp.bio || 'No biography available.'}</div>
+                        </div>
+
+                        ${emp.email ? `
+                        <div class="detail-section">
+                            <div class="detail-label">Contact</div>
+                            <div class="detail-value">${emp.email}</div>
+                        </div>
+                        ` : ''}
+
+                        ${specialtiesHTML ? `
+                        <div class="detail-section">
+                            <div class="detail-label">Specialties</div>
+                            <div class="specialties" style="margin-top: 8px;">${specialtiesHTML}</div>
+                        </div>
+                        ` : ''}
+
+                        ${toolsHTML ? `
+                        <div class="detail-section">
+                            <div class="detail-label">Tools & Technologies</div>
+                            <div class="specialties" style="margin-top: 8px;">${toolsHTML}</div>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+
+                document.getElementById('employeeModal').style.display = 'block';
+            }
+        } catch (error) {
+            console.error('Error:', error);
+        }
+    }
+
+    function closeModal() {
+        document.getElementById('employeeModal').style.display = 'none';
+    }
+
+    // Close modal on escape or backdrop click
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') closeModal();
+    });
+
+    document.getElementById('employeeModal').addEventListener('click', e => {
+        if (e.target.id === 'employeeModal') closeModal();
+    });
+    </script>
+</body>
+</html>

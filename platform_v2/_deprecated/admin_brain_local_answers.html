@@ -1,0 +1,445 @@
+{% extends "base.html" %}
+
+{% block title %}Local Answer Generation - A.R.C.H.I.E. Brain{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .stat-card {
+        background: white;
+        border-radius: 8px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .stat-card h3 {
+        font-size: 0.875rem;
+        color: #666;
+        margin-bottom: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .stat-card .value {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #2563eb;
+    }
+
+    .stat-card .subtext {
+        font-size: 0.875rem;
+        color: #999;
+        margin-top: 0.25rem;
+    }
+
+    .users-table {
+        width: 100%;
+        background: white;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .users-table table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .users-table th {
+        background: #f8f9fa;
+        padding: 1rem;
+        text-align: left;
+        font-weight: 600;
+        color: #333;
+        border-bottom: 2px solid #e9ecef;
+    }
+
+    .users-table td {
+        padding: 1rem;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .users-table tr:hover {
+        background: #f8f9fa;
+    }
+
+    .toggle-switch {
+        position: relative;
+        display: inline-block;
+        width: 50px;
+        height: 24px;
+    }
+
+    .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #ccc;
+        transition: 0.4s;
+        border-radius: 24px;
+    }
+
+    .slider:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: 0.4s;
+        border-radius: 50%;
+    }
+
+    input:checked + .slider {
+        background-color: #2563eb;
+    }
+
+    input:checked + .slider:before {
+        transform: translateX(26px);
+    }
+
+    .badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .badge-admin {
+        background: #fef3c7;
+        color: #92400e;
+    }
+
+    .badge-enabled {
+        background: #d1fae5;
+        color: #065f46;
+    }
+
+    .badge-disabled {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+
+    .chart-container {
+        background: white;
+        border-radius: 8px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 2rem;
+    }
+
+    .recent-answers {
+        background: white;
+        border-radius: 8px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .answer-item {
+        padding: 1rem;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .answer-item:last-child {
+        border-bottom: none;
+    }
+
+    .answer-query {
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 0.5rem;
+    }
+
+    .answer-meta {
+        font-size: 0.875rem;
+        color: #666;
+    }
+
+    .confidence-bar {
+        height: 4px;
+        background: #e9ecef;
+        border-radius: 2px;
+        overflow: hidden;
+        margin-top: 0.5rem;
+    }
+
+    .confidence-fill {
+        height: 100%;
+        background: #2563eb;
+        transition: width 0.3s;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h2>🧠 Local Answer Generation (Phase 3 Week 2)</h2>
+            <p class="text-muted">Conservative testing with admin users • Threshold: 0.90/0.75 • Target: 5-10% local answer rate, >98% accuracy</p>
+        </div>
+        <div class="col-auto">
+            <select id="timeRange" class="form-select">
+                <option value="7" selected>Last 7 days</option>
+                <option value="14">Last 14 days</option>
+                <option value="30">Last 30 days</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="stats-grid" id="statsGrid">
+        <div class="stat-card">
+            <h3>Local Answers</h3>
+            <div class="value" id="totalAnswers">-</div>
+            <div class="subtext">Answered without LLM</div>
+        </div>
+
+        <div class="stat-card">
+            <h3>Accuracy Rate</h3>
+            <div class="value" id="accuracyRate">-</div>
+            <div class="subtext">Based on user feedback</div>
+        </div>
+
+        <div class="stat-card">
+            <h3>Cost Saved</h3>
+            <div class="value" id="costSaved">-</div>
+            <div class="subtext">API costs avoided</div>
+        </div>
+
+        <div class="stat-card">
+            <h3>Tokens Saved</h3>
+            <div class="value" id="tokensSaved">-</div>
+            <div class="subtext">Input + output tokens</div>
+        </div>
+
+        <div class="stat-card">
+            <h3>Avg Confidence</h3>
+            <div class="value" id="avgConfidence">-</div>
+            <div class="subtext">Decision confidence score</div>
+        </div>
+
+        <div class="stat-card">
+            <h3>Feedback Rate</h3>
+            <div class="value" id="feedbackRate">-</div>
+            <div class="subtext">Users providing feedback</div>
+        </div>
+    </div>
+
+    <!-- User Management -->
+    <div class="users-table mb-4">
+        <div class="p-3 border-bottom">
+            <h4 class="mb-0">User Preferences</h4>
+            <p class="text-muted mb-0 small">Enable/disable local answers per user for testing</p>
+        </div>
+        <table id="usersTable">
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Local Answers</th>
+                    <th>Usage (30d)</th>
+                    <th>Cost Saved</th>
+                    <th>Feedback</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td colspan="7" class="text-center">Loading...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Recent Answers -->
+    <div class="recent-answers">
+        <div class="mb-3">
+            <h4>Recent Local Answers</h4>
+            <p class="text-muted small">Last 20 queries answered locally with feedback status</p>
+        </div>
+        <div id="recentAnswers">
+            <div class="text-center text-muted">Loading...</div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentDays = 7;
+
+async function loadStats() {
+    try {
+        const response = await fetch(`/tools/admin/brain/local-answers/stats?days=${currentDays}`);
+        const data = await response.json();
+
+        if (data.success) {
+            // Update stat cards
+            document.getElementById('totalAnswers').textContent =
+                (data.accuracy.total_answers || 0).toLocaleString();
+
+            document.getElementById('accuracyRate').textContent =
+                data.accuracy.accuracy_rate ? data.accuracy.accuracy_rate + '%' : 'N/A';
+
+            document.getElementById('costSaved').textContent =
+                data.savings_report.total_cost_saved ?
+                '$' + data.savings_report.total_cost_saved.toFixed(4) : '$0.00';
+
+            document.getElementById('tokensSaved').textContent =
+                (data.savings_report.total_tokens_saved || 0).toLocaleString();
+
+            document.getElementById('avgConfidence').textContent =
+                data.savings_report.avg_confidence || 'N/A';
+
+            document.getElementById('feedbackRate').textContent =
+                data.accuracy.feedback_rate ? data.accuracy.feedback_rate + '%' : 'N/A';
+        }
+    } catch (error) {
+        console.error('Error loading stats:', error);
+    }
+}
+
+async function loadUsers() {
+    try {
+        const response = await fetch('/tools/admin/brain/local-answers/users');
+        const data = await response.json();
+
+        if (data.success) {
+            const tbody = document.querySelector('#usersTable tbody');
+            tbody.innerHTML = '';
+
+            data.users.forEach(user => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><strong>${user.username}</strong></td>
+                    <td>${user.email}</td>
+                    <td>
+                        ${user.is_admin ? '<span class="badge badge-admin">Admin</span>' : ''}
+                    </td>
+                    <td>
+                        <label class="toggle-switch">
+                            <input type="checkbox"
+                                   ${user.enable_local_answers ? 'checked' : ''}
+                                   onchange="toggleUser(${user.id}, this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </td>
+                    <td>${user.total_local_answers || 0}</td>
+                    <td>$${(user.cost_saved || 0).toFixed(4)}</td>
+                    <td>${user.feedback_count || 0}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+    } catch (error) {
+        console.error('Error loading users:', error);
+    }
+}
+
+async function toggleUser(userId, enable) {
+    try {
+        const response = await fetch(`/tools/admin/brain/local-answers/users/${userId}/toggle`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({enable})
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showToast('Success', data.message);
+            loadStats();  // Refresh stats
+        } else {
+            showToast('Error', data.error || 'Failed to toggle user preference');
+        }
+    } catch (error) {
+        console.error('Error toggling user:', error);
+        showToast('Error', 'Failed to update user preference');
+    }
+}
+
+async function loadRecentAnswers() {
+    try {
+        const response = await fetch('/tools/admin/brain/local-answers/recent?limit=20');
+        const data = await response.json();
+
+        if (data.success) {
+            const container = document.getElementById('recentAnswers');
+            container.innerHTML = '';
+
+            if (data.answers.length === 0) {
+                container.innerHTML = '<div class="text-center text-muted">No local answers yet</div>';
+                return;
+            }
+
+            data.answers.forEach(answer => {
+                const item = document.createElement('div');
+                item.className = 'answer-item';
+
+                const feedbackBadge = answer.was_helpful !== null ?
+                    (answer.was_helpful ?
+                        '<span class="badge badge-enabled">✓ Helpful</span>' :
+                        '<span class="badge badge-disabled">✗ Unhelpful</span>') :
+                    '<span class="badge bg-secondary text-white">No feedback</span>';
+
+                item.innerHTML = `
+                    <div class="answer-query">${answer.query_preview}</div>
+                    <div class="answer-meta">
+                        <strong>User:</strong> ${answer.username} •
+                        <strong>Strategy:</strong> ${answer.strategy} •
+                        <strong>Model:</strong> ${answer.would_have_used_model} •
+                        <strong>Saved:</strong> $${answer.estimated_cost_saved.toFixed(4)} (${answer.estimated_tokens_saved} tokens) •
+                        <strong>Time:</strong> ${new Date(answer.created_at).toLocaleString()}
+                        ${feedbackBadge}
+                    </div>
+                    <div class="confidence-bar">
+                        <div class="confidence-fill" style="width: ${answer.confidence_score * 100}%"></div>
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+    } catch (error) {
+        console.error('Error loading recent answers:', error);
+    }
+}
+
+function showToast(title, message) {
+    // Simple toast notification
+    alert(`${title}: ${message}`);
+}
+
+// Event listeners
+document.getElementById('timeRange').addEventListener('change', (e) => {
+    currentDays = parseInt(e.target.value);
+    loadStats();
+});
+
+// Initial load
+loadStats();
+loadUsers();
+loadRecentAnswers();
+
+// Auto-refresh every 30 seconds
+setInterval(() => {
+    loadStats();
+    loadRecentAnswers();
+}, 30000);
+</script>
+{% endblock %}

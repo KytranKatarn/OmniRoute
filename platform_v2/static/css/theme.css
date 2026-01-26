@@ -1,0 +1,773 @@
+/**
+ * ╔═══════════════════════════════════════════════════════════════════════════╗
+ * ║                                                                           ║
+ * ║     █████╗   ██████╗    ██████╗  ██╗  ██╗ ██╗ ███████╗                    ║
+ * ║    ██╔══██╗  ██╔══██╗  ██╔════╝  ██║  ██║ ██║ ██╔════╝                    ║
+ * ║    ███████║  ██████╔╝  ██║       ███████║ ██║ █████╗                      ║
+ * ║    ██╔══██║  ██╔══██╗  ██║       ██╔══██║ ██║ ██╔══╝                      ║
+ * ║    ██║  ██║  ██║  ██║  ╚██████╗  ██║  ██║ ██║ ███████╗                    ║
+ * ║    ╚═╝  ╚═╝  ╚═╝  ╚═╝   ╚═════╝  ╚═╝  ╚═╝ ╚═╝ ╚══════╝                    ║
+ * ║                                                                           ║
+ * ║    Autonomous Resource Coordination Hub for Intelligent Execution         ║
+ * ║    Theme System v1.0.0 | Cyberpunk Dark Edition                          ║
+ * ║                                                                           ║
+ * ╚═══════════════════════════════════════════════════════════════════════════╝
+ */
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   § 1. DESIGN TOKENS - Core Variables
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+    /* ─────────────────────────────────────────────────────────────────────────
+       1.1 COLOR PALETTE - The Neural Network
+       ───────────────────────────────────────────────────────────────────────── */
+
+    /* Background Hierarchy - The Void */
+    --archie-bg-void: #000000;
+    --archie-bg-primary: #010409;
+    --archie-bg-secondary: #0d1117;
+    --archie-bg-tertiary: #161b22;
+    --archie-bg-elevated: #1c2128;
+    --archie-bg-hover: #21262d;
+
+    /* Background Gradients - Dimensional Depth */
+    --archie-bg-gradient-radial: radial-gradient(ellipse at top, #0d1117 0%, #010409 100%);
+    --archie-bg-gradient-mesh:
+        radial-gradient(at 40% 20%, rgba(0, 255, 65, 0.03) 0px, transparent 50%),
+        radial-gradient(at 80% 0%, rgba(0, 255, 255, 0.02) 0px, transparent 50%),
+        radial-gradient(at 0% 50%, rgba(139, 92, 246, 0.02) 0px, transparent 50%);
+
+    /* Text Colors - Signal Clarity */
+    --archie-text-primary: #00ff41;
+    --archie-text-secondary: #c9d1d9;
+    --archie-text-tertiary: #8b949e;
+    --archie-text-muted: #6e7681;
+    --archie-text-disabled: #484f58;
+    --archie-text-inverse: #010409;
+    --archie-text-link: #58a6ff;
+
+    /* ─────────────────────────────────────────────────────────────────────────
+       1.2 ACCENT COLORS - The Chromatic Arsenal
+       ───────────────────────────────────────────────────────────────────────── */
+
+    /* Primary Accents */
+    --archie-green: #00ff41;
+    --archie-green-dim: #00cc34;
+    --archie-green-bright: #39ff6e;
+    --archie-green-alpha-10: rgba(0, 255, 65, 0.1);
+    --archie-green-alpha-20: rgba(0, 255, 65, 0.2);
+    --archie-green-alpha-30: rgba(0, 255, 65, 0.3);
+
+    --archie-cyan: #00ffff;
+    --archie-cyan-dim: #00cccc;
+    --archie-cyan-bright: #66ffff;
+    --archie-cyan-alpha-10: rgba(0, 255, 255, 0.1);
+    --archie-cyan-alpha-20: rgba(0, 255, 255, 0.2);
+    --archie-cyan-alpha-30: rgba(0, 255, 255, 0.3);
+
+    --archie-orange: #ffaa00;
+    --archie-orange-dim: #cc8800;
+    --archie-orange-bright: #ffbb33;
+    --archie-orange-alpha-10: rgba(255, 170, 0, 0.1);
+    --archie-orange-alpha-20: rgba(255, 170, 0, 0.2);
+    --archie-orange-alpha-30: rgba(255, 170, 0, 0.3);
+
+    --archie-red: #ff6b6b;
+    --archie-red-dim: #cc5555;
+    --archie-red-bright: #ff8888;
+    --archie-red-alpha-10: rgba(255, 107, 107, 0.1);
+    --archie-red-alpha-20: rgba(255, 107, 107, 0.2);
+    --archie-red-alpha-30: rgba(255, 107, 107, 0.3);
+
+    --archie-purple: #8b5cf6;
+    --archie-purple-dim: #7048d4;
+    --archie-purple-bright: #a78bfa;
+    --archie-purple-alpha-10: rgba(139, 92, 246, 0.1);
+    --archie-purple-alpha-20: rgba(139, 92, 246, 0.2);
+    --archie-purple-alpha-30: rgba(139, 92, 246, 0.3);
+
+    --archie-blue: #0ea5e9;
+    --archie-blue-dim: #0b84bb;
+    --archie-blue-bright: #38bdf8;
+    --archie-blue-alpha-10: rgba(14, 165, 233, 0.1);
+    --archie-blue-alpha-20: rgba(14, 165, 233, 0.2);
+    --archie-blue-alpha-30: rgba(14, 165, 233, 0.3);
+
+    --archie-pink: #f472b6;
+    --archie-gold: #fbbf24;
+
+    /* ─────────────────────────────────────────────────────────────────────────
+       1.3 SEMANTIC COLORS - Status Signals
+       ───────────────────────────────────────────────────────────────────────── */
+
+    --archie-success: var(--archie-green);
+    --archie-success-bg: var(--archie-green-alpha-10);
+    --archie-success-border: var(--archie-green-alpha-30);
+
+    --archie-warning: var(--archie-orange);
+    --archie-warning-bg: var(--archie-orange-alpha-10);
+    --archie-warning-border: var(--archie-orange-alpha-30);
+
+    --archie-danger: var(--archie-red);
+    --archie-danger-bg: var(--archie-red-alpha-10);
+    --archie-danger-border: var(--archie-red-alpha-30);
+
+    --archie-info: var(--archie-cyan);
+    --archie-info-bg: var(--archie-cyan-alpha-10);
+    --archie-info-border: var(--archie-cyan-alpha-30);
+
+    /* ─────────────────────────────────────────────────────────────────────────
+       1.4 BORDER COLORS - Edge Definition
+       ───────────────────────────────────────────────────────────────────────── */
+
+    --archie-border-default: #30363d;
+    --archie-border-muted: #21262d;
+    --archie-border-subtle: #1b1f24;
+    --archie-border-emphasis: #484f58;
+
+    /* Glow Borders - Energy Fields */
+    --archie-border-glow: var(--archie-cyan);
+    --archie-border-glow-green: var(--archie-green);
+    --archie-border-glow-orange: var(--archie-orange);
+    --archie-border-glow-red: var(--archie-red);
+    --archie-border-glow-purple: var(--archie-purple);
+
+    /* ─────────────────────────────────────────────────────────────────────────
+       1.5 SHADOW SYSTEM - Dimensional Depth & Neon Glows
+       ───────────────────────────────────────────────────────────────────────── */
+
+    /* Elevation Shadows */
+    --archie-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --archie-shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.5);
+    --archie-shadow-md: 0 4px 8px rgba(0, 0, 0, 0.6);
+    --archie-shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.7);
+    --archie-shadow-xl: 0 16px 32px rgba(0, 0, 0, 0.8);
+
+    /* Neon Glows - The Cyberpunk Signature */
+    --archie-glow-green-sm: 0 0 8px var(--archie-green-alpha-30);
+    --archie-glow-green: 0 0 15px rgba(0, 255, 65, 0.4), 0 0 30px rgba(0, 255, 65, 0.2);
+    --archie-glow-green-lg: 0 0 20px rgba(0, 255, 65, 0.5), 0 0 40px rgba(0, 255, 65, 0.3), 0 0 60px rgba(0, 255, 65, 0.1);
+
+    --archie-glow-cyan-sm: 0 0 8px var(--archie-cyan-alpha-30);
+    --archie-glow-cyan: 0 0 15px rgba(0, 255, 255, 0.4), 0 0 30px rgba(0, 255, 255, 0.2);
+    --archie-glow-cyan-lg: 0 0 20px rgba(0, 255, 255, 0.5), 0 0 40px rgba(0, 255, 255, 0.3), 0 0 60px rgba(0, 255, 255, 0.1);
+
+    --archie-glow-orange-sm: 0 0 8px var(--archie-orange-alpha-30);
+    --archie-glow-orange: 0 0 15px rgba(255, 170, 0, 0.4), 0 0 30px rgba(255, 170, 0, 0.2);
+    --archie-glow-orange-lg: 0 0 20px rgba(255, 170, 0, 0.5), 0 0 40px rgba(255, 170, 0, 0.3), 0 0 60px rgba(255, 170, 0, 0.1);
+
+    --archie-glow-red-sm: 0 0 8px var(--archie-red-alpha-30);
+    --archie-glow-red: 0 0 15px rgba(255, 107, 107, 0.4), 0 0 30px rgba(255, 107, 107, 0.2);
+    --archie-glow-red-lg: 0 0 20px rgba(255, 107, 107, 0.5), 0 0 40px rgba(255, 107, 107, 0.3), 0 0 60px rgba(255, 107, 107, 0.1);
+
+    --archie-glow-purple-sm: 0 0 8px var(--archie-purple-alpha-30);
+    --archie-glow-purple: 0 0 15px rgba(139, 92, 246, 0.4), 0 0 30px rgba(139, 92, 246, 0.2);
+    --archie-glow-purple-lg: 0 0 20px rgba(139, 92, 246, 0.5), 0 0 40px rgba(139, 92, 246, 0.3), 0 0 60px rgba(139, 92, 246, 0.1);
+
+    --archie-glow-blue-sm: 0 0 8px var(--archie-blue-alpha-30);
+    --archie-glow-blue: 0 0 15px rgba(14, 165, 233, 0.4), 0 0 30px rgba(14, 165, 233, 0.2);
+    --archie-glow-blue-lg: 0 0 20px rgba(14, 165, 233, 0.5), 0 0 40px rgba(14, 165, 233, 0.3), 0 0 60px rgba(14, 165, 233, 0.1);
+
+    /* Text Glows */
+    --archie-text-glow-green: 0 0 10px var(--archie-green), 0 0 20px var(--archie-green-alpha-30);
+    --archie-text-glow-cyan: 0 0 10px var(--archie-cyan), 0 0 20px var(--archie-cyan-alpha-30);
+    --archie-text-glow-orange: 0 0 10px var(--archie-orange), 0 0 20px var(--archie-orange-alpha-30);
+    --archie-text-glow-red: 0 0 10px var(--archie-red), 0 0 20px var(--archie-red-alpha-30);
+    --archie-text-glow-purple: 0 0 10px var(--archie-purple), 0 0 20px var(--archie-purple-alpha-30);
+
+    /* ─────────────────────────────────────────────────────────────────────────
+       1.6 SPACING SCALE - Geometric Rhythm
+       ───────────────────────────────────────────────────────────────────────── */
+
+    --archie-space-0: 0;
+    --archie-space-px: 1px;
+    --archie-space-0-5: 0.125rem;  /* 2px */
+    --archie-space-1: 0.25rem;      /* 4px */
+    --archie-space-1-5: 0.375rem;   /* 6px */
+    --archie-space-2: 0.5rem;       /* 8px */
+    --archie-space-2-5: 0.625rem;   /* 10px */
+    --archie-space-3: 0.75rem;      /* 12px */
+    --archie-space-3-5: 0.875rem;   /* 14px */
+    --archie-space-4: 1rem;         /* 16px */
+    --archie-space-5: 1.25rem;      /* 20px */
+    --archie-space-6: 1.5rem;       /* 24px */
+    --archie-space-7: 1.75rem;      /* 28px */
+    --archie-space-8: 2rem;         /* 32px */
+    --archie-space-9: 2.25rem;      /* 36px */
+    --archie-space-10: 2.5rem;      /* 40px */
+    --archie-space-12: 3rem;        /* 48px */
+    --archie-space-14: 3.5rem;      /* 56px */
+    --archie-space-16: 4rem;        /* 64px */
+    --archie-space-20: 5rem;        /* 80px */
+    --archie-space-24: 6rem;        /* 96px */
+
+    /* Semantic Spacing Aliases */
+    --archie-spacing-xs: var(--archie-space-1);   /* 4px */
+    --archie-spacing-sm: var(--archie-space-2);   /* 8px */
+    --archie-spacing-md: var(--archie-space-4);   /* 16px */
+    --archie-spacing-lg: var(--archie-space-6);   /* 24px */
+    --archie-spacing-xl: var(--archie-space-8);   /* 32px */
+    --archie-spacing-2xl: var(--archie-space-12); /* 48px */
+    --archie-spacing-3xl: var(--archie-space-16); /* 64px */
+
+    /* ─────────────────────────────────────────────────────────────────────────
+       1.7 BORDER RADIUS - Edge Geometry
+       ───────────────────────────────────────────────────────────────────────── */
+
+    --archie-radius-none: 0;
+    --archie-radius-sm: 3px;
+    --archie-radius-md: 6px;
+    --archie-radius-lg: 8px;
+    --archie-radius-xl: 12px;
+    --archie-radius-2xl: 16px;
+    --archie-radius-full: 9999px;
+
+    /* ─────────────────────────────────────────────────────────────────────────
+       1.8 TYPOGRAPHY - The Voice of the Machine
+       ───────────────────────────────────────────────────────────────────────── */
+
+    /* Font Families */
+    --archie-font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', 'Consolas', monospace;
+    --archie-font-display: 'Orbitron', 'Rajdhani', 'Audiowide', sans-serif;
+    --archie-font-body: var(--archie-font-mono);
+    --archie-font-heading: var(--archie-font-display);
+
+    /* Font Sizes */
+    --archie-text-xs: 0.75rem;      /* 12px */
+    --archie-text-sm: 0.8125rem;    /* 13px */
+    --archie-text-base: 0.875rem;   /* 14px */
+    --archie-text-md: 0.9375rem;    /* 15px */
+    --archie-text-lg: 1rem;         /* 16px */
+    --archie-text-xl: 1.125rem;     /* 18px */
+    --archie-text-2xl: 1.25rem;     /* 20px */
+    --archie-text-3xl: 1.5rem;      /* 24px */
+    --archie-text-4xl: 1.875rem;    /* 30px */
+    --archie-text-5xl: 2.25rem;     /* 36px */
+    --archie-text-6xl: 3rem;        /* 48px */
+
+    /* Font Weights */
+    --archie-font-light: 300;
+    --archie-font-normal: 400;
+    --archie-font-medium: 500;
+    --archie-font-semibold: 600;
+    --archie-font-bold: 700;
+    --archie-font-black: 900;
+
+    /* Line Heights */
+    --archie-leading-none: 1;
+    --archie-leading-tight: 1.25;
+    --archie-leading-snug: 1.375;
+    --archie-leading-normal: 1.5;
+    --archie-leading-relaxed: 1.625;
+    --archie-leading-loose: 2;
+
+    /* Letter Spacing */
+    --archie-tracking-tighter: -0.05em;
+    --archie-tracking-tight: -0.025em;
+    --archie-tracking-normal: 0;
+    --archie-tracking-wide: 0.025em;
+    --archie-tracking-wider: 0.05em;
+    --archie-tracking-widest: 0.1em;
+    --archie-tracking-mega: 0.2em;
+
+    /* ─────────────────────────────────────────────────────────────────────────
+       1.9 TRANSITIONS & TIMING - Motion Language
+       ───────────────────────────────────────────────────────────────────────── */
+
+    /* Duration */
+    --archie-duration-instant: 50ms;
+    --archie-duration-fast: 150ms;
+    --archie-duration-normal: 250ms;
+    --archie-duration-slow: 400ms;
+    --archie-duration-slower: 600ms;
+    --archie-duration-slowest: 1000ms;
+
+    /* Easing Functions */
+    --archie-ease-linear: linear;
+    --archie-ease-in: cubic-bezier(0.4, 0, 1, 1);
+    --archie-ease-out: cubic-bezier(0, 0, 0.2, 1);
+    --archie-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+    --archie-ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    --archie-ease-elastic: cubic-bezier(0.68, -0.6, 0.32, 1.6);
+    --archie-ease-smooth: cubic-bezier(0.25, 0.1, 0.25, 1);
+
+    /* Transition Presets */
+    --archie-transition-fast: var(--archie-duration-fast) var(--archie-ease-out);
+    --archie-transition-normal: var(--archie-duration-normal) var(--archie-ease-out);
+    --archie-transition-slow: var(--archie-duration-slow) var(--archie-ease-out);
+    --archie-transition-bounce: var(--archie-duration-normal) var(--archie-ease-bounce);
+
+    /* ─────────────────────────────────────────────────────────────────────────
+       1.10 Z-INDEX SCALE - Layer Hierarchy
+       ───────────────────────────────────────────────────────────────────────── */
+
+    --archie-z-behind: -1;
+    --archie-z-base: 0;
+    --archie-z-elevated: 10;
+    --archie-z-dropdown: 100;
+    --archie-z-sticky: 200;
+    --archie-z-fixed: 300;
+    --archie-z-overlay: 400;
+    --archie-z-modal: 500;
+    --archie-z-popover: 600;
+    --archie-z-tooltip: 700;
+    --archie-z-notification: 800;
+    --archie-z-max: 9999;
+
+    /* ─────────────────────────────────────────────────────────────────────────
+       1.11 LAYOUT - Structural Constants
+       ───────────────────────────────────────────────────────────────────────── */
+
+    --archie-container-xs: 20rem;   /* 320px */
+    --archie-container-sm: 24rem;   /* 384px */
+    --archie-container-md: 28rem;   /* 448px */
+    --archie-container-lg: 32rem;   /* 512px */
+    --archie-container-xl: 36rem;   /* 576px */
+    --archie-container-2xl: 42rem;  /* 672px */
+    --archie-container-3xl: 48rem;  /* 768px */
+    --archie-container-4xl: 56rem;  /* 896px */
+    --archie-container-5xl: 64rem;  /* 1024px */
+    --archie-container-6xl: 72rem;  /* 1152px */
+    --archie-container-7xl: 80rem;  /* 1280px */
+    --archie-container-max: 87.5rem; /* 1400px */
+
+    /* ─────────────────────────────────────────────────────────────────────────
+       1.12 DYNAMIC ACCENT - Module-Aware Theming
+       ───────────────────────────────────────────────────────────────────────── */
+
+    /* Default accent (can be overridden per-module) */
+    --archie-accent: var(--archie-cyan);
+    --archie-accent-dim: var(--archie-cyan-dim);
+    --archie-accent-bright: var(--archie-cyan-bright);
+    --archie-accent-alpha-10: var(--archie-cyan-alpha-10);
+    --archie-accent-alpha-20: var(--archie-cyan-alpha-20);
+    --archie-accent-alpha-30: var(--archie-cyan-alpha-30);
+    --archie-glow-accent: var(--archie-glow-cyan);
+    --archie-glow-accent-sm: var(--archie-glow-cyan-sm);
+    --archie-glow-accent-lg: var(--archie-glow-cyan-lg);
+    --archie-text-glow-accent: var(--archie-text-glow-cyan);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   § 2. MODULE-SPECIFIC THEMES - Chromatic Identity
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Improvements Lab - Cyan Matrix */
+[data-module="improvements-lab"],
+[data-module="improvements"] {
+    --archie-accent: var(--archie-cyan);
+    --archie-accent-dim: var(--archie-cyan-dim);
+    --archie-accent-bright: var(--archie-cyan-bright);
+    --archie-accent-alpha-10: var(--archie-cyan-alpha-10);
+    --archie-accent-alpha-20: var(--archie-cyan-alpha-20);
+    --archie-accent-alpha-30: var(--archie-cyan-alpha-30);
+    --archie-glow-accent: var(--archie-glow-cyan);
+    --archie-glow-accent-sm: var(--archie-glow-cyan-sm);
+    --archie-glow-accent-lg: var(--archie-glow-cyan-lg);
+    --archie-text-glow-accent: var(--archie-text-glow-cyan);
+}
+
+/* CodeRabbit - Crimson Protocol */
+[data-module="coderabbit"],
+[data-module="code-review"] {
+    --archie-accent: var(--archie-red);
+    --archie-accent-dim: var(--archie-red-dim);
+    --archie-accent-bright: var(--archie-red-bright);
+    --archie-accent-alpha-10: var(--archie-red-alpha-10);
+    --archie-accent-alpha-20: var(--archie-red-alpha-20);
+    --archie-accent-alpha-30: var(--archie-red-alpha-30);
+    --archie-glow-accent: var(--archie-glow-red);
+    --archie-glow-accent-sm: var(--archie-glow-red-sm);
+    --archie-glow-accent-lg: var(--archie-glow-red-lg);
+    --archie-text-glow-accent: var(--archie-text-glow-red);
+}
+
+/* Consciousness - Violet Mind */
+[data-module="consciousness"],
+[data-module="memory"] {
+    --archie-accent: var(--archie-purple);
+    --archie-accent-dim: var(--archie-purple-dim);
+    --archie-accent-bright: var(--archie-purple-bright);
+    --archie-accent-alpha-10: var(--archie-purple-alpha-10);
+    --archie-accent-alpha-20: var(--archie-purple-alpha-20);
+    --archie-accent-alpha-30: var(--archie-purple-alpha-30);
+    --archie-glow-accent: var(--archie-glow-purple);
+    --archie-glow-accent-sm: var(--archie-glow-purple-sm);
+    --archie-glow-accent-lg: var(--archie-glow-purple-lg);
+    --archie-text-glow-accent: var(--archie-text-glow-purple);
+}
+
+/* Team Management - Matrix Green */
+[data-module="team-management"],
+[data-module="agents"],
+[data-module="team"] {
+    --archie-accent: var(--archie-green);
+    --archie-accent-dim: var(--archie-green-dim);
+    --archie-accent-bright: var(--archie-green-bright);
+    --archie-accent-alpha-10: var(--archie-green-alpha-10);
+    --archie-accent-alpha-20: var(--archie-green-alpha-20);
+    --archie-accent-alpha-30: var(--archie-green-alpha-30);
+    --archie-glow-accent: var(--archie-glow-green);
+    --archie-glow-accent-sm: var(--archie-glow-green-sm);
+    --archie-glow-accent-lg: var(--archie-glow-green-lg);
+    --archie-text-glow-accent: var(--archie-text-glow-green);
+}
+
+/* Website Studio - Electric Blue */
+[data-module="website-studio"],
+[data-module="website-builder"],
+[data-module="web"] {
+    --archie-accent: var(--archie-blue);
+    --archie-accent-dim: var(--archie-blue-dim);
+    --archie-accent-bright: var(--archie-blue-bright);
+    --archie-accent-alpha-10: var(--archie-blue-alpha-10);
+    --archie-accent-alpha-20: var(--archie-blue-alpha-20);
+    --archie-accent-alpha-30: var(--archie-blue-alpha-30);
+    --archie-glow-accent: var(--archie-glow-blue);
+    --archie-glow-accent-sm: var(--archie-glow-blue-sm);
+    --archie-glow-accent-lg: var(--archie-glow-blue-lg);
+    --archie-text-glow-accent: var(--archie-text-glow-cyan);
+}
+
+/* Backup Manager - Amber Alert */
+[data-module="backup-manager"],
+[data-module="backups"] {
+    --archie-accent: var(--archie-orange);
+    --archie-accent-dim: var(--archie-orange-dim);
+    --archie-accent-bright: var(--archie-orange-bright);
+    --archie-accent-alpha-10: var(--archie-orange-alpha-10);
+    --archie-accent-alpha-20: var(--archie-orange-alpha-20);
+    --archie-accent-alpha-30: var(--archie-orange-alpha-30);
+    --archie-glow-accent: var(--archie-glow-orange);
+    --archie-glow-accent-sm: var(--archie-glow-orange-sm);
+    --archie-glow-accent-lg: var(--archie-glow-orange-lg);
+    --archie-text-glow-accent: var(--archie-text-glow-orange);
+}
+
+/* Blueprint - Cyan Command */
+[data-module="blueprint"],
+[data-module="admin"] {
+    --archie-accent: var(--archie-cyan);
+    --archie-accent-dim: var(--archie-cyan-dim);
+    --archie-accent-bright: var(--archie-cyan-bright);
+    --archie-accent-alpha-10: var(--archie-cyan-alpha-10);
+    --archie-accent-alpha-20: var(--archie-cyan-alpha-20);
+    --archie-accent-alpha-30: var(--archie-cyan-alpha-30);
+    --archie-glow-accent: var(--archie-glow-cyan);
+    --archie-glow-accent-sm: var(--archie-glow-cyan-sm);
+    --archie-glow-accent-lg: var(--archie-glow-cyan-lg);
+    --archie-text-glow-accent: var(--archie-text-glow-cyan);
+}
+
+/* Dashboard - Matrix Green (Home Base) */
+[data-module="dashboard"],
+[data-module="home"] {
+    --archie-accent: var(--archie-green);
+    --archie-accent-dim: var(--archie-green-dim);
+    --archie-accent-bright: var(--archie-green-bright);
+    --archie-accent-alpha-10: var(--archie-green-alpha-10);
+    --archie-accent-alpha-20: var(--archie-green-alpha-20);
+    --archie-accent-alpha-30: var(--archie-green-alpha-30);
+    --archie-glow-accent: var(--archie-glow-green);
+    --archie-glow-accent-sm: var(--archie-glow-green-sm);
+    --archie-glow-accent-lg: var(--archie-glow-green-lg);
+    --archie-text-glow-accent: var(--archie-text-glow-green);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   § 3. CSS RESET - Clean Slate Protocol
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+*,
+*::before,
+*::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html {
+    font-size: 16px;
+    -webkit-text-size-adjust: 100%;
+    -moz-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: var(--archie-font-body);
+    font-size: var(--archie-text-base);
+    font-weight: var(--archie-font-normal);
+    line-height: var(--archie-leading-normal);
+    color: var(--archie-text-primary);
+    background-color: var(--archie-bg-primary);
+    background-image: var(--archie-bg-gradient-mesh);
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   3.1 ELEMENT RESETS
+   ───────────────────────────────────────────────────────────────────────── */
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--archie-font-heading);
+    font-weight: var(--archie-font-bold);
+    line-height: var(--archie-leading-tight);
+    color: var(--archie-accent);
+    letter-spacing: var(--archie-tracking-wide);
+}
+
+h1 { font-size: var(--archie-text-4xl); }
+h2 { font-size: var(--archie-text-3xl); }
+h3 { font-size: var(--archie-text-2xl); }
+h4 { font-size: var(--archie-text-xl); }
+h5 { font-size: var(--archie-text-lg); }
+h6 { font-size: var(--archie-text-base); }
+
+p {
+    color: var(--archie-text-secondary);
+    margin-bottom: var(--archie-spacing-md);
+}
+
+a {
+    color: var(--archie-accent);
+    text-decoration: none;
+    transition: color var(--archie-transition-fast),
+                text-shadow var(--archie-transition-fast);
+}
+
+a:hover {
+    color: var(--archie-accent-bright);
+    text-shadow: var(--archie-text-glow-accent);
+}
+
+strong, b {
+    font-weight: var(--archie-font-semibold);
+}
+
+code, pre, kbd, samp {
+    font-family: var(--archie-font-mono);
+}
+
+code {
+    background: var(--archie-bg-tertiary);
+    padding: var(--archie-space-0-5) var(--archie-space-1);
+    border-radius: var(--archie-radius-sm);
+    font-size: 0.9em;
+    color: var(--archie-accent);
+}
+
+pre {
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
+    border-radius: var(--archie-radius-md);
+    padding: var(--archie-spacing-md);
+    overflow-x: auto;
+}
+
+pre code {
+    background: transparent;
+    padding: 0;
+}
+
+img, svg, video, canvas {
+    display: block;
+    max-width: 100%;
+    height: auto;
+}
+
+button, input, select, textarea {
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    color: inherit;
+}
+
+button {
+    cursor: pointer;
+    border: none;
+    background: transparent;
+}
+
+ul, ol {
+    list-style: none;
+}
+
+table {
+    border-collapse: collapse;
+    border-spacing: 0;
+    width: 100%;
+}
+
+hr {
+    border: none;
+    border-top: 1px solid var(--archie-border-default);
+    margin: var(--archie-spacing-lg) 0;
+}
+
+::selection {
+    background: var(--archie-accent-alpha-30);
+    color: var(--archie-text-primary);
+}
+
+::-moz-selection {
+    background: var(--archie-accent-alpha-30);
+    color: var(--archie-text-primary);
+}
+
+/* Focus States - Accessibility */
+:focus-visible {
+    outline: 2px solid var(--archie-accent);
+    outline-offset: 2px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   3.2 SCROLLBAR - Neural Pathway
+   ───────────────────────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--archie-bg-secondary);
+    border-radius: var(--archie-radius-full);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--archie-border-default);
+    border-radius: var(--archie-radius-full);
+    transition: background var(--archie-transition-fast);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--archie-accent);
+}
+
+/* Firefox */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--archie-border-default) var(--archie-bg-secondary);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   § 4. UTILITY PATTERNS - Quick Access
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Visually Hidden (Accessibility) */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Container */
+.archie-container {
+    width: 100%;
+    max-width: var(--archie-container-max);
+    margin: 0 auto;
+    padding: 0 var(--archie-spacing-lg);
+}
+
+/* Cyberpunk Decorative Elements */
+.archie-grid-bg {
+    background-image:
+        linear-gradient(rgba(0, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 50px 50px;
+}
+
+.archie-scanlines {
+    position: relative;
+}
+
+.archie-scanlines::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 0, 0, 0.1) 0px,
+        rgba(0, 0, 0, 0.1) 1px,
+        transparent 1px,
+        transparent 2px
+    );
+    pointer-events: none;
+    opacity: 0.3;
+}
+
+/* Glow Text Classes */
+.glow-text {
+    text-shadow: var(--archie-text-glow-accent);
+}
+
+.glow-text-green { text-shadow: var(--archie-text-glow-green); }
+.glow-text-cyan { text-shadow: var(--archie-text-glow-cyan); }
+.glow-text-orange { text-shadow: var(--archie-text-glow-orange); }
+.glow-text-red { text-shadow: var(--archie-text-glow-red); }
+.glow-text-purple { text-shadow: var(--archie-text-glow-purple); }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   § 5. RESPONSIVE BREAKPOINTS - Adaptive Protocol
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/*
+   Breakpoint Reference:
+   ------------------
+   xs:  < 480px   (Small phones)
+   sm:  480px+    (Large phones)
+   md:  768px+    (Tablets)
+   lg:  1024px+   (Small laptops)
+   xl:  1280px+   (Desktops)
+   2xl: 1536px+   (Large screens)
+
+   Usage:
+   @media (max-width: 768px) { ... }  <- Mobile-first override
+   @media (min-width: 769px) { ... }  <- Desktop enhancement
+*/
+
+/* Mobile Typography Adjustments */
+@media (max-width: 768px) {
+    :root {
+        --archie-text-base: 0.8125rem;
+        --archie-text-4xl: 1.5rem;
+        --archie-text-3xl: 1.25rem;
+        --archie-text-2xl: 1.125rem;
+    }
+
+    .archie-container {
+        padding: 0 var(--archie-spacing-md);
+    }
+}
+
+@media (max-width: 480px) {
+    :root {
+        --archie-spacing-lg: 1rem;
+        --archie-spacing-xl: 1.5rem;
+    }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   EOF - A.R.C.H.I.E. Theme System v1.0.0
+   ═══════════════════════════════════════════════════════════════════════════ */

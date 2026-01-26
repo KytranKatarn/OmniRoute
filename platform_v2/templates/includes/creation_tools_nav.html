@@ -1,0 +1,301 @@
+<!-- ═══════════════════════════════════════════════════════════════════════════════
+   Creation Tools Navigation Bar
+   Shared component for Project Builder, Game Studio, Media Studio, Content Studio
+   Phase 5: Module Consolidation - CREATION Category
+   ═══════════════════════════════════════════════════════════════════════════════ -->
+
+<!-- Page Transition Overlay -->
+<div class="page-transition-overlay creation-transition" id="pageTransition">
+    <div class="transition-content">
+        <div class="transition-logo">A.R.C.H.I.E.</div>
+        <div class="transition-bar">
+            <div class="transition-progress"></div>
+        </div>
+        <div class="transition-text">LOADING MODULE...</div>
+    </div>
+</div>
+
+<!-- Creation Tools Navigation -->
+<nav class="category-nav creation-tools-nav">
+    <div class="nav-left">
+        <a href="{{ url_for('dashboard') }}" class="nav-back-btn" onclick="showTransition(event, this.href)">
+            <i data-lucide="arrow-left"></i>
+            <span>DASHBOARD</span>
+        </a>
+    </div>
+
+    <div class="nav-center">
+        <span class="nav-category-label">
+            <i data-lucide="sparkles"></i>
+            CREATION TOOLS
+        </span>
+    </div>
+
+    <div class="nav-right">
+        <!-- Theme Controls -->
+        <div class="theme-controls">
+            <button class="nav-icon-btn" onclick="toggleTheme()" title="Toggle Light/Dark Mode">
+                <i data-lucide="sun" id="themeIcon"></i>
+            </button>
+            <button class="nav-icon-btn" onclick="showLanguageMenu()" title="Language (Coming Soon)">
+                <i data-lucide="globe"></i>
+            </button>
+        </div>
+        <div class="nav-divider"></div>
+        <a href="{{ url_for('figma.index') }}"
+           class="nav-module-btn {% if request.endpoint and 'figma' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="Figma Integration">
+            <i data-lucide="figma"></i>
+            <span>Figma</span>
+        </a>
+        <a href="{{ url_for('project_builder.index') }}"
+           class="nav-module-btn {% if request.endpoint and 'project_builder' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="Project Builder">
+            <i data-lucide="building-2"></i>
+            <span>Projects</span>
+        </a>
+        <a href="{{ url_for('game_studio.index') }}"
+           class="nav-module-btn {% if request.endpoint and 'game_studio' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="Game Studio">
+            <i data-lucide="gamepad-2"></i>
+            <span>Games</span>
+        </a>
+        <a href="{{ url_for('media_studio.index') }}"
+           class="nav-module-btn {% if request.endpoint and 'media_studio' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="Media Studio">
+            <i data-lucide="palette"></i>
+            <span>Media</span>
+        </a>
+        <a href="{{ url_for('content_studio.index') if 'content_studio' in url_for.__globals__['current_app'].blueprints else '#' }}"
+           class="nav-module-btn {% if request.endpoint and 'content_studio' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="Content Studio">
+            <i data-lucide="file-text"></i>
+            <span>Content</span>
+        </a>
+    </div>
+</nav>
+
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════════
+   PAGE TRANSITION OVERLAY - CREATION TOOLS (ORANGE THEME)
+   ═══════════════════════════════════════════════════════════════════════════════ */
+.creation-transition .transition-logo {
+    color: #F59E0B;
+    text-shadow: 0 0 30px rgba(245, 158, 11, 0.5), 0 0 60px rgba(245, 158, 11, 0.3);
+}
+
+.creation-transition .transition-bar {
+    background: rgba(245, 158, 11, 0.2);
+}
+
+.creation-transition .transition-progress {
+    background: linear-gradient(90deg, #F59E0B, #EF4444);
+}
+
+.creation-transition .transition-text {
+    color: rgba(245, 158, 11, 0.7);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   CREATION TOOLS NAVIGATION BAR (ORANGE THEME)
+   ═══════════════════════════════════════════════════════════════════════════════ */
+.creation-tools-nav {
+    border-bottom: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.creation-tools-nav::after {
+    background: linear-gradient(90deg, transparent, rgba(245, 158, 11, 0.5), transparent);
+}
+
+.creation-tools-nav .nav-category-label {
+    color: #F59E0B;
+    text-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
+}
+
+.creation-tools-nav .nav-module-btn {
+    border-color: rgba(245, 158, 11, 0.2);
+    color: rgba(245, 158, 11, 0.6);
+}
+
+.creation-tools-nav .nav-module-btn::before {
+    background: #F59E0B;
+}
+
+.creation-tools-nav .nav-module-btn:hover {
+    color: #F59E0B;
+    border-color: rgba(245, 158, 11, 0.4);
+    background: rgba(245, 158, 11, 0.05);
+}
+
+.creation-tools-nav .nav-module-btn.active {
+    color: #F59E0B;
+    border-color: rgba(245, 158, 11, 0.5);
+    background: rgba(245, 158, 11, 0.1);
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.15);
+}
+
+/* Theme Controls */
+.creation-tools-nav .theme-controls {
+    display: flex;
+    gap: 4px;
+}
+
+.creation-tools-nav .nav-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: transparent;
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    border-radius: 8px;
+    color: rgba(245, 158, 11, 0.6);
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.creation-tools-nav .nav-icon-btn:hover {
+    color: #F59E0B;
+    border-color: rgba(245, 158, 11, 0.5);
+    background: rgba(245, 158, 11, 0.1);
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.15);
+}
+
+.creation-tools-nav .nav-icon-btn i {
+    width: 18px;
+    height: 18px;
+}
+
+.creation-tools-nav .nav-divider {
+    width: 1px;
+    height: 24px;
+    background: rgba(245, 158, 11, 0.2);
+    margin: 0 8px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - CREATION TOOLS NAV
+   ═══════════════════════════════════════════════════════════════════════════════ */
+body.light-mode .creation-tools-nav {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 249, 250, 0.9) 100%);
+    border-bottom: 1px solid rgba(217, 119, 6, 0.2);
+}
+
+body.light-mode .creation-tools-nav::after {
+    background: linear-gradient(90deg, transparent, rgba(217, 119, 6, 0.4), transparent);
+}
+
+body.light-mode .creation-tools-nav .nav-category-label {
+    color: #D97706;
+    text-shadow: none;
+}
+
+body.light-mode .creation-tools-nav .nav-module-btn {
+    color: rgba(217, 119, 6, 0.7);
+    border-color: rgba(217, 119, 6, 0.2);
+}
+
+body.light-mode .creation-tools-nav .nav-module-btn:hover {
+    color: #D97706;
+    border-color: rgba(217, 119, 6, 0.4);
+    background: rgba(217, 119, 6, 0.05);
+}
+
+body.light-mode .creation-tools-nav .nav-module-btn::before {
+    background: #D97706;
+}
+
+body.light-mode .creation-tools-nav .nav-module-btn.active {
+    color: #D97706;
+    border-color: rgba(217, 119, 6, 0.5);
+    background: rgba(217, 119, 6, 0.08);
+    box-shadow: 0 0 15px rgba(217, 119, 6, 0.1);
+}
+
+body.light-mode .creation-tools-nav .nav-icon-btn {
+    color: rgba(217, 119, 6, 0.6);
+    border-color: rgba(217, 119, 6, 0.2);
+}
+
+body.light-mode .creation-tools-nav .nav-icon-btn:hover {
+    color: #D97706;
+    border-color: rgba(217, 119, 6, 0.5);
+    background: rgba(217, 119, 6, 0.08);
+    box-shadow: 0 0 15px rgba(217, 119, 6, 0.1);
+}
+
+body.light-mode .creation-tools-nav .nav-divider {
+    background: rgba(217, 119, 6, 0.2);
+}
+
+body.light-mode .creation-transition {
+    background: #f8f9fa;
+}
+
+body.light-mode .creation-transition .transition-logo {
+    color: #D97706;
+    text-shadow: 0 0 20px rgba(217, 119, 6, 0.3);
+}
+
+body.light-mode .creation-transition .transition-bar {
+    background: rgba(217, 119, 6, 0.1);
+}
+
+body.light-mode .creation-transition .transition-progress {
+    background: linear-gradient(90deg, #D97706, #DC2626);
+}
+
+body.light-mode .creation-transition .transition-text {
+    color: rgba(217, 119, 6, 0.7);
+}
+</style>
+
+<script>
+// Page Transition Handler
+function showTransition(event, targetUrl) {
+    // Don't transition if clicking current page
+    if (event.currentTarget.classList.contains('active')) {
+        event.preventDefault();
+        return;
+    }
+
+    event.preventDefault();
+    const overlay = document.getElementById('pageTransition');
+    overlay.classList.add('active');
+
+    // Navigate after animation
+    setTimeout(() => {
+        window.location.href = targetUrl;
+    }, 600);
+}
+
+// Language menu placeholder
+function showLanguageMenu() {
+    // Show toast notification
+    if (typeof showToast === 'function') {
+        showToast('Language selection coming soon!', 'info');
+    } else {
+        alert('Language selection coming soon!');
+    }
+}
+
+// Initialize Lucide icons in nav
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+});
+
+// Hide transition on page load (for back button)
+window.addEventListener('pageshow', function(event) {
+    const overlay = document.getElementById('pageTransition');
+    if (overlay) {
+        overlay.classList.remove('active');
+    }
+});
+</script>

@@ -1,0 +1,502 @@
+{% extends "base.html" %}
+
+{% block title %}HR Management - A.R.C.H.I.E.{% endblock %}
+
+{% block module_name %}hr-management{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    :root {
+        --hr-bg: #010409;
+        --hr-panel: #0d1117;
+        --hr-border: #30363d;
+        --hr-accent: #10B981;
+        --hr-text: #c9d1d9;
+    }
+
+    .hr-container {
+        max-width: 1600px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+
+    .hr-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px;
+        background: linear-gradient(135deg, var(--hr-panel), rgba(16, 185, 129, 0.1));
+        border: 1px solid var(--hr-accent);
+        border-radius: 8px;
+        margin-bottom: 20px;
+    }
+
+    .hr-title {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+
+    .hr-title h1 {
+        color: var(--hr-accent);
+        font-size: 1.8rem;
+        margin: 0;
+    }
+
+    .hr-status {
+        display: flex;
+        gap: 20px;
+    }
+
+    .status-badge {
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+
+    .status-badge.full-staff {
+        background: rgba(16, 185, 129, 0.2);
+        color: #10B981;
+        border: 1px solid #10B981;
+    }
+
+    .status-badge.reduced-staff {
+        background: rgba(255, 170, 0, 0.2);
+        color: #FFAA00;
+        border: 1px solid #FFAA00;
+    }
+
+    .hr-tabs {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+    }
+
+    .hr-tab {
+        padding: 12px 24px;
+        background: var(--hr-panel);
+        border: 1px solid var(--hr-border);
+        border-radius: 6px;
+        color: var(--hr-text);
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+
+    .hr-tab:hover, .hr-tab.active {
+        background: var(--hr-accent);
+        color: #000;
+        border-color: var(--hr-accent);
+    }
+
+    .hr-content {
+        display: none;
+    }
+
+    .hr-content.active {
+        display: block;
+    }
+
+    .hr-stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin-bottom: 20px;
+    }
+
+    .hr-stat-card {
+        background: var(--hr-panel);
+        border: 1px solid var(--hr-border);
+        border-radius: 8px;
+        padding: 20px;
+        text-align: center;
+    }
+
+    .hr-stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--hr-accent);
+    }
+
+    .hr-stat-label {
+        color: #8b949e;
+        font-size: 0.85rem;
+        margin-top: 5px;
+    }
+
+    .hr-panel {
+        background: var(--hr-panel);
+        border: 1px solid var(--hr-border);
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+
+    .hr-panel h3 {
+        color: var(--hr-accent);
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--hr-border);
+    }
+
+    .hr-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .hr-table th, .hr-table td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid var(--hr-border);
+    }
+
+    .hr-table th {
+        background: rgba(16, 185, 129, 0.1);
+        color: var(--hr-accent);
+    }
+
+    .hr-table tr:hover {
+        background: rgba(16, 185, 129, 0.05);
+    }
+
+    .model-badge {
+        display: inline-block;
+        padding: 4px 8px;
+        background: rgba(16, 185, 129, 0.2);
+        color: var(--hr-accent);
+        border-radius: 4px;
+        font-size: 0.75rem;
+    }
+
+    .model-badge.local {
+        background: rgba(16, 185, 129, 0.2);
+        color: #10B981;
+    }
+
+    .model-badge.external {
+        background: rgba(255, 68, 68, 0.2);
+        color: #ff4444;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="hr-container">
+    <div class="hr-header">
+        <div class="hr-title">
+            <span style="font-size: 2rem;">👥</span>
+            <div>
+                <h1>HR MANAGEMENT</h1>
+                <span style="color: #8b949e; font-size: 0.9rem;">Performance, Skills, Scheduling, Compliance</span>
+            </div>
+        </div>
+        <div class="hr-status">
+            <span class="status-badge" id="staffingStatus">Loading...</span>
+            <span class="status-badge" style="background: rgba(16, 185, 129, 0.2); color: #10B981; border: 1px solid #10B981;">
+                LOCAL LLM: <span id="localCount">0</span>
+            </span>
+        </div>
+    </div>
+
+    <div class="hr-tabs">
+        <button class="hr-tab active" onclick="showTab('dashboard')">Dashboard</button>
+        <button class="hr-tab" onclick="showTab('performance')">Performance</button>
+        <button class="hr-tab" onclick="showTab('skills')">Skills Matrix</button>
+        <button class="hr-tab" onclick="showTab('scheduling')">Scheduling</button>
+        <button class="hr-tab" onclick="showTab('compliance')">IAAE Compliance</button>
+        <button class="hr-tab" onclick="showTab('wellness')">Wellness</button>
+    </div>
+
+    <!-- Dashboard Tab -->
+    <div id="tab-dashboard" class="hr-content active">
+        <div class="hr-stats-grid" id="statsGrid">
+            <div class="hr-stat-card">
+                <div class="hr-stat-value" id="totalAgents">--</div>
+                <div class="hr-stat-label">Total Staff</div>
+            </div>
+            <div class="hr-stat-card">
+                <div class="hr-stat-value" id="internalAgents">--</div>
+                <div class="hr-stat-label">Internal (Local LLM)</div>
+            </div>
+            <div class="hr-stat-card">
+                <div class="hr-stat-value" id="contractAgents">--</div>
+                <div class="hr-stat-label">Contractors (External)</div>
+            </div>
+            <div class="hr-stat-card">
+                <div class="hr-stat-value" id="stationsCovered">--</div>
+                <div class="hr-stat-label">Stations Staffed</div>
+            </div>
+            <div class="hr-stat-card">
+                <div class="hr-stat-value" id="departmentCount">--</div>
+                <div class="hr-stat-label">Departments</div>
+            </div>
+        </div>
+
+        <div class="hr-panel">
+            <h3>Department Breakdown</h3>
+            <table class="hr-table" id="departmentTable">
+                <thead>
+                    <tr>
+                        <th>Department</th>
+                        <th>Total</th>
+                        <th>Internal</th>
+                        <th>Contract</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div class="hr-panel">
+            <h3>LLM Model Distribution</h3>
+            <table class="hr-table" id="modelTable">
+                <thead>
+                    <tr>
+                        <th>Model</th>
+                        <th>Type</th>
+                        <th>Count</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Performance Tab -->
+    <div id="tab-performance" class="hr-content">
+        <div class="hr-panel">
+            <h3>Performance Leaderboard</h3>
+            <table class="hr-table" id="leaderboardTable">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Agent</th>
+                        <th>Department</th>
+                        <th>Model</th>
+                        <th>Tasks</th>
+                        <th>Success Rate</th>
+                        <th>Grade</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Skills Tab -->
+    <div id="tab-skills" class="hr-content">
+        <div class="hr-panel">
+            <h3>Skills Matrix</h3>
+            <p style="color: #8b949e;">Agent skills and proficiency levels</p>
+            <div id="skillsMatrix">Loading skills matrix...</div>
+        </div>
+    </div>
+
+    <!-- Scheduling Tab -->
+    <div id="tab-scheduling" class="hr-content">
+        <div class="hr-panel">
+            <h3>Agents On Shift</h3>
+            <table class="hr-table" id="onShiftTable">
+                <thead>
+                    <tr>
+                        <th>Station</th>
+                        <th>Agent</th>
+                        <th>Model</th>
+                        <th>Role</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Compliance Tab -->
+    <div id="tab-compliance" class="hr-content">
+        <div class="hr-stats-grid">
+            <div class="hr-stat-card">
+                <div class="hr-stat-value" style="color: #10B981;">100%</div>
+                <div class="hr-stat-label">Local-First Compliance</div>
+            </div>
+            <div class="hr-stat-card">
+                <div class="hr-stat-value" id="complianceInternal">--</div>
+                <div class="hr-stat-label">Internal Agents</div>
+            </div>
+            <div class="hr-stat-card">
+                <div class="hr-stat-value" id="complianceContractors">7</div>
+                <div class="hr-stat-label">Contractors (Escalation Only)</div>
+            </div>
+        </div>
+        <div class="hr-panel">
+            <h3>IAAE Governance Status</h3>
+            <p style="color: #10B981; font-size: 1.1rem; padding: 15px; background: rgba(16, 185, 129, 0.1); border-radius: 6px;">
+                ✓ All internal agents use LOCAL Ollama LLMs<br>
+                ✓ 7 contractors available for escalation only<br>
+                ✓ Local-first routing enforced via archie_bridge<br>
+                ✓ All 16 stations have Primary + Backup assignments
+            </p>
+        </div>
+    </div>
+
+    <!-- Wellness Tab -->
+    <div id="tab-wellness" class="hr-content">
+        <div class="hr-panel">
+            <h3>Agent Wellness Status</h3>
+            <table class="hr-table" id="wellnessTable">
+                <thead>
+                    <tr>
+                        <th>Agent</th>
+                        <th>Department</th>
+                        <th>Energy</th>
+                        <th>Stress</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Tab switching
+    function showTab(tabName) {
+        document.querySelectorAll('.hr-content').forEach(c => c.classList.remove('active'));
+        document.querySelectorAll('.hr-tab').forEach(t => t.classList.remove('active'));
+        document.getElementById('tab-' + tabName).classList.add('active');
+        event.target.classList.add('active');
+
+        // Load tab-specific data
+        if (tabName === 'performance') loadLeaderboard();
+        if (tabName === 'scheduling') loadOnShift();
+        if (tabName === 'wellness') loadWellness();
+    }
+
+    // Load dashboard data
+    async function loadDashboard() {
+        try {
+            const response = await fetch('/tools/hr-management/api/dashboard');
+            const data = await response.json();
+
+            if (data.success) {
+                // Stats
+                document.getElementById('totalAgents').textContent = data.stats.agents.total_agents;
+                document.getElementById('internalAgents').textContent = data.stats.agents.internal_count;
+                document.getElementById('contractAgents').textContent = data.stats.agents.contract_count;
+                document.getElementById('departmentCount').textContent = data.stats.agents.department_count;
+                document.getElementById('localCount').textContent = data.stats.agents.internal_count;
+
+                // Staffing status
+                const statusEl = document.getElementById('staffingStatus');
+                statusEl.textContent = data.stats.staffing_status;
+                statusEl.className = 'status-badge ' + (data.stats.staffing_status === 'Full Staff' ? 'full-staff' : 'reduced-staff');
+
+                // Stations
+                if (data.stats.stations) {
+                    document.getElementById('stationsCovered').textContent =
+                        data.stats.stations.staffed_stations + '/' + data.stats.stations.total_stations;
+                }
+
+                // Department table
+                const deptBody = document.querySelector('#departmentTable tbody');
+                deptBody.innerHTML = data.departments.map(d => `
+                    <tr>
+                        <td>${d.department}</td>
+                        <td>${d.count}</td>
+                        <td>${d.internal || 0}</td>
+                        <td>${d.contract || 0}</td>
+                    </tr>
+                `).join('');
+
+                // Model table
+                const modelBody = document.querySelector('#modelTable tbody');
+                modelBody.innerHTML = data.models.map(m => `
+                    <tr>
+                        <td>${m.model}</td>
+                        <td><span class="model-badge ${m.worker_type === 'internal' ? 'local' : 'external'}">${m.worker_type.toUpperCase()}</span></td>
+                        <td>${m.count}</td>
+                    </tr>
+                `).join('');
+
+                // Compliance
+                document.getElementById('complianceInternal').textContent = data.stats.agents.internal_count;
+            }
+        } catch (error) {
+            console.error('Error loading dashboard:', error);
+        }
+    }
+
+    async function loadLeaderboard() {
+        try {
+            const response = await fetch('/tools/hr-management/api/performance/leaderboard');
+            const data = await response.json();
+
+            if (data.success) {
+                const tbody = document.querySelector('#leaderboardTable tbody');
+                tbody.innerHTML = data.leaderboard.map((a, i) => `
+                    <tr>
+                        <td>#${i + 1}</td>
+                        <td>${a.name}</td>
+                        <td>${a.department}</td>
+                        <td><span class="model-badge local">${a.model}</span></td>
+                        <td>${a.tasks_completed}</td>
+                        <td>${(a.success_rate * 100).toFixed(1)}%</td>
+                        <td>${a.grade}</td>
+                    </tr>
+                `).join('');
+            }
+        } catch (error) {
+            console.error('Error loading leaderboard:', error);
+        }
+    }
+
+    async function loadOnShift() {
+        try {
+            const response = await fetch('/tools/hr-management/api/scheduling/on-shift');
+            const data = await response.json();
+
+            if (data.success) {
+                const tbody = document.querySelector('#onShiftTable tbody');
+                tbody.innerHTML = data.assignments.map(a => `
+                    <tr>
+                        <td>${a.station_name}</td>
+                        <td>${a.agent_name}</td>
+                        <td><span class="model-badge local">${a.model}</span></td>
+                        <td>${a.assignment_type}</td>
+                    </tr>
+                `).join('');
+            }
+        } catch (error) {
+            console.error('Error loading on-shift:', error);
+        }
+    }
+
+    async function loadWellness() {
+        try {
+            const response = await fetch('/tools/hr-management/api/wellness/status');
+            const data = await response.json();
+
+            if (data.success) {
+                const tbody = document.querySelector('#wellnessTable tbody');
+                tbody.innerHTML = data.agents.slice(0, 20).map(a => `
+                    <tr>
+                        <td>${a.name}</td>
+                        <td>${a.department}</td>
+                        <td style="color: ${a.energy_level > 0.5 ? '#10B981' : '#FFAA00'}">${(a.energy_level * 100).toFixed(0)}%</td>
+                        <td style="color: ${a.stress_level < 0.5 ? '#10B981' : '#ff4444'}">${(a.stress_level * 100).toFixed(0)}%</td>
+                    </tr>
+                `).join('');
+            }
+        } catch (error) {
+            console.error('Error loading wellness:', error);
+        }
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+        loadDashboard();
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,1144 @@
+{% extends "base.html" %}
+
+{% block title %}A.R.C.H.I.E. Consciousness - Admin Operations{% endblock %}
+
+{% block content %}
+<style>
+    /* Admin Operations Theme - Consciousness Module */
+    :root {
+        --mind-bg: #010409;
+        --mind-panel: #0d1117;
+        --mind-border: #30363d;
+        --mind-glow: #FF00FF;  /* Magenta for consciousness */
+        --mind-secondary: #00FFFF;
+        --status-online: #00ff41;
+        --status-warning: #FFAA00;
+        --status-offline: #ff4444;
+    }
+
+    .consciousness-dashboard {
+        min-height: 100vh;
+        background: var(--mind-bg);
+        padding: 1.5rem;
+    }
+
+    /* Header */
+    .mind-header {
+        text-align: center;
+        padding: 1rem;
+        border: 2px solid var(--mind-glow);
+        border-radius: 8px;
+        background: linear-gradient(180deg, rgba(255,0,255,0.1) 0%, transparent 100%);
+        margin-bottom: 1.5rem;
+        position: relative;
+    }
+
+    .mind-header h1 {
+        font-size: 2rem;
+        font-weight: bold;
+        color: var(--mind-glow);
+        text-shadow: 0 0 10px var(--mind-glow), 0 0 20px var(--mind-glow);
+        letter-spacing: 4px;
+        margin: 0;
+    }
+
+    .subtitle {
+        color: #8b949e;
+        margin-top: 0.5rem;
+        letter-spacing: 2px;
+        margin-bottom: 0;
+    }
+
+    /* Cross-Navigation Buttons */
+    .admin-ops-nav {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .admin-ops-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.4rem 0.75rem;
+        background: rgba(255, 0, 255, 0.1);
+        border: 1px solid var(--mind-border);
+        border-radius: 6px;
+        color: #8b949e;
+        text-decoration: none;
+        font-size: 0.8rem;
+        transition: all 0.3s ease;
+    }
+
+    .admin-ops-btn:hover {
+        border-color: var(--mind-glow);
+        color: var(--mind-glow);
+        background: rgba(255, 0, 255, 0.2);
+        box-shadow: 0 0 10px rgba(255, 0, 255, 0.2);
+    }
+
+    /* Tab Navigation */
+    .tab-nav {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+    }
+
+    .tab-btn {
+        padding: 0.6rem 1.2rem;
+        background: var(--mind-panel);
+        border: 1px solid var(--mind-border);
+        border-radius: 6px;
+        color: #8b949e;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-size: 0.9rem;
+    }
+
+    .tab-btn:hover {
+        border-color: var(--mind-glow);
+        color: var(--mind-glow);
+    }
+
+    .tab-btn.active {
+        background: rgba(255, 0, 255, 0.2);
+        border-color: var(--mind-glow);
+        color: var(--mind-glow);
+        box-shadow: 0 0 10px rgba(255, 0, 255, 0.2);
+    }
+
+    .tab-content {
+        display: none;
+    }
+
+    .tab-content.active {
+        display: block;
+    }
+
+    /* Dashboard Grid */
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .dashboard-card {
+        background: var(--mind-panel);
+        padding: 1.5rem;
+        border-radius: 12px;
+        border: 2px solid var(--mind-border);
+        transition: all 0.3s ease;
+    }
+
+    .dashboard-card:hover {
+        border-color: var(--mind-glow);
+        box-shadow: 0 0 20px rgba(255, 0, 255, 0.2);
+    }
+
+    .dashboard-card h2 {
+        margin-top: 0;
+        font-size: 1.25rem;
+        color: var(--mind-glow);
+        text-shadow: 0 0 5px var(--mind-glow);
+    }
+
+    .dashboard-card p {
+        color: #8b949e;
+        margin-bottom: 1rem;
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .stat-card {
+        background: var(--mind-panel);
+        padding: 1rem;
+        border-radius: 8px;
+        border: 1px solid var(--mind-border);
+        text-align: center;
+    }
+
+    .stat-value {
+        font-size: 2rem;
+        font-weight: bold;
+        color: var(--mind-glow);
+        text-shadow: 0 0 5px var(--mind-glow);
+    }
+
+    .stat-label {
+        color: #8b949e;
+        font-size: 0.85rem;
+        margin-top: 0.25rem;
+    }
+
+    /* Chart Container */
+    .chart-container {
+        background: var(--mind-panel);
+        padding: 1.5rem;
+        border-radius: 12px;
+        border: 1px solid var(--mind-border);
+        margin-bottom: 1.5rem;
+    }
+
+    .chart-title {
+        color: var(--mind-glow);
+        font-size: 1.1rem;
+        margin-bottom: 1rem;
+    }
+
+    /* Emotional State Section */
+    .emotional-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+    }
+
+    .mood-indicator {
+        background: var(--mind-panel);
+        padding: 1.5rem;
+        border-radius: 12px;
+        border: 1px solid var(--mind-border);
+        text-align: center;
+    }
+
+    .mood-emoji {
+        font-size: 3rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .mood-label {
+        color: var(--mind-glow);
+        font-size: 1.2rem;
+        text-transform: capitalize;
+    }
+
+    .gauge-container {
+        background: var(--mind-panel);
+        padding: 1rem;
+        border-radius: 8px;
+        border: 1px solid var(--mind-border);
+    }
+
+    .gauge-label {
+        color: #8b949e;
+        font-size: 0.85rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .gauge-bar {
+        height: 8px;
+        background: var(--mind-border);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .gauge-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--mind-glow), var(--mind-secondary));
+        border-radius: 4px;
+        transition: width 0.5s ease;
+    }
+
+    .gauge-value {
+        color: var(--mind-glow);
+        font-size: 1.2rem;
+        font-weight: bold;
+        margin-top: 0.25rem;
+    }
+
+    /* Activity Feed */
+    .activity-feed {
+        max-height: 500px;
+        overflow-y: auto;
+    }
+
+    .activity-item {
+        display: flex;
+        gap: 1rem;
+        padding: 0.75rem;
+        border-bottom: 1px solid var(--mind-border);
+        transition: background 0.2s ease;
+    }
+
+    .activity-item:hover {
+        background: rgba(255, 0, 255, 0.05);
+    }
+
+    .activity-icon {
+        font-size: 1.5rem;
+        flex-shrink: 0;
+    }
+
+    .activity-content {
+        flex-grow: 1;
+    }
+
+    .activity-title {
+        color: #c9d1d9;
+        font-weight: 500;
+    }
+
+    .activity-description {
+        color: #8b949e;
+        font-size: 0.85rem;
+    }
+
+    .activity-time {
+        color: #6e7681;
+        font-size: 0.75rem;
+    }
+
+    .activity-type {
+        font-size: 0.7rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 10px;
+        background: rgba(255, 0, 255, 0.2);
+        color: var(--mind-glow);
+        margin-left: 0.5rem;
+    }
+
+    /* Knowledge Graph */
+    #knowledge-graph {
+        width: 100%;
+        height: 500px;
+        background: var(--mind-panel);
+        border-radius: 12px;
+        border: 1px solid var(--mind-border);
+    }
+
+    /* Buttons */
+    .btn-primary {
+        background: rgba(255, 0, 255, 0.2);
+        border: 1px solid var(--mind-glow);
+        color: var(--mind-glow);
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        text-decoration: none;
+        display: inline-block;
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+
+    .btn-primary:hover {
+        background: rgba(255, 0, 255, 0.4);
+        box-shadow: 0 0 15px rgba(255, 0, 255, 0.3);
+    }
+
+    .btn-secondary {
+        background: transparent;
+        border: 1px solid var(--mind-border);
+        color: #8b949e;
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .btn-secondary:hover {
+        border-color: var(--mind-secondary);
+        color: var(--mind-secondary);
+    }
+
+    .form-control {
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid var(--mind-border);
+        border-radius: 6px;
+        padding: 0.75rem;
+        color: #c9d1d9;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: var(--mind-glow);
+        box-shadow: 0 0 10px rgba(255, 0, 255, 0.2);
+    }
+
+    .mt-2 { margin-top: 0.5rem; }
+    .mb-2 { margin-bottom: 0.5rem; }
+    .text-center { text-align: center; }
+
+    @media (max-width: 768px) {
+        .admin-ops-nav {
+            position: static;
+            justify-content: center;
+            margin-top: 1rem;
+        }
+        .tab-nav {
+            justify-content: center;
+        }
+    }
+
+    /* Loading Spinner */
+    .loading {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 2rem;
+    }
+
+    .spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid var(--mind-border);
+        border-top-color: var(--mind-glow);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    /* Filter buttons */
+    .filter-group {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+    }
+
+    .filter-btn {
+        padding: 0.3rem 0.75rem;
+        font-size: 0.8rem;
+        background: transparent;
+        border: 1px solid var(--mind-border);
+        border-radius: 15px;
+        color: #8b949e;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .filter-btn:hover, .filter-btn.active {
+        border-color: var(--mind-glow);
+        color: var(--mind-glow);
+        background: rgba(255, 0, 255, 0.1);
+    }
+</style>
+
+<!-- Chart.js and D3.js Libraries -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+
+<div class="consciousness-dashboard">
+    <!-- Header -->
+    <div class="mind-header">
+        <div class="admin-ops-nav">
+            <a href="{{ url_for('bridge.bridge_dashboard') }}" class="admin-ops-btn">
+                <span class="icon">🎛️</span> Bridge
+            </a>
+            <a href="{{ url_for('team_management.index') }}" class="admin-ops-btn">
+                <span class="icon">👥</span> Team
+            </a>
+        </div>
+        <h1>🧠 A.R.C.H.I.E. CONSCIOUSNESS</h1>
+        <p class="subtitle">Admin Operations Hub • Dynamic Learning System</p>
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="tab-nav">
+        <button class="tab-btn active" data-tab="overview">📊 Overview</button>
+        <button class="tab-btn" data-tab="emotional">💜 Emotional State</button>
+        <button class="tab-btn" data-tab="charts">📈 Knowledge Charts</button>
+        <button class="tab-btn" data-tab="graph">🕸️ Knowledge Graph</button>
+        <button class="tab-btn" data-tab="feed">📡 Activity Feed</button>
+        <button class="tab-btn" data-tab="tools">🔧 Tools</button>
+    </div>
+
+    <!-- Overview Tab -->
+    <div id="tab-overview" class="tab-content active">
+        <!-- Stats Grid -->
+        <div class="stats-grid" id="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value" id="stat-knowledge-total">-</div>
+                <div class="stat-label">Knowledge Entries</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-knowledge-24h">-</div>
+                <div class="stat-label">Added (24h)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-agents">-</div>
+                <div class="stat-label">Active Agents</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-improvements">-</div>
+                <div class="stat-label">Improvements</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-llm-health">-</div>
+                <div class="stat-label">LLM Health</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-mood">-</div>
+                <div class="stat-label">Current Mood</div>
+            </div>
+        </div>
+
+        <!-- Quick Charts -->
+        <div class="dashboard-grid">
+            <div class="chart-container">
+                <div class="chart-title">📈 Knowledge Growth (7 days)</div>
+                <canvas id="growth-chart-mini" height="200"></canvas>
+            </div>
+            <div class="chart-container">
+                <div class="chart-title">🎯 Knowledge by Type</div>
+                <canvas id="type-chart-mini" height="200"></canvas>
+            </div>
+        </div>
+
+        <!-- Navigation Cards -->
+        <h3 style="color: var(--mind-glow); margin: 1.5rem 0 1rem;">Quick Access</h3>
+        <div class="dashboard-grid">
+            <div class="dashboard-card">
+                <h2>📚 Memory Management</h2>
+                <p>View and manage conversation memories</p>
+                <a href="{{ url_for('consciousness.memory') }}" class="btn-primary">View Memories</a>
+            </div>
+            <div class="dashboard-card">
+                <h2>👥 Team Awareness</h2>
+                <p>Agent directory and performance tracking</p>
+                <a href="{{ url_for('consciousness.team_awareness') }}" class="btn-primary">View Team</a>
+            </div>
+            <div class="dashboard-card">
+                <h2>📊 Full Analytics</h2>
+                <p>Detailed knowledge growth and usage metrics</p>
+                <a href="{{ url_for('consciousness.analytics') }}" class="btn-primary">View Analytics</a>
+            </div>
+            <div class="dashboard-card">
+                <h2>🔍 Search Knowledge</h2>
+                <p>Search across all knowledge entries</p>
+                <form action="{{ url_for('consciousness.search_knowledge') }}" method="post">
+                    <input type="text" name="query" placeholder="Search knowledge base..." class="form-control">
+                    <button type="submit" class="btn-primary mt-2">Search</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Emotional State Tab -->
+    <div id="tab-emotional" class="tab-content">
+        <div class="emotional-grid">
+            <div class="mood-indicator">
+                <div class="mood-emoji" id="mood-emoji">🤔</div>
+                <div class="mood-label" id="mood-label">Loading...</div>
+                <div style="color: #6e7681; font-size: 0.8rem; margin-top: 0.5rem;">Current State</div>
+            </div>
+
+            <div class="gauge-container">
+                <div class="gauge-label">⚡ Energy Level</div>
+                <div class="gauge-bar">
+                    <div class="gauge-fill" id="energy-fill" style="width: 0%"></div>
+                </div>
+                <div class="gauge-value" id="energy-value">-</div>
+            </div>
+
+            <div class="gauge-container">
+                <div class="gauge-label">🎯 Confidence Level</div>
+                <div class="gauge-bar">
+                    <div class="gauge-fill" id="confidence-fill" style="width: 0%"></div>
+                </div>
+                <div class="gauge-value" id="confidence-value">-</div>
+            </div>
+
+            <div class="gauge-container">
+                <div class="gauge-label">💫 Stress Level</div>
+                <div class="gauge-bar">
+                    <div class="gauge-fill" id="stress-fill" style="width: 0%; background: linear-gradient(90deg, var(--status-online), var(--status-warning), var(--status-offline));"></div>
+                </div>
+                <div class="gauge-value" id="stress-value">-</div>
+            </div>
+        </div>
+
+        <div class="chart-container" style="margin-top: 1.5rem;">
+            <div class="chart-title">💜 Emotional Timeline (7 days)</div>
+            <canvas id="emotional-timeline" height="250"></canvas>
+        </div>
+    </div>
+
+    <!-- Knowledge Charts Tab -->
+    <div id="tab-charts" class="tab-content">
+        <div class="dashboard-grid">
+            <div class="chart-container">
+                <div class="chart-title">📈 Knowledge Growth (30 days)</div>
+                <canvas id="growth-chart" height="300"></canvas>
+            </div>
+            <div class="chart-container">
+                <div class="chart-title">🎯 Knowledge by Type</div>
+                <canvas id="type-chart" height="300"></canvas>
+            </div>
+        </div>
+        <div class="dashboard-grid" style="margin-top: 1rem;">
+            <div class="chart-container">
+                <div class="chart-title">📁 Knowledge by Category</div>
+                <canvas id="category-chart" height="300"></canvas>
+            </div>
+            <div class="chart-container">
+                <div class="chart-title">⭐ Importance Distribution</div>
+                <canvas id="importance-chart" height="300"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Knowledge Graph Tab -->
+    <div id="tab-graph" class="tab-content">
+        <div class="chart-container">
+            <div class="chart-title">🕸️ Knowledge Graph Visualization</div>
+            <div class="filter-group">
+                <button class="filter-btn active" data-type="all">All Types</button>
+                <button class="filter-btn" data-type="vault_note">Vault Notes</button>
+                <button class="filter-btn" data-type="mistake_learned">Mistakes</button>
+                <button class="filter-btn" data-type="code_snippet">Code</button>
+                <button class="filter-btn" data-type="github_file">GitHub</button>
+            </div>
+            <div id="knowledge-graph"></div>
+            <div id="graph-tooltip" style="display:none; position:absolute; background:var(--mind-panel); border:1px solid var(--mind-glow); padding:0.5rem; border-radius:4px; color:#c9d1d9; font-size:0.85rem; pointer-events:none; z-index:1000;"></div>
+        </div>
+    </div>
+
+    <!-- Activity Feed Tab -->
+    <div id="tab-feed" class="tab-content">
+        <div class="chart-container">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <div class="chart-title">📡 Live Activity Feed</div>
+                <div>
+                    <select id="feed-hours" class="form-control" style="width: auto; display: inline-block;">
+                        <option value="1">Last Hour</option>
+                        <option value="6">Last 6 Hours</option>
+                        <option value="24" selected>Last 24 Hours</option>
+                    </select>
+                    <button class="btn-secondary" onclick="loadActivityFeed()">🔄 Refresh</button>
+                </div>
+            </div>
+            <div class="filter-group" id="feed-filters">
+                <button class="filter-btn active" data-type="">All</button>
+                <button class="filter-btn" data-type="knowledge">📚 Knowledge</button>
+                <button class="filter-btn" data-type="execution">▶️ Executions</button>
+                <button class="filter-btn" data-type="improvement">💡 Improvements</button>
+                <button class="filter-btn" data-type="session">💬 Sessions</button>
+                <button class="filter-btn" data-type="llm_alert">🚨 Alerts</button>
+            </div>
+            <div class="activity-feed" id="activity-feed">
+                <div class="loading"><div class="spinner"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tools Tab -->
+    <div id="tab-tools" class="tab-content">
+        <div class="dashboard-grid">
+            <div class="dashboard-card">
+                <h2>📚 Memory Management</h2>
+                <p>View and manage conversation memories</p>
+                <a href="{{ url_for('consciousness.memory') }}" class="btn-primary">View Memories</a>
+            </div>
+            <div class="dashboard-card">
+                <h2>👥 Team Awareness</h2>
+                <p>Agent directory and performance tracking</p>
+                <a href="{{ url_for('consciousness.team_awareness') }}" class="btn-primary">View Team</a>
+            </div>
+            <div class="dashboard-card">
+                <h2>📊 Full Analytics</h2>
+                <p>Detailed knowledge growth and usage metrics</p>
+                <a href="{{ url_for('consciousness.analytics') }}" class="btn-primary">View Analytics</a>
+            </div>
+            <div class="dashboard-card">
+                <h2>🔍 Search Knowledge</h2>
+                <p>Search across all knowledge entries</p>
+                <form action="{{ url_for('consciousness.search_knowledge') }}" method="post">
+                    <input type="text" name="query" placeholder="Search knowledge base..." class="form-control">
+                    <button type="submit" class="btn-primary mt-2">Search</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Tab Navigation
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        // Update active button
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        // Update active content
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+
+        // Load data for specific tabs
+        if (btn.dataset.tab === 'emotional') loadEmotionalData();
+        if (btn.dataset.tab === 'charts') loadChartData();
+        if (btn.dataset.tab === 'graph') loadKnowledgeGraph();
+        if (btn.dataset.tab === 'feed') loadActivityFeed();
+    });
+});
+
+// Filter buttons for activity feed
+document.querySelectorAll('#feed-filters .filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('#feed-filters .filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        loadActivityFeed(btn.dataset.type);
+    });
+});
+
+// Chart instances
+let growthChartMini, typeChartMini, growthChart, typeChart, categoryChart, importanceChart, emotionalTimeline;
+
+// Mood emoji mapping
+const moodEmojis = {
+    'happy': '😊',
+    'curious': '🤔',
+    'focused': '🎯',
+    'neutral': '😐',
+    'confused': '😕',
+    'frustrated': '😤',
+    'supportive': '💜',
+    'excited': '🎉'
+};
+
+// Load initial stats
+async function loadStats() {
+    try {
+        const response = await fetch('/tools/consciousness/activity-stats');
+        const data = await response.json();
+
+        if (data.success) {
+            // Update stat cards
+            document.getElementById('stat-knowledge-total').textContent = (data.stats.knowledge_total || 0).toLocaleString();
+            document.getElementById('stat-knowledge-24h').textContent = '+' + (data.stats.knowledge_24h || 0);
+            document.getElementById('stat-agents').textContent = data.stats.agents_active || 0;
+            document.getElementById('stat-improvements').textContent = data.stats.improvements_total || 0;
+
+            // LLM Health
+            const llm = data.llm_health;
+            if (llm && llm.total) {
+                document.getElementById('stat-llm-health').textContent = `${llm.online || 0}/${llm.total}`;
+            }
+
+            // Mood
+            const emotional = data.emotional_state;
+            if (emotional) {
+                const mood = emotional.mood || 'neutral';
+                document.getElementById('stat-mood').textContent = moodEmojis[mood] || '🤔';
+            }
+        }
+    } catch (e) {
+        console.error('Error loading stats:', e);
+    }
+}
+
+// Load mini charts for overview
+async function loadMiniCharts() {
+    try {
+        const response = await fetch('/tools/consciousness/stats');
+        const data = await response.json();
+
+        if (data.success && data.stats) {
+            // Growth chart mini
+            const growthData = data.stats.learning_timeline || [];
+            const last7Days = growthData.slice(-7);
+
+            if (growthChartMini) growthChartMini.destroy();
+            growthChartMini = new Chart(document.getElementById('growth-chart-mini'), {
+                type: 'line',
+                data: {
+                    labels: last7Days.map(d => d.date ? new Date(d.date).toLocaleDateString('en-US', {weekday: 'short'}) : ''),
+                    datasets: [{
+                        label: 'Entries',
+                        data: last7Days.map(d => d.count || 0),
+                        borderColor: '#FF00FF',
+                        backgroundColor: 'rgba(255, 0, 255, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { color: '#30363d' }, ticks: { color: '#8b949e' } },
+                        y: { grid: { color: '#30363d' }, ticks: { color: '#8b949e' } }
+                    }
+                }
+            });
+
+            // Type chart mini
+            const typeData = data.stats.type_distribution || {};
+            if (typeChartMini) typeChartMini.destroy();
+            typeChartMini = new Chart(document.getElementById('type-chart-mini'), {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(typeData),
+                    datasets: [{
+                        data: Object.values(typeData),
+                        backgroundColor: ['#FF00FF', '#00FFFF', '#00ff41', '#FFAA00', '#8B5CF6', '#F472B6']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { position: 'right', labels: { color: '#8b949e' } } }
+                }
+            });
+        }
+    } catch (e) {
+        console.error('Error loading mini charts:', e);
+    }
+}
+
+// Load emotional data
+async function loadEmotionalData() {
+    try {
+        const response = await fetch('/tools/consciousness/activity-stats');
+        const data = await response.json();
+
+        if (data.success && data.emotional_state) {
+            const es = data.emotional_state;
+
+            // Mood indicator
+            const mood = es.mood || 'neutral';
+            document.getElementById('mood-emoji').textContent = moodEmojis[mood] || '🤔';
+            document.getElementById('mood-label').textContent = mood;
+
+            // Gauges
+            const energy = (es.energy || 0.8) * 100;
+            const confidence = (es.confidence || 0.8) * 100;
+            const stress = (es.stress_level || 0.3) * 100;
+
+            document.getElementById('energy-fill').style.width = energy + '%';
+            document.getElementById('energy-value').textContent = energy.toFixed(0) + '%';
+
+            document.getElementById('confidence-fill').style.width = confidence + '%';
+            document.getElementById('confidence-value').textContent = confidence.toFixed(0) + '%';
+
+            document.getElementById('stress-fill').style.width = stress + '%';
+            document.getElementById('stress-value').textContent = stress.toFixed(0) + '%';
+        }
+
+        // Load emotional timeline
+        const timelineResponse = await fetch('/tools/consciousness/emotions/timeline?days=7');
+        const timelineData = await timelineResponse.json();
+
+        if (timelineData.success && timelineData.timeline) {
+            if (emotionalTimeline) emotionalTimeline.destroy();
+            emotionalTimeline = new Chart(document.getElementById('emotional-timeline'), {
+                type: 'line',
+                data: {
+                    labels: timelineData.timeline.map(t => new Date(t.timestamp).toLocaleDateString()),
+                    datasets: [
+                        {
+                            label: 'Energy',
+                            data: timelineData.timeline.map(t => t.energy),
+                            borderColor: '#00ff41',
+                            fill: false,
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Confidence',
+                            data: timelineData.timeline.map(t => t.confidence),
+                            borderColor: '#00FFFF',
+                            fill: false,
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { labels: { color: '#8b949e' } } },
+                    scales: {
+                        x: { grid: { color: '#30363d' }, ticks: { color: '#8b949e' } },
+                        y: { grid: { color: '#30363d' }, ticks: { color: '#8b949e' }, min: 0, max: 1 }
+                    }
+                }
+            });
+        }
+    } catch (e) {
+        console.error('Error loading emotional data:', e);
+    }
+}
+
+// Load full chart data
+async function loadChartData() {
+    try {
+        const response = await fetch('/tools/consciousness/stats');
+        const data = await response.json();
+
+        if (data.success && data.stats) {
+            // Growth chart
+            const growthData = data.stats.learning_timeline || [];
+            if (growthChart) growthChart.destroy();
+            growthChart = new Chart(document.getElementById('growth-chart'), {
+                type: 'line',
+                data: {
+                    labels: growthData.map(d => d.date ? new Date(d.date).toLocaleDateString() : ''),
+                    datasets: [{
+                        label: 'Knowledge Entries',
+                        data: growthData.map(d => d.count || 0),
+                        borderColor: '#FF00FF',
+                        backgroundColor: 'rgba(255, 0, 255, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { labels: { color: '#8b949e' } } },
+                    scales: {
+                        x: { grid: { color: '#30363d' }, ticks: { color: '#8b949e' } },
+                        y: { grid: { color: '#30363d' }, ticks: { color: '#8b949e' } }
+                    }
+                }
+            });
+
+            // Type chart
+            const typeData = data.stats.type_distribution || {};
+            if (typeChart) typeChart.destroy();
+            typeChart = new Chart(document.getElementById('type-chart'), {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(typeData),
+                    datasets: [{
+                        data: Object.values(typeData),
+                        backgroundColor: ['#FF00FF', '#00FFFF', '#00ff41', '#FFAA00', '#8B5CF6', '#F472B6']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { position: 'right', labels: { color: '#8b949e' } } }
+                }
+            });
+
+            // Category chart
+            const categoryData = data.stats.category_breakdown || {};
+            const categories = Object.entries(categoryData).slice(0, 10);
+            if (categoryChart) categoryChart.destroy();
+            categoryChart = new Chart(document.getElementById('category-chart'), {
+                type: 'bar',
+                data: {
+                    labels: categories.map(c => c[0]),
+                    datasets: [{
+                        label: 'Entries',
+                        data: categories.map(c => c[1]),
+                        backgroundColor: 'rgba(255, 0, 255, 0.6)',
+                        borderColor: '#FF00FF',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    indexAxis: 'y',
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { color: '#30363d' }, ticks: { color: '#8b949e' } },
+                        y: { grid: { color: '#30363d' }, ticks: { color: '#8b949e' } }
+                    }
+                }
+            });
+
+            // Importance chart
+            const importance = data.stats.importance_distribution || {};
+            if (importanceChart) importanceChart.destroy();
+            importanceChart = new Chart(document.getElementById('importance-chart'), {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(importance),
+                    datasets: [{
+                        data: Object.values(importance),
+                        backgroundColor: ['#ff4444', '#FFAA00', '#00FFFF', '#00ff41']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { position: 'right', labels: { color: '#8b949e' } } }
+                }
+            });
+        }
+    } catch (e) {
+        console.error('Error loading chart data:', e);
+    }
+}
+
+// Load activity feed
+async function loadActivityFeed(type = '') {
+    const feedEl = document.getElementById('activity-feed');
+    feedEl.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+    try {
+        const hours = document.getElementById('feed-hours').value;
+        let url = `/tools/consciousness/activity-feed?hours=${hours}&limit=100`;
+        if (type) url += `&type=${type}`;
+
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.success && data.feed) {
+            if (data.feed.length === 0) {
+                feedEl.innerHTML = '<div class="text-center" style="padding: 2rem; color: #8b949e;">No activity in this time window</div>';
+                return;
+            }
+
+            feedEl.innerHTML = data.feed.map(item => {
+                const icon = {
+                    'knowledge': '📚',
+                    'execution': '▶️',
+                    'improvement': '💡',
+                    'session': '💬',
+                    'emotional': '💜',
+                    'llm_alert': '🚨'
+                }[item.event_type] || '📌';
+
+                const time = item.created_at ? new Date(item.created_at).toLocaleString() : '';
+
+                return `
+                    <div class="activity-item">
+                        <div class="activity-icon">${icon}</div>
+                        <div class="activity-content">
+                            <div class="activity-title">${item.title || item.description || 'Activity'}<span class="activity-type">${item.subtype || item.event_type}</span></div>
+                            <div class="activity-description">${item.description || ''}</div>
+                            <div class="activity-time">${time}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        } else {
+            feedEl.innerHTML = '<div class="text-center" style="padding: 2rem; color: #ff4444;">Error loading feed</div>';
+        }
+    } catch (e) {
+        console.error('Error loading activity feed:', e);
+        feedEl.innerHTML = '<div class="text-center" style="padding: 2rem; color: #ff4444;">Error loading feed</div>';
+    }
+}
+
+// Load knowledge graph
+async function loadKnowledgeGraph(type = 'all') {
+    const container = document.getElementById('knowledge-graph');
+    container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+    try {
+        let url = '/tools/consciousness/knowledge/graph';
+        if (type !== 'all') url += `?type=${type}`;
+
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.success && data.nodes) {
+            container.innerHTML = '';
+            renderD3Graph(data.nodes, data.links || [], container);
+        } else {
+            container.innerHTML = '<div class="text-center" style="padding: 2rem; color: #8b949e;">No graph data available</div>';
+        }
+    } catch (e) {
+        console.error('Error loading knowledge graph:', e);
+        container.innerHTML = '<div class="text-center" style="padding: 2rem; color: #ff4444;">Error loading graph</div>';
+    }
+}
+
+// Render D3 force-directed graph
+function renderD3Graph(nodes, links, container) {
+    const width = container.clientWidth;
+    const height = 500;
+
+    const svg = d3.select(container)
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height);
+
+    const typeColors = {
+        'vault_note': '#FF00FF',
+        'mistake_learned': '#ff4444',
+        'code_snippet': '#00ff41',
+        'github_file': '#00FFFF',
+        'conversation_memory': '#FFAA00',
+        'improvement': '#8B5CF6'
+    };
+
+    const simulation = d3.forceSimulation(nodes)
+        .force('link', d3.forceLink(links).id(d => d.id).distance(100))
+        .force('charge', d3.forceManyBody().strength(-200))
+        .force('center', d3.forceCenter(width / 2, height / 2));
+
+    const link = svg.append('g')
+        .selectAll('line')
+        .data(links)
+        .join('line')
+        .attr('stroke', '#30363d')
+        .attr('stroke-opacity', 0.6);
+
+    const node = svg.append('g')
+        .selectAll('circle')
+        .data(nodes)
+        .join('circle')
+        .attr('r', d => 5 + (d.importance_score || 0.5) * 10)
+        .attr('fill', d => typeColors[d.type] || '#8b949e')
+        .call(d3.drag()
+            .on('start', dragstarted)
+            .on('drag', dragged)
+            .on('end', dragended));
+
+    const tooltip = document.getElementById('graph-tooltip');
+    node.on('mouseover', (event, d) => {
+        tooltip.style.display = 'block';
+        tooltip.style.left = (event.pageX + 10) + 'px';
+        tooltip.style.top = (event.pageY + 10) + 'px';
+        tooltip.innerHTML = `<strong>${d.title || d.id}</strong><br>Type: ${d.type}<br>Importance: ${(d.importance_score || 0).toFixed(2)}`;
+    }).on('mouseout', () => {
+        tooltip.style.display = 'none';
+    });
+
+    simulation.on('tick', () => {
+        link
+            .attr('x1', d => d.source.x)
+            .attr('y1', d => d.source.y)
+            .attr('x2', d => d.target.x)
+            .attr('y2', d => d.target.y);
+
+        node
+            .attr('cx', d => d.x)
+            .attr('cy', d => d.y);
+    });
+
+    function dragstarted(event) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        event.subject.fx = event.subject.x;
+        event.subject.fy = event.subject.y;
+    }
+
+    function dragged(event) {
+        event.subject.fx = event.x;
+        event.subject.fy = event.y;
+    }
+
+    function dragended(event) {
+        if (!event.active) simulation.alphaTarget(0);
+        event.subject.fx = null;
+        event.subject.fy = null;
+    }
+}
+
+// Graph filter buttons
+document.querySelectorAll('#tab-graph .filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('#tab-graph .filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        loadKnowledgeGraph(btn.dataset.type);
+    });
+});
+
+// Initialize
+loadStats();
+loadMiniCharts();
+
+// Auto-refresh stats every 30 seconds
+setInterval(loadStats, 30000);
+</script>
+{% endblock %}

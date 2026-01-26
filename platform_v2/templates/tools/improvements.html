@@ -1,0 +1,514 @@
+{% extends "base.html" %}
+
+{% block title %}Self-Improvement - A.R.C.H.I.E.{% endblock %}
+
+{% block styles %}
+.improvements-container {
+    padding: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.improvements-header {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+}
+
+.improvements-header h1 {
+    font-size: 2rem;
+    color: #1f2937;
+    margin: 0 0 10px 0;
+}
+
+.improvements-header p {
+    color: #6b7280;
+    margin: 0;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.stat-card {
+    padding: 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.stat-card.pending { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
+.stat-card.approved { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
+.stat-card.deployed { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); }
+.stat-card.rejected { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
+
+.stat-number {
+    font-size: 2.5rem;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.stat-label {
+    font-size: 0.9rem;
+    opacity: 0.9;
+}
+
+.filters {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.filter-btn {
+    padding: 8px 16px;
+    border: 2px solid #e5e7eb;
+    background: white;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+    color: #6b7280;
+    font-weight: 500;
+}
+
+.filter-btn:hover {
+    border-color: #667eea;
+    color: #667eea;
+}
+
+.filter-btn.active {
+    background: #667eea;
+    color: white;
+    border-color: #667eea;
+}
+
+.proposals-list {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+
+.proposal-item {
+    padding: 20px;
+    border-bottom: 1px solid #e5e7eb;
+    transition: background 0.2s;
+}
+
+.proposal-item:last-child {
+    border-bottom: none;
+}
+
+.proposal-item:hover {
+    background: #f9fafb;
+}
+
+.proposal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    margin-bottom: 10px;
+}
+
+.proposal-title {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #1f2937;
+    margin: 0 0 5px 0;
+}
+
+.proposal-meta {
+    display: flex;
+    gap: 10px;
+    font-size: 0.85rem;
+    color: #6b7280;
+}
+
+.proposal-badges {
+    display: flex;
+    gap: 5px;
+}
+
+.badge {
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.badge.status-pending { background: #fef3c7; color: #92400e; }
+.badge.status-tested { background: #dbeafe; color: #1e40af; }
+.badge.status-approved { background: #d1fae5; color: #065f46; }
+.badge.status-deployed { background: #dbeafe; color: #1e3a8a; }
+.badge.status-rejected { background: #fee2e2; color: #991b1b; }
+
+.badge.category { background: #e0e7ff; color: #3730a3; }
+.badge.priority-low { background: #d1d5db; color: #374151; }
+.badge.priority-medium { background: #fcd34d; color: #78350f; }
+.badge.priority-high { background: #fca5a5; color: #7f1d1d; }
+
+.badge.risk-low { background: #d1fae5; color: #065f46; }
+.badge.risk-medium { background: #fef3c7; color: #92400e; }
+.badge.risk-high { background: #fee2e2; color: #991b1b; }
+
+.proposal-description {
+    color: #4b5563;
+    margin-bottom: 15px;
+    line-height: 1.6;
+}
+
+.proposal-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background: #667eea;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #5568d3;
+}
+
+.btn-success {
+    background: #10b981;
+    color: white;
+}
+
+.btn-success:hover {
+    background: #059669;
+}
+
+.btn-danger {
+    background: #ef4444;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #dc2626;
+}
+
+.btn-secondary {
+    background: #6b7280;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: #4b5563;
+}
+
+.empty-state {
+    padding: 60px 20px;
+    text-align: center;
+    color: #9ca3af;
+}
+
+.empty-state h3 {
+    font-size: 1.5rem;
+    margin: 0 0 10px 0;
+}
+
+.code-preview {
+    background: #1e1e1e;
+    color: #d4d4d4;
+    padding: 15px;
+    border-radius: 6px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.85rem;
+    overflow-x: auto;
+    margin: 10px 0;
+    max-height: 200px;
+    overflow-y: auto;
+}
+{% endblock %}
+
+{% block content %}
+<div class="improvements-container">
+    <div class="improvements-header">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <div>
+                <h1>🤖 A.R.C.H.I.E. Self-Improvement</h1>
+                <p>Review and approve A.R.C.H.I.E.'s proposed improvements to herself</p>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <a href="{{ url_for('improvements.chat_interface') }}" style="
+                    padding: 12px 24px;
+                    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                    color: white;
+                    text-decoration: none;
+                    border-radius: 8px;
+                    font-weight: 600;
+                    box-shadow: 0 4px 6px rgba(16, 185, 129, 0.3);
+                    transition: all 0.2s;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 8px;
+                " onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">
+                    💬 Chat with A.R.C.H.I.E.
+                </a>
+                {% include 'includes/theme_controls.html' %}
+            </div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number">{{ stats.total }}</div>
+                <div class="stat-label">Total Proposals</div>
+            </div>
+            <div class="stat-card pending">
+                <div class="stat-number">{{ stats.pending }}</div>
+                <div class="stat-label">Pending Review</div>
+            </div>
+            <div class="stat-card approved">
+                <div class="stat-number">{{ stats.approved }}</div>
+                <div class="stat-label">Approved</div>
+            </div>
+            <div class="stat-card deployed">
+                <div class="stat-number">{{ stats.deployed }}</div>
+                <div class="stat-label">Deployed</div>
+            </div>
+            <div class="stat-card rejected">
+                <div class="stat-number">{{ stats.rejected }}</div>
+                <div class="stat-label">Rejected</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="filters">
+        <strong>Filter:</strong>
+        <a href="{{ url_for('improvements.index') }}"
+           class="filter-btn {% if not current_filter %}active{% endif %}">
+            All
+        </a>
+        <a href="{{ url_for('improvements.index', status='pending') }}"
+           class="filter-btn {% if current_filter == 'pending' %}active{% endif %}">
+            Pending
+        </a>
+        <a href="{{ url_for('improvements.index', status='approved') }}"
+           class="filter-btn {% if current_filter == 'approved' %}active{% endif %}">
+            Approved
+        </a>
+        <a href="{{ url_for('improvements.index', status='deployed') }}"
+           class="filter-btn {% if current_filter == 'deployed' %}active{% endif %}">
+            Deployed
+        </a>
+        <a href="{{ url_for('improvements.index', status='rejected') }}"
+           class="filter-btn {% if current_filter == 'rejected' %}active{% endif %}">
+            Rejected
+        </a>
+
+        <div style="margin-left: auto; display: flex; gap: 10px;">
+            <button class="btn btn-primary" onclick="detectImprovements()" style="display: inline-flex; align-items: center; gap: 6px;">
+                🔍 Detect Issues
+            </button>
+            <button class="btn btn-secondary" onclick="viewDirectory()" style="display: inline-flex; align-items: center; gap: 6px;">
+                👥 Employee Directory
+            </button>
+        </div>
+    </div>
+    
+    <div class="proposals-list">
+        {% if proposals %}
+            {% for proposal in proposals %}
+            <div class="proposal-item">
+                <div class="proposal-header">
+                    <div>
+                        <h3 class="proposal-title">{{ proposal.title }}</h3>
+                        <div class="proposal-meta">
+                            <span>🗓️ {{ proposal.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                            {% if proposal.approved_at %}
+                            <span>✅ Approved {{ proposal.approved_at.strftime('%Y-%m-%d') }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="proposal-badges">
+                        <span class="badge status-{{ proposal.status }}">{{ proposal.status }}</span>
+                        <span class="badge category">{{ proposal.category }}</span>
+                        <span class="badge priority-{{ proposal.priority }}">{{ proposal.priority }}</span>
+                        <span class="badge risk-{{ proposal.risk_level }}">{{ proposal.risk_level }} risk</span>
+                    </div>
+                </div>
+                
+                <div class="proposal-description">
+                    {{ proposal.description }}
+                </div>
+                
+                <details>
+                    <summary style="cursor: pointer; color: #667eea; font-weight: 500;">View Code Changes</summary>
+                    <div class="code-preview">{{ proposal.code_changes }}</div>
+                </details>
+                
+                <div style="margin-top: 10px; padding: 10px; background: #f9fafb; border-radius: 6px;">
+                    <strong>Rationale:</strong> {{ proposal.rationale }}
+                </div>
+                
+                <div class="proposal-actions" style="margin-top: 15px;">
+                    {% if proposal.status == 'pending' %}
+                    <button class="btn btn-primary" onclick="testProposal({{ proposal.id }})">
+                        🧪 Test
+                    </button>
+                    {% endif %}
+                    
+                    {% if proposal.status in ['pending', 'tested'] %}
+                    <button class="btn btn-success" onclick="approveProposal({{ proposal.id }})">
+                        ✅ Approve
+                    </button>
+                    <button class="btn btn-danger" onclick="rejectProposal({{ proposal.id }})">
+                        ❌ Reject
+                    </button>
+                    {% endif %}
+                    
+                    {% if proposal.status == 'approved' %}
+                    <button class="btn btn-primary" onclick="deployProposal({{ proposal.id }})">
+                        🚀 Deploy
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state">
+                <h3>No Proposals {% if current_filter %}({{ current_filter }}){% endif %}</h3>
+                <p>A.R.C.H.I.E. hasn't proposed any improvements yet.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+async function testProposal(id) {
+    if (!confirm('Test this proposal?')) return;
+    
+    try {
+        const response = await fetch(`/tools/improvements/proposal/${id}/test`, {
+            method: 'POST'
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(`Test Results:\n\nPassed: ${data.results.tests_passed.join(', ')}\nFailed: ${data.results.tests_failed.join(', ')}\n\nRecommendation: ${data.results.recommendation}`);
+            location.reload();
+        } else {
+            alert('Test failed: ' + data.error);
+        }
+    } catch (error) {
+        alert('Error testing proposal');
+        console.error(error);
+    }
+}
+
+async function approveProposal(id) {
+    if (!confirm('Approve this proposal?')) return;
+    
+    try {
+        const response = await fetch(`/tools/improvements/proposal/${id}/approve`, {
+            method: 'POST'
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (error) {
+        alert('Error approving proposal');
+        console.error(error);
+    }
+}
+
+async function rejectProposal(id) {
+    const reason = prompt('Reason for rejection:');
+    if (!reason) return;
+    
+    try {
+        const response = await fetch(`/tools/improvements/proposal/${id}/reject`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({reason})
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (error) {
+        alert('Error rejecting proposal');
+        console.error(error);
+    }
+}
+
+async function deployProposal(id) {
+    if (!confirm('Deploy this proposal? This will apply the changes to the system.')) return;
+
+    try {
+        const response = await fetch(`/tools/improvements/proposal/${id}/deploy`, {
+            method: 'POST'
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            alert('Proposal deployed successfully!');
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (error) {
+        alert('Error deploying proposal');
+        console.error(error);
+    }
+}
+
+async function detectImprovements() {
+    if (!confirm('Run automatic improvement detection? This will analyze the last 30 days of conversations.')) return;
+
+    try {
+        const response = await fetch('/tools/improvements/detect', {
+            method: 'POST'
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            alert(`Detection Complete!\n\nOpportunities detected: ${data.opportunities_detected}\nProposals created: ${data.proposals_created}\n\nRefresh the page to see new proposals.`);
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (error) {
+        alert('Error detecting improvements');
+        console.error(error);
+    }
+}
+
+function viewDirectory() {
+    // Open employee directory in a modal or new page
+    window.open('/tools/improvements/chat', '_blank');
+    // For now, just navigate to chat which shows the directory
+    // In future, could create a dedicated directory view
+}
+</script>
+{% endblock %}

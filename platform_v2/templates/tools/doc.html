@@ -1,0 +1,1405 @@
+{% extends 'base.html' %}
+
+{% block title %}DOC - Medical AI Assistant{% endblock %}
+
+{% block module_name %}doc{% endblock %}
+
+{% block content %}
+<!-- Include Standalone Apps Navigation -->
+{% include 'includes/standalone_apps_nav.html' %}
+
+<!-- Scanline Overlay -->
+<div class="scanline-overlay"></div>
+
+<!-- Main Container -->
+<div class="doc-container">
+    <!-- Page Header -->
+    <header class="doc-header">
+        <div class="doc-title-section">
+            <h1 class="doc-title">
+                <i data-lucide="stethoscope"></i>
+                DOC
+            </h1>
+            <p class="doc-subtitle">AI Medical Assistant - Your health companion</p>
+        </div>
+        <div class="doc-status">
+            <span class="status-indicator status-online"></span>
+            <span>AI Ready</span>
+        </div>
+    </header>
+
+    <!-- Disclaimer Banner -->
+    <div class="doc-disclaimer">
+        <i data-lucide="alert-triangle"></i>
+        <span><strong>Disclaimer:</strong> DOC provides general health information only. Always consult a healthcare professional for medical advice, diagnosis, or treatment.</span>
+    </div>
+
+    <!-- Stats Overview -->
+    <section class="doc-stats">
+        <div class="doc-stat-card" style="animation-delay: 0.1s">
+            <div class="doc-stat-icon">
+                <i data-lucide="message-circle"></i>
+            </div>
+            <div class="doc-stat-info">
+                <span class="doc-stat-value" id="totalChats">0</span>
+                <span class="doc-stat-label">CONSULTATIONS</span>
+            </div>
+        </div>
+        <div class="doc-stat-card" style="animation-delay: 0.2s">
+            <div class="doc-stat-icon doc-stat-icon--records">
+                <i data-lucide="file-text"></i>
+            </div>
+            <div class="doc-stat-info">
+                <span class="doc-stat-value" id="totalRecords">0</span>
+                <span class="doc-stat-label">HEALTH RECORDS</span>
+            </div>
+        </div>
+        <div class="doc-stat-card" style="animation-delay: 0.3s">
+            <div class="doc-stat-icon doc-stat-icon--symptoms">
+                <i data-lucide="activity"></i>
+            </div>
+            <div class="doc-stat-info">
+                <span class="doc-stat-value" id="symptomsTracked">0</span>
+                <span class="doc-stat-label">SYMPTOMS TRACKED</span>
+            </div>
+        </div>
+        <div class="doc-stat-card" style="animation-delay: 0.4s">
+            <div class="doc-stat-icon doc-stat-icon--reports">
+                <i data-lucide="clipboard-list"></i>
+            </div>
+            <div class="doc-stat-info">
+                <span class="doc-stat-value" id="reportsGenerated">0</span>
+                <span class="doc-stat-label">REPORTS</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Tab Navigation -->
+    <nav class="doc-tabs">
+        <button class="doc-tab active" data-tab="chat" onclick="switchTab('chat')">
+            <i data-lucide="message-circle"></i>
+            Consult
+        </button>
+        <button class="doc-tab" data-tab="symptoms" onclick="switchTab('symptoms')">
+            <i data-lucide="thermometer"></i>
+            Symptom Checker
+        </button>
+        <button class="doc-tab" data-tab="records" onclick="switchTab('records')">
+            <i data-lucide="folder-heart"></i>
+            Health Records
+        </button>
+        <button class="doc-tab" data-tab="reports" onclick="switchTab('reports')">
+            <i data-lucide="file-bar-chart"></i>
+            Reports
+        </button>
+    </nav>
+
+    <!-- Tab Content -->
+    <div class="doc-tab-content">
+        <!-- Chat/Consult Tab -->
+        <div class="doc-tab-panel active" id="chat-panel">
+            <div class="doc-chat-layout">
+                <div class="doc-chat-main">
+                    <div class="doc-messages" id="chatMessages">
+                        <!-- Welcome Message -->
+                        <div class="doc-message doc-message--assistant">
+                            <div class="doc-message-avatar">
+                                <i data-lucide="stethoscope"></i>
+                            </div>
+                            <div class="doc-message-content">
+                                <div class="doc-message-text">
+                                    Hello! I'm DOC, your AI medical assistant. I can help you with:
+                                    <ul>
+                                        <li>Understanding symptoms and conditions</li>
+                                        <li>General health information</li>
+                                        <li>Medication information</li>
+                                        <li>Wellness tips and advice</li>
+                                    </ul>
+                                    <strong>Remember:</strong> I provide information only. For medical emergencies, call 911 or visit an emergency room.
+                                    <br><br>
+                                    How can I help you today?
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Typing Indicator -->
+                    <div class="doc-typing" id="typingIndicator" style="display: none;">
+                        <div class="doc-message-avatar">
+                            <i data-lucide="stethoscope"></i>
+                        </div>
+                        <div class="doc-typing-dots">
+                            <span></span><span></span><span></span>
+                        </div>
+                    </div>
+
+                    <!-- Chat Input -->
+                    <div class="doc-chat-input">
+                        <textarea id="chatInput" placeholder="Describe your symptoms or ask a health question..." rows="2"></textarea>
+                        <div class="doc-chat-actions">
+                            <button class="doc-btn doc-btn-icon" onclick="attachImage()" title="Attach image for analysis">
+                                <i data-lucide="camera"></i>
+                            </button>
+                            <button class="doc-btn doc-btn-primary" onclick="sendMessage()">
+                                <i data-lucide="send"></i>
+                                Send
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Topics Sidebar -->
+                <div class="doc-sidebar">
+                    <h4>Quick Topics</h4>
+                    <div class="doc-quick-topics">
+                        <button class="doc-topic-btn" onclick="askTopic('headache')">
+                            <i data-lucide="brain"></i>
+                            Headache
+                        </button>
+                        <button class="doc-topic-btn" onclick="askTopic('cold')">
+                            <i data-lucide="wind"></i>
+                            Cold/Flu
+                        </button>
+                        <button class="doc-topic-btn" onclick="askTopic('sleep')">
+                            <i data-lucide="moon"></i>
+                            Sleep Issues
+                        </button>
+                        <button class="doc-topic-btn" onclick="askTopic('stress')">
+                            <i data-lucide="heart-pulse"></i>
+                            Stress
+                        </button>
+                        <button class="doc-topic-btn" onclick="askTopic('nutrition')">
+                            <i data-lucide="apple"></i>
+                            Nutrition
+                        </button>
+                        <button class="doc-topic-btn" onclick="askTopic('exercise')">
+                            <i data-lucide="dumbbell"></i>
+                            Exercise
+                        </button>
+                    </div>
+
+                    <h4>AI Model</h4>
+                    <select class="doc-select" id="modelSelect">
+                        <option value="llama3.2:latest">Llama 3.2 (Local)</option>
+                        <option value="mistral:latest">Mistral (Local)</option>
+                        <option value="deepseek-coder-v2:16b">DeepSeek v2 (Local)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Symptom Checker Tab -->
+        <div class="doc-tab-panel" id="symptoms-panel">
+            <div class="doc-symptom-checker">
+                <div class="doc-symptom-form">
+                    <h3>
+                        <i data-lucide="clipboard-check"></i>
+                        Log Your Symptoms
+                    </h3>
+                    <div class="doc-form-group">
+                        <label>What symptoms are you experiencing?</label>
+                        <textarea class="doc-textarea" id="symptomInput" placeholder="Describe your symptoms in detail..." rows="4"></textarea>
+                    </div>
+                    <div class="doc-form-row">
+                        <div class="doc-form-group">
+                            <label>Severity (1-10)</label>
+                            <input type="range" class="doc-range" id="severityRange" min="1" max="10" value="5">
+                            <span class="doc-range-value" id="severityValue">5</span>
+                        </div>
+                        <div class="doc-form-group">
+                            <label>Duration</label>
+                            <select class="doc-select" id="durationSelect">
+                                <option value="hours">A few hours</option>
+                                <option value="day">About a day</option>
+                                <option value="days">Several days</option>
+                                <option value="week">About a week</option>
+                                <option value="weeks">Weeks or more</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="doc-form-group">
+                        <label>Body Area</label>
+                        <div class="doc-body-areas">
+                            <button class="doc-area-btn" onclick="toggleArea(this, 'head')">Head</button>
+                            <button class="doc-area-btn" onclick="toggleArea(this, 'chest')">Chest</button>
+                            <button class="doc-area-btn" onclick="toggleArea(this, 'stomach')">Stomach</button>
+                            <button class="doc-area-btn" onclick="toggleArea(this, 'back')">Back</button>
+                            <button class="doc-area-btn" onclick="toggleArea(this, 'limbs')">Arms/Legs</button>
+                            <button class="doc-area-btn" onclick="toggleArea(this, 'skin')">Skin</button>
+                            <button class="doc-area-btn" onclick="toggleArea(this, 'general')">General</button>
+                        </div>
+                    </div>
+                    <button class="doc-btn doc-btn-primary doc-btn-large" onclick="analyzeSymptoms()">
+                        <i data-lucide="search"></i>
+                        Analyze Symptoms
+                    </button>
+                </div>
+
+                <div class="doc-symptom-history">
+                    <h3>
+                        <i data-lucide="history"></i>
+                        Recent Symptoms
+                    </h3>
+                    <div class="doc-symptom-list" id="symptomHistory">
+                        <div class="doc-empty-state">
+                            <i data-lucide="clipboard"></i>
+                            <p>No symptoms logged yet</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Health Records Tab -->
+        <div class="doc-tab-panel" id="records-panel">
+            <div class="doc-records">
+                <div class="doc-records-toolbar">
+                    <button class="doc-btn doc-btn-primary" onclick="showAddRecordModal()">
+                        <i data-lucide="plus"></i>
+                        Add Record
+                    </button>
+                    <div class="doc-search">
+                        <i data-lucide="search"></i>
+                        <input type="text" placeholder="Search records..." id="recordSearch">
+                    </div>
+                </div>
+                <div class="doc-records-grid" id="recordsGrid">
+                    <div class="doc-empty-state">
+                        <i data-lucide="folder-heart"></i>
+                        <p>No health records yet</p>
+                        <button class="doc-btn doc-btn-primary" onclick="showAddRecordModal()">
+                            <i data-lucide="plus"></i>
+                            Add Your First Record
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reports Tab -->
+        <div class="doc-tab-panel" id="reports-panel">
+            <div class="doc-reports">
+                <div class="doc-report-actions">
+                    <button class="doc-btn doc-btn-primary" onclick="generateReport()">
+                        <i data-lucide="file-plus"></i>
+                        Generate Health Summary
+                    </button>
+                </div>
+                <div class="doc-reports-list" id="reportsList">
+                    <div class="doc-empty-state">
+                        <i data-lucide="file-bar-chart"></i>
+                        <p>No reports generated yet</p>
+                        <p class="doc-empty-hint">Generate a health summary based on your symptoms and records</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════════
+   DOC - MEDICAL AI ASSISTANT (RED THEME)
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+:root {
+    --doc-accent: #EF4444;
+    --doc-accent-rgb: 239, 68, 68;
+    --doc-accent-light: #FCA5A5;
+    --doc-accent-dark: #DC2626;
+    --doc-success: #10B981;
+    --doc-warning: #F59E0B;
+    --doc-info: #3B82F6;
+    --doc-bg-primary: #0a0a0f;
+    --doc-bg-secondary: #0d1117;
+    --doc-bg-card: rgba(13, 17, 23, 0.95);
+    --doc-border: rgba(239, 68, 68, 0.2);
+    --doc-text-primary: #ffffff;
+    --doc-text-secondary: rgba(255, 255, 255, 0.7);
+    --doc-text-muted: rgba(255, 255, 255, 0.5);
+}
+
+.doc-container {
+    min-height: 100vh;
+    background: var(--doc-bg-primary);
+    padding: 20px 30px 40px;
+    padding-top: 80px;
+}
+
+.scanline-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 0, 0, 0.03) 0px,
+        rgba(0, 0, 0, 0.03) 1px,
+        transparent 1px,
+        transparent 2px
+    );
+    pointer-events: none;
+    z-index: 1000;
+}
+
+/* Header */
+.doc-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    animation: fadeInUp 0.5s ease-out;
+}
+
+.doc-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--doc-accent);
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    text-shadow: 0 0 20px rgba(var(--doc-accent-rgb), 0.5);
+    margin: 0;
+}
+
+.doc-title i {
+    width: 36px;
+    height: 36px;
+}
+
+.doc-subtitle {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--doc-text-secondary);
+    margin: 8px 0 0 51px;
+}
+
+.doc-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--doc-success);
+}
+
+.status-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+}
+
+.status-online {
+    background: var(--doc-success);
+    box-shadow: 0 0 10px var(--doc-success);
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Disclaimer */
+.doc-disclaimer {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: 8px;
+    margin-bottom: 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--doc-warning);
+}
+
+.doc-disclaimer i {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+}
+
+/* Stats */
+.doc-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.doc-stat-card {
+    background: var(--doc-bg-card);
+    border: 1px solid var(--doc-border);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    backdrop-filter: blur(10px);
+    animation: fadeInUp 0.5s ease-out both;
+    transition: all 0.3s ease;
+}
+
+.doc-stat-card:hover {
+    border-color: rgba(var(--doc-accent-rgb), 0.5);
+    box-shadow: 0 0 20px rgba(var(--doc-accent-rgb), 0.15);
+    transform: translateY(-2px);
+}
+
+.doc-stat-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(var(--doc-accent-rgb), 0.1);
+    color: var(--doc-accent);
+}
+
+.doc-stat-icon i {
+    width: 24px;
+    height: 24px;
+}
+
+.doc-stat-icon--records {
+    background: rgba(59, 130, 246, 0.1);
+    color: #3B82F6;
+}
+
+.doc-stat-icon--symptoms {
+    background: rgba(245, 158, 11, 0.1);
+    color: #F59E0B;
+}
+
+.doc-stat-icon--reports {
+    background: rgba(16, 185, 129, 0.1);
+    color: #10B981;
+}
+
+.doc-stat-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.doc-stat-value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--doc-text-primary);
+}
+
+.doc-stat-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--doc-text-muted);
+    letter-spacing: 1px;
+}
+
+/* Tabs */
+.doc-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--doc-border);
+}
+
+.doc-tab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--doc-text-muted);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.25s ease;
+}
+
+.doc-tab i {
+    width: 18px;
+    height: 18px;
+}
+
+.doc-tab::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--doc-accent);
+    transform: scaleX(0);
+    transition: transform 0.25s ease;
+}
+
+.doc-tab:hover {
+    color: var(--doc-text-secondary);
+}
+
+.doc-tab.active {
+    color: var(--doc-accent);
+}
+
+.doc-tab.active::after {
+    transform: scaleX(1);
+}
+
+/* Tab Panels */
+.doc-tab-panel {
+    display: none;
+    animation: fadeIn 0.3s ease;
+}
+
+.doc-tab-panel.active {
+    display: block;
+}
+
+/* Chat Layout */
+.doc-chat-layout {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 24px;
+    height: calc(100vh - 380px);
+    min-height: 500px;
+}
+
+.doc-chat-main {
+    display: flex;
+    flex-direction: column;
+    background: var(--doc-bg-card);
+    border: 1px solid var(--doc-border);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.doc-messages {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.doc-message {
+    display: flex;
+    gap: 12px;
+    animation: fadeInUp 0.3s ease;
+}
+
+.doc-message--user {
+    flex-direction: row-reverse;
+}
+
+.doc-message-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.doc-message--assistant .doc-message-avatar {
+    background: linear-gradient(135deg, var(--doc-accent), #F59E0B);
+    color: white;
+}
+
+.doc-message--user .doc-message-avatar {
+    background: rgba(59, 130, 246, 0.2);
+    color: #3B82F6;
+}
+
+.doc-message-avatar i {
+    width: 20px;
+    height: 20px;
+}
+
+.doc-message-content {
+    max-width: 70%;
+    padding: 16px;
+    border-radius: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+
+.doc-message--assistant .doc-message-content {
+    background: rgba(var(--doc-accent-rgb), 0.1);
+    border: 1px solid rgba(var(--doc-accent-rgb), 0.2);
+    color: var(--doc-text-primary);
+}
+
+.doc-message--user .doc-message-content {
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    color: var(--doc-text-primary);
+}
+
+.doc-message-content ul {
+    margin: 12px 0 0 20px;
+    padding: 0;
+}
+
+.doc-message-content li {
+    margin: 6px 0;
+}
+
+/* Typing Indicator */
+.doc-typing {
+    display: flex;
+    gap: 12px;
+    padding: 0 20px 20px;
+}
+
+.doc-typing-dots {
+    display: flex;
+    gap: 4px;
+    padding: 12px;
+    background: rgba(var(--doc-accent-rgb), 0.1);
+    border-radius: 12px;
+}
+
+.doc-typing-dots span {
+    width: 8px;
+    height: 8px;
+    background: var(--doc-accent);
+    border-radius: 50%;
+    animation: bounce 1.4s infinite;
+}
+
+.doc-typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.doc-typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes bounce {
+    0%, 60%, 100% { transform: translateY(0); }
+    30% { transform: translateY(-8px); }
+}
+
+/* Chat Input */
+.doc-chat-input {
+    display: flex;
+    gap: 12px;
+    padding: 16px 20px;
+    border-top: 1px solid var(--doc-border);
+    align-items: flex-end;
+}
+
+.doc-chat-input textarea {
+    flex: 1;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--doc-border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--doc-text-primary);
+    resize: none;
+}
+
+.doc-chat-input textarea:focus {
+    outline: none;
+    border-color: var(--doc-accent);
+}
+
+.doc-chat-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* Buttons */
+.doc-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    font-weight: 500;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    text-transform: uppercase;
+}
+
+.doc-btn i {
+    width: 18px;
+    height: 18px;
+}
+
+.doc-btn-primary {
+    background: transparent;
+    color: var(--doc-accent);
+    border: 2px solid var(--doc-accent);
+}
+
+.doc-btn-primary:hover {
+    background: var(--doc-accent);
+    color: white;
+    box-shadow: 0 0 20px rgba(var(--doc-accent-rgb), 0.4);
+}
+
+.doc-btn-icon {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid var(--doc-border);
+    color: var(--doc-text-secondary);
+}
+
+.doc-btn-icon:hover {
+    border-color: var(--doc-accent);
+    color: var(--doc-accent);
+}
+
+.doc-btn-large {
+    padding: 16px 32px;
+    font-size: 1rem;
+    width: 100%;
+    justify-content: center;
+}
+
+/* Sidebar */
+.doc-sidebar {
+    background: var(--doc-bg-card);
+    border: 1px solid var(--doc-border);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.doc-sidebar h4 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.9rem;
+    color: var(--doc-text-primary);
+    margin: 0;
+}
+
+.doc-quick-topics {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+
+.doc-topic-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 8px;
+    background: transparent;
+    border: 1px solid var(--doc-border);
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--doc-text-secondary);
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.doc-topic-btn i {
+    width: 20px;
+    height: 20px;
+    color: var(--doc-accent);
+}
+
+.doc-topic-btn:hover {
+    border-color: var(--doc-accent);
+    background: rgba(var(--doc-accent-rgb), 0.05);
+}
+
+.doc-select {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--doc-border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--doc-text-primary);
+    width: 100%;
+}
+
+/* Symptom Checker */
+.doc-symptom-checker {
+    display: grid;
+    grid-template-columns: 1fr 350px;
+    gap: 24px;
+}
+
+.doc-symptom-form {
+    background: var(--doc-bg-card);
+    border: 1px solid var(--doc-border);
+    border-radius: 12px;
+    padding: 24px;
+}
+
+.doc-symptom-form h3 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    color: var(--doc-text-primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 20px;
+}
+
+.doc-symptom-form h3 i {
+    width: 20px;
+    height: 20px;
+    color: var(--doc-accent);
+}
+
+.doc-form-group {
+    margin-bottom: 20px;
+}
+
+.doc-form-group label {
+    display: block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--doc-text-muted);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.doc-textarea {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--doc-border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--doc-text-primary);
+    resize: vertical;
+}
+
+.doc-textarea:focus {
+    outline: none;
+    border-color: var(--doc-accent);
+}
+
+.doc-form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.doc-range {
+    width: 100%;
+    margin-top: 8px;
+}
+
+.doc-range-value {
+    display: inline-block;
+    margin-left: 10px;
+    font-family: 'Orbitron', sans-serif;
+    color: var(--doc-accent);
+}
+
+.doc-body-areas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.doc-area-btn {
+    padding: 8px 16px;
+    background: transparent;
+    border: 1px solid var(--doc-border);
+    border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--doc-text-secondary);
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.doc-area-btn.active {
+    background: rgba(var(--doc-accent-rgb), 0.2);
+    border-color: var(--doc-accent);
+    color: var(--doc-accent);
+}
+
+.doc-symptom-history {
+    background: var(--doc-bg-card);
+    border: 1px solid var(--doc-border);
+    border-radius: 12px;
+    padding: 24px;
+}
+
+.doc-symptom-history h3 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    color: var(--doc-text-primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 16px;
+}
+
+.doc-symptom-history h3 i {
+    width: 20px;
+    height: 20px;
+    color: var(--doc-accent);
+}
+
+/* Empty State */
+.doc-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    text-align: center;
+    color: var(--doc-text-muted);
+}
+
+.doc-empty-state i {
+    width: 48px;
+    height: 48px;
+    margin-bottom: 16px;
+    opacity: 0.3;
+}
+
+.doc-empty-state p {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    margin: 0 0 16px;
+}
+
+.doc-empty-hint {
+    font-size: 0.8rem !important;
+    opacity: 0.7;
+}
+
+/* Records */
+.doc-records-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.doc-search {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--doc-bg-card);
+    border: 1px solid var(--doc-border);
+    border-radius: 8px;
+    padding: 0 16px;
+    max-width: 300px;
+}
+
+.doc-search i {
+    width: 18px;
+    height: 18px;
+    color: var(--doc-text-muted);
+}
+
+.doc-search input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    padding: 12px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--doc-text-primary);
+}
+
+.doc-search input:focus {
+    outline: none;
+}
+
+.doc-records-grid {
+    background: var(--doc-bg-card);
+    border: 1px solid var(--doc-border);
+    border-radius: 12px;
+    min-height: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Reports */
+.doc-report-actions {
+    margin-bottom: 24px;
+}
+
+.doc-reports-list {
+    background: var(--doc-bg-card);
+    border: 1px solid var(--doc-border);
+    border-radius: 12px;
+    min-height: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   LIGHT MODE
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+body.light-mode .doc-container {
+    background: #f8f9fa;
+}
+
+body.light-mode .doc-title {
+    color: #DC2626;
+    text-shadow: none;
+}
+
+body.light-mode .doc-stat-card,
+body.light-mode .doc-chat-main,
+body.light-mode .doc-sidebar,
+body.light-mode .doc-symptom-form,
+body.light-mode .doc-symptom-history,
+body.light-mode .doc-records-grid,
+body.light-mode .doc-reports-list {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: rgba(220, 38, 38, 0.2);
+}
+
+body.light-mode .doc-stat-value,
+body.light-mode .doc-sidebar h4,
+body.light-mode .doc-symptom-form h3,
+body.light-mode .doc-symptom-history h3 {
+    color: #1a1a2e;
+}
+
+body.light-mode .doc-tab {
+    color: #666;
+}
+
+body.light-mode .doc-tab.active {
+    color: #DC2626;
+}
+
+body.light-mode .doc-message--assistant .doc-message-content {
+    background: rgba(220, 38, 38, 0.08);
+    border-color: rgba(220, 38, 38, 0.2);
+    color: #1a1a2e;
+}
+
+body.light-mode .doc-message--user .doc-message-content {
+    background: rgba(59, 130, 246, 0.08);
+    border-color: rgba(59, 130, 246, 0.2);
+    color: #1a1a2e;
+}
+
+body.light-mode .doc-btn-primary {
+    color: #DC2626;
+    border-color: #DC2626;
+}
+
+body.light-mode .doc-btn-primary:hover {
+    background: #DC2626;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 1200px) {
+    .doc-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .doc-chat-layout {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+
+    .doc-sidebar {
+        order: -1;
+    }
+
+    .doc-quick-topics {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    .doc-symptom-checker {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .doc-container {
+        padding: 20px;
+        padding-top: 80px;
+    }
+
+    .doc-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .doc-title {
+        font-size: 1.5rem;
+    }
+
+    .doc-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .doc-tabs {
+        overflow-x: auto;
+    }
+
+    .doc-tab {
+        white-space: nowrap;
+    }
+
+    .doc-form-row {
+        grid-template-columns: 1fr;
+    }
+
+    .doc-records-toolbar {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .doc-search {
+        max-width: none;
+        width: 100%;
+    }
+}
+</style>
+
+<script>
+// Initialize Lucide icons
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+    loadStats();
+
+    // Severity range
+    const severityRange = document.getElementById('severityRange');
+    if (severityRange) {
+        severityRange.addEventListener('input', function() {
+            document.getElementById('severityValue').textContent = this.value;
+        });
+    }
+});
+
+// Tab switching
+function switchTab(tabId) {
+    document.querySelectorAll('.doc-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.tab === tabId);
+    });
+    document.querySelectorAll('.doc-tab-panel').forEach(panel => {
+        panel.classList.toggle('active', panel.id === tabId + '-panel');
+    });
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+}
+
+// Load stats from localStorage
+function loadStats() {
+    const stats = JSON.parse(localStorage.getItem('doc_stats') || '{}');
+    document.getElementById('totalChats').textContent = stats.chats || 0;
+    document.getElementById('totalRecords').textContent = stats.records || 0;
+    document.getElementById('symptomsTracked').textContent = stats.symptoms || 0;
+    document.getElementById('reportsGenerated').textContent = stats.reports || 0;
+}
+
+// Save stats
+function updateStats(key) {
+    const stats = JSON.parse(localStorage.getItem('doc_stats') || '{}');
+    stats[key] = (stats[key] || 0) + 1;
+    localStorage.setItem('doc_stats', JSON.stringify(stats));
+    loadStats();
+}
+
+// Send chat message
+async function sendMessage() {
+    const input = document.getElementById('chatInput');
+    const message = input.value.trim();
+    if (!message) return;
+
+    // Add user message
+    addMessage(message, true);
+    input.value = '';
+
+    // Show typing indicator
+    document.getElementById('typingIndicator').style.display = 'flex';
+
+    // Get selected model
+    const model = document.getElementById('modelSelect').value;
+
+    try {
+        const response = await fetch('/tools/doc/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message, model })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            addMessage(data.response, false);
+            updateStats('chats');
+        } else {
+            addMessage('I apologize, but I encountered an error. Please try again.', false);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        addMessage('Connection error. Please check your connection and try again.', false);
+    } finally {
+        document.getElementById('typingIndicator').style.display = 'none';
+    }
+}
+
+// Add message to chat
+function addMessage(text, isUser) {
+    const container = document.getElementById('chatMessages');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `doc-message doc-message--${isUser ? 'user' : 'assistant'}`;
+
+    messageDiv.innerHTML = `
+        <div class="doc-message-avatar">
+            <i data-lucide="${isUser ? 'user' : 'stethoscope'}"></i>
+        </div>
+        <div class="doc-message-content">
+            <div class="doc-message-text">${escapeHtml(text)}</div>
+        </div>
+    `;
+
+    container.appendChild(messageDiv);
+    container.scrollTop = container.scrollHeight;
+
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Quick topic
+function askTopic(topic) {
+    const prompts = {
+        headache: "I've been having headaches. What could be causing them and what can I do?",
+        cold: "I think I'm coming down with a cold. What are the symptoms and how can I feel better?",
+        sleep: "I'm having trouble sleeping. What are some tips for better sleep?",
+        stress: "I've been feeling stressed lately. How can I manage stress better?",
+        nutrition: "What are some tips for eating healthier?",
+        exercise: "How much exercise should I be getting each week?"
+    };
+
+    document.getElementById('chatInput').value = prompts[topic] || '';
+    sendMessage();
+}
+
+// Attach image (placeholder)
+function attachImage() {
+    showToast('Image analysis feature coming soon!', 'info');
+}
+
+// Toggle body area
+let selectedAreas = [];
+function toggleArea(btn, area) {
+    btn.classList.toggle('active');
+    if (selectedAreas.includes(area)) {
+        selectedAreas = selectedAreas.filter(a => a !== area);
+    } else {
+        selectedAreas.push(area);
+    }
+}
+
+// Analyze symptoms
+function analyzeSymptoms() {
+    const symptoms = document.getElementById('symptomInput').value.trim();
+    if (!symptoms) {
+        showToast('Please describe your symptoms', 'warning');
+        return;
+    }
+
+    const severity = document.getElementById('severityRange').value;
+    const duration = document.getElementById('durationSelect').value;
+
+    const prompt = `I'm experiencing these symptoms: ${symptoms}. Severity: ${severity}/10. Duration: ${duration}. Body areas: ${selectedAreas.join(', ') || 'not specified'}. What could this indicate and what should I do?`;
+
+    switchTab('chat');
+    document.getElementById('chatInput').value = prompt;
+    sendMessage();
+    updateStats('symptoms');
+}
+
+// Show add record modal (placeholder)
+function showAddRecordModal() {
+    showToast('Health records feature coming soon!', 'info');
+}
+
+// Generate report (placeholder)
+function generateReport() {
+    showToast('Report generation coming soon!', 'info');
+}
+
+// Toast notification
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `flash ${type}`;
+    toast.innerHTML = `> ${message}`;
+
+    let container = document.querySelector('.flash-messages');
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'flash-messages';
+        document.body.appendChild(container);
+    }
+
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+// Enter key to send
+document.getElementById('chatInput')?.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+    }
+});
+</script>
+{% endblock %}

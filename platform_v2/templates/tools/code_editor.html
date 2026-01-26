@@ -1,0 +1,1051 @@
+{% extends "base.html" %}
+
+{% block title %}Code Editor - Development Tools{% endblock %}
+
+{% block module_name %}code-editor{% endblock %}
+
+{% block styles %}
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Dev Tools Category Styling */
+        .dev-tools-container {
+            min-height: 100vh;
+            background: #010409;
+        }
+
+        .dev-tools-content {
+            padding-top: 60px;
+            height: 100vh;
+        }
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --bg-dark: #0f0f1e;
+            --bg-darker: #0a0a14;
+            --bg-editor: #1e1e2e;
+            --text: #e4e4e7;
+            --text-dim: #a1a1aa;
+            --border: #27272a;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --ai-bg: #18181b;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text);
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 250px 1fr 350px;
+            grid-template-rows: 50px 1fr 200px;
+            height: calc(100vh - 60px);
+            gap: 0;
+            overflow: hidden;
+        }
+
+        /* Responsive breakpoints */
+        @media (max-width: 1400px) {
+            .container {
+                grid-template-columns: 200px 1fr 300px;
+            }
+        }
+
+        @media (max-width: 1024px) {
+            .container {
+                grid-template-columns: 180px 1fr 280px;
+            }
+            
+            .ai-sidebar {
+                font-size: 14px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+                grid-template-rows: 50px 1fr 200px 250px;
+            }
+
+            .file-tree {
+                display: none; /* Hide on mobile */
+            }
+
+            .ai-sidebar {
+                grid-column: 1;
+                grid-row: 4;
+            }
+            
+            .terminal {
+                grid-row: 3;
+            }
+        }
+
+        /* Action Header */
+        .header {
+            grid-column: 1 / -1;
+            background: var(--bg-darker);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            justify-content: space-between;
+        }
+
+        .header-info {
+            font-size: 13px;
+            color: var(--text-dim);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: var(--bg-editor);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border);
+        }
+
+        /* File Tree */
+        .file-tree {
+            grid-row: 2;
+            grid-column: 1;
+            background: var(--bg-darker);
+            border-right: 1px solid var(--border);
+            padding: 15px;
+            overflow-y: auto;
+            min-height: 0;
+        }
+
+        .file-tree-title {
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            font-size: 12px;
+            letter-spacing: 1px;
+        }
+
+        .file-item {
+            padding: 8px 12px;
+            margin: 4px 0;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        .file-item:hover {
+            background: var(--bg-editor);
+        }
+
+        .file-item.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .file-icon {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* Editor Area */
+        .editor-container {
+            grid-row: 2;
+            grid-column: 2;
+            background: var(--bg-editor);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .editor-tabs {
+            background: var(--bg-darker);
+            padding: 8px 15px;
+            display: flex;
+            gap: 5px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .editor-tab {
+            padding: 6px 12px;
+            border-radius: 6px 6px 0 0;
+            background: var(--bg-editor);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .editor-tab:hover {
+            background: var(--border);
+        }
+
+        .editor-tab.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .editor-tab .close {
+            opacity: 0.6;
+            cursor: pointer;
+        }
+
+        .editor-tab .close:hover {
+            opacity: 1;
+        }
+
+        #editor {
+            flex: 1;
+            width: 100%;
+        }
+
+        /* AI Chat Sidebar */
+        .ai-sidebar {
+            grid-row: 2;
+            grid-column: 3;
+            background: var(--ai-bg);
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .ai-header {
+            padding: 15px;
+            border-bottom: 1px solid var(--border);
+            background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 100%);
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .ai-header h3 {
+            font-size: 16px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .ai-header h3::before {
+            content: "🤖";
+            font-size: 20px;
+        }
+
+        .ai-status {
+            font-size: 12px;
+            margin-top: 5px;
+            opacity: 0.9;
+        }
+
+        .ai-messages {
+            flex: 1 1 auto;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            min-height: 0;
+            height: 100%;
+        }
+
+        .ai-message {
+            padding: 12px;
+            border-radius: 8px;
+            max-width: 90%;
+            animation: slideIn 0.3s ease;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .ai-message.user {
+            background: var(--bg-editor);
+            align-self: flex-end;
+            border: 1px solid var(--border);
+        }
+
+        .ai-message.assistant {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+        }
+
+        .ai-message pre {
+            background: var(--bg-darker);
+            padding: 10px;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin-top: 8px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+        }
+
+        .ai-message .btn {
+            font-size: 13px;
+            padding: 6px 12px;
+        }
+
+        .ai-input-container {
+            padding: 15px;
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .ai-input-wrapper {
+            display: flex;
+            gap: 8px;
+        }
+
+        .ai-input {
+            flex: 1;
+            padding: 10px 12px;
+            background: var(--bg-darker);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 14px;
+            resize: none;
+        }
+
+        .ai-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .ai-send-btn {
+            padding: 10px 20px;
+            background: var(--primary);
+            border: none;
+            border-radius: 6px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .ai-send-btn:hover {
+            background: var(--primary-dark);
+        }
+
+        .ai-send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Terminal */
+        .terminal {
+            grid-row: 3;
+            grid-column: 1 / -1;
+            background: var(--bg-darker);
+            border-top: 1px solid var(--border);
+            font-family: 'JetBrains Mono', monospace;
+            display: flex;
+            flex-direction: column;
+            min-height: 200px;
+            max-height: 200px;
+            overflow: hidden;
+        }
+
+        .terminal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 15px;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .terminal-title {
+            font-weight: 600;
+            color: var(--success);
+        }
+
+        .terminal-content {
+            font-size: 13px;
+            color: var(--text-dim);
+            overflow-y: auto;
+            flex: 1;
+            padding: 15px;
+        }
+
+        .terminal-line {
+            margin: 4px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .terminal-prompt {
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .terminal-output {
+            color: var(--text);
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-darker);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--primary);
+        }
+
+        /* Loading Spinner */
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Quick Actions */
+        .quick-actions {
+            display: flex;
+            gap: 8px;
+            padding: 0 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            flex-shrink: 0;
+        }
+
+        .quick-action {
+            padding: 6px 12px;
+            background: var(--bg-editor);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .quick-action:hover {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="dev-tools-container">
+    {% include 'includes/dev_tools_nav.html' %}
+
+    <div class="dev-tools-content">
+        <div class="container">
+            <!-- Action Header -->
+        <div class="header">
+            <div class="header-info">
+                <div class="status-indicator">
+                    <span style="color: var(--text-dim);">File:</span>
+                    <span id="currentFileName" style="color: var(--primary); font-weight: 600;">main.py</span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-secondary" onclick="newFile()">+ New File</button>
+                <button class="btn btn-primary" onclick="saveFile()">💾 Save</button>
+                <button class="btn btn-secondary" onclick="runCode()">▶️ Run</button>
+            </div>
+        </div>
+
+        <!-- File Tree -->
+        <div class="file-tree">
+            <div class="file-tree-title">Files</div>
+            <div class="file-item active" onclick="openFile('main.py')">
+                <span class="file-icon">🐍</span>
+                <span>main.py</span>
+            </div>
+            <div class="file-item" onclick="openFile('utils.py')">
+                <span class="file-icon">📄</span>
+                <span>utils.py</span>
+            </div>
+            <div class="file-item" onclick="openFile('config.json')">
+                <span class="file-icon">⚙️</span>
+                <span>config.json</span>
+            </div>
+        </div>
+
+        <!-- Editor -->
+        <div class="editor-container">
+            <div class="editor-tabs">
+                <div class="editor-tab active" data-file="main.py" onclick="if(!event.target.classList.contains('close')) openFile('main.py')">
+                    <span>🐍</span>
+                    <span>main.py</span>
+                    <span class="close" onclick="closeTab(event)">×</span>
+                </div>
+            </div>
+            <div id="editor"></div>
+        </div>
+
+        <!-- AI Chat Sidebar -->
+        <div class="ai-sidebar">
+            <div class="ai-header">
+                <h3>A.R.C.H.I.E. AI Assistant</h3>
+                <div class="ai-status">Powered by Ollama • Ready</div>
+            </div>
+            <div class="quick-actions">
+                <div class="quick-action" onclick="quickAsk('Explain this code')">💡 Explain</div>
+                <div class="quick-action" onclick="quickAsk('Fix any bugs')">🐛 Fix Bugs</div>
+                <div class="quick-action" onclick="quickAsk('Add comments')">📝 Comment</div>
+                <div class="quick-action" onclick="quickAsk('Optimize this')">⚡ Optimize</div>
+            </div>
+            <div class="ai-messages" id="aiMessages">
+                <div class="ai-message assistant">
+                    <strong>A.R.C.H.I.E.</strong><br>
+                    Hi! I'm your AI coding assistant. I can help you write, debug, and explain code. Just ask me anything!
+                </div>
+            </div>
+            <div class="ai-input-container">
+                <div class="ai-input-wrapper">
+                    <textarea class="ai-input" id="aiInput" placeholder="Ask A.R.C.H.I.E. anything..." rows="2"></textarea>
+                    <button class="ai-send-btn" onclick="sendMessage()" id="sendBtn">Send</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Terminal -->
+        <div class="terminal">
+            <div class="terminal-header">
+                <div class="terminal-title">▶️ Terminal</div>
+                <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px;" onclick="clearTerminal()">Clear</button>
+            </div>
+            <div class="terminal-content" id="terminalOutput">
+                <div class="terminal-line">
+                    <span class="terminal-prompt">$</span>
+                    <span class="terminal-output">Welcome to A.R.C.H.I.E. Code Editor Terminal</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Monaco Editor -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+    <script>
+        let editor;
+        let currentFile = 'main.py';
+        let fileContents = {}; // Store file contents in memory
+
+        // Initialize Monaco Editor
+        require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' }});
+        require(['vs/editor/editor.main'], function() {
+            editor = monaco.editor.create(document.getElementById('editor'), {
+                value: '# Welcome to A.R.C.H.I.E. Code Editor\n# Write your code here\n\ndef hello_world():\n    return "Hello, World!"\n\nif __name__ == "__main__":\n    print(hello_world())',
+                language: 'python',
+                theme: 'vs-dark',
+                fontSize: 14,
+                fontFamily: 'JetBrains Mono, monospace',
+                minimap: { enabled: true },
+                automaticLayout: true,
+                scrollBeyondLastLine: false,
+                padding: { top: 15 }
+            });
+            
+            // Store initial content
+            fileContents['main.py'] = editor.getValue();
+        });
+
+        // File Operations
+        async function newFile() {
+            const fileName = prompt('Enter file name:');
+            if (!fileName) return;
+            
+            // Save current file before switching
+            if (currentFile && editor) {
+                fileContents[currentFile] = editor.getValue();
+            }
+            
+            // Add to file tree
+            const fileTree = document.querySelector('.file-tree');
+            const fileItem = document.createElement('div');
+            fileItem.className = 'file-item';
+            fileItem.onclick = () => openFile(fileName);
+            
+            const icon = fileName.endsWith('.py') ? '🐍' : 
+                        fileName.endsWith('.json') ? '⚙️' : 
+                        fileName.endsWith('.js') ? '📜' : '📄';
+            
+            fileItem.innerHTML = `
+                <span class="file-icon">${icon}</span>
+                <span>${fileName}</span>
+            `;
+            
+            fileTree.appendChild(fileItem);
+            
+            // Initialize file content
+            fileContents[fileName] = '# New file\n';
+            
+            // Switch to new file
+            await openFile(fileName);
+            
+            addTerminalLine(`Created new file: ${fileName}`, 'success');
+        }
+
+        async function saveFile() {
+            if (!editor || !currentFile) return;
+            
+            const content = editor.getValue();
+            fileContents[currentFile] = content; // Save to memory
+            
+            addTerminalLine(`Saving ${currentFile}...`, 'info');
+            
+            const success = await saveFileToServer(currentFile, content);
+            
+            if (success) {
+                addTerminalLine(`✓ Saved ${currentFile} (${content.length} bytes)`, 'success');
+            } else {
+                addTerminalLine(`✗ Failed to save ${currentFile}`, 'error');
+            }
+        }
+
+        async function saveFileToServer(filename, content) {
+            try {
+                const response = await fetch('/tools/code-editor/api/file/save', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        filename: filename,
+                        content: content
+                    })
+                });
+                
+                const data = await response.json();
+                return data.success;
+            } catch (error) {
+                console.error('Save error:', error);
+                return false;
+            }
+        }
+
+        async function loadFileFromServer(filename) {
+            // Check memory first
+            if (fileContents[filename]) {
+                return fileContents[filename];
+            }
+            
+            try {
+                const response = await fetch(`/tools/code-editor/api/file/load?filename=${filename}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    fileContents[filename] = data.content;
+                    return data.content;
+                }
+            } catch (error) {
+                console.error('Load error:', error);
+            }
+            
+            // Return mock content if server fails
+            const mockContent = {
+                'main.py': '# Welcome to A.R.C.H.I.E. Code Editor\n# Write your code here\n\ndef hello_world():\n    return "Hello, World!"\n\nif __name__ == "__main__":\n    print(hello_world())',
+                'utils.py': '# Utility functions\n\ndef add(a, b):\n    return a + b\n\ndef multiply(a, b):\n    return a * b',
+                'config.json': '{\n  "name": "my-project",\n  "version": "1.0.0",\n  "author": "A.R.C.H.I.E."\n}'
+            };
+            
+            const content = mockContent[filename] || '# New file\n';
+            fileContents[filename] = content;
+            return content;
+        }
+
+        async function openFile(fileName) {
+            if (!editor) return;
+            
+            // Save current file content before switching
+            if (currentFile) {
+                fileContents[currentFile] = editor.getValue();
+            }
+            
+            currentFile = fileName;
+            
+            // Update filename display in header
+            const fileNameDisplay = document.getElementById('currentFileName');
+            if (fileNameDisplay) {
+                fileNameDisplay.textContent = fileName;
+            }
+            
+            // Update active state in file tree
+            document.querySelectorAll('.file-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            
+            // Find and activate clicked item
+            const clickedItem = Array.from(document.querySelectorAll('.file-item')).find(
+                item => item.textContent.trim() === fileName
+            );
+            if (clickedItem) {
+                clickedItem.classList.add('active');
+            }
+            
+            // Check if tab exists, if not create it
+            let existingTab = Array.from(document.querySelectorAll('.editor-tab')).find(
+                tab => tab.getAttribute('data-file') === fileName
+            );
+            
+            if (!existingTab) {
+                const tabsContainer = document.querySelector('.editor-tabs');
+                const newTab = document.createElement('div');
+                newTab.className = 'editor-tab';
+                newTab.setAttribute('data-file', fileName);
+                
+                // Get icon based on file type
+                const icon = fileName.endsWith('.py') ? '🐍' : 
+                            fileName.endsWith('.json') ? '⚙️' : 
+                            fileName.endsWith('.js') ? '📜' : '📄';
+                
+                newTab.innerHTML = `
+                    <span>${icon}</span>
+                    <span>${fileName}</span>
+                    <span class="close" onclick="closeTab(event)">×</span>
+                `;
+                
+                // Add click handler to tab
+                newTab.onclick = function(e) {
+                    if (!e.target.classList.contains('close')) {
+                        openFile(fileName);
+                    }
+                };
+                
+                tabsContainer.appendChild(newTab);
+                existingTab = newTab;
+            }
+            
+            // Remove active from all tabs and activate this one
+            document.querySelectorAll('.editor-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            existingTab.classList.add('active');
+            
+            // Load file content
+            addTerminalLine(`Loading ${fileName}...`, 'info');
+            const content = await loadFileFromServer(fileName);
+            
+            if (content) {
+                editor.setValue(content);
+                const language = fileName.endsWith('.py') ? 'python' : 
+                                fileName.endsWith('.json') ? 'json' : 
+                                fileName.endsWith('.js') ? 'javascript' :
+                                fileName.endsWith('.html') ? 'html' :
+                                fileName.endsWith('.css') ? 'css' : 'plaintext';
+                monaco.editor.setModelLanguage(editor.getModel(), language);
+            }
+            
+            addTerminalLine(`✓ Opened ${fileName}`, 'success');
+        }
+
+        function closeTab(event) {
+            event.stopPropagation();
+            const tab = event.target.closest('.editor-tab');
+            if (!tab) return;
+            
+            const fileName = tab.getAttribute('data-file');
+            
+            // If closing active tab, switch to another
+            if (tab.classList.contains('active')) {
+                const allTabs = Array.from(document.querySelectorAll('.editor-tab'));
+                const index = allTabs.indexOf(tab);
+                
+                // Switch to previous or next tab
+                if (allTabs.length > 1) {
+                    const nextTab = allTabs[index - 1] || allTabs[index + 1];
+                    if (nextTab) {
+                        const nextFile = nextTab.getAttribute('data-file');
+                        openFile(nextFile);
+                    }
+                }
+            }
+            
+            tab.remove();
+            addTerminalLine(`Closed ${fileName}`, 'info');
+        }
+
+        function runCode() {
+            const code = editor.getValue();
+            addTerminalLine('Running code...', 'info');
+            setTimeout(() => {
+                addTerminalLine('Execution complete!', 'success');
+            }, 1000);
+        }
+
+        // AI Functions
+        async function sendMessage() {
+            const input = document.getElementById('aiInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+
+            const sendBtn = document.getElementById('sendBtn');
+            sendBtn.disabled = true;
+            sendBtn.innerHTML = '<span class="loading"></span>';
+
+            // Add user message
+            addAIMessage(message, 'user');
+            input.value = '';
+
+            // Get current code context
+            const code = editor.getValue();
+            const context = {
+                code: code,
+                file: currentFile,
+                language: 'python'
+            };
+
+            try {
+                const response = await fetch('/tools/code-editor/api/ai', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        prompt: message,
+                        context: context
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    addAIMessage(data.response, 'assistant');
+                } else {
+                    addAIMessage('Error: ' + data.error, 'assistant');
+                }
+            } catch (error) {
+                addAIMessage('Error connecting to AI: ' + error.message, 'assistant');
+            }
+
+            sendBtn.disabled = false;
+            sendBtn.textContent = 'Send';
+        }
+
+        function quickAsk(action) {
+            const input = document.getElementById('aiInput');
+            input.value = action;
+            sendMessage();
+        }
+
+        function addAIMessage(text, sender) {
+            const messagesDiv = document.getElementById('aiMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `ai-message ${sender}`;
+            
+            // Extract code blocks
+            const codeBlockRegex = /```(\w+)?\n([\s\S]+?)```/g;
+            let match;
+            let hasCode = false;
+            let codeContent = '';
+            let language = 'python';
+            
+            while ((match = codeBlockRegex.exec(text)) !== null) {
+                hasCode = true;
+                language = match[1] || 'python';
+                codeContent = match[2];
+            }
+            
+            // Format code blocks
+            const formattedText = text.replace(/```(\w+)?\n([\s\S]+?)```/g, '<pre><code>$2</code></pre>');
+            
+            if (sender === 'user') {
+                messageDiv.innerHTML = `<strong>You</strong><br>${text}`;
+            } else {
+                messageDiv.innerHTML = `<strong>A.R.C.H.I.E.</strong><br>${formattedText}`;
+                
+                // Add "Apply Code" button if code was found
+                if (hasCode && codeContent) {
+                    const buttonContainer = document.createElement('div');
+                    buttonContainer.style.marginTop = '10px';
+                    buttonContainer.style.display = 'flex';
+                    buttonContainer.style.gap = '8px';
+                    
+                    const replaceBtn = document.createElement('button');
+                    replaceBtn.className = 'btn btn-primary';
+                    replaceBtn.style.fontSize = '13px';
+                    replaceBtn.style.padding = '6px 12px';
+                    replaceBtn.textContent = '✨ Replace All';
+                    replaceBtn.onclick = () => {
+                        if (editor) {
+                            editor.setValue(codeContent.trim());
+                            addTerminalLine(`Replaced all code in ${currentFile}`, 'success');
+                            fileContents[currentFile] = codeContent.trim();
+                        }
+                    };
+                    
+                    const insertBtn = document.createElement('button');
+                    insertBtn.className = 'btn btn-secondary';
+                    insertBtn.style.fontSize = '13px';
+                    insertBtn.style.padding = '6px 12px';
+                    insertBtn.textContent = '📝 Insert at Cursor';
+                    insertBtn.onclick = () => {
+                        if (editor) {
+                            const position = editor.getPosition();
+                            const range = new monaco.Range(
+                                position.lineNumber,
+                                position.column,
+                                position.lineNumber,
+                                position.column
+                            );
+                            editor.executeEdits('insert-code', [{
+                                range: range,
+                                text: '\n' + codeContent.trim() + '\n'
+                            }]);
+                            addTerminalLine(`Inserted code at cursor in ${currentFile}`, 'success');
+                            fileContents[currentFile] = editor.getValue();
+                        }
+                    };
+                    
+                    buttonContainer.appendChild(replaceBtn);
+                    buttonContainer.appendChild(insertBtn);
+                    messageDiv.appendChild(buttonContainer);
+                }
+            }
+            
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // Terminal Functions
+        function addTerminalLine(text, type = 'output') {
+            const terminal = document.getElementById('terminalOutput');
+            const line = document.createElement('div');
+            line.className = 'terminal-line';
+            
+            const prompt = document.createElement('span');
+            prompt.className = 'terminal-prompt';
+            prompt.textContent = type === 'output' ? '$' : '>';
+            
+            const output = document.createElement('span');
+            output.className = 'terminal-output';
+            output.textContent = text;
+            
+            if (type === 'success') output.style.color = 'var(--success)';
+            if (type === 'error') output.style.color = 'var(--error)';
+            if (type === 'info') output.style.color = 'var(--warning)';
+            
+            line.appendChild(prompt);
+            line.appendChild(output);
+            terminal.appendChild(line);
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        function clearTerminal() {
+            document.getElementById('terminalOutput').innerHTML = '';
+        }
+
+        // Keyboard shortcuts
+        document.getElementById('aiInput').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // Add initial terminal message
+        setTimeout(() => {
+            addTerminalLine('AI Bridge connected to Ollama', 'success');
+            addTerminalLine('Ready to code!', 'info');
+        }, 500);
+    </script>
+        </div><!-- /container -->
+    </div><!-- /dev-tools-content -->
+</div><!-- /dev-tools-container -->
+{% endblock %}

@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}500 - Server Error{% endblock %}
+
+{% block styles %}
+.error-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    text-align: center;
+}
+
+.error-box {
+    background: white;
+    padding: 60px;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+
+.error-box h1 {
+    font-size: 6rem;
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 20px;
+}
+
+.error-box h2 {
+    font-size: 2rem;
+    color: #1f2937;
+    margin-bottom: 20px;
+}
+
+.error-box p {
+    color: #6b7280;
+    margin-bottom: 30px;
+}
+
+.error-box a {
+    display: inline-block;
+    padding: 12px 30px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: transform 0.2s;
+}
+
+.error-box a:hover {
+    transform: translateY(-2px);
+}
+{% endblock %}
+
+{% block content %}
+<div class="error-container">
+    <div class="error-box">
+        <h1>500</h1>
+        <h2>Server Error</h2>
+        <p>Something went wrong on our end. We're working on it!</p>
+        <a href="{{ url_for('index') }}">Go Home</a>
+    </div>
+</div>
+{% endblock %}

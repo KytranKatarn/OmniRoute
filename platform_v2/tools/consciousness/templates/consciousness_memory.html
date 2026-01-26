@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}Memory Management{% endblock %}
+
+{% block content %}
+<div class="memory-management">
+    <h1>📚 Memory Management</h1>
+    <p class="subtitle">View and manage A.R.C.H.I.E.'s conversation memories</p>
+
+    <div class="table-stats">
+        <h2>Knowledge Base Statistics</h2>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Table</th>
+                    <th>Row Count</th>
+                    <th>Total Size</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for stat in table_stats %}
+                <tr>
+                    <td>{{ stat.table_name }}</td>
+                    <td>{{ stat.row_count }}</td>
+                    <td>{{ stat.total_size }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="memory-controls">
+        <button class="btn btn-primary" onclick="loadMemories('recent')">Recent</button>
+        <button class="btn btn-primary" onclick="loadMemories('important')">Important</button>
+        <button class="btn btn-primary" onclick="loadMemories('accessed')">Most Accessed</button>
+        <button class="btn btn-primary" onclick="loadMemories('types')">By Type</button>
+    </div>
+
+    <div id="memory-list" class="memory-list">
+        <!-- Memories will be loaded here via JavaScript -->
+    </div>
+</div>
+
+<script>
+function loadMemories(viewType) {
+    fetch(`/tools/consciousness/memories/${viewType}`)
+        .then(response => response.json())
+        .then(data => {
+            const memoryList = document.getElementById('memory-list');
+            memoryList.innerHTML = '';
+
+            data.memories.forEach(memory => {
+                const card = document.createElement('div');
+                card.className = 'memory-card';
+                card.innerHTML = `
+                    <h3>${memory.title || 'Untitled'}</h3>
+                    <p>${memory.content ? memory.content.substring(0, 200) : ''}...</p>
+                    <div class="memory-meta">
+                        <span>Type: ${memory.knowledge_type}</span>
+                        <span>Importance: ${memory.importance_score}</span>
+                        <span>Created: ${new Date(memory.created_at).toLocaleDateString()}</span>
+                    </div>
+                `;
+                memoryList.appendChild(card);
+            });
+        });
+}
+
+// Load recent memories by default
+loadMemories('recent');
+</script>
+
+<style>
+.memory-management {
+    padding: 2rem;
+}
+
+.memory-controls {
+    margin: 2rem 0;
+    display: flex;
+    gap: 1rem;
+}
+
+.memory-list {
+    display: grid;
+    gap: 1rem;
+}
+
+.memory-card {
+    background: white;
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.memory-meta {
+    display: flex;
+    gap: 1rem;
+    margin-top: 0.5rem;
+    font-size: 0.875rem;
+    color: #666;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,621 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   A.R.C.H.I.E. LIGHT MODE THEME
+   Platform-wide light theme for all modules
+   Extracted from dashboard_dynamic.html for shared use
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   §1 - LIGHT MODE CSS VARIABLES
+   Override dark theme variables with light-appropriate values
+   ───────────────────────────────────────────────────────────────────────────── */
+body.light-mode {
+    /* Backgrounds - Light & Clean */
+    --archie-bg-void: #f8f9fa;
+    --archie-bg-primary: #ffffff;
+    --archie-bg-secondary: #ffffff;
+    --archie-bg-tertiary: #f0f2f5;
+    --archie-bg-elevated: #ffffff;
+    --archie-bg-hover: rgba(0, 0, 0, 0.04);
+
+    /* Neo variables (for dashboard compatibility) */
+    --neo-void: #f8f9fa;
+    --neo-deep: #ffffff;
+    --neo-surface: #ffffff;
+    --neo-elevated: #f0f2f5;
+    --neo-border: rgba(0, 0, 0, 0.12);
+
+    /* Primary Colors - Darkened for contrast on light */
+    --archie-green: #00aa33;
+    --archie-green-bright: #00cc44;
+    --archie-green-dim: #008828;
+    --archie-cyan: #00a0a0;
+    --archie-cyan-dim: #008080;
+    --archie-orange: #cc7700;
+    --archie-red: #cc2244;
+    --archie-purple: #7c3aed;
+    --archie-blue: #0077cc;
+    --archie-pink: #db2777;
+
+    /* Neo color compatibility */
+    --neo-green: #00aa33;
+    --neo-green-bright: #00cc44;
+    --neo-green-dim: #008828;
+    --neo-cyan: #00a0a0;
+    --neo-cyan-dim: #008080;
+
+    /* Status Colors */
+    --archie-success: #00aa33;
+    --archie-warning: #cc7700;
+    --archie-danger: #cc2244;
+    --archie-info: #0077cc;
+    --neo-success: #00aa33;
+    --neo-warning: #cc7700;
+    --neo-danger: #cc2244;
+    --neo-info: #0077cc;
+
+    /* Text Colors - High Contrast */
+    --archie-text-primary: #111827;
+    --archie-text-secondary: #374151;
+    --archie-text-tertiary: #6b7280;
+    --archie-text-muted: #9ca3af;
+    --neo-text: #111827;
+    --neo-text-dim: #374151;
+    --neo-text-muted: #6b7280;
+
+    /* Border Colors */
+    --archie-border-default: rgba(0, 0, 0, 0.12);
+    --archie-border-muted: rgba(0, 0, 0, 0.08);
+    --archie-border-subtle: rgba(0, 0, 0, 0.05);
+    --archie-border-emphasis: rgba(0, 0, 0, 0.2);
+
+    /* Reduced Glows - Subtle on light backgrounds */
+    --archie-glow-green-sm: 0 2px 8px rgba(0, 170, 51, 0.2);
+    --archie-glow-green: 0 2px 12px rgba(0, 170, 51, 0.25);
+    --archie-glow-cyan-sm: 0 2px 8px rgba(0, 160, 160, 0.2);
+    --archie-glow-cyan: 0 2px 12px rgba(0, 160, 160, 0.25);
+    --archie-glow-purple-sm: 0 2px 8px rgba(124, 58, 237, 0.2);
+    --archie-glow-purple: 0 2px 12px rgba(124, 58, 237, 0.25);
+    --archie-glow-orange-sm: 0 2px 8px rgba(204, 119, 0, 0.2);
+    --archie-glow-orange: 0 2px 12px rgba(204, 119, 0, 0.25);
+    --archie-glow-red-sm: 0 2px 8px rgba(204, 34, 68, 0.2);
+    --archie-glow-red: 0 2px 12px rgba(204, 34, 68, 0.25);
+    --neo-green-glow: 0 2px 8px rgba(0, 170, 51, 0.3);
+    --neo-green-glow-intense: 0 4px 16px rgba(0, 170, 51, 0.4);
+    --neo-cyan-glow: 0 2px 8px rgba(0, 160, 160, 0.3);
+
+    /* Shadows - Lighter for light mode */
+    --archie-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.06);
+    --archie-shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.08);
+    --archie-shadow-md: 0 4px 8px rgba(0, 0, 0, 0.10);
+    --archie-shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.12);
+    --archie-shadow-xl: 0 16px 32px rgba(0, 0, 0, 0.15);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   §2 - BODY & BASE ELEMENTS
+   !important used to override inline styles in module templates
+   ───────────────────────────────────────────────────────────────────────────── */
+body.light-mode {
+    background: #e8eaed !important;
+    color: var(--archie-text-primary) !important;
+}
+
+body.light-mode::before {
+    background:
+        radial-gradient(ellipse at 20% 0%, rgba(0, 170, 51, 0.04) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 100%, rgba(0, 160, 160, 0.03) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 50%, rgba(255, 255, 255, 0.8) 0%, transparent 100%);
+}
+
+/* Hide scanline effect in light mode */
+body.light-mode .scanline {
+    display: none;
+}
+
+/* Matrix Rain - increased opacity for visibility on light */
+body.light-mode #matrix-rain {
+    opacity: 0.30;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   §3 - NAVIGATION & HEADERS
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Nav Header */
+body.light-mode .nav-header,
+body.light-mode nav {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(0, 0, 0, 0.1);
+}
+
+body.light-mode nav h1 {
+    color: var(--archie-text-primary);
+    text-shadow: none;
+}
+
+body.light-mode nav a,
+body.light-mode .nav-link {
+    color: var(--archie-text-secondary);
+    border-color: rgba(0, 0, 0, 0.15);
+}
+
+body.light-mode nav a:hover,
+body.light-mode .nav-link:hover {
+    color: var(--archie-green);
+    border-color: var(--archie-green);
+    background: rgba(0, 170, 51, 0.08);
+}
+
+/* Back Button */
+body.light-mode .back-btn {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(0, 0, 0, 0.15);
+    color: var(--archie-text-secondary);
+}
+
+body.light-mode .back-btn:hover {
+    border-color: var(--archie-cyan);
+    color: var(--archie-cyan);
+    background: rgba(0, 160, 160, 0.08);
+}
+
+/* Module Header / Blueprint Header */
+body.light-mode .module-header,
+body.light-mode .blueprint-header {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(2px);
+}
+
+body.light-mode .module-header h1,
+body.light-mode .blueprint-header h1 {
+    color: var(--archie-text-primary);
+    text-shadow: none;
+}
+
+body.light-mode .module-header .subtitle,
+body.light-mode .blueprint-header .subtitle {
+    color: var(--archie-text-muted);
+}
+
+/* Compact Header (scroll) */
+body.light-mode .compact-header {
+    background: rgba(255, 255, 255, 0.15);
+    border-bottom: 1px solid rgba(0, 170, 51, 0.2);
+    box-shadow: none;
+    backdrop-filter: blur(2px);
+}
+
+body.light-mode .compact-header h1 {
+    color: var(--archie-text-primary);
+    text-shadow: none;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   §4 - CARDS & PANELS
+   !important used to override inline styles in module templates
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Main container wrappers - override module inline styles */
+body.light-mode .container,
+body.light-mode .dev-tools-container,
+body.light-mode .admin-container,
+body.light-mode .creation-container,
+body.light-mode .business-container,
+body.light-mode .standalone-container,
+body.light-mode .main-container,
+body.light-mode .page-container,
+body.light-mode .content-wrapper,
+body.light-mode .module-container {
+    background: #f8f9fa !important;
+}
+
+body.light-mode .card,
+body.light-mode .panel,
+body.light-mode .section,
+body.light-mode .stat-card {
+    background: rgba(255, 255, 255, 0.98) !important;
+    border: 2px solid rgba(0, 0, 0, 0.12) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+body.light-mode .card:hover,
+body.light-mode .panel:hover {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+body.light-mode .card-header,
+body.light-mode .section-header {
+    background: rgba(0, 0, 0, 0.03);
+    border-color: rgba(0, 0, 0, 0.08);
+}
+
+body.light-mode .card-header h2,
+body.light-mode .section-header h2 {
+    color: var(--archie-text-primary);
+}
+
+body.light-mode .card-title,
+body.light-mode .panel-title {
+    color: var(--archie-text-primary);
+}
+
+body.light-mode .card-body,
+body.light-mode .panel-body {
+    color: var(--archie-text-secondary);
+}
+
+/* Stat Cards */
+body.light-mode .stat-card .value,
+body.light-mode .stat-value {
+    color: var(--archie-text-primary);
+}
+
+body.light-mode .stat-card h3,
+body.light-mode .stat-label {
+    color: var(--archie-text-muted);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   §5 - BUTTONS
+   ───────────────────────────────────────────────────────────────────────────── */
+body.light-mode .btn {
+    color: var(--archie-text-secondary);
+    border-color: rgba(0, 0, 0, 0.2);
+    background: transparent;
+}
+
+body.light-mode .btn:hover {
+    background: var(--archie-green);
+    color: #ffffff;
+    border-color: var(--archie-green);
+}
+
+body.light-mode .btn-primary {
+    color: var(--archie-cyan);
+    border-color: var(--archie-cyan);
+}
+
+body.light-mode .btn-primary:hover {
+    background: var(--archie-cyan);
+    color: #ffffff;
+}
+
+body.light-mode .btn-danger {
+    color: var(--archie-danger);
+    border-color: var(--archie-danger);
+}
+
+body.light-mode .btn-danger:hover {
+    background: var(--archie-danger);
+    color: #ffffff;
+}
+
+body.light-mode .btn-warning {
+    color: var(--archie-warning);
+    border-color: var(--archie-warning);
+}
+
+body.light-mode .btn-warning:hover {
+    background: var(--archie-warning);
+    color: #ffffff;
+}
+
+/* Header Icon Buttons */
+body.light-mode .header-icon-btn {
+    color: var(--archie-text-secondary);
+    border-color: rgba(0, 0, 0, 0.15);
+}
+
+body.light-mode .header-icon-btn:hover {
+    color: var(--archie-green);
+    border-color: var(--archie-green);
+    background: rgba(0, 170, 51, 0.08);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   §6 - FORMS & INPUTS
+   !important used to override inline styles in module templates
+   ───────────────────────────────────────────────────────────────────────────── */
+body.light-mode input,
+body.light-mode select,
+body.light-mode textarea {
+    background: #ffffff !important;
+    border-color: rgba(0, 0, 0, 0.15) !important;
+    color: var(--archie-text-primary) !important;
+}
+
+body.light-mode input:focus,
+body.light-mode select:focus,
+body.light-mode textarea:focus {
+    border-color: var(--archie-cyan);
+    box-shadow: 0 0 0 3px rgba(0, 160, 160, 0.1);
+}
+
+body.light-mode input::placeholder,
+body.light-mode textarea::placeholder {
+    color: var(--archie-text-muted);
+}
+
+body.light-mode label {
+    color: var(--archie-text-secondary);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   §7 - TABLES
+   !important used to override inline styles in module templates
+   ───────────────────────────────────────────────────────────────────────────── */
+body.light-mode .data-table,
+body.light-mode table {
+    background: rgba(255, 255, 255, 0.98) !important;
+    border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+body.light-mode .data-table th,
+body.light-mode table th {
+    background: rgba(0, 0, 0, 0.05);
+    color: var(--archie-text-secondary);
+    border-color: rgba(0, 0, 0, 0.1);
+}
+
+body.light-mode .data-table td,
+body.light-mode table td {
+    color: var(--archie-text-primary);
+    border-color: rgba(0, 0, 0, 0.06);
+}
+
+body.light-mode .data-table tr:hover,
+body.light-mode table tr:hover {
+    background: rgba(0, 0, 0, 0.03);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   §8 - TABS
+   ───────────────────────────────────────────────────────────────────────────── */
+body.light-mode .tab-nav {
+    border-color: rgba(0, 0, 0, 0.1);
+}
+
+body.light-mode .tab-btn {
+    color: var(--archie-text-muted);
+}
+
+body.light-mode .tab-btn:hover {
+    color: var(--archie-text-primary);
+}
+
+body.light-mode .tab-btn.active {
+    color: var(--archie-cyan);
+    border-color: var(--archie-cyan);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   §9 - MODALS
+   !important used to override inline styles in module templates
+   ───────────────────────────────────────────────────────────────────────────── */
+body.light-mode .modal-overlay {
+    background: rgba(255, 255, 255, 0.8) !important;
+    backdrop-filter: blur(4px);
+}
+
+body.light-mode .modal {
+    background: #ffffff !important;
+    border: 2px solid rgba(0, 0, 0, 0.15) !important;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2);
+}
+
+body.light-mode .modal h2 {
+    color: var(--archie-text-primary);
+}
+
+body.light-mode .modal-header {
+    border-color: rgba(0, 0, 0, 0.1);
+}
+
+body.light-mode .modal-footer {
+    border-color: rgba(0, 0, 0, 0.1);
+    background: rgba(0, 0, 0, 0.02);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   §10 - BADGES
+   ───────────────────────────────────────────────────────────────────────────── */
+body.light-mode .badge {
+    background: rgba(0, 0, 0, 0.08);
+    color: var(--archie-text-secondary);
+}
+
+body.light-mode .badge.success,
+body.light-mode .badge-success {
+    background: rgba(0, 170, 51, 0.15);
+    color: #00aa33;
+}
+
+body.light-mode .badge.warning,
+body.light-mode .badge-warning {
+    background: rgba(204, 119, 0, 0.15);
+    color: #cc7700;
+}
+
+body.light-mode .badge.danger,
+body.light-mode .badge-danger {
+    background: rgba(204, 34, 68, 0.15);
+    color: #cc2244;
+}
+
+body.light-mode .badge.info,
+body.light-mode .badge-info {
+    background: rgba(0, 120, 204, 0.15);
+    color: #0077cc;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   §11 - LISTS
+   ───────────────────────────────────────────────────────────────────────────── */
+body.light-mode .list-item {
+    border-color: rgba(0, 0, 0, 0.06);
+}
+
+body.light-mode .list-item:hover {
+    background: rgba(0, 0, 0, 0.03);
+}
+
+body.light-mode .item-title {
+    color: var(--archie-text-primary);
+}
+
+body.light-mode .item-meta {
+    color: var(--archie-text-muted);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   §12 - ALERTS & NOTIFICATIONS
+   ───────────────────────────────────────────────────────────────────────────── */
+body.light-mode .alert {
+    background: rgba(255, 255, 255, 0.98);
+    border-color: rgba(0, 0, 0, 0.15);
+}
+
+body.light-mode .notification-dropdown {
+    background: rgba(255, 255, 255, 0.98);
+    border-color: rgba(0, 0, 0, 0.15);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+}
+
+body.light-mode .notification-header {
+    border-color: rgba(0, 0, 0, 0.1);
+    color: var(--archie-green);
+}
+
+body.light-mode .notification-item {
+    border-color: rgba(0, 0, 0, 0.08);
+}
+
+body.light-mode .notification-item .title {
+    color: var(--archie-text-primary);
+}
+
+body.light-mode .notification-item .message {
+    color: var(--archie-text-secondary);
+}
+
+body.light-mode .notification-item .time {
+    color: var(--archie-text-muted);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   §13 - STATUS INDICATORS
+   ───────────────────────────────────────────────────────────────────────────── */
+body.light-mode .status-bar {
+    background: linear-gradient(180deg,
+        rgba(255, 255, 255, 0.98) 0%,
+        rgba(248, 249, 250, 0.95) 100%);
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    color: var(--archie-text-secondary);
+}
+
+body.light-mode .status-bar::before {
+    background: linear-gradient(90deg, transparent, rgba(0, 170, 51, 0.4), transparent);
+}
+
+body.light-mode .module-stats {
+    background: rgba(255, 255, 255, 0.95);
+    border: 2px solid rgba(0, 0, 0, 0.12);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   §14 - MODULE-SPECIFIC ACCENT COLORS
+   For modules with unique accent colors
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Blueprint - Cyan accent */
+body.light-mode[data-module="blueprint"] .btn-primary,
+body.light-mode[data-module="blueprint"] .tab-btn.active {
+    color: var(--archie-cyan);
+    border-color: var(--archie-cyan);
+}
+
+/* Consciousness - Purple accent */
+body.light-mode[data-module="consciousness"] .btn-primary,
+body.light-mode[data-module="consciousness"] .tab-btn.active {
+    color: var(--archie-purple);
+    border-color: var(--archie-purple);
+}
+
+/* CodeRabbit - Red accent */
+body.light-mode[data-module="coderabbit"] .btn-primary,
+body.light-mode[data-module="coderabbit"] .tab-btn.active {
+    color: var(--archie-red);
+    border-color: var(--archie-red);
+}
+
+/* Team Management - Green accent */
+body.light-mode[data-module="team_management"] .btn-primary,
+body.light-mode[data-module="team_management"] .tab-btn.active {
+    color: var(--archie-green);
+    border-color: var(--archie-green);
+}
+
+/* Backup Manager - Orange accent */
+body.light-mode[data-module="backup_manager"] .btn-primary,
+body.light-mode[data-module="backup_manager"] .tab-btn.active {
+    color: var(--archie-orange);
+    border-color: var(--archie-orange);
+}
+
+/* Website Studio - Blue accent */
+body.light-mode[data-module="website_studio"] .btn-primary,
+body.light-mode[data-module="website_studio"] .tab-btn.active {
+    color: var(--archie-blue);
+    border-color: var(--archie-blue);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   §15 - THEME CONTROLS
+   Standard styling for theme toggle and language buttons
+   ───────────────────────────────────────────────────────────────────────────── */
+.theme-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.theme-controls .header-icon-btn {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid var(--archie-border-default, #333);
+    border-radius: 6px;
+    color: var(--archie-text-secondary, #8b949e);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.theme-controls .header-icon-btn:hover {
+    border-color: var(--archie-green, #00ff41);
+    color: var(--archie-green, #00ff41);
+    background: rgba(0, 255, 65, 0.1);
+}
+
+body.light-mode .theme-controls .header-icon-btn {
+    border-color: rgba(0, 0, 0, 0.15);
+    color: var(--archie-text-secondary);
+}
+
+body.light-mode .theme-controls .header-icon-btn:hover {
+    border-color: var(--archie-green);
+    color: var(--archie-green);
+    background: rgba(0, 170, 51, 0.08);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   §16 - RESPONSIVE ADJUSTMENTS
+   ───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .theme-controls {
+        justify-content: center;
+    }
+}

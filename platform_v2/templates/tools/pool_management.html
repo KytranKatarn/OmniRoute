@@ -1,0 +1,1965 @@
+{% extends "base.html" %}
+
+{% block title %}Pool Management - Admin Tools{% endblock %}
+
+{% block module_name %}pool-management{% endblock %}
+
+{% block styles %}
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+    :root {
+        --bg-primary: #010409;
+        --bg-secondary: #0d1117;
+        --bg-card: rgba(13, 17, 23, 0.9);
+        --border-color: rgba(239, 68, 68, 0.2);
+        --border-hover: rgba(239, 68, 68, 0.5);
+        --accent-red: #EF4444;
+        --accent-orange: #F97316;
+        --accent-cyan: #00FFFF;
+        --accent-green: #22C55E;
+        --accent-yellow: #EAB308;
+        --text-primary: #E6EDF3;
+        --text-secondary: #8B949E;
+        --text-muted: #6E7681;
+    }
+
+    .pool-admin-container {
+        min-height: 100vh;
+        background: var(--bg-primary);
+        background-image:
+            radial-gradient(ellipse at 20% 80%, rgba(239, 68, 68, 0.08) 0%, transparent 50%),
+            radial-gradient(ellipse at 80% 20%, rgba(0, 255, 255, 0.05) 0%, transparent 50%),
+            linear-gradient(rgba(239, 68, 68, 0.02) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(239, 68, 68, 0.02) 1px, transparent 1px);
+        background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
+    }
+
+    .admin-content {
+        padding-top: 70px;
+    }
+
+    .admin-header {
+        padding: 20px 30px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .admin-header h1 {
+        font-family: 'Orbitron', sans-serif;
+        font-size: 1.8rem;
+        color: var(--accent-red);
+        text-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .live-indicator {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.75rem;
+        color: var(--accent-green);
+        background: rgba(34, 197, 94, 0.1);
+        padding: 6px 12px;
+        border-radius: 20px;
+        border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+
+    .live-dot {
+        width: 8px;
+        height: 8px;
+        background: var(--accent-green);
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.5; transform: scale(0.9); }
+    }
+
+    .main-layout {
+        display: grid;
+        grid-template-columns: 220px 1fr;
+        min-height: calc(100vh - 130px);
+    }
+
+    /* Sidebar Navigation */
+    .sidebar {
+        background: var(--bg-secondary);
+        border-right: 1px solid var(--border-color);
+        padding: 20px 0;
+    }
+
+    .sidebar-section {
+        margin-bottom: 24px;
+    }
+
+    .sidebar-title {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.65rem;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        color: var(--text-muted);
+        padding: 0 20px;
+        margin-bottom: 8px;
+    }
+
+    .nav-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 20px;
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border-left: 3px solid transparent;
+        font-size: 0.9rem;
+    }
+
+    .nav-item:hover {
+        background: rgba(239, 68, 68, 0.05);
+        color: var(--text-primary);
+    }
+
+    .nav-item.active {
+        background: rgba(239, 68, 68, 0.1);
+        color: var(--accent-red);
+        border-left-color: var(--accent-red);
+    }
+
+    .nav-item i {
+        width: 20px;
+        height: 20px;
+    }
+
+    .nav-badge {
+        margin-left: auto;
+        background: var(--accent-red);
+        color: white;
+        font-size: 0.7rem;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Main Content */
+    .content-area {
+        padding: 24px;
+        overflow-y: auto;
+    }
+
+    .tab-content {
+        display: none;
+    }
+
+    .tab-content.active {
+        display: block;
+    }
+
+    /* Stats Cards */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+
+    .stat-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 20px;
+        transition: all 0.3s ease;
+    }
+
+    .stat-card:hover {
+        border-color: var(--border-hover);
+        box-shadow: 0 0 30px rgba(239, 68, 68, 0.1);
+    }
+
+    .stat-card .label {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 8px;
+    }
+
+    .stat-card .value {
+        font-family: 'Orbitron', sans-serif;
+        font-size: 1.8rem;
+        color: var(--text-primary);
+        margin-bottom: 4px;
+    }
+
+    .stat-card .change {
+        font-size: 0.8rem;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .stat-card .change.positive { color: var(--accent-green); }
+    .stat-card .change.negative { color: var(--accent-red); }
+
+    .stat-card.accent-red { border-left: 4px solid var(--accent-red); }
+    .stat-card.accent-cyan { border-left: 4px solid var(--accent-cyan); }
+    .stat-card.accent-green { border-left: 4px solid var(--accent-green); }
+    .stat-card.accent-orange { border-left: 4px solid var(--accent-orange); }
+
+    /* Data Tables */
+    .data-section {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        overflow: hidden;
+        margin-bottom: 24px;
+    }
+
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .section-header h3 {
+        font-family: 'Orbitron', sans-serif;
+        font-size: 1rem;
+        color: var(--accent-cyan);
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .section-actions {
+        display: flex;
+        gap: 8px;
+    }
+
+    .search-box {
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 8px 12px;
+        color: var(--text-primary);
+        font-size: 0.85rem;
+        width: 200px;
+        transition: border-color 0.2s;
+    }
+
+    .search-box:focus {
+        outline: none;
+        border-color: var(--accent-red);
+    }
+
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: none;
+    }
+
+    .btn-primary {
+        background: var(--accent-red);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: #DC2626;
+        box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
+    }
+
+    .btn-secondary {
+        background: transparent;
+        border: 1px solid var(--border-color);
+        color: var(--text-secondary);
+    }
+
+    .btn-secondary:hover {
+        border-color: var(--accent-red);
+        color: var(--text-primary);
+    }
+
+    .btn-success {
+        background: var(--accent-green);
+        color: white;
+    }
+
+    .btn-warning {
+        background: var(--accent-orange);
+        color: white;
+    }
+
+    .btn-danger {
+        background: #DC2626;
+        color: white;
+    }
+
+    .btn-sm {
+        padding: 4px 10px;
+        font-size: 0.75rem;
+    }
+
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .data-table th {
+        text-align: left;
+        padding: 12px 16px;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: var(--text-muted);
+        background: rgba(0, 0, 0, 0.2);
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .data-table td {
+        padding: 14px 16px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+    }
+
+    .data-table tr:hover {
+        background: rgba(239, 68, 68, 0.03);
+    }
+
+    .data-table .mono {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.8rem;
+    }
+
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .status-badge.online { background: rgba(34, 197, 94, 0.2); color: var(--accent-green); }
+    .status-badge.offline { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+    .status-badge.pending { background: rgba(234, 179, 8, 0.2); color: var(--accent-yellow); }
+    .status-badge.confirmed { background: rgba(34, 197, 94, 0.2); color: var(--accent-green); }
+    .status-badge.orphaned { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+    .status-badge.processing { background: rgba(0, 255, 255, 0.2); color: var(--accent-cyan); }
+
+    .wallet-address {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.75rem;
+        color: var(--accent-cyan);
+        cursor: pointer;
+    }
+
+    .wallet-address:hover {
+        text-decoration: underline;
+    }
+
+    /* Charts Container */
+    .chart-container {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 24px;
+    }
+
+    .chart-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+    }
+
+    .chart-header h3 {
+        font-family: 'Orbitron', sans-serif;
+        font-size: 1rem;
+        color: var(--accent-cyan);
+        margin: 0;
+    }
+
+    .chart-tabs {
+        display: flex;
+        gap: 8px;
+    }
+
+    .chart-tab {
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .chart-tab:hover, .chart-tab.active {
+        background: rgba(239, 68, 68, 0.1);
+        color: var(--accent-red);
+    }
+
+    #hashrateChart, #revenueChart, #minersChart {
+        height: 250px;
+        width: 100%;
+    }
+
+    /* Settings Form */
+    .settings-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 20px;
+    }
+
+    .settings-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 20px;
+    }
+
+    .settings-card h4 {
+        font-family: 'Orbitron', sans-serif;
+        font-size: 0.9rem;
+        color: var(--accent-cyan);
+        margin: 0 0 16px 0;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .form-group {
+        margin-bottom: 16px;
+    }
+
+    .form-group label {
+        display: block;
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        margin-bottom: 6px;
+    }
+
+    .form-group input, .form-group select {
+        width: 100%;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 10px 12px;
+        color: var(--text-primary);
+        font-size: 0.9rem;
+    }
+
+    .form-group input:focus, .form-group select:focus {
+        outline: none;
+        border-color: var(--accent-red);
+    }
+
+    .form-row {
+        display: flex;
+        gap: 12px;
+    }
+
+    .form-row .form-group {
+        flex: 1;
+    }
+
+    /* Services Grid */
+    .services-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 16px;
+    }
+
+    .service-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .service-info {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .service-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+    }
+
+    .service-icon.running { background: rgba(34, 197, 94, 0.2); color: var(--accent-green); }
+    .service-icon.stopped { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+
+    .service-details h4 {
+        margin: 0;
+        font-size: 0.95rem;
+        color: var(--text-primary);
+    }
+
+    .service-details p {
+        margin: 4px 0 0 0;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+    }
+
+    /* Quick Actions */
+    .quick-actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 24px;
+    }
+
+    .action-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 16px 24px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .action-card:hover {
+        border-color: var(--accent-red);
+        transform: translateY(-2px);
+    }
+
+    .action-card i {
+        color: var(--accent-red);
+    }
+
+    .action-card span {
+        font-size: 0.9rem;
+        color: var(--text-primary);
+    }
+
+    /* Modal */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.8);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+    }
+
+    .modal-overlay.active {
+        display: flex;
+    }
+
+    .modal {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 16px;
+        width: 90%;
+        max-width: 500px;
+        max-height: 80vh;
+        overflow-y: auto;
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .modal-header h3 {
+        margin: 0;
+        font-family: 'Orbitron', sans-serif;
+        font-size: 1.1rem;
+        color: var(--accent-cyan);
+    }
+
+    .modal-close {
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        cursor: pointer;
+        font-size: 1.5rem;
+    }
+
+    .modal-body {
+        padding: 20px;
+    }
+
+    .modal-footer {
+        padding: 16px 20px;
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+    }
+
+    /* Empty State */
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: var(--text-muted);
+    }
+
+    .empty-state i {
+        font-size: 3rem;
+        margin-bottom: 16px;
+        opacity: 0.5;
+    }
+
+    .empty-state h4 {
+        margin: 0 0 8px 0;
+        color: var(--text-secondary);
+    }
+
+    .empty-state p {
+        margin: 0;
+        font-size: 0.9rem;
+    }
+
+    /* Loading Spinner */
+    .loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 40px;
+    }
+
+    .spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid var(--border-color);
+        border-top-color: var(--accent-red);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    /* Toast Notifications */
+    .toast-container {
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        z-index: 1100;
+    }
+
+    .toast {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 12px 20px;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        animation: slideIn 0.3s ease;
+    }
+
+    .toast.success { border-left: 4px solid var(--accent-green); }
+    .toast.error { border-left: 4px solid var(--accent-red); }
+    .toast.warning { border-left: 4px solid var(--accent-orange); }
+
+    @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+        .main-layout {
+            grid-template-columns: 1fr;
+        }
+        .sidebar {
+            display: none;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pool-admin-container">
+    {% include 'includes/admin_tools_nav.html' %}
+
+    <div class="admin-content">
+        <div class="admin-header">
+            <h1>
+                <i data-lucide="database"></i>
+                POOL MANAGEMENT
+            </h1>
+            <div class="live-indicator">
+                <span class="live-dot"></span>
+                <span id="lastUpdate">Connecting...</span>
+            </div>
+        </div>
+
+        <div class="main-layout">
+            <!-- Sidebar Navigation -->
+            <nav class="sidebar">
+                <div class="sidebar-section">
+                    <div class="sidebar-title">Overview</div>
+                    <div class="nav-item active" data-tab="dashboard">
+                        <i data-lucide="layout-dashboard"></i>
+                        Dashboard
+                    </div>
+                    <div class="nav-item" data-tab="miners">
+                        <i data-lucide="users"></i>
+                        Miners
+                        <span class="nav-badge" id="minerCount">0</span>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-title">Operations</div>
+                    <div class="nav-item" data-tab="blocks">
+                        <i data-lucide="box"></i>
+                        Blocks
+                    </div>
+                    <div class="nav-item" data-tab="payouts">
+                        <i data-lucide="wallet"></i>
+                        Payouts
+                        <span class="nav-badge" id="pendingPayouts">0</span>
+                    </div>
+                    <div class="nav-item" data-tab="conversions">
+                        <i data-lucide="repeat"></i>
+                        Conversions
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-title">Insights</div>
+                    <div class="nav-item" data-tab="analytics">
+                        <i data-lucide="bar-chart-3"></i>
+                        Analytics
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <div class="sidebar-title">System</div>
+                    <div class="nav-item" data-tab="services">
+                        <i data-lucide="server"></i>
+                        Services
+                    </div>
+                    <div class="nav-item" data-tab="settings">
+                        <i data-lucide="settings"></i>
+                        Settings
+                    </div>
+                </div>
+            </nav>
+
+            <!-- Main Content Area -->
+            <main class="content-area">
+                <!-- Dashboard Tab -->
+                <div id="dashboard" class="tab-content active">
+                    <div class="stats-grid">
+                        <div class="stat-card accent-red">
+                            <div class="label">Pool Hashrate</div>
+                            <div class="value" id="poolHashrate">--</div>
+                            <div class="change positive" id="hashrateChange">
+                                <i data-lucide="trending-up"></i> +0%
+                            </div>
+                        </div>
+                        <div class="stat-card accent-cyan">
+                            <div class="label">Active Miners</div>
+                            <div class="value" id="activeMiners">--</div>
+                            <div class="change positive" id="minersChange">
+                                <i data-lucide="trending-up"></i> +0
+                            </div>
+                        </div>
+                        <div class="stat-card accent-green">
+                            <div class="label">Blocks (24h)</div>
+                            <div class="value" id="blocksFound">--</div>
+                            <div class="change" id="blocksEff">Efficiency: --%</div>
+                        </div>
+                        <div class="stat-card accent-orange">
+                            <div class="label">Pool Luck</div>
+                            <div class="value" id="poolLuck">--%</div>
+                            <div class="change" id="luckStatus">--</div>
+                        </div>
+                    </div>
+
+                    <div class="quick-actions">
+                        <div class="action-card" onclick="triggerPayouts()">
+                            <i data-lucide="send"></i>
+                            <span>Process Payouts</span>
+                        </div>
+                        <div class="action-card" onclick="showTab('conversions')">
+                            <i data-lucide="repeat"></i>
+                            <span>Conversion Queue</span>
+                        </div>
+                        <div class="action-card" onclick="restartService('stratum')">
+                            <i data-lucide="refresh-cw"></i>
+                            <span>Restart Stratum</span>
+                        </div>
+                        <div class="action-card" onclick="showTab('settings')">
+                            <i data-lucide="sliders"></i>
+                            <span>Pool Settings</span>
+                        </div>
+                    </div>
+
+                    <div class="chart-container">
+                        <div class="chart-header">
+                            <h3><i data-lucide="activity"></i> Pool Hashrate</h3>
+                            <div class="chart-tabs">
+                                <span class="chart-tab active" data-range="24h">24H</span>
+                                <span class="chart-tab" data-range="7d">7D</span>
+                                <span class="chart-tab" data-range="30d">30D</span>
+                            </div>
+                        </div>
+                        <canvas id="hashrateChart"></canvas>
+                    </div>
+
+                    <div class="data-section">
+                        <div class="section-header">
+                            <h3><i data-lucide="box"></i> Recent Blocks</h3>
+                            <button class="btn btn-secondary btn-sm" onclick="showTab('blocks')">View All</button>
+                        </div>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Height</th>
+                                    <th>Hash</th>
+                                    <th>Finder</th>
+                                    <th>Reward</th>
+                                    <th>Status</th>
+                                    <th>Time</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recentBlocksTable">
+                                <tr><td colspan="6" class="loading"><div class="spinner"></div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Miners Tab -->
+                <div id="miners" class="tab-content">
+                    <div class="data-section">
+                        <div class="section-header">
+                            <h3><i data-lucide="users"></i> Active Miners</h3>
+                            <div class="section-actions">
+                                <input type="text" class="search-box" id="minerSearch" placeholder="Search wallet...">
+                                <button class="btn btn-secondary btn-sm" onclick="refreshMiners()">
+                                    <i data-lucide="refresh-cw"></i> Refresh
+                                </button>
+                            </div>
+                        </div>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Wallet</th>
+                                    <th>Hashrate</th>
+                                    <th>Workers</th>
+                                    <th>Shares</th>
+                                    <th>Pending</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="minersTable">
+                                <tr><td colspan="7" class="loading"><div class="spinner"></div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Blocks Tab -->
+                <div id="blocks" class="tab-content">
+                    <div class="stats-grid">
+                        <div class="stat-card accent-green">
+                            <div class="label">Confirmed</div>
+                            <div class="value" id="confirmedBlocks">--</div>
+                        </div>
+                        <div class="stat-card accent-orange">
+                            <div class="label">Pending</div>
+                            <div class="value" id="pendingBlocks">--</div>
+                        </div>
+                        <div class="stat-card accent-red">
+                            <div class="label">Orphaned</div>
+                            <div class="value" id="orphanedBlocks">--</div>
+                        </div>
+                        <div class="stat-card accent-cyan">
+                            <div class="label">Total Rewards</div>
+                            <div class="value" id="totalRewards">--</div>
+                        </div>
+                    </div>
+
+                    <div class="data-section">
+                        <div class="section-header">
+                            <h3><i data-lucide="box"></i> Block Explorer</h3>
+                            <div class="section-actions">
+                                <select class="search-box" id="blockFilter" style="width: 150px;">
+                                    <option value="all">All Blocks</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="confirmed">Confirmed</option>
+                                    <option value="orphaned">Orphaned</option>
+                                </select>
+                            </div>
+                        </div>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Height</th>
+                                    <th>Hash</th>
+                                    <th>Finder</th>
+                                    <th>Difficulty</th>
+                                    <th>Reward</th>
+                                    <th>Confirmations</th>
+                                    <th>Status</th>
+                                    <th>Time</th>
+                                </tr>
+                            </thead>
+                            <tbody id="blocksTable">
+                                <tr><td colspan="8" class="loading"><div class="spinner"></div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Payouts Tab -->
+                <div id="payouts" class="tab-content">
+                    <div class="stats-grid">
+                        <div class="stat-card accent-orange">
+                            <div class="label">Pending Payouts</div>
+                            <div class="value" id="pendingPayoutCount">--</div>
+                        </div>
+                        <div class="stat-card accent-cyan">
+                            <div class="label">Total Pending</div>
+                            <div class="value" id="pendingPayoutAmount">--</div>
+                        </div>
+                        <div class="stat-card accent-green">
+                            <div class="label">Paid Today</div>
+                            <div class="value" id="paidToday">--</div>
+                        </div>
+                        <div class="stat-card accent-red">
+                            <div class="label">Failed</div>
+                            <div class="value" id="failedPayouts">--</div>
+                        </div>
+                    </div>
+
+                    <div class="quick-actions">
+                        <div class="action-card" onclick="triggerPayouts()">
+                            <i data-lucide="send"></i>
+                            <span>Process All Payouts</span>
+                        </div>
+                        <div class="action-card" onclick="retryFailedPayouts()">
+                            <i data-lucide="refresh-cw"></i>
+                            <span>Retry Failed</span>
+                        </div>
+                    </div>
+
+                    <div class="data-section">
+                        <div class="section-header">
+                            <h3><i data-lucide="wallet"></i> Payout Queue</h3>
+                            <div class="section-actions">
+                                <select class="search-box" id="payoutFilter" style="width: 150px;">
+                                    <option value="pending">Pending</option>
+                                    <option value="processing">Processing</option>
+                                    <option value="completed">Completed</option>
+                                    <option value="failed">Failed</option>
+                                </select>
+                            </div>
+                        </div>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Wallet</th>
+                                    <th>Amount</th>
+                                    <th>Currency</th>
+                                    <th>TX ID</th>
+                                    <th>Status</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="payoutsTable">
+                                <tr><td colspan="7" class="loading"><div class="spinner"></div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Conversions Tab -->
+                <div id="conversions" class="tab-content">
+                    <div class="stats-grid">
+                        <div class="stat-card accent-cyan">
+                            <div class="label">RVN Price</div>
+                            <div class="value" id="rvnPrice">$--</div>
+                        </div>
+                        <div class="stat-card accent-orange">
+                            <div class="label">Queue Size</div>
+                            <div class="value" id="conversionQueue">--</div>
+                        </div>
+                        <div class="stat-card accent-green">
+                            <div class="label">Converted Today</div>
+                            <div class="value" id="convertedToday">--</div>
+                        </div>
+                        <div class="stat-card accent-red">
+                            <div class="label">Conversion Fee</div>
+                            <div class="value" id="conversionFee">--%</div>
+                        </div>
+                    </div>
+
+                    <div class="data-section">
+                        <div class="section-header">
+                            <h3><i data-lucide="repeat"></i> Conversion Queue</h3>
+                            <button class="btn btn-primary btn-sm" onclick="processConversions()">
+                                <i data-lucide="play"></i> Process Queue
+                            </button>
+                        </div>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Wallet</th>
+                                    <th>RVN Amount</th>
+                                    <th>Target</th>
+                                    <th>Est. Output</th>
+                                    <th>Status</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="conversionsTable">
+                                <tr><td colspan="7" class="loading"><div class="spinner"></div></td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Analytics Tab -->
+                <div id="analytics" class="tab-content">
+                    <div class="chart-container">
+                        <div class="chart-header">
+                            <h3><i data-lucide="trending-up"></i> Revenue Analytics</h3>
+                            <div class="chart-tabs">
+                                <span class="chart-tab active" data-range="7d">7D</span>
+                                <span class="chart-tab" data-range="30d">30D</span>
+                                <span class="chart-tab" data-range="90d">90D</span>
+                            </div>
+                        </div>
+                        <canvas id="revenueChart"></canvas>
+                    </div>
+
+                    <div class="chart-container">
+                        <div class="chart-header">
+                            <h3><i data-lucide="users"></i> Miner Growth</h3>
+                        </div>
+                        <canvas id="minersChart"></canvas>
+                    </div>
+
+                    <div class="stats-grid">
+                        <div class="stat-card accent-green">
+                            <div class="label">Total Revenue (30d)</div>
+                            <div class="value" id="totalRevenue">--</div>
+                        </div>
+                        <div class="stat-card accent-cyan">
+                            <div class="label">Pool Fee Earned</div>
+                            <div class="value" id="feeEarned">--</div>
+                        </div>
+                        <div class="stat-card accent-orange">
+                            <div class="label">Avg Hashrate (30d)</div>
+                            <div class="value" id="avgHashrate">--</div>
+                        </div>
+                        <div class="stat-card accent-red">
+                            <div class="label">Avg Miners (30d)</div>
+                            <div class="value" id="avgMiners">--</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Services Tab -->
+                <div id="services" class="tab-content">
+                    <div class="services-grid" id="servicesGrid">
+                        <div class="service-card">
+                            <div class="service-info">
+                                <div class="service-icon running">
+                                    <i data-lucide="server"></i>
+                                </div>
+                                <div class="service-details">
+                                    <h4>Loading services...</h4>
+                                    <p>Please wait</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Settings Tab -->
+                <div id="settings" class="tab-content">
+                    <div class="settings-grid">
+                        <div class="settings-card">
+                            <h4><i data-lucide="percent"></i> Pool Fees</h4>
+                            <div class="form-group">
+                                <label>Pool Fee (%)</label>
+                                <input type="number" id="poolFee" step="0.1" min="0" max="10" value="1.0">
+                            </div>
+                            <div class="form-group">
+                                <label>Conversion Fee (%)</label>
+                                <input type="number" id="settingConversionFee" step="0.1" min="0" max="10" value="2.0">
+                            </div>
+                        </div>
+
+                        <div class="settings-card">
+                            <h4><i data-lucide="wallet"></i> Payout Settings</h4>
+                            <div class="form-group">
+                                <label>Minimum Payout (RVN)</label>
+                                <input type="number" id="minPayout" step="1" min="1" value="10">
+                            </div>
+                            <div class="form-group">
+                                <label>PPLNS Window (blocks)</label>
+                                <input type="number" id="pplnsWindow" step="1" min="1" value="100">
+                            </div>
+                            <div class="form-group">
+                                <label>Payout Interval</label>
+                                <select id="payoutInterval">
+                                    <option value="hourly">Hourly</option>
+                                    <option value="daily">Daily</option>
+                                    <option value="manual">Manual Only</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="settings-card">
+                            <h4><i data-lucide="bell"></i> Notifications</h4>
+                            <div class="form-group">
+                                <label>Telegram Bot Token</label>
+                                <input type="text" id="telegramToken" placeholder="bot123456:ABC...">
+                            </div>
+                            <div class="form-group">
+                                <label>Telegram Chat ID</label>
+                                <input type="text" id="telegramChatId" placeholder="-1001234567890">
+                            </div>
+                        </div>
+
+                        <div class="settings-card">
+                            <h4><i data-lucide="key"></i> Exchange API</h4>
+                            <div class="form-group">
+                                <label>Changelly API Key</label>
+                                <input type="password" id="changellyApiKey" placeholder="API key...">
+                            </div>
+                            <div class="form-group">
+                                <label>Changelly Secret</label>
+                                <input type="password" id="changellySecret" placeholder="API secret...">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 20px; text-align: right;">
+                        <button class="btn btn-secondary" onclick="loadSettings()">
+                            <i data-lucide="refresh-cw"></i> Reset
+                        </button>
+                        <button class="btn btn-primary" onclick="saveSettings()">
+                            <i data-lucide="save"></i> Save Settings
+                        </button>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Miner Details Modal -->
+    <div class="modal-overlay" id="minerModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Miner Details</h3>
+                <button class="modal-close" onclick="closeModal('minerModal')">&times;</button>
+            </div>
+            <div class="modal-body" id="minerModalBody">
+                <!-- Dynamic content -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('minerModal')">Close</button>
+                <button class="btn btn-danger" id="banMinerBtn">Ban Miner</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Modal -->
+    <div class="modal-overlay" id="confirmModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="confirmTitle">Confirm Action</h3>
+                <button class="modal-close" onclick="closeModal('confirmModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="confirmMessage">Are you sure you want to proceed?</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('confirmModal')">Cancel</button>
+                <button class="btn btn-danger" id="confirmBtn">Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Configuration
+    const API_BASE = '/tools/pool-management/api/admin';
+    let hashrateChart, revenueChart, minersChart;
+    let refreshInterval;
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+        lucide.createIcons();
+        setupNavigation();
+        loadDashboard();
+        startAutoRefresh();
+    });
+
+    // Navigation
+    function setupNavigation() {
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const tab = item.dataset.tab;
+                showTab(tab);
+            });
+        });
+    }
+
+    function showTab(tabId) {
+        // Update nav
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.classList.toggle('active', item.dataset.tab === tabId);
+        });
+
+        // Show content
+        document.querySelectorAll('.tab-content').forEach(content => {
+            content.classList.toggle('active', content.id === tabId);
+        });
+
+        // Load tab data
+        switch(tabId) {
+            case 'dashboard': loadDashboard(); break;
+            case 'miners': loadMiners(); break;
+            case 'blocks': loadBlocks(); break;
+            case 'payouts': loadPayouts(); break;
+            case 'conversions': loadConversions(); break;
+            case 'analytics': loadAnalytics(); break;
+            case 'services': loadServices(); break;
+            case 'settings': loadSettings(); break;
+        }
+    }
+
+    // Auto-refresh
+    function startAutoRefresh() {
+        refreshInterval = setInterval(() => {
+            const activeTab = document.querySelector('.tab-content.active');
+            if (activeTab) {
+                switch(activeTab.id) {
+                    case 'dashboard': loadDashboard(true); break;
+                    case 'miners': loadMiners(true); break;
+                }
+            }
+            updateLastUpdate();
+        }, 30000);
+    }
+
+    function updateLastUpdate() {
+        document.getElementById('lastUpdate').textContent =
+            `Updated: ${new Date().toLocaleTimeString()}`;
+    }
+
+    // Dashboard
+    async function loadDashboard(silent = false) {
+        try {
+            const response = await fetch(`${API_BASE}/dashboard`);
+            const data = await response.json();
+
+            if (data.success) {
+                const stats = data.stats;
+                document.getElementById('poolHashrate').textContent = formatHashrate(stats.pool_hashrate);
+                document.getElementById('activeMiners').textContent = stats.active_miners;
+                document.getElementById('minerCount').textContent = stats.active_miners;
+                document.getElementById('blocksFound').textContent = stats.blocks_24h;
+                document.getElementById('poolLuck').textContent = `${stats.pool_luck}%`;
+
+                // Update luck status
+                const luck = stats.pool_luck;
+                const luckStatus = document.getElementById('luckStatus');
+                if (luck >= 100) {
+                    luckStatus.textContent = 'Lucky!';
+                    luckStatus.className = 'change positive';
+                } else {
+                    luckStatus.textContent = 'Unlucky';
+                    luckStatus.className = 'change negative';
+                }
+
+                // Load recent blocks
+                loadRecentBlocks();
+
+                // Init chart
+                if (!hashrateChart) {
+                    initHashrateChart(data.hashrate_history || []);
+                }
+
+                updateLastUpdate();
+            }
+        } catch (err) {
+            if (!silent) showToast('Failed to load dashboard', 'error');
+        }
+    }
+
+    function loadRecentBlocks() {
+        fetch(`${API_BASE}/blocks?limit=5`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    const tbody = document.getElementById('recentBlocksTable');
+                    if (data.blocks.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No blocks found</td></tr>';
+                        return;
+                    }
+                    tbody.innerHTML = data.blocks.map(b => `
+                        <tr>
+                            <td class="mono">${b.height}</td>
+                            <td class="wallet-address" onclick="copyToClipboard('${b.hash}')">${truncate(b.hash, 12)}</td>
+                            <td class="wallet-address" onclick="copyToClipboard('${b.finder}')">${truncate(b.finder, 12)}</td>
+                            <td>${b.reward} RVN</td>
+                            <td><span class="status-badge ${b.status}">${b.status}</span></td>
+                            <td>${timeAgo(b.timestamp)}</td>
+                        </tr>
+                    `).join('');
+                }
+            });
+    }
+
+    // Miners
+    async function loadMiners(silent = false) {
+        try {
+            const search = document.getElementById('minerSearch')?.value || '';
+            const response = await fetch(`${API_BASE}/miners?search=${encodeURIComponent(search)}`);
+            const data = await response.json();
+
+            if (data.success) {
+                const tbody = document.getElementById('minersTable');
+                if (data.miners.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No miners found</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = data.miners.map(m => `
+                    <tr>
+                        <td class="wallet-address" onclick="showMinerDetails('${m.wallet}')">${truncate(m.wallet, 16)}</td>
+                        <td class="mono">${formatHashrate(m.hashrate)}</td>
+                        <td>${m.workers}</td>
+                        <td class="mono">${m.shares.toLocaleString()}</td>
+                        <td>${m.pending_balance} RVN</td>
+                        <td><span class="status-badge ${m.status}">${m.status}</span></td>
+                        <td>
+                            <button class="btn btn-sm btn-secondary" onclick="showMinerDetails('${m.wallet}')">Details</button>
+                            ${m.banned ?
+                                `<button class="btn btn-sm btn-success" onclick="unbanMiner('${m.wallet}')">Unban</button>` :
+                                `<button class="btn btn-sm btn-danger" onclick="banMiner('${m.wallet}')">Ban</button>`
+                            }
+                        </td>
+                    </tr>
+                `).join('');
+            }
+        } catch (err) {
+            if (!silent) showToast('Failed to load miners', 'error');
+        }
+    }
+
+    function refreshMiners() {
+        loadMiners();
+    }
+
+    function showMinerDetails(wallet) {
+        fetch(`${API_BASE}/miners/${wallet}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    const m = data.miner;
+                    document.getElementById('minerModalBody').innerHTML = `
+                        <div style="margin-bottom: 16px;">
+                            <div class="label">Wallet Address</div>
+                            <div class="mono" style="color: var(--accent-cyan); word-break: break-all;">${m.wallet}</div>
+                        </div>
+                        <div class="stats-grid" style="margin-bottom: 16px;">
+                            <div class="stat-card">
+                                <div class="label">Hashrate</div>
+                                <div class="value" style="font-size: 1.2rem;">${formatHashrate(m.hashrate)}</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="label">Workers</div>
+                                <div class="value" style="font-size: 1.2rem;">${m.workers}</div>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Total Shares</label>
+                                <div style="color: var(--text-primary);">${m.shares.toLocaleString()}</div>
+                            </div>
+                            <div class="form-group">
+                                <label>Pending Balance</label>
+                                <div style="color: var(--accent-orange);">${m.pending_balance} RVN</div>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Total Paid</label>
+                                <div style="color: var(--accent-green);">${m.total_paid} RVN</div>
+                            </div>
+                            <div class="form-group">
+                                <label>Status</label>
+                                <span class="status-badge ${m.status}">${m.status}</span>
+                            </div>
+                        </div>
+                    `;
+                    document.getElementById('banMinerBtn').onclick = () => banMiner(wallet);
+                    document.getElementById('banMinerBtn').textContent = m.banned ? 'Unban Miner' : 'Ban Miner';
+                    openModal('minerModal');
+                }
+            });
+    }
+
+    function banMiner(wallet) {
+        confirmAction('Ban Miner', `Are you sure you want to ban wallet ${truncate(wallet, 20)}?`, () => {
+            fetch(`${API_BASE}/miners/${wallet}/ban`, { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast('Miner banned successfully', 'success');
+                        loadMiners();
+                        closeModal('minerModal');
+                    } else {
+                        showToast(data.error || 'Failed to ban miner', 'error');
+                    }
+                });
+        });
+    }
+
+    function unbanMiner(wallet) {
+        fetch(`${API_BASE}/miners/${wallet}/unban`, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Miner unbanned successfully', 'success');
+                    loadMiners();
+                } else {
+                    showToast(data.error || 'Failed to unban miner', 'error');
+                }
+            });
+    }
+
+    // Blocks
+    async function loadBlocks() {
+        try {
+            const filter = document.getElementById('blockFilter')?.value || 'all';
+            const response = await fetch(`${API_BASE}/blocks?status=${filter}`);
+            const data = await response.json();
+
+            if (data.success) {
+                // Update stats
+                document.getElementById('confirmedBlocks').textContent = data.stats?.confirmed || 0;
+                document.getElementById('pendingBlocks').textContent = data.stats?.pending || 0;
+                document.getElementById('orphanedBlocks').textContent = data.stats?.orphaned || 0;
+                document.getElementById('totalRewards').textContent = `${data.stats?.total_rewards || 0} RVN`;
+
+                const tbody = document.getElementById('blocksTable');
+                if (data.blocks.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No blocks found</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = data.blocks.map(b => `
+                    <tr>
+                        <td class="mono">${b.height}</td>
+                        <td class="wallet-address" onclick="copyToClipboard('${b.hash}')">${truncate(b.hash, 12)}</td>
+                        <td class="wallet-address" onclick="copyToClipboard('${b.finder}')">${truncate(b.finder, 12)}</td>
+                        <td class="mono">${formatDifficulty(b.difficulty)}</td>
+                        <td>${b.reward} RVN</td>
+                        <td>${b.confirmations}</td>
+                        <td><span class="status-badge ${b.status}">${b.status}</span></td>
+                        <td>${timeAgo(b.timestamp)}</td>
+                    </tr>
+                `).join('');
+            }
+        } catch (err) {
+            showToast('Failed to load blocks', 'error');
+        }
+    }
+
+    // Payouts
+    async function loadPayouts() {
+        try {
+            const response = await fetch(`${API_BASE}/payouts`);
+            const data = await response.json();
+
+            if (data.success) {
+                // Update stats
+                document.getElementById('pendingPayoutCount').textContent = data.stats?.pending_count || 0;
+                document.getElementById('pendingPayouts').textContent = data.stats?.pending_count || 0;
+                document.getElementById('pendingPayoutAmount').textContent = `${data.stats?.pending_amount || 0} RVN`;
+                document.getElementById('paidToday').textContent = `${data.stats?.paid_today || 0} RVN`;
+                document.getElementById('failedPayouts').textContent = data.stats?.failed || 0;
+
+                const tbody = document.getElementById('payoutsTable');
+                if (data.payouts.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No payouts in queue</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = data.payouts.map(p => `
+                    <tr>
+                        <td class="wallet-address" onclick="copyToClipboard('${p.wallet}')">${truncate(p.wallet, 16)}</td>
+                        <td class="mono">${p.amount}</td>
+                        <td>${p.currency}</td>
+                        <td class="mono">${p.tx_id ? truncate(p.tx_id, 12) : '--'}</td>
+                        <td><span class="status-badge ${p.status}">${p.status}</span></td>
+                        <td>${timeAgo(p.created_at)}</td>
+                        <td>
+                            ${p.status === 'failed' ?
+                                `<button class="btn btn-sm btn-warning" onclick="retryPayout('${p.id}')">Retry</button>` :
+                                ''
+                            }
+                        </td>
+                    </tr>
+                `).join('');
+            }
+        } catch (err) {
+            showToast('Failed to load payouts', 'error');
+        }
+    }
+
+    function triggerPayouts() {
+        confirmAction('Process Payouts', 'Process all pending payouts now?', () => {
+            fetch(`${API_BASE}/payouts/process`, { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast(`Processing ${data.count} payouts`, 'success');
+                        loadPayouts();
+                    } else {
+                        showToast(data.error || 'Failed to process payouts', 'error');
+                    }
+                });
+        });
+    }
+
+    function retryPayout(id) {
+        fetch(`${API_BASE}/payouts/${id}/retry`, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Payout retried', 'success');
+                    loadPayouts();
+                } else {
+                    showToast(data.error || 'Failed to retry', 'error');
+                }
+            });
+    }
+
+    function retryFailedPayouts() {
+        fetch(`${API_BASE}/payouts/retry-failed`, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(`Retrying ${data.count} failed payouts`, 'success');
+                    loadPayouts();
+                } else {
+                    showToast(data.error || 'Failed to retry', 'error');
+                }
+            });
+    }
+
+    // Conversions
+    async function loadConversions() {
+        try {
+            const response = await fetch(`${API_BASE}/conversions`);
+            const data = await response.json();
+
+            if (data.success) {
+                document.getElementById('rvnPrice').textContent = `$${data.rates?.rvn_usd || '0.00'}`;
+                document.getElementById('conversionQueue').textContent = data.queue_size || 0;
+                document.getElementById('convertedToday').textContent = `${data.stats?.converted_today || 0} RVN`;
+                document.getElementById('conversionFee').textContent = `${data.fee || 2}%`;
+
+                const tbody = document.getElementById('conversionsTable');
+                if (data.conversions.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No conversions in queue</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = data.conversions.map(c => `
+                    <tr>
+                        <td class="wallet-address" onclick="copyToClipboard('${c.wallet}')">${truncate(c.wallet, 16)}</td>
+                        <td class="mono">${c.rvn_amount} RVN</td>
+                        <td>${c.target_currency}</td>
+                        <td class="mono">${c.estimated_output} ${c.target_currency}</td>
+                        <td><span class="status-badge ${c.status}">${c.status}</span></td>
+                        <td>${timeAgo(c.created_at)}</td>
+                        <td>
+                            ${c.status === 'pending' ?
+                                `<button class="btn btn-sm btn-danger" onclick="cancelConversion('${c.id}')">Cancel</button>` :
+                                ''
+                            }
+                        </td>
+                    </tr>
+                `).join('');
+            }
+        } catch (err) {
+            showToast('Failed to load conversions', 'error');
+        }
+    }
+
+    function processConversions() {
+        confirmAction('Process Conversions', 'Process all pending conversions now?', () => {
+            fetch(`${API_BASE}/conversions/process`, { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast(`Processing ${data.count} conversions`, 'success');
+                        loadConversions();
+                    } else {
+                        showToast(data.error || 'Failed to process', 'error');
+                    }
+                });
+        });
+    }
+
+    function cancelConversion(id) {
+        fetch(`${API_BASE}/conversions/${id}/cancel`, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Conversion cancelled', 'success');
+                    loadConversions();
+                }
+            });
+    }
+
+    // Analytics
+    async function loadAnalytics() {
+        try {
+            const response = await fetch(`${API_BASE}/analytics`);
+            const data = await response.json();
+
+            if (data.success) {
+                document.getElementById('totalRevenue').textContent = `${data.stats?.total_revenue || 0} RVN`;
+                document.getElementById('feeEarned').textContent = `${data.stats?.fee_earned || 0} RVN`;
+                document.getElementById('avgHashrate').textContent = formatHashrate(data.stats?.avg_hashrate || 0);
+                document.getElementById('avgMiners').textContent = data.stats?.avg_miners || 0;
+
+                initRevenueChart(data.revenue_history || []);
+                initMinersChart(data.miner_history || []);
+            }
+        } catch (err) {
+            showToast('Failed to load analytics', 'error');
+        }
+    }
+
+    // Services
+    async function loadServices() {
+        try {
+            const response = await fetch(`${API_BASE}/services/status`);
+            const data = await response.json();
+
+            if (data.success) {
+                const grid = document.getElementById('servicesGrid');
+                grid.innerHTML = data.services.map(s => `
+                    <div class="service-card">
+                        <div class="service-info">
+                            <div class="service-icon ${s.running ? 'running' : 'stopped'}">
+                                <i data-lucide="${getServiceIcon(s.name)}"></i>
+                            </div>
+                            <div class="service-details">
+                                <h4>${s.name}</h4>
+                                <p>${s.running ? `Uptime: ${s.uptime}` : 'Stopped'}</p>
+                            </div>
+                        </div>
+                        <button class="btn btn-sm ${s.running ? 'btn-warning' : 'btn-success'}"
+                                onclick="restartService('${s.id}')">
+                            ${s.running ? 'Restart' : 'Start'}
+                        </button>
+                    </div>
+                `).join('');
+                lucide.createIcons();
+            }
+        } catch (err) {
+            showToast('Failed to load services', 'error');
+        }
+    }
+
+    function getServiceIcon(name) {
+        const icons = {
+            'stratum': 'server',
+            'payout': 'wallet',
+            'stats': 'bar-chart-3',
+            'conversion': 'repeat',
+            'api': 'globe'
+        };
+        return icons[name.toLowerCase()] || 'box';
+    }
+
+    function restartService(serviceId) {
+        confirmAction('Restart Service', `Restart ${serviceId} service?`, () => {
+            fetch(`${API_BASE}/services/${serviceId}/restart`, { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast(`${serviceId} restarted`, 'success');
+                        loadServices();
+                    } else {
+                        showToast(data.error || 'Failed to restart', 'error');
+                    }
+                });
+        });
+    }
+
+    // Settings
+    async function loadSettings() {
+        try {
+            const response = await fetch(`${API_BASE}/settings`);
+            const data = await response.json();
+
+            if (data.success) {
+                const s = data.settings;
+                document.getElementById('poolFee').value = s.pool_fee || 1.0;
+                document.getElementById('settingConversionFee').value = s.conversion_fee || 2.0;
+                document.getElementById('minPayout').value = s.min_payout || 10;
+                document.getElementById('pplnsWindow').value = s.pplns_window || 100;
+                document.getElementById('payoutInterval').value = s.payout_interval || 'hourly';
+                document.getElementById('telegramToken').value = s.telegram_token || '';
+                document.getElementById('telegramChatId').value = s.telegram_chat_id || '';
+            }
+        } catch (err) {
+            showToast('Failed to load settings', 'error');
+        }
+    }
+
+    function saveSettings() {
+        const settings = {
+            pool_fee: parseFloat(document.getElementById('poolFee').value),
+            conversion_fee: parseFloat(document.getElementById('settingConversionFee').value),
+            min_payout: parseInt(document.getElementById('minPayout').value),
+            pplns_window: parseInt(document.getElementById('pplnsWindow').value),
+            payout_interval: document.getElementById('payoutInterval').value,
+            telegram_token: document.getElementById('telegramToken').value,
+            telegram_chat_id: document.getElementById('telegramChatId').value,
+            changelly_api_key: document.getElementById('changellyApiKey').value,
+            changelly_secret: document.getElementById('changellySecret').value
+        };
+
+        fetch(`${API_BASE}/settings`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(settings)
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Settings saved successfully', 'success');
+            } else {
+                showToast(data.error || 'Failed to save settings', 'error');
+            }
+        });
+    }
+
+    // Charts
+    function initHashrateChart(data) {
+        const ctx = document.getElementById('hashrateChart').getContext('2d');
+        if (hashrateChart) hashrateChart.destroy();
+
+        hashrateChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: data.map(d => d.time),
+                datasets: [{
+                    label: 'Pool Hashrate',
+                    data: data.map(d => d.hashrate),
+                    borderColor: '#EF4444',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#6E7681' } },
+                    y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#6E7681' } }
+                }
+            }
+        });
+    }
+
+    function initRevenueChart(data) {
+        const ctx = document.getElementById('revenueChart').getContext('2d');
+        if (revenueChart) revenueChart.destroy();
+
+        revenueChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: data.map(d => d.date),
+                datasets: [{
+                    label: 'Revenue (RVN)',
+                    data: data.map(d => d.revenue),
+                    backgroundColor: 'rgba(34, 197, 94, 0.6)',
+                    borderColor: '#22C55E',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#6E7681' } },
+                    y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#6E7681' } }
+                }
+            }
+        });
+    }
+
+    function initMinersChart(data) {
+        const ctx = document.getElementById('minersChart').getContext('2d');
+        if (minersChart) minersChart.destroy();
+
+        minersChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: data.map(d => d.date),
+                datasets: [{
+                    label: 'Active Miners',
+                    data: data.map(d => d.count),
+                    borderColor: '#00FFFF',
+                    backgroundColor: 'rgba(0, 255, 255, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#6E7681' } },
+                    y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#6E7681' } }
+                }
+            }
+        });
+    }
+
+    // Utilities
+    function formatHashrate(h) {
+        if (h >= 1e12) return (h / 1e12).toFixed(2) + ' TH/s';
+        if (h >= 1e9) return (h / 1e9).toFixed(2) + ' GH/s';
+        if (h >= 1e6) return (h / 1e6).toFixed(2) + ' MH/s';
+        if (h >= 1e3) return (h / 1e3).toFixed(2) + ' KH/s';
+        return h + ' H/s';
+    }
+
+    function formatDifficulty(d) {
+        if (d >= 1e9) return (d / 1e9).toFixed(2) + 'G';
+        if (d >= 1e6) return (d / 1e6).toFixed(2) + 'M';
+        if (d >= 1e3) return (d / 1e3).toFixed(2) + 'K';
+        return d.toString();
+    }
+
+    function truncate(str, len) {
+        if (!str) return '--';
+        if (str.length <= len) return str;
+        return str.substring(0, len) + '...';
+    }
+
+    function timeAgo(timestamp) {
+        if (!timestamp) return '--';
+        const seconds = Math.floor((Date.now() - new Date(timestamp)) / 1000);
+        if (seconds < 60) return 'Just now';
+        if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
+        if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
+        return Math.floor(seconds / 86400) + 'd ago';
+    }
+
+    function copyToClipboard(text) {
+        navigator.clipboard.writeText(text);
+        showToast('Copied to clipboard', 'success');
+    }
+
+    // Modals
+    function openModal(id) {
+        document.getElementById(id).classList.add('active');
+    }
+
+    function closeModal(id) {
+        document.getElementById(id).classList.remove('active');
+    }
+
+    function confirmAction(title, message, callback) {
+        document.getElementById('confirmTitle').textContent = title;
+        document.getElementById('confirmMessage').textContent = message;
+        document.getElementById('confirmBtn').onclick = () => {
+            closeModal('confirmModal');
+            callback();
+        };
+        openModal('confirmModal');
+    }
+
+    // Toast
+    function showToast(message, type = 'info') {
+        const container = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.innerHTML = `
+            <i data-lucide="${type === 'success' ? 'check-circle' : type === 'error' ? 'x-circle' : 'info'}"></i>
+            <span>${message}</span>
+        `;
+        container.appendChild(toast);
+        lucide.createIcons({ nodes: [toast] });
+
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+
+    // Event listeners
+    document.getElementById('minerSearch')?.addEventListener('input', debounce(loadMiners, 300));
+    document.getElementById('blockFilter')?.addEventListener('change', loadBlocks);
+    document.getElementById('payoutFilter')?.addEventListener('change', loadPayouts);
+
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(this, args), wait);
+        };
+    }
+</script>
+{% endblock %}

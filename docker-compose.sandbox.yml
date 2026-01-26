@@ -1,0 +1,364 @@
+# A.R.C.H.I.E. Module Sandboxes
+# Per-module isolated testing environments with shared AI services
+#
+# Usage:
+#   Start specific module sandbox:
+#     docker-compose -f docker-compose.sandbox.yml --profile sandbox_coderabbit up -d
+#
+#   Start all sandboxes:
+#     docker-compose -f docker-compose.sandbox.yml --profile sandbox up -d
+#
+#   Start legacy single sandbox (backward compatible):
+#     SANDBOX_ID=123 docker-compose -f docker-compose.sandbox.yml up archie_sandbox -d
+#
+# Architecture:
+#   - Each module gets its own container on a dedicated port (3101-3106)
+#   - All sandboxes share the main archie_database (different schemas)
+#   - All sandboxes share the same Ollama/AI services (not duplicated)
+#   - Visual access at localhost:{port}/sandbox/dashboard
+
+version: '3.8'
+
+services:
+  # ==========================================================================
+  # LEGACY: Generic Sandbox (backward compatible)
+  # Uses separate database container - for high-risk or full isolation
+  # ==========================================================================
+  archie_sandbox:
+    image: archie_brain-archie_platform
+    container_name: ${SANDBOX_CONTAINER_NAME:-archie_sandbox}
+    environment:
+      - FLASK_ENV=sandbox
+      - FLASK_APP=app.py
+      - DB_HOST=${SANDBOX_DB_CONTAINER_NAME:-archie_sandbox_db}
+      - DB_PORT=5432
+      - DB_NAME=archie_sandbox
+      - DB_USER=archie
+      - DB_PASSWORD=${DB_PASSWORD:-archie_password}
+      - SANDBOX_ID=${SANDBOX_ID}
+      - PROPOSAL_ID=${PROPOSAL_ID}
+      - SANDBOX_MODE=true
+      - PYTHONUNBUFFERED=1
+      - OLLAMA_HOST=${OLLAMA_PRIMARY}
+    ports:
+      - "${SANDBOX_WEB_PORT:-3100}:3000"
+    volumes:
+      - ./platform_v2:/app/platform_v2
+      - ./ai_bridge:/app/ai_bridge
+      - ./docs:/app/docs:ro
+      - ./backups:/backups:ro
+      - ./sandbox_logs/${SANDBOX_ID:-default}:/app/logs
+    networks:
+      - ${SANDBOX_NETWORK:-archie_sandbox_network}
+    depends_on:
+      - archie_sandbox_db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: "no"
+    command: python3 app.py
+
+  archie_sandbox_db:
+    image: postgres:15
+    container_name: ${SANDBOX_DB_CONTAINER_NAME:-archie_sandbox_db}
+    environment:
+      - POSTGRES_DB=archie_sandbox
+      - POSTGRES_USER=archie
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-archie_password}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    ports:
+      - "${SANDBOX_DB_PORT:-5433}:5432"
+    volumes:
+      - sandbox_db_data:/var/lib/postgresql/data
+      - ./backups:/backups:ro
+    networks:
+      - ${SANDBOX_NETWORK:-archie_sandbox_network}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U archie -d archie_sandbox"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: "no"
+    command:
+      - "postgres"
+      - "-c"
+      - "log_statement=all"
+      - "-c"
+      - "max_connections=50"
+
+  # ==========================================================================
+  # MODULE SANDBOXES - Use shared database with schema isolation
+  # ==========================================================================
+
+  # --------------------------------------------------------------------------
+  # CodeRabbit Sandbox - Port 3101
+  # For testing code scanning and issue detection changes
+  # --------------------------------------------------------------------------
+  sandbox_coderabbit:
+    build: ./platform_v2
+    container_name: archie_sandbox_coderabbit
+    restart: "no"
+    env_file:
+      - .env
+    environment:
+      PYTHONPATH: /mnt/archie_brain
+      SECRET_KEY: ${SECRET_KEY}
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY}
+      FLASK_ENV: development
+      DB_HOST: archie_database
+      DB_PORT: 5432
+      DB_NAME: archie
+      DB_USER: archie
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_SCHEMA: sandbox_coderabbit
+      SANDBOX_MODE: "true"
+      SANDBOX_MODULE: coderabbit
+      SANDBOX_PORT: 3101
+      OLLAMA_PRIMARY: ${OLLAMA_PRIMARY}
+      OLLAMA_SECONDARY: ${OLLAMA_SECONDARY}
+      OLLAMA_HOST: ${OLLAMA_PRIMARY}
+      CODE_SERVER_URL: ${CODE_SERVER_URL}
+    volumes:
+      - ./ai_bridge:/mnt/archie_brain/ai_bridge:ro
+      - ./docs:/mnt/archie_brain/docs:ro
+      - ./platform_v2:/app:rw
+      - ./sandbox_logs/coderabbit:/app/logs:rw
+    ports:
+      - "3101:3000"
+    networks:
+      - archie_internal
+    profiles:
+      - sandbox
+      - sandbox_coderabbit
+
+  # --------------------------------------------------------------------------
+  # Improvements Lab Sandbox - Port 3102
+  # For testing improvement workflow and proposal management
+  # --------------------------------------------------------------------------
+  sandbox_improvements:
+    build: ./platform_v2
+    container_name: archie_sandbox_improvements
+    restart: "no"
+    env_file:
+      - .env
+    environment:
+      PYTHONPATH: /mnt/archie_brain
+      SECRET_KEY: ${SECRET_KEY}
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY}
+      FLASK_ENV: development
+      DB_HOST: archie_database
+      DB_PORT: 5432
+      DB_NAME: archie
+      DB_USER: archie
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_SCHEMA: sandbox_improvements
+      SANDBOX_MODE: "true"
+      SANDBOX_MODULE: improvements
+      SANDBOX_PORT: 3102
+      OLLAMA_PRIMARY: ${OLLAMA_PRIMARY}
+      OLLAMA_SECONDARY: ${OLLAMA_SECONDARY}
+      OLLAMA_HOST: ${OLLAMA_PRIMARY}
+      CODE_SERVER_URL: ${CODE_SERVER_URL}
+    volumes:
+      - ./ai_bridge:/mnt/archie_brain/ai_bridge:ro
+      - ./docs:/mnt/archie_brain/docs:ro
+      - ./platform_v2:/app:rw
+      - ./sandbox_logs/improvements:/app/logs:rw
+    ports:
+      - "3102:3000"
+    networks:
+      - archie_internal
+    profiles:
+      - sandbox
+      - sandbox_improvements
+
+  # --------------------------------------------------------------------------
+  # AI Bridge Sandbox - Port 3103
+  # For testing AI routing, knowledge retrieval, and model integration
+  # --------------------------------------------------------------------------
+  sandbox_ai_bridge:
+    build: ./platform_v2
+    container_name: archie_sandbox_ai_bridge
+    restart: "no"
+    env_file:
+      - .env
+    environment:
+      PYTHONPATH: /mnt/archie_brain
+      SECRET_KEY: ${SECRET_KEY}
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY}
+      FLASK_ENV: development
+      DB_HOST: archie_database
+      DB_PORT: 5432
+      DB_NAME: archie
+      DB_USER: archie
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_SCHEMA: sandbox_ai_bridge
+      SANDBOX_MODE: "true"
+      SANDBOX_MODULE: ai_bridge
+      SANDBOX_PORT: 3103
+      SANDBOX_TYPE: docker
+      OLLAMA_PRIMARY: ${OLLAMA_PRIMARY}
+      OLLAMA_SECONDARY: ${OLLAMA_SECONDARY}
+      OLLAMA_HOST: ${OLLAMA_PRIMARY}
+      CODE_SERVER_URL: ${CODE_SERVER_URL}
+    volumes:
+      - ./ai_bridge:/mnt/archie_brain/ai_bridge:rw
+      - ./docs:/mnt/archie_brain/docs:ro
+      - ./platform_v2:/app:rw
+      - ./sandbox_logs/ai_bridge:/app/logs:rw
+    ports:
+      - "3103:3000"
+    networks:
+      - archie_internal
+    profiles:
+      - sandbox
+      - sandbox_ai_bridge
+
+  # --------------------------------------------------------------------------
+  # Platform Sandbox - Port 3104
+  # Full platform testing for major cross-module changes
+  # --------------------------------------------------------------------------
+  sandbox_platform:
+    build: ./platform_v2
+    container_name: archie_sandbox_platform
+    restart: "no"
+    env_file:
+      - .env
+    environment:
+      PYTHONPATH: /mnt/archie_brain
+      SECRET_KEY: ${SECRET_KEY}
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY}
+      FLASK_ENV: development
+      DB_HOST: archie_database
+      DB_PORT: 5432
+      DB_NAME: archie
+      DB_USER: archie
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_SCHEMA: sandbox_platform
+      SANDBOX_MODE: "true"
+      SANDBOX_MODULE: platform
+      SANDBOX_PORT: 3104
+      SANDBOX_TYPE: docker
+      OLLAMA_PRIMARY: ${OLLAMA_PRIMARY}
+      OLLAMA_SECONDARY: ${OLLAMA_SECONDARY}
+      OLLAMA_HOST: ${OLLAMA_PRIMARY}
+      CODE_SERVER_URL: ${CODE_SERVER_URL}
+    volumes:
+      - ./ai_bridge:/mnt/archie_brain/ai_bridge:rw
+      - ./docs:/mnt/archie_brain/docs:ro
+      - ./platform_v2:/app:rw
+      - ./sandbox_logs/platform:/app/logs:rw
+    ports:
+      - "3104:3000"
+    networks:
+      - archie_internal
+    profiles:
+      - sandbox
+      - sandbox_platform
+
+  # --------------------------------------------------------------------------
+  # Admin Sandbox - Port 3105
+  # For testing admin panel, Blueprint, and system configuration
+  # --------------------------------------------------------------------------
+  sandbox_admin:
+    build: ./platform_v2
+    container_name: archie_sandbox_admin
+    restart: "no"
+    env_file:
+      - .env
+    environment:
+      PYTHONPATH: /mnt/archie_brain
+      SECRET_KEY: ${SECRET_KEY}
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY}
+      FLASK_ENV: development
+      DB_HOST: archie_database
+      DB_PORT: 5432
+      DB_NAME: archie
+      DB_USER: archie
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_SCHEMA: sandbox_admin
+      SANDBOX_MODE: "true"
+      SANDBOX_MODULE: admin
+      SANDBOX_PORT: 3105
+      OLLAMA_PRIMARY: ${OLLAMA_PRIMARY}
+      OLLAMA_SECONDARY: ${OLLAMA_SECONDARY}
+      OLLAMA_HOST: ${OLLAMA_PRIMARY}
+      CODE_SERVER_URL: ${CODE_SERVER_URL}
+    volumes:
+      - ./ai_bridge:/mnt/archie_brain/ai_bridge:ro
+      - ./docs:/mnt/archie_brain/docs:ro
+      - ./platform_v2:/app:rw
+      - ./sandbox_logs/admin:/app/logs:rw
+    ports:
+      - "3105:3000"
+    networks:
+      - archie_internal
+    profiles:
+      - sandbox
+      - sandbox_admin
+
+  # --------------------------------------------------------------------------
+  # Consciousness Sandbox - Port 3106
+  # For testing memory, knowledge base, and learning systems
+  # --------------------------------------------------------------------------
+  sandbox_consciousness:
+    build: ./platform_v2
+    container_name: archie_sandbox_consciousness
+    restart: "no"
+    env_file:
+      - .env
+    environment:
+      PYTHONPATH: /mnt/archie_brain
+      SECRET_KEY: ${SECRET_KEY}
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY}
+      FLASK_ENV: development
+      DB_HOST: archie_database
+      DB_PORT: 5432
+      DB_NAME: archie
+      DB_USER: archie
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_SCHEMA: sandbox_consciousness
+      SANDBOX_MODE: "true"
+      SANDBOX_MODULE: consciousness
+      SANDBOX_PORT: 3106
+      OLLAMA_PRIMARY: ${OLLAMA_PRIMARY}
+      OLLAMA_SECONDARY: ${OLLAMA_SECONDARY}
+      OLLAMA_HOST: ${OLLAMA_PRIMARY}
+      CODE_SERVER_URL: ${CODE_SERVER_URL}
+    volumes:
+      - ./ai_bridge:/mnt/archie_brain/ai_bridge:ro
+      - ./docs:/mnt/archie_brain/docs:ro
+      - ./platform_v2:/app:rw
+      - ./sandbox_logs/consciousness:/app/logs:rw
+    ports:
+      - "3106:3000"
+    networks:
+      - archie_internal
+    profiles:
+      - sandbox
+      - sandbox_consciousness
+
+# ==========================================================================
+# VOLUMES
+# ==========================================================================
+volumes:
+  sandbox_db_data:
+    name: archie_sandbox_db_data
+
+# ==========================================================================
+# NETWORKS
+# ==========================================================================
+networks:
+  # Legacy sandbox network
+  archie_sandbox_network:
+    name: archie_sandbox_network
+    driver: bridge
+
+  # Main platform network - for module sandboxes to share database
+  archie_internal:
+    external: true
+    name: archie_network

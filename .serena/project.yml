@@ -1,0 +1,8 @@
+project_name: archie
+src_path: .
+language_servers:
+  - name: pyright
+    language: python
+    command: pyright-langserver
+    args:
+      - --stdio

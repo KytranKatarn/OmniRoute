@@ -1,0 +1,1393 @@
+{% extends "base.html" %}
+
+{% block title %}Invoicing - A.R.C.H.I.E.{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">
+                <i class="bi bi-receipt me-2"></i>Invoicing
+            </h2>
+            <p class="text-muted mb-0">Subscription billing and invoice management</p>
+        </div>
+        <div class="d-flex gap-2 align-items-center">
+            <button class="btn btn-success" onclick="showCreateInvoiceModal()">
+                <i class="bi bi-plus-lg me-1"></i>New Invoice
+            </button>
+            {% include 'includes/theme_controls.html' %}
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm h-100" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                <div class="card-body text-white">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h6 class="text-white-50 mb-1">Total Invoices</h6>
+                            <h3 class="mb-0" id="statTotal">{{ stats.total_invoices or 0 }}</h3>
+                        </div>
+                        <div class="bg-white bg-opacity-25 rounded-circle p-2">
+                            <i class="bi bi-receipt fs-4"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm h-100" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
+                <div class="card-body text-white">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h6 class="text-white-50 mb-1">Outstanding</h6>
+                            <h3 class="mb-0">$<span id="statOutstanding">{{ "%.2f"|format(stats.outstanding or 0) }}</span></h3>
+                        </div>
+                        <div class="bg-white bg-opacity-25 rounded-circle p-2">
+                            <i class="bi bi-clock-history fs-4"></i>
+                        </div>
+                    </div>
+                    <small class="text-white-50">{{ stats.sent or 0 }} sent, {{ stats.overdue or 0 }} overdue</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm h-100" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
+                <div class="card-body text-white">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h6 class="text-white-50 mb-1">Paid (90 days)</h6>
+                            <h3 class="mb-0">$<span id="statPaid">{{ "%.2f"|format(stats.paid_value or 0) }}</span></h3>
+                        </div>
+                        <div class="bg-white bg-opacity-25 rounded-circle p-2">
+                            <i class="bi bi-check-circle fs-4"></i>
+                        </div>
+                    </div>
+                    <small class="text-white-50">{{ stats.paid or 0 }} invoices</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card border-0 shadow-sm h-100" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                <div class="card-body text-white">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h6 class="text-white-50 mb-1">Drafts</h6>
+                            <h3 class="mb-0" id="statDraft">{{ stats.draft or 0 }}</h3>
+                        </div>
+                        <div class="bg-white bg-opacity-25 rounded-circle p-2">
+                            <i class="bi bi-pencil-square fs-4"></i>
+                        </div>
+                    </div>
+                    <small class="text-white-50">Pending review</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <ul class="nav nav-tabs mb-4" id="invoiceTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="invoices-tab" data-bs-toggle="tab" data-bs-target="#invoices" type="button">
+                <i class="bi bi-receipt me-1"></i>Invoices
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="recurring-tab" data-bs-toggle="tab" data-bs-target="#recurring" type="button">
+                <i class="bi bi-arrow-repeat me-1"></i>Recurring
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="settings-tab" data-bs-toggle="tab" data-bs-target="#settings" type="button">
+                <i class="bi bi-gear me-1"></i>Settings
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="invoiceTabContent">
+        <!-- Invoices Tab -->
+        <div class="tab-pane fade show active" id="invoices" role="tabpanel">
+            <!-- Filters -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0"><i class="bi bi-search"></i></span>
+                                <input type="text" class="form-control border-start-0" id="searchInvoice" placeholder="Search invoices...">
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <select class="form-select" id="filterStatus">
+                                <option value="">All Status</option>
+                                <option value="draft">Draft</option>
+                                <option value="sent">Sent</option>
+                                <option value="paid">Paid</option>
+                                <option value="overdue">Overdue</option>
+                                <option value="void">Void</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <select class="form-select" id="filterPeriod">
+                                <option value="30">Last 30 Days</option>
+                                <option value="90" selected>Last 90 Days</option>
+                                <option value="365">Last Year</option>
+                                <option value="">All Time</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <button class="btn btn-outline-secondary w-100" onclick="loadInvoices()">
+                                <i class="bi bi-funnel me-1"></i>Filter
+                            </button>
+                        </div>
+                        <div class="col-md-2">
+                            <button class="btn btn-outline-primary w-100" onclick="exportInvoices()">
+                                <i class="bi bi-download me-1"></i>Export
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Invoices Table -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0" id="invoicesTable">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="border-0 ps-4">Invoice #</th>
+                                    <th class="border-0">Customer</th>
+                                    <th class="border-0">Issue Date</th>
+                                    <th class="border-0">Due Date</th>
+                                    <th class="border-0 text-end">Amount</th>
+                                    <th class="border-0">Status</th>
+                                    <th class="border-0 text-end pe-4">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="invoicesTableBody">
+                                {% for invoice in invoices %}
+                                <tr>
+                                    <td class="ps-4">
+                                        <a href="#" onclick="viewInvoice({{ invoice.id }})" class="text-decoration-none fw-medium">
+                                            {{ invoice.invoice_number or 'INV-' ~ invoice.id }}
+                                        </a>
+                                        {% if invoice.recurring %}
+                                        <span class="badge bg-info ms-1" title="Recurring"><i class="bi bi-arrow-repeat"></i></span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if invoice.customer_name %}
+                                        <div>{{ invoice.customer_name }}</div>
+                                        <small class="text-muted">{{ invoice.customer_email }}</small>
+                                        {% else %}
+                                        <span class="text-muted">No customer</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ invoice.issue_date.strftime('%b %d, %Y') if invoice.issue_date else (invoice.created_at.strftime('%b %d, %Y') if invoice.created_at else '-') }}</td>
+                                    <td>
+                                        {% if invoice.due_date %}
+                                        {{ invoice.due_date.strftime('%b %d, %Y') }}
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        <strong>${{ "%.2f"|format(invoice.total or invoice.amount_total or 0) }}</strong>
+                                        {% if invoice.balance_due and invoice.balance_due > 0 %}
+                                        <br><small class="text-danger">Due: ${{ "%.2f"|format(invoice.balance_due) }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% set status_colors = {
+                                            'draft': 'secondary',
+                                            'sent': 'primary',
+                                            'open': 'primary',
+                                            'paid': 'success',
+                                            'overdue': 'danger',
+                                            'void': 'dark',
+                                            'cancelled': 'dark',
+                                            'refunded': 'warning'
+                                        } %}
+                                        <span class="badge bg-{{ status_colors.get(invoice.status, 'secondary') }}">
+                                            {{ invoice.status|capitalize }}
+                                        </span>
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        <div class="btn-group btn-group-sm">
+                                            <button class="btn btn-outline-secondary" onclick="viewInvoice({{ invoice.id }})" title="View">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                            {% if invoice.status == 'draft' %}
+                                            <button class="btn btn-outline-primary" onclick="sendInvoice({{ invoice.id }})" title="Send">
+                                                <i class="bi bi-send"></i>
+                                            </button>
+                                            {% endif %}
+                                            {% if invoice.status in ['sent', 'open', 'overdue'] %}
+                                            <button class="btn btn-outline-success" onclick="markPaid({{ invoice.id }})" title="Mark Paid">
+                                                <i class="bi bi-check-lg"></i>
+                                            </button>
+                                            {% endif %}
+                                            <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" title="More">
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-end">
+                                                <li><a class="dropdown-item" href="#" onclick="editInvoice({{ invoice.id }})"><i class="bi bi-pencil me-2"></i>Edit</a></li>
+                                                <li><a class="dropdown-item" href="#" onclick="duplicateInvoice({{ invoice.id }})"><i class="bi bi-copy me-2"></i>Duplicate</a></li>
+                                                <li><a class="dropdown-item" href="#" onclick="downloadPdf({{ invoice.id }})"><i class="bi bi-file-pdf me-2"></i>Download PDF</a></li>
+                                                <li><hr class="dropdown-divider"></li>
+                                                <li><a class="dropdown-item text-danger" href="#" onclick="voidInvoice({{ invoice.id }})"><i class="bi bi-x-circle me-2"></i>Void</a></li>
+                                            </ul>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="7" class="text-center py-5 text-muted">
+                                        <i class="bi bi-receipt fs-1 d-block mb-2"></i>
+                                        No invoices found. Create your first invoice to get started.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recurring Tab -->
+        <div class="tab-pane fade" id="recurring" role="tabpanel">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Recurring Invoices</h5>
+                    <button class="btn btn-sm btn-success" onclick="showCreateRecurringModal()">
+                        <i class="bi bi-plus-lg me-1"></i>New Schedule
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="border-0 ps-4">Customer</th>
+                                    <th class="border-0">Interval</th>
+                                    <th class="border-0">Amount</th>
+                                    <th class="border-0">Next Invoice</th>
+                                    <th class="border-0">Status</th>
+                                    <th class="border-0 text-end pe-4">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recurringTableBody">
+                                {% for rec in recurring %}
+                                <tr>
+                                    <td class="ps-4">
+                                        <div>{{ rec.customer_name or 'Unknown' }}</div>
+                                        <small class="text-muted">{{ rec.customer_email }}</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-light text-dark">{{ rec.interval|capitalize }}</span>
+                                    </td>
+                                    <td>${{ "%.2f"|format(rec.amount or 0) }}</td>
+                                    <td>{{ rec.next_invoice_date.strftime('%b %d, %Y') if rec.next_invoice_date else '-' }}</td>
+                                    <td>
+                                        {% set rec_status_colors = {'active': 'success', 'paused': 'warning', 'cancelled': 'danger'} %}
+                                        <span class="badge bg-{{ rec_status_colors.get(rec.status, 'secondary') }}">
+                                            {{ rec.status|capitalize }}
+                                        </span>
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        <div class="btn-group btn-group-sm">
+                                            {% if rec.status == 'active' %}
+                                            <button class="btn btn-outline-warning" onclick="pauseRecurring({{ rec.id }})" title="Pause">
+                                                <i class="bi bi-pause"></i>
+                                            </button>
+                                            {% elif rec.status == 'paused' %}
+                                            <button class="btn btn-outline-success" onclick="resumeRecurring({{ rec.id }})" title="Resume">
+                                                <i class="bi bi-play"></i>
+                                            </button>
+                                            {% endif %}
+                                            <button class="btn btn-outline-danger" onclick="cancelRecurring({{ rec.id }})" title="Cancel">
+                                                <i class="bi bi-x-lg"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="6" class="text-center py-5 text-muted">
+                                        <i class="bi bi-arrow-repeat fs-1 d-block mb-2"></i>
+                                        No recurring invoices set up yet.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Tab -->
+        <div class="tab-pane fade" id="settings" role="tabpanel">
+            <div class="row g-4">
+                <!-- Company Info -->
+                <div class="col-lg-6">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-header bg-white">
+                            <h5 class="mb-0"><i class="bi bi-building me-2"></i>Company Information</h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="companySettingsForm">
+                                <div class="mb-3">
+                                    <label class="form-label">Company Name</label>
+                                    <input type="text" class="form-control" id="settingCompanyName" value="{{ settings.company_name or '' }}">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Email</label>
+                                    <input type="email" class="form-control" id="settingCompanyEmail" value="{{ settings.company_email or '' }}">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Phone</label>
+                                    <input type="tel" class="form-control" id="settingCompanyPhone" value="{{ settings.company_phone or '' }}">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Address</label>
+                                    <textarea class="form-control" id="settingCompanyAddress" rows="3">{{ settings.company_address or '' }}</textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Logo URL</label>
+                                    <input type="url" class="form-control" id="settingLogoUrl" value="{{ settings.logo_url or '' }}" placeholder="https://...">
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Invoice Settings -->
+                <div class="col-lg-6">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-header bg-white">
+                            <h5 class="mb-0"><i class="bi bi-sliders me-2"></i>Invoice Settings</h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="invoiceSettingsForm">
+                                <div class="row mb-3">
+                                    <div class="col-6">
+                                        <label class="form-label">Invoice Prefix</label>
+                                        <input type="text" class="form-control" id="settingPrefix" value="{{ settings.invoice_prefix or 'INV-' }}">
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label">Next Number</label>
+                                        <input type="number" class="form-control" id="settingNextNumber" value="{{ settings.next_invoice_number or 1001 }}">
+                                    </div>
+                                </div>
+                                <div class="row mb-3">
+                                    <div class="col-6">
+                                        <label class="form-label">Default Tax Rate (%)</label>
+                                        <input type="number" class="form-control" id="settingTaxRate" step="0.01" value="{{ settings.default_tax_rate or 13 }}">
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label">Currency</label>
+                                        <select class="form-select" id="settingCurrency">
+                                            <option value="CAD" {{ 'selected' if settings.default_currency == 'CAD' }}>CAD</option>
+                                            <option value="USD" {{ 'selected' if settings.default_currency == 'USD' }}>USD</option>
+                                            <option value="EUR" {{ 'selected' if settings.default_currency == 'EUR' }}>EUR</option>
+                                            <option value="GBP" {{ 'selected' if settings.default_currency == 'GBP' }}>GBP</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Default Terms</label>
+                                    <textarea class="form-control" id="settingTerms" rows="3">{{ settings.default_terms or 'Payment is due within 30 days of invoice date.' }}</textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Default Notes</label>
+                                    <textarea class="form-control" id="settingNotes" rows="2">{{ settings.default_notes or 'Thank you for your business!' }}</textarea>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Payment Methods -->
+                <div class="col-lg-6">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white">
+                            <h5 class="mb-0"><i class="bi bi-credit-card me-2"></i>Payment Methods</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="settingStripeEnabled" {{ 'checked' if settings.stripe_enabled }}>
+                                <label class="form-check-label" for="settingStripeEnabled">
+                                    <i class="bi bi-stripe me-1"></i>Stripe Payments
+                                </label>
+                            </div>
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="settingPaypalEnabled" {{ 'checked' if settings.paypal_enabled }}>
+                                <label class="form-check-label" for="settingPaypalEnabled">
+                                    <i class="bi bi-paypal me-1"></i>PayPal Payments
+                                </label>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Bank Transfer Details</label>
+                                <textarea class="form-control" id="settingBankDetails" rows="4" placeholder="Account Name:&#10;Bank:&#10;Account #:&#10;Routing #:">{{ settings.bank_details or '' }}</textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer & Branding -->
+                <div class="col-lg-6">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white">
+                            <h5 class="mb-0"><i class="bi bi-palette me-2"></i>Footer & Branding</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label">Invoice Footer Text</label>
+                                <textarea class="form-control" id="settingFooter" rows="3">{{ settings.footer_text or '' }}</textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Payment Instructions</label>
+                                <textarea class="form-control" id="settingPaymentInstructions" rows="3">{{ settings.payment_instructions or '' }}</textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Save Button -->
+                <div class="col-12 text-end">
+                    <button class="btn btn-success btn-lg" onclick="saveSettings()">
+                        <i class="bi bi-check-lg me-1"></i>Save All Settings
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create/Edit Invoice Modal -->
+<div class="modal fade" id="invoiceModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                <h5 class="modal-title text-white" id="invoiceModalTitle">
+                    <i class="bi bi-receipt me-2"></i>New Invoice
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="invoiceForm">
+                    <input type="hidden" id="invoiceId">
+
+                    <div class="row g-3">
+                        <!-- Customer Selection -->
+                        <div class="col-md-6">
+                            <label class="form-label">Customer *</label>
+                            <select class="form-select" id="invoiceCustomer" required>
+                                <option value="">Select customer...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Issue Date</label>
+                            <input type="date" class="form-control" id="invoiceIssueDate">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Due Date</label>
+                            <input type="date" class="form-control" id="invoiceDueDate">
+                        </div>
+
+                        <!-- Line Items -->
+                        <div class="col-12">
+                            <label class="form-label">Line Items</label>
+                            <div class="table-responsive">
+                                <table class="table table-bordered" id="lineItemsTable">
+                                    <thead class="bg-light">
+                                        <tr>
+                                            <th style="width: 45%">Description</th>
+                                            <th style="width: 15%">Quantity</th>
+                                            <th style="width: 20%">Unit Price</th>
+                                            <th style="width: 15%">Amount</th>
+                                            <th style="width: 5%"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="lineItemsBody">
+                                        <tr class="line-item-row">
+                                            <td><input type="text" class="form-control form-control-sm item-desc" placeholder="Item description"></td>
+                                            <td><input type="number" class="form-control form-control-sm item-qty" value="1" min="1" onchange="calculateLineAmount(this)"></td>
+                                            <td><input type="number" class="form-control form-control-sm item-price" step="0.01" placeholder="0.00" onchange="calculateLineAmount(this)"></td>
+                                            <td><input type="text" class="form-control form-control-sm item-amount" readonly></td>
+                                            <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeLineItem(this)"><i class="bi bi-x"></i></button></td>
+                                        </tr>
+                                    </tbody>
+                                    <tfoot>
+                                        <tr>
+                                            <td colspan="5">
+                                                <button type="button" class="btn btn-sm btn-outline-success" onclick="addLineItem()">
+                                                    <i class="bi bi-plus-lg me-1"></i>Add Line Item
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Totals -->
+                        <div class="col-md-6">
+                            <label class="form-label">Notes</label>
+                            <textarea class="form-control" id="invoiceNotes" rows="3"></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span>Subtotal:</span>
+                                        <strong>$<span id="invoiceSubtotal">0.00</span></strong>
+                                    </div>
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span>
+                                            Discount:
+                                            <input type="number" class="form-control form-control-sm d-inline-block ms-2" id="invoiceDiscount" style="width: 80px" step="0.01" value="0" onchange="calculateTotals()">
+                                        </span>
+                                        <span>-$<span id="invoiceDiscountAmount">0.00</span></span>
+                                    </div>
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span>
+                                            Tax (<span id="taxRateDisplay">13</span>%):
+                                        </span>
+                                        <span>$<span id="invoiceTaxAmount">0.00</span></span>
+                                    </div>
+                                    <hr>
+                                    <div class="d-flex justify-content-between">
+                                        <strong>Total:</strong>
+                                        <strong class="fs-5">$<span id="invoiceTotal">0.00</span></strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Recurring Option -->
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="invoiceRecurring" onchange="toggleRecurringOptions()">
+                                <label class="form-check-label" for="invoiceRecurring">
+                                    Make this a recurring invoice
+                                </label>
+                            </div>
+                            <div id="recurringOptions" class="mt-2 d-none">
+                                <div class="row g-2">
+                                    <div class="col-md-4">
+                                        <select class="form-select form-select-sm" id="invoiceRecurringInterval">
+                                            <option value="weekly">Weekly</option>
+                                            <option value="monthly" selected>Monthly</option>
+                                            <option value="yearly">Yearly</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <input type="date" class="form-control form-control-sm" id="invoiceNextDate" placeholder="Next invoice date">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-outline-success" onclick="saveInvoice('draft')">
+                    <i class="bi bi-file-earmark me-1"></i>Save as Draft
+                </button>
+                <button type="button" class="btn btn-success" onclick="saveInvoice('send')">
+                    <i class="bi bi-send me-1"></i>Save & Send
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- View Invoice Modal -->
+<div class="modal fade" id="viewInvoiceModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title">
+                    <i class="bi bi-receipt me-2"></i>Invoice <span id="viewInvoiceNumber"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4" id="viewInvoiceContent">
+                <!-- Invoice preview will be loaded here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-outline-primary" id="btnDownloadPdf">
+                    <i class="bi bi-file-pdf me-1"></i>Download PDF
+                </button>
+                <button type="button" class="btn btn-primary" id="btnSendInvoice" style="display: none;">
+                    <i class="bi bi-send me-1"></i>Send to Customer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Record Payment Modal -->
+<div class="modal fade" id="paymentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-cash-coin me-2"></i>Record Payment</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="paymentForm">
+                    <input type="hidden" id="paymentInvoiceId">
+                    <div class="mb-3">
+                        <label class="form-label">Amount</label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control" id="paymentAmount" step="0.01" required>
+                        </div>
+                        <small class="text-muted">Balance due: $<span id="paymentBalanceDue">0.00</span></small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Payment Method</label>
+                        <select class="form-select" id="paymentMethod">
+                            <option value="stripe">Stripe</option>
+                            <option value="paypal">PayPal</option>
+                            <option value="bank_transfer">Bank Transfer</option>
+                            <option value="cash">Cash</option>
+                            <option value="check">Check</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Reference/Transaction ID</label>
+                        <input type="text" class="form-control" id="paymentReference" placeholder="Optional">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Payment Date</label>
+                        <input type="date" class="form-control" id="paymentDate">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" id="paymentNotes" rows="2"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" onclick="recordPayment()">
+                    <i class="bi bi-check-lg me-1"></i>Record Payment
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.nav-tabs .nav-link {
+    color: #6b7280;
+    border: none;
+    border-bottom: 2px solid transparent;
+}
+.nav-tabs .nav-link:hover {
+    color: #10b981;
+    border-color: transparent;
+}
+.nav-tabs .nav-link.active {
+    color: #10b981;
+    border-bottom-color: #10b981;
+    font-weight: 500;
+}
+.table > tbody > tr:hover {
+    background-color: #f0fdf4;
+}
+.badge {
+    font-weight: 500;
+}
+.form-check-input:checked {
+    background-color: #10b981;
+    border-color: #10b981;
+}
+</style>
+
+<script>
+// Global variables
+let currentInvoice = null;
+let customers = [];
+let defaultTaxRate = {{ settings.default_tax_rate or 13 }};
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    loadCustomers();
+
+    // Set default dates
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('invoiceIssueDate').value = today;
+
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 30);
+    document.getElementById('invoiceDueDate').value = dueDate.toISOString().split('T')[0];
+    document.getElementById('paymentDate').value = today;
+
+    // Search functionality
+    document.getElementById('searchInvoice').addEventListener('input', debounce(loadInvoices, 300));
+});
+
+// Debounce helper
+function debounce(func, wait) {
+    let timeout;
+    return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+}
+
+// Load customers for dropdown
+async function loadCustomers() {
+    try {
+        const response = await fetch('/tools/crm/api/customers?limit=500');
+        const data = await response.json();
+        if (data.success) {
+            customers = data.customers;
+            const select = document.getElementById('invoiceCustomer');
+            select.innerHTML = '<option value="">Select customer...</option>';
+            customers.forEach(c => {
+                const name = c.company || `${c.first_name} ${c.last_name}`;
+                select.innerHTML += `<option value="${c.id}">${name} (${c.email})</option>`;
+            });
+        }
+    } catch (error) {
+        console.error('Error loading customers:', error);
+    }
+}
+
+// Load invoices with filters
+async function loadInvoices() {
+    const search = document.getElementById('searchInvoice').value;
+    const status = document.getElementById('filterStatus').value;
+    const period = document.getElementById('filterPeriod').value;
+
+    try {
+        const params = new URLSearchParams({
+            search: search,
+            status: status,
+            days: period
+        });
+
+        const response = await fetch(`/tools/invoicing/api/invoices?${params}`);
+        const data = await response.json();
+
+        if (data.success) {
+            renderInvoicesTable(data.invoices);
+        }
+    } catch (error) {
+        console.error('Error loading invoices:', error);
+    }
+}
+
+// Render invoices table
+function renderInvoicesTable(invoices) {
+    const tbody = document.getElementById('invoicesTableBody');
+
+    if (!invoices || invoices.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="text-center py-5 text-muted">
+                    <i class="bi bi-receipt fs-1 d-block mb-2"></i>
+                    No invoices found.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    const statusColors = {
+        'draft': 'secondary',
+        'sent': 'primary',
+        'open': 'primary',
+        'paid': 'success',
+        'overdue': 'danger',
+        'void': 'dark',
+        'cancelled': 'dark',
+        'refunded': 'warning'
+    };
+
+    tbody.innerHTML = invoices.map(inv => `
+        <tr>
+            <td class="ps-4">
+                <a href="#" onclick="viewInvoice(${inv.id})" class="text-decoration-none fw-medium">
+                    ${inv.invoice_number || 'INV-' + inv.id}
+                </a>
+                ${inv.recurring ? '<span class="badge bg-info ms-1" title="Recurring"><i class="bi bi-arrow-repeat"></i></span>' : ''}
+            </td>
+            <td>
+                ${inv.customer_name ? `
+                    <div>${inv.customer_name}</div>
+                    <small class="text-muted">${inv.customer_email || ''}</small>
+                ` : '<span class="text-muted">No customer</span>'}
+            </td>
+            <td>${inv.issue_date ? new Date(inv.issue_date).toLocaleDateString() : (inv.created_at ? new Date(inv.created_at).toLocaleDateString() : '-')}</td>
+            <td>${inv.due_date ? new Date(inv.due_date).toLocaleDateString() : '-'}</td>
+            <td class="text-end">
+                <strong>$${(inv.total || inv.amount_total || 0).toFixed(2)}</strong>
+                ${inv.balance_due > 0 ? `<br><small class="text-danger">Due: $${inv.balance_due.toFixed(2)}</small>` : ''}
+            </td>
+            <td>
+                <span class="badge bg-${statusColors[inv.status] || 'secondary'}">
+                    ${inv.status.charAt(0).toUpperCase() + inv.status.slice(1)}
+                </span>
+            </td>
+            <td class="text-end pe-4">
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary" onclick="viewInvoice(${inv.id})" title="View">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                    ${inv.status === 'draft' ? `
+                        <button class="btn btn-outline-primary" onclick="sendInvoice(${inv.id})" title="Send">
+                            <i class="bi bi-send"></i>
+                        </button>
+                    ` : ''}
+                    ${['sent', 'open', 'overdue'].includes(inv.status) ? `
+                        <button class="btn btn-outline-success" onclick="markPaid(${inv.id})" title="Mark Paid">
+                            <i class="bi bi-check-lg"></i>
+                        </button>
+                    ` : ''}
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Show create invoice modal
+function showCreateInvoiceModal() {
+    currentInvoice = null;
+    document.getElementById('invoiceModalTitle').innerHTML = '<i class="bi bi-receipt me-2"></i>New Invoice';
+    document.getElementById('invoiceForm').reset();
+    document.getElementById('invoiceId').value = '';
+
+    // Reset line items
+    document.getElementById('lineItemsBody').innerHTML = `
+        <tr class="line-item-row">
+            <td><input type="text" class="form-control form-control-sm item-desc" placeholder="Item description"></td>
+            <td><input type="number" class="form-control form-control-sm item-qty" value="1" min="1" onchange="calculateLineAmount(this)"></td>
+            <td><input type="number" class="form-control form-control-sm item-price" step="0.01" placeholder="0.00" onchange="calculateLineAmount(this)"></td>
+            <td><input type="text" class="form-control form-control-sm item-amount" readonly></td>
+            <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeLineItem(this)"><i class="bi bi-x"></i></button></td>
+        </tr>
+    `;
+
+    // Reset totals
+    document.getElementById('invoiceSubtotal').textContent = '0.00';
+    document.getElementById('invoiceDiscountAmount').textContent = '0.00';
+    document.getElementById('invoiceTaxAmount').textContent = '0.00';
+    document.getElementById('invoiceTotal').textContent = '0.00';
+    document.getElementById('invoiceDiscount').value = '0';
+
+    document.getElementById('recurringOptions').classList.add('d-none');
+    document.getElementById('invoiceRecurring').checked = false;
+
+    new bootstrap.Modal(document.getElementById('invoiceModal')).show();
+}
+
+// Add line item
+function addLineItem() {
+    const tbody = document.getElementById('lineItemsBody');
+    const row = document.createElement('tr');
+    row.className = 'line-item-row';
+    row.innerHTML = `
+        <td><input type="text" class="form-control form-control-sm item-desc" placeholder="Item description"></td>
+        <td><input type="number" class="form-control form-control-sm item-qty" value="1" min="1" onchange="calculateLineAmount(this)"></td>
+        <td><input type="number" class="form-control form-control-sm item-price" step="0.01" placeholder="0.00" onchange="calculateLineAmount(this)"></td>
+        <td><input type="text" class="form-control form-control-sm item-amount" readonly></td>
+        <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeLineItem(this)"><i class="bi bi-x"></i></button></td>
+    `;
+    tbody.appendChild(row);
+}
+
+// Remove line item
+function removeLineItem(btn) {
+    const rows = document.querySelectorAll('.line-item-row');
+    if (rows.length > 1) {
+        btn.closest('tr').remove();
+        calculateTotals();
+    }
+}
+
+// Calculate line amount
+function calculateLineAmount(input) {
+    const row = input.closest('tr');
+    const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
+    const price = parseFloat(row.querySelector('.item-price').value) || 0;
+    const amount = qty * price;
+    row.querySelector('.item-amount').value = amount.toFixed(2);
+    calculateTotals();
+}
+
+// Calculate totals
+function calculateTotals() {
+    let subtotal = 0;
+    document.querySelectorAll('.line-item-row').forEach(row => {
+        const amount = parseFloat(row.querySelector('.item-amount').value) || 0;
+        subtotal += amount;
+    });
+
+    const discount = parseFloat(document.getElementById('invoiceDiscount').value) || 0;
+    const taxableAmount = subtotal - discount;
+    const taxAmount = taxableAmount * (defaultTaxRate / 100);
+    const total = taxableAmount + taxAmount;
+
+    document.getElementById('invoiceSubtotal').textContent = subtotal.toFixed(2);
+    document.getElementById('invoiceDiscountAmount').textContent = discount.toFixed(2);
+    document.getElementById('invoiceTaxAmount').textContent = taxAmount.toFixed(2);
+    document.getElementById('invoiceTotal').textContent = total.toFixed(2);
+    document.getElementById('taxRateDisplay').textContent = defaultTaxRate;
+}
+
+// Toggle recurring options
+function toggleRecurringOptions() {
+    const checked = document.getElementById('invoiceRecurring').checked;
+    document.getElementById('recurringOptions').classList.toggle('d-none', !checked);
+}
+
+// Save invoice
+async function saveInvoice(action) {
+    const customerId = document.getElementById('invoiceCustomer').value;
+    if (!customerId) {
+        alert('Please select a customer');
+        return;
+    }
+
+    // Collect line items
+    const items = [];
+    document.querySelectorAll('.line-item-row').forEach(row => {
+        const desc = row.querySelector('.item-desc').value;
+        const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
+        const price = parseFloat(row.querySelector('.item-price').value) || 0;
+        if (desc && qty && price) {
+            items.push({
+                description: desc,
+                quantity: qty,
+                unit_price: price,
+                amount: qty * price
+            });
+        }
+    });
+
+    if (items.length === 0) {
+        alert('Please add at least one line item');
+        return;
+    }
+
+    const invoiceData = {
+        customer_id: customerId,
+        issue_date: document.getElementById('invoiceIssueDate').value,
+        due_date: document.getElementById('invoiceDueDate').value,
+        notes: document.getElementById('invoiceNotes').value,
+        discount_amount: parseFloat(document.getElementById('invoiceDiscount').value) || 0,
+        items: items,
+        recurring: document.getElementById('invoiceRecurring').checked,
+        recurring_interval: document.getElementById('invoiceRecurringInterval').value,
+        next_invoice_date: document.getElementById('invoiceNextDate').value,
+        send_immediately: action === 'send'
+    };
+
+    const invoiceId = document.getElementById('invoiceId').value;
+    const url = invoiceId ? `/tools/invoicing/api/invoices/${invoiceId}` : '/tools/invoicing/api/invoices';
+    const method = invoiceId ? 'PUT' : 'POST';
+
+    try {
+        const response = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(invoiceData)
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('invoiceModal')).hide();
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Failed to save invoice'));
+        }
+    } catch (error) {
+        console.error('Error saving invoice:', error);
+        alert('Error saving invoice');
+    }
+}
+
+// View invoice
+async function viewInvoice(id) {
+    try {
+        const response = await fetch(`/tools/invoicing/api/invoices/${id}`);
+        const data = await response.json();
+
+        if (data.success) {
+            currentInvoice = data.invoice;
+            renderInvoicePreview(data.invoice);
+            new bootstrap.Modal(document.getElementById('viewInvoiceModal')).show();
+        }
+    } catch (error) {
+        console.error('Error loading invoice:', error);
+    }
+}
+
+// Render invoice preview
+function renderInvoicePreview(invoice) {
+    document.getElementById('viewInvoiceNumber').textContent = invoice.invoice_number || 'INV-' + invoice.id;
+
+    const statusColors = {
+        'draft': 'secondary', 'sent': 'primary', 'open': 'primary',
+        'paid': 'success', 'overdue': 'danger', 'void': 'dark'
+    };
+
+    const content = document.getElementById('viewInvoiceContent');
+    content.innerHTML = `
+        <div class="d-flex justify-content-between mb-4">
+            <div>
+                <h4>{{ settings.company_name or 'Kytran Empowerment' }}</h4>
+                <p class="text-muted mb-0" style="white-space: pre-line">{{ settings.company_address or '' }}</p>
+                <p class="text-muted mb-0">{{ settings.company_email or '' }}</p>
+            </div>
+            <div class="text-end">
+                <h2 class="text-muted">INVOICE</h2>
+                <p class="mb-0"><strong>${invoice.invoice_number || 'INV-' + invoice.id}</strong></p>
+                <span class="badge bg-${statusColors[invoice.status] || 'secondary'}">${invoice.status.toUpperCase()}</span>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <h6 class="text-muted">Bill To:</h6>
+                <strong>${invoice.customer_name || 'N/A'}</strong><br>
+                ${invoice.customer_company ? invoice.customer_company + '<br>' : ''}
+                ${invoice.customer_email || ''}
+            </div>
+            <div class="col-md-6 text-md-end">
+                <p class="mb-1"><strong>Issue Date:</strong> ${invoice.issue_date ? new Date(invoice.issue_date).toLocaleDateString() : '-'}</p>
+                <p class="mb-1"><strong>Due Date:</strong> ${invoice.due_date ? new Date(invoice.due_date).toLocaleDateString() : '-'}</p>
+            </div>
+        </div>
+
+        <table class="table table-bordered mb-4">
+            <thead class="bg-light">
+                <tr>
+                    <th>Description</th>
+                    <th class="text-center" style="width: 100px">Qty</th>
+                    <th class="text-end" style="width: 120px">Unit Price</th>
+                    <th class="text-end" style="width: 120px">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${(invoice.items || []).map(item => `
+                    <tr>
+                        <td>${item.description}</td>
+                        <td class="text-center">${item.quantity}</td>
+                        <td class="text-end">$${parseFloat(item.unit_price).toFixed(2)}</td>
+                        <td class="text-end">$${parseFloat(item.amount).toFixed(2)}</td>
+                    </tr>
+                `).join('') || '<tr><td colspan="4" class="text-center text-muted">No items</td></tr>'}
+            </tbody>
+        </table>
+
+        <div class="row">
+            <div class="col-md-6">
+                ${invoice.notes ? `<p class="text-muted"><strong>Notes:</strong><br>${invoice.notes}</p>` : ''}
+            </div>
+            <div class="col-md-6">
+                <table class="table table-borderless mb-0">
+                    <tr>
+                        <td class="text-end">Subtotal:</td>
+                        <td class="text-end" style="width: 120px">$${(invoice.subtotal || 0).toFixed(2)}</td>
+                    </tr>
+                    ${invoice.discount_amount > 0 ? `
+                        <tr>
+                            <td class="text-end">Discount:</td>
+                            <td class="text-end">-$${invoice.discount_amount.toFixed(2)}</td>
+                        </tr>
+                    ` : ''}
+                    <tr>
+                        <td class="text-end">Tax (${invoice.tax_rate || 13}%):</td>
+                        <td class="text-end">$${(invoice.tax_amount || 0).toFixed(2)}</td>
+                    </tr>
+                    <tr class="border-top">
+                        <td class="text-end"><strong>Total:</strong></td>
+                        <td class="text-end"><strong>$${(invoice.total || invoice.amount_total || 0).toFixed(2)}</strong></td>
+                    </tr>
+                    ${invoice.amount_paid > 0 ? `
+                        <tr>
+                            <td class="text-end">Paid:</td>
+                            <td class="text-end text-success">-$${invoice.amount_paid.toFixed(2)}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-end"><strong>Balance Due:</strong></td>
+                            <td class="text-end"><strong class="text-danger">$${(invoice.balance_due || 0).toFixed(2)}</strong></td>
+                        </tr>
+                    ` : ''}
+                </table>
+            </div>
+        </div>
+    `;
+
+    // Show/hide buttons based on status
+    document.getElementById('btnSendInvoice').style.display = invoice.status === 'draft' ? 'inline-block' : 'none';
+    document.getElementById('btnDownloadPdf').onclick = () => downloadPdf(invoice.id);
+    document.getElementById('btnSendInvoice').onclick = () => sendInvoice(invoice.id);
+}
+
+// Send invoice
+async function sendInvoice(id) {
+    if (!confirm('Send this invoice to the customer?')) return;
+
+    try {
+        const response = await fetch(`/tools/invoicing/api/invoices/${id}/send`, {
+            method: 'POST'
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            alert('Invoice sent successfully');
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Failed to send invoice'));
+        }
+    } catch (error) {
+        console.error('Error sending invoice:', error);
+        alert('Error sending invoice');
+    }
+}
+
+// Mark as paid
+function markPaid(id) {
+    // Get invoice details first
+    fetch(`/tools/invoicing/api/invoices/${id}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('paymentInvoiceId').value = id;
+                document.getElementById('paymentAmount').value = data.invoice.balance_due || data.invoice.total || 0;
+                document.getElementById('paymentBalanceDue').textContent = (data.invoice.balance_due || data.invoice.total || 0).toFixed(2);
+                new bootstrap.Modal(document.getElementById('paymentModal')).show();
+            }
+        });
+}
+
+// Record payment
+async function recordPayment() {
+    const invoiceId = document.getElementById('paymentInvoiceId').value;
+    const paymentData = {
+        amount: parseFloat(document.getElementById('paymentAmount').value),
+        payment_method: document.getElementById('paymentMethod').value,
+        payment_reference: document.getElementById('paymentReference').value,
+        payment_date: document.getElementById('paymentDate').value,
+        notes: document.getElementById('paymentNotes').value
+    };
+
+    try {
+        const response = await fetch(`/tools/invoicing/api/invoices/${invoiceId}/payment`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(paymentData)
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('paymentModal')).hide();
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Failed to record payment'));
+        }
+    } catch (error) {
+        console.error('Error recording payment:', error);
+        alert('Error recording payment');
+    }
+}
+
+// Void invoice
+async function voidInvoice(id) {
+    if (!confirm('Are you sure you want to void this invoice? This cannot be undone.')) return;
+
+    try {
+        const response = await fetch(`/tools/invoicing/api/invoices/${id}/void`, {
+            method: 'POST'
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Failed to void invoice'));
+        }
+    } catch (error) {
+        console.error('Error voiding invoice:', error);
+    }
+}
+
+// Duplicate invoice
+async function duplicateInvoice(id) {
+    try {
+        const response = await fetch(`/tools/invoicing/api/invoices/${id}/duplicate`, {
+            method: 'POST'
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            alert('Invoice duplicated successfully');
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Failed to duplicate invoice'));
+        }
+    } catch (error) {
+        console.error('Error duplicating invoice:', error);
+    }
+}
+
+// Download PDF
+function downloadPdf(id) {
+    window.open(`/tools/invoicing/api/invoices/${id}/pdf`, '_blank');
+}
+
+// Edit invoice
+async function editInvoice(id) {
+    try {
+        const response = await fetch(`/tools/invoicing/api/invoices/${id}`);
+        const data = await response.json();
+
+        if (data.success) {
+            const inv = data.invoice;
+            document.getElementById('invoiceModalTitle').innerHTML = '<i class="bi bi-pencil me-2"></i>Edit Invoice';
+            document.getElementById('invoiceId').value = inv.id;
+            document.getElementById('invoiceCustomer').value = inv.customer_id || '';
+            document.getElementById('invoiceIssueDate').value = inv.issue_date ? inv.issue_date.split('T')[0] : '';
+            document.getElementById('invoiceDueDate').value = inv.due_date ? inv.due_date.split('T')[0] : '';
+            document.getElementById('invoiceNotes').value = inv.notes || '';
+            document.getElementById('invoiceDiscount').value = inv.discount_amount || 0;
+
+            // Populate line items
+            const tbody = document.getElementById('lineItemsBody');
+            tbody.innerHTML = '';
+            (inv.items || []).forEach(item => {
+                const row = document.createElement('tr');
+                row.className = 'line-item-row';
+                row.innerHTML = `
+                    <td><input type="text" class="form-control form-control-sm item-desc" value="${item.description || ''}"></td>
+                    <td><input type="number" class="form-control form-control-sm item-qty" value="${item.quantity || 1}" min="1" onchange="calculateLineAmount(this)"></td>
+                    <td><input type="number" class="form-control form-control-sm item-price" step="0.01" value="${item.unit_price || ''}" onchange="calculateLineAmount(this)"></td>
+                    <td><input type="text" class="form-control form-control-sm item-amount" value="${item.amount || ''}" readonly></td>
+                    <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="removeLineItem(this)"><i class="bi bi-x"></i></button></td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            if ((inv.items || []).length === 0) {
+                addLineItem();
+            }
+
+            calculateTotals();
+            new bootstrap.Modal(document.getElementById('invoiceModal')).show();
+        }
+    } catch (error) {
+        console.error('Error loading invoice:', error);
+    }
+}
+
+// Export invoices
+function exportInvoices() {
+    const status = document.getElementById('filterStatus').value;
+    const period = document.getElementById('filterPeriod').value;
+
+    const params = new URLSearchParams({ status, days: period });
+    window.open(`/tools/invoicing/api/export?${params}`, '_blank');
+}
+
+// Save settings
+async function saveSettings() {
+    const settings = {
+        company_name: document.getElementById('settingCompanyName').value,
+        company_email: document.getElementById('settingCompanyEmail').value,
+        company_phone: document.getElementById('settingCompanyPhone').value,
+        company_address: document.getElementById('settingCompanyAddress').value,
+        logo_url: document.getElementById('settingLogoUrl').value,
+        invoice_prefix: document.getElementById('settingPrefix').value,
+        next_invoice_number: parseInt(document.getElementById('settingNextNumber').value),
+        default_tax_rate: parseFloat(document.getElementById('settingTaxRate').value),
+        default_currency: document.getElementById('settingCurrency').value,
+        default_terms: document.getElementById('settingTerms').value,
+        default_notes: document.getElementById('settingNotes').value,
+        stripe_enabled: document.getElementById('settingStripeEnabled').checked,
+        paypal_enabled: document.getElementById('settingPaypalEnabled').checked,
+        bank_details: document.getElementById('settingBankDetails').value,
+        footer_text: document.getElementById('settingFooter').value,
+        payment_instructions: document.getElementById('settingPaymentInstructions').value
+    };
+
+    try {
+        const response = await fetch('/tools/invoicing/api/settings', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(settings)
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert('Settings saved successfully');
+            defaultTaxRate = settings.default_tax_rate;
+        } else {
+            alert('Error: ' + (data.error || 'Failed to save settings'));
+        }
+    } catch (error) {
+        console.error('Error saving settings:', error);
+        alert('Error saving settings');
+    }
+}
+
+// Recurring management
+async function pauseRecurring(id) {
+    await updateRecurringStatus(id, 'paused');
+}
+
+async function resumeRecurring(id) {
+    await updateRecurringStatus(id, 'active');
+}
+
+async function cancelRecurring(id) {
+    if (!confirm('Cancel this recurring invoice schedule?')) return;
+    await updateRecurringStatus(id, 'cancelled');
+}
+
+async function updateRecurringStatus(id, status) {
+    try {
+        const response = await fetch(`/tools/invoicing/api/recurring/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Failed to update schedule'));
+        }
+    } catch (error) {
+        console.error('Error updating recurring:', error);
+    }
+}
+
+function showCreateRecurringModal() {
+    // For now, use the main invoice modal with recurring checked
+    showCreateInvoiceModal();
+    document.getElementById('invoiceRecurring').checked = true;
+    toggleRecurringOptions();
+}
+</script>
+{% endblock %}

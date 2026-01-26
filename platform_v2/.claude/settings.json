@@ -1,0 +1,68 @@
+{
+  "name": "A.R.C.H.I.E. Platform",
+  "description": "Autonomous Resource and Coordination Hub for Intelligent Execution",
+  "model": "sonnet",
+  "modelPreferences": {
+    "default": "sonnet",
+    "complexTasks": "opus",
+    "subagents": "haiku"
+  },
+  "tokenOptimization": {
+    "useCompactTools": true,
+    "preferMcpOverFileReads": true,
+    "useSummaryToolsFirst": true
+  },
+  "plugins": {
+    "enabled": [
+      "commit-commands@claude-plugins-official",
+      "python-lsp@claude-plugins-official",
+      "context7@claude-plugins-official",
+      "frontend-design@claude-plugins-official"
+    ]
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/mnt/archie_brain/platform_v2/scripts/hooks/session_start_hook.sh",
+            "timeout": 5000,
+            "once": true
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "manual",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/mnt/archie_brain/platform_v2/scripts/hooks/pre_compact_hook.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/mnt/archie_brain/platform_v2/scripts/hooks/pre_compact_hook.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/mnt/archie_brain/platform_v2/scripts/hooks/session_end_hook.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

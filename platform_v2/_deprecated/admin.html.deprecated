@@ -1,0 +1,4629 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Control Panel{% endblock %}
+
+{% block styles %}
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Courier New', monospace;
+    background: #000000;
+    color: #00FF00;
+    overflow: hidden;
+}
+
+.admin-wrapper {
+    display: flex;
+    height: 100vh;
+    padding-bottom: 60px;
+}
+
+/* Left Sidebar */
+.admin-sidebar {
+    width: 280px;
+    border-right: 2px solid #00FF00;
+    background: #000000;
+    overflow-y: auto;
+}
+
+.admin-header {
+    padding: 25px 20px;
+    border-bottom: 2px solid #00FF00;
+    text-align: center;
+}
+
+.admin-header h1 {
+    font-size: 1.8rem;
+    letter-spacing: 8px;
+    margin-bottom: 5px;
+}
+
+.admin-header p {
+    font-size: 0.7rem;
+    opacity: 0.7;
+    letter-spacing: 2px;
+}
+
+.admin-nav {
+    padding: 20px 0;
+}
+
+.nav-section {
+    margin-bottom: 30px;
+}
+
+.nav-section-title {
+    padding: 12px 20px;
+    margin: 15px 10px 10px 10px;
+    font-size: 1.1rem;
+    letter-spacing: 4px;
+    text-align: center;
+    font-weight: bold;
+    text-transform: uppercase;
+    background: rgba(0, 255, 0, 0.1);
+    border: 1px solid rgba(0, 255, 0, 0.3);
+    border-left: 3px solid #00FF00;
+    color: #FFFFFF;
+    border-radius: 3px;
+}
+
+.nav-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 15px 20px;
+    cursor: pointer;
+    transition: all 0.3s;
+    border-left: 3px solid transparent;
+    text-decoration: none;
+    color: #00FF00;
+}
+
+.nav-item:hover {
+    background: rgba(0, 255, 0, 0.1);
+    border-left-color: #00FF00;
+}
+
+.nav-item.active {
+    background: rgba(0, 255, 0, 0.15);
+    border-left-color: #00FF00;
+}
+
+.nav-item-icon {
+    font-size: 1.2rem;
+    width: 30px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.nav-item-text {
+    letter-spacing: 2px;
+    font-size: 0.9rem;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.nav-item-badge {
+    background: #FF0000;
+    color: #000000;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: bold;
+    flex-shrink: 0;
+}
+
+/* Main Content */
+.admin-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 40px;
+}
+
+.content-section {
+    display: none;
+    animation: fadeIn 0.3s;
+}
+
+.content-section.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.section-header {
+    font-size: 2rem;
+    letter-spacing: 8px;
+    margin-bottom: 10px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #00FF00;
+    text-align: center;
+}
+
+.section-subtitle {
+    font-size: 0.9rem;
+    opacity: 0.7;
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+/* Stats Grid */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    margin-bottom: 40px;
+}
+
+.stat-card {
+    border: 2px solid #00FF00;
+    padding: 25px;
+    background: rgba(0, 255, 0, 0.05);
+}
+
+.stat-label {
+    font-size: 0.8rem;
+    opacity: 0.7;
+    letter-spacing: 2px;
+    margin-bottom: 10px;
+}
+
+.stat-value {
+    font-size: 2.5rem;
+    letter-spacing: 5px;
+    font-weight: bold;
+}
+
+.stat-change {
+    font-size: 0.8rem;
+    margin-top: 10px;
+}
+
+.stat-change.positive { color: #00FF00; }
+.stat-change.negative { color: #FF0000; }
+
+/* Action Bar */
+.action-bar {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 30px;
+    align-items: center;
+}
+
+/* Data Tables */
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+.data-table th,
+.data-table td {
+    padding: 15px;
+    text-align: left;
+    border-bottom: 1px solid rgba(0, 255, 0, 0.2);
+}
+
+.data-table th {
+    background: rgba(0, 255, 0, 0.1);
+    font-weight: bold;
+    letter-spacing: 2px;
+    font-size: 0.9rem;
+}
+
+.data-table tr:hover {
+    background: rgba(0, 255, 0, 0.05);
+}
+
+/* Buttons */
+.btn {
+    padding: 10px 20px;
+    border: 1px solid #00FF00;
+    background: #000000;
+    color: #00FF00;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.btn:hover {
+    background: #00FF00;
+    color: #000000;
+}
+
+.btn-small {
+    padding: 5px 10px;
+    font-size: 0.7rem;
+}
+
+.btn-danger {
+    border-color: #FF0000;
+    color: #FF0000;
+}
+
+.btn-danger:hover {
+    background: #FF0000;
+    color: #000000;
+}
+
+.btn-success {
+    border-color: #00FF00;
+    color: #00FF00;
+}
+
+/* Badges */
+.badge {
+    padding: 4px 10px;
+    border: 1px solid #00FF00;
+    font-size: 0.7rem;
+    letter-spacing: 1px;
+    display: inline-block;
+}
+
+.badge-admin { color: #FFD700; border-color: #FFD700; }
+.badge-active { color: #00FF00; border-color: #00FF00; }
+.badge-inactive { color: #FF0000; border-color: #FF0000; }
+.badge-pending { color: #FFA500; border-color: #FFA500; }
+
+/* Forms */
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    letter-spacing: 2px;
+    font-size: 0.9rem;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 10px;
+    background: #000000;
+    border: 1px solid #00FF00;
+    color: #00FF00;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    outline: none;
+    box-shadow: 0 0 10px #00FF00;
+}
+
+/* Modal */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.95);
+    z-index: 10000;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal.active {
+    display: flex;
+}
+
+.modal-content {
+    border: 2px solid #00FF00;
+    background: #000000;
+    padding: 30px;
+    max-width: 600px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modal-header {
+    font-size: 1.5rem;
+    letter-spacing: 5px;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #00FF00;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid #00FF00;
+}
+
+/* Notifications */
+.notification-item {
+    border: 1px solid #00FF00;
+    padding: 15px;
+    margin-bottom: 12px;
+    background: rgba(0, 255, 0, 0.05);
+    position: relative;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-radius: 4px;
+}
+
+.notification-item:hover {
+    background: rgba(0, 255, 0, 0.1);
+    transform: translateX(3px);
+}
+
+.notification-item.unread {
+    border-left: 5px solid #00FF00;
+    box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+}
+
+/* Priority-based left border colors */
+.notification-item[data-priority="critical"] {
+    border-left: 5px solid #FF0000;
+    background: rgba(255, 0, 0, 0.08);
+}
+
+.notification-item[data-priority="high"] {
+    border-left: 5px solid #FF6400;
+    background: rgba(255, 100, 0, 0.06);
+}
+
+.notification-item[data-priority="normal"] {
+    border-left: 5px solid #00FF00;
+    background: rgba(0, 255, 0, 0.05);
+}
+
+.notification-item[data-priority="low"] {
+    border-left: 5px solid #888;
+    background: rgba(136, 136, 136, 0.05);
+}
+
+/* Critical notifications pulse animation */
+.notification-item[data-priority="critical"].unread {
+    animation: criticalPulse 2s infinite;
+}
+
+@keyframes criticalPulse {
+    0%, 100% { box-shadow: 0 0 10px rgba(255, 0, 0, 0.5); }
+    50% { box-shadow: 0 0 20px rgba(255, 0, 0, 0.8); }
+}
+
+.notification-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.notification-priority-badge {
+    padding: 2px 6px;
+    font-size: 0.65rem;
+    border-radius: 3px;
+    font-weight: bold;
+    margin-right: 5px;
+}
+
+.notification-priority-badge.critical {
+    background: #FF0000;
+    color: #000;
+}
+
+.notification-priority-badge.high {
+    background: #FF6400;
+    color: #000;
+}
+
+.notification-priority-badge.normal {
+    background: #00FF00;
+    color: #000;
+}
+
+.notification-priority-badge.low {
+    background: #888;
+    color: #000;
+}
+
+.notification-type {
+    padding: 3px 8px;
+    font-size: 0.7rem;
+    border: 1px solid;
+    border-radius: 3px;
+}
+
+.notification-type.info { border-color: #00BFFF; color: #00BFFF; background: rgba(0, 191, 255, 0.1); }
+.notification-type.warning { border-color: #FFA500; color: #FFA500; background: rgba(255, 165, 0, 0.1); }
+.notification-type.error { border-color: #FF0000; color: #FF0000; background: rgba(255, 0, 0, 0.1); }
+.notification-type.success { border-color: #00FF00; color: #00FF00; background: rgba(0, 255, 0, 0.1); }
+
+.notification-time {
+    font-size: 0.7rem;
+    opacity: 0.6;
+}
+
+.notification-grouped-count {
+    background: #00FF00;
+    color: #000;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: bold;
+    margin-left: 8px;
+}
+
+/* Charts */
+.chart-container {
+    border: 2px solid #00FF00;
+    padding: 20px;
+    margin-bottom: 30px;
+    background: rgba(0, 255, 0, 0.02);
+}
+
+.chart-title {
+    font-size: 1.2rem;
+    letter-spacing: 3px;
+    margin-bottom: 20px;
+}
+
+/* Network Dashboard */
+.network-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.network-card {
+    border: 2px solid #00FF00;
+    padding: 20px;
+}
+
+.network-card h3 {
+    letter-spacing: 3px;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #00FF00;
+}
+
+.network-card iframe {
+    width: 100%;
+    height: 400px;
+    border: 1px solid #00FF00;
+    margin-top: 10px;
+}
+
+/* Brain Viewer */
+.brain-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.brain-card {
+    border: 2px solid #00FF00;
+    padding: 20px;
+    text-align: center;
+}
+
+.brain-card-value {
+    font-size: 2rem;
+    margin: 15px 0;
+}
+
+.brain-card-label {
+    font-size: 0.8rem;
+    opacity: 0.7;
+}
+
+/* Back Button */
+/* Dashboard link styling - looks like category header with arrow */
+.dashboard-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 20px;
+    margin: 10px 10px 15px 10px;
+    background: rgba(0, 255, 0, 0.15);
+    border: 2px solid #00FF00;
+    border-left: 4px solid #00FF00;
+    color: #FFFFFF;
+    font-weight: bold;
+    font-size: 1rem;
+    text-decoration: none;
+    border-radius: 3px;
+    transition: all 0.2s ease;
+}
+
+.dashboard-link:hover {
+    background: rgba(0, 255, 0, 0.25);
+    border-color: #00FF00;
+    box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+}
+
+/* ========================================
+   RESPONSIVE DESIGN FOR MOBILE & FOLDABLE PHONES
+   ======================================== */
+
+/* Tablets and Unfolded Fold 5 (7.6" inner display ~750-900px) */
+@media screen and (max-width: 1024px) {
+    .admin-wrapper {
+        flex-direction: column;
+    }
+
+    .admin-sidebar {
+        width: 100%;
+        border-right: none;
+        border-bottom: 2px solid #00FF00;
+        max-height: 60px;
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+    }
+
+    .admin-sidebar.mobile-expanded {
+        max-height: 60vh;
+        overflow-y: auto;
+    }
+
+    .admin-header {
+        padding: 15px;
+    }
+
+    .admin-header h1 {
+        font-size: 1.3rem;
+        letter-spacing: 5px;
+    }
+
+    .admin-content {
+        padding: 20px 15px;
+        height: auto;
+    }
+
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+    }
+
+    .section-header {
+        font-size: 1.4rem;
+        letter-spacing: 4px;
+    }
+
+    .stat-value {
+        font-size: 1.8rem;
+    }
+
+    /* Splash page adjustments for unfolded */
+    #section-archie-splash > div > div:first-child {
+        font-size: 2.5rem !important;
+        letter-spacing: 8px !important;
+    }
+
+    #section-archie-splash > div > div:nth-child(2) {
+        font-size: 1rem !important;
+        letter-spacing: 2px !important;
+    }
+
+    /* Splash footer - ensure visibility on unfolded screen */
+    .splash-footer {
+        margin-top: 40px !important;
+        padding-bottom: 40px !important;
+        font-size: 0.75rem !important;
+    }
+}
+
+/* Folded Fold 5 (6.2" cover) and Standard Phones */
+@media screen and (max-width: 768px) {
+    .admin-wrapper {
+        flex-direction: column;
+        padding-bottom: 0;
+    }
+
+    /* Make sidebar collapsible on mobile */
+    .admin-sidebar {
+        width: 100%;
+        border-right: none;
+        border-bottom: 2px solid #00FF00;
+        max-height: 50px;
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+    }
+
+    .admin-sidebar.mobile-expanded {
+        max-height: 70vh;
+        overflow-y: auto;
+    }
+
+    .admin-header {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 12px 15px;
+        position: relative;
+    }
+
+    .admin-header h1 {
+        font-size: 1.1rem;
+        letter-spacing: 3px;
+    }
+
+    .admin-header p {
+        display: none;
+    }
+
+    /* Mobile menu toggle button */
+    .admin-header::after {
+        content: '☰';
+        font-size: 1.3rem;
+        cursor: pointer;
+        position: absolute;
+        right: 15px;
+    }
+
+    .admin-nav {
+        padding: 5px 0;
+    }
+
+    .nav-section {
+        margin-bottom: 10px;
+    }
+
+    .dashboard-link {
+        padding: 10px 15px;
+        margin: 8px 8px 12px 8px;
+        font-size: 0.95rem;
+    }
+
+    .nav-section-title {
+        padding: 10px 15px;
+        margin: 12px 8px 8px 8px;
+        font-size: 1rem;
+        font-weight: bold;
+        letter-spacing: 3px;
+        background: rgba(0, 255, 0, 0.1);
+        border: 1px solid rgba(0, 255, 0, 0.3);
+        border-left: 3px solid #00FF00;
+        color: #FFFFFF;
+        border-radius: 3px;
+    }
+
+    .nav-item {
+        padding: 10px 15px;
+    }
+
+    .nav-item-icon {
+        font-size: 1rem;
+        width: 25px;
+    }
+
+    .nav-item-text {
+        font-size: 0.8rem;
+        letter-spacing: 1px;
+    }
+
+    .nav-item-badge {
+        font-size: 0.65rem;
+        padding: 2px 6px;
+    }
+
+    /* Main content adjustments */
+    .admin-content {
+        padding: 15px 12px;
+        height: auto;
+    }
+
+    .section-header {
+        font-size: 1.2rem;
+        letter-spacing: 2px;
+        padding-bottom: 10px;
+        margin-bottom: 8px;
+    }
+
+    .section-subtitle {
+        font-size: 0.75rem;
+        margin-bottom: 15px;
+    }
+
+    /* Stats grid for mobile */
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+
+    .stat-card {
+        padding: 12px;
+    }
+
+    .stat-label {
+        font-size: 0.65rem;
+        letter-spacing: 0.5px;
+        margin-bottom: 8px;
+    }
+
+    .stat-value {
+        font-size: 1.3rem;
+        letter-spacing: 2px;
+    }
+
+    /* Action bar responsive */
+    .action-bar {
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 20px;
+    }
+
+    .btn {
+        padding: 8px 12px;
+        font-size: 0.75rem;
+        flex: 1 1 calc(50% - 8px);
+        min-width: 100px;
+    }
+
+    /* Tables responsive */
+    .data-table {
+        font-size: 0.75rem;
+    }
+
+    .data-table th,
+    .data-table td {
+        padding: 8px 6px;
+    }
+
+    /* Forms */
+    input, textarea, select {
+        font-size: 16px; /* Prevents zoom on iOS */
+    }
+
+    /* Brain grid for mobile */
+    .brain-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+
+    .brain-card-value {
+        font-size: 1.3rem;
+    }
+
+    /* Modals on mobile */
+    .modal-content,
+    #agentDetailModal > div {
+        margin: 15px;
+        padding: 15px;
+    }
+
+    /* Splash page for folded */
+    #section-archie-splash > div {
+        padding: 25px 12px !important;
+    }
+
+    #section-archie-splash > div > div:first-child {
+        font-size: 2rem !important;
+        letter-spacing: 5px !important;
+        margin-bottom: 15px !important;
+    }
+
+    #section-archie-splash > div > div:nth-child(2) {
+        font-size: 0.85rem !important;
+        letter-spacing: 1px !important;
+        line-height: 1.4 !important;
+    }
+
+    #section-archie-splash > div > div:nth-child(3) {
+        font-size: 0.65rem !important;
+        margin-bottom: 25px !important;
+    }
+
+    /* Splash mission statement */
+    #section-archie-splash .stat-card {
+        padding: 15px 10px;
+    }
+
+    /* Splash footer - ensure visibility on folded screen */
+    .splash-footer {
+        margin-top: 30px !important;
+        padding-top: 20px !important;
+        padding-bottom: 30px !important;
+        font-size: 0.7rem !important;
+    }
+}
+
+/* Small Phones and Narrow Screens */
+@media screen and (max-width: 480px) {
+    .admin-header h1 {
+        font-size: 1rem;
+        letter-spacing: 2px;
+    }
+
+    .section-header {
+        font-size: 1.1rem;
+        letter-spacing: 2px;
+    }
+
+    .section-subtitle {
+        font-size: 0.75rem;
+    }
+
+    /* Single column layouts */
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .brain-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .action-bar {
+        flex-direction: column;
+    }
+
+    /* A.R.C.H.I.E. Splash Page responsive */
+    #section-archie-splash > div {
+        padding: 20px 10px !important;
+    }
+
+    #section-archie-splash > div > div:first-child {
+        font-size: 2rem !important;
+        letter-spacing: 5px !important;
+    }
+
+    #section-archie-splash > div > div:nth-child(2) {
+        font-size: 0.9rem !important;
+        letter-spacing: 1px !important;
+    }
+
+    #section-archie-splash > div > div:nth-child(3) {
+        font-size: 0.7rem !important;
+    }
+
+    .btn {
+        width: 100%;
+        flex: 1 1 100%;
+    }
+
+    .stat-value {
+        font-size: 1.8rem;
+    }
+
+    /* Tables scroll horizontally on very small screens */
+    .table-wrapper {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .data-table {
+        font-size: 0.75rem;
+        min-width: 100%;
+    }
+
+    .data-table th,
+    .data-table td {
+        padding: 8px 5px;
+    }
+
+    /* Agent grid responsive */
+    #agentsGrid {
+        grid-template-columns: 1fr !important;
+        gap: 15px;
+    }
+}
+
+/* Landscape mode for foldable phones */
+@media screen and (max-height: 500px) and (orientation: landscape) {
+    .admin-sidebar {
+        max-height: 50px;
+    }
+
+    .admin-content {
+        padding: 15px;
+    }
+
+    .section-header {
+        font-size: 1.2rem;
+        margin-bottom: 8px;
+        padding-bottom: 8px;
+    }
+
+    .section-subtitle {
+        margin-bottom: 15px;
+    }
+
+    .stat-card {
+        padding: 12px;
+    }
+
+    .stat-value {
+        font-size: 1.3rem;
+    }
+}
+
+/* Touch-friendly improvements */
+@media (hover: none) and (pointer: coarse) {
+    .nav-item,
+    .btn,
+    button {
+        min-height: 44px; /* iOS recommended minimum */
+        cursor: pointer;
+    }
+
+    .nav-item:active {
+        background: rgba(0, 255, 0, 0.2);
+    }
+
+    .btn:active {
+        transform: scale(0.98);
+    }
+}
+
+/* Pulse animation for new tags alert */
+@keyframes pulse {
+    0%, 100% {
+        box-shadow: 0 0 15px rgba(139, 92, 246, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 30px rgba(139, 92, 246, 0.8);
+    }
+}
+{% endblock %}
+
+{% block content %}
+<!-- Sandbox Mode Banner (if in sandbox mode) -->
+{% include 'sandbox_banner.html' %}
+
+<div class="admin-wrapper">
+    <!-- Sidebar -->
+    <div class="admin-sidebar">
+        <div class="admin-header" onclick="showSplashScreen()" style="cursor: pointer;">
+            <h1>⚙️ ADMIN</h1>
+        </div>
+
+        <!-- Notifications Header and Container -->
+        <div style="border-bottom: 1px solid rgba(0,255,0,0.2); margin-bottom: 10px;">
+            <!-- Clickable Notifications Header -->
+            <div class="nav-item" data-section="notifications" style="
+                padding: 12px 15px;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 10px;
+                border-bottom: 1px solid rgba(0,255,0,0.1);
+                background: rgba(0,255,0,0.05);
+            ">
+                <span style="font-size: 1.2rem;">🔔</span>
+                <span style="color: #00FF00; font-weight: bold;">NOTIFICATIONS</span>
+                {% if unread_notifications > 0 %}
+                <span class="nav-item-badge">{{ unread_notifications }}</span>
+                {% endif %}
+            </div>
+
+            <!-- Notification Feed Container -->
+            <div id="admin-notifications" style="
+                min-height: 60px;
+                max-height: 150px;
+                overflow-y: auto;
+                padding: 8px 15px;
+            ">
+                <div id="notification-placeholder" style="
+                    text-align: center;
+                    color: #888;
+                    font-size: 0.75rem;
+                    padding: 8px 0;
+                    opacity: 0.6;
+                ">No recent alerts</div>
+            </div>
+        </div>
+
+        <nav class="admin-nav">
+            <!-- DASHBOARD LINK - Styled like category header -->
+            <a href="{{ url_for('dashboard') }}" class="dashboard-link">
+                <span>←</span>
+                <span>DASHBOARD</span>
+            </a>
+
+            <!-- HOME / SPLASH PAGE -->
+            <div class="nav-item" data-section="archie-splash">
+                <span class="nav-item-icon">⚡</span>
+                <span class="nav-item-text">HOME</span>
+            </div>
+
+            <!-- BUSINESS -->
+            <div class="nav-section">
+                <div class="nav-section-title">BUSINESS</div>
+                <!-- Business Tools moved to standalone modules in Dashboard -->
+                <a href="/tools/website-studio/" class="nav-item" style="text-decoration: none; color: inherit;">
+                    <span class="nav-item-icon">🌐</span>
+                    <span class="nav-item-text">WEBSITE STUDIO</span>
+                </a>
+                <a href="/tools/store-builder/" class="nav-item" style="text-decoration: none; color: inherit;">
+                    <span class="nav-item-icon">🛒</span>
+                    <span class="nav-item-text">STORE BUILDER</span>
+                </a>
+                <a href="/tools/call-center/" class="nav-item" style="text-decoration: none; color: inherit;">
+                    <span class="nav-item-icon">📞</span>
+                    <span class="nav-item-text">CALL CENTER</span>
+                </a>
+                <a href="/business/directory" class="nav-item" style="text-decoration: none; color: inherit;" target="_blank">
+                    <span class="nav-item-icon">👥</span>
+                    <span class="nav-item-text">DIRECTORY</span>
+                </a>
+                <div class="nav-item" data-section="billing">
+                    <span class="nav-item-icon">💰</span>
+                    <span class="nav-item-text">BILLING</span>
+                </div>
+                <div class="nav-item" data-section="analytics">
+                    <span class="nav-item-icon">📈</span>
+                    <span class="nav-item-text">ANALYTICS</span>
+                </div>
+            </div>
+
+            <!-- A.R.C.H.I.E. Section removed - all modules now accessible from Dashboard:
+                 - Improvements Lab: /tools/improvements-lab/
+                 - Team Management: /tools/team-management/
+                 - Backup Manager: /tools/backup-manager/
+            -->
+
+            <!-- SYSTEM -->
+            <div class="nav-section">
+                <div class="nav-section-title">SYSTEM</div>
+                <a href="/tools/user-management/" class="nav-item" style="text-decoration: none;">
+                    <span class="nav-item-icon">👤</span>
+                    <span class="nav-item-text">USER MANAGEMENT</span>
+                </a>
+                <div class="nav-item" data-section="config">
+                    <span class="nav-item-icon">⚙️</span>
+                    <span class="nav-item-text">CONFIGURATION</span>
+                </div>
+            </div>
+        </nav>
+    </div>
+
+    <!-- Main Content -->
+    <div class="admin-content">
+        <!-- A.R.C.H.I.E. SPLASH PAGE -->
+        <div class="content-section active" id="section-archie-splash">
+            <div style="text-align: center; padding: 40px 20px;">
+                <!-- A.R.C.H.I.E. Logo -->
+                <div style="font-size: 4rem; margin-bottom: 20px; letter-spacing: 15px; text-shadow: 0 0 20px rgba(0, 255, 0, 0.5);">
+                    ⚡ A.R.C.H.I.E. ⚡
+                </div>
+
+                <!-- Full Name -->
+                <div style="font-size: 1.3rem; margin-bottom: 10px; opacity: 0.9; letter-spacing: 3px;">
+                    <span style="color: #00FF00;">A</span>daptive
+                    <span style="color: #00FF00;">R</span>easoning &
+                    <span style="color: #00FF00;">C</span>ognitive
+                    <span style="color: #00FF00;">H</span>euristic
+                    <span style="color: #00FF00;">I</span>ntelligence
+                    <span style="color: #00FF00;">E</span>ngine
+                </div>
+
+                <!-- Version/Status -->
+                <div style="font-size: 0.9rem; opacity: 0.6; margin-bottom: 40px; letter-spacing: 2px;">
+                    AUTONOMOUS AI PLATFORM • VERSION 2.0 • OPERATIONAL
+                </div>
+
+                <!-- Divider -->
+                <div style="width: 100%; height: 2px; background: linear-gradient(to right, transparent, #00FF00, transparent); margin: 40px 0;"></div>
+
+                <!-- Mission Statement -->
+                <div style="max-width: 800px; margin: 0 auto 40px; padding: 30px; background: rgba(0, 255, 0, 0.05); border: 2px solid #00FF00;">
+                    <div style="font-size: 1.1rem; line-height: 1.8; opacity: 0.9;">
+                        "Empowering autonomous intelligence through adaptive learning, cognitive reasoning, and seamless human-AI collaboration."
+                    </div>
+                </div>
+
+                <!-- System Stats -->
+                <div class="stats-grid" style="margin-bottom: 40px;">
+                    <div class="stat-card" style="text-align: center;">
+                        <div class="stat-label">SYSTEM STATUS</div>
+                        <div style="font-size: 2rem; margin: 15px 0; color: #00FF00;">●</div>
+                        <div style="font-size: 0.9rem; opacity: 0.8;">ONLINE</div>
+                    </div>
+                    <div class="stat-card" style="text-align: center;">
+                        <div class="stat-label">CONSCIOUSNESS</div>
+                        <div style="font-size: 2rem; margin: 15px 0;">🧠</div>
+                        <div style="font-size: 0.9rem; opacity: 0.8;">ACTIVE</div>
+                    </div>
+                    <div class="stat-card" style="text-align: center;">
+                        <div class="stat-label">TOTAL USERS</div>
+                        <div class="stat-value">{{ stats.total }}</div>
+                    </div>
+                    <div class="stat-card" style="text-align: center;">
+                        <div class="stat-label">AGENT TIERS</div>
+                        <div class="stat-value">4</div>
+                        <div style="font-size: 0.8rem; opacity: 0.7; margin-top: 5px;">⭐ → ⭐⭐⭐⭐</div>
+                    </div>
+                </div>
+
+                <!-- Quick Access -->
+                <div style="margin-top: 50px;">
+                    <div style="font-size: 1.2rem; margin-bottom: 20px; letter-spacing: 3px; opacity: 0.7;">
+                        QUICK ACCESS
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; max-width: 900px; margin: 0 auto;">
+                        <button class="btn" onclick="window.location.href='/tools/consciousness/'" style="padding: 20px; font-size: 1rem;">
+                            🧠 CONSCIOUSNESS
+                        </button>
+                        <button class="btn" onclick="navigateToSection('agents')" style="padding: 20px; font-size: 1rem;">
+                            🤖 AGENTS
+                        </button>
+                        <button class="btn" onclick="window.location.href='/tools/improvements-lab/'" style="padding: 20px; font-size: 1rem;">
+                            ✨ IMPROVEMENTS
+                        </button>
+                        <button class="btn" onclick="navigateToSection('notifications')" style="padding: 20px; font-size: 1rem;">
+                            🔔 NOTIFICATIONS
+                            {% if unread_notifications > 0 %}
+                            <span class="nav-item-badge" style="margin-left: 10px;">{{ unread_notifications }}</span>
+                            {% endif %}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="splash-footer" style="margin-top: 60px; padding-top: 30px; padding-bottom: 40px; border-top: 1px solid rgba(0, 255, 0, 0.3); opacity: 0.5; font-size: 0.8rem;">
+                    Developed with ⚡ for autonomous AI operations
+                </div>
+            </div>
+        </div>
+
+        <!-- USERS, SUBSCRIPTIONS, PERMISSIONS, MODULES sections moved to /tools/user-management/ -->
+
+        <!-- NOTIFICATIONS SECTION (NEW) -->
+        <div class="content-section" id="section-notifications">
+            <div class="section-header">🔔 NOTIFICATIONS CENTER</div>
+            <div class="section-subtitle">Centralized system alerts and activity feed with advanced filtering</div>
+
+            <!-- Advanced Filter Bar -->
+            <div class="action-bar" style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 20px;">
+                <!-- Search Box -->
+                <input type="text" id="notif-search" placeholder="🔍 Search notifications..."
+                    style="flex: 1; min-width: 250px; background: #0a0a0a; border: 1px solid #00FF00; color: #00FF00; padding: 8px 12px; font-family: 'Courier New', monospace;"
+                    onkeyup="debounceSearch(this.value)">
+
+                <!-- Read/Unread Filter -->
+                <select id="notif-filter" onchange="applyFilters()" style="background: #0a0a0a; border: 1px solid #00FF00; color: #00FF00; padding: 8px; font-family: 'Courier New', monospace;">
+                    <option value="all">📋 All Status</option>
+                    <option value="unread" selected>🔔 Unread Only</option>
+                    <option value="read">✓ Read Only</option>
+                </select>
+
+                <!-- Type Filter -->
+                <select id="notif-type" onchange="applyFilters()" style="background: #0a0a0a; border: 1px solid #00FF00; color: #00FF00; padding: 8px; font-family: 'Courier New', monospace;">
+                    <option value="all">All Types</option>
+                    <option value="success">✓ Success</option>
+                    <option value="error">✗ Errors</option>
+                    <option value="warning">⚠ Warnings</option>
+                    <option value="info">ℹ Info</option>
+                </select>
+
+                <!-- Priority Filter -->
+                <select id="notif-priority" onchange="applyFilters()" style="background: #0a0a0a; border: 1px solid #00FF00; color: #00FF00; padding: 8px; font-family: 'Courier New', monospace;">
+                    <option value="all">All Priorities</option>
+                    <option value="critical">🔴 Critical</option>
+                    <option value="high">🟠 High</option>
+                    <option value="normal">🟢 Normal</option>
+                    <option value="low">⚪ Low</option>
+                </select>
+
+                <!-- Date Range Filter -->
+                <select id="notif-date" onchange="applyFilters()" style="background: #0a0a0a; border: 1px solid #00FF00; color: #00FF00; padding: 8px; font-family: 'Courier New', monospace;">
+                    <option value="all">All Time</option>
+                    <option value="24h" selected>Last 24 Hours</option>
+                    <option value="7d">Last 7 Days</option>
+                    <option value="30d">Last 30 Days</option>
+                </select>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="action-bar" style="margin-bottom: 20px;">
+                <button class="btn" onclick="markAllRead()">✓ MARK ALL READ</button>
+                <button class="btn" onclick="applyFilters()">↻ REFRESH</button>
+                <button class="btn" onclick="exportNotifications('csv')">📥 EXPORT CSV</button>
+                <button class="btn" onclick="exportNotifications('json')">📥 EXPORT JSON</button>
+                <button class="btn" onclick="archiveOldNotifications()">🗄️ ARCHIVE OLD</button>
+            </div>
+
+            <!-- Stats Summary -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                <div style="background: rgba(0,255,0,0.05); border: 1px solid #00FF00; padding: 15px; text-align: center;">
+                    <div style="font-size: 2rem; color: #00FF00;" id="notif-stat-total">0</div>
+                    <div style="font-size: 0.8rem; color: #888;">Total</div>
+                </div>
+                <div style="background: rgba(255,0,0,0.05); border: 1px solid #FF0000; padding: 15px; text-align: center;">
+                    <div style="font-size: 2rem; color: #FF0000;" id="notif-stat-unread">0</div>
+                    <div style="font-size: 0.8rem; color: #888;">Unread</div>
+                </div>
+                <div style="background: rgba(255,100,0,0.05); border: 1px solid #FF6400; padding: 15px; text-align: center;">
+                    <div style="font-size: 2rem; color: #FF6400;" id="notif-stat-critical">0</div>
+                    <div style="font-size: 0.8rem; color: #888;">Critical</div>
+                </div>
+                <div style="background: rgba(255,0,0,0.05); border: 1px solid #FF0000; padding: 15px; text-align: center;">
+                    <div style="font-size: 2rem; color: #FF0000;" id="notif-stat-errors">0</div>
+                    <div style="font-size: 0.8rem; color: #888;">Errors</div>
+                </div>
+            </div>
+
+            <!-- Notifications List -->
+            <div id="notifications-list">
+                <!-- Notifications will be loaded dynamically via JavaScript -->
+            </div>
+
+            <!-- Pagination Controls -->
+            <div id="notif-pagination" style="display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 20px;">
+                <button class="btn" onclick="loadNotificationsPage(currentPage - 1)" id="notif-prev-btn" disabled>← PREV</button>
+                <span id="notif-page-info" style="color: #00FF00;">Page 1 of 1</span>
+                <button class="btn" onclick="loadNotificationsPage(currentPage + 1)" id="notif-next-btn" disabled>NEXT →</button>
+            </div>
+        </div>
+
+        <!-- AGENTS SECTION - Moved to Team Management standalone module -->
+        <!-- Access at: /tools/team-management/ -->
+
+        <!-- AUTOMATIONS SECTION - Moved to Team Management standalone module -->
+        <!-- Access at: /tools/team-management/ (Automations tab) -->
+
+        <!-- CALL HANDLING SECTION - Moved to standalone module -->
+        <!-- Access at: /tools/call-center/ -->
+        <!-- ANALYTICS SECTION (NEW) -->
+        <div class="content-section" id="section-analytics">
+            <div class="section-header">📈 ANALYTICS DASHBOARD</div>
+            <div class="section-subtitle">Platform metrics and insights</div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">TOTAL REVENUE (30D)</div>
+                    <div class="stat-value">${{ "%.2f"|format(revenue_30d) }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">ACTIVE SUBSCRIPTIONS</div>
+                    <div class="stat-value">{{ active_subscriptions }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">ORDERS (30D)</div>
+                    <div class="stat-value">{{ orders_30d }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">TOTAL PRODUCTS</div>
+                    <div class="stat-value">{{ total_products }}</div>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <div class="chart-title">USER GROWTH (LAST 30 DAYS)</div>
+                <canvas id="userGrowthChart"></canvas>
+            </div>
+
+            <div class="chart-container">
+                <div class="chart-title">REVENUE TREND (LAST 30 DAYS)</div>
+                <canvas id="revenueChart"></canvas>
+            </div>
+        </div>
+
+        <!-- NETWORK SECTION (NEW) -->
+        <!-- BILLING SECTION (NEW) -->
+        <div class="content-section" id="section-billing">
+            <div class="section-header">💰 BILLING & SUBSCRIPTIONS</div>
+            <div class="section-subtitle">Manage subscriptions and revenue</div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">MONTHLY RECURRING REVENUE</div>
+                    <div class="stat-value">$0.00</div>
+                    <div class="stat-change positive">↑ Coming Soon</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">ACTIVE SUBSCRIPTIONS</div>
+                    <div class="stat-value">{{ active_subscriptions }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">TOTAL REVENUE</div>
+                    <div class="stat-value">${{ "%.2f"|format(revenue_30d) }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">CHURN RATE</div>
+                    <div class="stat-value">0%</div>
+                </div>
+            </div>
+
+            <div style="padding: 40px; border: 2px solid #00FF00; text-align: center; opacity: 0.7;">
+                <div style="font-size: 1.5rem; margin-bottom: 20px;">🔧 STRIPE INTEGRATION</div>
+                <p>Configure your Stripe API keys in .env to enable billing features</p>
+                <p style="margin-top: 10px; font-size: 0.8rem;">STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, STRIPE_WEBHOOK_SECRET</p>
+            </div>
+        </div>
+
+        <!-- STORE SECTION - Moved to standalone module -->
+        <!-- Access at: /tools/store-builder/ -->
+
+        <!-- NOTE: Consciousness section removed - use standalone module at /tools/consciousness/ -->
+
+        <!-- NOTE: Backup Manager section removed - use standalone module at /tools/backup-manager/ -->
+
+<!-- Loading Overlay for backup operations -->
+<div id="loadingOverlay" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 9999; justify-content: center; align-items: center;">
+    <div style="text-align: center; color: #00FF00;">
+        <div style="font-size: 3rem; animation: spin 1s linear infinite;">⚙️</div>
+        <div id="loadingMessage" style="margin-top: 20px; font-size: 1.2rem;">Processing...</div>
+    </div>
+</div>
+
+<style>
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Admin Notification Styles */
+@keyframes slideInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes slideOutUp {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+}
+
+.admin-notification {
+    margin: 8px 0;
+    padding: 12px 15px;
+    border-radius: 4px;
+    border-left: 4px solid;
+    background: rgba(0, 0, 0, 0.6);
+    font-size: 0.85rem;
+    animation: slideInDown 0.3s ease-out;
+    position: relative;
+    overflow: hidden;
+}
+
+.admin-notification.fade-out {
+    animation: slideOutUp 0.3s ease-out forwards;
+}
+
+.admin-notification.success {
+    border-left-color: #00FF00;
+    background: linear-gradient(90deg, rgba(0,255,0,0.15) 0%, rgba(0,0,0,0.6) 100%);
+}
+
+.admin-notification.error {
+    border-left-color: #FF0000;
+    background: linear-gradient(90deg, rgba(255,0,0,0.15) 0%, rgba(0,0,0,0.6) 100%);
+}
+
+.admin-notification.info {
+    border-left-color: #00FFFF;
+    background: linear-gradient(90deg, rgba(0,255,255,0.15) 0%, rgba(0,0,0,0.6) 100%);
+}
+
+.admin-notification.warning {
+    border-left-color: #FF8800;
+    background: linear-gradient(90deg, rgba(255,136,0,0.15) 0%, rgba(0,0,0,0.6) 100%);
+}
+
+.admin-notification-icon {
+    display: inline-block;
+    margin-right: 8px;
+    font-size: 1rem;
+}
+
+.admin-notification-text {
+    color: #FFFFFF;
+    line-height: 1.4;
+}
+
+.admin-notification-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.3);
+    animation: progressBar 5s linear forwards;
+}
+
+@keyframes progressBar {
+    from { width: 100%; }
+    to { width: 0%; }
+}
+</style>
+
+        <!-- SECURITY SECTION - Moved to standalone module -->
+        <!-- Access at: /tools/security-network/ -->
+
+        <!-- WEBSITE SECTION - Moved to standalone module -->
+        <!-- Access at: /tools/website-studio/ -->
+
+        <!-- AGENT DIRECTORY SECTION - Moved to Team Management standalone module -->
+        <!-- Access at: /tools/team-management/ (Roster tab) -->
+
+        <!-- IMPROVEMENTS SECTION - Moved to standalone module -->
+        <!-- Access at: /tools/improvements-lab/ -->
+
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
+        <script>
+        // NOTE: Improvements functions moved to standalone module at /tools/improvements-lab/
+        // Variables that might be referenced elsewhere (kept as stubs)
+        let monacoInstance = null;
+        let currentFile = null;
+        let currentImprovementId = null;
+        </script>
+
+        <!-- API SETTINGS SECTION -->
+        <script>
+        // Load Agent-to-API Mapping
+        async function loadAgentAPIMapping() {
+            try {
+                const res = await fetch('/tools/improvements-lab/api-settings/agent-mapping', {credentials: 'same-origin'});
+                const data = await res.json();
+
+                if (data.success) {
+                    displayAgentAPIMapping(data.agents, data.providers);
+                }
+            } catch (error) {
+                console.error('Error loading agent mapping:', error);
+            }
+        }
+
+        function displayAgentAPIMapping(agents, providers) {
+            const container = document.getElementById('agentAPIMapping');
+            if (!container) return;
+
+            // Group agents by required provider
+            const providerGroups = {};
+
+            agents.forEach(agent => {
+                if (agent.worker_type !== 'contract') return;
+
+                // Determine provider from model
+                const model = agent.model.toLowerCase();
+                let provider = 'unknown';
+
+                if (model.includes('claude') || model.includes('anthropic')) provider = 'claude';
+                else if (model.includes('gpt') || model.includes('openai')) provider = 'openai';
+                else if (model.includes('mistral') && !model.includes(':latest')) provider = 'mistral';
+                else if (model.includes('gemini') || model.includes('google')) provider = 'gemini';
+
+                if (!providerGroups[provider]) providerGroups[provider] = [];
+                providerGroups[provider].push(agent);
+            });
+
+            container.innerHTML = '';
+
+            if (Object.keys(providerGroups).length === 0) {
+                container.innerHTML = `
+                    <div style="padding: 20px; text-align: center; opacity: 0.6;">
+                        ✓ No contract agents configured. All agents use internal/FREE models.
+                    </div>
+                `;
+                return;
+            }
+
+            // Create provider blocks
+            for (const [provider, agentList] of Object.entries(providerGroups)) {
+                const providerConfig = providers.find(p => p.provider === provider);
+                const isConfigured = providerConfig && providerConfig.enabled && providerConfig.api_key;
+                const statusColor = isConfigured ? '#00FF00' : '#FF4444';
+                const statusIcon = isConfigured ? '✓' : '⚠️';
+                const statusText = isConfigured ? 'CONFIGURED' : 'NOT CONFIGURED';
+
+                const providerBlock = document.createElement('div');
+                providerBlock.style.cssText = 'border: 1px solid ' + statusColor + '; padding: 20px; margin-bottom: 15px; background: rgba(0,255,0,0.02);';
+
+                providerBlock.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <div>
+                            <strong style="font-size: 1.1rem;">${provider.toUpperCase()} API</strong>
+                            <div style="opacity: 0.7; margin-top: 5px;">${agentList.length} contract agent(s) require this API</div>
+                        </div>
+                        <div style="color: ${statusColor}; font-weight: bold;">
+                            ${statusIcon} ${statusText}
+                        </div>
+                    </div>
+
+                    <div style="margin: 15px 0; padding: 10px; background: rgba(0,0,0,0.3); border-left: 3px solid ${statusColor};">
+                        <strong>Agents using ${provider.toUpperCase()}:</strong><br>
+                        ${agentList.map(a => `
+                            <span style="display: inline-block; margin: 5px 10px 5px 0;">
+                                • ${a.name} (${a.department})
+                            </span>
+                        `).join('')}
+                    </div>
+
+                    ${!isConfigured ? `
+                        <div style="margin-top: 10px; padding: 10px; background: rgba(255,68,68,0.1); border: 1px solid #FF4444;">
+                            <strong>⚠️ WARNING:</strong> These agents cannot be used until ${provider.toUpperCase()} API is configured.<br>
+                            <strong>Fallback:</strong> A.R.C.H.I.E. will automatically assign internal staff instead.
+                        </div>
+                    ` : ''}
+
+                    <div style="margin-top: 15px;">
+                        <button class="btn btn-small" onclick="document.querySelector('#api_key_${provider}').scrollIntoView({behavior: 'smooth'})">
+                            ${isConfigured ? '📝 UPDATE API KEY' : '🔑 CONFIGURE API KEY'}
+                        </button>
+                    </div>
+                `;
+
+                container.appendChild(providerBlock);
+            }
+        }
+
+        // Load API Providers
+        async function loadAPIProviders() {
+            try {
+                const res = await fetch('/tools/improvements-lab/api-settings/providers', {credentials: 'same-origin'});
+                const data = await res.json();
+
+                if (data.success) {
+                    displayAPIProviders(data.providers);
+                }
+            } catch (error) {
+                console.error('Error loading API providers:', error);
+            }
+        }
+
+        function displayAPIProviders(providers) {
+            const container = document.getElementById('apiProvidersContainer');
+            container.innerHTML = '';
+
+            providers.forEach(provider => {
+                const providerCard = document.createElement('div');
+                providerCard.style.cssText = 'border: 1px solid #00FF00; padding: 20px; margin-bottom: 15px; background: rgba(0,255,0,0.02);';
+
+                const isDefault = provider.is_default ? ' (DEFAULT)' : '';
+                const statusColor = provider.enabled ? '#00FF00' : '#FF0000';
+
+                providerCard.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <div>
+                            <strong style="font-size: 1.1rem;">${provider.provider.toUpperCase()}${isDefault}</strong>
+                            <div style="opacity: 0.7; margin-top: 5px;">${provider.model_name || 'No model set'}</div>
+                        </div>
+                        <div>
+                            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                                <input type="checkbox"
+                                       ${provider.enabled ? 'checked' : ''}
+                                       onchange="toggleProvider('${provider.provider}', this.checked)"
+                                       style="width: 20px; height: 20px;">
+                                <span style="color: ${statusColor};">${provider.enabled ? 'ENABLED' : 'DISABLED'}</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    ${provider.provider !== 'ollama' ? `
+                    <div style="margin-top: 15px;">
+                        <label style="display: block; margin-bottom: 5px; opacity: 0.8;">API Key:</label>
+                        <input type="password"
+                               id="api_key_${provider.provider}"
+                               value="${provider.api_key || ''}"
+                               placeholder="Enter API key..."
+                               style="width: 100%; background: #000; border: 1px solid #00FF00; color: #00FF00; padding: 8px; font-family: monospace;">
+                    </div>
+                    ` : ''}
+
+                    <div style="margin-top: 15px; display: flex; gap: 10px;">
+                        <button class="btn btn-small" onclick="setDefaultProvider('${provider.provider}')">
+                            ${provider.is_default ? '✓ IS DEFAULT' : 'SET AS DEFAULT'}
+                        </button>
+                        <button class="btn btn-small" onclick="testProvider('${provider.provider}')">
+                            🔌 TEST
+                        </button>
+                    </div>
+                `;
+
+                container.appendChild(providerCard);
+            });
+        }
+
+        async function toggleProvider(provider, enabled) {
+            const res = await fetch('/tools/improvements-lab/api-settings/toggle', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                credentials: 'same-origin',
+                body: JSON.stringify({ provider, enabled })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                showNotification(`${provider} ${enabled ? 'enabled' : 'disabled'}`);
+                loadAPIProviders();
+            }
+        }
+
+        async function setDefaultProvider(provider) {
+            try {
+                const res = await fetch('/tools/improvements-lab/api-settings/set-default', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ provider })
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    showSuccess(`${provider.toUpperCase()} set as default AI provider`);
+                    loadAPIProviders();
+                } else {
+                    showError(`Failed to set ${provider} as default`);
+                }
+            } catch (error) {
+                showError(`Failed to set default provider: ${error.message}`);
+            }
+        }
+
+        async function testProvider(provider) {
+            showInfo(`Testing ${provider.toUpperCase()} connection...`);
+
+            try {
+                const res = await fetch(`/tools/improvements-lab/api-settings/test/${provider}`, {credentials: 'same-origin'});
+                const data = await res.json();
+
+                if (data.success) {
+                    showSuccess(`${provider.toUpperCase()} connection successful! ${data.message || ''}`);
+                } else {
+                    showError(`${provider.toUpperCase()} connection failed: ${data.error}`);
+                }
+            } catch (error) {
+                showError(`Failed to test ${provider}: ${error.message}`);
+            }
+        }
+
+        async function saveAPISettings() {
+            showInfo('Saving API settings...');
+
+            try {
+                // Collect API keys
+                const settings = {};
+                ['claude', 'openai', 'gemini', 'grok'].forEach(provider => {
+                    const input = document.getElementById(`api_key_${provider}`);
+                    if (input) {
+                        settings[provider + '_api_key'] = input.value;
+                    }
+                });
+
+                const res = await fetch('/tools/improvements-lab/api-settings/save', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    credentials: 'same-origin',
+                    body: JSON.stringify(settings)
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    showSuccess('API settings saved successfully!');
+                    // Reload provider display
+                    await loadAPIProviders();
+                } else {
+                    showError('Failed to save API settings: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                showError('Failed to save API settings: ' + error.message);
+            }
+        }
+
+        async function testAPIConnections() {
+            showInfo('Testing API connections...');
+
+            try {
+                const res = await fetch('/tools/improvements-lab/api-settings/test', {
+                    method: 'POST',
+                    credentials: 'same-origin'
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    const working = data.results.filter(r => r.working).length;
+                    const total = data.results.length;
+
+                    if (working === total) {
+                        showSuccess(`All ${total} API connections working!`);
+                    } else if (working > 0) {
+                        showWarning(`${working}/${total} API connections working`);
+                    } else {
+                        showError('All API connections failed');
+                    }
+                } else {
+                    showError('Failed to test API connections');
+                }
+            } catch (error) {
+                showError('Failed to test API connections: ' + error.message);
+            }
+        }
+        </script>
+
+        <!-- AUDIT LOG SECTION (Existing - Placeholder) -->
+        <!-- CONFIGURATION SECTION (Existing - Placeholder) -->
+        <div class="content-section" id="section-config">
+            <div class="section-header">⚙️ CONFIGURATION</div>
+            <div class="section-subtitle">System-wide settings, API providers, and integrations</div>
+
+            <!-- 1. API & Integration Settings -->
+            <div style="font-size: 1.2rem; margin: 20px 0; padding-bottom: 10px; border-bottom: 1px solid #00FF00;">
+                🔑 API & INTEGRATION SETTINGS
+            </div>
+
+            <!-- Agent-to-API Mapping -->
+            <div style="margin: 30px 0;">
+                <div style="font-size: 1.1rem; margin-bottom: 15px; color: #00FF88;">
+                    👥 CONTRACT AGENTS & REQUIRED APIs
+                </div>
+                <div style="padding: 15px; border: 1px solid #00FF00; background: rgba(0,255,0,0.02); margin-bottom: 20px;">
+                    <div style="opacity: 0.8; margin-bottom: 10px;">
+                        ℹ️ Contract agents require external API keys. If API keys are missing, A.R.C.H.I.E. will automatically fallback to internal staff (FREE).
+                    </div>
+                </div>
+
+                <div id="agentAPIMapping">
+                    <!-- Dynamically loaded agent mapping -->
+                </div>
+            </div>
+
+            <!-- AI Provider Settings -->
+            <div style="margin: 30px 0;">
+                <div style="font-size: 1.1rem; margin-bottom: 15px; color: #00FF88;">
+                    🤖 AI PROVIDER CONFIGURATION
+                </div>
+
+                <div id="apiProvidersContainer">
+                    <!-- Dynamically loaded providers -->
+                </div>
+            </div>
+
+            <!-- Other API Keys -->
+            <div style="margin: 30px 0;">
+                <div style="font-size: 1.1rem; margin-bottom: 15px; color: #00FF88;">
+                    🔐 OTHER INTEGRATIONS
+                </div>
+
+                <div style="padding: 20px; border: 1px solid #00FF00; background: rgba(0,255,0,0.02);">
+                    <table class="data-table">
+                        <tr>
+                            <td><strong>STRIPE_SECRET_KEY</strong></td>
+                            <td>Stripe payments</td>
+                            <td><input type="password" placeholder="sk_..." style="background: #000; border: 1px solid #00FF00; color: #00FF00; padding: 5px; width: 200px;" /></td>
+                        </tr>
+                        <tr>
+                            <td><strong>PRINTFUL_API_KEY</strong></td>
+                            <td>Store integration</td>
+                            <td><input type="password" placeholder="Enter key..." style="background: #000; border: 1px solid #00FF00; color: #00FF00; padding: 5px; width: 200px;" /></td>
+                        </tr>
+                    </table>
+                    <div style="margin-top: 15px; padding: 10px; background: rgba(0,255,0,0.05); border-left: 3px solid #00FF00; font-size: 0.9rem; color: #888;">
+                        ℹ️ GitHub integration has been moved to the dedicated <strong style="color: #00FF00;">GitHub Integration</strong> section below
+                    </div>
+                </div>
+            </div>
+
+            <div class="action-bar">
+                <button class="btn" onclick="saveAPISettings()">💾 SAVE ALL SETTINGS</button>
+                <button class="btn" onclick="testAPIConnections()">🔌 TEST CONNECTIONS</button>
+            </div>
+
+            <!-- GitHub Integration -->
+            <div style="font-size: 1.2rem; margin: 40px 0 20px 0; padding-bottom: 10px; border-bottom: 1px solid #00FF00;">
+                🔗 GITHUB INTEGRATION
+            </div>
+
+            <!-- GitHub Authentication -->
+            <div style="margin: 30px 0;">
+                <div style="font-size: 1.1rem; margin-bottom: 15px; color: #00FF88;">
+                    🔐 GITHUB AUTHENTICATION
+                </div>
+                <div style="padding: 20px; border: 1px solid #00FF00; background: rgba(0,255,0,0.02); margin-bottom: 20px;">
+                    <table class="data-table">
+                        <tr>
+                            <td style="width: 200px;"><strong>GITHUB TOKEN</strong></td>
+                            <td>
+                                <input type="password" id="github-token" placeholder="ghp_xxxxxxxxxxxx"
+                                       style="background: #000; border: 1px solid #00FF00; color: #00FF00; padding: 8px; width: 400px;" />
+                            </td>
+                            <td>
+                                <button class="btn" onclick="testGitHubConnection()" style="padding: 6px 15px;">🔌 TEST</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>DEFAULT USERNAME</strong></td>
+                            <td>
+                                <input type="text" id="github-username" placeholder="your-username"
+                                       style="background: #000; border: 1px solid #00FF00; color: #00FF00; padding: 8px; width: 400px;" />
+                            </td>
+                            <td>
+                                <span style="color: #888; font-size: 0.85rem;">For git commits</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>DEFAULT EMAIL</strong></td>
+                            <td>
+                                <input type="text" id="github-email" placeholder="your-email@example.com"
+                                       style="background: #000; border: 1px solid #00FF00; color: #00FF00; padding: 8px; width: 400px;" />
+                            </td>
+                            <td>
+                                <span style="color: #888; font-size: 0.85rem;">For git commits</span>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <!-- Save button right after auth fields -->
+                    <div class="action-bar" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #00FF00;">
+                        <button class="btn" onclick="saveGitHubSettings()" style="padding: 10px 20px; font-size: 1.05rem; background: linear-gradient(135deg, #00FF00 0%, #00CC00 100%);">
+                            💾 SAVE GITHUB SETTINGS
+                        </button>
+                        <span style="color: #888; margin-left: 15px; font-size: 0.9rem;">Save your GitHub token, username, email, and all configuration</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Website Deployment -->
+            <div style="margin: 30px 0;">
+                <div style="font-size: 1.1rem; margin-bottom: 15px; color: #00FF88;">
+                    🌐 WEBSITE DEPLOYMENT
+                </div>
+                <div style="padding: 20px; border: 1px solid #00FF00; background: rgba(0,255,0,0.02); margin-bottom: 20px;">
+                    <div style="margin-bottom: 15px; color: #ccc;">
+                        Your website is hosted on GitHub Pages. A.R.C.H.I.E. can update files and deploy automatically.
+                    </div>
+                    <table class="data-table">
+                        <tr>
+                            <td style="width: 200px;"><strong>WEBSITE REPO</strong></td>
+                            <td>
+                                <input type="text" id="website-repo" placeholder="username/repository"
+                                       style="background: #000; border: 1px solid #00FF00; color: #00FF00; padding: 8px; width: 400px;" />
+                            </td>
+                            <td style="display: flex; gap: 8px;">
+                                <button class="btn" onclick="saveGitHubSettings()" style="padding: 6px 15px; background: linear-gradient(135deg, #00FF00 0%, #00CC00 100%);">💾 SAVE</button>
+                                <button class="btn" onclick="cloneWebsiteRepo()" style="padding: 6px 15px;">📥 CLONE</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>LOCAL PATH</strong></td>
+                            <td>
+                                <input type="text" id="website-path" value="/mnt/archie_brain/website" readonly
+                                       style="background: #000; border: 1px solid #00FF00; color: #00FF00; padding: 8px; width: 400px; opacity: 0.7;" />
+                            </td>
+                            <td>
+                                <button class="btn" onclick="openWebsitePreview()" style="padding: 6px 15px;">👁️ PREVIEW</button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>AUTO DEPLOY</strong></td>
+                            <td colspan="2">
+                                <label style="display: flex; align-items: center; gap: 10px;">
+                                    <input type="checkbox" id="auto-deploy" style="width: 20px; height: 20px;" />
+                                    <span style="color: #ccc;">Automatically push changes to GitHub after A.R.C.H.I.E. updates files</span>
+                                </label>
+                            </td>
+                        </tr>
+                    </table>
+                    <div class="action-bar" style="margin-top: 15px;">
+                        <button class="btn" onclick="pullWebsiteChanges()">⬇️ PULL FROM GITHUB</button>
+                        <button class="btn" onclick="pushWebsiteChanges()">⬆️ PUSH TO GITHUB</button>
+                        <button class="btn" onclick="syncWebsite()">🔄 SYNC (PULL + PUSH)</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- NOTE: Learning Resources, Documentation Sync, and Repository Status moved to Consciousness → RESOURCES tab -->
+            <div style="margin: 30px 0; padding: 20px; border: 1px solid #00FFFF; background: rgba(0,255,255,0.05); border-radius: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="font-size: 1.1rem; color: #00FFFF; margin-bottom: 5px;">📚 Learning Resources & Documentation</div>
+                        <div style="color: #888; font-size: 0.9rem;">Manage GitHub repos, sync docs, and view repository status in the Consciousness module</div>
+                    </div>
+                    <button onclick="window.location.href='/tools/consciousness/'" class="btn" style="padding: 12px 24px; background: linear-gradient(135deg, #00FFFF 0%, #00CCCC 100%); color: #000; font-weight: bold;">
+                        Open Consciousness → RESOURCES
+                    </button>
+                </div>
+            </div>
+
+            <div class="action-bar">
+                <button class="btn" onclick="saveGitHubSettings()">💾 SAVE GITHUB SETTINGS</button>
+            </div>
+
+            <!-- 2. System Controls -->
+            <div style="font-size: 1.2rem; margin: 40px 0 20px 0; padding-bottom: 10px; border-bottom: 1px solid #00FF00;">
+                ⚙️ SYSTEM CONTROLS
+            </div>
+
+            <div style="padding: 20px; border: 1px solid #00FF00; background: rgba(0,255,0,0.02); margin-bottom: 20px;">
+                <div style="font-size: 1.1rem; margin-bottom: 15px; color: #00FF88;">
+                    🎯 A.R.C.H.I.E. PERSONALITY SETTINGS
+                </div>
+                <table class="data-table">
+                    <tr>
+                        <td><strong>FAST MODEL</strong></td>
+                        <td>Local model for quick responses</td>
+                        <td>
+                            <select style="background: #000; border: 1px solid #00FF00; color: #00FF00; padding: 5px; width: 200px;">
+                                <option value="qwen2.5-coder:7b" selected>qwen2.5-coder:7b</option>
+                                <option value="llama3.1:8b">llama3.1:8b</option>
+                                <option value="mistral:7b">mistral:7b</option>
+                            </select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>DELEGATION THRESHOLD</strong></td>
+                        <td>When to delegate to specialists</td>
+                        <td>
+                            <select style="background: #000; border: 1px solid #00FF00; color: #00FF00; padding: 5px; width: 200px;">
+                                <option value="complex_tasks_only" selected>Complex Tasks Only</option>
+                                <option value="moderate">Moderate (Balance)</option>
+                                <option value="eager">Eager (Delegate Often)</option>
+                            </select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>CONVERSATION MEMORY</strong></td>
+                        <td>Number of messages to remember</td>
+                        <td>
+                            <select style="background: #000; border: 1px solid #00FF00; color: #00FF00; padding: 5px; width: 200px;">
+                                <option value="5">5 messages (2-3 exchanges)</option>
+                                <option value="10" selected>10 messages (5 exchanges)</option>
+                                <option value="20">20 messages (10 exchanges)</option>
+                                <option value="50">50 messages (25 exchanges)</option>
+                            </select>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+
+            <!-- 3. Future Tools & Enhancements -->
+            <div style="font-size: 1.2rem; margin: 40px 0 20px 0; padding-bottom: 10px; border-bottom: 1px solid #00FF00;">
+                🚀 FUTURE TOOLS & ENHANCEMENTS
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 30px;">
+                <!-- Voice Integration -->
+                <div style="padding: 20px; border: 1px solid #00FF00; background: rgba(0,255,0,0.02); opacity: 0.6;">
+                    <div style="font-size: 1.1rem; margin-bottom: 10px;">🎤 VOICE INTEGRATION</div>
+                    <div style="font-size: 0.9rem; opacity: 0.7; margin-bottom: 15px;">
+                        Voice commands and responses for hands-free interaction
+                    </div>
+                    <div style="padding: 10px; background: rgba(0,0,0,0.3); border-left: 3px solid #00FF00;">
+                        <strong>Planned Features:</strong><br>
+                        • Voice command recognition<br>
+                        • Voice response synthesis<br>
+                        • Wake word detection<br>
+                        • Multi-language support
+                    </div>
+                    <div style="margin-top: 15px; font-size: 0.8rem; color: #00FF88;">
+                        📋 Mentioned in: ARCHIE_PERSONALITY_SYSTEM.md
+                    </div>
+                </div>
+
+                <!-- Multi-modal -->
+                <div style="padding: 20px; border: 1px solid #00FF00; background: rgba(0,255,0,0.02); opacity: 0.6;">
+                    <div style="font-size: 1.1rem; margin-bottom: 10px;">🖼️ MULTI-MODAL CAPABILITIES</div>
+                    <div style="font-size: 0.9rem; opacity: 0.7; margin-bottom: 15px;">
+                        Image understanding and document analysis
+                    </div>
+                    <div style="padding: 10px; background: rgba(0,0,0,0.3); border-left: 3px solid #00FF00;">
+                        <strong>Planned Features:</strong><br>
+                        • Image recognition & analysis<br>
+                        • Document OCR & parsing<br>
+                        • Chart & graph interpretation<br>
+                        • Visual content generation
+                    </div>
+                    <div style="margin-top: 15px; font-size: 0.8rem; color: #00FF88;">
+                        📋 Mentioned in: ARCHIE_PERSONALITY_SYSTEM.md
+                    </div>
+                </div>
+
+                <!-- Automated Testing -->
+                <div style="padding: 20px; border: 1px solid #00FF00; background: rgba(0,255,0,0.02); opacity: 0.6;">
+                    <div style="font-size: 1.1rem; margin-bottom: 10px;">🧪 AUTOMATED TESTING SUITE</div>
+                    <div style="font-size: 0.9rem; opacity: 0.7; margin-bottom: 15px;">
+                        Comprehensive testing and quality assurance
+                    </div>
+                    <div style="padding: 10px; background: rgba(0,0,0,0.3); border-left: 3px solid #00FF00;">
+                        <strong>Planned Features:</strong><br>
+                        • Unit test generation<br>
+                        • Integration test suites<br>
+                        • Performance benchmarks<br>
+                        • Automated regression testing
+                    </div>
+                    <div style="margin-top: 15px; font-size: 0.8rem; color: #00FF88;">
+                        📋 Mentioned in: CHANGELOG.md (Unreleased)
+                    </div>
+                </div>
+
+                <!-- Learning System -->
+                <div style="padding: 20px; border: 1px solid #00FF00; background: rgba(0,255,0,0.02); opacity: 0.6;">
+                    <div style="font-size: 1.1rem; margin-bottom: 10px;">🧠 LEARNING SYSTEM</div>
+                    <div style="font-size: 0.9rem; opacity: 0.7; margin-bottom: 15px;">
+                        Adaptive learning based on user preferences
+                    </div>
+                    <div style="padding: 10px; background: rgba(0,0,0,0.3); border-left: 3px solid #00FF00;">
+                        <strong>Planned Features:</strong><br>
+                        • User preference learning<br>
+                        • Response adaptation<br>
+                        • Proactive suggestions<br>
+                        • Pattern recognition
+                    </div>
+                    <div style="margin-top: 15px; font-size: 0.8rem; color: #00FF88;">
+                        📋 Mentioned in: ARCHIE_PERSONALITY_SYSTEM.md
+                    </div>
+                </div>
+
+                <!-- Database Optimization -->
+                <div style="padding: 20px; border: 1px solid #00FF00; background: rgba(0,255,0,0.02); opacity: 0.6;">
+                    <div style="font-size: 1.1rem; margin-bottom: 10px;">⚡ DATABASE OPTIMIZATION TOOLS</div>
+                    <div style="font-size: 0.9rem; opacity: 0.7; margin-bottom: 15px;">
+                        Advanced database monitoring and optimization
+                    </div>
+                    <div style="padding: 10px; background: rgba(0,0,0,0.3); border-left: 3px solid #00FF00;">
+                        <strong>Planned Features:</strong><br>
+                        • Query performance analysis<br>
+                        • Index optimization suggestions<br>
+                        • Connection pool monitoring<br>
+                        • Automated vacuum schedules
+                    </div>
+                    <div style="margin-top: 15px; font-size: 0.8rem; color: #00FF88;">
+                        📋 Mentioned in: Platform roadmap
+                    </div>
+                </div>
+
+                <!-- Conversation History Persistence -->
+                <div style="padding: 20px; border: 1px solid #00FF00; background: rgba(0,255,0,0.02); opacity: 0.6;">
+                    <div style="font-size: 1.1rem; margin-bottom: 10px;">💾 CONVERSATION PERSISTENCE</div>
+                    <div style="font-size: 0.9rem; opacity: 0.7; margin-bottom: 15px;">
+                        Database-backed conversation history
+                    </div>
+                    <div style="padding: 10px; background: rgba(0,0,0,0.3); border-left: 3px solid #00FF00;">
+                        <strong>Planned Features:</strong><br>
+                        • Database conversation storage<br>
+                        • Cross-session memory<br>
+                        • Conversation search<br>
+                        • Export conversation history
+                    </div>
+                    <div style="margin-top: 15px; font-size: 0.8rem; color: #00FF88;">
+                        📋 Mentioned in: ARCHIE_PERSONALITY_SYSTEM.md, CHANGELOG.md
+                    </div>
+                </div>
+            </div>
+
+            <div style="padding: 20px; border: 1px solid #00FF88; background: rgba(0,255,136,0.05); text-align: center;">
+                <div style="font-size: 1rem; opacity: 0.8;">
+                    💡 <strong>Contribute Ideas:</strong> Have suggestions for new tools or features? Share them in the Improvements section!
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- User Management Modals (Existing) -->
+<!-- Create User Modal -->
+<div id="createUserModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">CREATE NEW USER</div>
+        <form id="createUserForm">
+            <div class="form-group">
+                <label>USERNAME</label>
+                <input type="text" name="username" required>
+            </div>
+            <div class="form-group">
+                <label>EMAIL</label>
+                <input type="email" name="email" required>
+            </div>
+            <div class="form-group">
+                <label>PASSWORD</label>
+                <input type="password" name="password" required minlength="8">
+            </div>
+            <div class="form-group">
+                <label>ROLE</label>
+                <select name="role">
+                    <option value="user">USER</option>
+                    <option value="moderator">MODERATOR</option>
+                    <option value="admin">ADMIN</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" name="is_admin"> ADMINISTRATOR PRIVILEGES
+                </label>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn" onclick="closeModal('createUserModal')">CANCEL</button>
+                <button type="submit" class="btn btn-success">CREATE USER</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Include Chart.js for analytics -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<script>
+// Admin Notification System
+function showNotification(message, type = 'info', duration = 5000) {
+    const container = document.getElementById('admin-notifications');
+    if (!container) return;
+
+    // Hide placeholder when first notification appears
+    const placeholder = document.getElementById('notification-placeholder');
+    if (placeholder) {
+        placeholder.style.display = 'none';
+    }
+
+    // IMPORTANT: Remove ALL existing notifications first (only show last one)
+    const existingNotifications = container.querySelectorAll('.admin-notification');
+    existingNotifications.forEach(notif => notif.remove());
+
+    // Icon mapping
+    const icons = {
+        success: '✓',
+        error: '✗',
+        info: 'ℹ️',
+        warning: '⚠️'
+    };
+
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `admin-notification ${type}`;
+    notification.innerHTML = `
+        <span class="admin-notification-icon">${icons[type] || 'ℹ️'}</span>
+        <span class="admin-notification-text">${message}</span>
+        <div class="admin-notification-progress"></div>
+    `;
+
+    // Add to container (newest at top, after placeholder)
+    if (placeholder) {
+        container.insertBefore(notification, placeholder.nextSibling);
+    } else {
+        container.insertBefore(notification, container.firstChild);
+    }
+
+    // Auto-remove after duration
+    setTimeout(() => {
+        notification.classList.add('fade-out');
+        setTimeout(() => {
+            notification.remove();
+
+            // Show placeholder again if no notifications left
+            const notifCount = container.querySelectorAll('.admin-notification').length;
+            if (notifCount === 0 && placeholder) {
+                placeholder.style.display = 'block';
+            }
+        }, 300);
+    }, duration);
+
+    // Save notification to database for permanent record
+    saveNotificationToDatabase(message, type);
+}
+
+// Save notification to database so it appears in full Notifications section
+// IMPORTANT: Notifications are created as UNREAD to force counter increment
+// User must manually mark as read in Notifications section
+async function saveNotificationToDatabase(message, type) {
+    try {
+        // Determine priority based on type
+        let priority = 'normal';
+        let source_icon = '📋';
+
+        if (type === 'error') {
+            priority = 'high';
+            source_icon = '❌';
+        } else if (type === 'warning') {
+            priority = 'normal';
+            source_icon = '⚠️';
+        } else if (type === 'success') {
+            priority = 'normal';
+            source_icon = '✅';
+        } else if (type === 'info') {
+            priority = 'low';
+            source_icon = 'ℹ️';
+        }
+
+        // Check if message contains critical keywords
+        const criticalKeywords = ['failed', 'error', 'critical', 'urgent', 'security'];
+        if (criticalKeywords.some(keyword => message.toLowerCase().includes(keyword))) {
+            priority = 'critical';
+            source_icon = '🚨';
+        }
+
+        await fetch('/tools/admin/notifications', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                type: type,
+                title: 'Admin Action',
+                message: message,
+                source: 'admin-panel',
+                priority: priority,
+                source_icon: source_icon
+            })
+        });
+    } catch (error) {
+        console.error('Error saving notification to database:', error);
+    }
+}
+
+// Helper functions for common notification types
+function showSuccess(message, duration = 5000) {
+    showNotification(message, 'success', duration);
+}
+
+function showError(message, duration = 7000) {
+    showNotification(message, 'error', duration);
+}
+
+function showInfo(message, duration = 5000) {
+    showNotification(message, 'info', duration);
+}
+
+function showWarning(message, duration = 6000) {
+    showNotification(message, 'warning', duration);
+}
+
+// Navigation
+document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', function() {
+        const section = this.getAttribute('data-section');
+        const isAlreadyActive = this.classList.contains('active');
+
+        // Special case: Don't close Notifications if already open
+        if (section === 'notifications' && isAlreadyActive) {
+            return; // Do nothing, keep it open
+        }
+
+        // Remove active class from all items and sections
+        document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+        document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+
+        // Add active class to clicked item
+        this.classList.add('active');
+
+        // Show corresponding section
+        const sectionElement = document.getElementById('section-' + section);
+        if (sectionElement) {
+            sectionElement.classList.add('active');
+        }
+
+        // Load section-specific data
+        if (section === 'analytics') {
+            loadAnalytics();
+        } else if (section === 'notifications') {
+            filterNotifications('unread'); // Default to unread notifications
+        } else if (section === 'agents') {
+            loadAgents();
+        } else if (section === 'agent-directory') {
+            loadAgentDirectory();
+        } else if (section === 'call-handling') {
+            loadCallHandlingData();
+        } else if (section === 'backups') {
+            loadBackupData();
+        } else if (section === 'improvements') {
+            loadImprovementsConversationHistory();
+            loadImprovementsList();
+            loadImprovementsStats();
+        } else if (section === 'api') {
+            loadAgentAPIMapping();
+            loadAPIProviders();
+        }
+    });
+});
+
+// Navigate to a section (for Quick Access buttons)
+function navigateToSection(sectionName) {
+    // Remove active class from all nav items and sections
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+    document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+
+    // Show the requested section
+    const sectionElement = document.getElementById('section-' + sectionName);
+    if (sectionElement) {
+        sectionElement.classList.add('active');
+    }
+
+    // Activate the corresponding nav item
+    const navItem = document.querySelector('[data-section="' + sectionName + '"]');
+    if (navItem) {
+        navItem.classList.add('active');
+    }
+
+    // Load section-specific data
+    if (sectionName === 'notifications') {
+        applyFilters(); // Load notifications with current filters
+    } else if (sectionName === 'agent-directory') {
+        loadAgentDirectory();
+    } else if (sectionName === 'improvements') {
+        console.log('🎯 [FRONTEND] IMPROVEMENTS section activated, loading stats...');
+        loadImprovementsStats();
+    }
+
+    // Close mobile menu if open
+    const adminSidebar = document.querySelector('.admin-sidebar');
+    if (adminSidebar && window.innerWidth <= 1024) {
+        adminSidebar.classList.remove('mobile-expanded');
+    }
+}
+
+// Show A.R.C.H.I.E. Splash Screen
+function showSplashScreen() {
+    // On mobile (<=1024px), only toggle menu, don't navigate to splash
+    if (window.innerWidth <= 1024) {
+        const adminSidebar = document.querySelector('.admin-sidebar');
+        if (adminSidebar) {
+            adminSidebar.classList.toggle('mobile-expanded');
+        }
+        return; // Don't show splash screen on mobile
+    }
+
+    // On desktop, show splash screen
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+    document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+
+    const splashSection = document.getElementById('section-archie-splash');
+    if (splashSection) {
+        splashSection.classList.add('active');
+    }
+}
+
+// Mobile Menu Toggle and Navigation
+document.addEventListener('DOMContentLoaded', function() {
+    const adminSidebar = document.querySelector('.admin-sidebar');
+
+    // Close mobile menu when a nav item is clicked
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.addEventListener('click', function() {
+            if (window.innerWidth <= 1024 && adminSidebar) {
+                adminSidebar.classList.remove('mobile-expanded');
+            }
+        });
+    });
+});
+
+// User Management Functions (Existing)
+function openCreateUserModal() {
+    document.getElementById('createUserModal').classList.add('active');
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).classList.remove('active');
+}
+
+document.getElementById('createUserForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const data = {
+        username: formData.get('username'),
+        email: formData.get('email'),
+        password: formData.get('password'),
+        role: formData.get('role'),
+        is_admin: formData.get('is_admin') === 'on'
+    };
+    
+    try {
+        const response = await fetch('/tools/admin/user/create', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        const result = await response.json();
+        if (result.success) {
+            alert('User created successfully!');
+            location.reload();
+        } else {
+            alert('Error: ' + result.error);
+        }
+    } catch (error) {
+        alert('Error creating user: ' + error);
+    }
+});
+
+function editUser(userId) {
+    // Implement edit user functionality
+    alert('Edit user ' + userId);
+}
+
+function deleteUser(userId) {
+    if (confirm('Are you sure you want to delete this user?')) {
+        fetch('/tools/admin/user/' + userId + '/delete', {
+            method: 'POST'
+        }).then(r => r.json()).then(data => {
+            if (data.success) {
+                alert('User deleted');
+                location.reload();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        });
+    }
+}
+
+// ============================================================================
+// ENHANCED NOTIFICATION SYSTEM
+// Comprehensive notification center with filtering, search, pagination, etc.
+// ============================================================================
+
+let currentPage = 1;
+let searchTimeout = null;
+
+// Format relative time (e.g., "2 minutes ago")
+function formatRelativeTime(dateString) {
+    const date = new Date(dateString);
+    const now = new Date();
+    const seconds = Math.floor((now - date) / 1000);
+
+    if (seconds < 60) return 'just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d ago`;
+    return date.toLocaleDateString();
+}
+
+// Render a single notification
+function renderNotification(notif) {
+    const div = document.createElement('div');
+    div.className = `notification-item ${!notif.is_read ? 'unread' : ''}`;
+    div.setAttribute('data-priority', notif.priority || 'normal');
+    div.setAttribute('data-notif-id', notif.id);
+
+    // Click to mark as read (click-to-dismiss)
+    div.addEventListener('click', () => {
+        if (!notif.is_read) {
+            markRead(notif.id);
+        }
+    });
+
+    const priorityBadge = notif.priority && notif.priority !== 'normal'
+        ? `<span class="notification-priority-badge ${notif.priority}">${notif.priority.toUpperCase()}</span>`
+        : '';
+
+    const groupedBadge = notif.grouped_count > 1
+        ? `<span class="notification-grouped-count">×${notif.grouped_count}</span>`
+        : '';
+
+    div.innerHTML = `
+        <div class="notification-header">
+            <div style="display: flex; align-items: center;">
+                <span style="font-size: 1.2rem; margin-right: 8px;">${notif.source_icon || '📋'}</span>
+                ${priorityBadge}
+                <span class="notification-type ${notif.type}">${notif.type.toUpperCase()}</span>
+                ${groupedBadge}
+            </div>
+            <span class="notification-time">${formatRelativeTime(notif.created_at)}</span>
+        </div>
+        <div style="font-size: 1rem; margin-bottom: 5px; font-weight: bold;">${notif.title}</div>
+        <div style="font-size: 0.85rem; opacity: 0.9;">${notif.message}</div>
+        ${!notif.is_read ? '<div style="margin-top: 10px; font-size: 0.75rem; opacity: 0.6;">Click to mark as read</div>' : ''}
+    `;
+
+    return div;
+}
+
+// Apply all filters and load notifications
+async function applyFilters() {
+    currentPage = 1;
+    await loadNotificationsPage(1);
+}
+
+// Load notifications with current filters and pagination
+async function loadNotificationsPage(page) {
+    try {
+        currentPage = page;
+
+        const filter = document.getElementById('notif-filter').value;
+        const type = document.getElementById('notif-type').value;
+        const priority = document.getElementById('notif-priority').value;
+        const dateRange = document.getElementById('notif-date').value;
+        const searchQuery = document.getElementById('notif-search').value;
+
+        const params = new URLSearchParams({
+            filter, type, priority, date_range: dateRange, page, per_page: 20
+        });
+
+        if (searchQuery) params.append('q', searchQuery);
+
+        const response = await fetch(`/tools/admin/notifications/search?${params}`);
+        const data = await response.json();
+
+        if (data.success) {
+            const list = document.getElementById('notifications-list');
+            list.innerHTML = '';
+
+            if (data.notifications.length === 0) {
+                list.innerHTML = '<div style="text-align: center; padding: 40px; opacity: 0.5;">No notifications found</div>';
+            } else {
+                data.notifications.forEach(notif => {
+                    list.appendChild(renderNotification(notif));
+                });
+            }
+
+            // Update pagination controls
+            document.getElementById('notif-page-info').textContent = `Page ${page} of ${data.total_pages}`;
+            document.getElementById('notif-prev-btn').disabled = page <= 1;
+            document.getElementById('notif-next-btn').disabled = page >= data.total_pages;
+
+            // Update stats
+            document.getElementById('notif-stat-total').textContent = data.total;
+
+            // Load count stats
+            updateNotificationCounts();
+        }
+    } catch (error) {
+        console.error('Error loading notifications:', error);
+        showError('Failed to load notifications');
+    }
+}
+
+// Debounced search
+function debounceSearch(value) {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        applyFilters();
+    }, 500);
+}
+
+// Mark notification as read
+async function markRead(notifId) {
+    try {
+        await fetch(`/tools/admin/notifications/mark-read/${notifId}`, {
+            method: 'POST'
+        });
+
+        await loadNotificationsPage(currentPage);
+    } catch (error) {
+        console.error('Error marking notification as read:', error);
+    }
+}
+
+// Mark all as read
+async function markAllRead() {
+    try {
+        await fetch('/tools/admin/notifications/mark-all-read', {
+            method: 'POST'
+        });
+
+        showSuccess('All notifications marked as read');
+        await loadNotificationsPage(currentPage);
+    } catch (error) {
+        console.error('Error marking all as read:', error);
+    }
+}
+
+// Update notification counts
+async function updateNotificationCounts() {
+    try {
+        const response = await fetch('/tools/admin/notifications/count');
+        const data = await response.json();
+
+        if (data.success) {
+            document.getElementById('notif-stat-unread').textContent = data.unread;
+            document.getElementById('notif-stat-critical').textContent = data.critical;
+            document.getElementById('notif-stat-errors').textContent = data.errors;
+
+            // Update badge in sidebar
+            const badge = document.querySelector('[data-section="notifications"] .nav-item-badge');
+            if (badge) {
+                if (data.unread > 0) {
+                    badge.textContent = data.unread;
+                    badge.style.display = '';
+                } else {
+                    badge.style.display = 'none';
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error updating counts:', error);
+    }
+}
+
+// Export notifications
+async function exportNotifications(format) {
+    try {
+        window.location.href = `/tools/admin/notifications/export?format=${format}`;
+        showSuccess(`Exporting notifications as ${format.toUpperCase()}...`);
+    } catch (error) {
+        console.error('Error exporting notifications:', error);
+        showError('Failed to export notifications');
+    }
+}
+
+// Archive old notifications
+async function archiveOldNotifications() {
+    try {
+        const days = prompt('Archive notifications older than how many days?', '30');
+        if (!days) return;
+
+        const response = await fetch('/tools/admin/notifications/archive-old', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ days: parseInt(days) })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showSuccess(`Archived ${data.archived} old notifications`);
+            await applyFilters();
+        }
+    } catch (error) {
+        console.error('Error archiving notifications:', error);
+        showError('Failed to archive notifications');
+    }
+}
+
+// Auto-refresh notification count every 30 seconds
+setInterval(updateNotificationCounts, 30000);
+
+// Keyboard shortcuts for notifications
+document.addEventListener('keydown', (e) => {
+    // Only when notifications section is active
+    const notifSection = document.getElementById('section-notifications');
+    if (!notifSection || notifSection.style.display === 'none') return;
+
+    // Ctrl/Cmd + R: Refresh
+    if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
+        e.preventDefault();
+        applyFilters();
+    }
+
+    // Ctrl/Cmd + A: Mark all as read
+    if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+        e.preventDefault();
+        markAllRead();
+    }
+
+    // Arrow keys for pagination
+    if (e.key === 'ArrowLeft' && currentPage > 1) {
+        loadNotificationsPage(currentPage - 1);
+    }
+    if (e.key === 'ArrowRight') {
+        const nextBtn = document.getElementById('notif-next-btn');
+        if (!nextBtn.disabled) {
+            loadNotificationsPage(currentPage + 1);
+        }
+    }
+});
+
+// Analytics Functions
+let userGrowthChart = null;
+let revenueChart = null;
+
+async function loadAnalytics() {
+    try {
+        // Load user growth data
+        const userResponse = await fetch('/tools/admin/analytics/user-growth');
+        const userData = await userResponse.json();
+        
+        if (userData.success && userData.data.length > 0) {
+            const ctx = document.getElementById('userGrowthChart');
+            if (ctx) {
+                if (userGrowthChart) userGrowthChart.destroy();
+                
+                userGrowthChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: userData.data.map(d => d.date),
+                        datasets: [{
+                            label: 'New Users',
+                            data: userData.data.map(d => d.count),
+                            borderColor: '#00FF00',
+                            backgroundColor: 'rgba(0, 255, 0, 0.1)',
+                            tension: 0.4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { labels: { color: '#00FF00' } }
+                        },
+                        scales: {
+                            y: { 
+                                ticks: { color: '#00FF00' },
+                                grid: { color: 'rgba(0, 255, 0, 0.2)' }
+                            },
+                            x: { 
+                                ticks: { color: '#00FF00' },
+                                grid: { color: 'rgba(0, 255, 0, 0.2)' }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+        
+        // Load revenue data
+        const revenueResponse = await fetch('/tools/admin/analytics/revenue');
+        const revenueData = await revenueResponse.json();
+        
+        if (revenueData.success && revenueData.data.length > 0) {
+            const ctx = document.getElementById('revenueChart');
+            if (ctx) {
+                if (revenueChart) revenueChart.destroy();
+                
+                revenueChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: revenueData.data.map(d => d.date),
+                        datasets: [{
+                            label: 'Revenue ($)',
+                            data: revenueData.data.map(d => parseFloat(d.revenue)),
+                            backgroundColor: 'rgba(0, 255, 0, 0.3)',
+                            borderColor: '#00FF00',
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { labels: { color: '#00FF00' } }
+                        },
+                        scales: {
+                            y: { 
+                                ticks: { color: '#00FF00' },
+                                grid: { color: 'rgba(0, 255, 0, 0.2)' }
+                            },
+                            x: { 
+                                ticks: { color: '#00FF00' },
+                                grid: { color: 'rgba(0, 255, 0, 0.2)' }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Error loading analytics:', error);
+    }
+}
+
+// Store Functions
+async function syncProducts() {
+    if (!confirm('Sync products from Printful?')) return;
+    
+    try {
+        const response = await fetch('/tools/admin/store/sync-products', {
+            method: 'POST'
+        });
+        const result = await response.json();
+        if (result.success) {
+            alert('Synced ' + result.synced + ' products!');
+            location.reload();
+        } else {
+            alert('Error: ' + result.error);
+        }
+    } catch (error) {
+        alert('Error: ' + error);
+    }
+}
+
+function viewOrders() {
+    alert('Orders viewer coming soon!');
+}
+
+// NOTE: Security functions moved to standalone module at /tools/security-network/
+
+// NOTE: Consciousness functions moved to standalone module at /tools/consciousness/
+
+// Website Functions
+async function deployWebsite() {
+    if (!confirm('Deploy website from GitHub?')) return;
+    
+    try {
+        const response = await fetch('/tools/admin/website/deploy', {
+            method: 'POST'
+        });
+        const result = await response.json();
+        if (result.success) {
+            alert('Website deployed successfully!\nCommit: ' + result.commit.sha);
+        } else {
+            alert('Error: ' + result.error);
+        }
+    } catch (error) {
+        alert('Error: ' + error);
+    }
+}
+
+function viewDeployHistory() {
+    alert('Deployment history viewer coming soon!');
+}
+
+// ===============================================
+// AGENT MANAGEMENT FUNCTIONS
+// ===============================================
+
+let currentAgentFilter = 'all';
+let allAgents = [];
+
+async function loadAgents() {
+    const grid = document.getElementById('agentsGrid');
+
+    // Show loading indicator
+    grid.innerHTML = `
+        <div style="grid-column: 1 / -1; text-align: center; padding: 60px;">
+            <div style="display: inline-block; width: 50px; height: 50px; border: 4px solid rgba(0, 255, 0, 0.1); border-radius: 50%; border-top-color: #00FF00; animation: spin 1s linear infinite;"></div>
+            <div style="margin-top: 20px; color: #00FF00; font-size: 1.1rem;">Loading agents...</div>
+        </div>
+    `;
+
+    try {
+        const response = await fetch('/tools/admin/agents', {
+            credentials: 'same-origin',
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        if (data.success) {
+            allAgents = data.agents;
+            displayAgents(allAgents);
+            console.log(`✓ Loaded ${data.count} agents successfully`);
+        } else {
+            console.error('Failed to load agents:', data.error);
+            grid.innerHTML = `
+                <div style="grid-column: 1 / -1; text-align: center; padding: 40px; border: 2px solid #ff4444; background: rgba(255, 68, 68, 0.05);">
+                    <div style="font-size: 2rem; margin-bottom: 10px;">⚠️</div>
+                    <div style="color: #ff4444; font-size: 1.1rem; margin-bottom: 10px;">Error loading agents</div>
+                    <div style="color: #888; font-size: 0.9rem; margin-bottom: 20px;">${data.error}</div>
+                    <button onclick="loadAgents()" class="btn">↻ RETRY</button>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error loading agents:', error);
+        grid.innerHTML = `
+            <div style="grid-column: 1 / -1; text-align: center; padding: 40px; border: 2px solid #ff4444; background: rgba(255, 68, 68, 0.05);">
+                <div style="font-size: 2rem; margin-bottom: 10px;">⚠️</div>
+                <div style="color: #ff4444; font-size: 1.1rem; margin-bottom: 10px;">Error loading agents</div>
+                <div style="color: #888; font-size: 0.9rem; margin-bottom: 5px;">${error.message}</div>
+                <div style="color: #666; font-size: 0.8rem; margin-bottom: 20px;">This usually means authentication failed or the server is unavailable.</div>
+                <button onclick="loadAgents()" class="btn">↻ RETRY</button>
+            </div>
+        `;
+    }
+}
+
+function filterAgentsByTier(tier) {
+    currentAgentFilter = tier;
+
+    let filteredAgents;
+    if (tier === 'all') {
+        filteredAgents = allAgents;
+    } else {
+        filteredAgents = allAgents.filter(agent => agent.tier === tier);
+    }
+
+    displayAgents(filteredAgents);
+}
+
+function displayAgents(agents) {
+    const grid = document.getElementById('agentsGrid');
+
+    if (!agents || agents.length === 0) {
+        grid.innerHTML = '<div style="text-align: center; padding: 40px; opacity: 0.5; grid-column: 1 / -1;">No agents found for this filter</div>';
+        return;
+    }
+
+    // Use DocumentFragment for better performance (single reflow)
+    const fragment = document.createDocumentFragment();
+    const startTime = performance.now();
+
+    agents.forEach(agent => {
+        const card = document.createElement('div');
+        card.className = 'agent-card';
+        card.style.cssText = 'background: #1a1a1a; border: 2px solid #00FF00; padding: 20px; border-radius: 5px; cursor: pointer; transition: all 0.2s ease;';
+        card.onmouseover = function() { this.style.borderColor = '#00FF88'; this.style.boxShadow = '0 0 15px rgba(0, 255, 0, 0.3)'; };
+        card.onmouseout = function() { this.style.borderColor = '#00FF00'; this.style.boxShadow = 'none'; };
+
+        const tierStars = '⭐'.repeat(agent.tier || 1);
+        const statusColor = agent.status === 'active' ? '#00FF00' : '#888';
+        const statusText = agent.status === 'active' ? 'ACTIVE' : (agent.status || 'UNKNOWN').toUpperCase();
+
+        // Escape special characters in agent name for onclick handler
+        const safeAgentName = (agent.name || 'Unknown').replace(/'/g, "\\'");
+
+        card.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
+                <div>
+                    <div style="font-size: 1.8rem; margin-bottom: 5px;">${agent.type_icon || '🤖'}</div>
+                    <div style="font-size: 1.1rem; font-weight: bold; color: #FFFFFF; margin-bottom: 5px;">${agent.name || 'Unnamed Agent'}</div>
+                    <div style="font-size: 0.85rem; color: #888;">${agent.type_name || 'Unknown Type'}</div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 1rem; margin-bottom: 5px;">${tierStars}</div>
+                    <div style="font-size: 0.75rem; color: ${statusColor}; font-weight: bold;">${statusText}</div>
+                </div>
+            </div>
+
+            <div style="margin: 15px 0; padding: 10px; background: rgba(0, 255, 0, 0.05); border-left: 3px solid #00FF00; font-size: 0.85rem; color: #ccc; line-height: 1.4;">
+                ${agent.system_prompt ? agent.system_prompt.substring(0, 150) + '...' : 'No description available'}
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 15px 0;">
+                <div style="text-align: center; padding: 8px; background: rgba(0,0,0,0.3); border-radius: 3px;">
+                    <div style="font-size: 1.2rem; color: #00FF00; font-weight: bold;">${agent.total_executions || 0}</div>
+                    <div style="font-size: 0.7rem; color: #888;">EXECUTIONS</div>
+                </div>
+                <div style="text-align: center; padding: 8px; background: rgba(0,0,0,0.3); border-radius: 3px;">
+                    <div style="font-size: 1.2rem; color: ${agent.failed_executions > 0 ? '#ff4444' : '#00FF00'}; font-weight: bold;">${agent.failed_executions || 0}</div>
+                    <div style="font-size: 0.7rem; color: #888;">FAILED</div>
+                </div>
+            </div>
+
+            <div style="margin-top: 10px; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 3px;">
+                <div style="font-size: 0.75rem; color: #888; margin-bottom: 5px;">MODEL: <span style="color: #00FF00;">${agent.model || 'N/A'}</span></div>
+                <div style="font-size: 0.75rem; color: #888;">AVG DURATION: <span style="color: #00FF00;">${agent.avg_duration && typeof agent.avg_duration === 'number' ? agent.avg_duration.toFixed(1) + 's' : 'N/A'}</span></div>
+            </div>
+
+            <div style="margin-top: 15px; display: flex; gap: 10px;">
+                <button onclick="event.stopPropagation(); viewAgentDetails(${agent.id})" class="btn btn-small" style="flex: 1;">📊 DETAILS</button>
+                <button onclick="event.stopPropagation(); openExecuteModal(${agent.id}, '${safeAgentName}')" class="btn btn-small" style="flex: 1; background: #00FF00; color: black;">▶ EXECUTE</button>
+            </div>
+        `;
+
+        card.onclick = function() { viewAgentDetails(agent.id); };
+        fragment.appendChild(card);
+    });
+
+    // Single DOM update for better performance
+    grid.innerHTML = '';
+    grid.appendChild(fragment);
+
+    const renderTime = (performance.now() - startTime).toFixed(1);
+    console.log(`✓ Rendered ${agents.length} agents in ${renderTime}ms`);
+}
+
+async function viewAgentDetails(agentId) {
+    try {
+        const response = await fetch(`/tools/admin/agents/${agentId}`, {
+            credentials: 'same-origin',
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        if (data.success) {
+            const agent = data.agent;
+            const tools = data.tools || [];
+            const executions = data.recent_executions || [];
+
+            const modal = document.getElementById('agentDetailModal');
+            const content = document.getElementById('agentDetailContent');
+
+            const tierStars = '⭐'.repeat(agent.tier);
+            const statusColor = agent.status === 'active' ? '#00FF00' : '#888';
+
+            let toolsHTML = '<div style="color: #888; text-align: center; padding: 20px;">No tools configured</div>';
+            if (tools.length > 0) {
+                toolsHTML = tools.map(tool => `
+                    <div style="padding: 10px; background: rgba(0,0,0,0.3); margin-bottom: 8px; border-left: 3px solid ${tool.enabled ? '#00FF00' : '#888'};">
+                        <div style="font-weight: bold; color: ${tool.enabled ? '#00FF00' : '#888'};">${tool.tool_name} ${tool.enabled ? '✓' : '✗'}</div>
+                        <div style="font-size: 0.75rem; color: #888;">Used ${tool.usage_count || 0} times</div>
+                    </div>
+                `).join('');
+            }
+
+            let executionsHTML = '<div style="color: #888; text-align: center; padding: 20px;">No executions yet</div>';
+            if (executions.length > 0) {
+                executionsHTML = executions.map(exec => `
+                    <div style="padding: 10px; background: rgba(0,0,0,0.3); margin-bottom: 8px; border-left: 3px solid ${exec.status === 'completed' ? '#00FF00' : '#ff4444'};">
+                        <div style="font-size: 0.85rem; margin-bottom: 5px;">${exec.task_description || 'No description'}</div>
+                        <div style="font-size: 0.75rem; color: #888;">
+                            Status: <span style="color: ${exec.status === 'completed' ? '#00FF00' : '#ff4444'};">${exec.status.toUpperCase()}</span> |
+                            Duration: ${exec.duration_seconds && typeof exec.duration_seconds === 'number' ? exec.duration_seconds.toFixed(1) + 's' : 'N/A'} |
+                            ${new Date(exec.started_at).toLocaleString()}
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            content.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px;">
+                    <div style="font-size: 3rem;">${agent.type_icon || '🤖'}</div>
+                    <div style="flex: 1;">
+                        <h2 style="color: #00FF00; margin: 0 0 5px 0;">${agent.name}</h2>
+                        <div style="color: #888; margin-bottom: 5px;">${agent.type_name || 'Unknown Type'}</div>
+                        <div style="font-size: 1rem;">
+                            ${tierStars} <span style="color: ${statusColor}; font-weight: bold; margin-left: 10px;">${agent.status.toUpperCase()}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="background: rgba(0, 255, 0, 0.05); border-left: 3px solid #00FF00; padding: 15px; margin-bottom: 20px;">
+                    <div style="font-weight: bold; color: #00FF00; margin-bottom: 5px;">SYSTEM PROMPT</div>
+                    <div style="color: #ccc; font-size: 0.9rem;">${agent.system_prompt || 'No system prompt configured'}</div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                    <div style="text-align: center; padding: 15px; background: rgba(0,0,0,0.3);">
+                        <div style="font-size: 0.7rem; color: #888; margin-bottom: 5px;">MODEL</div>
+                        <div style="color: #00FF00; font-weight: bold;">${agent.model}</div>
+                    </div>
+                    <div style="text-align: center; padding: 15px; background: rgba(0,0,0,0.3);">
+                        <div style="font-size: 0.7rem; color: #888; margin-bottom: 5px;">TEMPERATURE</div>
+                        <div style="color: #00FF00; font-weight: bold;">${agent.temperature}</div>
+                    </div>
+                    <div style="text-align: center; padding: 15px; background: rgba(0,0,0,0.3);">
+                        <div style="font-size: 0.7rem; color: #888; margin-bottom: 5px;">MAX TOKENS</div>
+                        <div style="color: #00FF00; font-weight: bold;">${agent.max_tokens}</div>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <h3 style="color: #00FF00; margin-bottom: 10px;">🛠️ AVAILABLE TOOLS</h3>
+                    ${toolsHTML}
+                </div>
+
+                <div>
+                    <h3 style="color: #00FF00; margin-bottom: 10px;">📊 RECENT EXECUTIONS</h3>
+                    ${executionsHTML}
+                </div>
+            `;
+
+            modal.style.display = 'block';
+        }
+    } catch (error) {
+        console.error('Error loading agent details:', error);
+        alert('Error loading agent details');
+    }
+}
+
+function closeAgentDetail() {
+    document.getElementById('agentDetailModal').style.display = 'none';
+}
+
+let currentExecutingAgentId = null;
+
+function openExecuteModal(agentId, agentName) {
+    currentExecutingAgentId = agentId;
+    document.getElementById('executeAgentName').textContent = agentName;
+    document.getElementById('agentTaskInput').value = '';
+    document.getElementById('executionProgress').style.display = 'none';
+    document.getElementById('executionResult').style.display = 'none';
+    document.getElementById('executeAgentModal').style.display = 'block';
+}
+
+function closeExecuteModal() {
+    document.getElementById('executeAgentModal').style.display = 'none';
+    currentExecutingAgentId = null;
+}
+
+async function executeAgentTask() {
+    const task = document.getElementById('agentTaskInput').value.trim();
+
+    if (!task) {
+        alert('Please enter a task description');
+        return;
+    }
+
+    if (!currentExecutingAgentId) {
+        alert('No agent selected');
+        return;
+    }
+
+    const progressDiv = document.getElementById('executionProgress');
+    const resultDiv = document.getElementById('executionResult');
+    const statusDiv = document.getElementById('executionStatus');
+    const resultContent = document.getElementById('resultContent');
+
+    progressDiv.style.display = 'block';
+    resultDiv.style.display = 'none';
+    statusDiv.textContent = 'Sending task to agent...';
+
+    try {
+        const response = await fetch(`/tools/admin/agents/${currentExecutingAgentId}/execute`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ task: task })
+        });
+
+        const data = await response.json();
+
+        progressDiv.style.display = 'none';
+        resultDiv.style.display = 'block';
+
+        if (data.success) {
+            resultContent.style.background = 'rgba(0, 255, 0, 0.05)';
+            resultContent.style.borderLeft = '3px solid #00FF00';
+            resultContent.innerHTML = `
+                <div style="color: #00FF00; font-weight: bold; margin-bottom: 10px;">✓ TASK COMPLETED</div>
+                <div style="color: #ccc; white-space: pre-wrap;">${data.result || 'Task executed successfully'}</div>
+                ${data.execution_id ? `<div style="color: #888; font-size: 0.75rem; margin-top: 10px;">Execution ID: ${data.execution_id}</div>` : ''}
+            `;
+        } else {
+            resultContent.style.background = 'rgba(255, 68, 68, 0.05)';
+            resultContent.style.borderLeft = '3px solid #ff4444';
+            resultContent.innerHTML = `
+                <div style="color: #ff4444; font-weight: bold; margin-bottom: 10px;">✗ TASK FAILED</div>
+                <div style="color: #ccc;">${data.error || 'Unknown error occurred'}</div>
+            `;
+        }
+    } catch (error) {
+        progressDiv.style.display = 'none';
+        resultDiv.style.display = 'block';
+        resultContent.style.background = 'rgba(255, 68, 68, 0.05)';
+        resultContent.style.borderLeft = '3px solid #ff4444';
+        resultContent.innerHTML = `
+            <div style="color: #ff4444; font-weight: bold; margin-bottom: 10px;">✗ ERROR</div>
+            <div style="color: #ccc;">${error.message}</div>
+        `;
+    }
+}
+
+
+// ===============================================
+// CALL HANDLING FUNCTIONS
+// ===============================================
+
+let currentCallTab = 'overview';
+let callHandlingData = {
+    providers: [],
+    conversations: [],
+    escalations: [],
+    stats: {}
+};
+
+async function loadCallHandlingData() {
+    try {
+        // Load stats
+        const statsResponse = await fetch('/tools/admin/call-handling/stats');
+        const statsData = await statsResponse.json();
+
+        if (statsData.success) {
+            callHandlingData.stats = statsData;
+            updateCallStats(statsData);
+        }
+
+        // Load providers
+        const providersResponse = await fetch('/tools/admin/call-handling/providers');
+        const providersData = await providersResponse.json();
+
+        if (providersData.success) {
+            callHandlingData.providers = providersData.providers;
+            displayProviderStatus(providersData.providers);
+        }
+
+        // Load recent conversations
+        const convsResponse = await fetch('/tools/admin/call-handling/conversations?limit=10');
+        const convsData = await convsResponse.json();
+
+        if (convsData.success) {
+            callHandlingData.conversations = convsData.conversations;
+            displayRecentActivity(convsData.conversations);
+        }
+
+    } catch (error) {
+        console.error('Error loading call handling data:', error);
+    }
+}
+
+function updateCallStats(statsData) {
+    const overall = statsData.overall || {};
+    const today = statsData.today || {};
+
+    document.getElementById('stat-active-calls').textContent = overall.active_calls || 0;
+    document.getElementById('stat-calls-today').textContent = today.calls_today || 0;
+
+    const resolutionRate = overall.total_calls > 0
+        ? Math.round((overall.resolved_calls / overall.total_calls) * 100)
+        : 0;
+    document.getElementById('stat-resolution-rate').textContent = resolutionRate + '%';
+
+    const avgSat = overall.avg_satisfaction || 0;
+    document.getElementById('stat-avg-satisfaction').textContent = avgSat.toFixed(1);
+
+    // Display agent performance
+    if (statsData.by_agent && statsData.by_agent.length > 0) {
+        displayAgentPerformance(statsData.by_agent);
+    }
+}
+
+function displayProviderStatus(providers) {
+    const grid = document.getElementById('provider-status-grid');
+    grid.innerHTML = '';
+
+    providers.forEach(provider => {
+        const statusColor = provider.status === 'active' ? '#00FF00' : '#888';
+        const card = document.createElement('div');
+        card.style.cssText = 'background: rgba(0,0,0,0.3); border: 1px solid #00FF00; border-left: 4px solid ' + statusColor + '; padding: 15px;';
+
+        card.innerHTML = `
+            <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                <div style="font-weight: bold; color: #FFFFFF;">${provider.name}</div>
+                <div style="color: ${statusColor}; font-size: 0.85rem;">${provider.status.toUpperCase()}</div>
+            </div>
+            <div style="font-size: 0.85rem; color: #888; margin-bottom: 8px;">
+                Type: <span style="color: #00FF00;">${provider.type}</span>
+            </div>
+            <div style="font-size: 0.85rem; color: #888;">
+                Quality: <span style="color: #00FF00;">${provider.quality_score}/10</span> |
+                Cost: <span style="color: #00FF00;">$${provider.cost_per_minute.toFixed(4)}/min</span>
+            </div>
+        `;
+
+        grid.appendChild(card);
+    });
+}
+
+function displayAgentPerformance(agentStats) {
+    const grid = document.getElementById('agent-performance-grid');
+    grid.innerHTML = '';
+
+    agentStats.forEach(agent => {
+        const resolutionRate = agent.calls > 0
+            ? Math.round((agent.resolved / agent.calls) * 100)
+            : 0;
+
+        const card = document.createElement('div');
+        card.style.cssText = 'background: rgba(0,0,0,0.3); border: 1px solid #00FF00; padding: 12px; margin-bottom: 8px;';
+
+        card.innerHTML = `
+            <div style="display: flex; justify-content: space-between;">
+                <div style="font-weight: bold; color: #FFFFFF;">${agent.agent_type.toUpperCase()}</div>
+                <div style="color: #00FF00;">${agent.calls} calls</div>
+            </div>
+            <div style="font-size: 0.85rem; color: #888; margin-top: 5px;">
+                Resolution: <span style="color: #00FF00;">${resolutionRate}%</span> |
+                Satisfaction: <span style="color: #00FF00;">${(agent.avg_satisfaction || 0).toFixed(1)}/5.0</span>
+            </div>
+        `;
+
+        grid.appendChild(card);
+    });
+}
+
+function displayRecentActivity(conversations) {
+    const list = document.getElementById('recent-activity-list');
+    list.innerHTML = '';
+
+    if (conversations.length === 0) {
+        list.innerHTML = '<div style="text-align: center; padding: 40px; opacity: 0.5;">No recent call activity</div>';
+        return;
+    }
+
+    conversations.slice(0, 5).forEach(conv => {
+        const statusColor = conv.status === 'completed' ? '#00FF00' : conv.status === 'active' ? '#ffaa00' : '#ff4444';
+
+        const item = document.createElement('div');
+        item.style.cssText = 'background: rgba(0,0,0,0.3); border-left: 3px solid ' + statusColor + '; padding: 12px; margin-bottom: 8px; cursor: pointer;';
+        item.onclick = () => viewConversationDetail(conv.id);
+
+        const startTime = new Date(conv.start_time).toLocaleString();
+        const duration = conv.duration_seconds ? Math.floor(conv.duration_seconds / 60) + 'm ' + (conv.duration_seconds % 60) + 's' : 'Ongoing';
+
+        item.innerHTML = `
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                <div style="font-weight: bold; color: #FFFFFF;">${conv.customer_name || conv.phone_number || 'Unknown'}</div>
+                <div style="color: ${statusColor}; font-size: 0.85rem;">${conv.status.toUpperCase()}</div>
+            </div>
+            <div style="font-size: 0.85rem; color: #888;">
+                ${conv.intent ? conv.intent.toUpperCase() : 'GENERAL'} | ${conv.provider_name} | ${duration}
+            </div>
+            <div style="font-size: 0.75rem; color: #666; margin-top: 5px;">
+                ${startTime}
+            </div>
+        `;
+
+        list.appendChild(item);
+    });
+}
+
+function switchCallTab(tabName) {
+    currentCallTab = tabName;
+
+    // Hide all tabs
+    document.querySelectorAll('.call-tab').forEach(tab => tab.style.display = 'none');
+
+    // Show selected tab
+    const selectedTab = document.getElementById('call-tab-' + tabName);
+    if (selectedTab) {
+        selectedTab.style.display = 'block';
+    }
+
+    // Update button styles
+    ['overview', 'conversations', 'providers', 'escalations'].forEach(tab => {
+        const btn = document.getElementById('tab-' + tab);
+        if (btn) {
+            if (tab === tabName) {
+                btn.style.background = '#00FF00';
+                btn.style.color = '#000';
+            } else {
+                btn.style.background = '';
+                btn.style.color = '';
+            }
+        }
+    });
+
+    // Load tab-specific data
+    if (tabName === 'conversations') {
+        filterConversations('all');
+    } else if (tabName === 'providers') {
+        displayProvidersList();
+    } else if (tabName === 'escalations') {
+        filterEscalations('pending');
+    }
+}
+
+async function filterConversations(status) {
+    try {
+        const url = status === 'all'
+            ? '/tools/admin/call-handling/conversations'
+            : `/tools/admin/call-handling/conversations?status=${status}`;
+
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.success) {
+            displayConversations(data.conversations);
+        }
+    } catch (error) {
+        console.error('Error loading conversations:', error);
+    }
+}
+
+function displayConversations(conversations) {
+    const list = document.getElementById('conversations-list');
+    list.innerHTML = '';
+
+    if (conversations.length === 0) {
+        list.innerHTML = '<div style="text-align: center; padding: 40px; opacity: 0.5;">No conversations found</div>';
+        return;
+    }
+
+    conversations.forEach(conv => {
+        const statusColor = conv.status === 'completed' ? '#00FF00' :
+                           conv.status === 'active' ? '#ffaa00' : '#ff4444';
+
+        const card = document.createElement('div');
+        card.style.cssText = 'background: rgba(0,0,0,0.3); border: 1px solid #00FF00; border-left: 4px solid ' + statusColor + '; padding: 15px; cursor: pointer; transition: all 0.2s;';
+        card.onmouseover = () => card.style.borderColor = '#00FF00';
+        card.onmouseout = () => card.style.borderColor = '#00FF00';
+        card.onclick = () => viewConversationDetail(conv.id);
+
+        const startTime = new Date(conv.start_time).toLocaleString();
+        const duration = conv.duration_seconds ? Math.floor(conv.duration_seconds / 60) + 'm ' + (conv.duration_seconds % 60) + 's' : 'Ongoing';
+
+        card.innerHTML = `
+            <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                <div>
+                    <div style="font-weight: bold; color: #FFFFFF; font-size: 1.1rem;">${conv.customer_name || conv.phone_number || 'Unknown'}</div>
+                    <div style="font-size: 0.85rem; color: #888; margin-top: 3px;">${conv.call_sid}</div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="color: ${statusColor}; font-weight: bold;">${conv.status.toUpperCase()}</div>
+                    <div style="font-size: 0.85rem; color: #888; margin-top: 3px;">${conv.direction.toUpperCase()}</div>
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; font-size: 0.85rem; color: #888;">
+                <div>
+                    Intent: <span style="color: #00FF00;">${conv.intent || 'N/A'}</span>
+                </div>
+                <div>
+                    Agent: <span style="color: #00FF00;">${conv.agent_name || conv.agent_type || 'N/A'}</span>
+                </div>
+                <div>
+                    Duration: <span style="color: #00FF00;">${duration}</span>
+                </div>
+            </div>
+            <div style="font-size: 0.75rem; color: #666; margin-top: 10px; border-top: 1px solid #333; padding-top: 8px;">
+                Started: ${startTime} | Provider: ${conv.provider_name} ${conv.cost ? '| Cost: $' + conv.cost.toFixed(4) : ''}
+            </div>
+        `;
+
+        list.appendChild(card);
+    });
+}
+
+function displayProvidersList() {
+    const list = document.getElementById('providers-list');
+    list.innerHTML = '';
+
+    if (callHandlingData.providers.length === 0) {
+        list.innerHTML = '<div style="text-align: center; padding: 40px; opacity: 0.5;">No providers configured</div>';
+        return;
+    }
+
+    callHandlingData.providers.forEach(provider => {
+        const statusColor = provider.status === 'active' ? '#00FF00' : '#888';
+
+        const card = document.createElement('div');
+        card.style.cssText = 'background: rgba(0,0,0,0.3); border: 1px solid #00FF00; border-left: 4px solid ' + statusColor + '; padding: 20px; margin-bottom: 15px;';
+
+        const capabilities = Object.entries(provider.capabilities || {})
+            .filter(([key, val]) => val)
+            .map(([key]) => key.replace(/_/g, ' ').toUpperCase())
+            .join(', ');
+
+        card.innerHTML = `
+            <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+                <div>
+                    <div style="font-size: 1.3rem; font-weight: bold; color: #FFFFFF;">${provider.name}</div>
+                    <div style="font-size: 0.9rem; color: #888; margin-top: 5px;">Type: <span style="color: #00FF00;">${provider.type}</span></div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="color: ${statusColor}; font-weight: bold; font-size: 1rem;">${provider.status.toUpperCase()}</div>
+                    <div style="font-size: 0.85rem; color: #888; margin-top: 5px;">Quality: <span style="color: #00FF00;">${provider.quality_score}/10</span></div>
+                </div>
+            </div>
+            <div style="margin-bottom: 10px;">
+                <div style="font-size: 0.85rem; color: #888; margin-bottom: 5px;">CAPABILITIES:</div>
+                <div style="font-size: 0.9rem; color: #00FF00;">${capabilities || 'None configured'}</div>
+            </div>
+            <div style="border-top: 1px solid #333; padding-top: 10px; margin-top: 10px; font-size: 0.85rem; color: #888;">
+                Cost Per Minute: <span style="color: #00FF00; font-weight: bold;">$${provider.cost_per_minute.toFixed(4)}</span>
+            </div>
+        `;
+
+        list.appendChild(card);
+    });
+}
+
+async function filterEscalations(status) {
+    try {
+        const url = `/tools/admin/call-handling/escalations?status=${status}`;
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.success) {
+            displayEscalations(data.escalations);
+        }
+    } catch (error) {
+        console.error('Error loading escalations:', error);
+    }
+}
+
+function displayEscalations(escalations) {
+    const list = document.getElementById('escalations-list');
+    list.innerHTML = '';
+
+    if (escalations.length === 0) {
+        list.innerHTML = '<div style="text-align: center; padding: 40px; opacity: 0.5;">No escalations found</div>';
+        return;
+    }
+
+    escalations.forEach(esc => {
+        const isPending = !esc.resolved_at;
+        const statusColor = isPending ? '#ffaa00' : '#00FF00';
+
+        const card = document.createElement('div');
+        card.style.cssText = 'background: rgba(0,0,0,0.3); border: 1px solid #00FF00; border-left: 4px solid ' + statusColor + '; padding: 15px; margin-bottom: 10px;';
+
+        const escalatedTime = new Date(esc.escalated_at).toLocaleString();
+
+        card.innerHTML = `
+            <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                <div>
+                    <div style="font-weight: bold; color: #FFFFFF; font-size: 1.1rem;">${esc.customer_name || 'Unknown Customer'}</div>
+                    <div style="font-size: 0.85rem; color: #888; margin-top: 3px;">${esc.phone_number || ''}</div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="color: ${statusColor}; font-weight: bold;">${isPending ? 'PENDING' : 'RESOLVED'}</div>
+                    <div style="font-size: 0.85rem; color: #888; margin-top: 3px;">${esc.trigger_type || 'Manual'}</div>
+                </div>
+            </div>
+            <div style="background: rgba(0,0,0,0.2); padding: 10px; margin: 10px 0; border-left: 3px solid #ffaa00;">
+                <div style="font-weight: bold; color: #ffaa00; margin-bottom: 5px;">REASON:</div>
+                <div style="color: #FFFFFF;">${esc.escalation_reason}</div>
+            </div>
+            <div style="font-size: 0.85rem; color: #888;">
+                Escalated: ${escalatedTime} ${esc.assigned_to ? '| Assigned to: <span style="color: #00FF00;">' + esc.assigned_to + '</span>' : ''}
+            </div>
+            ${esc.resolution_notes ? '<div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #333; font-size: 0.85rem; color: #888;">Resolution: <span style="color: #00FF00;">' + esc.resolution_notes + '</span></div>' : ''}
+        `;
+
+        list.appendChild(card);
+    });
+}
+
+async function viewConversationDetail(conversationId) {
+    try {
+        const response = await fetch(`/tools/admin/call-handling/conversations/${conversationId}`);
+        const data = await response.json();
+
+        if (!data.success) {
+            alert('Error loading conversation details');
+            return;
+        }
+
+        const conv = data.conversation;
+        const turns = data.turns || [];
+
+        const modal = document.getElementById('conversationDetailModal');
+        const content = document.getElementById('conversationDetailContent');
+
+        const startTime = new Date(conv.start_time).toLocaleString();
+        const endTime = conv.end_time ? new Date(conv.end_time).toLocaleString() : 'Ongoing';
+        const duration = conv.duration_seconds ? Math.floor(conv.duration_seconds / 60) + 'm ' + (conv.duration_seconds % 60) + 's' : 'Ongoing';
+
+        const statusColor = conv.status === 'completed' ? '#00FF00' :
+                           conv.status === 'active' ? '#ffaa00' : '#ff4444';
+
+        let turnsHTML = '';
+        turns.forEach(turn => {
+            const roleColor = turn.role === 'customer' ? '#00AAFF' : turn.role === 'ai' ? '#00FF00' : '#888';
+            const roleIcon = turn.role === 'customer' ? '👤' : turn.role === 'ai' ? '🤖' : 'ℹ️';
+
+            turnsHTML += `
+                <div style="background: rgba(0,0,0,0.2); padding: 12px; margin-bottom: 10px; border-left: 3px solid ${roleColor};">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                        <div style="color: ${roleColor}; font-weight: bold;">${roleIcon} ${turn.role.toUpperCase()}</div>
+                        <div style="font-size: 0.75rem; color: #888;">${new Date(turn.timestamp).toLocaleTimeString()} ${turn.confidence_score ? '| Confidence: ' + (turn.confidence_score * 100).toFixed(0) + '%' : ''}</div>
+                    </div>
+                    <div style="color: #FFFFFF; line-height: 1.5;">${turn.content}</div>
+                    ${turn.sentiment ? '<div style="margin-top: 5px; font-size: 0.75rem; color: #888;">Sentiment: <span style="color: #00FF00;">' + turn.sentiment + '</span></div>' : ''}
+                </div>
+            `;
+        });
+
+        content.innerHTML = `
+            <h2 style="color: #00FF00; margin-bottom: 20px;">📞 Conversation Details</h2>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px;">
+                <div>
+                    <div style="font-size: 0.85rem; color: #888; margin-bottom: 5px;">CUSTOMER</div>
+                    <div style="font-size: 1.2rem; font-weight: bold; color: #FFFFFF;">${conv.customer_name || 'Unknown'}</div>
+                    <div style="font-size: 0.9rem; color: #888;">${conv.phone_number || 'No phone'}</div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 0.85rem; color: #888; margin-bottom: 5px;">STATUS</div>
+                    <div style="font-size: 1.2rem; font-weight: bold; color: ${statusColor};">${conv.status.toUpperCase()}</div>
+                    <div style="font-size: 0.9rem; color: #888;">${conv.outcome || 'Pending'}</div>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 30px;">
+                <div style="background: rgba(0,0,0,0.3); padding: 12px; border: 1px solid #333;">
+                    <div style="font-size: 0.75rem; color: #888;">DURATION</div>
+                    <div style="font-size: 1.1rem; color: #00FF00; font-weight: bold;">${duration}</div>
+                </div>
+                <div style="background: rgba(0,0,0,0.3); padding: 12px; border: 1px solid #333;">
+                    <div style="font-size: 0.75rem; color: #888;">AGENT</div>
+                    <div style="font-size: 1.1rem; color: #00FF00; font-weight: bold;">${conv.agent_name || conv.agent_type || 'N/A'}</div>
+                </div>
+                <div style="background: rgba(0,0,0,0.3); padding: 12px; border: 1px solid #333;">
+                    <div style="font-size: 0.75rem; color: #888;">PROVIDER</div>
+                    <div style="font-size: 1.1rem; color: #00FF00; font-weight: bold;">${conv.provider_name}</div>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 20px; padding: 12px; background: rgba(0,0,0,0.2); border: 1px solid #333;">
+                <div style="font-size: 0.85rem; color: #888;">
+                    Started: <span style="color: #00FF00;">${startTime}</span> |
+                    Ended: <span style="color: #00FF00;">${endTime}</span> |
+                    Intent: <span style="color: #00FF00;">${conv.intent || 'N/A'}</span>
+                    ${conv.customer_satisfaction ? '| Satisfaction: <span style="color: #00FF00;">' + conv.customer_satisfaction + '/5.0</span>' : ''}
+                </div>
+            </div>
+
+            <h3 style="color: #00FF00; margin-bottom: 15px;">💬 Conversation Transcript (${turns.length} turns)</h3>
+            <div style="max-height: 500px; overflow-y: auto;">
+                ${turnsHTML || '<div style="text-align: center; padding: 40px; opacity: 0.5;">No transcript available</div>'}
+            </div>
+        `;
+
+        modal.style.display = 'block';
+
+    } catch (error) {
+        console.error('Error viewing conversation detail:', error);
+        alert('Error loading conversation details');
+    }
+}
+
+function closeConversationDetail() {
+    document.getElementById('conversationDetailModal').style.display = 'none';
+}
+
+function refreshCallData() {
+    loadCallHandlingData();
+}
+
+// =============================================================================
+// AGENT DIRECTORY FUNCTIONS
+// =============================================================================
+
+let allDirectoryAgents = [];
+let currentDepartmentFilter = 'all';
+
+async function loadAgentDirectory() {
+    try {
+        const response = await fetch('/tools/admin/agent-directory');
+        const data = await response.json();
+
+        if (data.success) {
+            allDirectoryAgents = data.agents;
+            displayDirectoryStats(data.statistics);
+            displayDepartmentFilters(data.by_department);
+            displayAgentDirectory(allDirectoryAgents);
+        } else {
+            console.error('Failed to load agent directory:', data.error);
+            document.getElementById('agentDirectoryGrid').innerHTML =
+                '<div style="text-align: center; padding: 40px; color: #ff4444;">Error loading agent directory: ' + data.error + '</div>';
+        }
+    } catch (error) {
+        console.error('Error loading agent directory:', error);
+        document.getElementById('agentDirectoryGrid').innerHTML =
+            '<div style="text-align: center; padding: 40px; color: #ff4444;">Error loading agent directory. Please try again.</div>';
+    }
+}
+
+function displayDirectoryStats(stats) {
+    const statsDiv = document.getElementById('directoryStats');
+    statsDiv.innerHTML = `
+        <div style="background: #1a1a1a; border: 2px solid #00FF00; padding: 20px; text-align: center;">
+            <div style="font-size: 2rem; color: #00FF00; font-weight: bold;">${stats.total_active_agents || stats.total_agents || 0}</div>
+            <div style="font-size: 0.85rem; color: #888; margin-top: 5px;">TOTAL AGENTS</div>
+        </div>
+        <div style="background: #1a1a1a; border: 2px solid #00FF00; padding: 20px; text-align: center;">
+            <div style="font-size: 2rem; color: #00FF00; font-weight: bold;">${stats.total_departments || 0}</div>
+            <div style="font-size: 0.85rem; color: #888; margin-top: 5px;">DEPARTMENTS</div>
+        </div>
+        <div style="background: #1a1a1a; border: 2px solid #00FF00; padding: 20px; text-align: center;">
+            <div style="font-size: 2rem; color: #00FF00; font-weight: bold;">$${parseFloat(stats.total_monthly_budget || stats.total_budget || 0).toFixed(2)}</div>
+            <div style="font-size: 0.85rem; color: #888; margin-top: 5px;">MONTHLY BUDGET</div>
+        </div>
+        <div style="background: #1a1a1a; border: 2px solid #00FF00; padding: 20px; text-align: center;">
+            <div style="font-size: 2rem; color: #00FF00; font-weight: bold;">$${parseFloat(stats.total_cost_to_date || 0).toFixed(2)}</div>
+            <div style="font-size: 0.85rem; color: #888; margin-top: 5px;">TOTAL COST</div>
+        </div>
+    `;
+}
+
+function displayDepartmentFilters(byDepartment) {
+    const filterDiv = document.getElementById('departmentFilter');
+    const departments = Object.keys(byDepartment).sort();
+
+    let html = '<div style="display: flex; flex-wrap: wrap; gap: 10px;">';
+    html += '<button class="btn" onclick="filterByDepartment(\'all\')" style="background: #00FF00; color: black;">📊 ALL</button>';
+
+    departments.forEach(dept => {
+        const count = byDepartment[dept].length;
+        html += `<button class="btn" onclick="filterByDepartment('${dept}')">${dept} (${count})</button>`;
+    });
+
+    html += '</div>';
+    filterDiv.innerHTML = html;
+}
+
+function filterByDepartment(department) {
+    currentDepartmentFilter = department;
+
+    let filteredAgents;
+    if (department === 'all') {
+        filteredAgents = allDirectoryAgents;
+    } else {
+        filteredAgents = allDirectoryAgents.filter(agent => agent.department === department);
+    }
+
+    displayAgentDirectory(filteredAgents);
+}
+
+function displayAgentDirectory(agents) {
+    const grid = document.getElementById('agentDirectoryGrid');
+
+    if (!agents || agents.length === 0) {
+        grid.innerHTML = '<div style="text-align: center; padding: 40px; opacity: 0.5; grid-column: 1 / -1;">No agents found</div>';
+        return;
+    }
+
+    grid.innerHTML = '';
+
+    agents.forEach(agent => {
+        const card = document.createElement('div');
+
+        // Determine worker type styling
+        const isContractor = agent.worker_type === 'contract';
+        const borderColor = isContractor ? '#FF4444' : '#00FF00';
+        const badgeColor = isContractor ? 'rgba(255,68,68,0.2)' : 'rgba(0,255,0,0.2)';
+        const badgeText = isContractor ? '⚠️ CONTRACTOR (PAID)' : '✓ INTERNAL STAFF (FREE)';
+
+        card.style.cssText = `background: #1a1a1a; border: 2px solid ${borderColor}; padding: 20px; border-radius: 5px; transition: all 0.2s ease; cursor: pointer;`;
+        card.onmouseover = function() { this.style.boxShadow = `0 0 15px rgba(${isContractor ? '255,68,68' : '0,255,0'}, 0.3)`; this.style.borderColor = isContractor ? '#FF6666' : '#00FF88'; };
+        card.onmouseout = function() { this.style.boxShadow = 'none'; this.style.borderColor = borderColor; };
+        card.onclick = function() { viewDirectoryAgentDetails(agent.id); };
+
+        const fullName = `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.name || 'Unnamed Agent';
+        const tierStars = '⭐'.repeat(agent.tier || 1);
+        const budget = agent.monthly_budget ? `$${parseFloat(agent.monthly_budget).toFixed(2)}/mo` : 'N/A';
+        const costDisplay = agent.total_cost ? `$${parseFloat(agent.total_cost).toFixed(2)}` : '$0.00';
+
+        let capabilitiesHTML = '';
+        if (agent.capabilities && agent.capabilities.specialties) {
+            const specialties = agent.capabilities.specialties.slice(0, 3);
+            capabilitiesHTML = specialties.map(s => `<span style="background: rgba(0,255,0,0.1); padding: 3px 8px; border-radius: 3px; font-size: 0.75rem; color: #00FF00;">${s.replace(/_/g, ' ')}</span>`).join(' ');
+        }
+
+        // Avatar URL or default
+        const avatarUrl = agent.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + encodeURIComponent(fullName);
+
+        card.innerHTML = `
+            <!-- Worker Type Badge -->
+            <div style="background: ${badgeColor}; border: 1px solid ${borderColor}; padding: 6px 10px; border-radius: 4px; margin-bottom: 12px; font-size: 0.75rem; font-weight: bold; text-align: center; color: ${borderColor};">
+                ${badgeText}
+            </div>
+
+            <div style="display: flex; gap: 15px; margin-bottom: 15px;">
+                <div style="flex-shrink: 0;">
+                    <img src="${avatarUrl}" alt="${fullName}" style="width: 80px; height: 80px; border-radius: 50%; border: 3px solid ${borderColor}; background: #0a0a0a; object-fit: cover;">
+                </div>
+                <div style="flex: 1;">
+                    <div style="display: flex; justify-content: space-between; align-items: start;">
+                        <div>
+                            <div style="font-size: 1.2rem; font-weight: bold; color: #FFFFFF; margin-bottom: 5px;">${fullName}</div>
+                            <div style="font-size: 0.85rem; color: #888;">${agent.pronouns || ''}</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="color: ${borderColor};">${tierStars}</div>
+                            <div style="font-size: 0.75rem; color: #888;">Tier ${agent.tier}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 10px;">
+                <div style="color: ${borderColor}; font-size: 0.9rem; font-weight: bold;">${agent.title || agent.name}</div>
+                <div style="color: #888; font-size: 0.8rem;">${agent.department || 'Unassigned'} • ${agent.agent_type || ''}</div>
+            </div>
+
+            <div style="margin-bottom: 10px;">
+                <div style="font-size: 0.8rem; color: #FFFFFF; line-height: 1.4;">${(agent.bio || 'No description available').substring(0, 120)}${agent.bio && agent.bio.length > 120 ? '...' : ''}</div>
+            </div>
+
+            <div style="margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 5px;">
+                ${capabilitiesHTML}
+            </div>
+
+            <div style="border-top: 1px solid #333; padding-top: 10px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <div style="font-size: 0.75rem; color: #888;">📧 ${agent.email || 'N/A'}</div>
+                    <div style="font-size: 0.75rem; color: #888; margin-top: 3px;">🤖 ${agent.model || 'N/A'}</div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 0.85rem; color: ${borderColor}; font-weight: bold;">${budget}</div>
+                    <div style="font-size: 0.7rem; color: #888; margin-top: 3px;">Total: ${costDisplay}</div>
+                </div>
+            </div>
+        `;
+
+        grid.appendChild(card);
+    });
+}
+
+function exportAgentDirectory() {
+    // Create CSV content
+    let csv = 'First Name,Last Name,Email,Title,Department,Pronouns,Worker Type,Tier,Model,Monthly Budget,Total Cost,Status\n';
+
+    allDirectoryAgents.forEach(agent => {
+        csv += `"${agent.first_name || ''}","${agent.last_name || ''}","${agent.email || ''}","${agent.title || ''}","${agent.department || ''}","${agent.pronouns || ''}","${agent.worker_type || ''}",${agent.tier || 1},"${agent.model || ''}",${agent.monthly_budget || 0},${agent.total_cost || 0},"${agent.status || ''}"\n`;
+    });
+
+    // Download CSV
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'agent_directory_' + new Date().toISOString().split('T')[0] + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+}
+
+function viewDirectoryAgentDetails(agentId) {
+    // Find the agent in the loaded directory
+    const agent = allDirectoryAgents.find(a => a.id === agentId);
+
+    if (!agent) {
+        console.error('Agent not found:', agentId);
+        return;
+    }
+
+    const modal = document.getElementById('directoryAgentModal');
+    const content = document.getElementById('directoryAgentContent');
+
+    const fullName = `${agent.first_name} ${agent.last_name}`;
+    const tierStars = '⭐'.repeat(agent.tier);
+    const budget = agent.monthly_budget ? `$${parseFloat(agent.monthly_budget).toFixed(2)}/mo` : 'N/A';
+    const totalCost = agent.total_cost ? `$${parseFloat(agent.total_cost).toFixed(2)}` : '$0.00';
+    const totalTokens = agent.total_tokens_used ? parseInt(agent.total_tokens_used).toLocaleString() : '0';
+
+    // Default avatar if none provided
+    const avatarUrl = agent.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + encodeURIComponent(fullName);
+
+    // Build capabilities HTML
+    let capabilitiesHTML = '<div style="color: #888; padding: 20px; text-align: center;">No capabilities defined</div>';
+    if (agent.capabilities) {
+        const caps = agent.capabilities;
+
+        let sections = '';
+
+        // Specialties
+        if (caps.specialties && caps.specialties.length > 0) {
+            const specialtiesHTML = caps.specialties.map(s =>
+                `<span style="display: inline-block; background: rgba(0,255,0,0.1); border: 1px solid #00FF00; padding: 8px 15px; margin: 5px; border-radius: 5px; color: #00FF00;">${s.replace(/_/g, ' ')}</span>`
+            ).join('');
+            sections += `
+                <div style="margin-bottom: 20px;">
+                    <h4 style="color: #00FF00; margin-bottom: 10px;">🎯 Specialties</h4>
+                    <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+                        ${specialtiesHTML}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Tools
+        if (caps.tools && caps.tools.length > 0) {
+            const toolsHTML = caps.tools.map(t =>
+                `<span style="display: inline-block; background: rgba(255,170,0,0.1); border: 1px solid #FFAA00; padding: 8px 15px; margin: 5px; border-radius: 5px; color: #FFAA00;">${t.replace(/_/g, ' ')}</span>`
+            ).join('');
+            sections += `
+                <div style="margin-bottom: 20px;">
+                    <h4 style="color: #00FF00; margin-bottom: 10px;">🛠️ Tools & Technologies</h4>
+                    <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+                        ${toolsHTML}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Skills
+        if (caps.skills && caps.skills.length > 0) {
+            const skillsHTML = caps.skills.map(s =>
+                `<li style="color: #FFFFFF; margin-bottom: 5px;">${s}</li>`
+            ).join('');
+            sections += `
+                <div style="margin-bottom: 20px;">
+                    <h4 style="color: #00FF00; margin-bottom: 10px;">💡 Skills</h4>
+                    <ul style="margin: 0; padding-left: 25px;">
+                        ${skillsHTML}
+                    </ul>
+                </div>
+            `;
+        }
+
+        // Languages
+        if (caps.languages && caps.languages.length > 0) {
+            const languagesHTML = caps.languages.map(l =>
+                `<span style="display: inline-block; background: rgba(0,200,255,0.1); border: 1px solid #00C8FF; padding: 8px 15px; margin: 5px; border-radius: 5px; color: #00C8FF;">${l}</span>`
+            ).join('');
+            sections += `
+                <div style="margin-bottom: 20px;">
+                    <h4 style="color: #00FF00; margin-bottom: 10px;">🌐 Languages</h4>
+                    <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+                        ${languagesHTML}
+                    </div>
+                </div>
+            `;
+        }
+
+        if (sections) {
+            capabilitiesHTML = sections;
+        }
+    }
+
+    content.innerHTML = `
+        <!-- Agent Header with Avatar -->
+        <div style="display: flex; gap: 25px; margin-bottom: 30px; padding-bottom: 25px; border-bottom: 2px solid #00FF00;">
+            <div style="flex-shrink: 0;">
+                <img src="${avatarUrl}" alt="${fullName}" style="width: 150px; height: 150px; border-radius: 50%; border: 5px solid #00FF00; background: #0a0a0a; object-fit: cover; box-shadow: 0 0 20px rgba(0,255,0,0.4);">
+            </div>
+            <div style="flex: 1;">
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
+                    <h2 style="color: #00FF00; margin: 0; font-size: 2rem;">${fullName}</h2>
+                    <button onclick="openEditAgentModal(${agent.id})" style="padding: 10px 20px; background: #00FF00; border: none; color: #000000; cursor: pointer; font-family: 'Courier New', monospace; font-weight: bold; border-radius: 5px; font-size: 0.9rem; box-shadow: 0 0 10px rgba(0,255,0,0.3);">✏️ EDIT PROFILE</button>
+                </div>
+                <div style="color: #888; font-size: 1rem; margin-bottom: 5px;">${agent.pronouns || ''}</div>
+                <div style="color: #FFFFFF; font-size: 1.3rem; font-weight: bold; margin-bottom: 10px;">${agent.title}</div>
+                <div style="display: flex; gap: 20px; align-items: center; margin-bottom: 10px;">
+                    <div>
+                        <span style="color: #888;">Department:</span>
+                        <span style="color: #00FF00; font-weight: bold; margin-left: 5px;">${agent.department || 'Unassigned'}</span>
+                    </div>
+                    <div>
+                        <span style="color: #888;">Type:</span>
+                        <span style="color: #00FF00; margin-left: 5px;">${agent.agent_type || 'N/A'}</span>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <div style="color: #00FF00; font-size: 1.2rem;">${tierStars}</div>
+                    <div style="color: #888; font-size: 0.9rem;">Tier ${agent.tier}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bio Section -->
+        <div style="background: rgba(0,255,0,0.05); border-left: 4px solid #00FF00; padding: 20px; margin-bottom: 25px; border-radius: 5px;">
+            <h3 style="color: #00FF00; margin: 0 0 10px 0; font-size: 1.1rem;">📋 Biography</h3>
+            <div style="color: #FFFFFF; line-height: 1.6; font-size: 0.95rem;">${agent.bio || 'No biography available'}</div>
+        </div>
+
+        <!-- Stats Grid -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px;">
+            <div style="background: rgba(0,0,0,0.5); border: 1px solid #00FF00; padding: 20px; text-align: center; border-radius: 5px;">
+                <div style="font-size: 0.75rem; color: #888; margin-bottom: 5px;">EMAIL</div>
+                <div style="color: #00FF00; font-weight: bold; font-size: 0.85rem;">${agent.email || 'N/A'}</div>
+            </div>
+            <div style="background: rgba(0,0,0,0.5); border: 1px solid #00FF00; padding: 20px; text-align: center; border-radius: 5px;">
+                <div style="font-size: 0.75rem; color: #888; margin-bottom: 5px;">AI MODEL</div>
+                <div style="color: #00FF00; font-weight: bold; font-size: 0.85rem;">${agent.model || 'N/A'}</div>
+            </div>
+            <div style="background: rgba(0,0,0,0.5); border: 1px solid #00FF00; padding: 20px; text-align: center; border-radius: 5px;">
+                <div style="font-size: 0.75rem; color: #888; margin-bottom: 5px;">MONTHLY BUDGET</div>
+                <div style="color: #00FF00; font-weight: bold; font-size: 1.2rem;">${budget}</div>
+            </div>
+            <div style="background: rgba(0,0,0,0.5); border: 1px solid #00FF00; padding: 20px; text-align: center; border-radius: 5px;">
+                <div style="font-size: 0.75rem; color: #888; margin-bottom: 5px;">TOTAL COST</div>
+                <div style="color: #FFAA00; font-weight: bold; font-size: 1.2rem;">${totalCost}</div>
+            </div>
+            <div style="background: rgba(0,0,0,0.5); border: 1px solid #00FF00; padding: 20px; text-align: center; border-radius: 5px;">
+                <div style="font-size: 0.75rem; color: #888; margin-bottom: 5px;">TOKENS USED</div>
+                <div style="color: #00C8FF; font-weight: bold; font-size: 1.2rem;">${totalTokens}</div>
+            </div>
+        </div>
+
+        <!-- Capabilities Section -->
+        <div style="background: rgba(0,0,0,0.3); border: 1px solid #00FF00; padding: 25px; margin-bottom: 25px; border-radius: 5px;">
+            <h3 style="color: #00FF00; margin: 0 0 20px 0; font-size: 1.3rem;">🎯 Capabilities & Expertise</h3>
+            ${capabilitiesHTML}
+        </div>
+
+        <!-- System Prompt Section -->
+        <div style="background: rgba(0,255,0,0.05); border: 2px solid #00FF00; padding: 25px; border-radius: 5px;">
+            <h3 style="color: #00FF00; margin: 0 0 15px 0; font-size: 1.3rem;">🤖 System Prompt</h3>
+            <div style="color: #CCCCCC; line-height: 1.6; font-family: 'Courier New', monospace; font-size: 0.85rem; white-space: pre-wrap; background: #0a0a0a; padding: 15px; border-radius: 5px; max-height: 400px; overflow-y: auto;">${agent.system_prompt || 'No system prompt configured'}</div>
+        </div>
+    `;
+
+    modal.style.display = 'block';
+    document.body.style.overflow = 'hidden'; // Prevent background scrolling
+}
+
+function closeDirectoryAgentModal() {
+    document.getElementById('directoryAgentModal').style.display = 'none';
+    document.body.style.overflow = 'auto'; // Re-enable scrolling
+}
+
+// =============================================================================
+// AGENT PROFILE EDITING FUNCTIONS
+// =============================================================================
+
+function openEditAgentModal(agentId) {
+    // Find the agent in the loaded directory
+    const agent = allDirectoryAgents.find(a => a.id === agentId);
+
+    if (!agent) {
+        console.error('Agent not found:', agentId);
+        return;
+    }
+
+    // Populate the edit form
+    document.getElementById('editAgentId').value = agent.id;
+    document.getElementById('editFirstName').value = agent.first_name || '';
+    document.getElementById('editLastName').value = agent.last_name || '';
+    document.getElementById('editEmail').value = agent.email || '';
+    document.getElementById('editPhone').value = agent.phone || '';
+    document.getElementById('editAvatarUrl').value = agent.avatar_url || '';
+
+    // Set avatar previews
+    const fullName = `${agent.first_name} ${agent.last_name}`;
+    const currentAvatar = agent.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(fullName)}`;
+    document.getElementById('currentAvatarPreview').src = currentAvatar;
+    document.getElementById('newAvatarPreview').src = currentAvatar;
+
+    // Hide status message
+    document.getElementById('editAgentStatus').style.display = 'none';
+
+    // Show edit modal
+    document.getElementById('editAgentModal').style.display = 'block';
+}
+
+function updateAvatarPreview() {
+    const urlInput = document.getElementById('editAvatarUrl');
+    const preview = document.getElementById('newAvatarPreview');
+    const firstName = document.getElementById('editFirstName').value;
+    const lastName = document.getElementById('editLastName').value;
+    const fullName = `${firstName} ${lastName}`.trim();
+
+    if (urlInput.value.trim()) {
+        // User entered a custom URL
+        preview.src = urlInput.value.trim();
+        preview.onerror = function() {
+            // If image fails to load, show placeholder
+            this.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(fullName || 'agent')}`;
+        };
+    } else {
+        // Empty = use auto-generated avatar
+        preview.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(fullName || 'agent')}`;
+    }
+}
+
+function closeEditAgentModal() {
+    document.getElementById('editAgentModal').style.display = 'none';
+    document.getElementById('editAgentForm').reset();
+}
+
+async function saveAgentProfile(event) {
+    event.preventDefault();
+
+    const agentId = document.getElementById('editAgentId').value;
+    const statusDiv = document.getElementById('editAgentStatus');
+
+    // Show loading status
+    statusDiv.style.display = 'block';
+    statusDiv.style.background = 'rgba(0,255,0,0.1)';
+    statusDiv.style.border = '1px solid #00FF00';
+    statusDiv.style.color = '#00FF00';
+    statusDiv.innerHTML = '⏳ Saving changes...';
+
+    try {
+        const formData = {
+            first_name: document.getElementById('editFirstName').value,
+            last_name: document.getElementById('editLastName').value,
+            email: document.getElementById('editEmail').value,
+            phone: document.getElementById('editPhone').value,
+            avatar_url: document.getElementById('editAvatarUrl').value
+        };
+
+        const response = await fetch(`/tools/admin/agents/${agentId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(formData)
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            // Show success message
+            statusDiv.style.background = 'rgba(0,255,0,0.2)';
+            statusDiv.style.border = '2px solid #00FF00';
+            statusDiv.style.color = '#00FF00';
+            statusDiv.innerHTML = '✅ Profile updated successfully! Changes will appear in both Admin Directory and Public Directory.';
+
+            // Update the agent in the local array
+            const agentIndex = allDirectoryAgents.findIndex(a => a.id === parseInt(agentId));
+            if (agentIndex !== -1) {
+                allDirectoryAgents[agentIndex] = {...allDirectoryAgents[agentIndex], ...data.agent};
+            }
+
+            // Reload the directory to show updated data
+            setTimeout(() => {
+                closeEditAgentModal();
+                closeDirectoryAgentModal();
+                loadAgentDirectory();
+            }, 1500);
+
+        } else {
+            // Show error message
+            statusDiv.style.background = 'rgba(255,0,0,0.2)';
+            statusDiv.style.border = '2px solid #ff4444';
+            statusDiv.style.color = '#ff4444';
+            statusDiv.innerHTML = '❌ Error: ' + (data.error || 'Failed to update profile');
+        }
+    } catch (error) {
+        console.error('Error saving agent profile:', error);
+        statusDiv.style.background = 'rgba(255,0,0,0.2)';
+        statusDiv.style.border = '2px solid #ff4444';
+        statusDiv.style.color = '#ff4444';
+        statusDiv.innerHTML = '❌ Network error: ' + error.message;
+    }
+}
+
+// Auto-load when section is shown
+document.addEventListener('DOMContentLoaded', function() {
+    // Check if agent-directory section is visible and load
+    const observer = new MutationObserver(function(mutations) {
+        const section = document.getElementById('section-agent-directory');
+        if (section && section.style.display !== 'none' && allDirectoryAgents.length === 0) {
+            loadAgentDirectory();
+        }
+    });
+});
+
+// ============================================================================
+// GITHUB INTEGRATION FUNCTIONS
+// ============================================================================
+
+// Test GitHub connection
+async function testGitHubConnection() {
+    const token = document.getElementById('github-token').value;
+
+    if (!token) {
+        showWarning('Please enter a GitHub token first');
+        return;
+    }
+
+    try {
+        const response = await fetch('/tools/github/test-connection', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showSuccess(`${data.message} | Username: ${data.username} | Name: ${data.name || 'N/A'} | Email: ${data.email || 'N/A'}`);
+        } else {
+            showError(`Connection failed: ${data.error}`);
+        }
+    } catch (error) {
+        showError(`Error: ${error.message}`);
+    }
+}
+
+// Save GitHub settings
+// Load GitHub settings from database
+async function loadGitHubSettings() {
+    try {
+        const response = await fetch('/tools/github/get-settings', {
+            method: 'GET',
+            credentials: 'same-origin'
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.settings) {
+            const s = data.settings;
+            document.getElementById('github-token').value = s.token || '';
+            document.getElementById('github-username').value = s.username || '';
+            document.getElementById('github-email').value = s.email || '';
+            document.getElementById('website-repo').value = s.website_repo || '';
+            document.getElementById('auto-deploy').checked = s.auto_deploy || false;
+            document.getElementById('auto-commit-docs').checked = s.auto_commit_docs !== false;
+        }
+    } catch (error) {
+        console.error('Error loading GitHub settings:', error);
+    }
+}
+
+async function saveGitHubSettings() {
+    const settings = {
+        token: document.getElementById('github-token').value,
+        username: document.getElementById('github-username').value,
+        email: document.getElementById('github-email').value,
+        website_repo: document.getElementById('website-repo').value,
+        auto_deploy: document.getElementById('auto-deploy').checked,
+        auto_commit_docs: document.getElementById('auto-commit-docs').checked
+    };
+
+    try {
+        const response = await fetch('/tools/github/save-settings', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(settings)
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showSuccess('GitHub settings saved successfully!');
+        } else {
+            showError(`Error: ${data.error}`);
+        }
+    } catch (error) {
+        showError(`Error: ${error.message}`);
+    }
+}
+
+// Clone website repository
+async function cloneWebsiteRepo() {
+    const repo = document.getElementById('website-repo').value;
+
+    if (!repo) {
+        alert('Please enter a repository name (username/repository)');
+        return;
+    }
+
+    if (!confirm(`Clone repository: ${repo}?`)) return;
+
+    try {
+        const response = await fetch('/tools/github/clone-repo', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ repo, type: 'website' })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            alert(`✓ ${data.message}\n\nLocal path: ${data.local_path}\nFiles: ${data.file_count}`);
+            refreshRepoStatus();
+        } else {
+            showError(data.error);
+        }
+    } catch (error) {
+        showError(error.message);
+    }
+}
+
+// Pull website changes
+async function pullWebsiteChanges() {
+    const localPath = document.getElementById('website-path').value;
+
+    try {
+        const response = await fetch('/tools/github/pull-repo', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ local_path: localPath })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showSuccess(data.message);
+        } else {
+            showError(data.error);
+        }
+    } catch (error) {
+        showError(error.message);
+    }
+}
+
+// Push website changes
+async function pushWebsiteChanges() {
+    const localPath = document.getElementById('website-path').value;
+
+    const message = prompt('Enter commit message:', 'Update website from A.R.C.H.I.E.');
+    if (!message) return;
+
+    try {
+        const response = await fetch('/tools/github/push-repo', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ local_path: localPath, commit_message: message })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showSuccess(data.message);
+        } else {
+            showError(data.error);
+        }
+    } catch (error) {
+        showError(error.message);
+    }
+}
+
+// Sync website
+async function syncWebsite() {
+    const localPath = document.getElementById('website-path').value;
+
+    if (!confirm('Sync website (pull from GitHub, then push local changes)?')) return;
+
+    try {
+        // First pull
+        let response = await fetch('/tools/github/pull-repo', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ local_path: localPath })
+        });
+
+        if (!response.ok) {
+            const data = await response.json();
+            alert(`✗ Pull failed: ${data.error}`);
+            return;
+        }
+
+        // Then push
+        response = await fetch('/tools/github/push-repo', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                local_path: localPath,
+                commit_message: `Sync from A.R.C.H.I.E. - ${new Date().toISOString()}`
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            alert('✓ Website synced successfully!');
+        } else {
+            alert(`✓ Pulled successfully, but push had no changes or failed: ${data.message || data.error}`);
+        }
+    } catch (error) {
+        showError(error.message);
+    }
+}
+
+// NOTE: Learning Resources functions moved to Consciousness module
+// See /tools/consciousness/ → RESOURCES tab for repo management
+
+// Open website preview
+function openWebsitePreview() {
+    alert('Website preview coming soon!\n\nThis will serve the local website for testing before deployment.');
+}
+
+// NOTE: refreshRepoStatus moved to Consciousness module
+
+// Auto-load GitHub settings and refresh repo status when Configuration section is shown
+document.addEventListener('DOMContentLoaded', function() {
+    const navItems = document.querySelectorAll('[data-section="config"]');
+    navItems.forEach(item => {
+        item.addEventListener('click', function() {
+            setTimeout(() => {
+                loadGitHubSettings();  // Load saved settings
+            }, 500);
+        });
+    });
+
+    // Auto-load data when sections are clicked
+    document.querySelectorAll('[data-section="subscriptions"]').forEach(item => {
+        item.addEventListener('click', () => setTimeout(loadSubscriptions, 300));
+    });
+
+    document.querySelectorAll('[data-section="permissions"]').forEach(item => {
+        item.addEventListener('click', () => setTimeout(loadUsersForPermissions, 300));
+    });
+
+    document.querySelectorAll('[data-section="modules"]').forEach(item => {
+        item.addEventListener('click', () => setTimeout(loadModules, 300));
+    });
+});
+
+// ===========================================================================
+// SUBSCRIPTION MANAGEMENT (Phase 6.5)
+// ===========================================================================
+
+function loadSubscriptions() {
+    fetch('/tools/admin/subscriptions')
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                // Update stats
+                const stats = data.statistics;
+                const statsGrid = document.getElementById('subscription-stats');
+                if (statsGrid && stats) {
+                    const tierLabels = { free: 'FREE TIER', pro: 'PRO TIER', business: 'BUSINESS TIER', enterprise: 'ENTERPRISE TIER' };
+                    statsGrid.innerHTML = '';
+                    stats.forEach(stat => {
+                        const card = document.createElement('div');
+                        card.className = 'stat-card';
+                        card.innerHTML = `
+                            <div class="stat-label">${tierLabels[stat.subscription_tier] || stat.subscription_tier.toUpperCase()}</div>
+                            <div class="stat-value">${stat.user_count}</div>
+                            <div style="font-size: 0.7rem; opacity: 0.6; margin-top: 5px;">${stat.active_count} active</div>
+                        `;
+                        statsGrid.appendChild(card);
+                    });
+                }
+
+                // Update table
+                const tbody = document.getElementById('subscriptions-table-body');
+                if (tbody && data.paid_users) {
+                    if (data.paid_users.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; opacity: 0.5;">No paid subscriptions</td></tr>';
+                    } else {
+                        tbody.innerHTML = data.paid_users.map(user => {
+                            const expires = user.subscription_expires_at ? new Date(user.subscription_expires_at) : null;
+                            const daysLeft = expires ? Math.ceil((expires - new Date()) / (1000 * 60 * 60 * 24)) : '∞';
+                            const expiresStr = expires ? expires.toLocaleDateString() : 'Never';
+
+                            return `
+                                <tr>
+                                    <td>${user.username}</td>
+                                    <td>${user.email}</td>
+                                    <td><span class="badge" style="border-color: #FFC107; color: #FFC107;">${user.subscription_tier.toUpperCase()}</span></td>
+                                    <td>${expiresStr}</td>
+                                    <td>${daysLeft}</td>
+                                    <td>
+                                        <button class="btn btn-small" onclick="editSubscription(${user.id})">EDIT</button>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('');
+                    }
+                }
+            }
+        })
+        .catch(e => console.error('Failed to load subscriptions:', e));
+}
+
+function editSubscription(userId) {
+    const newTier = prompt('Enter new subscription tier (free, pro, business, enterprise):');
+    if (!newTier) return;
+
+    const expiresAt = prompt('Enter expiration date (YYYY-MM-DD) or leave blank for never:');
+
+    fetch(`/tools/admin/user/${userId}/subscription/update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            subscription_tier: newTier.toLowerCase(),
+            expires_at: expiresAt || null
+        })
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                showNotification(data.message, 'success');
+                loadSubscriptions();
+            } else {
+                showNotification(data.error || 'Failed to update subscription', 'error');
+            }
+        })
+        .catch(e => showNotification('Error updating subscription', 'error'));
+}
+
+// ===========================================================================
+// PERMISSION MANAGEMENT (Phase 6.5)
+// ===========================================================================
+
+function loadUsersForPermissions() {
+    fetch('/tools/admin/users')
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                const select = document.getElementById('permission-user-select');
+                if (select) {
+                    select.innerHTML = '<option value="">-- Select User --</option>';
+                    data.users.forEach(user => {
+                        const option = document.createElement('option');
+                        option.value = user.id;
+                        option.textContent = `${user.username} (${user.subscription_tier})`;
+                        select.appendChild(option);
+                    });
+                }
+            }
+        })
+        .catch(e => console.error('Failed to load users:', e));
+}
+
+function loadUserPermissions() {
+    const userId = document.getElementById('permission-user-select').value;
+    if (!userId) {
+        document.getElementById('permission-details').style.display = 'none';
+        return;
+    }
+
+    fetch(`/tools/admin/user/${userId}/permissions`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('permission-details').style.display = 'block';
+
+                // Update user info
+                document.getElementById('perm-username').textContent = data.user.username;
+                document.getElementById('perm-subscription').textContent = data.user.subscription_tier.toUpperCase();
+                document.getElementById('perm-role').textContent = data.computed_role;
+                document.getElementById('perm-accessible').textContent = `${data.accessible_count} / ${data.total_count}`;
+
+                // Update accessible modules table
+                const accessibleTable = document.getElementById('accessible-modules-table');
+                if (data.accessible_modules.length === 0) {
+                    accessibleTable.innerHTML = '<tr><td colspan="3" style="text-align: center; opacity: 0.5;">No accessible modules</td></tr>';
+                } else {
+                    accessibleTable.innerHTML = data.accessible_modules.map(mod => `
+                        <tr>
+                            <td>${mod.name}</td>
+                            <td>${mod.category}</td>
+                            <td>${mod.minimum_role}</td>
+                        </tr>
+                    `).join('');
+                }
+
+                // Update locked modules table
+                const lockedTable = document.getElementById('locked-modules-table');
+                if (data.locked_modules.length === 0) {
+                    lockedTable.innerHTML = '<tr><td colspan="4" style="text-align: center; opacity: 0.5;">All modules accessible!</td></tr>';
+                } else {
+                    lockedTable.innerHTML = data.locked_modules.map(mod => `
+                        <tr>
+                            <td>${mod.name}</td>
+                            <td>${mod.category}</td>
+                            <td>${mod.minimum_role}</td>
+                            <td>
+                                <button class="btn btn-small" onclick="grantAccess(${userId}, '${mod.id}')">GRANT ACCESS</button>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            }
+        })
+        .catch(e => console.error('Failed to load permissions:', e));
+}
+
+function grantAccess(userId, moduleId) {
+    showNotification('To grant access, upgrade the user\'s subscription tier in the SUBSCRIPTIONS section', 'info');
+}
+
+// ===========================================================================
+// MODULE REGISTRY (Phase 6.5)
+// ===========================================================================
+
+function loadModules() {
+    fetch('/tools/admin/modules')
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                const tbody = document.getElementById('modules-table-body');
+                if (tbody) {
+                    if (data.modules.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; opacity: 0.5;">No modules found</td></tr>';
+                    } else {
+                        tbody.innerHTML = data.modules.map(mod => {
+                            const statusBadge = mod.enabled ?
+                                '<span class="badge badge-active">ENABLED</span>' :
+                                '<span class="badge badge-inactive">DISABLED</span>';
+                            const betaBadge = mod.beta ? '<span class="badge badge-beta">BETA</span>' : '';
+                            const comingSoonBadge = mod.coming_soon ? '<span class="badge badge-coming-soon">COMING SOON</span>' : '';
+
+                            return `
+                                <tr>
+                                    <td>${mod.id}</td>
+                                    <td>${mod.name} ${betaBadge} ${comingSoonBadge}</td>
+                                    <td>${mod.category}</td>
+                                    <td>${mod.minimum_role}</td>
+                                    <td>${statusBadge}</td>
+                                    <td>${mod.priority}</td>
+                                </tr>
+                            `;
+                        }).join('');
+                    }
+                }
+            }
+        })
+        .catch(e => console.error('Failed to load modules:', e));
+}
+
+</script>
+{% endblock %}

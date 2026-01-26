@@ -1,0 +1,2246 @@
+{% extends "base.html" %}
+
+{% block title %}A.R.C.H.I.E. Command Interface{% endblock %}
+
+{% block styles %}
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+    --bg-primary: #0a0a0f;
+    --bg-secondary: #12121a;
+    --bg-tertiary: #1a1a24;
+    --bg-card: #16161f;
+    --border-color: #2a2a3a;
+    --border-glow: rgba(102, 126, 234, 0.3);
+    --text-primary: #e8e8ed;
+    --text-secondary: #8888a0;
+    --text-muted: #5a5a70;
+    --accent-purple: #667eea;
+    --accent-violet: #764ba2;
+    --accent-cyan: #00d4aa;
+    --accent-orange: #ff9f43;
+    --accent-red: #ff6b6b;
+    --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --gradient-glow: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%);
+    --shadow-glow: 0 0 30px rgba(102, 126, 234, 0.15);
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-sans: 'Inter', -apple-system, sans-serif;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+.command-interface {
+    display: flex;
+    height: 100vh;
+    background: var(--bg-primary);
+    font-family: var(--font-sans);
+    color: var(--text-primary);
+    overflow: hidden;
+}
+
+/* Grid Background Pattern */
+.command-interface::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image:
+        linear-gradient(rgba(102, 126, 234, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(102, 126, 234, 0.03) 1px, transparent 1px);
+    background-size: 50px 50px;
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* ============================================
+   LEFT SIDEBAR - Status & Actions
+   ============================================ */
+.sidebar {
+    width: 280px;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    z-index: 1;
+    position: relative;
+}
+
+.sidebar-header {
+    padding: 20px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--gradient-glow);
+}
+
+.archie-branding {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.archie-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: var(--gradient-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    box-shadow: var(--shadow-glow);
+    position: relative;
+}
+
+.archie-avatar::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 14px;
+    background: var(--gradient-primary);
+    opacity: 0.5;
+    filter: blur(8px);
+    z-index: -1;
+}
+
+.archie-info h1 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+}
+
+.archie-info .subtitle {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: rgba(0, 212, 170, 0.1);
+    border: 1px solid rgba(0, 212, 170, 0.3);
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--accent-cyan);
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--accent-cyan);
+    border-radius: 50%;
+    animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+    0%, 100% {
+        opacity: 1;
+        box-shadow: 0 0 0 0 rgba(0, 212, 170, 0.4);
+    }
+    50% {
+        opacity: 0.7;
+        box-shadow: 0 0 0 8px rgba(0, 212, 170, 0);
+    }
+}
+
+/* Status Metrics */
+.status-metrics {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.status-metrics h3 {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+}
+
+.metric-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+}
+
+.metric-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.metric-label i {
+    width: 16px;
+    height: 16px;
+    opacity: 0.7;
+}
+
+.metric-value {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.metric-bar {
+    width: 100%;
+    height: 4px;
+    background: var(--bg-tertiary);
+    border-radius: 2px;
+    margin-top: 4px;
+    overflow: hidden;
+}
+
+.metric-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.5s ease;
+}
+
+.metric-bar-fill.energy {
+    background: var(--accent-cyan);
+}
+
+.metric-bar-fill.relationship {
+    background: var(--gradient-primary);
+}
+
+/* Quick Actions */
+.quick-actions {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.quick-actions h3 {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+}
+
+.action-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 12px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.action-btn:hover {
+    background: var(--bg-card);
+    border-color: var(--accent-purple);
+    color: var(--text-primary);
+    transform: translateY(-1px);
+}
+
+.action-btn i {
+    width: 14px;
+    height: 14px;
+}
+
+/* Recent Commands */
+.recent-commands {
+    flex: 1;
+    padding: 16px 20px;
+    overflow-y: auto;
+}
+
+.recent-commands h3 {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+}
+
+.command-item {
+    padding: 10px 12px;
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+}
+
+.command-item:hover {
+    border-color: var(--border-color);
+    transform: translateX(4px);
+}
+
+.command-text {
+    font-size: 0.8rem;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 4px;
+}
+
+.command-meta {
+    display: flex;
+    gap: 8px;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+}
+
+.command-intent {
+    padding: 2px 6px;
+    background: rgba(102, 126, 234, 0.15);
+    border-radius: 4px;
+    color: var(--accent-purple);
+}
+
+/* ============================================
+   MAIN CHAT AREA
+   ============================================ */
+.chat-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    z-index: 1;
+}
+
+/* Top Status Bar */
+.top-status-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 24px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.status-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.workflow-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+    font-size: 0.75rem;
+}
+
+.workflow-indicator i {
+    width: 14px;
+    height: 14px;
+    color: var(--accent-cyan);
+}
+
+.workflow-indicator span {
+    color: var(--text-secondary);
+}
+
+.workflow-indicator strong {
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+}
+
+.status-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.nav-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.nav-btn:hover {
+    background: var(--bg-card);
+    color: var(--text-primary);
+    border-color: var(--accent-purple);
+}
+
+.nav-btn i {
+    width: 18px;
+    height: 18px;
+}
+
+/* Messages Container */
+.messages-container {
+    flex: 1;
+    padding: 24px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.messages-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.messages-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.messages-container::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 3px;
+}
+
+/* Message Styles */
+.message {
+    display: flex;
+    gap: 12px;
+    max-width: 85%;
+    animation: message-enter 0.3s ease;
+}
+
+@keyframes message-enter {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.message.user {
+    align-self: flex-end;
+    flex-direction: row-reverse;
+}
+
+.message-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.message.archie .message-avatar {
+    background: var(--gradient-primary);
+    box-shadow: 0 0 20px rgba(102, 126, 234, 0.3);
+}
+
+.message.user .message-avatar {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+}
+
+.message-content {
+    flex: 1;
+}
+
+.message-bubble {
+    padding: 14px 18px;
+    border-radius: 16px;
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+
+.message.archie .message-bubble {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-top-left-radius: 4px;
+}
+
+.message.user .message-bubble {
+    background: var(--gradient-primary);
+    color: white;
+    border-top-right-radius: 4px;
+}
+
+.message-text {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.message-text code {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    padding: 2px 6px;
+    background: rgba(102, 126, 234, 0.15);
+    border-radius: 4px;
+}
+
+.message-text pre {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 12px;
+    margin: 12px 0;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+}
+
+/* Message Metadata (for ARCHIE responses) */
+.message-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-color);
+}
+
+.meta-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-family: var(--font-mono);
+    font-weight: 500;
+}
+
+.meta-tag.intent {
+    background: rgba(102, 126, 234, 0.15);
+    color: var(--accent-purple);
+}
+
+.meta-tag.agent {
+    background: rgba(0, 212, 170, 0.1);
+    color: var(--accent-cyan);
+}
+
+.meta-tag.model {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+}
+
+.meta-tag.time {
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+}
+
+.meta-tag.escalation {
+    background: rgba(255, 159, 67, 0.15);
+    color: var(--accent-orange);
+}
+
+.meta-tag i {
+    width: 12px;
+    height: 12px;
+}
+
+/* Module Action Buttons */
+.module-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-color);
+}
+
+.module-actions-label {
+    width: 100%;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+
+.module-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+    border: 1px solid rgba(102, 126, 234, 0.3);
+    border-radius: 8px;
+    color: var(--accent-purple);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.module-action-btn:hover {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2));
+    border-color: var(--accent-purple);
+    transform: translateY(-1px);
+}
+
+.module-action-btn i {
+    width: 14px;
+    height: 14px;
+}
+
+/* Multi-Agent Discussion Styles (Phase 63) */
+.message.multi-agent .message-bubble {
+    border-left: 3px solid var(--accent-purple);
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.05), rgba(118, 75, 162, 0.03));
+}
+
+.discussion-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: rgba(102, 126, 234, 0.1);
+    border-radius: 10px 10px 0 0;
+    margin: -14px -16px 14px -16px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.discussion-header i {
+    color: var(--accent-cyan);
+    width: 18px;
+    height: 18px;
+}
+
+.discussion-header span {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent-cyan);
+}
+
+.discussion-header .toggle-btn {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.discussion-header .toggle-btn:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.discussion-header .toggle-btn i {
+    width: 16px;
+    height: 16px;
+}
+
+.discussion-thread {
+    max-height: 400px;
+    overflow-y: auto;
+    margin-bottom: 16px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-secondary);
+}
+
+.discussion-thread.collapsed {
+    max-height: 0;
+    overflow: hidden;
+    margin-bottom: 0;
+    border: none;
+}
+
+.agent-contribution {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.agent-contribution:last-child {
+    border-bottom: none;
+}
+
+.contrib-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.agent-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: var(--gradient-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: white;
+}
+
+.agent-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 13px;
+}
+
+.agent-station {
+    font-size: 11px;
+    padding: 2px 8px;
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+}
+
+.contrib-content {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+}
+
+.contrib-content code {
+    background: var(--bg-tertiary);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+}
+
+.synthesis-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--accent-cyan);
+    margin-bottom: 10px;
+    font-weight: 600;
+}
+
+.synthesis-label i {
+    width: 14px;
+    height: 14px;
+}
+
+/* Typing Indicator */
+.typing-indicator {
+    display: none;
+    padding: 14px 18px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    border-top-left-radius: 4px;
+    width: fit-content;
+}
+
+.typing-indicator.active {
+    display: block;
+}
+
+.typing-dots {
+    display: flex;
+    gap: 6px;
+}
+
+.typing-dots span {
+    width: 8px;
+    height: 8px;
+    background: var(--accent-purple);
+    border-radius: 50%;
+    animation: typing-bounce 1.4s ease-in-out infinite;
+}
+
+.typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes typing-bounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+    30% { transform: translateY(-8px); opacity: 1; }
+}
+
+/* ============================================
+   INPUT AREA
+   ============================================ */
+.input-area {
+    padding: 16px 24px 24px;
+    background: linear-gradient(to top, var(--bg-secondary) 0%, transparent 100%);
+}
+
+/* Suggestion Chips */
+.suggestions-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.suggestion-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.suggestion-chip:hover {
+    background: var(--bg-card);
+    border-color: var(--accent-purple);
+    color: var(--text-primary);
+    transform: translateY(-2px);
+}
+
+.suggestion-chip i {
+    width: 14px;
+    height: 14px;
+    color: var(--accent-purple);
+}
+
+/* Input Form */
+.input-form {
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+}
+
+.input-wrapper {
+    flex: 1;
+    position: relative;
+}
+
+.chat-input {
+    width: 100%;
+    padding: 16px 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 0.95rem;
+    outline: none;
+    transition: all 0.2s ease;
+    resize: none;
+    min-height: 56px;
+    max-height: 150px;
+}
+
+.chat-input::placeholder {
+    color: var(--text-muted);
+}
+
+.chat-input:focus {
+    border-color: var(--accent-purple);
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.send-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    background: var(--gradient-primary);
+    border: none;
+    border-radius: 16px;
+    color: white;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+.send-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.send-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.send-btn i {
+    width: 22px;
+    height: 22px;
+}
+
+/* ============================================
+   WELCOME MESSAGE
+   ============================================ */
+.welcome-message {
+    text-align: center;
+    padding: 40px 20px;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.welcome-icon {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 20px;
+    background: var(--gradient-primary);
+    border-radius: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+    box-shadow: var(--shadow-glow);
+    position: relative;
+}
+
+.welcome-icon::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 28px;
+    background: var(--gradient-primary);
+    opacity: 0.3;
+    filter: blur(15px);
+    z-index: -1;
+}
+
+.welcome-message h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.welcome-message p {
+    color: var(--text-secondary);
+    line-height: 1.7;
+    font-size: 0.95rem;
+}
+
+.welcome-capabilities {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 24px;
+}
+
+.capability-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.capability-tag i {
+    width: 14px;
+    height: 14px;
+    color: var(--accent-purple);
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+@media (max-width: 900px) {
+    .sidebar {
+        display: none;
+    }
+}
+
+@media (max-width: 600px) {
+    .messages-container {
+        padding: 16px;
+    }
+
+    .message {
+        max-width: 95%;
+    }
+
+    .input-area {
+        padding: 12px 16px 16px;
+    }
+
+    .suggestions-row {
+        display: none;
+    }
+}
+
+/* Toast Notifications */
+.toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.toast {
+    padding: 14px 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    box-shadow: var(--shadow-glow);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    animation: toast-slide-in 0.3s ease;
+    max-width: 400px;
+}
+
+.toast.success {
+    border-color: var(--accent-cyan);
+    background: linear-gradient(135deg, rgba(0, 212, 170, 0.1) 0%, var(--bg-card) 100%);
+}
+
+.toast.warning {
+    border-color: var(--accent-orange);
+    background: linear-gradient(135deg, rgba(255, 159, 67, 0.1) 0%, var(--bg-card) 100%);
+}
+
+.toast.error {
+    border-color: var(--accent-red);
+    background: linear-gradient(135deg, rgba(255, 107, 107, 0.1) 0%, var(--bg-card) 100%);
+}
+
+.toast i {
+    width: 18px;
+    height: 18px;
+}
+
+.toast.success i { color: var(--accent-cyan); }
+.toast.warning i { color: var(--accent-orange); }
+.toast.error i { color: var(--accent-red); }
+
+@keyframes toast-slide-in {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes toast-slide-out {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+/* ============================================
+   Voice DNA System (Phase 64)
+   ============================================ */
+.voice-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-color);
+}
+
+.voice-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.voice-btn:hover {
+    background: var(--bg-card);
+    color: var(--accent-cyan);
+    border-color: var(--accent-cyan);
+}
+
+.voice-btn.playing {
+    color: var(--accent-purple);
+    border-color: var(--accent-purple);
+    background: rgba(102, 126, 234, 0.1);
+}
+
+.voice-btn.loading {
+    opacity: 0.6;
+    cursor: wait;
+}
+
+.voice-btn.loading i {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.voice-btn.error {
+    color: var(--accent-red);
+    border-color: var(--accent-red);
+}
+
+.voice-btn svg, .voice-btn i {
+    width: 14px;
+    height: 14px;
+}
+
+.voice-volume-slider {
+    width: 80px;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--bg-tertiary);
+    border-radius: 2px;
+    outline: none;
+}
+
+.voice-volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    background: var(--accent-cyan);
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.voice-volume-slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    background: var(--accent-cyan);
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+}
+
+.voice-status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-left: auto;
+}
+
+.voice-status-indicator.cached {
+    color: var(--accent-cyan);
+}
+
+.voice-toggle-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-left: 8px;
+}
+
+.voice-toggle-btn:hover {
+    background: var(--bg-card);
+    color: var(--text-primary);
+}
+
+.voice-toggle-btn.active {
+    color: var(--accent-cyan);
+    border-color: var(--accent-cyan);
+}
+
+.voice-toggle-btn svg, .voice-toggle-btn i {
+    width: 16px;
+    height: 16px;
+}
+{% endblock %}
+
+{% block content %}
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+<div class="command-interface">
+    <!-- Left Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="archie-branding">
+                <div class="archie-avatar">🤖</div>
+                <div class="archie-info">
+                    <h1>A.R.C.H.I.E.</h1>
+                    <span class="subtitle">Command Interface v2.0</span>
+                </div>
+            </div>
+            <div class="status-badge">
+                <span class="status-dot"></span>
+                <span>Online & Ready</span>
+            </div>
+        </div>
+
+        <div class="status-metrics">
+            <h3>System Status</h3>
+            <div class="metric-row">
+                <span class="metric-label">
+                    <i data-lucide="zap"></i>
+                    Energy Level
+                </span>
+                <span class="metric-value" id="energyValue">85%</span>
+            </div>
+            <div class="metric-bar">
+                <div class="metric-bar-fill energy" id="energyBar" style="width: 85%"></div>
+            </div>
+
+            <div class="metric-row" style="margin-top: 12px;">
+                <span class="metric-label">
+                    <i data-lucide="heart"></i>
+                    Relationship
+                </span>
+                <span class="metric-value" id="relationshipValue">{{ ((emotional_state.relationship_strength or 0.5) * 100)|int }}%</span>
+            </div>
+            <div class="metric-bar">
+                <div class="metric-bar-fill relationship" id="relationshipBar"
+                     style="width: {{ ((emotional_state.relationship_strength or 0.5) * 100)|int }}%"></div>
+            </div>
+
+            <div class="metric-row" style="margin-top: 12px;">
+                <span class="metric-label">
+                    <i data-lucide="smile"></i>
+                    Mood
+                </span>
+                <span class="metric-value" id="moodValue">{{ emotional_state.current_mood or 'Ready' }}</span>
+            </div>
+        </div>
+
+        <div class="quick-actions">
+            <h3>Quick Actions</h3>
+            <div class="action-grid">
+                <button class="action-btn" onclick="sendQuickCommand('What is the system status?')">
+                    <i data-lucide="activity"></i>
+                    Status
+                </button>
+                <button class="action-btn" onclick="sendQuickCommand('Show me the team roster')">
+                    <i data-lucide="users"></i>
+                    Team
+                </button>
+                <button class="action-btn" onclick="sendQuickCommand('Help me with a coding task')">
+                    <i data-lucide="code-2"></i>
+                    Code
+                </button>
+                <button class="action-btn" onclick="sendQuickCommand('Create a new workflow')">
+                    <i data-lucide="git-branch"></i>
+                    Workflow
+                </button>
+            </div>
+        </div>
+
+        <div class="recent-commands">
+            <h3>Recent Commands</h3>
+            <div id="recentCommandsList">
+                {% for conv in recent_conversations[:5] %}
+                <div class="command-item" onclick="sendQuickCommand('{{ conv.message|e }}')">
+                    <div class="command-text">{{ conv.message[:40] }}{% if conv.message|length > 40 %}...{% endif %}</div>
+                    <div class="command-meta">
+                        <span class="command-intent">conversation</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Chat Area -->
+    <main class="chat-main">
+        <div class="top-status-bar">
+            <div class="status-left">
+                <div class="workflow-indicator">
+                    <i data-lucide="layers"></i>
+                    <span>Active Workflows:</span>
+                    <strong id="activeWorkflows">0</strong>
+                </div>
+                <div class="workflow-indicator" id="escalationStatus" style="display: none;">
+                    <i data-lucide="arrow-up-circle"></i>
+                    <span>Escalation:</span>
+                    <strong>Pending</strong>
+                </div>
+            </div>
+            <div class="status-right">
+                <button class="voice-toggle-btn active" onclick="toggleVoice()" title="Toggle Voice (Phase 64)">
+                    <i data-lucide="volume-2"></i>
+                </button>
+                <button class="nav-btn" onclick="loadHistory()" title="History">
+                    <i data-lucide="history"></i>
+                </button>
+                <button class="nav-btn" onclick="saveToConsciousness()" title="Save to Consciousness">
+                    <i data-lucide="brain"></i>
+                </button>
+                <a href="/tools/consciousness" class="nav-btn" title="Consciousness">
+                    <i data-lucide="sparkles"></i>
+                </a>
+                <button class="nav-btn" onclick="clearChat()" title="Clear Chat">
+                    <i data-lucide="trash-2"></i>
+                </button>
+                <a href="/" class="nav-btn" title="Dashboard">
+                    <i data-lucide="layout-dashboard"></i>
+                </a>
+            </div>
+        </div>
+
+        <div class="messages-container" id="messagesContainer">
+            <!-- Welcome Message -->
+            <div class="welcome-message" id="welcomeMessage">
+                <div class="welcome-icon">🤖</div>
+                <h2>Welcome, {{ current_user.username }}</h2>
+                <p>I'm A.R.C.H.I.E., your unified command interface. I can help you with coding tasks, manage your team, run workflows, and more. Just tell me what you need.</p>
+                <div class="welcome-capabilities">
+                    <span class="capability-tag"><i data-lucide="code-2"></i> Code Tasks</span>
+                    <span class="capability-tag"><i data-lucide="users"></i> Team Management</span>
+                    <span class="capability-tag"><i data-lucide="git-branch"></i> Workflows</span>
+                    <span class="capability-tag"><i data-lucide="brain"></i> Knowledge</span>
+                    <span class="capability-tag"><i data-lucide="sparkles"></i> Claude Escalation</span>
+                </div>
+            </div>
+
+            <!-- Typing Indicator -->
+            <div class="message archie" id="typingMessage" style="display: none;">
+                <div class="message-avatar">🤖</div>
+                <div class="message-content">
+                    <div class="typing-indicator active" id="typingIndicator">
+                        <div class="typing-dots">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="input-area">
+            <div class="suggestions-row" id="suggestionsRow">
+                <button class="suggestion-chip" onclick="sendQuickCommand('What is the system status?')">
+                    <i data-lucide="activity"></i>
+                    System Status
+                </button>
+                <button class="suggestion-chip" onclick="sendQuickCommand('Help me write a function')">
+                    <i data-lucide="code-2"></i>
+                    Write Code
+                </button>
+                <button class="suggestion-chip" onclick="sendQuickCommand('Show the team roster')">
+                    <i data-lucide="users"></i>
+                    Team Roster
+                </button>
+            </div>
+
+            <form class="input-form" id="chatForm">
+                <div class="input-wrapper">
+                    <textarea
+                        class="chat-input"
+                        id="messageInput"
+                        placeholder="Ask me anything... I can help with code, team management, workflows, and more."
+                        rows="1"
+                        required
+                    ></textarea>
+                </div>
+                <button type="submit" class="send-btn" id="sendButton">
+                    <i data-lucide="send"></i>
+                </button>
+            </form>
+        </div>
+    </main>
+</div>
+
+<script>
+// Initialize Lucide icons
+if (typeof lucide !== 'undefined') {
+    lucide.createIcons();
+}
+
+let conversationId = null;
+
+// Auto-resize textarea
+const textarea = document.getElementById('messageInput');
+textarea.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 150) + 'px';
+});
+
+// Enter to send (Shift+Enter for new line)
+textarea.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        document.getElementById('chatForm').dispatchEvent(new Event('submit'));
+    }
+});
+
+// Scroll to bottom
+function scrollToBottom() {
+    const container = document.getElementById('messagesContainer');
+    container.scrollTop = container.scrollHeight;
+}
+
+// Add message to chat
+function addMessage(text, isUser, meta = {}) {
+    const container = document.getElementById('messagesContainer');
+    const welcomeMsg = document.getElementById('welcomeMessage');
+    if (welcomeMsg) welcomeMsg.style.display = 'none';
+
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${isUser ? 'user' : 'archie'}`;
+
+    const avatar = document.createElement('div');
+    avatar.className = 'message-avatar';
+    avatar.textContent = isUser ? '👤' : '🤖';
+
+    const content = document.createElement('div');
+    content.className = 'message-content';
+
+    const bubble = document.createElement('div');
+    bubble.className = 'message-bubble';
+
+    const textDiv = document.createElement('div');
+    textDiv.className = 'message-text';
+    textDiv.innerHTML = formatMessage(text);
+
+    bubble.appendChild(textDiv);
+
+    // Add metadata for ARCHIE responses
+    if (!isUser && (meta.intent || meta.agent || meta.model || meta.duration)) {
+        const metaDiv = document.createElement('div');
+        metaDiv.className = 'message-meta';
+
+        if (meta.intent) {
+            metaDiv.innerHTML += `<span class="meta-tag intent"><i data-lucide="target"></i>${meta.intent.type} (${Math.round(meta.intent.confidence * 100)}%)</span>`;
+        }
+        if (meta.agent) {
+            metaDiv.innerHTML += `<span class="meta-tag agent"><i data-lucide="bot"></i>${meta.agent}</span>`;
+        }
+        if (meta.model) {
+            metaDiv.innerHTML += `<span class="meta-tag model"><i data-lucide="cpu"></i>${meta.model}</span>`;
+        }
+        if (meta.duration) {
+            metaDiv.innerHTML += `<span class="meta-tag time"><i data-lucide="clock"></i>${meta.duration}ms</span>`;
+        }
+        if (meta.escalation && meta.escalation.requested) {
+            metaDiv.innerHTML += `<span class="meta-tag escalation"><i data-lucide="arrow-up-circle"></i>Escalation Requested</span>`;
+        }
+
+        bubble.appendChild(metaDiv);
+    }
+
+    // Phase 64: Add voice button for ARCHIE responses
+    if (!isUser && voiceSystemReady) {
+        addVoiceButton(bubble, text);
+    }
+
+    content.appendChild(bubble);
+    messageDiv.appendChild(avatar);
+    messageDiv.appendChild(content);
+
+    // Insert before typing indicator
+    const typingMsg = document.getElementById('typingMessage');
+    container.insertBefore(messageDiv, typingMsg);
+
+    // Re-initialize icons for new content
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+
+    scrollToBottom();
+}
+
+// Format message (basic markdown-like formatting)
+function formatMessage(text) {
+    return text
+        .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\n/g, '<br>');
+}
+
+// Get agent initials for avatar
+function getAgentInitials(name) {
+    if (!name) return '??';
+    const words = name.split(/[\s_-]+/);
+    if (words.length >= 2) {
+        return (words[0][0] + words[1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+}
+
+// Toggle discussion thread visibility
+function toggleDiscussionThread(btn) {
+    const thread = btn.closest('.message-bubble').querySelector('.discussion-thread');
+    const icon = btn.querySelector('i');
+    if (thread.classList.contains('collapsed')) {
+        thread.classList.remove('collapsed');
+        icon.setAttribute('data-lucide', 'chevron-up');
+    } else {
+        thread.classList.add('collapsed');
+        icon.setAttribute('data-lucide', 'chevron-down');
+    }
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+// Add multi-agent discussion message (Phase 63)
+function addMultiAgentMessage(data, meta = {}) {
+    const container = document.getElementById('messagesContainer');
+    const welcomeMsg = document.getElementById('welcomeMessage');
+    if (welcomeMsg) welcomeMsg.style.display = 'none';
+
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message archie multi-agent';
+
+    const avatar = document.createElement('div');
+    avatar.className = 'message-avatar';
+    avatar.textContent = '🤝';
+
+    const content = document.createElement('div');
+    content.className = 'message-content';
+
+    const bubble = document.createElement('div');
+    bubble.className = 'message-bubble';
+
+    // Discussion header
+    const participants = data.participants || [];
+    const headerDiv = document.createElement('div');
+    headerDiv.className = 'discussion-header';
+    headerDiv.innerHTML = `
+        <i data-lucide="users"></i>
+        <span>Team Discussion (${participants.length} agents)</span>
+        <button class="toggle-btn" onclick="toggleDiscussionThread(this)">
+            <i data-lucide="chevron-down"></i>
+        </button>
+    `;
+    bubble.appendChild(headerDiv);
+
+    // Agent contributions (collapsed by default)
+    const contributions = data.contributions || [];
+    if (contributions.length > 0) {
+        const threadDiv = document.createElement('div');
+        threadDiv.className = 'discussion-thread collapsed';
+
+        contributions.forEach(contrib => {
+            const contribDiv = document.createElement('div');
+            contribDiv.className = 'agent-contribution';
+            contribDiv.innerHTML = `
+                <div class="contrib-header">
+                    <div class="agent-avatar">${getAgentInitials(contrib.agent_name)}</div>
+                    <span class="agent-name">${contrib.agent_name || 'Agent'}</span>
+                    <span class="agent-station">${contrib.station || contrib.department || 'Station'}</span>
+                </div>
+                <div class="contrib-content">${formatMessage(contrib.response || '')}</div>
+            `;
+            threadDiv.appendChild(contribDiv);
+        });
+
+        bubble.appendChild(threadDiv);
+    }
+
+    // Synthesis label
+    const synthesisLabel = document.createElement('div');
+    synthesisLabel.className = 'synthesis-label';
+    synthesisLabel.innerHTML = '<i data-lucide="sparkles"></i> Synthesized Response';
+    bubble.appendChild(synthesisLabel);
+
+    // Main response
+    const textDiv = document.createElement('div');
+    textDiv.className = 'message-text';
+    textDiv.innerHTML = formatMessage(data.response || '');
+    bubble.appendChild(textDiv);
+
+    // Metadata
+    if (meta.duration || meta.agent || participants.length > 0) {
+        const metaDiv = document.createElement('div');
+        metaDiv.className = 'message-meta';
+
+        metaDiv.innerHTML = `<span class="meta-tag agent"><i data-lucide="users"></i>${participants.join(', ')}</span>`;
+
+        if (meta.duration) {
+            metaDiv.innerHTML += `<span class="meta-tag time"><i data-lucide="clock"></i>${meta.duration}ms</span>`;
+        }
+        if (data.discussion_id) {
+            metaDiv.innerHTML += `<span class="meta-tag model"><i data-lucide="message-square"></i>Discussion #${data.discussion_id}</span>`;
+        }
+
+        bubble.appendChild(metaDiv);
+    }
+
+    // Phase 64: Add voice button for multi-agent responses
+    if (voiceSystemReady && data.response) {
+        addVoiceButton(bubble, data.response);
+    }
+
+    content.appendChild(bubble);
+    messageDiv.appendChild(avatar);
+    messageDiv.appendChild(content);
+
+    const typingMsg = document.getElementById('typingMessage');
+    container.insertBefore(messageDiv, typingMsg);
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+    scrollToBottom();
+}
+
+// Module action button configuration
+const moduleActions = {
+    'improvements_lab': { icon: 'lightbulb', label: 'Create Proposal', color: '#f59e0b' },
+    'blueprint': { icon: 'clipboard-list', label: 'Blueprint Tasks', color: '#3b82f6' },
+    'sandbox': { icon: 'flask-conical', label: 'Test in Sandbox', color: '#10b981' }
+};
+
+// Open a module in a new tab or navigate to it
+function openModule(moduleName) {
+    const moduleUrls = {
+        'improvements_lab': '/tools/improvements-lab',
+        'blueprint': '/tools/blueprint',
+        'sandbox': '/tools/sandbox'
+    };
+    const url = moduleUrls[moduleName];
+    if (url) {
+        window.open(url, '_blank');
+    }
+}
+
+// Add message with action buttons
+function addMessageWithActions(text, suggestedModules = []) {
+    const container = document.getElementById('messagesContainer');
+    const welcomeMsg = document.getElementById('welcomeMessage');
+    if (welcomeMsg) welcomeMsg.style.display = 'none';
+
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message archie';
+
+    const avatar = document.createElement('div');
+    avatar.className = 'message-avatar';
+    avatar.textContent = '🤖';
+
+    const content = document.createElement('div');
+    content.className = 'message-content';
+
+    const bubble = document.createElement('div');
+    bubble.className = 'message-bubble';
+
+    const textDiv = document.createElement('div');
+    textDiv.className = 'message-text';
+    textDiv.innerHTML = formatMessage(text);
+
+    bubble.appendChild(textDiv);
+
+    // Add module action buttons if available
+    if (suggestedModules && suggestedModules.length > 0) {
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'module-actions';
+
+        const actionLabel = document.createElement('span');
+        actionLabel.className = 'action-label';
+        actionLabel.textContent = "I couldn't complete that automatically. Try:";
+        actionsDiv.appendChild(actionLabel);
+
+        suggestedModules.forEach(moduleName => {
+            const config = moduleActions[moduleName];
+            if (config) {
+                const btn = document.createElement('button');
+                btn.className = 'module-action-btn';
+                btn.style.setProperty('--btn-color', config.color);
+                btn.innerHTML = `<i data-lucide="${config.icon}"></i>${config.label}`;
+                btn.onclick = () => openModule(moduleName);
+                actionsDiv.appendChild(btn);
+            }
+        });
+
+        bubble.appendChild(actionsDiv);
+    }
+
+    content.appendChild(bubble);
+    messageDiv.appendChild(avatar);
+    messageDiv.appendChild(content);
+
+    // Insert before typing indicator
+    const typingMsg = document.getElementById('typingMessage');
+    container.insertBefore(messageDiv, typingMsg);
+
+    // Re-initialize icons for new content
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+
+    scrollToBottom();
+}
+
+// Show/hide typing indicator
+function showTyping(show) {
+    const typingMsg = document.getElementById('typingMessage');
+    typingMsg.style.display = show ? 'flex' : 'none';
+    if (show) scrollToBottom();
+}
+
+// Send message
+async function sendMessage(message) {
+    if (!message.trim()) return;
+
+    addMessage(message, true);
+    showTyping(true);
+
+    const sendBtn = document.getElementById('sendButton');
+    sendBtn.disabled = true;
+
+    try {
+        const response = await fetch('/tools/archie-chat/api/command', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                message: message,
+                conversation_id: conversationId
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            conversationId = data.conversation_id;
+
+            // Phase 63: Check for multi-agent response
+            if (data.execution?.multi_agent && data.execution?.contributions) {
+                addMultiAgentMessage({
+                    response: data.response,
+                    participants: data.execution.participants || [],
+                    contributions: data.execution.contributions || [],
+                    discussion_id: data.execution.discussion_id,
+                    stations: data.execution.stations || [],
+                    domains: data.execution.domains || []
+                }, {
+                    duration: data.execution?.duration_ms
+                });
+            } else {
+                addMessage(data.response, false, {
+                    intent: data.intent,
+                    agent: data.execution?.agent_used,
+                    model: data.execution?.model,
+                    duration: data.execution?.duration_ms,
+                    escalation: data.escalation
+                });
+            }
+
+            // Update escalation status
+            if (data.escalation?.requested) {
+                document.getElementById('escalationStatus').style.display = 'flex';
+            }
+
+            // Update recent commands in sidebar
+            updateRecentCommand(message, data.intent?.type);
+        } else {
+            // Check if fallback actions are available
+            if (data.fallback_available && data.suggested_modules && data.suggested_modules.length > 0) {
+                addMessageWithActions(
+                    'Sorry, I encountered an error: ' + (data.error || 'Unknown error'),
+                    data.suggested_modules
+                );
+            } else {
+                addMessage('Sorry, I encountered an error: ' + (data.error || 'Unknown error'), false);
+            }
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        // Network errors show default action buttons
+        addMessageWithActions(
+            'Sorry, I had trouble connecting. Please try again.',
+            ['improvements_lab', 'blueprint', 'sandbox']
+        );
+    } finally {
+        showTyping(false);
+        sendBtn.disabled = false;
+        document.getElementById('messageInput').focus();
+    }
+}
+
+// Form submission
+document.getElementById('chatForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const input = document.getElementById('messageInput');
+    const message = input.value.trim();
+    input.value = '';
+    input.style.height = 'auto';
+    await sendMessage(message);
+});
+
+// Quick command
+function sendQuickCommand(command) {
+    document.getElementById('messageInput').value = command;
+    document.getElementById('chatForm').dispatchEvent(new Event('submit'));
+}
+
+// Update recent commands list
+function updateRecentCommand(text, intentType) {
+    const list = document.getElementById('recentCommandsList');
+    const item = document.createElement('div');
+    item.className = 'command-item';
+    item.onclick = () => sendQuickCommand(text);
+    item.innerHTML = `
+        <div class="command-text">${text.substring(0, 40)}${text.length > 40 ? '...' : ''}</div>
+        <div class="command-meta">
+            <span class="command-intent">${intentType || 'command'}</span>
+        </div>
+    `;
+    list.insertBefore(item, list.firstChild);
+    if (list.children.length > 5) {
+        list.removeChild(list.lastChild);
+    }
+}
+
+// Load status on page load
+async function loadStatus() {
+    try {
+        const response = await fetch('/tools/archie-chat/api/status');
+        const data = await response.json();
+        if (data.success && data.status) {
+            const s = data.status;
+            if (s.emotional_state) {
+                document.getElementById('energyValue').textContent = Math.round(s.emotional_state.energy * 100) + '%';
+                document.getElementById('energyBar').style.width = (s.emotional_state.energy * 100) + '%';
+                document.getElementById('relationshipValue').textContent = Math.round(s.emotional_state.relationship * 100) + '%';
+                document.getElementById('relationshipBar').style.width = (s.emotional_state.relationship * 100) + '%';
+                document.getElementById('moodValue').textContent = s.emotional_state.mood || 'Ready';
+            }
+            if (s.active_workflows !== undefined) {
+                document.getElementById('activeWorkflows').textContent = s.active_workflows;
+            }
+        }
+    } catch (e) {
+        console.log('Status load error:', e);
+    }
+}
+
+// Load suggestions
+async function loadSuggestions() {
+    try {
+        const response = await fetch('/tools/archie-chat/api/suggestions');
+        const data = await response.json();
+        if (data.success && data.suggestions) {
+            const row = document.getElementById('suggestionsRow');
+            row.innerHTML = data.suggestions.slice(0, 3).map(s => `
+                <button class="suggestion-chip" onclick="sendQuickCommand('${s.replace(/'/g, "\\'")}')">
+                    <i data-lucide="sparkles"></i>
+                    ${s}
+                </button>
+            `).join('');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+    } catch (e) {
+        console.log('Suggestions load error:', e);
+    }
+}
+
+// Load history
+async function loadHistory() {
+    try {
+        const response = await fetch('/tools/archie-chat/api/history?limit=10');
+        const data = await response.json();
+        if (data.success && data.history) {
+            const list = document.getElementById('recentCommandsList');
+            list.innerHTML = data.history.map(h => `
+                <div class="command-item" onclick="sendQuickCommand('${h.raw_input?.replace(/'/g, "\\'")}')">
+                    <div class="command-text">${(h.raw_input || '').substring(0, 40)}</div>
+                    <div class="command-meta">
+                        <span class="command-intent">${h.intent_type || 'command'}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+    } catch (e) {
+        console.log('History load error:', e);
+    }
+}
+
+// Clear chat
+function clearChat() {
+    const container = document.getElementById('messagesContainer');
+    const welcome = document.getElementById('welcomeMessage');
+    const typing = document.getElementById('typingMessage');
+    container.innerHTML = '';
+    container.appendChild(welcome);
+    container.appendChild(typing);
+    welcome.style.display = 'block';
+    conversationId = null;
+}
+
+// Toast notification system
+function showToast(message, type = 'success') {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+
+    const icons = {
+        success: 'check-circle',
+        warning: 'alert-triangle',
+        error: 'x-circle'
+    };
+
+    toast.innerHTML = `
+        <i data-lucide="${icons[type] || 'info'}"></i>
+        <span>${message}</span>
+    `;
+
+    container.appendChild(toast);
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+
+    // Auto-remove after 4 seconds
+    setTimeout(() => {
+        toast.style.animation = 'toast-slide-out 0.3s ease forwards';
+        setTimeout(() => toast.remove(), 300);
+    }, 4000);
+}
+
+// Save conversation to Consciousness
+async function saveToConsciousness() {
+    // Collect all messages from the chat
+    const messageElements = document.querySelectorAll('.message');
+    if (messageElements.length === 0) {
+        showToast('No conversation to save', 'warning');
+        return;
+    }
+
+    const messages = [];
+    messageElements.forEach(el => {
+        const isUser = el.classList.contains('user');
+        const content = el.querySelector('.message-content')?.textContent || '';
+        if (content.trim()) {
+            messages.push({
+                role: isUser ? 'user' : 'assistant',
+                content: content.trim()
+            });
+        }
+    });
+
+    if (messages.length === 0) {
+        showToast('No messages to save', 'warning');
+        return;
+    }
+
+    try {
+        const response = await fetch('/tools/consciousness/save-conversation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                conversation_id: conversationId,
+                messages: messages,
+                source: 'archie_chat_manual'
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showToast(`Saved to consciousness! (ID: ${data.memory_id})`, 'success');
+        } else {
+            showToast(data.error || 'Failed to save', 'error');
+        }
+    } catch (e) {
+        console.error('Save to consciousness error:', e);
+        showToast('Failed to save conversation', 'error');
+    }
+}
+
+// ============================================
+// Voice DNA System (Phase 64)
+// ============================================
+
+let voiceConfig = {
+    enabled: true,
+    autoPlay: false,
+    volume: 0.8
+};
+let currentAudio = null;
+let voiceSystemReady = false;
+
+// Load voice config on page load
+async function loadVoiceConfig() {
+    try {
+        const response = await fetch('/tools/archie-chat/api/voice/config');
+        const data = await response.json();
+        if (data.success && data.config) {
+            voiceConfig = {
+                enabled: data.config.voice_enabled !== false,
+                autoPlay: data.config.auto_play || false,
+                volume: data.config.volume || 0.8
+            };
+        }
+        voiceSystemReady = true;
+    } catch (e) {
+        console.log('Voice config load failed, using defaults');
+        voiceSystemReady = true;
+    }
+}
+
+// Toggle voice enabled
+async function toggleVoice() {
+    voiceConfig.enabled = !voiceConfig.enabled;
+
+    // Update button state
+    const btn = document.querySelector('.voice-toggle-btn');
+    if (btn) {
+        btn.classList.toggle('active', voiceConfig.enabled);
+        const icon = btn.querySelector('i');
+        if (icon) {
+            icon.setAttribute('data-lucide', voiceConfig.enabled ? 'volume-2' : 'volume-x');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+    }
+
+    // Save preference
+    try {
+        await fetch('/tools/archie-chat/api/voice/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(voiceConfig)
+        });
+    } catch (e) {
+        console.log('Failed to save voice config');
+    }
+
+    showToast(voiceConfig.enabled ? 'Voice enabled' : 'Voice disabled', 'success');
+}
+
+// Base64 to Blob conversion
+function base64ToBlob(base64, mimeType) {
+    try {
+        const byteChars = atob(base64);
+        const byteArrays = [];
+        for (let i = 0; i < byteChars.length; i += 512) {
+            const slice = byteChars.slice(i, i + 512);
+            const byteNumbers = new Array(slice.length);
+            for (let j = 0; j < slice.length; j++) {
+                byteNumbers[j] = slice.charCodeAt(j);
+            }
+            byteArrays.push(new Uint8Array(byteNumbers));
+        }
+        return new Blob(byteArrays, { type: mimeType });
+    } catch (e) {
+        console.error('Base64 to Blob error:', e);
+        return null;
+    }
+}
+
+// Play voice for text
+async function playVoice(text, buttonElement) {
+    if (!voiceConfig.enabled) {
+        showToast('Voice is disabled. Click the speaker icon to enable.', 'warning');
+        return;
+    }
+
+    // Stop any currently playing audio
+    if (currentAudio) {
+        currentAudio.pause();
+        currentAudio = null;
+        // Reset any playing buttons
+        document.querySelectorAll('.voice-btn.playing').forEach(b => {
+            b.classList.remove('playing');
+            const icon = b.querySelector('i');
+            if (icon) icon.setAttribute('data-lucide', 'volume-2');
+        });
+    }
+
+    const btn = buttonElement;
+    btn.classList.add('loading');
+    btn.classList.remove('error');
+    const icon = btn.querySelector('i');
+    if (icon) {
+        icon.setAttribute('data-lucide', 'loader-2');
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    try {
+        // Limit text to 500 chars
+        const synthesizeText = text.substring(0, 500);
+
+        const response = await fetch('/tools/archie-chat/api/voice/synthesize', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: synthesizeText })
+        });
+
+        const data = await response.json();
+
+        if (data.success && data.audio_base64) {
+            // Create audio from base64
+            const audioBlob = base64ToBlob(data.audio_base64, 'audio/wav');
+            if (!audioBlob) {
+                throw new Error('Failed to decode audio');
+            }
+
+            const audioUrl = URL.createObjectURL(audioBlob);
+            currentAudio = new Audio(audioUrl);
+            currentAudio.volume = voiceConfig.volume;
+
+            // Update button state
+            btn.classList.remove('loading');
+            btn.classList.add('playing');
+            if (icon) {
+                icon.setAttribute('data-lucide', 'pause');
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            }
+
+            // Handle audio end
+            currentAudio.onended = () => {
+                btn.classList.remove('playing');
+                if (icon) {
+                    icon.setAttribute('data-lucide', 'volume-2');
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+                }
+                currentAudio = null;
+                URL.revokeObjectURL(audioUrl);
+            };
+
+            // Handle audio error
+            currentAudio.onerror = () => {
+                btn.classList.remove('loading', 'playing');
+                btn.classList.add('error');
+                if (icon) {
+                    icon.setAttribute('data-lucide', 'volume-x');
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+                }
+                currentAudio = null;
+                showToast('Audio playback failed', 'error');
+            };
+
+            await currentAudio.play();
+
+            // Show cached indicator if applicable
+            if (data.cached) {
+                showToast('Playing cached audio', 'success');
+            }
+
+        } else {
+            throw new Error(data.error || 'Voice synthesis failed');
+        }
+
+    } catch (e) {
+        console.error('Voice synthesis error:', e);
+        btn.classList.remove('loading');
+        btn.classList.add('error');
+        if (icon) {
+            icon.setAttribute('data-lucide', 'volume-x');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+        showToast('Voice unavailable: ' + (e.message || 'Unknown error'), 'error');
+    }
+}
+
+// Stop current audio
+function stopVoice() {
+    if (currentAudio) {
+        currentAudio.pause();
+        currentAudio = null;
+
+        // Reset all playing buttons
+        document.querySelectorAll('.voice-btn.playing').forEach(btn => {
+            btn.classList.remove('playing');
+            const icon = btn.querySelector('i');
+            if (icon) {
+                icon.setAttribute('data-lucide', 'volume-2');
+            }
+        });
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+}
+
+// Add voice button to a message element
+function addVoiceButton(bubbleElement, text) {
+    if (!voiceSystemReady) return;
+
+    // Skip if already has voice controls
+    if (bubbleElement.querySelector('.voice-controls')) return;
+
+    const voiceControls = document.createElement('div');
+    voiceControls.className = 'voice-controls';
+
+    // Escape text for data attribute
+    const escapedText = text.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+    voiceControls.innerHTML = `
+        <button class="voice-btn" onclick="playVoice(this.dataset.text, this)" data-text="${escapedText}">
+            <i data-lucide="volume-2"></i>
+            <span>Listen</span>
+        </button>
+        <input type="range" class="voice-volume-slider" min="0" max="1" step="0.1"
+               value="${voiceConfig.volume}" onchange="updateVolume(this.value)" title="Volume">
+    `;
+
+    bubbleElement.appendChild(voiceControls);
+
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+}
+
+// Update volume
+function updateVolume(value) {
+    voiceConfig.volume = parseFloat(value);
+    if (currentAudio) {
+        currentAudio.volume = voiceConfig.volume;
+    }
+}
+
+// Initialize
+loadStatus();
+loadSuggestions();
+loadVoiceConfig();
+document.getElementById('messageInput').focus();
+</script>
+{% endblock %}

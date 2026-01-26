@@ -1,0 +1,646 @@
+{% extends "base.html" %}
+
+{% block title %}A.R.C.H.I.E. - System Access{% endblock %}
+
+{% block module_name %}login{% endblock %}
+
+{% block styles %}
+/* ═══════════════════════════════════════════════════════════════════════════
+   A.R.C.H.I.E. LOGIN - Premium Entry Experience
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+    --login-green: #00ff41;
+    --login-cyan: #00ffff;
+    --login-void: #000000;
+    --login-surface: #0d1117;
+    --login-border: #21262d;
+    --login-text: #e6edf3;
+    --login-muted: #8b949e;
+    --login-glow: 0 0 20px rgba(0, 255, 65, 0.4), 0 0 40px rgba(0, 255, 65, 0.2);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background: var(--login-void);
+    font-family: 'JetBrains Mono', monospace;
+    overflow: hidden;
+}
+
+/* Animated Background */
+.login-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+}
+
+.login-bg canvas {
+    width: 100%;
+    height: 100%;
+    opacity: 0.15;
+}
+
+/* Atmospheric Overlay */
+.login-bg::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(ellipse at 30% 20%, rgba(0, 255, 65, 0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 70% 80%, rgba(0, 255, 255, 0.05) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, 0.5) 0%, transparent 100%);
+    pointer-events: none;
+}
+
+/* Grid Lines */
+.grid-overlay {
+    position: fixed;
+    inset: 0;
+    background-image:
+        linear-gradient(rgba(0, 255, 65, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 255, 65, 0.03) 1px, transparent 1px);
+    background-size: 50px 50px;
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* Login Container */
+.login-container {
+    position: relative;
+    z-index: 10;
+    width: 100%;
+    max-width: 440px;
+    margin: 20px;
+    animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Login Card */
+.login-card {
+    background: linear-gradient(135deg, rgba(13, 17, 23, 0.9) 0%, rgba(22, 27, 34, 0.8) 100%);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(0, 255, 65, 0.2);
+    border-radius: 20px;
+    padding: 50px 40px;
+    box-shadow:
+        0 25px 50px rgba(0, 0, 0, 0.5),
+        0 0 100px rgba(0, 255, 65, 0.05),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Card Accent Line */
+.login-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 150px;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--login-green), transparent);
+}
+
+.login-card::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--login-cyan), transparent);
+    opacity: 0.5;
+}
+
+/* Header */
+.login-header {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.login-logo {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2.8rem;
+    font-weight: 900;
+    letter-spacing: 0.2em;
+    color: var(--login-green);
+    text-shadow: var(--login-glow);
+    margin-bottom: 12px;
+    animation: glow 3s ease-in-out infinite;
+}
+
+@keyframes glow {
+    0%, 100% {
+        text-shadow: 0 0 20px rgba(0, 255, 65, 0.5), 0 0 40px rgba(0, 255, 65, 0.3);
+        filter: brightness(1);
+    }
+    50% {
+        text-shadow: 0 0 30px rgba(0, 255, 65, 0.7), 0 0 60px rgba(0, 255, 65, 0.4), 0 0 80px rgba(0, 255, 65, 0.2);
+        filter: brightness(1.1);
+    }
+}
+
+.login-subtitle {
+    font-size: 0.7rem;
+    letter-spacing: 0.3em;
+    color: var(--login-cyan);
+    text-transform: uppercase;
+    opacity: 0.8;
+}
+
+/* Form */
+.login-form {
+    margin-top: 30px;
+}
+
+.form-group {
+    margin-bottom: 24px;
+    position: relative;
+}
+
+.form-label {
+    display: block;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    color: var(--login-muted);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    transition: color 0.3s;
+}
+
+.form-input {
+    width: 100%;
+    padding: 16px 20px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--login-border);
+    border-radius: 10px;
+    color: var(--login-text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1rem;
+    letter-spacing: 0.05em;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.form-input::placeholder {
+    color: var(--login-muted);
+    opacity: 0.5;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: var(--login-green);
+    background: rgba(0, 255, 65, 0.05);
+    box-shadow:
+        0 0 0 3px rgba(0, 255, 65, 0.1),
+        0 0 20px rgba(0, 255, 65, 0.1);
+}
+
+.form-group:focus-within .form-label {
+    color: var(--login-green);
+}
+
+/* Submit Button */
+.login-btn {
+    width: 100%;
+    padding: 18px 24px;
+    margin-top: 10px;
+    background: transparent;
+    border: 2px solid var(--login-green);
+    border-radius: 10px;
+    color: var(--login-green);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.login-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--login-green);
+    transform: translateY(100%);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    z-index: -1;
+}
+
+.login-btn:hover {
+    color: var(--login-void);
+    box-shadow:
+        0 0 30px rgba(0, 255, 65, 0.4),
+        0 10px 40px rgba(0, 255, 65, 0.2);
+    transform: translateY(-2px);
+}
+
+.login-btn:hover::before {
+    transform: translateY(0);
+}
+
+.login-btn:active {
+    transform: translateY(0);
+}
+
+/* Loading state */
+.login-btn.loading {
+    pointer-events: none;
+    color: transparent;
+}
+
+.login-btn.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid transparent;
+    border-top-color: var(--login-void);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Divider */
+.divider {
+    display: flex;
+    align-items: center;
+    margin: 30px 0;
+    color: var(--login-muted);
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+}
+
+.divider::before,
+.divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--login-border), transparent);
+}
+
+.divider span {
+    padding: 0 15px;
+}
+
+/* Google OAuth Button */
+.oauth-section {
+    margin-top: 24px;
+}
+
+.google-btn {
+    width: 100%;
+    padding: 14px 20px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--login-border);
+    border-radius: 10px;
+    color: var(--login-text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    text-decoration: none;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.google-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    transform: translateY(-2px);
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+}
+
+.google-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+.google-btn:active {
+    transform: translateY(0);
+}
+
+/* Signup Link */
+.signup-section {
+    text-align: center;
+    padding: 20px;
+    background: rgba(0, 255, 65, 0.03);
+    border: 1px solid rgba(0, 255, 65, 0.1);
+    border-radius: 10px;
+    margin-top: 24px;
+}
+
+.signup-text {
+    font-size: 0.75rem;
+    color: var(--login-muted);
+    letter-spacing: 0.1em;
+}
+
+.signup-link {
+    color: var(--login-green);
+    text-decoration: none;
+    font-weight: 600;
+    margin-left: 8px;
+    transition: all 0.3s;
+}
+
+.signup-link:hover {
+    text-shadow: 0 0 15px rgba(0, 255, 65, 0.5);
+}
+
+/* System Status */
+.system-status {
+    margin-top: 30px;
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--login-border);
+    border-radius: 10px;
+    font-size: 0.65rem;
+    line-height: 2;
+    color: var(--login-muted);
+    letter-spacing: 0.05em;
+}
+
+.status-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.status-indicator {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--login-green);
+    box-shadow: 0 0 10px var(--login-green);
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 5px var(--login-green); }
+    50% { opacity: 0.6; box-shadow: 0 0 15px var(--login-green); }
+}
+
+.status-indicator.warning {
+    background: #ffaa00;
+    box-shadow: 0 0 10px #ffaa00;
+}
+
+/* Corner Decorations */
+.corner-decoration {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    border: 1px solid rgba(0, 255, 65, 0.3);
+}
+
+.corner-decoration.top-left {
+    top: 15px;
+    left: 15px;
+    border-right: none;
+    border-bottom: none;
+}
+
+.corner-decoration.top-right {
+    top: 15px;
+    right: 15px;
+    border-left: none;
+    border-bottom: none;
+}
+
+.corner-decoration.bottom-left {
+    bottom: 15px;
+    left: 15px;
+    border-right: none;
+    border-top: none;
+}
+
+.corner-decoration.bottom-right {
+    bottom: 15px;
+    right: 15px;
+    border-left: none;
+    border-top: none;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+    .login-card {
+        padding: 40px 25px;
+        border-radius: 16px;
+    }
+
+    .login-logo {
+        font-size: 2rem;
+        letter-spacing: 0.15em;
+    }
+
+    .form-input {
+        padding: 14px 16px;
+    }
+
+    .login-btn {
+        padding: 16px 20px;
+        font-size: 0.8rem;
+    }
+}
+
+/* Typing animation for subtitle */
+.typing-text {
+    overflow: hidden;
+    white-space: nowrap;
+    animation: typing 2s steps(25) 0.5s forwards;
+    width: 0;
+    display: inline-block;
+}
+
+@keyframes typing {
+    to { width: 100%; }
+}
+{% endblock %}
+
+{% block content %}
+<!-- Background -->
+<div class="login-bg">
+    <canvas id="matrix-bg"></canvas>
+</div>
+<div class="grid-overlay"></div>
+
+<!-- Login Container -->
+<div class="login-container">
+    <div class="login-card">
+        <!-- Corner Decorations -->
+        <div class="corner-decoration top-left"></div>
+        <div class="corner-decoration top-right"></div>
+        <div class="corner-decoration bottom-left"></div>
+        <div class="corner-decoration bottom-right"></div>
+
+        <!-- Header -->
+        <div class="login-header">
+            <h1 class="login-logo">A.R.C.H.I.E.</h1>
+            <p class="login-subtitle">AUTHENTICATION REQUIRED</p>
+        </div>
+
+        <!-- Login Form -->
+        <form method="POST" action="/login" class="login-form" id="loginForm">
+            <div class="form-group">
+                <label class="form-label" for="username">Username</label>
+                <input
+                    type="text"
+                    id="username"
+                    name="username"
+                    class="form-input"
+                    placeholder="Enter your username"
+                    required
+                    autofocus
+                    autocomplete="username"
+                >
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="password">Password</label>
+                <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    class="form-input"
+                    placeholder="Enter your password"
+                    required
+                    autocomplete="current-password"
+                >
+            </div>
+
+            <button type="submit" class="login-btn" id="loginBtn">
+                Access System
+            </button>
+        </form>
+
+        <!-- OAuth Section -->
+        <div class="oauth-section">
+            <div class="divider"><span>OR</span></div>
+            <a href="{{ url_for('oauth.google_login') }}" class="google-btn">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                </svg>
+                Continue with Google
+            </a>
+        </div>
+
+        <!-- Signup Link -->
+        <div class="signup-section">
+            <span class="signup-text">No account?</span>
+            <a href="{{ url_for('signup') }}" class="signup-link">Request Access →</a>
+        </div>
+
+        <!-- System Status -->
+        <div class="system-status">
+            <div class="status-line">
+                <span class="status-indicator"></span>
+                <span>SYSTEM STATUS: ONLINE</span>
+            </div>
+            <div class="status-line">
+                <span class="status-indicator"></span>
+                <span>AI CORE: ACTIVE</span>
+            </div>
+            <div class="status-line">
+                <span class="status-indicator"></span>
+                <span>SECURITY PROTOCOL: ENABLED</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Matrix rain background
+const canvas = document.getElementById('matrix-bg');
+const ctx = canvas.getContext('2d');
+
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+const chars = 'ARCHIE01アイウエオカキクケコ<>{}[]';
+const charArray = chars.split('');
+const fontSize = 14;
+let columns = Math.floor(canvas.width / fontSize);
+const drops = [];
+
+for (let i = 0; i < columns; i++) {
+    drops[i] = Math.random() * -100;
+}
+
+function draw() {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = '#00ff41';
+    ctx.font = fontSize + 'px monospace';
+
+    for (let i = 0; i < drops.length; i++) {
+        const char = charArray[Math.floor(Math.random() * charArray.length)];
+        ctx.fillText(char, i * fontSize, drops[i] * fontSize);
+
+        if (drops[i] * fontSize > canvas.height && Math.random() > 0.98) {
+            drops[i] = 0;
+        }
+        drops[i]++;
+    }
+}
+
+setInterval(draw, 35);
+
+// Form submit loading state
+document.getElementById('loginForm').addEventListener('submit', function() {
+    const btn = document.getElementById('loginBtn');
+    btn.classList.add('loading');
+    btn.textContent = 'AUTHENTICATING...';
+});
+
+// Input focus effects
+document.querySelectorAll('.form-input').forEach(input => {
+    input.addEventListener('focus', function() {
+        this.parentElement.classList.add('focused');
+    });
+    input.addEventListener('blur', function() {
+        this.parentElement.classList.remove('focused');
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,874 @@
+{% extends "base.html" %}
+
+{% block title %}Conversation Memory - A.R.C.H.I.E. Brain{% endblock %}
+
+{% block content %}
+<div class="conversations-interface">
+    <header class="conversations-header">
+        <h1>💬 Conversation Memory System</h1>
+        <p class="subtitle">Claude Code Development Sessions - Phase 6</p>
+        <a href="/tools/admin/brain" class="btn btn-secondary">← Back to Brain</a>
+    </header>
+
+    <!-- Statistics Overview -->
+    <div class="stats-grid" id="stats-grid">
+        <div class="stat-card">
+            <h3>Total Sessions</h3>
+            <div class="stat-value" id="total-sessions">-</div>
+            <div class="stat-label">captured sessions</div>
+        </div>
+        <div class="stat-card">
+            <h3>Summarized</h3>
+            <div class="stat-value" id="summarized-sessions">-</div>
+            <div class="stat-label">with AI analysis</div>
+        </div>
+        <div class="stat-card">
+            <h3>Knowledge Created</h3>
+            <div class="stat-value" id="knowledge-created">-</div>
+            <div class="stat-label">searchable entries</div>
+        </div>
+        <div class="stat-card">
+            <h3>Avg Productivity</h3>
+            <div class="stat-value" id="avg-productivity">-</div>
+            <div class="stat-label">session quality</div>
+        </div>
+    </div>
+
+    <!-- Search & Filters -->
+    <div class="search-section">
+        <h2>🔍 Search Conversations</h2>
+
+        <div class="search-box">
+            <input type="text" id="search-input" placeholder="Search conversation content, insights, decisions..." class="search-input">
+            <button onclick="searchConversations()" class="btn btn-primary">Search</button>
+        </div>
+
+        <div class="filter-row">
+            <label>
+                Phase:
+                <select id="filter-phase">
+                    <option value="">All Phases</option>
+                    <option value="Phase 1">Phase 1: Database Schema</option>
+                    <option value="Phase 2">Phase 2: Brain Interface</option>
+                    <option value="Phase 3">Phase 3: AI Bridge</option>
+                    <option value="Phase 4">Phase 4: Mistake Learning</option>
+                    <option value="Phase 4.5">Phase 4.5: Claude Code Hooks</option>
+                    <option value="Phase 5">Phase 5: Improvements</option>
+                    <option value="Phase 6">Phase 6: Conversation Memory</option>
+                    <option value="General">General Development</option>
+                </select>
+            </label>
+            <label>
+                Topic:
+                <select id="filter-topic">
+                    <option value="">All Topics</option>
+                    <option value="database">Database</option>
+                    <option value="api">API</option>
+                    <option value="ui">UI/Frontend</option>
+                    <option value="knowledge">Knowledge Systems</option>
+                    <option value="architecture">Architecture</option>
+                    <option value="testing">Testing</option>
+                    <option value="deployment">Deployment</option>
+                </select>
+            </label>
+            <label>
+                Status:
+                <select id="filter-status">
+                    <option value="">All Statuses</option>
+                    <option value="raw">Raw (No Summary)</option>
+                    <option value="summarized">Summarized</option>
+                    <option value="indexed">Indexed (Knowledge Created)</option>
+                </select>
+            </label>
+            <button onclick="loadSessions()" class="btn btn-secondary">Apply Filters</button>
+        </div>
+    </div>
+
+    <!-- Recent Sessions List -->
+    <div class="sessions-section">
+        <div class="sessions-header">
+            <h2>Recent Sessions</h2>
+            <button onclick="processSnapshots()" class="btn btn-primary">⚙️ Process New Snapshots</button>
+        </div>
+
+        <div id="sessions-list" class="sessions-list">
+            <div class="loading">Loading sessions...</div>
+        </div>
+    </div>
+
+    <!-- Session Detail Modal -->
+    <div id="session-modal" class="modal" style="display:none;">
+        <div class="modal-content modal-large">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <div id="session-details"></div>
+        </div>
+    </div>
+</div>
+
+<style>
+.conversations-interface {
+    padding: 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.conversations-header {
+    text-align: center;
+    margin-bottom: 3rem;
+}
+
+.conversations-header h1 {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.subtitle {
+    color: #666;
+    font-size: 1.125rem;
+    margin-bottom: 1rem;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 3rem;
+}
+
+.stat-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    text-align: center;
+    border-top: 4px solid #007bff;
+}
+
+.stat-value {
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: #007bff;
+    margin: 0.5rem 0;
+}
+
+.stat-label {
+    color: #666;
+    font-size: 0.875rem;
+}
+
+.search-section {
+    background: white;
+    padding: 2rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    margin-bottom: 2rem;
+}
+
+.search-section h2 {
+    margin-top: 0;
+}
+
+.search-box {
+    display: flex;
+    gap: 1rem;
+    margin: 1.5rem 0;
+}
+
+.search-input {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    border: 2px solid #ddd;
+    border-radius: 4px;
+}
+
+.filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: center;
+}
+
+.filter-row label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.filter-row select {
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.sessions-section {
+    background: white;
+    padding: 2rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.sessions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.sessions-header h2 {
+    margin: 0;
+}
+
+.sessions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.session-card {
+    padding: 1.5rem;
+    background: #f9f9f9;
+    border-left: 4px solid #007bff;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.session-card:hover {
+    background: #f0f0f0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.session-card.status-raw {
+    border-left-color: #6c757d;
+}
+
+.session-card.status-summarized {
+    border-left-color: #28a745;
+}
+
+.session-card.status-indexed {
+    border-left-color: #007bff;
+}
+
+.session-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    margin-bottom: 0.75rem;
+}
+
+.session-name {
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: #333;
+}
+
+.session-meta {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    color: #666;
+    font-size: 0.875rem;
+}
+
+.session-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 3px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.badge-phase {
+    background: #e3f2fd;
+    color: #1976d2;
+}
+
+.badge-topic {
+    background: #f3e5f5;
+    color: #7b1fa2;
+}
+
+.badge-status {
+    background: #fff3e0;
+    color: #ef6c00;
+}
+
+.badge-status.status-summarized {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+.badge-status.status-indexed {
+    background: #e3f2fd;
+    color: #1565c0;
+}
+
+.session-scores {
+    display: flex;
+    gap: 1rem;
+    margin-top: 0.75rem;
+    font-size: 0.875rem;
+}
+
+.score-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.score-label {
+    color: #999;
+    font-size: 0.75rem;
+}
+
+.score-value {
+    font-weight: bold;
+    color: #007bff;
+}
+
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.modal-content {
+    background-color: white;
+    margin: 3% auto;
+    padding: 2rem;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 1000px;
+    max-height: 85vh;
+    overflow-y: auto;
+}
+
+.modal-large {
+    max-width: 1200px;
+}
+
+.close {
+    float: right;
+    font-size: 2rem;
+    font-weight: bold;
+    cursor: pointer;
+    color: #999;
+}
+
+.close:hover {
+    color: #ff0000;
+}
+
+.detail-section {
+    margin: 1.5rem 0;
+}
+
+.detail-section h3 {
+    color: #007bff;
+    border-bottom: 2px solid #007bff;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.detail-actions {
+    display: flex;
+    gap: 1rem;
+    margin: 1.5rem 0;
+    padding: 1rem;
+    background: #f9f9f9;
+    border-radius: 4px;
+}
+
+.insight-list, .decision-list, .pattern-list {
+    list-style: none;
+    padding: 0;
+}
+
+.insight-item, .decision-item, .pattern-item {
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    background: #f9f9f9;
+    border-left: 3px solid #007bff;
+    border-radius: 4px;
+}
+
+.insight-importance {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    background: #007bff;
+    color: white;
+    border-radius: 3px;
+    font-size: 0.75rem;
+    margin-left: 0.5rem;
+}
+
+.decision-impact {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 3px;
+    font-size: 0.75rem;
+    margin-left: 0.5rem;
+}
+
+.impact-high {
+    background: #dc3545;
+    color: white;
+}
+
+.impact-medium {
+    background: #ffc107;
+    color: #333;
+}
+
+.impact-low {
+    background: #6c757d;
+    color: white;
+}
+
+.tags-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.tag {
+    padding: 0.25rem 0.75rem;
+    background: #e3f2fd;
+    color: #1976d2;
+    border-radius: 12px;
+    font-size: 0.875rem;
+}
+
+.loading {
+    text-align: center;
+    padding: 2rem;
+    color: #666;
+}
+
+.btn {
+    padding: 0.625rem 1.25rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.btn-primary {
+    background: #007bff;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #0056b3;
+}
+
+.btn-secondary {
+    background: #6c757d;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: #545b62;
+}
+
+.btn-success {
+    background: #28a745;
+    color: white;
+}
+
+.btn-success:hover {
+    background: #218838;
+}
+
+.btn-danger {
+    background: #dc3545;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #c82333;
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.transcript-preview {
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 1rem;
+    background: #f5f5f5;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.875rem;
+    white-space: pre-wrap;
+}
+</style>
+
+<script>
+let currentSessions = [];
+
+// Load statistics
+function loadStatistics() {
+    fetch('/tools/admin/brain/conversations/statistics')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const stats = data.statistics;
+                document.getElementById('total-sessions').textContent = stats.total_sessions || 0;
+                document.getElementById('summarized-sessions').textContent = stats.summarized_sessions || 0;
+                document.getElementById('knowledge-created').textContent = stats.total_knowledge_created || 0;
+
+                const avgProd = stats.avg_productivity ? (stats.avg_productivity * 100).toFixed(0) + '%' : 'N/A';
+                document.getElementById('avg-productivity').textContent = avgProd;
+            }
+        })
+        .catch(error => console.error('Error loading statistics:', error));
+}
+
+// Load sessions
+function loadSessions() {
+    const phase = document.getElementById('filter-phase').value;
+    const status = document.getElementById('filter-status').value;
+
+    let url = '/tools/admin/brain/conversations/sessions?limit=50';
+    if (phase) url += '&phase=' + encodeURIComponent(phase);
+    if (status) url += '&status=' + encodeURIComponent(status);
+
+    fetch(url)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                currentSessions = data.sessions;
+                renderSessions(currentSessions);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading sessions:', error);
+            document.getElementById('sessions-list').innerHTML = '<div class="loading">Error loading sessions</div>';
+        });
+}
+
+// Render sessions list
+function renderSessions(sessions) {
+    const listDiv = document.getElementById('sessions-list');
+
+    if (sessions.length === 0) {
+        listDiv.innerHTML = '<div class="loading">No sessions found. Process snapshots to import sessions.</div>';
+        return;
+    }
+
+    listDiv.innerHTML = '';
+    sessions.forEach(session => {
+        const card = document.createElement('div');
+        card.className = 'session-card status-' + (session.processing_status || 'raw');
+        card.onclick = () => viewSession(session.id);
+
+        const statusClass = session.processing_status === 'summarized' ? 'status-summarized' :
+                           session.processing_status === 'indexed' ? 'status-indexed' : '';
+
+        let scoresHTML = '';
+        if (session.productivity_score || session.learning_value || session.code_quality) {
+            scoresHTML = `
+                <div class="session-scores">
+                    ${session.productivity_score ? `<div class="score-item"><span class="score-label">Productivity</span><span class="score-value">${(session.productivity_score * 100).toFixed(0)}%</span></div>` : ''}
+                    ${session.learning_value ? `<div class="score-item"><span class="score-label">Learning</span><span class="score-value">${(session.learning_value * 100).toFixed(0)}%</span></div>` : ''}
+                    ${session.code_quality ? `<div class="score-item"><span class="score-label">Quality</span><span class="score-value">${(session.code_quality * 100).toFixed(0)}%</span></div>` : ''}
+                </div>
+            `;
+        }
+
+        card.innerHTML = `
+            <div class="session-header">
+                <div class="session-name">${session.session_name || 'Unnamed Session'}</div>
+                <span class="session-badge badge-status ${statusClass}">${session.processing_status || 'raw'}</span>
+            </div>
+            <div class="session-meta">
+                ${session.phase ? `<span class="session-badge badge-phase">${session.phase}</span>` : ''}
+                ${session.primary_topic ? `<span class="session-badge badge-topic">${session.primary_topic}</span>` : ''}
+                ${session.git_branch ? `<span>📌 ${session.git_branch}</span>` : ''}
+                ${session.started_at ? `<span>🕒 ${new Date(session.started_at).toLocaleString()}</span>` : ''}
+            </div>
+            ${scoresHTML}
+        `;
+
+        listDiv.appendChild(card);
+    });
+}
+
+// View session details
+function viewSession(sessionId) {
+    fetch('/tools/admin/brain/conversations/sessions/' + sessionId)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                renderSessionDetails(data.session);
+                document.getElementById('session-modal').style.display = 'block';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading session:', error);
+            alert('Failed to load session details');
+        });
+}
+
+// Render session details
+function renderSessionDetails(session) {
+    const detailsDiv = document.getElementById('session-details');
+
+    let summaryHTML = session.summary ? `
+        <div class="detail-section">
+            <h3>📝 Summary</h3>
+            <p>${session.summary}</p>
+        </div>
+    ` : '';
+
+    let insightsHTML = '';
+    if (session.key_insights && session.key_insights.length > 0) {
+        insightsHTML = `
+            <div class="detail-section">
+                <h3>💡 Key Insights</h3>
+                <ul class="insight-list">
+                    ${session.key_insights.map(insight => `
+                        <li class="insight-item">
+                            ${insight.insight}
+                            ${insight.importance ? `<span class="insight-importance">${(insight.importance * 100).toFixed(0)}% important</span>` : ''}
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+        `;
+    }
+
+    let decisionsHTML = '';
+    if (session.decisions_made && session.decisions_made.length > 0) {
+        decisionsHTML = `
+            <div class="detail-section">
+                <h3>🎯 Decisions Made</h3>
+                <ul class="decision-list">
+                    ${session.decisions_made.map(decision => `
+                        <li class="decision-item">
+                            <strong>${decision.decision}</strong>
+                            ${decision.impact ? `<span class="decision-impact impact-${decision.impact}">${decision.impact} impact</span>` : ''}
+                            ${decision.rationale ? `<p style="margin-top: 0.5rem; color: #666;">${decision.rationale}</p>` : ''}
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+        `;
+    }
+
+    let patternsHTML = '';
+    if (session.code_patterns_learned && session.code_patterns_learned.length > 0) {
+        patternsHTML = `
+            <div class="detail-section">
+                <h3>💻 Code Patterns Learned</h3>
+                <ul class="pattern-list">
+                    ${session.code_patterns_learned.map(pattern => `
+                        <li class="pattern-item">
+                            <strong>${pattern.pattern}</strong>
+                            ${pattern.description ? `<p style="margin-top: 0.5rem; color: #666;">${pattern.description}</p>` : ''}
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+        `;
+    }
+
+    let tagsHTML = '';
+    if (session.tags && session.tags.length > 0) {
+        tagsHTML = `
+            <div class="detail-section">
+                <h3>🏷️ Tags</h3>
+                <div class="tags-list">
+                    ${session.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    let transcriptHTML = '';
+    if (session.full_transcript) {
+        transcriptHTML = `
+            <div class="detail-section">
+                <h3>📜 Transcript Preview</h3>
+                <div class="transcript-preview">${session.full_transcript.substring(0, 2000)}${session.full_transcript.length > 2000 ? '...' : ''}</div>
+            </div>
+        `;
+    }
+
+    detailsDiv.innerHTML = `
+        <h2>${session.session_name || 'Session Details'}</h2>
+
+        <div class="detail-actions">
+            ${session.processing_status === 'raw' || session.processing_status === 'processing' ?
+                `<button class="btn btn-primary" onclick="summarizeSession(${session.id})">🤖 Summarize with AI</button>` : ''}
+            ${session.processing_status === 'summarized' ?
+                `<button class="btn btn-success" onclick="createKnowledge(${session.id})">📚 Create Knowledge Entry</button>` : ''}
+            ${session.processing_status === 'indexed' ?
+                `<span style="color: #28a745; font-weight: bold;">✅ Knowledge Entry Created</span>` : ''}
+        </div>
+
+        <div class="session-meta" style="margin-bottom: 1.5rem;">
+            ${session.phase ? `<span class="session-badge badge-phase">${session.phase}</span>` : ''}
+            ${session.primary_topic ? `<span class="session-badge badge-topic">${session.primary_topic}</span>` : ''}
+            ${session.git_branch ? `<span>📌 ${session.git_branch}</span>` : ''}
+            ${session.started_at ? `<span>🕒 ${new Date(session.started_at).toLocaleString()}</span>` : ''}
+        </div>
+
+        ${summaryHTML}
+        ${insightsHTML}
+        ${decisionsHTML}
+        ${patternsHTML}
+        ${tagsHTML}
+        ${transcriptHTML}
+    `;
+}
+
+// Summarize session
+function summarizeSession(sessionId) {
+    if (!confirm('This will use Claude API to summarize the conversation. Continue?')) {
+        return;
+    }
+
+    fetch('/tools/admin/brain/conversations/sessions/' + sessionId + '/summarize', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Session summarized successfully!');
+            viewSession(sessionId);  // Reload details
+            loadSessions();  // Reload list
+            loadStatistics();  // Reload stats
+        } else {
+            alert('Summarization failed: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Summarization error:', error);
+        alert('Summarization failed: ' + error);
+    });
+}
+
+// Create knowledge entry
+function createKnowledge(sessionId) {
+    if (!confirm('Create a searchable knowledge_base entry from this session?')) {
+        return;
+    }
+
+    fetch('/tools/admin/brain/conversations/sessions/' + sessionId + '/create-knowledge', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Knowledge entry created! Entry IDs: ' + data.entry_ids.join(', '));
+            viewSession(sessionId);  // Reload details
+            loadSessions();  // Reload list
+            loadStatistics();  // Reload stats
+        } else {
+            alert('Knowledge creation failed: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Knowledge creation error:', error);
+        alert('Knowledge creation failed: ' + error);
+    });
+}
+
+// Search conversations
+function searchConversations() {
+    const query = document.getElementById('search-input').value;
+    const phase = document.getElementById('filter-phase').value;
+    const topic = document.getElementById('filter-topic').value;
+
+    if (!query) {
+        alert('Please enter a search query');
+        return;
+    }
+
+    fetch('/tools/admin/brain/conversations/search', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            query: query,
+            phase: phase || null,
+            topic: topic || null,
+            limit: 20
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            currentSessions = data.results;
+            renderSessions(currentSessions);
+        }
+    })
+    .catch(error => {
+        console.error('Search error:', error);
+        alert('Search failed: ' + error);
+    });
+}
+
+// Process snapshots
+function processSnapshots() {
+    if (!confirm('Process all pending conversation snapshots from hooks?')) {
+        return;
+    }
+
+    fetch('/tools/admin/brain/conversations/process-snapshots', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`Processed ${data.processed} snapshots (${data.already_processed} already existed, ${data.failed} failed)`);
+            loadSessions();
+            loadStatistics();
+        } else {
+            alert('Processing failed: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Processing error:', error);
+        alert('Processing failed: ' + error);
+    });
+}
+
+// Close modal
+function closeModal() {
+    document.getElementById('session-modal').style.display = 'none';
+}
+
+// Allow Enter key to search
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('search-input').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            searchConversations();
+        }
+    });
+
+    // Close modal when clicking outside
+    window.onclick = function(event) {
+        const modal = document.getElementById('session-modal');
+        if (event.target === modal) {
+            modal.style.display = 'none';
+        }
+    };
+
+    // Initial load
+    loadStatistics();
+    loadSessions();
+});
+</script>
+{% endblock %}

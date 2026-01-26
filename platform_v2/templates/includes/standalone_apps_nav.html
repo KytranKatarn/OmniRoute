@@ -1,0 +1,301 @@
+<!-- ═══════════════════════════════════════════════════════════════════════════════
+   Standalone Apps Navigation Bar
+   Shared component for DOC, Therapy, Fitness, StockBot, Archie Pool
+   Phase 7: Standalone Apps - Red Theme (#EF4444)
+   ═══════════════════════════════════════════════════════════════════════════════ -->
+
+<!-- Page Transition Overlay -->
+<div class="page-transition-overlay standalone-transition" id="pageTransition">
+    <div class="transition-content">
+        <div class="transition-logo">A.R.C.H.I.E.</div>
+        <div class="transition-bar">
+            <div class="transition-progress"></div>
+        </div>
+        <div class="transition-text">LOADING MODULE...</div>
+    </div>
+</div>
+
+<!-- Standalone Apps Navigation -->
+<nav class="category-nav standalone-apps-nav">
+    <div class="nav-left">
+        <a href="{{ url_for('dashboard') }}" class="nav-back-btn" onclick="showTransition(event, this.href)">
+            <i data-lucide="arrow-left"></i>
+            <span>DASHBOARD</span>
+        </a>
+    </div>
+
+    <div class="nav-center">
+        <span class="nav-category-label">
+            <i data-lucide="heart-pulse"></i>
+            STANDALONE APPS
+        </span>
+    </div>
+
+    <div class="nav-right">
+        <!-- Theme Controls -->
+        <div class="theme-controls">
+            <button class="nav-icon-btn" onclick="toggleTheme()" title="Toggle Light/Dark Mode">
+                <i data-lucide="sun" id="themeIcon"></i>
+            </button>
+            <button class="nav-icon-btn" onclick="showLanguageMenu()" title="Language (Coming Soon)">
+                <i data-lucide="globe"></i>
+            </button>
+        </div>
+        <div class="nav-divider"></div>
+        <a href="{{ url_for('doc.index') if 'doc' in url_for.__globals__['current_app'].blueprints else '#' }}"
+           class="nav-module-btn {% if request.endpoint and 'doc' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="Medical AI Assistant">
+            <i data-lucide="stethoscope"></i>
+            <span>DOC</span>
+        </a>
+        <a href="{{ url_for('therapy.index') if 'therapy' in url_for.__globals__['current_app'].blueprints else '#' }}"
+           class="nav-module-btn {% if request.endpoint and 'therapy' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="Mental Health AI">
+            <i data-lucide="flower-2"></i>
+            <span>Therapy</span>
+        </a>
+        <a href="{{ url_for('fitness.index') if 'fitness' in url_for.__globals__['current_app'].blueprints else '#' }}"
+           class="nav-module-btn {% if request.endpoint and 'fitness' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="AI Fitness Coach">
+            <i data-lucide="dumbbell"></i>
+            <span>Fitness</span>
+        </a>
+        <a href="{{ url_for('stockbot.index') if 'stockbot' in url_for.__globals__['current_app'].blueprints else '#' }}"
+           class="nav-module-btn {% if request.endpoint and 'stockbot' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="AI Stock Screener">
+            <i data-lucide="trending-up"></i>
+            <span>StockBot</span>
+        </a>
+        <a href="{{ url_for('archie_pool.index') if 'archie_pool' in url_for.__globals__['current_app'].blueprints else '#' }}"
+           class="nav-module-btn {% if request.endpoint and 'archie_pool' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="RVN Mining Pool">
+            <i data-lucide="pickaxe"></i>
+            <span>Pool</span>
+        </a>
+    </div>
+</nav>
+
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════════
+   PAGE TRANSITION OVERLAY - STANDALONE APPS (RED THEME)
+   ═══════════════════════════════════════════════════════════════════════════════ */
+.standalone-transition .transition-logo {
+    color: #EF4444;
+    text-shadow: 0 0 30px rgba(239, 68, 68, 0.5), 0 0 60px rgba(239, 68, 68, 0.3);
+}
+
+.standalone-transition .transition-bar {
+    background: rgba(239, 68, 68, 0.2);
+}
+
+.standalone-transition .transition-progress {
+    background: linear-gradient(90deg, #EF4444, #F59E0B);
+}
+
+.standalone-transition .transition-text {
+    color: rgba(239, 68, 68, 0.7);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   STANDALONE APPS NAVIGATION BAR (RED THEME)
+   ═══════════════════════════════════════════════════════════════════════════════ */
+.standalone-apps-nav {
+    border-bottom: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.standalone-apps-nav::after {
+    background: linear-gradient(90deg, transparent, rgba(239, 68, 68, 0.5), transparent);
+}
+
+.standalone-apps-nav .nav-category-label {
+    color: #EF4444;
+    text-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+}
+
+.standalone-apps-nav .nav-module-btn {
+    border-color: rgba(239, 68, 68, 0.2);
+    color: rgba(239, 68, 68, 0.6);
+}
+
+.standalone-apps-nav .nav-module-btn::before {
+    background: #EF4444;
+}
+
+.standalone-apps-nav .nav-module-btn:hover {
+    color: #EF4444;
+    border-color: rgba(239, 68, 68, 0.4);
+    background: rgba(239, 68, 68, 0.05);
+}
+
+.standalone-apps-nav .nav-module-btn.active {
+    color: #EF4444;
+    border-color: rgba(239, 68, 68, 0.5);
+    background: rgba(239, 68, 68, 0.1);
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.15);
+}
+
+/* Theme Controls */
+.standalone-apps-nav .theme-controls {
+    display: flex;
+    gap: 4px;
+}
+
+.standalone-apps-nav .nav-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: transparent;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 8px;
+    color: rgba(239, 68, 68, 0.6);
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.standalone-apps-nav .nav-icon-btn:hover {
+    color: #EF4444;
+    border-color: rgba(239, 68, 68, 0.5);
+    background: rgba(239, 68, 68, 0.1);
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.15);
+}
+
+.standalone-apps-nav .nav-icon-btn i {
+    width: 18px;
+    height: 18px;
+}
+
+.standalone-apps-nav .nav-divider {
+    width: 1px;
+    height: 24px;
+    background: rgba(239, 68, 68, 0.2);
+    margin: 0 8px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   LIGHT MODE - STANDALONE APPS NAV
+   ═══════════════════════════════════════════════════════════════════════════════ */
+body.light-mode .standalone-apps-nav {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 249, 250, 0.9) 100%);
+    border-bottom: 1px solid rgba(220, 38, 38, 0.2);
+}
+
+body.light-mode .standalone-apps-nav::after {
+    background: linear-gradient(90deg, transparent, rgba(220, 38, 38, 0.4), transparent);
+}
+
+body.light-mode .standalone-apps-nav .nav-category-label {
+    color: #DC2626;
+    text-shadow: none;
+}
+
+body.light-mode .standalone-apps-nav .nav-module-btn {
+    color: rgba(220, 38, 38, 0.7);
+    border-color: rgba(220, 38, 38, 0.2);
+}
+
+body.light-mode .standalone-apps-nav .nav-module-btn:hover {
+    color: #DC2626;
+    border-color: rgba(220, 38, 38, 0.4);
+    background: rgba(220, 38, 38, 0.05);
+}
+
+body.light-mode .standalone-apps-nav .nav-module-btn::before {
+    background: #DC2626;
+}
+
+body.light-mode .standalone-apps-nav .nav-module-btn.active {
+    color: #DC2626;
+    border-color: rgba(220, 38, 38, 0.5);
+    background: rgba(220, 38, 38, 0.08);
+    box-shadow: 0 0 15px rgba(220, 38, 38, 0.1);
+}
+
+body.light-mode .standalone-apps-nav .nav-icon-btn {
+    color: rgba(220, 38, 38, 0.6);
+    border-color: rgba(220, 38, 38, 0.2);
+}
+
+body.light-mode .standalone-apps-nav .nav-icon-btn:hover {
+    color: #DC2626;
+    border-color: rgba(220, 38, 38, 0.5);
+    background: rgba(220, 38, 38, 0.08);
+    box-shadow: 0 0 15px rgba(220, 38, 38, 0.1);
+}
+
+body.light-mode .standalone-apps-nav .nav-divider {
+    background: rgba(220, 38, 38, 0.2);
+}
+
+body.light-mode .standalone-transition {
+    background: #f8f9fa;
+}
+
+body.light-mode .standalone-transition .transition-logo {
+    color: #DC2626;
+    text-shadow: 0 0 20px rgba(220, 38, 38, 0.3);
+}
+
+body.light-mode .standalone-transition .transition-bar {
+    background: rgba(220, 38, 38, 0.1);
+}
+
+body.light-mode .standalone-transition .transition-progress {
+    background: linear-gradient(90deg, #DC2626, #D97706);
+}
+
+body.light-mode .standalone-transition .transition-text {
+    color: rgba(220, 38, 38, 0.7);
+}
+</style>
+
+<script>
+// Page Transition Handler
+function showTransition(event, targetUrl) {
+    // Don't transition if clicking current page
+    if (event.currentTarget.classList.contains('active')) {
+        event.preventDefault();
+        return;
+    }
+
+    event.preventDefault();
+    const overlay = document.getElementById('pageTransition');
+    overlay.classList.add('active');
+
+    // Navigate after animation
+    setTimeout(() => {
+        window.location.href = targetUrl;
+    }, 600);
+}
+
+// Language menu placeholder
+function showLanguageMenu() {
+    // Show toast notification
+    if (typeof showToast === 'function') {
+        showToast('Language selection coming soon!', 'info');
+    } else {
+        alert('Language selection coming soon!');
+    }
+}
+
+// Initialize Lucide icons in nav
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+});
+
+// Hide transition on page load (for back button)
+window.addEventListener('pageshow', function(event) {
+    const overlay = document.getElementById('pageTransition');
+    if (overlay) {
+        overlay.classList.remove('active');
+    }
+});
+</script>

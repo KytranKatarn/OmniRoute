@@ -1,0 +1,1368 @@
+{% extends "base.html" %}
+
+{% block title %}Backup Manager - Admin Tools{% endblock %}
+
+{% block module_name %}backup-manager{% endblock %}
+
+{% block styles %}
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background: #010409;
+            color: #00ff41;
+            min-height: 100vh;
+        }
+
+        /* Navigation - matches Code Sentinel/Improvements Lab/Sandbox Manager */
+        nav {
+            background: #0d1117;
+            border-bottom: 2px solid #00ff41;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        nav h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            color: #39ff14;
+            text-shadow: 0 0 10px #39ff14;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 10px;
+        }
+
+        nav a {
+            color: #00ff41;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border: 1px solid #00ff41;
+            border-radius: 4px;
+            transition: all 0.3s;
+        }
+
+        nav a:hover {
+            background: #00ff41;
+            color: #010409;
+            box-shadow: 0 0 10px #00ff41;
+        }
+
+        nav a.sandbox {
+            border-color: #9B59B6;
+            color: #9B59B6;
+        }
+
+        nav a.sandbox:hover {
+            background: #9B59B6;
+            color: #000;
+            box-shadow: 0 0 10px #9B59B6;
+        }
+
+        nav a.improvements {
+            border-color: #00FFFF;
+            color: #00FFFF;
+        }
+
+        nav a.improvements:hover {
+            background: #00FFFF;
+            color: #000;
+            box-shadow: 0 0 10px #00FFFF;
+        }
+
+        nav a.code_sentinel {
+            border-color: #FFA500;
+            color: #FFA500;
+        }
+
+        nav a.code_sentinel:hover {
+            background: #FFA500;
+            color: #000;
+            box-shadow: 0 0 10px #FFA500;
+        }
+
+        /* Main Container */
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px 30px;
+        }
+
+        /* Tab Navigation */
+        .tab-nav {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 10px;
+        }
+
+        .tab-btn {
+            padding: 10px 20px;
+            background: transparent;
+            border: 1px solid #333;
+            color: #888;
+            font-family: 'JetBrains Mono', monospace;
+            cursor: pointer;
+            border-radius: 4px 4px 0 0;
+            transition: all 0.3s;
+        }
+
+        .tab-btn:hover {
+            border-color: #00ff41;
+            color: #00ff41;
+        }
+
+        .tab-btn.active {
+            background: rgba(0, 255, 65, 0.1);
+            border-color: #00ff41;
+            color: #00ff41;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .stat-card {
+            background: #0d1117;
+            border: 1px solid #333;
+            padding: 15px;
+            text-align: center;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+
+        .stat-card:hover {
+            border-color: #00ff41;
+            box-shadow: 0 0 10px rgba(0, 255, 65, 0.2);
+        }
+
+        .stat-card h3 {
+            font-size: 0.75rem;
+            color: #888;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+
+        .stat-card .value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #00ff41;
+        }
+
+        .stat-card .sub {
+            font-size: 0.75rem;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 8px 16px;
+            border: 1px solid #00ff41;
+            background: transparent;
+            color: #00ff41;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.3s;
+        }
+
+        .btn:hover {
+            background: #00ff41;
+            color: #000;
+            box-shadow: 0 0 10px #00ff41;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-orange { border-color: #FFA500; color: #FFA500; }
+        .btn-orange:hover { background: #FFA500; color: #000; box-shadow: 0 0 10px #FFA500; }
+
+        .btn-red { border-color: #FF4444; color: #FF4444; }
+        .btn-red:hover { background: #FF4444; color: #000; box-shadow: 0 0 10px #FF4444; }
+
+        .btn-cyan { border-color: #00FFFF; color: #00FFFF; }
+        .btn-cyan:hover { background: #00FFFF; color: #000; box-shadow: 0 0 10px #00FFFF; }
+
+        .btn-purple { border-color: #9B59B6; color: #9B59B6; }
+        .btn-purple:hover { background: #9B59B6; color: #000; box-shadow: 0 0 10px #9B59B6; }
+
+        /* Quick Backup Section */
+        .quick-backup {
+            background: rgba(0, 255, 65, 0.05);
+            border: 2px solid #00ff41;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .quick-backup h3 {
+            color: #00ff41;
+            font-family: 'Orbitron', sans-serif;
+            margin-bottom: 15px;
+        }
+
+        .backup-buttons {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .backup-type-btn {
+            padding: 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1rem;
+            transition: all 0.3s;
+            border: 2px solid;
+            font-family: 'JetBrains Mono', monospace;
+            text-align: center;
+        }
+
+        .backup-type-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+        }
+
+        .backup-type-btn .icon { font-size: 1.8rem; margin-bottom: 8px; }
+        .backup-type-btn .size { font-size: 0.7rem; opacity: 0.8; margin-top: 5px; }
+
+        .btn-full { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-color: #8B5CF6; }
+        .btn-critical { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; border-color: #00FF00; }
+        .btn-database { background: linear-gradient(135deg, #F09819 0%, #EDDE5D 100%); color: #333; border-color: #FFC800; }
+
+        /* Backup List */
+        .backup-list {
+            background: #0d1117;
+            border: 1px solid #333;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .backup-item {
+            padding: 15px 20px;
+            border-bottom: 1px solid #222;
+            transition: all 0.3s;
+        }
+
+        .backup-item:last-child { border-bottom: none; }
+        .backup-item:hover { background: rgba(0, 255, 65, 0.05); }
+
+        .backup-item.current {
+            background: rgba(0, 255, 65, 0.1);
+            border-left: 4px solid #00ff41;
+        }
+
+        .backup-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 10px;
+        }
+
+        .backup-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 5px;
+        }
+
+        .backup-title .build {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #00ff41;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: bold;
+        }
+
+        .badge-full { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .badge-critical { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; }
+        .badge-database { background: linear-gradient(135deg, #F09819 0%, #EDDE5D 100%); color: #333; }
+        .badge-custom { background: rgba(255,170,0,0.3); color: #FFAA00; }
+        .badge-legacy { background: rgba(100,100,100,0.3); color: #888; }
+        .badge-current { background: #00ff41; color: #000; }
+        .badge-deployed { background: rgba(0, 255, 0, 0.2); color: #00FF00; border: 1px solid #00FF00; }
+        .badge-failed { background: rgba(255, 68, 68, 0.2); color: #FF4444; border: 1px solid #FF4444; }
+
+        .backup-description { font-size: 0.9rem; color: #fff; margin-bottom: 3px; }
+        .backup-meta { font-size: 0.75rem; color: #888; }
+        .backup-meta .author { color: #FFA500; }
+        .backup-components { font-size: 0.75rem; color: #666; margin-top: 5px; }
+
+        .backup-size { text-align: right; }
+        .backup-size .value { font-size: 1.4rem; font-weight: bold; color: #00ff41; }
+        .backup-size .duration { font-size: 0.75rem; color: #888; }
+
+        .backup-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            border-top: 1px solid #222;
+            padding-top: 10px;
+            margin-top: 10px;
+        }
+
+        /* Deployment Item */
+        .deployment-item {
+            background: #0d1117;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s;
+        }
+
+        .deployment-item:hover { border-color: #00ff41; }
+        .deployment-item.success { border-left: 4px solid #00FF00; }
+        .deployment-item.failed { border-left: 4px solid #FF4444; }
+
+        .deployment-info h4 { color: #00ff41; margin-bottom: 5px; }
+        .deployment-meta { font-size: 0.8rem; color: #888; }
+
+        .deployment-stats {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .deployment-stat { text-align: center; }
+        .deployment-stat .value { font-size: 1.1rem; font-weight: bold; }
+        .deployment-stat .label { font-size: 0.7rem; color: #666; }
+
+        /* Module Cards */
+        .module-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+        }
+
+        .module-card {
+            background: #0d1117;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .module-card:hover {
+            border-color: #9B59B6;
+            background: rgba(155, 89, 182, 0.1);
+        }
+
+        .module-card.selected {
+            border-color: #9B59B6;
+            background: rgba(155, 89, 182, 0.2);
+        }
+
+        .module-card .name { color: #9B59B6; font-weight: bold; margin-bottom: 5px; }
+        .module-card .info { font-size: 0.8rem; color: #888; }
+
+        /* Retention Section */
+        .retention-info {
+            background: #0d1117;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .retention-info h4 {
+            color: #00ff41;
+            margin-bottom: 15px;
+        }
+
+        .retention-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+        }
+
+        .retention-card {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .retention-card .number { font-size: 2rem; color: #00ff41; font-weight: bold; }
+        .retention-card .label { font-size: 0.8rem; color: #888; }
+
+        /* Toast */
+        .toast-container {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            z-index: 2000;
+        }
+
+        .toast {
+            background: #0d1117;
+            border: 1px solid #00FF00;
+            border-radius: 8px;
+            padding: 12px 20px;
+            margin-bottom: 10px;
+            animation: slideIn 0.3s ease;
+            max-width: 350px;
+        }
+
+        .toast.error { border-color: #FF4444; }
+        .toast.success { border-color: #00FF00; }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #333;
+            border-top-color: #00ff41;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .empty-state h3 { color: #888; margin-bottom: 10px; }
+
+        /* Input */
+        .input-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .input-row input {
+            flex: 1;
+            padding: 10px;
+            background: #0a0a0a;
+            border: 1px solid #333;
+            border-radius: 4px;
+            color: #00ff41;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .input-row input:focus {
+            outline: none;
+            border-color: #00ff41;
+        }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .stats-grid { grid-template-columns: repeat(3, 1fr); }
+            .backup-buttons { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 768px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            nav { flex-direction: column; gap: 10px; }
+            .nav-links { flex-wrap: wrap; justify-content: center; }
+            .tab-nav { flex-wrap: wrap; }
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="category-container admin-tools-container">
+    <!-- Admin Tools Navigation -->
+    {% include 'includes/admin_tools_nav.html' %}
+
+    <div class="category-content">
+
+    <!-- Page Header -->
+    <div class="category-header" style="color: #FF6B6B;">
+        <i data-lucide="hard-drive" style="width: 32px; height: 32px;"></i>
+        <div class="category-header-text">
+            <h1>BACKUP MANAGER</h1>
+            <p>System backups, restore, version control</p>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <div class="container">
+        <!-- Stats -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Total Backups</h3>
+                <div class="value" id="stat-total">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Current Build</h3>
+                <div class="value" id="stat-build">#-</div>
+                <div class="sub" id="stat-build-status">READY</div>
+            </div>
+            <div class="stat-card">
+                <h3>Total Size</h3>
+                <div class="value" id="stat-size">0 MB</div>
+            </div>
+            <div class="stat-card">
+                <h3>Deployments</h3>
+                <div class="value" id="stat-deployments">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Latest Backup</h3>
+                <div class="value" id="stat-latest" style="font-size: 0.9rem;">-</div>
+            </div>
+        </div>
+
+        <!-- Tab Navigation -->
+        <div class="tab-nav">
+            <button class="tab-btn active" onclick="switchTab('backups')">&#x1F4BE; Backups</button>
+            <button class="tab-btn" onclick="switchTab('deployments')">&#x1F680; Deployment Backups</button>
+            <button class="tab-btn" onclick="switchTab('modules')">&#x1F4E6; Module Backups</button>
+            <button class="tab-btn" onclick="switchTab('packages')">&#x1F4E6; Deployment Packages</button>
+            <button class="tab-btn" onclick="switchTab('retention')">&#x1F5D3;&#xFE0F; Retention</button>
+        </div>
+
+        <!-- BACKUPS TAB -->
+        <div class="tab-content active" id="tab-backups">
+            <!-- Quick Backup -->
+            <div class="quick-backup">
+                <h3>&#x26A1; Quick Backup</h3>
+                <div class="backup-buttons">
+                    <button class="backup-type-btn btn-full" onclick="createQuickBackup('full')">
+                        <div class="icon">&#x1F535;</div>
+                        FULL BACKUP
+                        <div class="size">All components (~100-200 MB)</div>
+                    </button>
+                    <button class="backup-type-btn btn-critical" onclick="createQuickBackup('critical')">
+                        <div class="icon">&#x1F7E2;</div>
+                        CRITICAL ONLY
+                        <div class="size">Essential only (~30-50 MB)</div>
+                    </button>
+                    <button class="backup-type-btn btn-database" onclick="createQuickBackup('database')">
+                        <div class="icon">&#x1F7E1;</div>
+                        DATABASE ONLY
+                        <div class="size">Database dump (~5-20 MB)</div>
+                    </button>
+                </div>
+                <div class="input-row">
+                    <input type="text" id="backupDescription" placeholder="Backup description (optional)">
+                    <button class="btn" onclick="loadBackups()">&#x21BB; Refresh</button>
+                </div>
+            </div>
+
+            <!-- Backup List -->
+            <div id="backupsList" class="backup-list">
+                <div class="loading"><div class="spinner"></div><p>Loading backups...</p></div>
+            </div>
+        </div>
+
+        <!-- DEPLOYMENT BACKUPS TAB -->
+        <div class="tab-content" id="tab-deployments">
+            <div style="margin-bottom: 20px;">
+                <h3 style="color: #00ff41; font-family: 'Orbitron', sans-serif; margin-bottom: 10px;">&#x1F680; Deployment Backups</h3>
+                <p style="color: #888; font-size: 0.9rem;">Backups automatically created before deploying proposals from Improvements Lab.</p>
+            </div>
+            <div id="deploymentBackupsList">
+                <div class="loading"><div class="spinner"></div><p>Loading deployment backups...</p></div>
+            </div>
+        </div>
+
+        <!-- MODULE BACKUPS TAB -->
+        <div class="tab-content" id="tab-modules">
+            <div style="margin-bottom: 20px;">
+                <h3 style="color: #9B59B6; font-family: 'Orbitron', sans-serif; margin-bottom: 10px;">&#x1F4E6; Module Backups</h3>
+                <p style="color: #888; font-size: 0.9rem;">Select individual modules to backup for isolated sandbox testing.</p>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <div>
+                    <button class="btn btn-purple" onclick="selectAllModules()">Select All</button>
+                    <button class="btn btn-purple" onclick="deselectAllModules()" style="margin-left: 5px;">Clear All</button>
+                </div>
+                <div>
+                    <span style="color: #888;">Selected: </span>
+                    <span id="selectedModuleCount" style="color: #9B59B6; font-weight: bold;">0</span>
+                    <span style="color: #888; margin-left: 15px;">Size: </span>
+                    <span id="moduleEstimatedSize" style="color: #00ff41; font-weight: bold;">0 KB</span>
+                </div>
+            </div>
+
+            <div id="moduleGrid" class="module-grid">
+                <div class="loading"><div class="spinner"></div><p>Loading modules...</p></div>
+            </div>
+
+            <div class="input-row" style="margin-top: 20px;">
+                <input type="text" id="moduleBackupDescription" placeholder="Module backup description (optional)" style="border-color: #9B59B6;">
+                <button class="btn btn-purple" onclick="createModuleBackup()">&#x1F4BE; Backup Selected</button>
+            </div>
+
+            <div style="margin-top: 30px;">
+                <h4 style="color: #9B59B6; margin-bottom: 15px;">Recent Module Backups</h4>
+                <div id="moduleBackupsList">
+                    <div class="loading">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RETENTION TAB -->
+        <div class="tab-content" id="tab-retention">
+            <div class="retention-info">
+                <h4>&#x1F5D3;&#xFE0F; Retention Policy (GFS - Grandfather-Father-Son)</h4>
+                <div class="retention-grid">
+                    <div class="retention-card">
+                        <div class="number">7</div>
+                        <div class="label">Daily Backups</div>
+                    </div>
+                    <div class="retention-card">
+                        <div class="number">4</div>
+                        <div class="label">Weekly Backups</div>
+                    </div>
+                    <div class="retention-card">
+                        <div class="number">6</div>
+                        <div class="label">Monthly Backups</div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <h4 style="color: #00ff41; margin-bottom: 15px;">Retention Status</h4>
+                <div id="retentionStatus">
+                    <div class="loading"><div class="spinner"></div><p>Loading retention status...</p></div>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+                <button class="btn" onclick="checkRetention()">&#x1F50D; Check Retention</button>
+                <button class="btn btn-orange" onclick="cleanupBackups(true)">&#x1F9F9; Preview Cleanup</button>
+                <button class="btn btn-red" onclick="cleanupBackups(false)">&#x1F5D1;&#xFE0F; Run Cleanup</button>
+            </div>
+        </div>
+
+        <!-- DEPLOYMENT PACKAGES TAB -->
+        <div class="tab-content" id="tab-packages">
+            <div style="margin-bottom: 20px;">
+                <h3 style="color: #00FFFF; font-family: 'Orbitron', sans-serif; margin-bottom: 10px;">&#x1F4E6; Deployment Packages</h3>
+                <p style="color: #888; font-size: 0.9rem;">
+                    Create self-contained deployment packages for migrating A.R.C.H.I.E. to new machines.
+                    Each package includes all code, database, and a deploy.sh script for one-command installation.
+                </p>
+            </div>
+
+            <!-- Create Package Section -->
+            <div class="quick-backup" style="border-color: #00FFFF; background: rgba(0, 255, 255, 0.05);">
+                <h3 style="color: #00FFFF;">&#x2795; Create Deployment Package</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div>
+                        <label style="color: #888; font-size: 0.8rem;">Version Tag</label>
+                        <input type="text" id="packageVersion" placeholder="e.g., v5.33.0" style="width: 100%; margin-top: 5px; padding: 10px; background: #0a0a0a; border: 1px solid #333; border-radius: 4px; color: #00ff41; font-family: 'JetBrains Mono', monospace;">
+                    </div>
+                    <div>
+                        <label style="color: #888; font-size: 0.8rem;">Target Platform</label>
+                        <select id="packagePlatform" style="width: 100%; margin-top: 5px; padding: 10px; background: #0a0a0a; border: 1px solid #333; border-radius: 4px; color: #00ff41; font-family: 'JetBrains Mono', monospace;">
+                            <option value="linux">Linux (Ubuntu/Debian)</option>
+                            <option value="docker">Docker Only</option>
+                            <option value="all">All Platforms</option>
+                        </select>
+                    </div>
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label style="color: #888; font-size: 0.8rem;">Description</label>
+                    <input type="text" id="packageDescription" placeholder="e.g., Production release with Phase 31 features" style="width: 100%; margin-top: 5px; padding: 10px; background: #0a0a0a; border: 1px solid #333; border-radius: 4px; color: #00ff41; font-family: 'JetBrains Mono', monospace;">
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn btn-cyan" onclick="createDeploymentPackage()">&#x1F4E6; Create Package</button>
+                    <button class="btn" onclick="loadDeploymentPackages()">&#x21BB; Refresh</button>
+                </div>
+            </div>
+
+            <!-- Packages List -->
+            <h4 style="color: #00FFFF; margin-bottom: 15px;">Available Packages</h4>
+            <div id="packagesList">
+                <div class="loading"><div class="spinner"></div><p>Loading packages...</p></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentBuildNum = null;
+        let availableModules = [];
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            loadBackups();
+            loadDeploymentBackups();
+        });
+
+        // Tab switching
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+
+            event.target.classList.add('active');
+            document.getElementById('tab-' + tabId).classList.add('active');
+
+            // Load data for specific tabs
+            if (tabId === 'deployments') loadDeploymentBackups();
+            if (tabId === 'modules') { loadAvailableModules(); loadModuleBackups(); }
+            if (tabId === 'packages') loadDeploymentPackages();
+            if (tabId === 'retention') checkRetention();
+        }
+
+        // =====================================================================
+        // BACKUPS TAB
+        // =====================================================================
+
+        async function loadBackups() {
+            try {
+                const response = await fetch('/tools/backup-manager/list', { credentials: 'same-origin' });
+                const data = await response.json();
+
+                if (data.success) {
+                    currentBuildNum = data.current_build;
+                    renderBackupsList(data.backups);
+                    updateStats(data.backups, data.current_build);
+                } else {
+                    showToast('Error loading backups: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+
+        function renderBackupsList(backups) {
+            const container = document.getElementById('backupsList');
+
+            if (!backups || backups.length === 0) {
+                container.innerHTML = '<div class="empty-state"><h3>No Backups Yet</h3><p>Create your first backup to get started</p></div>';
+                return;
+            }
+
+            container.innerHTML = backups.map(backup => {
+                const sizeMB = backup.total_size_mb || (backup.size / 1024 / 1024).toFixed(2);
+                const buildNum = backup.build_number || '-';
+                const isCurrent = currentBuildNum && backup.build_number === currentBuildNum;
+                const backupType = backup.backup_type || 'legacy';
+
+                let typeBadge = '';
+                if (backupType === 'full') typeBadge = '<span class="badge badge-full">FULL</span>';
+                else if (backupType === 'critical') typeBadge = '<span class="badge badge-critical">CRITICAL</span>';
+                else if (backupType === 'database') typeBadge = '<span class="badge badge-database">DATABASE</span>';
+                else if (backupType === 'custom') typeBadge = '<span class="badge badge-custom">CUSTOM</span>';
+                else typeBadge = '<span class="badge badge-legacy">LEGACY</span>';
+
+                return `
+                    <div class="backup-item ${isCurrent ? 'current' : ''}">
+                        <div class="backup-header">
+                            <div style="flex: 1;">
+                                <div class="backup-title">
+                                    <span class="build">Build #${buildNum}</span>
+                                    ${typeBadge}
+                                    ${isCurrent ? '<span class="badge badge-current">CURRENT</span>' : ''}
+                                </div>
+                                <div class="backup-description">${backup.description || 'Platform backup'}</div>
+                                <div class="backup-meta">
+                                    Created by <span class="author">${backup.created_by || 'system'}</span> on ${backup.created_at || backup.name}
+                                </div>
+                            </div>
+                            <div class="backup-size">
+                                <div class="value">${sizeMB} MB</div>
+                            </div>
+                        </div>
+                        <div class="backup-actions">
+                            ${!isCurrent && backup.build_number ? `<button class="btn" onclick="setCurrentBuild(${backup.build_number})">Set Current</button>` : ''}
+                            <button class="btn btn-cyan" onclick="downloadBackup('${backup.name}')">Download</button>
+                            <button class="btn btn-red" onclick="deleteBackup('${backup.name}')">Delete</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateStats(backups, currentBuild) {
+            document.getElementById('stat-total').textContent = backups.length;
+
+            if (backups.length > 0) {
+                const latest = backups[0].created_at || backups[0].name;
+                document.getElementById('stat-latest').textContent = formatTime(latest);
+
+                const totalSize = backups.reduce((sum, b) => sum + (b.size || 0), 0);
+                document.getElementById('stat-size').textContent = (totalSize / 1024 / 1024).toFixed(1) + ' MB';
+            }
+
+            if (currentBuild) {
+                document.getElementById('stat-build').textContent = '#' + currentBuild;
+                document.getElementById('stat-build-status').textContent = 'DEPLOYED';
+            }
+        }
+
+        async function createQuickBackup(backupType) {
+            const description = document.getElementById('backupDescription').value || `Quick ${backupType} backup`;
+
+            if (!confirm(`Create ${backupType.toUpperCase()} backup?`)) return;
+
+            showToast('Creating backup...', 'info');
+
+            try {
+                const response = await fetch('/tools/backup-manager/create', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ backup_type: backupType, description: description })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showToast('Backup created successfully!', 'success');
+                    loadBackups();
+                    document.getElementById('backupDescription').value = '';
+                } else {
+                    showToast('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+
+        async function setCurrentBuild(buildNumber) {
+            if (!confirm('Set build #' + buildNumber + ' as current?')) return;
+
+            try {
+                const response = await fetch('/tools/backup-manager/set-current/' + buildNumber, {
+                    method: 'POST', credentials: 'same-origin'
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    showToast('Build #' + buildNumber + ' set as current', 'success');
+                    loadBackups();
+                } else {
+                    showToast('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+
+        function downloadBackup(name) {
+            window.location.href = '/tools/backup-manager/download/' + name;
+        }
+
+        async function deleteBackup(name) {
+            if (!confirm('Delete backup: ' + name + '?')) return;
+
+            try {
+                const response = await fetch('/tools/backup-manager/delete/' + name, {
+                    method: 'DELETE', credentials: 'same-origin'
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    showToast('Backup deleted', 'success');
+                    loadBackups();
+                } else {
+                    showToast('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+
+        // =====================================================================
+        // DEPLOYMENT BACKUPS TAB
+        // =====================================================================
+
+        async function loadDeploymentBackups() {
+            try {
+                const response = await fetch('/tools/backup-manager/api/deployment-backups', { credentials: 'same-origin' });
+                const data = await response.json();
+
+                if (data.success) {
+                    renderDeploymentBackups(data.deployments);
+                    document.getElementById('stat-deployments').textContent = data.deployments.length;
+                } else {
+                    document.getElementById('deploymentBackupsList').innerHTML =
+                        '<div class="empty-state">Error loading deployment backups</div>';
+                }
+            } catch (error) {
+                document.getElementById('deploymentBackupsList').innerHTML =
+                    '<div class="empty-state">Error: ' + error.message + '</div>';
+            }
+        }
+
+        function renderDeploymentBackups(deployments) {
+            const container = document.getElementById('deploymentBackupsList');
+
+            if (!deployments || deployments.length === 0) {
+                container.innerHTML = '<div class="empty-state"><h3>No Deployment Backups Yet</h3><p>Deploy proposals from Improvements Lab to create backups.</p></div>';
+                return;
+            }
+
+            container.innerHTML = deployments.map(d => {
+                const isSuccess = d.status === 'deployed';
+                let healthDisplay = 'N/A', healthColor = '#888';
+                if (d.health_check_passed === true) { healthDisplay = 'PASS'; healthColor = '#00FF00'; }
+                else if (d.health_check_passed === false) { healthDisplay = 'FAIL'; healthColor = '#FF4444'; }
+
+                return `
+                    <div class="deployment-item ${isSuccess ? 'success' : 'failed'}">
+                        <div class="deployment-info">
+                            <h4>${d.proposal_title || 'Proposal #' + d.proposal_id}</h4>
+                            <div class="deployment-meta">
+                                ${formatTime(d.deployed_at)} |
+                                Backup: <span style="color: #00FFFF;">${d.backup_name || 'none'}</span>
+                            </div>
+                        </div>
+                        <div class="deployment-stats">
+                            <div class="deployment-stat">
+                                <div class="value" style="color: ${healthColor};">${healthDisplay}</div>
+                                <div class="label">Health</div>
+                            </div>
+                            <div class="deployment-stat">
+                                <div class="value">${d.deployment_duration_ms ? (d.deployment_duration_ms / 1000).toFixed(1) + 's' : '-'}</div>
+                                <div class="label">Duration</div>
+                            </div>
+                            <span class="badge badge-${isSuccess ? 'deployed' : 'failed'}">${d.status}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // =====================================================================
+        // MODULE BACKUPS TAB
+        // =====================================================================
+
+        async function loadAvailableModules() {
+            try {
+                const response = await fetch('/tools/backup-manager/modules/available', { credentials: 'same-origin' });
+                const data = await response.json();
+
+                if (data.success) {
+                    availableModules = data.modules;
+                    renderModuleGrid(data.modules);
+                }
+            } catch (error) {
+                document.getElementById('moduleGrid').innerHTML = '<div class="empty-state">Error loading modules</div>';
+            }
+        }
+
+        function renderModuleGrid(modules) {
+            const grid = document.getElementById('moduleGrid');
+            if (modules.length === 0) {
+                grid.innerHTML = '<div class="empty-state">No modules found</div>';
+                return;
+            }
+
+            grid.innerHTML = modules.map(mod => `
+                <div class="module-card" data-module="${mod.name}" data-size="${mod.size_bytes}" onclick="toggleModule(this)">
+                    <div class="name">${mod.name}</div>
+                    <div class="info">${mod.file_count} files | ${mod.size_kb} KB${mod.template_count > 0 ? ' | ' + mod.template_count + ' templates' : ''}</div>
+                </div>
+            `).join('');
+        }
+
+        function toggleModule(card) {
+            card.classList.toggle('selected');
+            updateModuleEstimate();
+        }
+
+        function selectAllModules() {
+            document.querySelectorAll('.module-card').forEach(c => c.classList.add('selected'));
+            updateModuleEstimate();
+        }
+
+        function deselectAllModules() {
+            document.querySelectorAll('.module-card').forEach(c => c.classList.remove('selected'));
+            updateModuleEstimate();
+        }
+
+        function updateModuleEstimate() {
+            const selected = document.querySelectorAll('.module-card.selected');
+            let totalSize = 0;
+            selected.forEach(c => totalSize += parseInt(c.dataset.size) || 0);
+
+            document.getElementById('selectedModuleCount').textContent = selected.length;
+            document.getElementById('moduleEstimatedSize').textContent =
+                totalSize > 1024 * 1024 ? (totalSize / 1024 / 1024).toFixed(1) + ' MB' : (totalSize / 1024).toFixed(1) + ' KB';
+        }
+
+        async function createModuleBackup() {
+            const selectedModules = Array.from(document.querySelectorAll('.module-card.selected'))
+                .map(c => c.dataset.module);
+
+            if (selectedModules.length === 0) {
+                showToast('Please select at least one module', 'error');
+                return;
+            }
+
+            const description = document.getElementById('moduleBackupDescription').value || 'Module backup';
+
+            if (!confirm(`Backup ${selectedModules.length} module(s)?`)) return;
+
+            showToast('Creating module backup...', 'info');
+
+            try {
+                for (const moduleName of selectedModules) {
+                    await fetch('/tools/backup-manager/backup-module', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({ module_name: moduleName })
+                    });
+                }
+
+                showToast(`Backed up ${selectedModules.length} module(s)`, 'success');
+                loadModuleBackups();
+                deselectAllModules();
+            } catch (error) {
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+
+        async function loadModuleBackups() {
+            try {
+                const response = await fetch('/tools/backup-manager/modules/list', { credentials: 'same-origin' });
+                const data = await response.json();
+
+                if (data.success) {
+                    renderModuleBackupsList(data.backups);
+                }
+            } catch (error) {
+                document.getElementById('moduleBackupsList').innerHTML = '<div class="empty-state">Error loading</div>';
+            }
+        }
+
+        function renderModuleBackupsList(backups) {
+            const container = document.getElementById('moduleBackupsList');
+
+            if (backups.length === 0) {
+                container.innerHTML = '<div class="empty-state">No module backups yet</div>';
+                return;
+            }
+
+            container.innerHTML = backups.slice(0, 10).map(b => `
+                <div class="deployment-item" style="border-left-color: #9B59B6;">
+                    <div class="deployment-info">
+                        <h4 style="color: #9B59B6;">${b.module_name}</h4>
+                        <div class="deployment-meta">${formatTime(b.timestamp)} | ${(b.size / 1024).toFixed(1)} KB</div>
+                    </div>
+                    <button class="btn btn-purple" onclick="restoreModuleBackup('${b.name}')">Restore</button>
+                </div>
+            `).join('');
+        }
+
+        async function restoreModuleBackup(backupName) {
+            if (!confirm('Restore module backup: ' + backupName + '?')) return;
+
+            try {
+                const response = await fetch('/tools/backup-manager/restore-module/' + backupName, {
+                    method: 'POST', credentials: 'same-origin'
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    showToast('Module restored successfully', 'success');
+                } else {
+                    showToast('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+
+        // =====================================================================
+        // RETENTION TAB
+        // =====================================================================
+
+        async function checkRetention() {
+            try {
+                const response = await fetch('/tools/backup-manager/retention-status', { credentials: 'same-origin' });
+                const data = await response.json();
+
+                if (data.success) {
+                    renderRetentionStatus(data);
+                }
+            } catch (error) {
+                document.getElementById('retentionStatus').innerHTML = '<div class="empty-state">Error loading</div>';
+            }
+        }
+
+        function renderRetentionStatus(data) {
+            const container = document.getElementById('retentionStatus');
+            const stats = data.stats || {};
+
+            container.innerHTML = `
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px;">
+                    <div class="retention-card">
+                        <div class="number" style="color: #00ff41;">${stats.keep_count || 0}</div>
+                        <div class="label">Keep</div>
+                    </div>
+                    <div class="retention-card">
+                        <div class="number" style="color: #FF4444;">${stats.delete_count || 0}</div>
+                        <div class="label">To Delete</div>
+                    </div>
+                    <div class="retention-card">
+                        <div class="number">${stats.total_size_mb || 0} MB</div>
+                        <div class="label">Total Size</div>
+                    </div>
+                    <div class="retention-card">
+                        <div class="number" style="color: #FFA500;">${stats.space_to_free_mb || 0} MB</div>
+                        <div class="label">Space to Free</div>
+                    </div>
+                </div>
+                ${data.delete && data.delete.length > 0 ? `
+                    <div style="background: rgba(255,68,68,0.1); border: 1px solid #FF4444; border-radius: 8px; padding: 15px;">
+                        <h4 style="color: #FF4444; margin-bottom: 10px;">Backups to Delete:</h4>
+                        <div style="max-height: 200px; overflow-y: auto; color: #888; font-size: 0.85rem;">
+                            ${data.delete.map(b => `<div style="padding: 3px 0;">${b}</div>`).join('')}
+                        </div>
+                    </div>
+                ` : '<div style="color: #00ff41;">All backups within retention policy</div>'}
+            `;
+        }
+
+        async function cleanupBackups(dryRun) {
+            const action = dryRun ? 'preview' : 'run';
+            if (!dryRun && !confirm('This will permanently delete old backups. Continue?')) return;
+
+            try {
+                const response = await fetch('/tools/backup-manager/cleanup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ dry_run: dryRun })
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    if (dryRun) {
+                        showToast(`Would delete ${data.deleted.length} backups, free ${data.space_freed_mb} MB`, 'info');
+                    } else {
+                        showToast(`Deleted ${data.deleted.length} backups, freed ${data.space_freed_mb} MB`, 'success');
+                        loadBackups();
+                    }
+                    checkRetention();
+                } else {
+                    showToast('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+
+        // =====================================================================
+        // DEPLOYMENT PACKAGES TAB
+        // =====================================================================
+
+        async function loadDeploymentPackages() {
+            try {
+                const response = await fetch('/tools/backup-manager/api/deployment-packages', { credentials: 'same-origin' });
+                const data = await response.json();
+
+                if (data.success) {
+                    renderDeploymentPackages(data.packages);
+                } else {
+                    document.getElementById('packagesList').innerHTML =
+                        '<div class="empty-state">Error loading packages: ' + data.error + '</div>';
+                }
+            } catch (error) {
+                document.getElementById('packagesList').innerHTML =
+                    '<div class="empty-state">Error: ' + error.message + '</div>';
+            }
+        }
+
+        function renderDeploymentPackages(packages) {
+            const container = document.getElementById('packagesList');
+
+            if (!packages || packages.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <h3>No Deployment Packages Yet</h3>
+                        <p>Create your first deployment package to enable system migration.</p>
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = packages.map(pkg => {
+                const sizeMB = pkg.file_size ? (pkg.file_size / 1024 / 1024).toFixed(1) : '?';
+                const components = pkg.components || [];
+
+                return `
+                    <div class="deployment-item" style="border-left-color: #00FFFF;">
+                        <div class="deployment-info" style="flex: 1;">
+                            <h4 style="color: #00FFFF;">${pkg.package_name}</h4>
+                            <div class="deployment-meta">
+                                ${pkg.description || 'Deployment package'}<br>
+                                <span style="color: #666;">
+                                    Version: <span style="color: #00ff41;">${pkg.version_tag || '-'}</span> |
+                                    Platform: <span style="color: #FFA500;">${pkg.target_platform || 'linux'}</span> |
+                                    Created: ${formatTime(pkg.created_at)} by ${pkg.created_by || 'system'}
+                                </span>
+                            </div>
+                            <div style="margin-top: 5px; font-size: 0.75rem; color: #666;">
+                                Components: ${components.join(', ') || 'all'}
+                            </div>
+                        </div>
+                        <div class="deployment-stats">
+                            <div class="deployment-stat">
+                                <div class="value" style="color: #00FFFF;">${sizeMB} MB</div>
+                                <div class="label">Size</div>
+                            </div>
+                            <div class="deployment-stat">
+                                <div class="value">${pkg.download_count || 0}</div>
+                                <div class="label">Downloads</div>
+                            </div>
+                            <div style="display: flex; gap: 5px;">
+                                <button class="btn btn-cyan" onclick="downloadDeploymentPackage('${pkg.package_name}')">Download</button>
+                                <button class="btn btn-red" onclick="deleteDeploymentPackage('${pkg.package_name}')">Delete</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function createDeploymentPackage() {
+            const version = document.getElementById('packageVersion').value || 'v5.33.0';
+            const platform = document.getElementById('packagePlatform').value;
+            const description = document.getElementById('packageDescription').value || 'Deployment package';
+
+            if (!confirm(`Create deployment package (${version}) for ${platform}? This may take a few minutes.`)) return;
+
+            showToast('Creating deployment package... This may take a minute.', 'info');
+
+            try {
+                const response = await fetch('/tools/backup-manager/api/create-deployment-package', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        version_tag: version,
+                        target_platform: platform,
+                        description: description
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showToast(`Package created: ${data.package.name} (${data.package.size_mb} MB)`, 'success');
+                    loadDeploymentPackages();
+                    // Clear inputs
+                    document.getElementById('packageVersion').value = '';
+                    document.getElementById('packageDescription').value = '';
+                } else {
+                    showToast('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+
+        function downloadDeploymentPackage(packageName) {
+            window.location.href = '/tools/backup-manager/api/download-deployment/' + packageName;
+        }
+
+        async function deleteDeploymentPackage(packageName) {
+            if (!confirm(`Delete deployment package: ${packageName}?`)) return;
+
+            try {
+                const response = await fetch('/tools/backup-manager/api/delete-deployment/' + packageName, {
+                    method: 'DELETE',
+                    credentials: 'same-origin'
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    showToast('Package deleted', 'success');
+                    loadDeploymentPackages();
+                } else {
+                    showToast('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showToast('Error: ' + error.message, 'error');
+            }
+        }
+
+        // =====================================================================
+        // UTILITIES
+        // =====================================================================
+
+        function formatTime(timestamp) {
+            if (!timestamp) return '-';
+            try {
+                const date = new Date(timestamp);
+                if (isNaN(date)) return timestamp.substring(0, 15) || timestamp;
+                const now = new Date();
+                const diff = now - date;
+
+                if (diff < 60000) return 'Just now';
+                if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+                if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+                return date.toLocaleDateString();
+            } catch {
+                return timestamp;
+            }
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        }
+    </script>
+
+    </div><!-- /container -->
+    </div><!-- /category-content -->
+</div><!-- /category-container -->
+{% endblock %}

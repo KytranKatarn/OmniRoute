@@ -1,0 +1,3047 @@
+{% extends 'base.html' %}
+
+{% block title %}Therapy - Mental Health AI{% endblock %}
+
+{% block module_name %}therapy{% endblock %}
+
+{% block content %}
+<!-- Include Standalone Apps Navigation -->
+{% include 'includes/standalone_apps_nav.html' %}
+
+<!-- Scanline Overlay -->
+<div class="scanline-overlay"></div>
+
+<!-- Main Container -->
+<div class="therapy-container">
+    <!-- Page Header -->
+    <header class="therapy-header">
+        <div class="therapy-title-section">
+            <h1 class="therapy-title">
+                <i data-lucide="flower-2"></i>
+                THERAPY
+            </h1>
+            <p class="therapy-subtitle">Mental Health AI - Your compassionate companion</p>
+        </div>
+        <div class="therapy-status">
+            <span class="status-indicator status-online"></span>
+            <span>AI Ready</span>
+        </div>
+    </header>
+
+    <!-- Disclaimer Banner -->
+    <div class="therapy-disclaimer">
+        <i data-lucide="shield-alert"></i>
+        <div class="therapy-disclaimer-content">
+            <span><strong>Important:</strong> This AI provides supportive conversation only. It is not a replacement for professional mental health care. If you're in crisis, please contact a mental health professional or call the 988 Suicide & Crisis Lifeline.</span>
+            <a href="tel:988" class="crisis-link">
+                <i data-lucide="phone"></i>
+                988
+            </a>
+        </div>
+    </div>
+
+    <!-- Stats Overview -->
+    <section class="therapy-stats">
+        <div class="therapy-stat-card" style="animation-delay: 0.1s">
+            <div class="therapy-stat-icon">
+                <i data-lucide="message-heart"></i>
+            </div>
+            <div class="therapy-stat-info">
+                <span class="therapy-stat-value" id="totalSessions">0</span>
+                <span class="therapy-stat-label">SESSIONS</span>
+            </div>
+        </div>
+        <div class="therapy-stat-card" style="animation-delay: 0.2s">
+            <div class="therapy-stat-icon therapy-stat-icon--journal">
+                <i data-lucide="book-heart"></i>
+            </div>
+            <div class="therapy-stat-info">
+                <span class="therapy-stat-value" id="totalJournals">0</span>
+                <span class="therapy-stat-label">JOURNAL ENTRIES</span>
+            </div>
+        </div>
+        <div class="therapy-stat-card" style="animation-delay: 0.3s">
+            <div class="therapy-stat-icon therapy-stat-icon--mood">
+                <i data-lucide="smile"></i>
+            </div>
+            <div class="therapy-stat-info">
+                <span class="therapy-stat-value" id="moodAverage">--</span>
+                <span class="therapy-stat-label">MOOD AVERAGE</span>
+            </div>
+        </div>
+        <div class="therapy-stat-card" style="animation-delay: 0.4s">
+            <div class="therapy-stat-icon therapy-stat-icon--streak">
+                <i data-lucide="flame"></i>
+            </div>
+            <div class="therapy-stat-info">
+                <span class="therapy-stat-value" id="currentStreak">0</span>
+                <span class="therapy-stat-label">DAY STREAK</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Tab Navigation -->
+    <nav class="therapy-tabs">
+        <button class="therapy-tab active" data-tab="chat" onclick="switchTab('chat')">
+            <i data-lucide="message-circle-heart"></i>
+            Chat
+        </button>
+        <button class="therapy-tab" data-tab="journal" onclick="switchTab('journal')">
+            <i data-lucide="book-open"></i>
+            Journal
+        </button>
+        <button class="therapy-tab" data-tab="mood" onclick="switchTab('mood')">
+            <i data-lucide="heart-pulse"></i>
+            Mood Tracker
+        </button>
+        <button class="therapy-tab" data-tab="progress" onclick="switchTab('progress')">
+            <i data-lucide="trending-up"></i>
+            Progress
+        </button>
+    </nav>
+
+    <!-- Tab Content -->
+    <div class="therapy-tab-content">
+        <!-- Chat Tab -->
+        <div class="therapy-tab-panel active" id="chat-panel">
+            <div class="therapy-chat-layout">
+                <div class="therapy-chat-main">
+                    <div class="therapy-messages" id="chatMessages">
+                        <!-- Welcome Message -->
+                        <div class="therapy-message therapy-message--assistant">
+                            <div class="therapy-message-avatar">
+                                <i data-lucide="flower-2"></i>
+                            </div>
+                            <div class="therapy-message-content">
+                                <div class="therapy-message-text">
+                                    Hello, I'm here to support you. This is a safe space where you can share your thoughts and feelings without judgment.
+                                    <br><br>
+                                    I can help you explore:
+                                    <ul>
+                                        <li>Processing difficult emotions</li>
+                                        <li>Managing stress and anxiety</li>
+                                        <li>Building healthier thought patterns</li>
+                                        <li>Practicing mindfulness and self-compassion</li>
+                                        <li>Working through relationship concerns</li>
+                                    </ul>
+                                    <strong>Remember:</strong> Everything shared here is private. Take your time - there's no rush.
+                                    <br><br>
+                                    How are you feeling today?
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Typing Indicator -->
+                    <div class="therapy-typing" id="typingIndicator" style="display: none;">
+                        <div class="therapy-message-avatar">
+                            <i data-lucide="flower-2"></i>
+                        </div>
+                        <div class="therapy-typing-dots">
+                            <span></span><span></span><span></span>
+                        </div>
+                    </div>
+
+                    <!-- Chat Input -->
+                    <div class="therapy-chat-input">
+                        <textarea id="chatInput" placeholder="Share what's on your mind... I'm here to listen." rows="2"></textarea>
+                        <div class="therapy-chat-actions">
+                            <button class="therapy-btn therapy-btn-icon" onclick="showBreathingExercise()" title="Breathing exercise">
+                                <i data-lucide="wind"></i>
+                            </button>
+                            <button class="therapy-btn therapy-btn-primary" onclick="sendMessage()">
+                                <i data-lucide="send"></i>
+                                Send
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Topics Sidebar -->
+                <div class="therapy-sidebar">
+                    <h4>Quick Topics</h4>
+                    <div class="therapy-quick-topics">
+                        <button class="therapy-topic-btn" onclick="askTopic('anxiety')">
+                            <i data-lucide="cloud-lightning"></i>
+                            Anxiety
+                        </button>
+                        <button class="therapy-topic-btn" onclick="askTopic('stress')">
+                            <i data-lucide="zap"></i>
+                            Stress
+                        </button>
+                        <button class="therapy-topic-btn" onclick="askTopic('relationships')">
+                            <i data-lucide="users"></i>
+                            Relationships
+                        </button>
+                        <button class="therapy-topic-btn" onclick="askTopic('work')">
+                            <i data-lucide="briefcase"></i>
+                            Work
+                        </button>
+                        <button class="therapy-topic-btn" onclick="askTopic('self-esteem')">
+                            <i data-lucide="sparkles"></i>
+                            Self-Esteem
+                        </button>
+                        <button class="therapy-topic-btn" onclick="askTopic('sleep')">
+                            <i data-lucide="moon"></i>
+                            Sleep
+                        </button>
+                        <button class="therapy-topic-btn" onclick="askTopic('grief')">
+                            <i data-lucide="heart-crack"></i>
+                            Grief
+                        </button>
+                        <button class="therapy-topic-btn" onclick="askTopic('motivation')">
+                            <i data-lucide="rocket"></i>
+                            Motivation
+                        </button>
+                    </div>
+
+                    <h4>Exercises</h4>
+                    <div class="therapy-exercises">
+                        <button class="therapy-exercise-btn" onclick="showBreathingExercise()">
+                            <i data-lucide="wind"></i>
+                            <span>Breathing</span>
+                        </button>
+                        <button class="therapy-exercise-btn" onclick="showGroundingExercise()">
+                            <i data-lucide="anchor"></i>
+                            <span>Grounding</span>
+                        </button>
+                        <button class="therapy-exercise-btn" onclick="showGratitudeExercise()">
+                            <i data-lucide="heart"></i>
+                            <span>Gratitude</span>
+                        </button>
+                    </div>
+
+                    <h4>AI Model</h4>
+                    <select class="therapy-select" id="modelSelect">
+                        <option value="llama3.2:latest">Llama 3.2 (Local)</option>
+                        <option value="mistral:latest">Mistral (Local)</option>
+                        <option value="deepseek-coder-v2:16b">DeepSeek v2 (Local)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Journal Tab -->
+        <div class="therapy-tab-panel" id="journal-panel">
+            <div class="therapy-journal-layout">
+                <div class="therapy-journal-editor">
+                    <h3>
+                        <i data-lucide="edit-3"></i>
+                        Today's Entry
+                    </h3>
+                    <div class="therapy-journal-date">
+                        <i data-lucide="calendar"></i>
+                        <span id="journalDate"></span>
+                    </div>
+                    <div class="therapy-journal-prompts">
+                        <span class="therapy-prompt-label">Writing prompts:</span>
+                        <div class="therapy-prompt-chips">
+                            <button class="therapy-prompt-chip" onclick="usePrompt('grateful')">What am I grateful for?</button>
+                            <button class="therapy-prompt-chip" onclick="usePrompt('feeling')">How am I feeling?</button>
+                            <button class="therapy-prompt-chip" onclick="usePrompt('accomplish')">What did I accomplish?</button>
+                            <button class="therapy-prompt-chip" onclick="usePrompt('challenge')">What challenged me?</button>
+                        </div>
+                    </div>
+                    <textarea class="therapy-journal-textarea" id="journalTextarea" placeholder="Start writing your thoughts..."></textarea>
+                    <div class="therapy-journal-actions">
+                        <div class="therapy-journal-mood-select">
+                            <span>How's your mood?</span>
+                            <div class="therapy-mini-mood">
+                                <button class="mini-mood-btn" data-mood="1" onclick="selectMiniMood(1)">😢</button>
+                                <button class="mini-mood-btn" data-mood="2" onclick="selectMiniMood(2)">😔</button>
+                                <button class="mini-mood-btn" data-mood="3" onclick="selectMiniMood(3)">😐</button>
+                                <button class="mini-mood-btn" data-mood="4" onclick="selectMiniMood(4)">🙂</button>
+                                <button class="mini-mood-btn" data-mood="5" onclick="selectMiniMood(5)">😊</button>
+                            </div>
+                        </div>
+                        <button class="therapy-btn therapy-btn-primary" onclick="saveJournalEntry()">
+                            <i data-lucide="save"></i>
+                            Save Entry
+                        </button>
+                    </div>
+                </div>
+
+                <div class="therapy-journal-history">
+                    <h3>
+                        <i data-lucide="history"></i>
+                        Past Entries
+                    </h3>
+                    <div class="therapy-entries-list" id="journalEntries">
+                        <div class="therapy-empty-state">
+                            <i data-lucide="book-open"></i>
+                            <p>No journal entries yet</p>
+                            <span>Start writing to track your thoughts</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mood Tracker Tab -->
+        <div class="therapy-tab-panel" id="mood-panel">
+            <div class="therapy-mood-layout">
+                <div class="therapy-mood-selector">
+                    <h3>
+                        <i data-lucide="smile"></i>
+                        How are you feeling right now?
+                    </h3>
+                    <div class="therapy-mood-grid">
+                        <button class="therapy-mood-btn" data-mood="1" onclick="selectMood(1)">
+                            <span class="mood-emoji">😢</span>
+                            <span class="mood-label">Very Low</span>
+                        </button>
+                        <button class="therapy-mood-btn" data-mood="2" onclick="selectMood(2)">
+                            <span class="mood-emoji">😔</span>
+                            <span class="mood-label">Low</span>
+                        </button>
+                        <button class="therapy-mood-btn" data-mood="3" onclick="selectMood(3)">
+                            <span class="mood-emoji">😐</span>
+                            <span class="mood-label">Neutral</span>
+                        </button>
+                        <button class="therapy-mood-btn" data-mood="4" onclick="selectMood(4)">
+                            <span class="mood-emoji">🙂</span>
+                            <span class="mood-label">Good</span>
+                        </button>
+                        <button class="therapy-mood-btn" data-mood="5" onclick="selectMood(5)">
+                            <span class="mood-emoji">😊</span>
+                            <span class="mood-label">Great</span>
+                        </button>
+                    </div>
+
+                    <div class="therapy-mood-factors">
+                        <h4>What's influencing your mood?</h4>
+                        <div class="therapy-factors-grid">
+                            <button class="therapy-factor-btn" onclick="toggleFactor(this, 'sleep')">
+                                <i data-lucide="moon"></i>
+                                Sleep
+                            </button>
+                            <button class="therapy-factor-btn" onclick="toggleFactor(this, 'exercise')">
+                                <i data-lucide="dumbbell"></i>
+                                Exercise
+                            </button>
+                            <button class="therapy-factor-btn" onclick="toggleFactor(this, 'social')">
+                                <i data-lucide="users"></i>
+                                Social
+                            </button>
+                            <button class="therapy-factor-btn" onclick="toggleFactor(this, 'work')">
+                                <i data-lucide="briefcase"></i>
+                                Work
+                            </button>
+                            <button class="therapy-factor-btn" onclick="toggleFactor(this, 'health')">
+                                <i data-lucide="heart"></i>
+                                Health
+                            </button>
+                            <button class="therapy-factor-btn" onclick="toggleFactor(this, 'weather')">
+                                <i data-lucide="sun"></i>
+                                Weather
+                            </button>
+                            <button class="therapy-factor-btn" onclick="toggleFactor(this, 'family')">
+                                <i data-lucide="home"></i>
+                                Family
+                            </button>
+                            <button class="therapy-factor-btn" onclick="toggleFactor(this, 'stress')">
+                                <i data-lucide="zap"></i>
+                                Stress
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="therapy-mood-note">
+                        <label>Add a note (optional)</label>
+                        <textarea id="moodNote" placeholder="Any thoughts about how you're feeling?"></textarea>
+                    </div>
+
+                    <button class="therapy-btn therapy-btn-primary therapy-btn-large" onclick="saveMood()">
+                        <i data-lucide="check"></i>
+                        Log Mood
+                    </button>
+                </div>
+
+                <div class="therapy-mood-history">
+                    <h3>
+                        <i data-lucide="calendar-days"></i>
+                        Recent Moods
+                    </h3>
+                    <div class="therapy-mood-calendar" id="moodCalendar">
+                        <!-- Calendar will be generated by JS -->
+                    </div>
+                    <div class="therapy-mood-list" id="moodHistory">
+                        <div class="therapy-empty-state">
+                            <i data-lucide="heart-pulse"></i>
+                            <p>No moods logged yet</p>
+                            <span>Start tracking to see patterns</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Progress Tab -->
+        <div class="therapy-tab-panel" id="progress-panel">
+            <div class="therapy-progress-layout">
+                <div class="therapy-progress-overview">
+                    <h3>
+                        <i data-lucide="bar-chart-3"></i>
+                        Your Journey
+                    </h3>
+                    <div class="therapy-progress-cards">
+                        <div class="therapy-progress-card">
+                            <div class="progress-card-header">
+                                <i data-lucide="trending-up"></i>
+                                <span>Mood Trend</span>
+                            </div>
+                            <div class="progress-card-chart" id="moodTrendChart">
+                                <canvas id="moodChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="therapy-progress-card">
+                            <div class="progress-card-header">
+                                <i data-lucide="pie-chart"></i>
+                                <span>Mood Distribution</span>
+                            </div>
+                            <div class="progress-card-stats" id="moodDistribution">
+                                <div class="mood-dist-item">
+                                    <span class="mood-dist-emoji">😊</span>
+                                    <div class="mood-dist-bar"><div class="mood-dist-fill" style="width: 0%"></div></div>
+                                    <span class="mood-dist-pct">0%</span>
+                                </div>
+                                <div class="mood-dist-item">
+                                    <span class="mood-dist-emoji">🙂</span>
+                                    <div class="mood-dist-bar"><div class="mood-dist-fill" style="width: 0%"></div></div>
+                                    <span class="mood-dist-pct">0%</span>
+                                </div>
+                                <div class="mood-dist-item">
+                                    <span class="mood-dist-emoji">😐</span>
+                                    <div class="mood-dist-bar"><div class="mood-dist-fill" style="width: 0%"></div></div>
+                                    <span class="mood-dist-pct">0%</span>
+                                </div>
+                                <div class="mood-dist-item">
+                                    <span class="mood-dist-emoji">😔</span>
+                                    <div class="mood-dist-bar"><div class="mood-dist-fill" style="width: 0%"></div></div>
+                                    <span class="mood-dist-pct">0%</span>
+                                </div>
+                                <div class="mood-dist-item">
+                                    <span class="mood-dist-emoji">😢</span>
+                                    <div class="mood-dist-bar"><div class="mood-dist-fill" style="width: 0%"></div></div>
+                                    <span class="mood-dist-pct">0%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="therapy-progress-insights">
+                    <h3>
+                        <i data-lucide="lightbulb"></i>
+                        Insights
+                    </h3>
+                    <div class="therapy-insights-list" id="insightsList">
+                        <div class="therapy-insight-card">
+                            <div class="insight-icon">
+                                <i data-lucide="calendar-check"></i>
+                            </div>
+                            <div class="insight-content">
+                                <h4>Consistency Matters</h4>
+                                <p>Regular check-ins help build self-awareness. Try to log your mood at the same time each day.</p>
+                            </div>
+                        </div>
+                        <div class="therapy-insight-card">
+                            <div class="insight-icon">
+                                <i data-lucide="pen-tool"></i>
+                            </div>
+                            <div class="insight-content">
+                                <h4>Journaling Benefits</h4>
+                                <p>Writing down your thoughts can help process emotions and identify patterns in your thinking.</p>
+                            </div>
+                        </div>
+                        <div class="therapy-insight-card">
+                            <div class="insight-icon">
+                                <i data-lucide="heart-handshake"></i>
+                            </div>
+                            <div class="insight-content">
+                                <h4>Self-Compassion</h4>
+                                <p>Remember that all feelings are valid. Be kind to yourself on difficult days.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="therapy-milestones">
+                        <h4>
+                            <i data-lucide="trophy"></i>
+                            Milestones
+                        </h4>
+                        <div class="therapy-milestones-grid" id="milestonesGrid">
+                            <div class="therapy-milestone" data-achieved="false">
+                                <i data-lucide="message-circle"></i>
+                                <span>First Session</span>
+                            </div>
+                            <div class="therapy-milestone" data-achieved="false">
+                                <i data-lucide="book-open"></i>
+                                <span>First Journal</span>
+                            </div>
+                            <div class="therapy-milestone" data-achieved="false">
+                                <i data-lucide="calendar-check"></i>
+                                <span>7-Day Streak</span>
+                            </div>
+                            <div class="therapy-milestone" data-achieved="false">
+                                <i data-lucide="flame"></i>
+                                <span>30-Day Streak</span>
+                            </div>
+                            <div class="therapy-milestone" data-achieved="false">
+                                <i data-lucide="star"></i>
+                                <span>10 Sessions</span>
+                            </div>
+                            <div class="therapy-milestone" data-achieved="false">
+                                <i data-lucide="award"></i>
+                                <span>25 Journals</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Breathing Exercise Modal -->
+<div class="therapy-modal" id="breathingModal">
+    <div class="therapy-modal-content breathing-modal">
+        <button class="therapy-modal-close" onclick="closeModal('breathingModal')">
+            <i data-lucide="x"></i>
+        </button>
+        <h3>
+            <i data-lucide="wind"></i>
+            4-7-8 Breathing Exercise
+        </h3>
+        <p class="breathing-instruction">Follow the circle to calm your mind</p>
+        <div class="breathing-circle-container">
+            <div class="breathing-circle" id="breathingCircle">
+                <span class="breathing-text" id="breathingText">Ready</span>
+            </div>
+        </div>
+        <div class="breathing-controls">
+            <button class="therapy-btn therapy-btn-primary" onclick="startBreathing()" id="breathingStartBtn">
+                <i data-lucide="play"></i>
+                Start
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Grounding Exercise Modal -->
+<div class="therapy-modal" id="groundingModal">
+    <div class="therapy-modal-content grounding-modal">
+        <button class="therapy-modal-close" onclick="closeModal('groundingModal')">
+            <i data-lucide="x"></i>
+        </button>
+        <h3>
+            <i data-lucide="anchor"></i>
+            5-4-3-2-1 Grounding
+        </h3>
+        <p class="grounding-instruction">Use your senses to ground yourself in the present</p>
+        <div class="grounding-steps">
+            <div class="grounding-step" data-step="5">
+                <span class="step-number">5</span>
+                <span class="step-text">Things you can <strong>SEE</strong></span>
+                <i data-lucide="eye"></i>
+            </div>
+            <div class="grounding-step" data-step="4">
+                <span class="step-number">4</span>
+                <span class="step-text">Things you can <strong>TOUCH</strong></span>
+                <i data-lucide="hand"></i>
+            </div>
+            <div class="grounding-step" data-step="3">
+                <span class="step-number">3</span>
+                <span class="step-text">Things you can <strong>HEAR</strong></span>
+                <i data-lucide="ear"></i>
+            </div>
+            <div class="grounding-step" data-step="2">
+                <span class="step-number">2</span>
+                <span class="step-text">Things you can <strong>SMELL</strong></span>
+                <i data-lucide="flower"></i>
+            </div>
+            <div class="grounding-step" data-step="1">
+                <span class="step-number">1</span>
+                <span class="step-text">Thing you can <strong>TASTE</strong></span>
+                <i data-lucide="coffee"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Gratitude Exercise Modal -->
+<div class="therapy-modal" id="gratitudeModal">
+    <div class="therapy-modal-content gratitude-modal">
+        <button class="therapy-modal-close" onclick="closeModal('gratitudeModal')">
+            <i data-lucide="x"></i>
+        </button>
+        <h3>
+            <i data-lucide="heart"></i>
+            Gratitude Practice
+        </h3>
+        <p class="gratitude-instruction">Take a moment to acknowledge the good in your life</p>
+        <div class="gratitude-inputs">
+            <div class="gratitude-item">
+                <span class="gratitude-number">1</span>
+                <input type="text" placeholder="I'm grateful for..." id="gratitude1">
+            </div>
+            <div class="gratitude-item">
+                <span class="gratitude-number">2</span>
+                <input type="text" placeholder="I'm grateful for..." id="gratitude2">
+            </div>
+            <div class="gratitude-item">
+                <span class="gratitude-number">3</span>
+                <input type="text" placeholder="I'm grateful for..." id="gratitude3">
+            </div>
+        </div>
+        <button class="therapy-btn therapy-btn-primary" onclick="saveGratitude()">
+            <i data-lucide="save"></i>
+            Save Gratitude
+        </button>
+    </div>
+</div>
+
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════════
+   THERAPY - MENTAL HEALTH AI (RED THEME - CALMING VARIANT)
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+:root {
+    --therapy-accent: #EF4444;
+    --therapy-accent-rgb: 239, 68, 68;
+    --therapy-accent-light: #FCA5A5;
+    --therapy-accent-dark: #DC2626;
+    --therapy-calm: #8B5CF6;
+    --therapy-calm-rgb: 139, 92, 246;
+    --therapy-success: #10B981;
+    --therapy-warning: #F59E0B;
+    --therapy-info: #3B82F6;
+    --therapy-bg-primary: #0a0a0f;
+    --therapy-bg-secondary: #0d1117;
+    --therapy-bg-card: rgba(13, 17, 23, 0.95);
+    --therapy-border: rgba(239, 68, 68, 0.2);
+    --therapy-text-primary: #ffffff;
+    --therapy-text-secondary: rgba(255, 255, 255, 0.7);
+    --therapy-text-muted: rgba(255, 255, 255, 0.5);
+}
+
+.therapy-container {
+    min-height: 100vh;
+    background: var(--therapy-bg-primary);
+    padding: 20px 30px 40px;
+    padding-top: 80px;
+}
+
+.scanline-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 0, 0, 0.03) 0px,
+        rgba(0, 0, 0, 0.03) 1px,
+        transparent 1px,
+        transparent 2px
+    );
+    pointer-events: none;
+    z-index: 1000;
+}
+
+/* Header */
+.therapy-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    animation: fadeInUp 0.5s ease-out;
+}
+
+.therapy-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--therapy-accent);
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    text-shadow: 0 0 20px rgba(var(--therapy-accent-rgb), 0.5);
+    margin: 0;
+}
+
+.therapy-title i {
+    width: 36px;
+    height: 36px;
+}
+
+.therapy-subtitle {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--therapy-text-secondary);
+    margin: 8px 0 0 51px;
+}
+
+.therapy-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--therapy-success);
+}
+
+.status-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+}
+
+.status-online {
+    background: var(--therapy-success);
+    box-shadow: 0 0 10px var(--therapy-success);
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Disclaimer */
+.therapy-disclaimer {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 20px;
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(239, 68, 68, 0.1));
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    border-radius: 10px;
+    margin-bottom: 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--therapy-text-secondary);
+}
+
+.therapy-disclaimer > i {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    color: var(--therapy-calm);
+}
+
+.therapy-disclaimer-content {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex: 1;
+    flex-wrap: wrap;
+}
+
+.crisis-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    background: rgba(239, 68, 68, 0.2);
+    border: 1px solid var(--therapy-accent);
+    border-radius: 6px;
+    color: var(--therapy-accent);
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.25s ease;
+    white-space: nowrap;
+}
+
+.crisis-link:hover {
+    background: var(--therapy-accent);
+    color: white;
+}
+
+.crisis-link i {
+    width: 14px;
+    height: 14px;
+}
+
+/* Stats */
+.therapy-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.therapy-stat-card {
+    background: var(--therapy-bg-card);
+    border: 1px solid var(--therapy-border);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    backdrop-filter: blur(10px);
+    animation: fadeInUp 0.5s ease-out both;
+    transition: all 0.3s ease;
+}
+
+.therapy-stat-card:hover {
+    border-color: rgba(var(--therapy-accent-rgb), 0.5);
+    box-shadow: 0 0 20px rgba(var(--therapy-accent-rgb), 0.15);
+    transform: translateY(-2px);
+}
+
+.therapy-stat-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(var(--therapy-accent-rgb), 0.1);
+    color: var(--therapy-accent);
+}
+
+.therapy-stat-icon i {
+    width: 24px;
+    height: 24px;
+}
+
+.therapy-stat-icon--journal {
+    background: rgba(139, 92, 246, 0.1);
+    color: #8B5CF6;
+}
+
+.therapy-stat-icon--mood {
+    background: rgba(245, 158, 11, 0.1);
+    color: #F59E0B;
+}
+
+.therapy-stat-icon--streak {
+    background: rgba(16, 185, 129, 0.1);
+    color: #10B981;
+}
+
+.therapy-stat-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.therapy-stat-value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--therapy-text-primary);
+}
+
+.therapy-stat-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--therapy-text-muted);
+    letter-spacing: 1px;
+}
+
+/* Tabs */
+.therapy-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--therapy-border);
+}
+
+.therapy-tab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--therapy-text-muted);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.25s ease;
+}
+
+.therapy-tab i {
+    width: 18px;
+    height: 18px;
+}
+
+.therapy-tab::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--therapy-accent);
+    transform: scaleX(0);
+    transition: transform 0.25s ease;
+}
+
+.therapy-tab:hover {
+    color: var(--therapy-text-secondary);
+}
+
+.therapy-tab.active {
+    color: var(--therapy-accent);
+}
+
+.therapy-tab.active::after {
+    transform: scaleX(1);
+}
+
+/* Tab Panels */
+.therapy-tab-panel {
+    display: none;
+    animation: fadeIn 0.3s ease;
+}
+
+.therapy-tab-panel.active {
+    display: block;
+}
+
+/* Chat Layout */
+.therapy-chat-layout {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 24px;
+    height: calc(100vh - 400px);
+    min-height: 500px;
+}
+
+.therapy-chat-main {
+    display: flex;
+    flex-direction: column;
+    background: var(--therapy-bg-card);
+    border: 1px solid var(--therapy-border);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.therapy-messages {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.therapy-message {
+    display: flex;
+    gap: 12px;
+    animation: fadeInUp 0.3s ease;
+}
+
+.therapy-message--user {
+    flex-direction: row-reverse;
+}
+
+.therapy-message-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.therapy-message--assistant .therapy-message-avatar {
+    background: linear-gradient(135deg, var(--therapy-calm), var(--therapy-accent));
+    color: white;
+}
+
+.therapy-message--user .therapy-message-avatar {
+    background: rgba(59, 130, 246, 0.2);
+    color: #3B82F6;
+}
+
+.therapy-message-avatar i {
+    width: 20px;
+    height: 20px;
+}
+
+.therapy-message-content {
+    max-width: 70%;
+    padding: 16px;
+    border-radius: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+
+.therapy-message--assistant .therapy-message-content {
+    background: rgba(var(--therapy-calm-rgb), 0.1);
+    border: 1px solid rgba(var(--therapy-calm-rgb), 0.2);
+    color: var(--therapy-text-primary);
+}
+
+.therapy-message--user .therapy-message-content {
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    color: var(--therapy-text-primary);
+}
+
+.therapy-message-content ul {
+    margin: 12px 0 0 20px;
+    padding: 0;
+}
+
+.therapy-message-content li {
+    margin: 6px 0;
+}
+
+/* Typing Indicator */
+.therapy-typing {
+    display: flex;
+    gap: 12px;
+    padding: 0 20px 20px;
+}
+
+.therapy-typing-dots {
+    display: flex;
+    gap: 4px;
+    padding: 12px;
+    background: rgba(var(--therapy-calm-rgb), 0.1);
+    border-radius: 12px;
+}
+
+.therapy-typing-dots span {
+    width: 8px;
+    height: 8px;
+    background: var(--therapy-calm);
+    border-radius: 50%;
+    animation: bounce 1.4s infinite;
+}
+
+.therapy-typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.therapy-typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes bounce {
+    0%, 60%, 100% { transform: translateY(0); }
+    30% { transform: translateY(-8px); }
+}
+
+/* Chat Input */
+.therapy-chat-input {
+    display: flex;
+    gap: 12px;
+    padding: 16px 20px;
+    border-top: 1px solid var(--therapy-border);
+    align-items: flex-end;
+}
+
+.therapy-chat-input textarea {
+    flex: 1;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--therapy-border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--therapy-text-primary);
+    resize: none;
+}
+
+.therapy-chat-input textarea:focus {
+    outline: none;
+    border-color: var(--therapy-calm);
+}
+
+.therapy-chat-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* Buttons */
+.therapy-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    font-weight: 500;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    text-transform: uppercase;
+}
+
+.therapy-btn i {
+    width: 18px;
+    height: 18px;
+}
+
+.therapy-btn-primary {
+    background: transparent;
+    color: var(--therapy-accent);
+    border: 2px solid var(--therapy-accent);
+}
+
+.therapy-btn-primary:hover {
+    background: var(--therapy-accent);
+    color: white;
+    box-shadow: 0 0 20px rgba(var(--therapy-accent-rgb), 0.4);
+}
+
+.therapy-btn-icon {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid var(--therapy-border);
+    color: var(--therapy-text-secondary);
+}
+
+.therapy-btn-icon:hover {
+    border-color: var(--therapy-calm);
+    color: var(--therapy-calm);
+}
+
+.therapy-btn-large {
+    padding: 16px 32px;
+    font-size: 1rem;
+    width: 100%;
+    justify-content: center;
+}
+
+/* Sidebar */
+.therapy-sidebar {
+    background: var(--therapy-bg-card);
+    border: 1px solid var(--therapy-border);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    overflow-y: auto;
+}
+
+.therapy-sidebar h4 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.9rem;
+    color: var(--therapy-text-primary);
+    margin: 0;
+}
+
+.therapy-quick-topics {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+
+.therapy-topic-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 8px;
+    background: transparent;
+    border: 1px solid var(--therapy-border);
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--therapy-text-secondary);
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.therapy-topic-btn i {
+    width: 20px;
+    height: 20px;
+    color: var(--therapy-calm);
+}
+
+.therapy-topic-btn:hover {
+    border-color: var(--therapy-calm);
+    background: rgba(var(--therapy-calm-rgb), 0.05);
+}
+
+.therapy-exercises {
+    display: flex;
+    gap: 8px;
+}
+
+.therapy-exercise-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 10px 6px;
+    background: rgba(var(--therapy-calm-rgb), 0.1);
+    border: 1px solid rgba(var(--therapy-calm-rgb), 0.2);
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--therapy-calm);
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.therapy-exercise-btn i {
+    width: 18px;
+    height: 18px;
+}
+
+.therapy-exercise-btn:hover {
+    border-color: var(--therapy-calm);
+    background: rgba(var(--therapy-calm-rgb), 0.2);
+}
+
+.therapy-select {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--therapy-border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--therapy-text-primary);
+    width: 100%;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   JOURNAL TAB
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+.therapy-journal-layout {
+    display: grid;
+    grid-template-columns: 1fr 350px;
+    gap: 24px;
+}
+
+.therapy-journal-editor {
+    background: var(--therapy-bg-card);
+    border: 1px solid var(--therapy-border);
+    border-radius: 12px;
+    padding: 24px;
+}
+
+.therapy-journal-editor h3 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    color: var(--therapy-text-primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 16px;
+}
+
+.therapy-journal-editor h3 i {
+    width: 20px;
+    height: 20px;
+    color: var(--therapy-calm);
+}
+
+.therapy-journal-date {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--therapy-text-muted);
+    margin-bottom: 16px;
+}
+
+.therapy-journal-date i {
+    width: 16px;
+    height: 16px;
+}
+
+.therapy-journal-prompts {
+    margin-bottom: 16px;
+}
+
+.therapy-prompt-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--therapy-text-muted);
+    display: block;
+    margin-bottom: 8px;
+}
+
+.therapy-prompt-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.therapy-prompt-chip {
+    padding: 6px 12px;
+    background: transparent;
+    border: 1px solid rgba(var(--therapy-calm-rgb), 0.3);
+    border-radius: 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--therapy-calm);
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.therapy-prompt-chip:hover {
+    background: rgba(var(--therapy-calm-rgb), 0.1);
+    border-color: var(--therapy-calm);
+}
+
+.therapy-journal-textarea {
+    width: 100%;
+    min-height: 300px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--therapy-border);
+    border-radius: 8px;
+    padding: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: var(--therapy-text-primary);
+    resize: vertical;
+    margin-bottom: 16px;
+}
+
+.therapy-journal-textarea:focus {
+    outline: none;
+    border-color: var(--therapy-calm);
+}
+
+.therapy-journal-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+}
+
+.therapy-journal-mood-select {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.therapy-journal-mood-select span {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--therapy-text-muted);
+}
+
+.therapy-mini-mood {
+    display: flex;
+    gap: 4px;
+}
+
+.mini-mood-btn {
+    width: 32px;
+    height: 32px;
+    background: transparent;
+    border: 1px solid var(--therapy-border);
+    border-radius: 6px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.mini-mood-btn:hover,
+.mini-mood-btn.active {
+    border-color: var(--therapy-calm);
+    background: rgba(var(--therapy-calm-rgb), 0.1);
+}
+
+.therapy-journal-history {
+    background: var(--therapy-bg-card);
+    border: 1px solid var(--therapy-border);
+    border-radius: 12px;
+    padding: 24px;
+}
+
+.therapy-journal-history h3 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    color: var(--therapy-text-primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 16px;
+}
+
+.therapy-journal-history h3 i {
+    width: 20px;
+    height: 20px;
+    color: var(--therapy-calm);
+}
+
+.therapy-entries-list {
+    max-height: 400px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.therapy-entry-card {
+    padding: 14px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--therapy-border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.therapy-entry-card:hover {
+    border-color: var(--therapy-calm);
+}
+
+.therapy-entry-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.therapy-entry-date {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--therapy-text-muted);
+}
+
+.therapy-entry-mood {
+    font-size: 1rem;
+}
+
+.therapy-entry-preview {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--therapy-text-secondary);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   MOOD TRACKER TAB
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+.therapy-mood-layout {
+    display: grid;
+    grid-template-columns: 1fr 350px;
+    gap: 24px;
+}
+
+.therapy-mood-selector {
+    background: var(--therapy-bg-card);
+    border: 1px solid var(--therapy-border);
+    border-radius: 12px;
+    padding: 24px;
+}
+
+.therapy-mood-selector h3 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    color: var(--therapy-text-primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 24px;
+    text-align: center;
+    justify-content: center;
+}
+
+.therapy-mood-selector h3 i {
+    width: 24px;
+    height: 24px;
+    color: var(--therapy-calm);
+}
+
+.therapy-mood-grid {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 32px;
+}
+
+.therapy-mood-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 20px;
+    background: transparent;
+    border: 2px solid var(--therapy-border);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-width: 90px;
+}
+
+.therapy-mood-btn:hover {
+    border-color: var(--therapy-calm);
+    background: rgba(var(--therapy-calm-rgb), 0.05);
+    transform: translateY(-4px);
+}
+
+.therapy-mood-btn.active {
+    border-color: var(--therapy-calm);
+    background: rgba(var(--therapy-calm-rgb), 0.15);
+    box-shadow: 0 0 20px rgba(var(--therapy-calm-rgb), 0.2);
+}
+
+.mood-emoji {
+    font-size: 2.5rem;
+    line-height: 1;
+}
+
+.mood-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--therapy-text-muted);
+}
+
+.therapy-mood-btn.active .mood-label {
+    color: var(--therapy-calm);
+}
+
+.therapy-mood-factors {
+    margin-bottom: 24px;
+}
+
+.therapy-mood-factors h4 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.85rem;
+    color: var(--therapy-text-primary);
+    margin: 0 0 12px;
+    text-align: center;
+}
+
+.therapy-factors-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+}
+
+.therapy-factor-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 12px 8px;
+    background: transparent;
+    border: 1px solid var(--therapy-border);
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--therapy-text-muted);
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.therapy-factor-btn i {
+    width: 18px;
+    height: 18px;
+}
+
+.therapy-factor-btn:hover {
+    border-color: var(--therapy-text-secondary);
+    color: var(--therapy-text-secondary);
+}
+
+.therapy-factor-btn.active {
+    border-color: var(--therapy-success);
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--therapy-success);
+}
+
+.therapy-mood-note {
+    margin-bottom: 24px;
+}
+
+.therapy-mood-note label {
+    display: block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--therapy-text-muted);
+    margin-bottom: 8px;
+}
+
+.therapy-mood-note textarea {
+    width: 100%;
+    height: 80px;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--therapy-border);
+    border-radius: 8px;
+    padding: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--therapy-text-primary);
+    resize: none;
+}
+
+.therapy-mood-note textarea:focus {
+    outline: none;
+    border-color: var(--therapy-calm);
+}
+
+.therapy-mood-history {
+    background: var(--therapy-bg-card);
+    border: 1px solid var(--therapy-border);
+    border-radius: 12px;
+    padding: 24px;
+}
+
+.therapy-mood-history h3 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    color: var(--therapy-text-primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 16px;
+}
+
+.therapy-mood-history h3 i {
+    width: 20px;
+    height: 20px;
+    color: var(--therapy-calm);
+}
+
+.therapy-mood-calendar {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    margin-bottom: 20px;
+}
+
+.mood-calendar-day {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--therapy-border);
+}
+
+.mood-calendar-day.empty {
+    background: transparent;
+    border-color: transparent;
+}
+
+.mood-calendar-day.today {
+    border-color: var(--therapy-calm);
+}
+
+.therapy-mood-list {
+    max-height: 200px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.therapy-mood-entry {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+}
+
+.mood-entry-emoji {
+    font-size: 1.2rem;
+}
+
+.mood-entry-info {
+    flex: 1;
+}
+
+.mood-entry-date {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--therapy-text-muted);
+}
+
+.mood-entry-note {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--therapy-text-secondary);
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   PROGRESS TAB
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+.therapy-progress-layout {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 24px;
+}
+
+.therapy-progress-overview {
+    background: var(--therapy-bg-card);
+    border: 1px solid var(--therapy-border);
+    border-radius: 12px;
+    padding: 24px;
+}
+
+.therapy-progress-overview h3 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    color: var(--therapy-text-primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 20px;
+}
+
+.therapy-progress-overview h3 i {
+    width: 20px;
+    height: 20px;
+    color: var(--therapy-calm);
+}
+
+.therapy-progress-cards {
+    display: grid;
+    gap: 20px;
+}
+
+.therapy-progress-card {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--therapy-border);
+    border-radius: 10px;
+    padding: 20px;
+}
+
+.progress-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.85rem;
+    color: var(--therapy-text-primary);
+    margin-bottom: 16px;
+}
+
+.progress-card-header i {
+    width: 18px;
+    height: 18px;
+    color: var(--therapy-calm);
+}
+
+.progress-card-chart {
+    height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.progress-card-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.mood-dist-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.mood-dist-emoji {
+    font-size: 1.2rem;
+    width: 28px;
+    text-align: center;
+}
+
+.mood-dist-bar {
+    flex: 1;
+    height: 8px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.mood-dist-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--therapy-calm), var(--therapy-accent));
+    border-radius: 4px;
+    transition: width 0.5s ease;
+}
+
+.mood-dist-pct {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--therapy-text-muted);
+    width: 40px;
+    text-align: right;
+}
+
+.therapy-progress-insights {
+    background: var(--therapy-bg-card);
+    border: 1px solid var(--therapy-border);
+    border-radius: 12px;
+    padding: 24px;
+}
+
+.therapy-progress-insights h3 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    color: var(--therapy-text-primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 20px;
+}
+
+.therapy-progress-insights h3 i {
+    width: 20px;
+    height: 20px;
+    color: #F59E0B;
+}
+
+.therapy-insights-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.therapy-insight-card {
+    display: flex;
+    gap: 14px;
+    padding: 14px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+}
+
+.insight-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(var(--therapy-calm-rgb), 0.1);
+    color: var(--therapy-calm);
+    flex-shrink: 0;
+}
+
+.insight-icon i {
+    width: 18px;
+    height: 18px;
+}
+
+.insight-content h4 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.8rem;
+    color: var(--therapy-text-primary);
+    margin: 0 0 6px;
+}
+
+.insight-content p {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--therapy-text-muted);
+    line-height: 1.5;
+    margin: 0;
+}
+
+.therapy-milestones h4 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.85rem;
+    color: var(--therapy-text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 12px;
+}
+
+.therapy-milestones h4 i {
+    width: 18px;
+    height: 18px;
+    color: #F59E0B;
+}
+
+.therapy-milestones-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+.therapy-milestone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 8px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--therapy-border);
+    border-radius: 8px;
+    opacity: 0.5;
+    transition: all 0.25s ease;
+}
+
+.therapy-milestone[data-achieved="true"] {
+    opacity: 1;
+    border-color: #F59E0B;
+    background: rgba(245, 158, 11, 0.1);
+}
+
+.therapy-milestone i {
+    width: 22px;
+    height: 22px;
+    color: var(--therapy-text-muted);
+}
+
+.therapy-milestone[data-achieved="true"] i {
+    color: #F59E0B;
+}
+
+.therapy-milestone span {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--therapy-text-muted);
+    text-align: center;
+}
+
+.therapy-milestone[data-achieved="true"] span {
+    color: #F59E0B;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   EMPTY STATE
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+.therapy-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    text-align: center;
+    color: var(--therapy-text-muted);
+}
+
+.therapy-empty-state i {
+    width: 48px;
+    height: 48px;
+    margin-bottom: 16px;
+    opacity: 0.3;
+}
+
+.therapy-empty-state p {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    margin: 0 0 8px;
+}
+
+.therapy-empty-state span {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    opacity: 0.7;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   MODALS
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+.therapy-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    padding: 20px;
+}
+
+.therapy-modal.active {
+    display: flex;
+}
+
+.therapy-modal-content {
+    background: var(--therapy-bg-secondary);
+    border: 1px solid var(--therapy-border);
+    border-radius: 16px;
+    padding: 30px;
+    max-width: 450px;
+    width: 100%;
+    position: relative;
+    animation: modalIn 0.3s ease;
+}
+
+@keyframes modalIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9) translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.therapy-modal-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: transparent;
+    border: 1px solid var(--therapy-border);
+    color: var(--therapy-text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.25s ease;
+}
+
+.therapy-modal-close:hover {
+    border-color: var(--therapy-accent);
+    color: var(--therapy-accent);
+}
+
+.therapy-modal-close i {
+    width: 18px;
+    height: 18px;
+}
+
+.therapy-modal-content h3 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.1rem;
+    color: var(--therapy-text-primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 12px;
+}
+
+.therapy-modal-content h3 i {
+    width: 24px;
+    height: 24px;
+    color: var(--therapy-calm);
+}
+
+/* Breathing Exercise */
+.breathing-instruction,
+.grounding-instruction,
+.gratitude-instruction {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--therapy-text-muted);
+    margin-bottom: 24px;
+}
+
+.breathing-circle-container {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 24px;
+}
+
+.breathing-circle {
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(var(--therapy-calm-rgb), 0.2), rgba(var(--therapy-accent-rgb), 0.2));
+    border: 3px solid var(--therapy-calm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 4s ease-in-out;
+}
+
+.breathing-circle.inhale {
+    transform: scale(1.3);
+}
+
+.breathing-circle.exhale {
+    transform: scale(1);
+}
+
+.breathing-text {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.2rem;
+    color: var(--therapy-text-primary);
+}
+
+.breathing-controls {
+    display: flex;
+    justify-content: center;
+}
+
+/* Grounding Exercise */
+.grounding-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.grounding-step {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--therapy-border);
+    border-radius: 8px;
+    transition: all 0.25s ease;
+}
+
+.grounding-step:hover {
+    border-color: var(--therapy-calm);
+}
+
+.step-number {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(var(--therapy-calm-rgb), 0.2);
+    color: var(--therapy-calm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.step-text {
+    flex: 1;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--therapy-text-secondary);
+}
+
+.step-text strong {
+    color: var(--therapy-calm);
+}
+
+.grounding-step i {
+    width: 20px;
+    height: 20px;
+    color: var(--therapy-text-muted);
+}
+
+/* Gratitude Exercise */
+.gratitude-inputs {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-bottom: 20px;
+}
+
+.gratitude-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.gratitude-number {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(var(--therapy-accent-rgb), 0.2);
+    color: var(--therapy-accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.gratitude-item input {
+    flex: 1;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--therapy-border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--therapy-text-primary);
+}
+
+.gratitude-item input:focus {
+    outline: none;
+    border-color: var(--therapy-calm);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   ANIMATIONS
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   LIGHT MODE
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+body.light-mode .therapy-container {
+    background: #f8f9fa;
+}
+
+body.light-mode .therapy-title {
+    color: #DC2626;
+    text-shadow: none;
+}
+
+body.light-mode .therapy-stat-card,
+body.light-mode .therapy-chat-main,
+body.light-mode .therapy-sidebar,
+body.light-mode .therapy-journal-editor,
+body.light-mode .therapy-journal-history,
+body.light-mode .therapy-mood-selector,
+body.light-mode .therapy-mood-history,
+body.light-mode .therapy-progress-overview,
+body.light-mode .therapy-progress-insights,
+body.light-mode .therapy-modal-content {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(139, 92, 246, 0.2);
+}
+
+body.light-mode .therapy-stat-value,
+body.light-mode .therapy-sidebar h4,
+body.light-mode .therapy-journal-editor h3,
+body.light-mode .therapy-journal-history h3,
+body.light-mode .therapy-mood-selector h3,
+body.light-mode .therapy-mood-history h3,
+body.light-mode .therapy-progress-overview h3,
+body.light-mode .therapy-progress-insights h3,
+body.light-mode .therapy-modal-content h3,
+body.light-mode .therapy-mood-factors h4,
+body.light-mode .progress-card-header,
+body.light-mode .insight-content h4,
+body.light-mode .therapy-milestones h4 {
+    color: #1a1a2e;
+}
+
+body.light-mode .therapy-tab {
+    color: #666;
+}
+
+body.light-mode .therapy-tab.active {
+    color: #7C3AED;
+}
+
+body.light-mode .therapy-tab::after {
+    background: #7C3AED;
+}
+
+body.light-mode .therapy-message--assistant .therapy-message-content {
+    background: rgba(139, 92, 246, 0.08);
+    border-color: rgba(139, 92, 246, 0.2);
+    color: #1a1a2e;
+}
+
+body.light-mode .therapy-message--user .therapy-message-content {
+    background: rgba(59, 130, 246, 0.08);
+    border-color: rgba(59, 130, 246, 0.2);
+    color: #1a1a2e;
+}
+
+body.light-mode .therapy-btn-primary {
+    color: #DC2626;
+    border-color: #DC2626;
+}
+
+body.light-mode .therapy-btn-primary:hover {
+    background: #DC2626;
+}
+
+body.light-mode .therapy-disclaimer {
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.08), rgba(220, 38, 38, 0.08));
+    border-color: rgba(139, 92, 246, 0.3);
+}
+
+body.light-mode .therapy-chat-input textarea,
+body.light-mode .therapy-journal-textarea,
+body.light-mode .therapy-mood-note textarea,
+body.light-mode .gratitude-item input,
+body.light-mode .therapy-select {
+    background: rgba(0, 0, 0, 0.03);
+    color: #1a1a2e;
+}
+
+body.light-mode .therapy-topic-btn,
+body.light-mode .therapy-factor-btn,
+body.light-mode .therapy-mood-btn,
+body.light-mode .mini-mood-btn,
+body.light-mode .therapy-prompt-chip,
+body.light-mode .therapy-entry-card,
+body.light-mode .therapy-mood-entry,
+body.light-mode .therapy-insight-card,
+body.light-mode .therapy-milestone,
+body.light-mode .therapy-progress-card,
+body.light-mode .grounding-step {
+    background: rgba(0, 0, 0, 0.03);
+    border-color: rgba(139, 92, 246, 0.2);
+}
+
+body.light-mode .mood-calendar-day {
+    background: rgba(0, 0, 0, 0.03);
+    border-color: rgba(139, 92, 246, 0.1);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 1200px) {
+    .therapy-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .therapy-chat-layout,
+    .therapy-journal-layout,
+    .therapy-mood-layout,
+    .therapy-progress-layout {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+
+    .therapy-sidebar {
+        order: -1;
+    }
+
+    .therapy-quick-topics {
+        grid-template-columns: repeat(4, 1fr);
+    }
+
+    .therapy-factors-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .therapy-container {
+        padding: 20px;
+        padding-top: 80px;
+    }
+
+    .therapy-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .therapy-title {
+        font-size: 1.5rem;
+    }
+
+    .therapy-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .therapy-tabs {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .therapy-tab {
+        white-space: nowrap;
+    }
+
+    .therapy-quick-topics {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .therapy-mood-grid {
+        flex-wrap: wrap;
+    }
+
+    .therapy-mood-btn {
+        min-width: 70px;
+        padding: 14px;
+    }
+
+    .mood-emoji {
+        font-size: 2rem;
+    }
+
+    .therapy-factors-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .therapy-milestones-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .therapy-disclaimer-content {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
+@media (max-width: 480px) {
+    .therapy-chat-layout {
+        min-height: 400px;
+    }
+
+    .therapy-message-content {
+        max-width: 85%;
+    }
+
+    .therapy-exercises {
+        flex-direction: column;
+    }
+
+    .therapy-milestones-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════════
+// THERAPY MODULE JAVASCRIPT
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// State
+let selectedMood = null;
+let selectedFactors = [];
+let journalMood = null;
+let breathingInterval = null;
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+    loadStats();
+    loadJournalEntries();
+    loadMoodHistory();
+    updateMilestones();
+    generateMoodCalendar();
+    setJournalDate();
+});
+
+// Tab switching
+function switchTab(tabId) {
+    document.querySelectorAll('.therapy-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.tab === tabId);
+    });
+    document.querySelectorAll('.therapy-tab-panel').forEach(panel => {
+        panel.classList.toggle('active', panel.id === tabId + '-panel');
+    });
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STATS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function loadStats() {
+    const stats = JSON.parse(localStorage.getItem('therapy_stats') || '{}');
+    document.getElementById('totalSessions').textContent = stats.sessions || 0;
+    document.getElementById('totalJournals').textContent = stats.journals || 0;
+    document.getElementById('currentStreak').textContent = stats.streak || 0;
+
+    // Calculate mood average
+    const moods = JSON.parse(localStorage.getItem('therapy_moods') || '[]');
+    if (moods.length > 0) {
+        const avg = moods.reduce((a, b) => a + b.mood, 0) / moods.length;
+        const emojis = ['', '😢', '😔', '😐', '🙂', '😊'];
+        document.getElementById('moodAverage').textContent = emojis[Math.round(avg)] || '--';
+    }
+}
+
+function updateStats(key) {
+    const stats = JSON.parse(localStorage.getItem('therapy_stats') || '{}');
+    stats[key] = (stats[key] || 0) + 1;
+    localStorage.setItem('therapy_stats', JSON.stringify(stats));
+    loadStats();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CHAT FUNCTIONALITY
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const therapySystemPrompt = `You are a compassionate, empathetic AI therapy companion. Your role is to:
+- Listen actively and validate the user's feelings
+- Ask open-ended, thoughtful questions
+- Offer gentle guidance and coping strategies
+- Use techniques from CBT, mindfulness, and positive psychology
+- Never diagnose conditions or replace professional care
+- Be warm, supportive, and non-judgmental
+- Encourage self-reflection and self-compassion
+- Keep responses focused and not too long
+
+Remember: You are a supportive companion, not a licensed therapist. Encourage professional help when appropriate.`;
+
+async function sendMessage() {
+    const input = document.getElementById('chatInput');
+    const message = input.value.trim();
+    if (!message) return;
+
+    // Add user message
+    addMessage(message, true);
+    input.value = '';
+
+    // Show typing indicator
+    document.getElementById('typingIndicator').style.display = 'flex';
+
+    // Get selected model
+    const model = document.getElementById('modelSelect').value;
+
+    try {
+        const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                message: message,
+                model: model,
+                system_prompt: therapySystemPrompt,
+                context: 'therapy'
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            addMessage(data.response, false);
+            updateStats('sessions');
+        } else {
+            addMessage('I apologize, but I encountered an issue. Please try again, and remember - I\'m here for you.', false);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        addMessage('I\'m having trouble connecting right now. Please take a deep breath, and we can try again in a moment.', false);
+    } finally {
+        document.getElementById('typingIndicator').style.display = 'none';
+    }
+}
+
+function addMessage(text, isUser) {
+    const container = document.getElementById('chatMessages');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `therapy-message therapy-message--${isUser ? 'user' : 'assistant'}`;
+
+    messageDiv.innerHTML = `
+        <div class="therapy-message-avatar">
+            <i data-lucide="${isUser ? 'user' : 'flower-2'}"></i>
+        </div>
+        <div class="therapy-message-content">
+            <div class="therapy-message-text">${escapeHtml(text)}</div>
+        </div>
+    `;
+
+    container.appendChild(messageDiv);
+    container.scrollTop = container.scrollHeight;
+
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Quick topics
+function askTopic(topic) {
+    const prompts = {
+        'anxiety': "I've been feeling anxious lately. Can you help me understand what might be causing it and how to cope?",
+        'stress': "I'm feeling overwhelmed with stress. What are some strategies to help me manage it better?",
+        'relationships': "I'm having some challenges in my relationships. Can we talk about it?",
+        'work': "Work has been really difficult lately. I'm struggling with work-life balance.",
+        'self-esteem': "I've been struggling with self-esteem and negative self-talk. How can I be kinder to myself?",
+        'sleep': "I'm having trouble sleeping. My mind keeps racing at night.",
+        'grief': "I'm dealing with loss and grief. It's been hard to process.",
+        'motivation': "I'm feeling unmotivated and stuck. I want to make positive changes but don't know where to start."
+    };
+
+    document.getElementById('chatInput').value = prompts[topic] || '';
+    sendMessage();
+}
+
+// Enter key to send
+document.getElementById('chatInput')?.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// JOURNAL FUNCTIONALITY
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function setJournalDate() {
+    const now = new Date();
+    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    document.getElementById('journalDate').textContent = now.toLocaleDateString('en-US', options);
+}
+
+function usePrompt(type) {
+    const prompts = {
+        'grateful': "Today I'm grateful for...",
+        'feeling': "Right now I'm feeling...",
+        'accomplish': "Today I accomplished...",
+        'challenge': "Something that challenged me today was..."
+    };
+    const textarea = document.getElementById('journalTextarea');
+    textarea.value = prompts[type] + '\n\n';
+    textarea.focus();
+}
+
+function selectMiniMood(mood) {
+    journalMood = mood;
+    document.querySelectorAll('.mini-mood-btn').forEach(btn => {
+        btn.classList.toggle('active', parseInt(btn.dataset.mood) === mood);
+    });
+}
+
+function saveJournalEntry() {
+    const text = document.getElementById('journalTextarea').value.trim();
+    if (!text) {
+        showToast('Please write something in your journal', 'warning');
+        return;
+    }
+
+    const entries = JSON.parse(localStorage.getItem('therapy_journals') || '[]');
+    entries.unshift({
+        id: Date.now(),
+        date: new Date().toISOString(),
+        text: text,
+        mood: journalMood
+    });
+
+    // Keep last 100 entries
+    if (entries.length > 100) entries.pop();
+
+    localStorage.setItem('therapy_journals', JSON.stringify(entries));
+    document.getElementById('journalTextarea').value = '';
+    journalMood = null;
+    document.querySelectorAll('.mini-mood-btn').forEach(btn => btn.classList.remove('active'));
+
+    updateStats('journals');
+    loadJournalEntries();
+    showToast('Journal entry saved!', 'success');
+}
+
+function loadJournalEntries() {
+    const entries = JSON.parse(localStorage.getItem('therapy_journals') || '[]');
+    const container = document.getElementById('journalEntries');
+
+    if (entries.length === 0) {
+        container.innerHTML = `
+            <div class="therapy-empty-state">
+                <i data-lucide="book-open"></i>
+                <p>No journal entries yet</p>
+                <span>Start writing to track your thoughts</span>
+            </div>
+        `;
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        return;
+    }
+
+    const emojis = ['', '😢', '😔', '😐', '🙂', '😊'];
+    container.innerHTML = entries.slice(0, 20).map(entry => {
+        const date = new Date(entry.date);
+        const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        return `
+            <div class="therapy-entry-card" onclick="viewEntry(${entry.id})">
+                <div class="therapy-entry-header">
+                    <span class="therapy-entry-date">${dateStr}</span>
+                    <span class="therapy-entry-mood">${emojis[entry.mood] || ''}</span>
+                </div>
+                <div class="therapy-entry-preview">${escapeHtml(entry.text)}</div>
+            </div>
+        `;
+    }).join('');
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function viewEntry(id) {
+    const entries = JSON.parse(localStorage.getItem('therapy_journals') || '[]');
+    const entry = entries.find(e => e.id === id);
+    if (entry) {
+        document.getElementById('journalTextarea').value = entry.text;
+        if (entry.mood) selectMiniMood(entry.mood);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MOOD TRACKER FUNCTIONALITY
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function selectMood(mood) {
+    selectedMood = mood;
+    document.querySelectorAll('.therapy-mood-btn').forEach(btn => {
+        btn.classList.toggle('active', parseInt(btn.dataset.mood) === mood);
+    });
+}
+
+function toggleFactor(btn, factor) {
+    btn.classList.toggle('active');
+    if (selectedFactors.includes(factor)) {
+        selectedFactors = selectedFactors.filter(f => f !== factor);
+    } else {
+        selectedFactors.push(factor);
+    }
+}
+
+function saveMood() {
+    if (!selectedMood) {
+        showToast('Please select how you\'re feeling', 'warning');
+        return;
+    }
+
+    const note = document.getElementById('moodNote').value.trim();
+    const moods = JSON.parse(localStorage.getItem('therapy_moods') || '[]');
+
+    moods.unshift({
+        id: Date.now(),
+        date: new Date().toISOString(),
+        mood: selectedMood,
+        factors: [...selectedFactors],
+        note: note
+    });
+
+    // Keep last 365 entries
+    if (moods.length > 365) moods.pop();
+
+    localStorage.setItem('therapy_moods', JSON.stringify(moods));
+
+    // Reset form
+    selectedMood = null;
+    selectedFactors = [];
+    document.querySelectorAll('.therapy-mood-btn, .therapy-factor-btn').forEach(btn => btn.classList.remove('active'));
+    document.getElementById('moodNote').value = '';
+
+    // Update streak
+    updateStreak();
+    loadMoodHistory();
+    loadStats();
+    generateMoodCalendar();
+    updateMoodDistribution();
+    showToast('Mood logged!', 'success');
+}
+
+function updateStreak() {
+    const moods = JSON.parse(localStorage.getItem('therapy_moods') || '[]');
+    const stats = JSON.parse(localStorage.getItem('therapy_stats') || '{}');
+
+    let streak = 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    for (let i = 0; i < 365; i++) {
+        const checkDate = new Date(today);
+        checkDate.setDate(checkDate.getDate() - i);
+
+        const hasEntry = moods.some(m => {
+            const moodDate = new Date(m.date);
+            moodDate.setHours(0, 0, 0, 0);
+            return moodDate.getTime() === checkDate.getTime();
+        });
+
+        if (hasEntry) {
+            streak++;
+        } else if (i > 0) {
+            break;
+        }
+    }
+
+    stats.streak = streak;
+    localStorage.setItem('therapy_stats', JSON.stringify(stats));
+}
+
+function loadMoodHistory() {
+    const moods = JSON.parse(localStorage.getItem('therapy_moods') || '[]');
+    const container = document.getElementById('moodHistory');
+    const emojis = ['', '😢', '😔', '😐', '🙂', '😊'];
+
+    if (moods.length === 0) {
+        container.innerHTML = `
+            <div class="therapy-empty-state">
+                <i data-lucide="heart-pulse"></i>
+                <p>No moods logged yet</p>
+                <span>Start tracking to see patterns</span>
+            </div>
+        `;
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        return;
+    }
+
+    container.innerHTML = moods.slice(0, 10).map(m => {
+        const date = new Date(m.date);
+        const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+        return `
+            <div class="therapy-mood-entry">
+                <span class="mood-entry-emoji">${emojis[m.mood]}</span>
+                <div class="mood-entry-info">
+                    <div class="mood-entry-date">${dateStr}</div>
+                    ${m.note ? `<div class="mood-entry-note">${escapeHtml(m.note)}</div>` : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function generateMoodCalendar() {
+    const moods = JSON.parse(localStorage.getItem('therapy_moods') || '[]');
+    const container = document.getElementById('moodCalendar');
+    const emojis = ['', '😢', '😔', '😐', '🙂', '😊'];
+
+    const today = new Date();
+    const days = [];
+
+    // Generate last 14 days
+    for (let i = 13; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        date.setHours(0, 0, 0, 0);
+
+        const moodEntry = moods.find(m => {
+            const moodDate = new Date(m.date);
+            moodDate.setHours(0, 0, 0, 0);
+            return moodDate.getTime() === date.getTime();
+        });
+
+        const isToday = i === 0;
+        days.push({
+            date: date,
+            mood: moodEntry ? moodEntry.mood : null,
+            isToday: isToday
+        });
+    }
+
+    container.innerHTML = days.map(d => {
+        const emoji = d.mood ? emojis[d.mood] : '';
+        const todayClass = d.isToday ? 'today' : '';
+        return `<div class="mood-calendar-day ${todayClass}">${emoji}</div>`;
+    }).join('');
+}
+
+function updateMoodDistribution() {
+    const moods = JSON.parse(localStorage.getItem('therapy_moods') || '[]');
+    const counts = [0, 0, 0, 0, 0, 0];
+
+    moods.forEach(m => counts[m.mood]++);
+    const total = moods.length || 1;
+
+    const items = document.querySelectorAll('#moodDistribution .mood-dist-item');
+    const moodOrder = [5, 4, 3, 2, 1]; // Great to Very Low
+
+    items.forEach((item, i) => {
+        const mood = moodOrder[i];
+        const pct = Math.round((counts[mood] / total) * 100);
+        item.querySelector('.mood-dist-fill').style.width = pct + '%';
+        item.querySelector('.mood-dist-pct').textContent = pct + '%';
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MILESTONES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function updateMilestones() {
+    const stats = JSON.parse(localStorage.getItem('therapy_stats') || '{}');
+    const milestones = document.querySelectorAll('.therapy-milestone');
+
+    const achievements = [
+        (stats.sessions || 0) >= 1,      // First Session
+        (stats.journals || 0) >= 1,      // First Journal
+        (stats.streak || 0) >= 7,        // 7-Day Streak
+        (stats.streak || 0) >= 30,       // 30-Day Streak
+        (stats.sessions || 0) >= 10,     // 10 Sessions
+        (stats.journals || 0) >= 25      // 25 Journals
+    ];
+
+    milestones.forEach((m, i) => {
+        m.dataset.achieved = achievements[i];
+    });
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EXERCISES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function showBreathingExercise() {
+    document.getElementById('breathingModal').classList.add('active');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function showGroundingExercise() {
+    document.getElementById('groundingModal').classList.add('active');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function showGratitudeExercise() {
+    document.getElementById('gratitudeModal').classList.add('active');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).classList.remove('active');
+    if (breathingInterval) {
+        clearInterval(breathingInterval);
+        breathingInterval = null;
+    }
+}
+
+// Breathing exercise
+function startBreathing() {
+    const circle = document.getElementById('breathingCircle');
+    const text = document.getElementById('breathingText');
+    const btn = document.getElementById('breathingStartBtn');
+
+    if (breathingInterval) {
+        clearInterval(breathingInterval);
+        breathingInterval = null;
+        btn.innerHTML = '<i data-lucide="play"></i> Start';
+        text.textContent = 'Ready';
+        circle.classList.remove('inhale', 'exhale');
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        return;
+    }
+
+    btn.innerHTML = '<i data-lucide="pause"></i> Stop';
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+
+    let phase = 0;
+    const phases = [
+        { name: 'Inhale', duration: 4000, class: 'inhale' },
+        { name: 'Hold', duration: 7000, class: 'inhale' },
+        { name: 'Exhale', duration: 8000, class: 'exhale' }
+    ];
+
+    function runPhase() {
+        const current = phases[phase];
+        text.textContent = current.name;
+        circle.classList.remove('inhale', 'exhale');
+        circle.classList.add(current.class);
+
+        phase = (phase + 1) % phases.length;
+    }
+
+    runPhase();
+    breathingInterval = setInterval(runPhase, phases[phase === 0 ? 2 : phase - 1].duration);
+}
+
+function saveGratitude() {
+    const items = [
+        document.getElementById('gratitude1').value.trim(),
+        document.getElementById('gratitude2').value.trim(),
+        document.getElementById('gratitude3').value.trim()
+    ].filter(x => x);
+
+    if (items.length === 0) {
+        showToast('Please write at least one thing you\'re grateful for', 'warning');
+        return;
+    }
+
+    // Add to journal
+    const text = "Gratitude Practice:\n" + items.map((item, i) => `${i + 1}. ${item}`).join('\n');
+    const entries = JSON.parse(localStorage.getItem('therapy_journals') || '[]');
+    entries.unshift({
+        id: Date.now(),
+        date: new Date().toISOString(),
+        text: text,
+        mood: 4
+    });
+    localStorage.setItem('therapy_journals', JSON.stringify(entries));
+
+    // Clear and close
+    document.getElementById('gratitude1').value = '';
+    document.getElementById('gratitude2').value = '';
+    document.getElementById('gratitude3').value = '';
+    closeModal('gratitudeModal');
+
+    updateStats('journals');
+    loadJournalEntries();
+    showToast('Gratitude practice saved to journal!', 'success');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// UTILITY
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `flash ${type}`;
+    toast.innerHTML = `> ${message}`;
+
+    let container = document.querySelector('.flash-messages');
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'flash-messages';
+        document.body.appendChild(container);
+    }
+
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+// Close modal on escape
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        document.querySelectorAll('.therapy-modal.active').forEach(modal => {
+            modal.classList.remove('active');
+        });
+        if (breathingInterval) {
+            clearInterval(breathingInterval);
+            breathingInterval = null;
+        }
+    }
+});
+
+// Close modal on backdrop click
+document.querySelectorAll('.therapy-modal').forEach(modal => {
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            modal.classList.remove('active');
+            if (breathingInterval) {
+                clearInterval(breathingInterval);
+                breathingInterval = null;
+            }
+        }
+    });
+});
+
+// Initialize mood distribution on load
+document.addEventListener('DOMContentLoaded', updateMoodDistribution);
+</script>
+{% endblock %}

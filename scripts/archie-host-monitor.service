@@ -1,0 +1,21 @@
+[Unit]
+Description=A.R.C.H.I.E. Host System Monitor
+Documentation=https://github.com/KytranKatarn/archie-platform
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 /mnt/archie_brain/scripts/host_monitor.py --daemon --interval 30
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=false
+ProtectSystem=false
+ProtectHome=false
+
+[Install]
+WantedBy=multi-user.target

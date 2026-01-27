@@ -317,6 +317,29 @@ def get_network_info():
 
         info['connections'] = info['connections'][:50]
 
+    # Per-interface bandwidth from /proc/net/dev
+    bandwidth_interfaces = []
+    try:
+        with open('/proc/net/dev', 'r') as f:
+            for line in f:
+                line = line.strip()
+                if ':' not in line or line.startswith('Inter') or line.startswith(' face'):
+                    continue
+                parts = line.split(':')
+                iface_name = parts[0].strip()
+                values = parts[1].split()
+                if len(values) >= 10:
+                    bandwidth_interfaces.append({
+                        'name': iface_name,
+                        'rx_bytes': int(values[0]),
+                        'rx_packets': int(values[1]),
+                        'tx_bytes': int(values[8]),
+                        'tx_packets': int(values[9])
+                    })
+    except OSError:
+        pass
+    info['bandwidth_interfaces'] = bandwidth_interfaces
+
     return info
 
 
@@ -807,6 +830,51 @@ def get_process_list(limit=100):
     return processes[:limit]
 
 
+def get_container_bandwidth():
+    """Get per-container network I/O from docker stats"""
+    containers = []
+    output = run_command(['docker', 'stats', '--no-stream', '--format', '{{.Name}}\t{{.NetIO}}'], timeout=15)
+    if not output:
+        return containers
+    for line in output.strip().split('\n'):
+        if '\t' not in line:
+            continue
+        parts = line.split('\t', 1)
+        if len(parts) < 2:
+            continue
+        name = parts[0].strip()
+        net_io = parts[1].strip()
+        # Parse "1.23MB / 4.56GB" format
+        rx_str, tx_str = '0B', '0B'
+        if '/' in net_io:
+            io_parts = net_io.split('/')
+            rx_str = io_parts[0].strip()
+            tx_str = io_parts[1].strip()
+
+        def parse_size(s):
+            s = s.strip().upper()
+            multipliers = {'B': 1, 'KB': 1024, 'MB': 1024**2, 'GB': 1024**3, 'TB': 1024**4,
+                           'KIB': 1024, 'MIB': 1024**2, 'GIB': 1024**3, 'TIB': 1024**4}
+            for suffix, mult in sorted(multipliers.items(), key=lambda x: -len(x[0])):
+                if s.endswith(suffix):
+                    try:
+                        return int(float(s[:-len(suffix)].strip()) * mult)
+                    except ValueError:
+                        return 0
+            try:
+                return int(float(s))
+            except ValueError:
+                return 0
+
+        containers.append({
+            'name': name,
+            'rx_bytes': parse_size(rx_str),
+            'tx_bytes': parse_size(tx_str),
+            'net_io_raw': net_io
+        })
+    return containers
+
+
 def collect_all_data():
     """Collect all host system data"""
     return {
@@ -819,6 +887,7 @@ def collect_all_data():
         'services': get_systemd_services(),
         'processes': get_process_list(),
         'network': get_network_info(),
+        'container_bandwidth': get_container_bandwidth(),
         'collected_at': datetime.now().isoformat(),
         'host': os.uname().nodename
     }

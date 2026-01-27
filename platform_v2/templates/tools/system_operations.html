@@ -1336,6 +1336,403 @@
         align-items: center;
         gap: 10px;
     }
+
+    /* ===== Multi-Stack Overview ===== */
+    .stack-overview-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 16px;
+        margin-bottom: 20px;
+    }
+
+    .stack-card {
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
+        border-radius: 12px;
+        padding: 20px;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .stack-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: var(--stack-color, var(--archie-cyan));
+    }
+
+    .stack-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    }
+
+    .stack-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 12px;
+    }
+
+    .stack-card-name {
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: var(--archie-text-primary);
+    }
+
+    .stack-card-badges {
+        display: flex;
+        gap: 6px;
+    }
+
+    .stack-card .badge.system {
+        background: var(--archie-cyan-alpha-20);
+        color: var(--archie-cyan);
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        padding: 2px 8px;
+        border-radius: 4px;
+    }
+
+    .stack-card-desc {
+        font-size: 0.85rem;
+        color: var(--archie-text-muted);
+        margin-bottom: 12px;
+        line-height: 1.4;
+    }
+
+    .stack-card-stats {
+        display: flex;
+        gap: 16px;
+        margin-bottom: 12px;
+        font-size: 0.85rem;
+    }
+
+    .stack-card-stats span {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        color: var(--archie-text-secondary);
+    }
+
+    .stack-card-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-top: 12px;
+        border-top: 1px solid var(--archie-border-default);
+    }
+
+    .stack-card-actions {
+        display: flex;
+        gap: 6px;
+    }
+
+    .stack-card-btn {
+        padding: 6px 12px;
+        border: 1px solid var(--archie-border-default);
+        border-radius: 4px;
+        background: var(--archie-bg-tertiary);
+        color: var(--archie-text-primary);
+        cursor: pointer;
+        font-size: 0.8rem;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        transition: all 0.2s;
+    }
+
+    .stack-card-btn:hover {
+        background: var(--archie-cyan);
+        color: var(--archie-bg-primary);
+        border-color: var(--archie-cyan);
+    }
+
+    .stack-card-btn.danger:hover {
+        background: var(--archie-red);
+        border-color: var(--archie-red);
+    }
+
+    /* ===== Stack Detail View ===== */
+    .stack-detail-view {
+        display: none;
+    }
+
+    .stack-detail-view.active {
+        display: block;
+    }
+
+    .stack-detail-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px;
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
+        border-radius: 12px;
+        margin-bottom: 16px;
+    }
+
+    .stack-detail-title {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .stack-detail-title h2 {
+        margin: 0;
+        font-size: 1.4rem;
+        color: var(--archie-text-primary);
+    }
+
+    .stack-color-dot {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+
+    .stack-back-btn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 16px;
+        background: var(--archie-bg-tertiary);
+        border: 1px solid var(--archie-border-default);
+        border-radius: 6px;
+        color: var(--archie-text-primary);
+        cursor: pointer;
+        font-size: 0.9rem;
+        transition: all 0.2s;
+    }
+
+    .stack-back-btn:hover {
+        background: var(--archie-cyan);
+        color: var(--archie-bg-primary);
+        border-color: var(--archie-cyan);
+    }
+
+    /* Stack detail sub-tabs */
+    .stack-subtabs {
+        display: flex;
+        gap: 4px;
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
+        border-radius: 8px;
+        padding: 4px;
+        margin-bottom: 16px;
+        overflow-x: auto;
+    }
+
+    .stack-subtab {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 6px;
+        background: transparent;
+        color: var(--archie-text-muted);
+        cursor: pointer;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+        transition: all 0.2s;
+    }
+
+    .stack-subtab:hover {
+        color: var(--archie-text-primary);
+        background: var(--archie-bg-tertiary);
+    }
+
+    .stack-subtab.active {
+        background: var(--archie-accent);
+        color: #000;
+        font-weight: 600;
+    }
+
+    .stack-subtab-content {
+        display: none;
+    }
+
+    .stack-subtab-content.active {
+        display: block;
+    }
+
+    /* New Stack Button */
+    .new-stack-btn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 20px;
+        background: var(--archie-accent);
+        color: #000;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.9rem;
+        transition: all 0.2s;
+    }
+
+    .new-stack-btn:hover {
+        background: var(--archie-accent-bright);
+        transform: translateY(-1px);
+    }
+
+    /* ===== Stack Creation Wizard ===== */
+    .wizard-overlay {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s;
+    }
+
+    .wizard-overlay.active {
+        opacity: 1;
+        pointer-events: all;
+    }
+
+    .wizard-dialog {
+        background: var(--archie-bg-primary);
+        border: 1px solid var(--archie-border-default);
+        border-radius: 16px;
+        width: 90%;
+        max-width: 700px;
+        max-height: 85vh;
+        overflow-y: auto;
+        padding: 24px;
+    }
+
+    .wizard-steps {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 24px;
+        justify-content: center;
+    }
+
+    .wizard-step-indicator {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.8rem;
+        font-weight: 700;
+        border: 2px solid var(--archie-border-default);
+        color: var(--archie-text-muted);
+        transition: all 0.2s;
+    }
+
+    .wizard-step-indicator.active {
+        background: var(--archie-accent);
+        border-color: var(--archie-accent);
+        color: #000;
+    }
+
+    .wizard-step-indicator.completed {
+        background: var(--archie-green);
+        border-color: var(--archie-green);
+        color: #000;
+    }
+
+    .wizard-step-line {
+        width: 30px;
+        height: 2px;
+        background: var(--archie-border-default);
+        align-self: center;
+    }
+
+    .wizard-step-line.completed {
+        background: var(--archie-green);
+    }
+
+    .wizard-content {
+        min-height: 200px;
+    }
+
+    .wizard-footer {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 24px;
+        padding-top: 16px;
+        border-top: 1px solid var(--archie-border-default);
+    }
+
+    .wizard-field {
+        margin-bottom: 16px;
+    }
+
+    .wizard-field label {
+        display: block;
+        margin-bottom: 6px;
+        color: var(--archie-text-secondary);
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+
+    .wizard-field input,
+    .wizard-field textarea,
+    .wizard-field select {
+        width: 100%;
+        padding: 10px 14px;
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
+        border-radius: 8px;
+        color: var(--archie-text-primary);
+        font-size: 0.9rem;
+        font-family: inherit;
+        box-sizing: border-box;
+    }
+
+    .wizard-field textarea {
+        font-family: var(--archie-font-mono);
+        font-size: 0.85rem;
+        min-height: 200px;
+        resize: vertical;
+    }
+
+    .wizard-field input:focus,
+    .wizard-field textarea:focus {
+        outline: none;
+        border-color: var(--archie-accent);
+        box-shadow: 0 0 0 2px var(--archie-accent-alpha-20);
+    }
+
+    .color-picker-grid {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .color-swatch {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        border: 2px solid transparent;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .color-swatch:hover {
+        transform: scale(1.15);
+    }
+
+    .color-swatch.selected {
+        border-color: var(--archie-text-primary);
+        box-shadow: 0 0 0 2px var(--archie-bg-primary);
+    }
 </style>
 {% endblock %}
 
@@ -1709,161 +2106,250 @@
 
     <!-- Tab: Docker (Portainer-style) -->
     <div id="tab-docker" class="tab-content">
-        <!-- Docker Overview Cards -->
-        <div class="docker-overview-grid">
-            <div class="docker-stat-card running">
-                <div class="docker-stat-icon">
-                    <i data-lucide="play-circle" style="width: 32px; height: 32px;"></i>
-                </div>
-                <div class="docker-stat-info">
-                    <span class="docker-stat-value" id="docker-running-count">0</span>
-                    <span class="docker-stat-label">Running</span>
-                </div>
-            </div>
-            <div class="docker-stat-card stopped">
-                <div class="docker-stat-icon">
-                    <i data-lucide="stop-circle" style="width: 32px; height: 32px;"></i>
-                </div>
-                <div class="docker-stat-info">
-                    <span class="docker-stat-value" id="docker-stopped-count">0</span>
-                    <span class="docker-stat-label">Stopped</span>
-                </div>
-            </div>
-            <div class="docker-stat-card total">
-                <div class="docker-stat-icon">
-                    <i data-lucide="box" style="width: 32px; height: 32px;"></i>
-                </div>
-                <div class="docker-stat-info">
-                    <span class="docker-stat-value" id="docker-total-count">0</span>
-                    <span class="docker-stat-label">Total Containers</span>
-                </div>
-            </div>
-            <div class="docker-stat-card images">
-                <div class="docker-stat-icon">
-                    <i data-lucide="layers" style="width: 32px; height: 32px;"></i>
-                </div>
-                <div class="docker-stat-info">
-                    <span class="docker-stat-value" id="docker-images-count">-</span>
-                    <span class="docker-stat-label">Images</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- Quick Actions -->
-        <div class="section-title" style="margin-top: 20px;">
-            <i data-lucide="zap" style="width: 18px; height: 18px;"></i>
-            Quick Actions
-        </div>
-        <div class="docker-actions-bar">
-            <button class="docker-action-btn" onclick="dockerComposeAction('up')" title="Start all containers">
-                <i data-lucide="play" style="width: 16px; height: 16px;"></i>
-                Start All
-            </button>
-            <button class="docker-action-btn" onclick="dockerComposeAction('restart')" title="Restart all containers">
-                <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i>
-                Restart All
-            </button>
-            <button class="docker-action-btn warning" onclick="dockerComposeAction('down')" title="Stop all containers">
-                <i data-lucide="square" style="width: 16px; height: 16px;"></i>
-                Stop All
-            </button>
-            <button class="docker-action-btn" onclick="loadDocker()" title="Refresh container list">
-                <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i>
-                Refresh
-            </button>
-        </div>
-
-        <!-- Container List -->
-        <div class="section-title" style="margin-top: 20px;">
-            <i data-lucide="container" style="width: 18px; height: 18px;"></i>
-            Containers
-        </div>
-        <div class="docker-container-grid" id="docker-container-grid">
-            <!-- Container cards will be rendered here -->
-            <div class="loading-placeholder">
-                <i data-lucide="loader" style="width: 24px; height: 24px;"></i>
-                Loading containers...
-            </div>
-        </div>
-
-        <!-- Container Table (fallback/detailed view) -->
-        <div class="section-title" style="margin-top: 20px;">
-            <i data-lucide="list" style="width: 18px; height: 18px;"></i>
-            Detailed View
-        </div>
-        <div class="panel">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Name</th>
-                        <th>Image</th>
-                        <th>Status</th>
-                        <th>Ports</th>
-                        <th>Created</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="docker-table">
-                    <tr><td colspan="7" class="loading"><i data-lucide="loader"></i> Loading...</td></tr>
-                </tbody>
-            </table>
-        </div>
-
-        <!-- Stack Management (Portainer-style) -->
-        <div class="section-title" style="margin-top: 20px;">
-            <i data-lucide="file-code" style="width: 18px; height: 18px;"></i>
-            Stack: A.R.C.H.I.E. Platform
-            <span class="stack-status" id="stack-status">
-                <span class="badge running">Active</span>
-            </span>
-        </div>
-        <div class="panel">
-            <div class="stack-header">
-                <div class="stack-info">
-                    <div class="stack-meta">
-                        <span><i data-lucide="folder" style="width: 14px; height: 14px;"></i> <code id="compose-file-path">/mnt/archie_brain/docker-compose.yml</code></span>
-                        <span><i data-lucide="git-branch" style="width: 14px; height: 14px;"></i> <span id="stack-services-count">-</span> services</span>
+        <!-- Stack Overview (landing page) -->
+        <div id="docker-stack-overview">
+            <div class="docker-overview-grid">
+                <div class="docker-stat-card running">
+                    <div class="docker-stat-icon">
+                        <i data-lucide="play-circle" style="width: 32px; height: 32px;"></i>
+                    </div>
+                    <div class="docker-stat-info">
+                        <span class="docker-stat-value" id="docker-running-count">0</span>
+                        <span class="docker-stat-label">Running</span>
                     </div>
                 </div>
-                <div class="stack-actions">
-                    <button class="docker-action-btn" onclick="viewComposeFile()" title="View compose file">
-                        <i data-lucide="eye" style="width: 16px; height: 16px;"></i>
-                        View
-                    </button>
-                    <button class="docker-action-btn" onclick="editComposeFile()" title="Edit compose file">
-                        <i data-lucide="edit" style="width: 16px; height: 16px;"></i>
-                        Edit
-                    </button>
-                    <button class="docker-action-btn" onclick="dockerComposeAction('pull')" title="Pull latest images">
-                        <i data-lucide="download" style="width: 16px; height: 16px;"></i>
-                        Pull
-                    </button>
+                <div class="docker-stat-card stopped">
+                    <div class="docker-stat-icon">
+                        <i data-lucide="stop-circle" style="width: 32px; height: 32px;"></i>
+                    </div>
+                    <div class="docker-stat-info">
+                        <span class="docker-stat-value" id="docker-stopped-count">0</span>
+                        <span class="docker-stat-label">Stopped</span>
+                    </div>
+                </div>
+                <div class="docker-stat-card total">
+                    <div class="docker-stat-icon">
+                        <i data-lucide="box" style="width: 32px; height: 32px;"></i>
+                    </div>
+                    <div class="docker-stat-info">
+                        <span class="docker-stat-value" id="docker-total-count">0</span>
+                        <span class="docker-stat-label">Total</span>
+                    </div>
+                </div>
+                <div class="docker-stat-card images">
+                    <div class="docker-stat-icon">
+                        <i data-lucide="layers" style="width: 32px; height: 32px;"></i>
+                    </div>
+                    <div class="docker-stat-info">
+                        <span class="docker-stat-value" id="docker-stacks-count">0</span>
+                        <span class="docker-stat-label">Stacks</span>
+                    </div>
                 </div>
             </div>
 
-            <!-- Services Grid -->
-            <div class="stack-services-grid" id="stack-services-grid">
-                <!-- Services will be rendered here -->
+            <!-- Stack Cards -->
+            <div class="section-title" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>
+                    <i data-lucide="layers" style="width: 18px; height: 18px;"></i>
+                    Stacks
+                </span>
+                <button class="new-stack-btn" onclick="openCreateStackWizard()">
+                    <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+                    New Stack
+                </button>
+            </div>
+            <div class="stack-overview-grid" id="stack-overview-grid">
+                <div class="loading-placeholder">
+                    <i data-lucide="loader" style="width: 24px; height: 24px;"></i>
+                    Loading stacks...
+                </div>
             </div>
         </div>
 
-        <!-- Environment Variables -->
-        <div class="section-title" style="margin-top: 20px;">
-            <i data-lucide="settings-2" style="width: 18px; height: 18px;"></i>
-            Environment Files
-        </div>
-        <div class="panel">
-            <div class="env-files-list" id="env-files-list">
-                <div class="env-file-item" onclick="viewEnvFile('.env')">
-                    <i data-lucide="file-text" style="width: 16px; height: 16px;"></i>
-                    <span>.env</span>
-                    <span class="env-file-path">/mnt/archie_brain/.env</span>
+        <!-- Stack Detail View -->
+        <div id="docker-stack-detail" class="stack-detail-view">
+            <div class="stack-detail-header">
+                <div class="stack-detail-title">
+                    <button class="stack-back-btn" onclick="showStackOverview()">
+                        <i data-lucide="arrow-left" style="width: 16px; height: 16px;"></i>
+                        Back
+                    </button>
+                    <span class="stack-color-dot" id="detail-stack-color"></span>
+                    <h2 id="detail-stack-name">Stack Name</h2>
+                    <span id="detail-stack-badge"></span>
                 </div>
-                <div class="env-file-item" onclick="viewEnvFile('platform_v2/.env')">
-                    <i data-lucide="file-text" style="width: 16px; height: 16px;"></i>
-                    <span>platform_v2/.env</span>
-                    <span class="env-file-path">/mnt/archie_brain/platform_v2/.env</span>
+                <div class="stack-actions" id="detail-stack-actions"></div>
+            </div>
+
+            <div class="stack-subtabs" id="stack-subtabs">
+                <button class="stack-subtab active" onclick="showStackSubtab('containers')" data-subtab="containers">
+                    <i data-lucide="box" style="width: 14px; height: 14px;"></i> Containers
+                </button>
+                <button class="stack-subtab" onclick="showStackSubtab('compose')" data-subtab="compose">
+                    <i data-lucide="file-code" style="width: 14px; height: 14px;"></i> Compose
+                </button>
+                <button class="stack-subtab" onclick="showStackSubtab('env')" data-subtab="env">
+                    <i data-lucide="settings-2" style="width: 14px; height: 14px;"></i> Environment
+                </button>
+                <button class="stack-subtab" onclick="showStackSubtab('logs')" data-subtab="logs">
+                    <i data-lucide="scroll-text" style="width: 14px; height: 14px;"></i> Logs
+                </button>
+            </div>
+
+            <!-- Containers sub-tab -->
+            <div class="stack-subtab-content active" id="subtab-containers">
+                <div class="docker-actions-bar" style="margin-bottom: 16px;">
+                    <button class="docker-action-btn" onclick="stackAction('up')" title="Start all containers">
+                        <i data-lucide="play" style="width: 16px; height: 16px;"></i> Start All
+                    </button>
+                    <button class="docker-action-btn" onclick="stackAction('restart')" title="Restart all containers">
+                        <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i> Restart All
+                    </button>
+                    <button class="docker-action-btn warning" onclick="stackAction('down')" title="Stop all containers">
+                        <i data-lucide="square" style="width: 16px; height: 16px;"></i> Stop All
+                    </button>
+                    <button class="docker-action-btn" onclick="stackAction('pull')" title="Pull latest images">
+                        <i data-lucide="download" style="width: 16px; height: 16px;"></i> Pull
+                    </button>
+                    <button class="docker-action-btn" onclick="loadStackDetail(currentStackName)" title="Refresh">
+                        <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i> Refresh
+                    </button>
+                </div>
+                <div class="docker-container-grid" id="stack-container-grid">
+                    <div class="loading-placeholder">
+                        <i data-lucide="loader" style="width: 24px; height: 24px;"></i>
+                        Loading containers...
+                    </div>
+                </div>
+            </div>
+
+            <!-- Compose sub-tab -->
+            <div class="stack-subtab-content" id="subtab-compose">
+                <div class="panel">
+                    <div class="stack-header">
+                        <div class="stack-info">
+                            <div class="stack-meta">
+                                <span><i data-lucide="folder" style="width: 14px; height: 14px;"></i> <code id="detail-compose-path">-</code></span>
+                                <span><i data-lucide="git-branch" style="width: 14px; height: 14px;"></i> <span id="detail-services-count">-</span> services</span>
+                            </div>
+                        </div>
+                        <div class="stack-actions">
+                            <button class="docker-action-btn" onclick="viewStackCompose()" title="View compose file">
+                                <i data-lucide="eye" style="width: 16px; height: 16px;"></i> View
+                            </button>
+                            <button class="docker-action-btn" onclick="editStackCompose()" title="Edit compose file">
+                                <i data-lucide="edit" style="width: 16px; height: 16px;"></i> Edit
+                            </button>
+                        </div>
+                    </div>
+                    <div class="stack-services-grid" id="detail-services-grid"></div>
+                </div>
+            </div>
+
+            <!-- Environment sub-tab -->
+            <div class="stack-subtab-content" id="subtab-env">
+                <div class="panel">
+                    <div class="env-files-list" id="detail-env-files">
+                        <div class="loading-placeholder">Loading environment files...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Logs sub-tab -->
+            <div class="stack-subtab-content" id="subtab-logs">
+                <div class="panel">
+                    <div style="display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap;">
+                        <select id="stack-log-service" style="padding: 8px 12px; background: var(--archie-bg-tertiary); border: 1px solid var(--archie-border-default); border-radius: 6px; color: var(--archie-text-primary); font-size: 0.9rem;">
+                            <option value="">All services</option>
+                        </select>
+                        <select id="stack-log-tail" style="padding: 8px 12px; background: var(--archie-bg-tertiary); border: 1px solid var(--archie-border-default); border-radius: 6px; color: var(--archie-text-primary); font-size: 0.9rem;">
+                            <option value="50">Last 50 lines</option>
+                            <option value="100" selected>Last 100 lines</option>
+                            <option value="500">Last 500 lines</option>
+                        </select>
+                        <button class="docker-action-btn" onclick="loadStackLogs()">
+                            <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i> Refresh
+                        </button>
+                    </div>
+                    <pre id="stack-log-output" style="background: var(--archie-bg-void); border: 1px solid var(--archie-border-default); border-radius: 8px; padding: 16px; max-height: 500px; overflow-y: auto; font-size: 0.8rem; color: var(--archie-text-secondary); font-family: var(--archie-font-mono); white-space: pre-wrap; word-break: break-all;">Select a service and click Refresh to view logs.</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stack Creation Wizard -->
+    <div class="wizard-overlay" id="createStackWizard">
+        <div class="wizard-dialog">
+            <h3 style="color: var(--archie-accent); margin: 0 0 20px 0;">
+                <i data-lucide="plus-circle" style="width: 20px; height: 20px; display: inline-block; vertical-align: middle; margin-right: 8px;"></i>
+                Create New Stack
+            </h3>
+            <div class="wizard-steps" id="wizard-steps">
+                <div class="wizard-step-indicator active" data-step="1">1</div>
+                <div class="wizard-step-line"></div>
+                <div class="wizard-step-indicator" data-step="2">2</div>
+                <div class="wizard-step-line"></div>
+                <div class="wizard-step-indicator" data-step="3">3</div>
+                <div class="wizard-step-line"></div>
+                <div class="wizard-step-indicator" data-step="4">4</div>
+            </div>
+            <div class="wizard-content" id="wizard-step-1">
+                <div class="wizard-field">
+                    <label>Stack Name (slug)</label>
+                    <input type="text" id="wizard-name" placeholder="e.g. plex, home-assistant" oninput="updateWizardSlug()">
+                    <div style="font-size: 0.75rem; color: var(--archie-text-muted); margin-top: 4px;">
+                        Directory: <code id="wizard-dir-preview">/mnt/stacks/</code>
+                    </div>
+                </div>
+                <div class="wizard-field">
+                    <label>Display Name</label>
+                    <input type="text" id="wizard-display-name" placeholder="e.g. Plex Media Server">
+                </div>
+                <div class="wizard-field">
+                    <label>Description (optional)</label>
+                    <input type="text" id="wizard-description" placeholder="Short description of this stack">
+                </div>
+                <div class="wizard-field">
+                    <label>Color</label>
+                    <div class="color-picker-grid" id="wizard-color-picker">
+                        <div class="color-swatch selected" style="background: #00D4AA;" data-color="#00D4AA" onclick="selectWizardColor(this)"></div>
+                        <div class="color-swatch" style="background: #E5A00D;" data-color="#E5A00D" onclick="selectWizardColor(this)"></div>
+                        <div class="color-swatch" style="background: #FF6B6B;" data-color="#FF6B6B" onclick="selectWizardColor(this)"></div>
+                        <div class="color-swatch" style="background: #4ECDC4;" data-color="#4ECDC4" onclick="selectWizardColor(this)"></div>
+                        <div class="color-swatch" style="background: #A78BFA;" data-color="#A78BFA" onclick="selectWizardColor(this)"></div>
+                        <div class="color-swatch" style="background: #F472B6;" data-color="#F472B6" onclick="selectWizardColor(this)"></div>
+                        <div class="color-swatch" style="background: #60A5FA;" data-color="#60A5FA" onclick="selectWizardColor(this)"></div>
+                        <div class="color-swatch" style="background: #34D399;" data-color="#34D399" onclick="selectWizardColor(this)"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="wizard-content" id="wizard-step-2" style="display: none;">
+                <div class="wizard-field">
+                    <label>docker-compose.yml</label>
+                    <textarea id="wizard-compose" placeholder="version: '3.8'&#10;services:&#10;  app:&#10;    image: myimage:latest&#10;    ports:&#10;      - '8080:80'" spellcheck="false"></textarea>
+                </div>
+            </div>
+            <div class="wizard-content" id="wizard-step-3" style="display: none;">
+                <div class="wizard-field">
+                    <label>.env file (optional)</label>
+                    <textarea id="wizard-env" placeholder="KEY=value&#10;ANOTHER_KEY=another_value" spellcheck="false" style="min-height: 150px;"></textarea>
+                </div>
+            </div>
+            <div class="wizard-content" id="wizard-step-4" style="display: none;">
+                <div style="background: var(--archie-bg-secondary); border-radius: 8px; padding: 16px;">
+                    <h4 style="color: var(--archie-accent); margin: 0 0 12px 0;">Review</h4>
+                    <div id="wizard-review-content" style="font-size: 0.9rem; color: var(--archie-text-secondary);"></div>
+                </div>
+            </div>
+            <div class="wizard-footer">
+                <button class="btn-cancel" onclick="closeCreateStackWizard()">Cancel</button>
+                <div style="display: flex; gap: 8px;">
+                    <button class="docker-action-btn" id="wizard-prev-btn" onclick="wizardPrev()" style="display: none;">
+                        <i data-lucide="arrow-left" style="width: 14px; height: 14px;"></i> Previous
+                    </button>
+                    <button class="new-stack-btn" id="wizard-next-btn" onclick="wizardNext()">
+                        Next <i data-lucide="arrow-right" style="width: 14px; height: 14px;"></i>
+                    </button>
                 </div>
             </div>
         </div>
@@ -2736,13 +3222,22 @@ async function loadServices() {
     }
 }
 
+// ===== Multi-Stack State =====
+let currentStackName = null;
+let stacksData = [];
+
 async function loadDocker() {
     try {
-        const res = await fetch('/tools/system-operations/api/docker');
+        const res = await fetch('/tools/system-operations/api/stacks');
         const json = await res.json();
-        if (json.success) renderDocker(json.data || []);
+        if (json.success) {
+            stacksData = json.data || [];
+            renderStackOverview(stacksData);
+            // If detail view is active, refresh it too
+            if (currentStackName) loadStackDetail(currentStackName);
+        }
     } catch (e) {
-        console.error('Docker error:', e);
+        console.error('Docker/Stacks error:', e);
     }
 }
 
@@ -3748,89 +4243,73 @@ function renderHostRaid(raid) {
     `).join('');
 }
 
-function renderDocker(containers) {
-    // Update overview stats
-    const running = containers.filter(c => c.running).length;
-    const stopped = containers.filter(c => !c.running).length;
-    document.getElementById('docker-running-count').textContent = running;
-    document.getElementById('docker-stopped-count').textContent = stopped;
-    document.getElementById('docker-total-count').textContent = containers.length;
+// renderStackOverview: renders stack cards into the overview grid
+// NOTE: All data comes from authenticated API endpoints (admin-only), not user input.
+// This follows the same trusted-source template literal pattern used throughout
+// the existing codebase (renderNetwork, renderServices, etc.)
+function renderStackOverview(stacks) {
+    // Sum running/stopped across all stacks
+    let totalRunning = 0, totalStopped = 0, totalContainers = 0;
+    stacks.forEach(s => {
+        totalRunning += s.containers_running || 0;
+        totalStopped += (s.containers_total || 0) - (s.containers_running || 0);
+        totalContainers += s.containers_total || 0;
+    });
+    document.getElementById('docker-running-count').textContent = totalRunning;
+    document.getElementById('docker-stopped-count').textContent = totalStopped;
+    document.getElementById('docker-total-count').textContent = totalContainers;
+    document.getElementById('docker-stacks-count').textContent = stacks.length;
 
-    // Render Portainer-style cards
-    const cardGrid = document.getElementById('docker-container-grid');
-    if (!containers.length) {
-        cardGrid.innerHTML = '<div class="loading-placeholder"><i data-lucide="inbox" style="width: 32px; height: 32px;"></i>No containers found</div>';
+    const grid = document.getElementById('stack-overview-grid');
+    if (!stacks.length) {
+        grid.innerHTML = '<div class="loading-placeholder"><i data-lucide="inbox" style="width: 32px; height: 32px;"></i>No stacks found</div>';
     } else {
-        cardGrid.innerHTML = containers.map(c => {
-            const statusClass = c.running ? 'running' : (c.status?.includes('Paused') ? 'paused' : 'stopped');
-            const statusText = c.running ? 'Running' : (c.status?.includes('Exited') ? 'Exited' : 'Stopped');
+        grid.innerHTML = stacks.map(s => {
+            const statusClass = s.status === 'running' ? 'running' : (s.status === 'partial' ? 'paused' : 'stopped');
+            const statusText = s.status === 'running' ? 'Running' : (s.status === 'partial' ? 'Partial' : (s.status === 'stopped' ? 'Stopped' : 'Unknown'));
             return `
-            <div class="docker-container-card ${statusClass}">
-                <div class="docker-card-header">
-                    <div class="docker-card-name">${c.name || 'Unknown'}</div>
-                    <span class="docker-card-status ${statusClass}">${statusText}</span>
+            <div class="stack-card" style="--stack-color: ${s.color || '#00D4AA'}" onclick="openStackDetail('${s.name}')">
+                <div class="stack-card-header">
+                    <div class="stack-card-name">${s.display_name}</div>
+                    <div class="stack-card-badges">
+                        ${s.is_system ? '<span class="badge system">SYSTEM</span>' : ''}
+                        <span class="badge ${statusClass}">${statusText}</span>
+                    </div>
                 </div>
-                <div class="docker-card-image">${c.image || 'No image'}</div>
-                <div class="docker-card-meta">
-                    <span><i data-lucide="hash" style="width: 12px; height: 12px;"></i> ${(c.id || '').substring(0, 12)}</span>
-                    ${c.ports ? `<span><i data-lucide="globe" style="width: 12px; height: 12px;"></i> ${c.ports}</span>` : ''}
-                    ${c.created ? `<span><i data-lucide="clock" style="width: 12px; height: 12px;"></i> ${c.created}</span>` : ''}
+                ${s.description ? `<div class="stack-card-desc">${s.description}</div>` : ''}
+                <div class="stack-card-stats">
+                    <span><i data-lucide="box" style="width: 14px; height: 14px;"></i> ${s.containers_running}/${s.containers_total} containers</span>
+                    <span><i data-lucide="folder" style="width: 14px; height: 14px;"></i> ${s.compose_directory || '-'}</span>
                 </div>
-                <div class="docker-card-actions">
-                    ${c.running ? `
-                        <button class="docker-card-btn stop" onclick="dockerAction('${c.id}', 'stop')">
-                            <i data-lucide="square" style="width: 12px; height: 12px;"></i> Stop
+                <div class="stack-card-footer">
+                    <span style="font-size: 0.75rem; color: var(--archie-text-muted);">${s.name}</span>
+                    <div style="display: flex; gap: 6px;">
+                        <button class="docker-card-btn start" onclick="event.stopPropagation(); quickStackAction('${s.name}', 'up', ${!!s.is_system})" title="Start">
+                            <i data-lucide="play" style="width: 12px; height: 12px;"></i>
                         </button>
-                        <button class="docker-card-btn" onclick="dockerAction('${c.id}', 'restart')">
-                            <i data-lucide="refresh-cw" style="width: 12px; height: 12px;"></i> Restart
+                        <button class="docker-card-btn" onclick="event.stopPropagation(); quickStackAction('${s.name}', 'restart', ${!!s.is_system})" title="Restart">
+                            <i data-lucide="refresh-cw" style="width: 12px; height: 12px;"></i>
                         </button>
-                        <button class="docker-card-btn" onclick="viewDockerLogs('${c.id}', '${c.name}')">
-                            <i data-lucide="file-text" style="width: 12px; height: 12px;"></i> Logs
+                        <button class="docker-card-btn stop" onclick="event.stopPropagation(); quickStackAction('${s.name}', 'down', ${!!s.is_system})" title="Stop">
+                            <i data-lucide="square" style="width: 12px; height: 12px;"></i>
                         </button>
-                    ` : `
-                        <button class="docker-card-btn start" onclick="dockerAction('${c.id}', 'start')">
-                            <i data-lucide="play" style="width: 12px; height: 12px;"></i> Start
-                        </button>
-                        <button class="docker-card-btn" onclick="dockerAction('${c.id}', 'remove')">
-                            <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i> Remove
-                        </button>
-                    `}
+                    </div>
                 </div>
-            </div>
-        `}).join('');
+            </div>`;
+        }).join('');
     }
 
-    // Also update the detailed table
-    const tbody = document.getElementById('docker-table');
-    if (!containers.length) {
-        tbody.innerHTML = '<tr><td colspan="7" style="color: var(--archie-text-muted)">No containers found</td></tr>';
-    } else {
-        tbody.innerHTML = containers.map(c => `
-            <tr>
-                <td class="mono">${(c.id || '').substring(0, 12)}</td>
-                <td>${c.name || '--'}</td>
-                <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis;">${c.image || '--'}</td>
-                <td><span class="badge ${c.running ? 'running' : 'stopped'}">${c.status || '--'}</span></td>
-                <td class="mono" style="font-size: 0.75rem;">${c.ports || '-'}</td>
-                <td style="font-size: 0.8rem; color: var(--archie-text-muted);">${c.created || '-'}</td>
-                <td>
-                    ${c.running
-                        ? `<button class="action-btn stop" onclick="dockerAction('${c.id}', 'stop')">Stop</button>
-                           <button class="action-btn restart" onclick="dockerAction('${c.id}', 'restart')">Restart</button>`
-                        : `<button class="action-btn start" onclick="dockerAction('${c.id}', 'start')">Start</button>
-                           <button class="action-btn kill" onclick="dockerAction('${c.id}', 'remove')">Remove</button>`
-                    }
-                </td>
-            </tr>
-        `).join('');
-    }
-
-    // Reinitialize Lucide icons
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
-// Docker Compose actions
+// Docker Compose actions (multi-stack aware)
 async function dockerComposeAction(action) {
+    // If in stack detail view, delegate to stack action
+    if (currentStackName) {
+        stackAction(action);
+        return;
+    }
+
     const actionMessages = {
         'up': 'Start all containers?',
         'down': 'Stop all containers? This will stop all running services.',
@@ -4178,6 +4657,7 @@ document.addEventListener('keydown', e => {
         closeLvmExtendModal();
         closeReauthModal();
         closeActionPanel();
+        closeCreateStackWizard();
     }
 });
 
@@ -4288,6 +4768,9 @@ let originalComposeContent = '';
 let currentEditingFile = null;
 
 async function viewComposeFile() {
+    // If in stack detail view, delegate to stack compose viewer
+    if (currentStackName) { viewStackCompose(); return; }
+
     currentEditingFile = '/mnt/archie_brain/docker-compose.yml';
     composeEditMode = false;
 
@@ -4378,10 +4861,17 @@ async function saveComposeFile() {
     document.getElementById('composeStatus').textContent = 'Saving...';
 
     try {
-        const res = await fetch('/tools/system-operations/api/stack/compose', {
+        // Use stack endpoint if in stack context
+        const url = currentStackName
+            ? `/tools/system-operations/api/stacks/${currentStackName}/compose`
+            : '/tools/system-operations/api/stack/compose';
+        const body = currentStackName
+            ? { content }
+            : { content, file: currentEditingFile };
+        const res = await fetch(url, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content, file: currentEditingFile })
+            body: JSON.stringify(body)
         });
 
         const json = await res.json();
@@ -4408,18 +4898,30 @@ function applyComposeChanges() {
         'Apply & Restart Stack',
         'This will save the compose file and restart all containers. Are you sure?',
         async () => {
-            // First save
             const content = document.getElementById('composeEditor').value;
 
             try {
-                // Save file
-                const saveRes = await fetch('/tools/system-operations/api/stack/compose', {
+                // Save file - use stack endpoint if in stack context
+                const saveUrl = currentStackName
+                    ? `/tools/system-operations/api/stacks/${currentStackName}/compose`
+                    : '/tools/system-operations/api/stack/compose';
+                const saveBody = currentStackName
+                    ? { content }
+                    : { content, file: currentEditingFile };
+                const saveRes = await fetch(saveUrl, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ content, file: currentEditingFile })
+                    body: JSON.stringify(saveBody)
                 });
 
                 const saveJson = await saveRes.json();
+
+                if (saveJson.requires_reauth) {
+                    showReauthModal('Save Compose File', async () => {
+                        applyComposeChanges();
+                    });
+                    return;
+                }
 
                 if (!saveJson.success) {
                     showToast('error', 'Save failed: ' + saveJson.error);
@@ -4429,11 +4931,17 @@ function applyComposeChanges() {
                 originalComposeContent = content;
                 showToast('success', 'Saved. Restarting containers...');
 
-                // Then restart
-                const restartRes = await fetch('/tools/system-operations/api/docker/compose', {
+                // Then restart - use stack endpoint if in stack context
+                const restartUrl = currentStackName
+                    ? `/tools/system-operations/api/stacks/${currentStackName}/action`
+                    : '/tools/system-operations/api/docker/compose';
+                const restartBody = currentStackName
+                    ? { action: 'up', confirm: true }
+                    : { action: 'up', confirm: true };
+                const restartRes = await fetch(restartUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'up', confirm: true })
+                    body: JSON.stringify(restartBody)
                 });
 
                 const restartJson = await restartRes.json();
@@ -4466,6 +4974,9 @@ function closeComposeModal() {
 }
 
 async function viewEnvFile(filename) {
+    // If in stack detail view, delegate to stack env viewer
+    if (currentStackName) { viewStackEnvFile(currentStackName, filename); return; }
+
     currentEditingFile = `/mnt/archie_brain/${filename}`;
     composeEditMode = false;
 
@@ -4532,6 +5043,570 @@ function renderStackServices(services) {
     `).join('');
 
     lucide.createIcons();
+}
+
+// ============================================================================
+// MULTI-STACK DETAIL VIEW (Tasks 8-11)
+// ============================================================================
+
+// Show stack overview, hide detail view
+function showStackOverview() {
+    currentStackName = null;
+    document.getElementById('docker-stack-overview').style.display = '';
+    document.getElementById('docker-stack-detail').classList.remove('active');
+    loadDocker();
+}
+
+// Open stack detail view
+function openStackDetail(stackName) {
+    currentStackName = stackName;
+    document.getElementById('docker-stack-overview').style.display = 'none';
+    document.getElementById('docker-stack-detail').classList.add('active');
+    // Activate containers sub-tab
+    showStackSubtab('containers');
+    loadStackDetail(stackName);
+}
+
+// Toggle sub-tabs in detail view
+function showStackSubtab(tabName) {
+    // Update tab buttons
+    document.querySelectorAll('#stack-subtabs .stack-subtab').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.subtab === tabName);
+    });
+    // Update tab content
+    document.querySelectorAll('.stack-subtab-content').forEach(el => {
+        el.classList.toggle('active', el.id === `subtab-${tabName}`);
+    });
+    // Load data on demand
+    if (tabName === 'compose') loadStackCompose();
+    if (tabName === 'env') loadStackEnv();
+    if (tabName === 'logs') loadStackLogs();
+}
+
+// Load stack detail data (containers + header)
+// NOTE: All data comes from authenticated admin-only API endpoints, not user input.
+async function loadStackDetail(stackName) {
+    try {
+        const res = await fetch(`/tools/system-operations/api/stacks/${stackName}`);
+        const json = await res.json();
+        if (!json.success) {
+            showToast('error', json.error || 'Failed to load stack');
+            return;
+        }
+        const stack = json.data;
+
+        // Update header
+        document.getElementById('detail-stack-name').textContent = stack.display_name;
+        const colorDot = document.getElementById('detail-stack-color');
+        colorDot.style.background = stack.color || '#00D4AA';
+        colorDot.style.width = '12px';
+        colorDot.style.height = '12px';
+        colorDot.style.borderRadius = '50%';
+        colorDot.style.display = 'inline-block';
+
+        document.getElementById('detail-stack-badge').innerHTML = stack.is_system
+            ? '<span class="badge system" style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px;">SYSTEM</span>'
+            : '';
+
+        // Action buttons in header
+        const actionsEl = document.getElementById('detail-stack-actions');
+        actionsEl.innerHTML = `
+            <button class="docker-action-btn" onclick="stackAction('up')">
+                <i data-lucide="play" style="width: 14px; height: 14px;"></i> Start
+            </button>
+            <button class="docker-action-btn" onclick="stackAction('restart')">
+                <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i> Restart
+            </button>
+            <button class="docker-action-btn warning" onclick="stackAction('down')">
+                <i data-lucide="square" style="width: 14px; height: 14px;"></i> Stop
+            </button>
+            ${!stack.is_system ? `<button class="docker-action-btn" style="color: var(--archie-red);" onclick="deleteStack('${stack.name}')">
+                <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i> Delete
+            </button>` : ''}
+        `;
+
+        // Render containers
+        renderStackContainers(stack.containers || []);
+
+        // Populate logs service selector
+        const logSelect = document.getElementById('stack-log-service');
+        const currentVal = logSelect.value;
+        logSelect.innerHTML = '<option value="">All services</option>';
+        (stack.containers || []).forEach(c => {
+            const svc = c.Service || c.Name || '';
+            if (svc) {
+                const opt = document.createElement('option');
+                opt.value = svc;
+                opt.textContent = svc;
+                logSelect.appendChild(opt);
+            }
+        });
+        logSelect.value = currentVal;
+
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    } catch (e) {
+        showToast('error', 'Error loading stack: ' + e.message);
+    }
+}
+
+// Render container cards in the detail view
+// NOTE: Data from authenticated admin-only API, follows existing codebase template literal pattern
+function renderStackContainers(containers) {
+    const grid = document.getElementById('stack-container-grid');
+    if (!containers.length) {
+        grid.innerHTML = '<div class="loading-placeholder"><i data-lucide="inbox" style="width: 32px; height: 32px;"></i>No containers found</div>';
+    } else {
+        grid.innerHTML = containers.map(c => {
+            const state = (c.State || '').toLowerCase();
+            const statusClass = state === 'running' ? 'running' : (state === 'paused' ? 'paused' : 'stopped');
+            const statusText = c.Status || c.State || 'Unknown';
+            const name = c.Name || c.Service || 'Unknown';
+            const image = c.Image || 'No image';
+            const ports = c.Ports || '';
+            const cId = c.ID || '';
+            return `
+            <div class="docker-container-card ${statusClass}">
+                <div class="docker-card-header">
+                    <div class="docker-card-name">${name}</div>
+                    <span class="docker-card-status ${statusClass}">${statusText}</span>
+                </div>
+                <div class="docker-card-image">${image}</div>
+                <div class="docker-card-meta">
+                    ${cId ? `<span><i data-lucide="hash" style="width: 12px; height: 12px;"></i> ${cId.substring(0, 12)}</span>` : ''}
+                    ${ports ? `<span><i data-lucide="globe" style="width: 12px; height: 12px;"></i> ${ports}</span>` : ''}
+                </div>
+                <div class="docker-card-actions">
+                    ${state === 'running' ? `
+                        <button class="docker-card-btn stop" onclick="dockerAction('${cId}', 'stop')">
+                            <i data-lucide="square" style="width: 12px; height: 12px;"></i> Stop
+                        </button>
+                        <button class="docker-card-btn" onclick="dockerAction('${cId}', 'restart')">
+                            <i data-lucide="refresh-cw" style="width: 12px; height: 12px;"></i> Restart
+                        </button>
+                        <button class="docker-card-btn" onclick="viewDockerLogs('${cId}', '${name}')">
+                            <i data-lucide="file-text" style="width: 12px; height: 12px;"></i> Logs
+                        </button>
+                    ` : `
+                        <button class="docker-card-btn start" onclick="dockerAction('${cId}', 'start')">
+                            <i data-lucide="play" style="width: 12px; height: 12px;"></i> Start
+                        </button>
+                    `}
+                </div>
+            </div>`;
+        }).join('');
+    }
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+// Load compose file for current stack
+async function loadStackCompose() {
+    if (!currentStackName) return;
+    try {
+        const res = await fetch(`/tools/system-operations/api/stacks/${currentStackName}/compose`);
+        const json = await res.json();
+        if (json.success) {
+            document.getElementById('detail-compose-path').textContent = json.compose_path || '-';
+            document.getElementById('detail-services-count').textContent = (json.services || []).length;
+            renderDetailStackServices(json.services || []);
+        }
+    } catch (e) {
+        console.error('Stack compose error:', e);
+    }
+}
+
+// Render services grid in the detail compose sub-tab
+// NOTE: Trusted admin-only API data, follows existing codebase pattern
+function renderDetailStackServices(services) {
+    const grid = document.getElementById('detail-services-grid');
+    if (!grid) return;
+    if (!services || !services.length) {
+        grid.innerHTML = '<div style="color: var(--archie-text-muted); padding: 10px;">No services defined</div>';
+        return;
+    }
+    grid.innerHTML = services.map(s => `
+        <div class="stack-service-card">
+            <div class="service-info">
+                <i data-lucide="${s.running ? 'circle-check' : 'circle-x'}"
+                   style="width: 18px; height: 18px; color: ${s.running ? 'var(--archie-green)' : 'var(--archie-red)'};"></i>
+                <div>
+                    <div class="service-name">${s.name}</div>
+                    <div class="service-image">${s.image || 'custom build'}</div>
+                </div>
+            </div>
+            <span class="badge ${s.running ? 'running' : 'stopped'}">${s.running ? 'Running' : 'Stopped'}</span>
+        </div>
+    `).join('');
+    lucide.createIcons();
+}
+
+// Load environment files for current stack
+async function loadStackEnv() {
+    if (!currentStackName) return;
+    const container = document.getElementById('detail-env-files');
+    container.innerHTML = '<div class="loading-placeholder">Loading environment files...</div>';
+    try {
+        const res = await fetch(`/tools/system-operations/api/stacks/${currentStackName}/env`);
+        const json = await res.json();
+        if (json.success) {
+            const envFiles = json.data || [];
+            if (!envFiles.length) {
+                container.innerHTML = '<div style="color: var(--archie-text-muted); padding: 10px;">No environment files found</div>';
+                return;
+            }
+            container.innerHTML = envFiles.map(f => `
+                <div class="env-file-item" onclick="viewStackEnvFile('${currentStackName}', '${f.filename}')">
+                    <i data-lucide="file-text" style="width: 16px; height: 16px;"></i>
+                    <span>${f.filename}</span>
+                    <span class="env-file-path">${f.path || ''}</span>
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+    } catch (e) {
+        container.innerHTML = '<div style="color: var(--archie-red); padding: 10px;">Error loading env files</div>';
+    }
+}
+
+// Load logs for current stack
+async function loadStackLogs() {
+    if (!currentStackName) return;
+    const output = document.getElementById('stack-log-output');
+    const service = document.getElementById('stack-log-service').value;
+    const tail = document.getElementById('stack-log-tail').value;
+    output.textContent = 'Loading logs...';
+    try {
+        let url = `/tools/system-operations/api/stacks/${currentStackName}/logs?tail=${tail}`;
+        if (service) url += `&service=${encodeURIComponent(service)}`;
+        const res = await fetch(url);
+        const text = await res.text();
+        output.textContent = text || '(no logs)';
+        // Auto-scroll to bottom
+        output.scrollTop = output.scrollHeight;
+    } catch (e) {
+        output.textContent = 'Error loading logs: ' + e.message;
+    }
+}
+
+// View compose file for a specific stack via the modal
+async function viewStackCompose() {
+    if (!currentStackName) return;
+    currentEditingFile = null; // Will use stack endpoint
+    composeEditMode = false;
+
+    document.getElementById('composeModalTitle').innerHTML = `
+        <i data-lucide="file-code" style="width: 20px; height: 20px; display: inline-block; vertical-align: middle; margin-right: 8px;"></i>
+        docker-compose.yml
+    `;
+    document.getElementById('composeViewer').style.display = 'block';
+    document.getElementById('composeEditor').style.display = 'none';
+    document.getElementById('composeEditToggle').style.display = 'inline-flex';
+    document.getElementById('composeEditToggle').innerHTML = '<i data-lucide="edit" style="width: 14px; height: 14px;"></i> Edit';
+    document.getElementById('composeSaveBtn').style.display = 'none';
+    document.getElementById('composeApplyBtn').style.display = 'none';
+    document.getElementById('composeStatus').textContent = 'Loading...';
+    document.getElementById('composeModal').classList.add('active');
+    lucide.createIcons();
+
+    try {
+        const res = await fetch(`/tools/system-operations/api/stacks/${currentStackName}/compose`);
+        const json = await res.json();
+        if (json.success) {
+            originalComposeContent = json.content;
+            document.getElementById('composeViewer').querySelector('code').textContent = json.content;
+            document.getElementById('composeEditor').value = json.content;
+            document.getElementById('composeStatus').textContent = `Last modified: ${json.modified || 'Unknown'}`;
+        } else {
+            document.getElementById('composeViewer').querySelector('code').textContent = 'Error: ' + json.error;
+            document.getElementById('composeStatus').textContent = 'Failed to load';
+        }
+    } catch (e) {
+        document.getElementById('composeViewer').querySelector('code').textContent = 'Error: ' + e.message;
+        document.getElementById('composeStatus').textContent = 'Failed to load';
+    }
+}
+
+// Edit compose for current stack
+function editStackCompose() {
+    viewStackCompose().then(() => {
+        setTimeout(() => toggleComposeEdit(), 100);
+    });
+}
+
+// View env file for a specific stack via the modal
+async function viewStackEnvFile(stackName, filename) {
+    currentEditingFile = null; // Will use stack endpoint
+    composeEditMode = false;
+
+    document.getElementById('composeModalTitle').innerHTML = `
+        <i data-lucide="file-text" style="width: 20px; height: 20px; display: inline-block; vertical-align: middle; margin-right: 8px;"></i>
+        ${filename}
+    `;
+    document.getElementById('composeViewer').style.display = 'block';
+    document.getElementById('composeEditor').style.display = 'none';
+    document.getElementById('composeEditToggle').style.display = 'inline-flex';
+    document.getElementById('composeSaveBtn').style.display = 'none';
+    document.getElementById('composeApplyBtn').style.display = 'none';
+    document.getElementById('composeStatus').textContent = 'Loading...';
+    document.getElementById('composeModal').classList.add('active');
+    lucide.createIcons();
+
+    try {
+        const res = await fetch(`/tools/system-operations/api/stacks/${stackName}/env`);
+        const json = await res.json();
+        if (json.success) {
+            // Find the specific env file
+            const envFiles = json.data || [];
+            const file = envFiles.find(f => f.filename === filename);
+            if (file) {
+                // Mask sensitive values for display
+                let displayContent = file.content || '';
+                displayContent = displayContent.replace(/(PASSWORD|SECRET|KEY|TOKEN)=(.+)/gi, '$1=********');
+                originalComposeContent = file.content;
+                document.getElementById('composeViewer').querySelector('code').textContent = displayContent;
+                document.getElementById('composeEditor').value = file.content;
+                document.getElementById('composeStatus').textContent = 'Sensitive values masked in view mode';
+            } else {
+                document.getElementById('composeViewer').querySelector('code').textContent = 'File not found: ' + filename;
+                document.getElementById('composeStatus').textContent = 'Failed to load';
+            }
+        } else {
+            document.getElementById('composeViewer').querySelector('code').textContent = 'Error: ' + json.error;
+        }
+    } catch (e) {
+        document.getElementById('composeViewer').querySelector('code').textContent = 'Error: ' + e.message;
+    }
+}
+
+// ============================================================================
+// STACK ACTIONS (Two-Tier Safety)
+// ============================================================================
+
+// Quick action from overview card
+function quickStackAction(stackName, action, isSystem) {
+    const destructive = ['down', 'restart', 'pull'].includes(action);
+    if (isSystem && destructive) {
+        showReauthModal(`${action} system stack`, async () => {
+            await executeStackAction(stackName, action);
+        });
+    } else {
+        showConfirmModal('Stack Action', `${action} stack "${stackName}"?`, async () => {
+            await executeStackAction(stackName, action);
+        });
+    }
+}
+
+// Action from detail view sub-tab
+function stackAction(action) {
+    if (!currentStackName) return;
+    const stack = stacksData.find(s => s.name === currentStackName);
+    const isSystem = stack ? !!stack.is_system : false;
+    quickStackAction(currentStackName, action, isSystem);
+}
+
+// Execute the actual stack action API call
+async function executeStackAction(stackName, action) {
+    showToast('success', `Executing ${action} on ${stackName}...`);
+    try {
+        const res = await fetch(`/tools/system-operations/api/stacks/${stackName}/action`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action, confirm: true })
+        });
+        const json = await res.json();
+
+        if (json.requires_reauth) {
+            showReauthModal(`${action} stack`, async () => {
+                await executeStackAction(stackName, action);
+            });
+            return;
+        }
+
+        if (json.success) {
+            showToast('success', `Stack ${action} completed`);
+            setTimeout(() => loadDocker(), 2000);
+        } else {
+            showToast('error', json.error || `Failed to ${action}`);
+        }
+    } catch (e) {
+        showToast('error', 'Stack action error: ' + e.message);
+    }
+}
+
+// Delete a non-system stack
+function deleteStack(stackName) {
+    showConfirmModal('Delete Stack', `Are you sure you want to delete stack "${stackName}"? This will stop all containers and remove the stack from management.`, async () => {
+        try {
+            const res = await fetch(`/tools/system-operations/api/stacks/${stackName}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ confirm: true })
+            });
+            const json = await res.json();
+            if (json.success) {
+                showToast('success', 'Stack deleted');
+                showStackOverview();
+            } else {
+                showToast('error', json.error || 'Failed to delete stack');
+            }
+        } catch (e) {
+            showToast('error', 'Delete error: ' + e.message);
+        }
+    });
+}
+
+// ============================================================================
+// STACK CREATION WIZARD (Task 10)
+// ============================================================================
+
+let wizardStep = 1;
+let wizardColor = '#00D4AA';
+
+function openCreateStackWizard() {
+    wizardStep = 1;
+    wizardColor = '#00D4AA';
+    // Reset fields
+    document.getElementById('wizard-name').value = '';
+    document.getElementById('wizard-display-name').value = '';
+    document.getElementById('wizard-description').value = '';
+    document.getElementById('wizard-compose').value = '';
+    document.getElementById('wizard-env').value = '';
+    document.getElementById('wizard-dir-preview').textContent = '/mnt/stacks/';
+    // Reset color selection
+    document.querySelectorAll('#wizard-color-picker .color-swatch').forEach((sw, i) => {
+        sw.classList.toggle('selected', i === 0);
+    });
+    updateWizardStepUI();
+    document.getElementById('createStackWizard').classList.add('active');
+    lucide.createIcons();
+}
+
+function closeCreateStackWizard() {
+    document.getElementById('createStackWizard').classList.remove('active');
+}
+
+function updateWizardSlug() {
+    const raw = document.getElementById('wizard-name').value;
+    const slug = raw.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/^-+|-+$/g, '');
+    document.getElementById('wizard-name').value = slug;
+    document.getElementById('wizard-dir-preview').textContent = `/mnt/stacks/${slug}`;
+}
+
+function selectWizardColor(el) {
+    document.querySelectorAll('#wizard-color-picker .color-swatch').forEach(sw => sw.classList.remove('selected'));
+    el.classList.add('selected');
+    wizardColor = el.dataset.color;
+}
+
+function updateWizardStepUI() {
+    // Show/hide step content
+    for (let i = 1; i <= 4; i++) {
+        const stepEl = document.getElementById(`wizard-step-${i}`);
+        if (stepEl) stepEl.style.display = i === wizardStep ? '' : 'none';
+    }
+    // Update step indicators
+    document.querySelectorAll('#wizard-steps .wizard-step-indicator').forEach(ind => {
+        const step = parseInt(ind.dataset.step);
+        ind.classList.toggle('active', step === wizardStep);
+        ind.classList.toggle('completed', step < wizardStep);
+    });
+    // Update step lines
+    const lines = document.querySelectorAll('#wizard-steps .wizard-step-line');
+    lines.forEach((line, i) => {
+        line.classList.toggle('completed', (i + 1) < wizardStep);
+    });
+    // Previous button
+    document.getElementById('wizard-prev-btn').style.display = wizardStep > 1 ? '' : 'none';
+    // Next button text
+    const nextBtn = document.getElementById('wizard-next-btn');
+    if (wizardStep === 4) {
+        nextBtn.innerHTML = '<i data-lucide="check" style="width: 14px; height: 14px;"></i> Create Stack';
+    } else {
+        nextBtn.innerHTML = 'Next <i data-lucide="arrow-right" style="width: 14px; height: 14px;"></i>';
+    }
+    lucide.createIcons();
+    // On step 4, populate review
+    if (wizardStep === 4) updateWizardReview();
+}
+
+function wizardNext() {
+    // Validate current step
+    if (wizardStep === 1) {
+        const name = document.getElementById('wizard-name').value.trim();
+        const displayName = document.getElementById('wizard-display-name').value.trim();
+        if (!name) { showToast('error', 'Stack name is required'); return; }
+        if (!displayName) { showToast('error', 'Display name is required'); return; }
+        if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(name) && name.length > 1) {
+            showToast('error', 'Name must be lowercase alphanumeric with hyphens only');
+            return;
+        }
+        if (name.length === 1 && !/^[a-z0-9]$/.test(name)) {
+            showToast('error', 'Name must be lowercase alphanumeric');
+            return;
+        }
+    }
+    if (wizardStep === 4) {
+        createStack();
+        return;
+    }
+    wizardStep++;
+    updateWizardStepUI();
+}
+
+function wizardPrev() {
+    if (wizardStep > 1) {
+        wizardStep--;
+        updateWizardStepUI();
+    }
+}
+
+function updateWizardReview() {
+    const name = document.getElementById('wizard-name').value;
+    const displayName = document.getElementById('wizard-display-name').value;
+    const desc = document.getElementById('wizard-description').value;
+    const compose = document.getElementById('wizard-compose').value;
+    const env = document.getElementById('wizard-env').value;
+    const reviewEl = document.getElementById('wizard-review-content');
+    reviewEl.innerHTML = `
+        <div style="margin-bottom: 8px;"><strong>Name:</strong> ${displayName} <span style="color: var(--archie-text-muted);">(${name})</span></div>
+        ${desc ? `<div style="margin-bottom: 8px;"><strong>Description:</strong> ${desc}</div>` : ''}
+        <div style="margin-bottom: 8px;"><strong>Directory:</strong> <code>/mnt/stacks/${name}</code></div>
+        <div style="margin-bottom: 8px;"><strong>Color:</strong> <span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${wizardColor};vertical-align:middle;"></span> ${wizardColor}</div>
+        <div style="margin-bottom: 8px;"><strong>Compose:</strong> ${compose ? `${compose.split('\n').length} lines` : '<span style="color:var(--archie-text-muted);">Not provided</span>'}</div>
+        <div><strong>Environment:</strong> ${env ? `${env.split('\n').length} lines` : '<span style="color:var(--archie-text-muted);">Not provided</span>'}</div>
+    `;
+}
+
+async function createStack() {
+    const name = document.getElementById('wizard-name').value.trim();
+    const display_name = document.getElementById('wizard-display-name').value.trim();
+    const description = document.getElementById('wizard-description').value.trim();
+    const compose_content = document.getElementById('wizard-compose').value;
+    const env_content = document.getElementById('wizard-env').value;
+
+    try {
+        const res = await fetch('/tools/system-operations/api/stacks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name,
+                display_name,
+                description,
+                color: wizardColor,
+                compose_content,
+                env_content
+            })
+        });
+        const json = await res.json();
+        if (json.success) {
+            showToast('success', `Stack "${display_name}" created`);
+            closeCreateStackWizard();
+            loadDocker();
+        } else {
+            showToast('error', json.error || 'Failed to create stack');
+        }
+    } catch (e) {
+        showToast('error', 'Create error: ' + e.message);
+    }
 }
 </script>
 {% endblock %}

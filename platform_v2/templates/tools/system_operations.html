@@ -1948,13 +1948,17 @@
                         <i data-lucide="monitor" style="width: 20px; height: 20px;"></i>
                         GPU Usage
                     </div>
+                    <span id="gpu-temp" class="stat-badge" style="display: none;" title="GPU Temperature">
+                        <i data-lucide="thermometer" style="width: 12px; height: 12px;"></i>
+                        <span id="gpu-temp-value">--</span>
+                    </span>
                 </div>
                 <div class="stat-value" id="gpu-value">--</div>
                 <div class="stat-subtitle" id="gpu-model">Checking...</div>
                 <div class="progress-bar">
                     <div class="progress-fill green" id="gpu-bar" style="width: 0%"></div>
                 </div>
-                <div class="stat-subtitle" style="margin-top: 8px;">Temp: <span id="gpu-temp">--</span></div>
+                <div class="stat-subtitle" style="margin-top: 8px;">VRAM: <span id="gpu-vram">--</span></div>
             </div>
 
             <div class="stat-card">
@@ -1964,10 +1968,8 @@
                         Disk Usage
                     </div>
                 </div>
-                <div class="stat-value" id="disk-value">--</div>
-                <div class="stat-subtitle" id="disk-detail">Loading...</div>
-                <div class="progress-bar">
-                    <div class="progress-fill green" id="disk-bar" style="width: 0%"></div>
+                <div id="disk-drives-container">
+                    <div style="color: var(--archie-text-muted); font-size: 0.85rem;">Loading...</div>
                 </div>
             </div>
         </div>
@@ -3250,75 +3252,198 @@ function updateDashboard(data) {
     // Cache values for next page load
     saveCachedValues(cpuPct, memPct, cpuModel, memDetail);
 
-    // GPU - now uses host monitor data
+    // GPU - now uses host monitor data, temp badge top-right like CPU
+    const gpuTempBadge = document.getElementById('gpu-temp');
+    const gpuTempValue = document.getElementById('gpu-temp-value');
+    const gpuValueEl = document.getElementById('gpu-value');
+    const gpuModelEl = document.getElementById('gpu-model');
+    const gpuBarEl = document.getElementById('gpu-bar');
+    const vramEl = document.getElementById('gpu-vram');
     if (data.gpu?.available) {
         const gpuHasStats = data.gpu.has_detailed_stats;
-        if (gpuHasStats && data.gpu.usage_percent != null) {
-            document.getElementById('gpu-value').textContent = data.gpu.usage_percent.toFixed(1) + '%';
-            document.getElementById('gpu-bar').style.width = data.gpu.usage_percent + '%';
-            document.getElementById('gpu-bar').className = 'progress-fill ' + getColorClass(data.gpu.usage_percent);
-        } else {
-            // GPU detected but no utilization stats (e.g. nouveau driver)
-            document.getElementById('gpu-value').textContent = 'Detected';
-            document.getElementById('gpu-value').style.fontSize = '1.5rem';
-            document.getElementById('gpu-bar').style.width = '0%';
-        }
         const gpuName = (data.gpu.model || 'GPU').substring(0, 30);
-        const gpuDriver = data.gpu.driver ? ` (${data.gpu.driver})` : '';
-        document.getElementById('gpu-model').textContent = gpuName + gpuDriver;
-        document.getElementById('gpu-temp').textContent = data.gpu.temperature ? data.gpu.temperature + '°C' : 'N/A';
+        const gpuDriver = data.gpu.driver || '';
+        if (gpuHasStats && data.gpu.usage_percent != null) {
+            gpuValueEl.textContent = data.gpu.usage_percent.toFixed(1) + '%';
+            gpuValueEl.style.fontSize = '';
+            gpuBarEl.style.width = data.gpu.usage_percent + '%';
+            gpuBarEl.className = 'progress-fill ' + getColorClass(data.gpu.usage_percent);
+            gpuModelEl.textContent = gpuName + (gpuDriver ? ' (' + gpuDriver + ')' : '');
+        } else {
+            // No detailed stats (e.g. nouveau driver) - show model as main value
+            gpuValueEl.textContent = gpuName;
+            gpuValueEl.style.fontSize = '1.3rem';
+            gpuBarEl.style.width = '0%';
+            gpuModelEl.textContent = gpuDriver ? 'Driver: ' + gpuDriver + ' (no usage stats)' : 'No usage stats available';
+        }
+        // Temperature badge (top-right, matching CPU pattern)
+        if (data.gpu.temperature) {
+            gpuTempValue.textContent = data.gpu.temperature + '\u00B0C';
+            gpuTempBadge.style.display = 'flex';
+            gpuTempBadge.className = 'stat-badge' + (data.gpu.temperature >= 85 ? ' critical' : data.gpu.temperature >= 70 ? ' warning' : '');
+        } else {
+            gpuTempBadge.style.display = 'none';
+        }
+        // VRAM info
+        if (data.gpu.vram_total_mb && data.gpu.vram_used_mb != null) {
+            vramEl.textContent = (data.gpu.vram_used_mb / 1024).toFixed(1) + ' / ' + (data.gpu.vram_total_mb / 1024).toFixed(1) + ' GB';
+        } else if (data.gpu.vram_total_mb) {
+            vramEl.textContent = (data.gpu.vram_total_mb / 1024).toFixed(1) + ' GB total';
+        } else {
+            vramEl.textContent = gpuDriver === 'nouveau' ? 'N/A (nouveau driver)' : 'N/A';
+        }
     } else {
-        document.getElementById('gpu-value').textContent = 'N/A';
-        document.getElementById('gpu-model').textContent = 'No GPU detected';
-        document.getElementById('gpu-temp').textContent = '--';
+        gpuValueEl.textContent = 'N/A';
+        gpuModelEl.textContent = 'No GPU detected';
+        gpuTempBadge.style.display = 'none';
+        vramEl.textContent = '--';
     }
 
-    // Disk - show root filesystem usage from host data if available
-    let diskPct = 0, diskUsed = 0, diskTotal = 0, diskLabel = 'Unknown';
+    // Disk - per-drive detail with partition breakdown
+    const diskContainer = document.getElementById('disk-drives-container');
     const hostDisks = data.host_disks;
+    diskContainer.textContent = '';
+
+    function formatDiskSize(gb) {
+        if (gb >= 1000) return (gb / 1000).toFixed(1) + ' TB';
+        return gb.toFixed(1) + ' GB';
+    }
+
     if (hostDisks && hostDisks.length > 0) {
-        // Find root partition usage from host disk data
-        let rootUsage = null;
-        for (const disk of hostDisks) {
-            for (const part of (disk.partitions || [])) {
-                if (part.mountpoint === '/' && part.usage) {
-                    rootUsage = part.usage;
-                    diskLabel = disk.model || disk.name;
-                    break;
-                }
-                for (const child of (part.children || [])) {
-                    if (child.mountpoint === '/' && child.usage) {
-                        rootUsage = child.usage;
-                        diskLabel = child.name.includes('lv') ? 'LVM' : disk.model || disk.name;
-                        break;
-                    }
-                }
-                if (rootUsage) break;
+        hostDisks.forEach(function(disk, idx) {
+            const driveDiv = document.createElement('div');
+            if (idx > 0) {
+                driveDiv.style.marginTop = '14px';
+                driveDiv.style.borderTop = '1px solid var(--archie-border)';
+                driveDiv.style.paddingTop = '10px';
             }
-            if (rootUsage) break;
-        }
-        if (rootUsage) {
-            diskPct = rootUsage.percent || 0;
-            diskUsed = rootUsage.used_gb || 0;
-            diskTotal = rootUsage.total_gb || 0;
-        }
-        // Show total storage summary as subtitle
-        const totalStorage = hostDisks.reduce((sum, d) => sum + (d.size_gb || 0), 0);
-        const diskCount = hostDisks.length;
-        document.getElementById('disk-detail').textContent =
-            `${diskUsed.toFixed(0)} / ${diskTotal.toFixed(0)} GB (${diskLabel}) — ${diskCount} drive${diskCount > 1 ? 's' : ''}, ${totalStorage.toFixed(0)} GB total`;
+
+            // Drive header: model + total size
+            const header = document.createElement('div');
+            header.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;';
+            const label = document.createElement('span');
+            label.style.cssText = 'font-size: 0.82rem; font-weight: 600; color: var(--archie-text-primary);';
+            label.textContent = (disk.model || disk.device || 'Drive ' + (idx + 1)).substring(0, 30);
+            const sizeLabel = document.createElement('span');
+            sizeLabel.style.cssText = 'font-size: 0.75rem; color: var(--archie-text-muted);';
+            sizeLabel.textContent = formatDiskSize(disk.size_gb || 0);
+            header.appendChild(label);
+            header.appendChild(sizeLabel);
+            driveDiv.appendChild(header);
+
+            // Summary stats line: Alloc / Unalloc / Free / Total
+            const totalGb = disk.size_gb || 0;
+            const unallocatedGb = disk.unallocated_gb || 0;
+            const allocatedGb = totalGb - unallocatedGb;
+            let usedGb = 0;
+            let freeGb = 0;
+            (disk.partitions || []).forEach(function(part) {
+                if (part.usage) { usedGb += part.usage.used_gb || 0; freeGb += part.usage.free_gb || 0; }
+                (part.children || []).forEach(function(child) {
+                    if (child.usage) { usedGb += child.usage.used_gb || 0; freeGb += child.usage.free_gb || 0; }
+                });
+            });
+            const usePct = totalGb > 0 ? (usedGb / totalGb * 100) : 0;
+
+            // Progress bar
+            const barOuter = document.createElement('div');
+            barOuter.className = 'progress-bar';
+            const barFill = document.createElement('div');
+            barFill.className = 'progress-fill ' + getColorClass(usePct, 80, 90);
+            barFill.style.width = usePct + '%';
+            barOuter.appendChild(barFill);
+            driveDiv.appendChild(barOuter);
+
+            // Summary line
+            const summary = document.createElement('div');
+            summary.style.cssText = 'font-size: 0.72rem; color: var(--archie-text-muted); margin-top: 3px; display: flex; gap: 8px; flex-wrap: wrap;';
+            function addSummary(parent, lbl, val, color) {
+                var s = document.createElement('span');
+                var l = document.createElement('span');
+                l.textContent = lbl + ': ';
+                var v = document.createElement('span');
+                v.style.cssText = 'color:' + color + '; font-weight: 600;';
+                v.textContent = val;
+                s.appendChild(l); s.appendChild(v); parent.appendChild(s);
+            }
+            addSummary(summary, 'Alloc', formatDiskSize(allocatedGb), 'var(--archie-cyan)');
+            addSummary(summary, 'Unalloc', formatDiskSize(unallocatedGb), 'var(--archie-text-muted)');
+            addSummary(summary, 'Free', formatDiskSize(freeGb), 'var(--archie-green)');
+            addSummary(summary, 'Total', formatDiskSize(totalGb), 'var(--archie-text-secondary)');
+            driveDiv.appendChild(summary);
+
+            // Partition breakdown
+            var parts = disk.partitions || [];
+            if (parts.length > 0) {
+                var partList = document.createElement('div');
+                partList.style.cssText = 'margin-top: 6px; padding-left: 8px; border-left: 2px solid var(--archie-border); font-size: 0.72rem;';
+                parts.forEach(function(part) {
+                    var row = document.createElement('div');
+                    row.style.cssText = 'display: flex; justify-content: space-between; padding: 2px 0; color: var(--archie-text-secondary);';
+                    var nameSpan = document.createElement('span');
+                    nameSpan.style.fontWeight = '500';
+                    var partName = part.name || part.device || '?';
+                    var partType = part.fstype || '';
+                    var partMount = part.mountpoint ? ' @ ' + part.mountpoint : '';
+                    nameSpan.textContent = partName;
+                    var infoSpan = document.createElement('span');
+                    infoSpan.style.color = 'var(--archie-text-muted)';
+                    var partSizeGb = part.size_gb || 0;
+                    var infoText = formatDiskSize(partSizeGb) + ' ' + partType + partMount;
+                    if (part.usage) {
+                        infoText += ' (' + (part.usage.percent || 0).toFixed(0) + '% used)';
+                    }
+                    infoSpan.textContent = infoText;
+                    row.appendChild(nameSpan);
+                    row.appendChild(infoSpan);
+                    partList.appendChild(row);
+
+                    // Show LVM children under partition
+                    (part.children || []).forEach(function(child) {
+                        var childRow = document.createElement('div');
+                        childRow.style.cssText = 'display: flex; justify-content: space-between; padding: 2px 0 2px 12px; color: var(--archie-text-secondary);';
+                        var cName = document.createElement('span');
+                        cName.style.cssText = 'font-weight: 500; color: var(--archie-cyan);';
+                        cName.textContent = '\u2514 ' + (child.name || child.device || '?');
+                        var cInfo = document.createElement('span');
+                        cInfo.style.color = 'var(--archie-text-muted)';
+                        var childSizeGb = child.size_gb || 0;
+                        var cText = formatDiskSize(childSizeGb) + ' ' + (child.fstype || '');
+                        if (child.mountpoint) cText += ' @ ' + child.mountpoint;
+                        if (child.usage) cText += ' (' + (child.usage.percent || 0).toFixed(0) + '% used)';
+                        cInfo.textContent = cText;
+                        childRow.appendChild(cName);
+                        childRow.appendChild(cInfo);
+                        partList.appendChild(childRow);
+                    });
+                });
+                driveDiv.appendChild(partList);
+            }
+
+            diskContainer.appendChild(driveDiv);
+        });
     } else {
         // Fallback to container psutil data
-        const rootFs = data.disk?.root_fs || data.disk?.partitions?.find(p => p.mountpoint === '/' || p.mountpoint === '/app') || {};
-        diskTotal = rootFs.total_gb || 0;
-        diskUsed = rootFs.used_gb || 0;
-        diskPct = rootFs.usage_percent || (diskTotal > 0 ? (diskUsed / diskTotal * 100) : 0);
-        diskLabel = rootFs.is_lvm ? (rootFs.lvm_info?.lv_name || 'LVM') : 'Host FS';
-        document.getElementById('disk-detail').textContent = `${diskUsed.toFixed(0)} / ${diskTotal.toFixed(0)} GB (${diskLabel})`;
+        var rootFs = (data.disk && data.disk.root_fs) || ((data.disk && data.disk.partitions) ? data.disk.partitions.find(function(p) { return p.mountpoint === '/' || p.mountpoint === '/app'; }) : null) || {};
+        var diskTotal = rootFs.total_gb || 0;
+        var diskUsed = rootFs.used_gb || 0;
+        var diskPct = rootFs.usage_percent || (diskTotal > 0 ? (diskUsed / diskTotal * 100) : 0);
+        var valEl = document.createElement('div');
+        valEl.className = 'stat-value';
+        valEl.textContent = diskPct.toFixed(1) + '%';
+        diskContainer.appendChild(valEl);
+        var sub = document.createElement('div');
+        sub.className = 'stat-subtitle';
+        sub.textContent = diskUsed.toFixed(0) + ' / ' + diskTotal.toFixed(0) + ' GB';
+        diskContainer.appendChild(sub);
+        var barO = document.createElement('div');
+        barO.className = 'progress-bar';
+        var barF = document.createElement('div');
+        barF.className = 'progress-fill ' + getColorClass(diskPct, 80, 90);
+        barF.style.width = diskPct + '%';
+        barO.appendChild(barF);
+        diskContainer.appendChild(barO);
     }
-    document.getElementById('disk-value').textContent = diskPct.toFixed(1) + '%';
-    document.getElementById('disk-bar').style.width = diskPct + '%';
-    document.getElementById('disk-bar').className = 'progress-fill ' + getColorClass(diskPct, 80, 90);
 
     // System Info - now from host monitor data
     document.getElementById('sys-hostname').textContent = data.system?.hostname || '--';

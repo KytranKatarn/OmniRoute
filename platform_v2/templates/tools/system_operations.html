@@ -2512,7 +2512,7 @@
 
     <!-- Tab: Network -->
     <div id="tab-network" class="tab-content">
-        <!-- Host Network Info Card -->
+        <!-- Host Network Info Card (always visible) -->
         <div class="section-title">
             <i data-lucide="server" style="width: 18px; height: 18px;"></i>
             Host Network
@@ -2551,87 +2551,155 @@
             </div>
         </div>
 
-        <div class="section-title">
-            <i data-lucide="wifi" style="width: 18px; height: 18px;"></i>
-            Container Network Interfaces
-        </div>
-        <div class="panel">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Interface</th>
-                        <th>IP Address</th>
-                        <th>Netmask</th>
-                        <th>MAC Address</th>
-                        <th>Status</th>
-                        <th>Speed</th>
-                        <th>MTU</th>
-                        <th>Sent</th>
-                        <th>Received</th>
-                    </tr>
-                </thead>
-                <tbody id="network-table">
-                    <tr><td colspan="9" class="loading"><i data-lucide="loader"></i> Loading...</td></tr>
-                </tbody>
-            </table>
+        <!-- Network Sub-tabs -->
+        <div class="net-subtabs" id="net-subtabs">
+            <button class="net-subtab active" onclick="showNetSubtab('overview')" id="net-subtab-btn-overview">
+                <i data-lucide="layout-list" style="width: 14px; height: 14px;"></i> Overview
+            </button>
+            <button class="net-subtab" onclick="showNetSubtab('portmap')" id="net-subtab-btn-portmap">
+                <i data-lucide="git-branch" style="width: 14px; height: 14px;"></i> Port Map
+            </button>
+            <button class="net-subtab" onclick="showNetSubtab('topology')" id="net-subtab-btn-topology">
+                <i data-lucide="network" style="width: 14px; height: 14px;"></i> Topology
+            </button>
+            <button class="net-subtab" onclick="showNetSubtab('bandwidth')" id="net-subtab-btn-bandwidth">
+                <i data-lucide="activity" style="width: 14px; height: 14px;"></i> Bandwidth
+            </button>
         </div>
 
-        <div class="section-title">
-            <i data-lucide="plug" style="width: 18px; height: 18px;"></i>
-            Active Connections
-        </div>
-        <div class="panel">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Local Address</th>
-                        <th>Remote Address</th>
-                        <th>Status</th>
-                        <th>Process</th>
-                        <th>PID</th>
-                    </tr>
-                </thead>
-                <tbody id="connections-table">
-                    <tr><td colspan="5" class="loading"><i data-lucide="loader"></i> Loading...</td></tr>
-                </tbody>
-            </table>
-        </div>
+        <!-- Sub-tab: Overview (default, existing content) -->
+        <div id="net-subtab-overview" class="net-subtab-content active">
+            <div class="section-title">
+                <i data-lucide="wifi" style="width: 18px; height: 18px;"></i>
+                Container Network Interfaces
+            </div>
+            <div class="panel">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Interface</th>
+                            <th>IP Address</th>
+                            <th>Netmask</th>
+                            <th>MAC Address</th>
+                            <th>Status</th>
+                            <th>Speed</th>
+                            <th>MTU</th>
+                            <th>Sent</th>
+                            <th>Received</th>
+                        </tr>
+                    </thead>
+                    <tbody id="network-table">
+                        <tr><td colspan="9" class="loading"><i data-lucide="loader"></i> Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
 
-        <div class="section-title">
-            <i data-lucide="radio" style="width: 18px; height: 18px;"></i>
-            Listening Ports (Open Services)
-        </div>
-        <div class="panel">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Port</th>
-                        <th>Protocol</th>
-                        <th>Bind Address</th>
-                        <th>Process</th>
-                        <th>PID</th>
-                    </tr>
-                </thead>
-                <tbody id="listening-ports-table">
-                    <tr><td colspan="5" class="loading"><i data-lucide="loader"></i> Loading...</td></tr>
-                </tbody>
-            </table>
-        </div>
+            <div class="section-title">
+                <i data-lucide="plug" style="width: 18px; height: 18px;"></i>
+                Active Connections
+            </div>
+            <div class="panel">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Local Address</th>
+                            <th>Remote Address</th>
+                            <th>Status</th>
+                            <th>Process</th>
+                            <th>PID</th>
+                        </tr>
+                    </thead>
+                    <tbody id="connections-table">
+                        <tr><td colspan="5" class="loading"><i data-lucide="loader"></i> Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
 
-        <div class="section-title">
-            <i data-lucide="bar-chart-2" style="width: 18px; height: 18px;"></i>
-            Bandwidth Summary
-        </div>
-        <div class="panel">
-            <div class="network-summary" id="bandwidth-summary">
-                <div class="network-stat">
-                    <span class="network-label">Total Sent</span>
-                    <span class="network-value" id="bandwidth-sent" style="color: var(--archie-cyan);">--</span>
+            <div class="section-title">
+                <i data-lucide="radio" style="width: 18px; height: 18px;"></i>
+                Listening Ports (Open Services)
+            </div>
+            <div class="panel">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Port</th>
+                            <th>Protocol</th>
+                            <th>Bind Address</th>
+                            <th>Process</th>
+                            <th>PID</th>
+                        </tr>
+                    </thead>
+                    <tbody id="listening-ports-table">
+                        <tr><td colspan="5" class="loading"><i data-lucide="loader"></i> Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="section-title">
+                <i data-lucide="bar-chart-2" style="width: 18px; height: 18px;"></i>
+                Bandwidth Summary
+            </div>
+            <div class="panel">
+                <div class="network-summary" id="bandwidth-summary">
+                    <div class="network-stat">
+                        <span class="network-label">Total Sent</span>
+                        <span class="network-value" id="bandwidth-sent" style="color: var(--archie-cyan);">--</span>
+                    </div>
+                    <div class="network-stat">
+                        <span class="network-label">Total Received</span>
+                        <span class="network-value" id="bandwidth-recv" style="color: var(--archie-green);">--</span>
+                    </div>
                 </div>
-                <div class="network-stat">
-                    <span class="network-label">Total Received</span>
-                    <span class="network-value" id="bandwidth-recv" style="color: var(--archie-green);">--</span>
-                </div>
+            </div>
+        </div>
+
+        <!-- Sub-tab: Port Map -->
+        <div id="net-subtab-portmap" class="net-subtab-content">
+            <div class="section-title" style="display: flex; align-items: center; justify-content: space-between;">
+                <span style="display: flex; align-items: center; gap: 8px;">
+                    <i data-lucide="git-branch" style="width: 18px; height: 18px;"></i>
+                    Port-to-Stack Mapping
+                </span>
+                <button class="btn btn-secondary" onclick="loadPortMap()" style="font-size: 0.8rem; padding: 4px 12px;">
+                    <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i> Refresh
+                </button>
+            </div>
+            <div id="port-map-container" class="panel">
+                <p style="color: var(--archie-text-muted); padding: 20px; text-align: center;">
+                    <i data-lucide="loader" style="width: 16px; height: 16px;"></i> Loading port map...
+                </p>
+            </div>
+        </div>
+
+        <!-- Sub-tab: Topology -->
+        <div id="net-subtab-topology" class="net-subtab-content">
+            <div class="section-title">
+                <i data-lucide="network" style="width: 18px; height: 18px;"></i>
+                Network Topology
+            </div>
+            <div id="topology-svg-container" class="topology-container">
+                <p style="color: var(--archie-text-muted); padding: 20px; text-align: center;">
+                    <i data-lucide="loader" style="width: 16px; height: 16px;"></i> Loading topology...
+                </p>
+            </div>
+        </div>
+
+        <!-- Sub-tab: Bandwidth -->
+        <div id="net-subtab-bandwidth" class="net-subtab-content">
+            <div class="section-title" style="display: flex; align-items: center; justify-content: space-between;">
+                <span style="display: flex; align-items: center; gap: 8px;">
+                    <i data-lucide="activity" style="width: 18px; height: 18px;"></i>
+                    Bandwidth Monitor
+                </span>
+                <button class="btn btn-secondary" onclick="loadBandwidthData()" style="font-size: 0.8rem; padding: 4px 12px;">
+                    <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i> Refresh
+                </button>
+            </div>
+            <div id="bandwidth-monitor-container" class="panel">
+                <p style="color: var(--archie-text-muted); padding: 20px; text-align: center;">
+                    <i data-lucide="loader" style="width: 16px; height: 16px;"></i> Loading bandwidth data...
+                </p>
             </div>
         </div>
     </div>
@@ -4528,37 +4596,129 @@ function renderNetwork(data) {
         `).join('');
     }
 
-    // Connections - prefer host data
+    // Connections - prefer host data, group by stack
     const connTbody = document.getElementById('connections-table');
     const hostConns = data.host_connections || [];
     const containerConns = data.connections || [];
     const allConns = hostConns.length > 0 ? hostConns : containerConns;
     const connSource = hostConns.length > 0 ? 'host' : 'container';
+    const portToStack = data.port_to_stack || {};
+    const stacksSummary = data.stacks_summary || [];
+    const stackColorMap = {};
+    stacksSummary.forEach(s => { stackColorMap[s.name] = s.color || '#888'; });
+
+    connTbody.textContent = '';
     if (!allConns.length) {
-        connTbody.innerHTML = '<tr><td colspan="5" style="color: var(--archie-text-muted)">No active connections</td></tr>';
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 5;
+        td.style.color = 'var(--archie-text-muted)';
+        td.textContent = 'No active connections';
+        tr.appendChild(td);
+        connTbody.appendChild(tr);
     } else {
-        const connHeader = connSource === 'host'
-            ? '<tr><td colspan="5" style="padding: 4px 8px;"><span class="host-badge">HOST</span> <span style="color: var(--archie-text-muted); font-size: 0.75rem;">Host connections</span></td></tr>'
-            : '';
-        connTbody.innerHTML = connHeader + allConns.slice(0, 30).map(c => `
-            <tr>
-                <td class="mono">${c.local_addr || '-'}</td>
-                <td class="mono">${c.remote_addr || '-'}</td>
-                <td><span class="badge active">${c.status || '--'}</span></td>
-                <td>${c.process || '-'}</td>
-                <td>${c.pid || '-'}</td>
-            </tr>
-        `).join('');
+        // Group connections by stack
+        const connsByStack = {};
+        const unassignedConns = [];
+        allConns.slice(0, 50).forEach(c => {
+            const localPort = (c.local_addr || '').split(':').pop();
+            const stackName = portToStack[localPort];
+            if (stackName) {
+                if (!connsByStack[stackName]) connsByStack[stackName] = [];
+                connsByStack[stackName].push(c);
+            } else {
+                unassignedConns.push(c);
+            }
+        });
+
+        function appendConnRow(tbody, c) {
+            const tr = document.createElement('tr');
+            [c.local_addr || '-', c.remote_addr || '-'].forEach(val => {
+                const td = document.createElement('td');
+                td.className = 'mono';
+                td.textContent = val;
+                tr.appendChild(td);
+            });
+            const tdStatus = document.createElement('td');
+            const badge = document.createElement('span');
+            badge.className = 'badge active';
+            badge.textContent = c.status || '--';
+            tdStatus.appendChild(badge);
+            tr.appendChild(tdStatus);
+            [c.process || '-', c.pid || '-'].forEach(val => {
+                const td = document.createElement('td');
+                td.textContent = val;
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        }
+
+        if (Object.keys(connsByStack).length > 0) {
+            // Render grouped connections
+            for (const [stackName, conns] of Object.entries(connsByStack)) {
+                const color = stackColorMap[stackName] || '#888';
+                const headerTr = document.createElement('tr');
+                const headerTd = document.createElement('td');
+                headerTd.colSpan = 5;
+                headerTd.style.cssText = `padding: 6px 8px; background: ${color}15;`;
+                const dot = document.createElement('span');
+                dot.style.cssText = `display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${color}; margin-right: 8px;`;
+                headerTd.appendChild(dot);
+                const label = document.createElement('span');
+                label.style.cssText = `color: ${color}; font-weight: 600; font-size: 0.85rem;`;
+                label.textContent = `${stackName} — ${conns.length} connection${conns.length !== 1 ? 's' : ''}`;
+                headerTd.appendChild(label);
+                headerTr.appendChild(headerTd);
+                connTbody.appendChild(headerTr);
+                conns.forEach(c => appendConnRow(connTbody, c));
+            }
+            if (unassignedConns.length) {
+                const headerTr = document.createElement('tr');
+                const headerTd = document.createElement('td');
+                headerTd.colSpan = 5;
+                headerTd.style.cssText = 'padding: 6px 8px; background: var(--archie-bg-tertiary);';
+                const label = document.createElement('span');
+                label.style.cssText = 'color: var(--archie-text-muted); font-weight: 600; font-size: 0.85rem;';
+                label.textContent = `Unassigned — ${unassignedConns.length} connection${unassignedConns.length !== 1 ? 's' : ''}`;
+                headerTd.appendChild(label);
+                headerTr.appendChild(headerTd);
+                connTbody.appendChild(headerTr);
+                unassignedConns.forEach(c => appendConnRow(connTbody, c));
+            }
+        } else {
+            // Fallback: flat list (no stack data)
+            if (connSource === 'host') {
+                const headerTr = document.createElement('tr');
+                const headerTd = document.createElement('td');
+                headerTd.colSpan = 5;
+                headerTd.style.padding = '4px 8px';
+                const badge = document.createElement('span');
+                badge.className = 'host-badge';
+                badge.textContent = 'HOST';
+                headerTd.appendChild(badge);
+                headerTr.appendChild(headerTd);
+                connTbody.appendChild(headerTr);
+            }
+            allConns.slice(0, 30).forEach(c => appendConnRow(connTbody, c));
+        }
     }
 
-    // Listening Ports - prefer host data
+    // Listening Ports - prefer host data, group by stack
     const portsTbody = document.getElementById('listening-ports-table');
     const hostPorts = data.host_listening_ports || [];
     const containerPorts = data.listening_ports || [];
     const allPorts = hostPorts.length > 0 ? hostPorts : containerPorts;
     const portSource = hostPorts.length > 0 ? 'host' : 'container';
+
+    portsTbody.textContent = '';
     if (!allPorts.length) {
-        portsTbody.innerHTML = '<tr><td colspan="5" style="color: var(--archie-text-muted)">No listening ports found</td></tr>';
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 5;
+        td.style.color = 'var(--archie-text-muted)';
+        td.textContent = 'No listening ports found';
+        tr.appendChild(td);
+        portsTbody.appendChild(tr);
     } else {
         // Deduplicate by port number
         const seenPorts = new Set();
@@ -4568,27 +4728,352 @@ function renderNetwork(data) {
             seenPorts.add(key);
             return true;
         });
-        const portHeader = portSource === 'host'
-            ? '<tr><td colspan="5" style="padding: 4px 8px;"><span class="host-badge">HOST</span> <span style="color: var(--archie-text-muted); font-size: 0.75rem;">Host listening ports</span></td></tr>'
-            : '';
-        portsTbody.innerHTML = portHeader + uniquePorts.map(p => {
+
+        function appendPortRow(tbody, p) {
             const isCommonPort = [22, 80, 443, 3000, 5432, 5678, 5679, 8080, 11434].includes(p.port);
-            return `
-            <tr>
-                <td class="mono" style="color: ${isCommonPort ? 'var(--archie-green)' : 'var(--archie-text-primary)'}; font-weight: ${isCommonPort ? 'bold' : 'normal'};">
-                    ${p.port}
-                </td>
-                <td>${(p.protocol || 'tcp').toUpperCase()}</td>
-                <td class="mono" style="font-size: 0.85rem;">${p.ip || '0.0.0.0'}</td>
-                <td>${p.process || '-'}</td>
-                <td>${p.pid || '-'}</td>
-            </tr>
-        `}).join('');
+            const tr = document.createElement('tr');
+            const tdPort = document.createElement('td');
+            tdPort.className = 'mono';
+            tdPort.style.color = isCommonPort ? 'var(--archie-green)' : 'var(--archie-text-primary)';
+            tdPort.style.fontWeight = isCommonPort ? 'bold' : 'normal';
+            tdPort.textContent = p.port;
+            tr.appendChild(tdPort);
+
+            const tdProto = document.createElement('td');
+            tdProto.textContent = (p.protocol || 'tcp').toUpperCase();
+            tr.appendChild(tdProto);
+
+            const tdBind = document.createElement('td');
+            tdBind.className = 'mono';
+            tdBind.style.fontSize = '0.85rem';
+            tdBind.textContent = p.ip || '0.0.0.0';
+            tr.appendChild(tdBind);
+
+            const tdProc = document.createElement('td');
+            tdProc.textContent = p.process || '-';
+            tr.appendChild(tdProc);
+
+            const tdPid = document.createElement('td');
+            tdPid.textContent = p.pid || '-';
+            tr.appendChild(tdPid);
+
+            tbody.appendChild(tr);
+        }
+
+        // Group ports by stack
+        const portsByStack = {};
+        const unassignedPorts = [];
+        uniquePorts.forEach(p => {
+            const stackName = portToStack[String(p.port)];
+            if (stackName) {
+                if (!portsByStack[stackName]) portsByStack[stackName] = [];
+                portsByStack[stackName].push(p);
+            } else {
+                unassignedPorts.push(p);
+            }
+        });
+
+        if (Object.keys(portsByStack).length > 0) {
+            for (const [stackName, ports] of Object.entries(portsByStack)) {
+                const color = stackColorMap[stackName] || '#888';
+                const headerTr = document.createElement('tr');
+                const headerTd = document.createElement('td');
+                headerTd.colSpan = 5;
+                headerTd.style.cssText = `padding: 6px 8px; background: ${color}15;`;
+                const dot = document.createElement('span');
+                dot.style.cssText = `display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${color}; margin-right: 8px;`;
+                headerTd.appendChild(dot);
+                const label = document.createElement('span');
+                label.style.cssText = `color: ${color}; font-weight: 600; font-size: 0.85rem;`;
+                label.textContent = `${stackName} — ${ports.length} port${ports.length !== 1 ? 's' : ''}`;
+                headerTd.appendChild(label);
+                headerTr.appendChild(headerTd);
+                portsTbody.appendChild(headerTr);
+                ports.forEach(p => appendPortRow(portsTbody, p));
+            }
+            if (unassignedPorts.length) {
+                const headerTr = document.createElement('tr');
+                const headerTd = document.createElement('td');
+                headerTd.colSpan = 5;
+                headerTd.style.cssText = 'padding: 6px 8px; background: var(--archie-bg-tertiary);';
+                const label = document.createElement('span');
+                label.style.cssText = 'color: var(--archie-text-muted); font-weight: 600; font-size: 0.85rem;';
+                label.textContent = `Unassigned — ${unassignedPorts.length} port${unassignedPorts.length !== 1 ? 's' : ''}`;
+                headerTd.appendChild(label);
+                headerTr.appendChild(headerTd);
+                portsTbody.appendChild(headerTr);
+                unassignedPorts.forEach(p => appendPortRow(portsTbody, p));
+            }
+        } else {
+            // Fallback: flat list
+            if (portSource === 'host') {
+                const headerTr = document.createElement('tr');
+                const headerTd = document.createElement('td');
+                headerTd.colSpan = 5;
+                headerTd.style.padding = '4px 8px';
+                const badge = document.createElement('span');
+                badge.className = 'host-badge';
+                badge.textContent = 'HOST';
+                headerTd.appendChild(badge);
+                headerTr.appendChild(headerTd);
+                portsTbody.appendChild(headerTr);
+            }
+            uniquePorts.forEach(p => appendPortRow(portsTbody, p));
+        }
     }
 
     // Bandwidth Summary
     document.getElementById('bandwidth-sent').textContent = formatBytes(data.total_bytes_sent || 0);
     document.getElementById('bandwidth-recv').textContent = formatBytes(data.total_bytes_recv || 0);
+}
+
+// ===== Network Sub-tab Functions =====
+let portMapLoaded = false;
+let topologyLoaded = false;
+let bandwidthLoaded = false;
+
+function showNetSubtab(tabName) {
+    // Toggle button active state
+    document.querySelectorAll('.net-subtab').forEach(btn => btn.classList.remove('active'));
+    const btn = document.getElementById('net-subtab-btn-' + tabName);
+    if (btn) btn.classList.add('active');
+
+    // Toggle content
+    document.querySelectorAll('.net-subtab-content').forEach(c => c.classList.remove('active'));
+    const content = document.getElementById('net-subtab-' + tabName);
+    if (content) content.classList.add('active');
+
+    // Lazy-load sub-tab data on first visit
+    if (tabName === 'portmap' && !portMapLoaded) loadPortMap();
+    if (tabName === 'topology' && !topologyLoaded) loadTopology();
+    if (tabName === 'bandwidth' && !bandwidthLoaded) loadBandwidthData();
+
+    lucide.createIcons();
+}
+
+// Common web UI ports for auto-detection
+const COMMON_WEB_PORTS = {
+    80: 'HTTP', 443: 'HTTPS', 3000: 'Web App', 8080: 'Web App', 8443: 'HTTPS',
+    8123: 'Home Assistant', 9000: 'Portainer', 32400: 'Plex',
+    8096: 'Jellyfin', 8989: 'Sonarr', 7878: 'Radarr', 9696: 'Prowlarr',
+    5678: 'n8n', 8081: 'Web App', 3001: 'Web App'
+};
+
+async function loadPortMap() {
+    try {
+        const res = await fetch('/tools/system-operations/api/network/port-map');
+        const json = await res.json();
+        if (json.success) {
+            renderPortMap(json);
+            portMapLoaded = true;
+        } else {
+            document.getElementById('port-map-container').textContent = 'Error: ' + (json.error || 'Unknown error');
+        }
+    } catch (e) {
+        console.error('Port map error:', e);
+        document.getElementById('port-map-container').textContent = 'Failed to load port map';
+    }
+}
+
+function renderPortMap(data) {
+    // NOTE: All data comes from admin-only internal API endpoints (trusted server data).
+    // This follows the same DOM rendering pattern used throughout this template.
+    const container = document.getElementById('port-map-container');
+    const stacks = data.stacks || [];
+    const unassigned = data.unassigned_ports || [];
+    const hostIp = '192.168.1.200';
+
+    // Build DOM elements instead of innerHTML for port map
+    container.textContent = '';
+
+    // Render each stack group
+    stacks.forEach(stack => {
+        if (!stack.ports.length) return;
+        const color = stack.color || '#888888';
+        const webUiPorts = stack.web_ui_ports || [];
+        const webUiMap = {};
+        webUiPorts.forEach(w => { webUiMap[w.port] = w; });
+
+        const group = document.createElement('div');
+        group.className = 'port-stack-group';
+
+        const header = document.createElement('div');
+        header.className = 'port-stack-header';
+        header.style.cssText = `background: ${color}22; border-bottom: 1px solid ${color}44;`;
+
+        const dot = document.createElement('span');
+        dot.className = 'color-dot';
+        dot.style.background = color;
+        header.appendChild(dot);
+
+        const nameSpan = document.createElement('span');
+        nameSpan.style.color = color;
+        nameSpan.textContent = stack.name;
+        header.appendChild(nameSpan);
+
+        if (stack.is_system) {
+            const badge = document.createElement('span');
+            badge.className = 'host-badge';
+            badge.textContent = 'SYSTEM';
+            header.appendChild(badge);
+        }
+
+        const countSpan = document.createElement('span');
+        countSpan.className = 'port-count';
+        countSpan.textContent = `${stack.ports.length} port${stack.ports.length !== 1 ? 's' : ''}`;
+        header.appendChild(countSpan);
+
+        group.appendChild(header);
+
+        const table = document.createElement('table');
+        table.className = 'data-table data-table-compact';
+        table.style.margin = '0';
+        const thead = document.createElement('thead');
+        const headRow = document.createElement('tr');
+        ['Port', 'Service', 'Status', 'Web UI'].forEach(t => {
+            const th = document.createElement('th');
+            th.textContent = t;
+            headRow.appendChild(th);
+        });
+        thead.appendChild(headRow);
+        table.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        stack.ports.forEach(p => {
+            const tr = document.createElement('tr');
+
+            const tdPort = document.createElement('td');
+            tdPort.className = 'mono';
+            tdPort.style.cssText = 'color: var(--archie-green); font-weight: bold;';
+            tdPort.textContent = p.port;
+            tr.appendChild(tdPort);
+
+            const tdSvc = document.createElement('td');
+            tdSvc.textContent = p.service || '-';
+            tr.appendChild(tdSvc);
+
+            const tdStatus = document.createElement('td');
+            const badge = document.createElement('span');
+            badge.className = 'badge' + (p.open ? ' active' : '');
+            badge.style.fontSize = '0.75rem';
+            if (!p.open) badge.style.opacity = '0.5';
+            badge.textContent = p.open ? 'OPEN' : 'CLOSED';
+            tdStatus.appendChild(badge);
+            tr.appendChild(tdStatus);
+
+            const tdWeb = document.createElement('td');
+            const webEntry = webUiMap[p.port];
+            const autoLabel = COMMON_WEB_PORTS[p.port];
+            if (webEntry || autoLabel) {
+                const a = document.createElement('a');
+                const path = webEntry ? (webEntry.path || '/') : '/';
+                const label = webEntry ? (webEntry.label || 'Open') : autoLabel;
+                a.href = `http://${hostIp}:${p.port}${path}`;
+                a.target = '_blank';
+                a.className = 'web-ui-link';
+                a.title = a.href;
+                a.textContent = label;
+                tdWeb.appendChild(a);
+            } else {
+                tdWeb.style.color = 'var(--archie-text-muted)';
+                tdWeb.textContent = '-';
+            }
+            tr.appendChild(tdWeb);
+
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        group.appendChild(table);
+        container.appendChild(group);
+    });
+
+    // Unassigned ports
+    if (unassigned.length) {
+        const group = document.createElement('div');
+        group.className = 'port-stack-group';
+
+        const header = document.createElement('div');
+        header.className = 'port-stack-header';
+        header.style.cssText = 'background: var(--archie-bg-tertiary); border-bottom: 1px solid var(--archie-border-default);';
+
+        const dot = document.createElement('span');
+        dot.className = 'color-dot';
+        dot.style.background = '#888';
+        header.appendChild(dot);
+
+        const nameSpan = document.createElement('span');
+        nameSpan.style.color = 'var(--archie-text-muted)';
+        nameSpan.textContent = 'Unassigned (Host Services)';
+        header.appendChild(nameSpan);
+
+        const countSpan = document.createElement('span');
+        countSpan.className = 'port-count';
+        countSpan.textContent = `${unassigned.length} port${unassigned.length !== 1 ? 's' : ''}`;
+        header.appendChild(countSpan);
+
+        group.appendChild(header);
+
+        const table = document.createElement('table');
+        table.className = 'data-table data-table-compact';
+        table.style.margin = '0';
+        const thead = document.createElement('thead');
+        const headRow = document.createElement('tr');
+        ['Port', 'Process', 'Bind Address', 'Web UI'].forEach(t => {
+            const th = document.createElement('th');
+            th.textContent = t;
+            headRow.appendChild(th);
+        });
+        thead.appendChild(headRow);
+        table.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        unassigned.forEach(p => {
+            const tr = document.createElement('tr');
+
+            const tdPort = document.createElement('td');
+            tdPort.className = 'mono';
+            tdPort.style.fontWeight = 'bold';
+            tdPort.textContent = p.port;
+            tr.appendChild(tdPort);
+
+            const tdProc = document.createElement('td');
+            tdProc.textContent = p.process || '-';
+            tr.appendChild(tdProc);
+
+            const tdBind = document.createElement('td');
+            tdBind.className = 'mono';
+            tdBind.style.fontSize = '0.85rem';
+            tdBind.textContent = p.ip || '0.0.0.0';
+            tr.appendChild(tdBind);
+
+            const tdWeb = document.createElement('td');
+            if (COMMON_WEB_PORTS[p.port]) {
+                const a = document.createElement('a');
+                a.href = `http://${hostIp}:${p.port}/`;
+                a.target = '_blank';
+                a.className = 'web-ui-link';
+                a.title = a.href;
+                a.textContent = COMMON_WEB_PORTS[p.port];
+                tdWeb.appendChild(a);
+            } else {
+                tdWeb.style.color = 'var(--archie-text-muted)';
+                tdWeb.textContent = '-';
+            }
+            tr.appendChild(tdWeb);
+
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        group.appendChild(table);
+        container.appendChild(group);
+    }
+
+    if (!container.children.length) {
+        container.textContent = 'No port data available';
+        container.style.cssText = 'color: var(--archie-text-muted); padding: 20px; text-align: center;';
+    }
+
+    lucide.createIcons();
 }
 
 // Action Functions

@@ -397,6 +397,157 @@ def api_network():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@system_operations_bp.route("/api/network/port-map")
+@login_required
+@admin_required
+def api_network_port_map():
+    """Get port-to-stack mapping by cross-referencing compose files with listening ports"""
+    try:
+        import yaml
+
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            "SELECT id, name, compose_directory, color, is_system, web_ui_ports FROM docker_stacks ORDER BY name"
+        )
+        stacks_rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        # Get host listening ports
+        host_data, _ = load_host_monitor_data()
+        host_ports_list = []
+        if host_data:
+            host_ports_list = (host_data.get("network") or {}).get("listening_ports", [])
+        listening_port_set = {p["port"] for p in host_ports_list}
+
+        port_to_stack = {}
+        stacks = []
+
+        for stack_row in stacks_rows:
+            stack_name = stack_row["name"]
+            compose_dir = stack_row.get("compose_directory") or ""
+            color = stack_row.get("color") or "#888888"
+            web_ui_ports = stack_row.get("web_ui_ports") or []
+            stack_ports = []
+
+            # Parse compose file for port mappings
+            compose_file = None
+            for fname in ["docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"]:
+                candidate = os.path.join(compose_dir, fname)
+                if os.path.exists(candidate):
+                    compose_file = candidate
+                    break
+
+            if compose_file:
+                try:
+                    with open(compose_file, "r") as f:
+                        parsed = yaml.safe_load(f) or {}
+                    for svc_name, svc_config in (parsed.get("services") or {}).items():
+                        for port_entry in svc_config.get("ports") or []:
+                            port_str = str(port_entry)
+                            # Parse formats: "3000:3000", "0.0.0.0:3000:3000", "3000:3000/tcp"
+                            port_str = port_str.split("/")[0]  # strip protocol
+                            parts = port_str.split(":")
+                            try:
+                                if len(parts) == 1:
+                                    host_port = int(parts[0])
+                                elif len(parts) == 2:
+                                    host_port = int(parts[0])
+                                else:
+                                    host_port = int(parts[1])
+                            except (ValueError, IndexError):
+                                continue
+
+                            is_open = host_port in listening_port_set
+                            # Find process info from host ports
+                            process_info = None
+                            for hp in host_ports_list:
+                                if hp["port"] == host_port:
+                                    process_info = hp.get("process")
+                                    break
+
+                            stack_ports.append(
+                                {
+                                    "port": host_port,
+                                    "service": svc_name,
+                                    "open": is_open,
+                                    "process": process_info,
+                                }
+                            )
+                            port_to_stack[str(host_port)] = stack_name
+                except (yaml.YAMLError, OSError):
+                    pass
+
+            stacks.append(
+                {
+                    "name": stack_name,
+                    "color": color,
+                    "is_system": stack_row.get("is_system", False),
+                    "ports": stack_ports,
+                    "web_ui_ports": web_ui_ports,
+                }
+            )
+
+        # Build unassigned ports list
+        assigned_ports = {p["port"] for s in stacks for p in s["ports"]}
+        unassigned = [
+            {"port": p["port"], "process": p.get("process"), "ip": p.get("ip", "0.0.0.0")}
+            for p in host_ports_list
+            if p["port"] not in assigned_ports
+        ]
+
+        return jsonify(
+            {
+                "success": True,
+                "stacks": stacks,
+                "unassigned_ports": unassigned,
+                "port_to_stack": port_to_stack,
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@system_operations_bp.route("/api/network/bandwidth")
+@login_required
+@admin_required
+def api_network_bandwidth():
+    """Get bandwidth data: historical samples + current interface/container stats"""
+    try:
+        bandwidth_file = os.path.join(BASE_DIR, "bandwidth_history.json")
+        samples = []
+        if os.path.exists(bandwidth_file):
+            try:
+                with open(bandwidth_file, "r") as f:
+                    history = json_lib.load(f)
+                samples = history.get("samples", [])
+            except (json_lib.JSONDecodeError, OSError):
+                pass
+
+        host_data, host_age = load_host_monitor_data()
+        interfaces = []
+        containers = []
+        if host_data:
+            net = host_data.get("network") or {}
+            interfaces = net.get("bandwidth_interfaces", [])
+            containers = host_data.get("container_bandwidth", [])
+
+        return jsonify(
+            {
+                "success": True,
+                "samples": samples,
+                "current": {
+                    "interfaces": interfaces,
+                    "containers": containers,
+                    "data_age": int(host_age) if host_age else None,
+                },
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @system_operations_bp.route("/api/history")
 @login_required
 @admin_required

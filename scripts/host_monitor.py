@@ -22,6 +22,7 @@ from datetime import datetime
 from pathlib import Path
 
 OUTPUT_FILE = '/mnt/archie_brain/host_monitor_data.json'
+BANDWIDTH_FILE = os.path.join(os.path.dirname(OUTPUT_FILE), 'bandwidth_history.json')
 
 
 def run_command(cmd, timeout=10):
@@ -830,6 +831,78 @@ def get_process_list(limit=100):
     return processes[:limit]
 
 
+def update_bandwidth_history(network_data, container_bandwidth=None):
+    """Update rolling bandwidth history buffer from current network data"""
+    try:
+        # Load existing history
+        history = {"samples": [], "max_samples": 60}
+        if os.path.exists(BANDWIDTH_FILE):
+            try:
+                with open(BANDWIDTH_FILE, 'r') as f:
+                    history = json.load(f)
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        now = time.time()
+        bandwidth_interfaces = network_data.get('bandwidth_interfaces', [])
+
+        # Build current counters
+        current = {}
+        for iface in bandwidth_interfaces:
+            current[iface['name']] = {
+                'rx_bytes': iface['rx_bytes'],
+                'tx_bytes': iface['tx_bytes'],
+                'rx_packets': iface['rx_packets'],
+                'tx_packets': iface['tx_packets']
+            }
+
+        # Calculate rates from previous sample
+        rates = {}
+        if history['samples']:
+            prev = history['samples'][-1]
+            dt = now - prev.get('timestamp', now)
+            if dt > 0:
+                prev_counters = prev.get('counters', {})
+                for name, cur_vals in current.items():
+                    if name in prev_counters:
+                        prev_vals = prev_counters[name]
+                        rx_delta = max(0, cur_vals['rx_bytes'] - prev_vals.get('rx_bytes', 0))
+                        tx_delta = max(0, cur_vals['tx_bytes'] - prev_vals.get('tx_bytes', 0))
+                        rates[name] = {
+                            'rx_bps': round(rx_delta / dt),
+                            'tx_bps': round(tx_delta / dt)
+                        }
+
+        # Build sample
+        sample = {
+            'timestamp': now,
+            'counters': current,
+            'rates': rates
+        }
+
+        # Add container bandwidth if available
+        if container_bandwidth:
+            sample['containers'] = [
+                {'name': c['name'], 'rx_bytes': c['rx_bytes'], 'tx_bytes': c['tx_bytes']}
+                for c in container_bandwidth
+            ]
+
+        history['samples'].append(sample)
+
+        # Trim to max samples
+        max_s = history.get('max_samples', 60)
+        if len(history['samples']) > max_s:
+            history['samples'] = history['samples'][-max_s:]
+
+        # Write back
+        with open(BANDWIDTH_FILE, 'w') as f:
+            json.dump(history, f, indent=2)
+        os.chmod(BANDWIDTH_FILE, 0o644)
+
+    except Exception as e:
+        print(f"Error updating bandwidth history: {e}")
+
+
 def get_container_bandwidth():
     """Get per-container network I/O from docker stats"""
     containers = []
@@ -877,6 +950,12 @@ def get_container_bandwidth():
 
 def collect_all_data():
     """Collect all host system data"""
+    network = get_network_info()
+    container_bw = get_container_bandwidth()
+
+    # Update rolling bandwidth history
+    update_bandwidth_history(network, container_bw)
+
     return {
         'system': get_system_info(),
         'cpu': get_cpu_info(),
@@ -886,8 +965,8 @@ def collect_all_data():
         'disks': get_disk_layout(),
         'services': get_systemd_services(),
         'processes': get_process_list(),
-        'network': get_network_info(),
-        'container_bandwidth': get_container_bandwidth(),
+        'network': network,
+        'container_bandwidth': container_bw,
         'collected_at': datetime.now().isoformat(),
         'host': os.uname().nodename
     }

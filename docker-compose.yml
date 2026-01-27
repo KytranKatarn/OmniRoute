@@ -69,6 +69,7 @@ services:
       - ./database/migrations:/mnt/archie_brain/database/migrations:rw
       # Host monitor data file (from host_monitor.py running on host)
       - ./host_monitor_data.json:/mnt/archie_brain/host_monitor_data.json:ro
+      - ./bandwidth_history.json:/mnt/archie_brain/bandwidth_history.json:ro
       - ./n8n_workflows:/mnt/archie_brain/n8n_workflows:rw
       - ./persistence/n8n:/mnt/archie_brain/persistence/n8n:ro
       - ./scripts:/mnt/archie_brain/scripts:rw

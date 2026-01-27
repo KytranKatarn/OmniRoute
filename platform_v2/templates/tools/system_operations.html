@@ -3435,6 +3435,10 @@ async function loadNetwork() {
         const res = await fetch('/tools/system-operations/api/network');
         const json = await res.json();
         if (json.success) renderNetwork(json.data || {});
+        // Reset lazy-load flags so sub-tab data refreshes on next visit
+        portMapLoaded = false;
+        topologyLoaded = false;
+        bandwidthLoaded = false;
     } catch (e) {
         console.error('Network error:', e);
     }
@@ -5074,6 +5078,365 @@ function renderPortMap(data) {
     }
 
     lucide.createIcons();
+}
+
+// ===== Topology Map =====
+async function loadTopology() {
+    try {
+        const [netRes, portRes] = await Promise.all([
+            fetch('/tools/system-operations/api/network'),
+            fetch('/tools/system-operations/api/network/port-map')
+        ]);
+        const netJson = await netRes.json();
+        const portJson = await portRes.json();
+        if (netJson.success && portJson.success) {
+            renderTopology(netJson.data || {}, portJson);
+            topologyLoaded = true;
+        } else {
+            document.getElementById('topology-svg-container').textContent = 'Failed to load topology data';
+        }
+    } catch (e) {
+        console.error('Topology error:', e);
+        document.getElementById('topology-svg-container').textContent = 'Failed to load topology';
+    }
+}
+
+function renderTopology(netData, portData) {
+    const container = document.getElementById('topology-svg-container');
+    const stacks = (portData.stacks || []).filter(s => s.ports.length > 0);
+    const unassigned = portData.unassigned_ports || [];
+
+    const gateway = netData.gateway || '192.168.1.1';
+    const hostIp = netData.host_ip || '192.168.1.200';
+    const hostname = netData.host_hostname || netData.hostname || 'archie';
+
+    // Layout dimensions
+    const nodeW = 140, nodeH = 60;
+    const colGap = 60;
+    const rowGap = 16;
+    const totalNodes = stacks.length + (unassigned.length ? 1 : 0);
+    const rightColHeight = Math.max(1, totalNodes) * (nodeH + rowGap) - rowGap;
+    const svgH = Math.max(280, rightColHeight + 80);
+    const svgW = 5 * (nodeW + colGap) + 20;
+
+    // Node positions (left-to-right: Internet, Router, Host, Bridge, Stacks)
+    const cols = [20, nodeW + colGap + 20, 2*(nodeW + colGap) + 20, 3*(nodeW + colGap) + 20, 4*(nodeW + colGap) + 20];
+    const midY = svgH / 2 - nodeH / 2;
+
+    const ns = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('viewBox', '0 0 ' + svgW + ' ' + svgH);
+    svg.setAttribute('width', '100%');
+    svg.setAttribute('height', svgH);
+    svg.style.maxWidth = svgW + 'px';
+
+    // Helper to draw rounded rect node
+    function drawNode(x, y, label, sublabel, color, textColor) {
+        const g = document.createElementNS(ns, 'g');
+        const rect = document.createElementNS(ns, 'rect');
+        rect.setAttribute('x', x);
+        rect.setAttribute('y', y);
+        rect.setAttribute('width', nodeW);
+        rect.setAttribute('height', nodeH);
+        rect.setAttribute('rx', 8);
+        rect.setAttribute('fill', color + '22');
+        rect.setAttribute('stroke', color);
+        rect.setAttribute('stroke-width', '1.5');
+        g.appendChild(rect);
+
+        const text = document.createElementNS(ns, 'text');
+        text.setAttribute('x', x + nodeW / 2);
+        text.setAttribute('y', y + 24);
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('fill', textColor || color);
+        text.setAttribute('font-size', '12');
+        text.setAttribute('font-weight', '600');
+        text.textContent = label;
+        g.appendChild(text);
+
+        if (sublabel) {
+            const sub = document.createElementNS(ns, 'text');
+            sub.setAttribute('x', x + nodeW / 2);
+            sub.setAttribute('y', y + 42);
+            sub.setAttribute('text-anchor', 'middle');
+            sub.setAttribute('fill', textColor || color);
+            sub.setAttribute('font-size', '10');
+            sub.setAttribute('opacity', '0.7');
+            sub.textContent = sublabel;
+            g.appendChild(sub);
+        }
+        svg.appendChild(g);
+        return { cx: x + nodeW, cy: y + nodeH / 2, lx: x, ly: y + nodeH / 2 };
+    }
+
+    // Helper to draw line
+    function drawLine(x1, y1, x2, y2, color, dashed) {
+        const line = document.createElementNS(ns, 'line');
+        line.setAttribute('x1', x1);
+        line.setAttribute('y1', y1);
+        line.setAttribute('x2', x2);
+        line.setAttribute('y2', y2);
+        line.setAttribute('stroke', color);
+        line.setAttribute('stroke-width', '1.5');
+        if (dashed) line.setAttribute('stroke-dasharray', '4,4');
+        svg.appendChild(line);
+    }
+
+    // Draw fixed nodes
+    const inet = drawNode(cols[0], midY, 'Internet', 'WAN', '#e74c3c', '#e74c3c');
+    const router = drawNode(cols[1], midY, 'Router', gateway, '#f39c12', '#f39c12');
+    const host = drawNode(cols[2], midY, hostname, hostIp, '#00D4AA', '#00D4AA');
+    const bridge = drawNode(cols[3], midY, 'Docker Bridge', '172.17.0.1', '#3498db', '#3498db');
+
+    // Lines between fixed nodes
+    drawLine(inet.cx, inet.cy, router.lx, router.ly, '#e74c3c88');
+    drawLine(router.cx, router.cy, host.lx, host.ly, '#f39c1288');
+    drawLine(host.cx, host.cy, bridge.lx, bridge.ly, '#3498db88');
+
+    // Right column: stack nodes
+    const rightStartY = Math.max(20, midY - (rightColHeight / 2) + nodeH / 2);
+
+    stacks.forEach(function(stack, i) {
+        const y = rightStartY + i * (nodeH + rowGap);
+        const color = stack.color || '#888';
+        const portList = stack.ports.map(function(p) { return ':' + p.port; }).join(', ');
+        const label = stack.name.length > 14 ? stack.name.substring(0, 12) + '...' : stack.name;
+        const sublabel = portList.length > 20 ? portList.substring(0, 18) + '...' : portList;
+        const sNode = drawNode(cols[4], y, label, sublabel, color, color);
+        drawLine(bridge.cx, bridge.cy, sNode.lx, sNode.ly, color + '66');
+    });
+
+    // Unassigned host services node
+    if (unassigned.length) {
+        const y = rightStartY + stacks.length * (nodeH + rowGap);
+        const portList = unassigned.slice(0, 5).map(function(p) { return ':' + p.port; }).join(', ');
+        const sublabel = portList + (unassigned.length > 5 ? '...' : '');
+        const uNode = drawNode(cols[4], y, 'Host Services', sublabel, '#888', '#888');
+        drawLine(host.cx, host.cy, uNode.lx, uNode.ly, '#88888866', true);
+    }
+
+    container.textContent = '';
+    container.appendChild(svg);
+}
+
+// ===== Bandwidth Monitor =====
+async function loadBandwidthData() {
+    try {
+        const res = await fetch('/tools/system-operations/api/network/bandwidth');
+        const json = await res.json();
+        if (json.success) {
+            renderBandwidthMonitor(json);
+            bandwidthLoaded = true;
+        } else {
+            document.getElementById('bandwidth-monitor-container').textContent = 'Error: ' + (json.error || 'Unknown');
+        }
+    } catch (e) {
+        console.error('Bandwidth error:', e);
+        document.getElementById('bandwidth-monitor-container').textContent = 'Failed to load bandwidth data';
+    }
+}
+
+function formatRate(bps) {
+    if (bps == null || bps === 0) return '0 B/s';
+    const units = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
+    let val = bps;
+    let idx = 0;
+    while (val >= 1024 && idx < units.length - 1) { val /= 1024; idx++; }
+    return val.toFixed(idx > 0 ? 1 : 0) + ' ' + units[idx];
+}
+
+function renderBandwidthMonitor(data) {
+    const container = document.getElementById('bandwidth-monitor-container');
+    const interfaces = (data.current && data.current.interfaces) || [];
+    const containers = (data.current && data.current.containers) || [];
+    const samples = data.samples || [];
+    const dataAge = data.current ? data.current.data_age : null;
+
+    container.textContent = '';
+
+    if (!interfaces.length && !containers.length) {
+        container.textContent = 'No bandwidth data available yet. Data will appear after host monitor collects samples.';
+        container.style.cssText = 'color: var(--archie-text-muted); padding: 20px; text-align: center;';
+        return;
+    }
+
+    // Get latest rates from samples
+    const latestRates = samples.length ? (samples[samples.length - 1].rates || {}) : {};
+
+    // Age indicator
+    if (dataAge != null) {
+        const ageDiv = document.createElement('div');
+        ageDiv.style.cssText = 'font-size: 0.75rem; color: var(--archie-text-muted); margin-bottom: 12px;';
+        ageDiv.textContent = 'Data age: ' + dataAge + 's \u00B7 ' + samples.length + ' sample' + (samples.length !== 1 ? 's' : '') + ' in history';
+        container.appendChild(ageDiv);
+    }
+
+    // Per-interface table
+    if (interfaces.length) {
+        const title = document.createElement('h4');
+        title.style.cssText = 'color: var(--archie-cyan); margin-bottom: 10px; font-size: 0.9rem;';
+        title.textContent = 'Interface Bandwidth';
+        container.appendChild(title);
+
+        const table = document.createElement('table');
+        table.className = 'data-table data-table-compact';
+        const thead = document.createElement('thead');
+        const headRow = document.createElement('tr');
+        ['Interface', 'RX Total', 'TX Total', 'RX Rate', 'TX Rate', 'Trend'].forEach(function(t) {
+            const th = document.createElement('th');
+            th.textContent = t;
+            headRow.appendChild(th);
+        });
+        thead.appendChild(headRow);
+        table.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        // Filter out loopback for cleaner display
+        const displayIfaces = interfaces.filter(function(i) { return i.name !== 'lo'; });
+        displayIfaces.forEach(function(iface) {
+            const tr = document.createElement('tr');
+            const isPhysical = !iface.name.startsWith('br-') && !iface.name.startsWith('docker') && !iface.name.startsWith('veth');
+
+            const tdName = document.createElement('td');
+            tdName.textContent = iface.name;
+            if (isPhysical) {
+                tdName.style.fontWeight = 'bold';
+                const badge = document.createElement('span');
+                badge.className = 'host-badge';
+                badge.textContent = 'PHY';
+                badge.style.marginLeft = '6px';
+                tdName.appendChild(badge);
+            }
+            tr.appendChild(tdName);
+
+            const tdRx = document.createElement('td');
+            tdRx.className = 'mono bandwidth-rate';
+            tdRx.textContent = formatBytes(iface.rx_bytes);
+            tr.appendChild(tdRx);
+
+            const tdTx = document.createElement('td');
+            tdTx.className = 'mono bandwidth-rate';
+            tdTx.textContent = formatBytes(iface.tx_bytes);
+            tr.appendChild(tdTx);
+
+            const rate = latestRates[iface.name];
+            const tdRxRate = document.createElement('td');
+            tdRxRate.className = 'mono bandwidth-rate';
+            tdRxRate.style.color = 'var(--archie-green)';
+            tdRxRate.textContent = rate ? formatRate(rate.rx_bps) : '-';
+            tr.appendChild(tdRxRate);
+
+            const tdTxRate = document.createElement('td');
+            tdTxRate.className = 'mono bandwidth-rate';
+            tdTxRate.style.color = 'var(--archie-cyan)';
+            tdTxRate.textContent = rate ? formatRate(rate.tx_bps) : '-';
+            tr.appendChild(tdTxRate);
+
+            // Sparkline cell
+            const tdSparkline = document.createElement('td');
+            const sparkDiv = document.createElement('div');
+            sparkDiv.className = 'sparkline-cell';
+            const canvas = document.createElement('canvas');
+            canvas.width = 80;
+            canvas.height = 24;
+            sparkDiv.appendChild(canvas);
+            tdSparkline.appendChild(sparkDiv);
+            tr.appendChild(tdSparkline);
+
+            // Draw sparkline from historical data
+            if (samples.length > 1) {
+                const rxData = samples.map(function(s) {
+                    return (s.rates && s.rates[iface.name]) ? s.rates[iface.name].rx_bps : 0;
+                });
+                drawSparkline(canvas.getContext('2d'), rxData, 80, 24, '#00D4AA');
+            }
+
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        container.appendChild(table);
+    }
+
+    // Per-container table
+    if (containers.length) {
+        const spacer = document.createElement('div');
+        spacer.style.marginTop = '16px';
+        container.appendChild(spacer);
+
+        const title = document.createElement('h4');
+        title.style.cssText = 'color: var(--archie-orange); margin-bottom: 10px; font-size: 0.9rem;';
+        title.textContent = 'Container Network I/O';
+        container.appendChild(title);
+
+        const table = document.createElement('table');
+        table.className = 'data-table data-table-compact';
+        const thead = document.createElement('thead');
+        const headRow = document.createElement('tr');
+        ['Container', 'RX', 'TX', 'Raw'].forEach(function(t) {
+            const th = document.createElement('th');
+            th.textContent = t;
+            headRow.appendChild(th);
+        });
+        thead.appendChild(headRow);
+        table.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        containers.forEach(function(c) {
+            const tr = document.createElement('tr');
+
+            const tdName = document.createElement('td');
+            tdName.style.fontWeight = '600';
+            tdName.textContent = c.name;
+            tr.appendChild(tdName);
+
+            const tdRx = document.createElement('td');
+            tdRx.className = 'mono bandwidth-rate';
+            tdRx.style.color = 'var(--archie-green)';
+            tdRx.textContent = formatBytes(c.rx_bytes);
+            tr.appendChild(tdRx);
+
+            const tdTx = document.createElement('td');
+            tdTx.className = 'mono bandwidth-rate';
+            tdTx.style.color = 'var(--archie-cyan)';
+            tdTx.textContent = formatBytes(c.tx_bytes);
+            tr.appendChild(tdTx);
+
+            const tdRaw = document.createElement('td');
+            tdRaw.style.cssText = 'font-size: 0.8rem; color: var(--archie-text-muted);';
+            tdRaw.textContent = c.net_io_raw || '-';
+            tr.appendChild(tdRaw);
+
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        container.appendChild(table);
+    }
+}
+
+function drawSparkline(ctx, data, width, height, color) {
+    if (!data || data.length < 2) return;
+    const max = Math.max.apply(null, data.concat([1]));
+    const step = width / (data.length - 1);
+
+    ctx.clearRect(0, 0, width, height);
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+
+    data.forEach(function(val, i) {
+        const x = i * step;
+        const y = height - (val / max) * (height - 4) - 2;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    // Fill under line
+    ctx.lineTo(width, height);
+    ctx.lineTo(0, height);
+    ctx.closePath();
+    ctx.fillStyle = color + '15';
+    ctx.fill();
 }
 
 // Action Functions

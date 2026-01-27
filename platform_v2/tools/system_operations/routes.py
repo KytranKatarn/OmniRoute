@@ -142,6 +142,41 @@ def require_reauth():
     )
 
 
+def parse_compose_host_port(port_entry):
+    """Parse a docker-compose port entry and return the host port as int, or None.
+    Handles string formats: "3000:3000", "0.0.0.0:3000:3000", "3000:3000/tcp", "3000"
+    and dict format: {"target": 8080, "published": 80, "protocol": "tcp"}
+    """
+    if isinstance(port_entry, dict):
+        published = port_entry.get("published")
+        if published is not None:
+            try:
+                return int(published)
+            except (ValueError, TypeError):
+                return None
+        return None
+    port_str = str(port_entry).split("/")[0]  # strip protocol
+    parts = port_str.split(":")
+    try:
+        if len(parts) == 1:
+            return int(parts[0])
+        elif len(parts) == 2:
+            return int(parts[0])
+        else:
+            return int(parts[1])
+    except (ValueError, IndexError):
+        return None
+
+
+def find_compose_file(compose_dir):
+    """Find the docker-compose file in a directory. Returns path or None."""
+    for fname in ["docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"]:
+        candidate = os.path.join(compose_dir, fname)
+        if os.path.exists(candidate):
+            return candidate
+    return None
+
+
 # ============================================================================
 # PAGE ROUTES
 # ============================================================================
@@ -408,23 +443,15 @@ def api_network():
             for sr in stack_rows:
                 compose_dir = sr.get("compose_directory") or ""
                 stack_ports = []
-                compose_file = None
-                for fname in ["docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"]:
-                    candidate = os.path.join(compose_dir, fname)
-                    if os.path.exists(candidate):
-                        compose_file = candidate
-                        break
+                compose_file = find_compose_file(compose_dir)
                 if compose_file:
                     try:
                         with open(compose_file, "r") as f:
                             parsed = yaml.safe_load(f) or {}
                         for svc_name, svc_config in (parsed.get("services") or {}).items():
                             for port_entry in svc_config.get("ports") or []:
-                                port_str = str(port_entry).split("/")[0]
-                                parts = port_str.split(":")
-                                try:
-                                    host_port = int(parts[0]) if len(parts) <= 2 else int(parts[1])
-                                except (ValueError, IndexError):
+                                host_port = parse_compose_host_port(port_entry)
+                                if host_port is None:
                                     continue
                                 port_to_stack[str(host_port)] = sr["name"]
                                 stack_ports.append(host_port)
@@ -484,12 +511,7 @@ def api_network_port_map():
             stack_ports = []
 
             # Parse compose file for port mappings
-            compose_file = None
-            for fname in ["docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"]:
-                candidate = os.path.join(compose_dir, fname)
-                if os.path.exists(candidate):
-                    compose_file = candidate
-                    break
+            compose_file = find_compose_file(compose_dir)
 
             if compose_file:
                 try:
@@ -497,18 +519,8 @@ def api_network_port_map():
                         parsed = yaml.safe_load(f) or {}
                     for svc_name, svc_config in (parsed.get("services") or {}).items():
                         for port_entry in svc_config.get("ports") or []:
-                            port_str = str(port_entry)
-                            # Parse formats: "3000:3000", "0.0.0.0:3000:3000", "3000:3000/tcp"
-                            port_str = port_str.split("/")[0]  # strip protocol
-                            parts = port_str.split(":")
-                            try:
-                                if len(parts) == 1:
-                                    host_port = int(parts[0])
-                                elif len(parts) == 2:
-                                    host_port = int(parts[0])
-                                else:
-                                    host_port = int(parts[1])
-                            except (ValueError, IndexError):
+                            host_port = parse_compose_host_port(port_entry)
+                            if host_port is None:
                                 continue
 
                             is_open = host_port in listening_port_set

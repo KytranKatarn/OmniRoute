@@ -640,7 +640,7 @@
 
     .bandwidth-rate {
         font-size: 0.85rem;
-        font-family: monospace;
+        font-family: var(--archie-font-mono);
     }
 
     .info-notice {
@@ -3435,10 +3435,17 @@ async function loadNetwork() {
         const res = await fetch('/tools/system-operations/api/network');
         const json = await res.json();
         if (json.success) renderNetwork(json.data || {});
-        // Reset lazy-load flags so sub-tab data refreshes on next visit
+        // Reset lazy-load flags and re-fetch active sub-tab
         portMapLoaded = false;
         topologyLoaded = false;
         bandwidthLoaded = false;
+        const activeBtn = document.querySelector('.net-subtab.active');
+        if (activeBtn) {
+            const tabName = activeBtn.id.replace('net-subtab-btn-', '');
+            if (tabName === 'portmap') loadPortMap();
+            else if (tabName === 'topology') loadTopology();
+            else if (tabName === 'bandwidth') loadBandwidthData();
+        }
     } catch (e) {
         console.error('Network error:', e);
     }
@@ -4536,6 +4543,9 @@ function viewDockerLogs(containerId, containerName) {
 }
 
 function renderNetwork(data) {
+    // Cache host IP for use by other sub-tabs
+    if (data.host_ip) cachedHostIp = data.host_ip;
+
     // Network Summary - prefer host data
     const hostname = data.host_hostname || data.hostname || '--';
     document.getElementById('net-hostname').textContent = hostname;
@@ -4835,6 +4845,7 @@ function renderNetwork(data) {
 let portMapLoaded = false;
 let topologyLoaded = false;
 let bandwidthLoaded = false;
+let cachedHostIp = '192.168.1.200'; // Updated by renderNetwork from API data
 
 function showNetSubtab(tabName) {
     // Toggle button active state
@@ -4885,7 +4896,7 @@ function renderPortMap(data) {
     const container = document.getElementById('port-map-container');
     const stacks = data.stacks || [];
     const unassigned = data.unassigned_ports || [];
-    const hostIp = '192.168.1.200';
+    const hostIp = cachedHostIp;
 
     // Build DOM elements instead of innerHTML for port map
     container.textContent = '';

@@ -493,6 +493,20 @@
     --archie-text-glow-accent: var(--archie-text-glow-orange);
 }
 
+/* System Operations - Cyan Command */
+[data-module="system-operations"] {
+    --archie-accent: var(--archie-cyan);
+    --archie-accent-dim: var(--archie-cyan-dim);
+    --archie-accent-bright: var(--archie-cyan-bright);
+    --archie-accent-alpha-10: var(--archie-cyan-alpha-10);
+    --archie-accent-alpha-20: var(--archie-cyan-alpha-20);
+    --archie-accent-alpha-30: var(--archie-cyan-alpha-30);
+    --archie-glow-accent: var(--archie-glow-cyan);
+    --archie-glow-accent-sm: var(--archie-glow-cyan-sm);
+    --archie-glow-accent-lg: var(--archie-glow-cyan-lg);
+    --archie-text-glow-accent: var(--archie-text-glow-cyan);
+}
+
 
 /* ═══════════════════════════════════════════════════════════════════════════
    § 3. CSS RESET - Clean Slate Protocol

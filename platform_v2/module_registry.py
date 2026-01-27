@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Callable, List, Optional, Dict
 import importlib
+import os
 
 
 def check_service_health(service_name: str, endpoint: str, timeout: int = 2) -> dict:
@@ -947,7 +948,7 @@ MODULES: List[ModuleDefinition] = [
         name="System Operations",
         description="Host machine administration<br>CPU • RAM • Disk • Processes • Docker • Network",
         icon="server",
-        category=ModuleCategory.ADMIN_OPS,
+        category=ModuleCategory.ADMIN,
         route="/tools/system-operations",
         blueprint_import="tools.system_operations.routes:system_operations_bp",
         required_permissions=["admin:system"],
@@ -955,7 +956,7 @@ MODULES: List[ModuleDefinition] = [
         enabled=True,
         coming_soon=False,
         health_check=lambda: check_service_health("system_operations", "/tools/system-operations/health"),
-        priority=9,
+        priority=7,
         tags=["system", "monitoring", "admin", "docker", "processes", "network", "host"],
     ),
     # ========== INTEGRATIONS ==========
@@ -1189,22 +1190,22 @@ if __name__ == "__main__":
     print("=" * 80)
 
     summary = get_registry_summary()
-    print(f"\n📊 Registry Summary:")
+    print("\nRegistry Summary:")
     print(f"  Total Modules: {summary['total_modules']}")
     print(f"  Enabled: {summary['enabled_modules']}")
     print(f"  Disabled: {summary['disabled_modules']}")
     print(f"  Coming Soon: {summary['coming_soon_modules']}")
     print(f"  Beta: {summary['beta_modules']}")
 
-    print(f"\n📂 Modules by Category:")
+    print("\nModules by Category:")
     for cat, stats in summary["categories"].items():
         print(f"  {cat}: {stats['enabled']}/{stats['total']} enabled")
 
-    print(f"\n✅ Enabled Modules:")
+    print("\nEnabled Modules:")
     for module in get_enabled_modules():
         print(f"  [{module.icon}] {module.name} - {module.route}")
 
-    print(f"\n🏥 Health Check Results:")
+    print("\nHealth Check Results:")
     health_results = check_all_modules_health()
     for module_id, health in health_results.items():
         status_icon = "✅" if health["healthy"] else "❌"

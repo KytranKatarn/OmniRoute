@@ -49,7 +49,13 @@
             <i data-lucide="user"></i>
             <span>Accounts</span>
         </a>
-        <!-- Additional Admin Tools modules will be added here -->
+        <a href="{{ url_for('system_operations.index') }}"
+           class="nav-module-btn {% if request.endpoint and 'system_operations' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="System Operations">
+            <i data-lucide="server"></i>
+            <span>System Ops</span>
+        </a>
     </div>
 </nav>
 

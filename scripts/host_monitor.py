@@ -185,11 +185,15 @@ def get_systemd_services():
 
 
 def get_network_info():
-    """Get host network information"""
+    """Get host network information including interfaces, listening ports, and connections"""
     info = {
         'hostname': '',
         'interfaces': [],
-        'primary_ip': None
+        'primary_ip': None,
+        'listening_ports': [],
+        'connections': [],
+        'dns_servers': [],
+        'gateway': None
     }
 
     # Hostname
@@ -218,6 +222,101 @@ def get_network_info():
                         if not info['primary_ip']:
                             info['primary_ip'] = ip
 
+    # Default gateway
+    gw_output = run_command(['ip', 'route', 'show', 'default'])
+    if gw_output:
+        parts = gw_output.split()
+        if 'via' in parts:
+            idx = parts.index('via')
+            if idx + 1 < len(parts):
+                info['gateway'] = parts[idx + 1]
+
+    # DNS servers from /etc/resolv.conf
+    try:
+        with open('/etc/resolv.conf', 'r') as f:
+            for line in f:
+                if line.startswith('nameserver'):
+                    dns = line.split()[1]
+                    if dns not in info['dns_servers']:
+                        info['dns_servers'].append(dns)
+    except OSError:
+        pass
+
+    # Listening ports via ss
+    ss_output = run_command(['ss', '-tlnp'])
+    if ss_output:
+        for line in ss_output.split('\n')[1:]:  # Skip header
+            parts = line.split()
+            if len(parts) < 5:
+                continue
+            try:
+                local_addr = parts[3]
+                # Parse address:port (handles both IPv4 and [::]:port)
+                if ']:' in local_addr:
+                    ip, port = local_addr.rsplit(':', 1)
+                    ip = ip.strip('[]')
+                elif local_addr.startswith('*:'):
+                    ip, port = '0.0.0.0', local_addr[2:]
+                else:
+                    ip, port = local_addr.rsplit(':', 1)
+                port = int(port)
+
+                # Extract process name from "users:(("name",pid=X,...))"
+                process = None
+                pid = None
+                if len(parts) >= 6 and 'users:' in parts[5]:
+                    proc_str = parts[5]
+                    if '(("' in proc_str:
+                        process = proc_str.split('(("')[1].split('"')[0]
+                    if 'pid=' in proc_str:
+                        pid = int(proc_str.split('pid=')[1].split(',')[0])
+
+                info['listening_ports'].append({
+                    'port': port,
+                    'ip': ip,
+                    'protocol': 'tcp',
+                    'process': process,
+                    'pid': pid
+                })
+            except (ValueError, IndexError):
+                continue
+
+        info['listening_ports'].sort(key=lambda x: x['port'])
+
+    # Active connections via ss (established, limit to 50)
+    # ss -tnp state established output: Recv-Q Send-Q Local Peer [Process]
+    # Note: no State column in this mode
+    conn_output = run_command(['ss', '-tnp', 'state', 'established'])
+    if conn_output:
+        for line in conn_output.split('\n')[1:]:  # Skip header
+            parts = line.split()
+            if len(parts) < 4:
+                continue
+            try:
+                local_addr = parts[2]
+                remote_addr = parts[3]
+
+                process = None
+                pid = None
+                if len(parts) >= 5 and 'users:' in parts[4]:
+                    proc_str = parts[4]
+                    if '(("' in proc_str:
+                        process = proc_str.split('(("')[1].split('"')[0]
+                    if 'pid=' in proc_str:
+                        pid = int(proc_str.split('pid=')[1].split(',')[0])
+
+                info['connections'].append({
+                    'local_addr': local_addr,
+                    'remote_addr': remote_addr,
+                    'status': 'ESTABLISHED',
+                    'process': process,
+                    'pid': pid
+                })
+            except (ValueError, IndexError):
+                continue
+
+        info['connections'] = info['connections'][:50]
+
     return info
 
 
@@ -229,7 +328,6 @@ def get_disk_layout():
     output = run_command(['lsblk', '-J', '-b', '-o', 'NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT,PKNAME,MODEL'])
     if output:
         try:
-            import json
             data = json.loads(output)
 
             for device in data.get('blockdevices', []):
@@ -270,7 +368,7 @@ def get_disk_layout():
                         disk_info['partitions'].append(part_info)
 
                     disks.append(disk_info)
-        except:
+        except Exception:
             pass
 
     # Check for unallocated space using fdisk
@@ -283,16 +381,443 @@ def get_disk_layout():
             if disk['size_bytes'] > total_partitioned:
                 disk['unallocated_gb'] = round((disk['size_bytes'] - total_partitioned) / (1024**3), 2)
 
+    # Add disk usage stats for mounted partitions
+    for disk in disks:
+        for part in disk['partitions']:
+            _add_usage_stats(part)
+            for child in part.get('children', []):
+                _add_usage_stats(child)
+
+    # Enrich with blkid data (UUID, LABEL)
+    blkid = get_blkid_info()
+    for disk in disks:
+        for part in disk['partitions']:
+            dev = part.get('device', '')
+            if dev in blkid:
+                part['uuid'] = blkid[dev].get('uuid')
+                part['label'] = blkid[dev].get('label')
+            for child in part.get('children', []):
+                cdev = child.get('device', '')
+                if cdev in blkid:
+                    child['uuid'] = blkid[cdev].get('uuid')
+                    child['label'] = blkid[cdev].get('label')
+
+    # Enrich with SMART health
+    smart = get_smart_health()
+    for disk in disks:
+        disk['smart_health'] = smart.get(disk['name'], 'unavailable')
+
+    # Enrich with I/O stats
+    io_stats = get_disk_io_rates()
+    for disk in disks:
+        if disk['name'] in io_stats:
+            disk['io'] = io_stats[disk['name']]
+
     return disks
+
+
+def _add_usage_stats(partition):
+    """Add usage stats (used/free/percent) to a mounted partition"""
+    mp = partition.get('mountpoint')
+    if not mp:
+        return
+    try:
+        st = os.statvfs(mp)
+        total = st.f_frsize * st.f_blocks
+        free = st.f_frsize * st.f_bavail
+        used = total - free
+        partition['usage'] = {
+            'total_gb': round(total / (1024**3), 2),
+            'used_gb': round(used / (1024**3), 2),
+            'free_gb': round(free / (1024**3), 2),
+            'percent': round((used / total) * 100, 1) if total > 0 else 0
+        }
+    except OSError:
+        pass
+
+
+def get_blkid_info():
+    """Get partition UUID and LABEL from blkid"""
+    info = {}
+    output = run_command(['blkid'])
+    if output:
+        for line in output.split('\n'):
+            if ':' not in line:
+                continue
+            device = line.split(':')[0].strip()
+            entry = {}
+            if 'UUID="' in line:
+                entry['uuid'] = line.split('UUID="')[1].split('"')[0]
+            if 'LABEL="' in line:
+                entry['label'] = line.split('LABEL="')[1].split('"')[0]
+            if 'TYPE="' in line:
+                entry['type'] = line.split('TYPE="')[1].split('"')[0]
+            if 'PARTUUID="' in line:
+                entry['partuuid'] = line.split('PARTUUID="')[1].split('"')[0]
+            if entry:
+                info[device] = entry
+    return info
+
+
+def get_disk_io_rates():
+    """Get disk I/O stats from /proc/diskstats"""
+    stats = {}
+    try:
+        with open('/proc/diskstats', 'r') as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) < 14:
+                    continue
+                name = parts[2]
+                stats[name] = {
+                    'reads_completed': int(parts[3]),
+                    'sectors_read': int(parts[5]),
+                    'writes_completed': int(parts[7]),
+                    'sectors_written': int(parts[9]),
+                    'io_in_progress': int(parts[11]),
+                }
+    except OSError:
+        pass
+    return stats
+
+
+def get_smart_health():
+    """Get basic SMART health for each disk"""
+    health = {}
+    output = run_command(['lsblk', '-dn', '-o', 'NAME,TYPE'])
+    if not output:
+        return health
+    for line in output.split('\n'):
+        parts = line.split()
+        if len(parts) >= 2 and parts[1] == 'disk':
+            name = parts[0]
+            smart_out = run_command(['smartctl', '-H', f'/dev/{name}'], timeout=5)
+            if smart_out:
+                if 'PASSED' in smart_out:
+                    health[name] = 'healthy'
+                elif 'FAILED' in smart_out:
+                    health[name] = 'failing'
+                else:
+                    health[name] = 'unknown'
+            else:
+                health[name] = 'unavailable'
+    return health
+
+
+def get_gpu_info():
+    """Get GPU information from the host"""
+    gpus = []
+
+    # Detect GPUs via lspci
+    output = run_command('lspci 2>/dev/null | grep -i -E "VGA|3D|Display"')
+    if not output:
+        return None
+
+    for line in output.split('\n'):
+        line = line.strip()
+        if not line:
+            continue
+
+        # Parse lspci output: "05:00.0 VGA compatible controller: NVIDIA Corporation GM204GL [Quadro M4000] (rev a1)"
+        pci_addr = line.split()[0] if line.split() else ''
+        vendor = 'unknown'
+        model = line
+
+        # Extract vendor and model
+        if 'NVIDIA' in line.upper():
+            vendor = 'nvidia'
+            # Extract bracketed model name if present: [Quadro M4000]
+            if '[' in line and ']' in line:
+                model = line[line.index('[') + 1:line.index(']')]
+            else:
+                # Fall back to text after the colon
+                model = line.split(':', 1)[-1].strip() if ':' in line else line
+        elif 'AMD' in line.upper() or 'ATI' in line.upper():
+            vendor = 'amd'
+            if '[' in line and ']' in line:
+                model = line[line.index('[') + 1:line.index(']')]
+            else:
+                model = line.split(':', 1)[-1].strip() if ':' in line else line
+        elif 'INTEL' in line.upper():
+            vendor = 'intel'
+            if '[' in line and ']' in line:
+                model = line[line.index('[') + 1:line.index(']')]
+            else:
+                model = line.split(':', 1)[-1].strip() if ':' in line else line
+
+        gpu = {
+            'pci_address': pci_addr,
+            'vendor': vendor,
+            'model': model,
+            'temperature': None,
+            'vram_total_mb': None,
+            'vram_used_mb': None,
+            'utilization_percent': None,
+            'driver': None
+        }
+
+        # Try nvidia-smi for NVIDIA GPUs
+        if vendor == 'nvidia':
+            smi_output = run_command(
+                'nvidia-smi --query-gpu=memory.total,memory.used,utilization.gpu,temperature.gpu,driver_version '
+                '--format=csv,noheader,nounits 2>/dev/null'
+            )
+            if smi_output:
+                parts = [p.strip() for p in smi_output.split(',')]
+                if len(parts) >= 5:
+                    gpu['vram_total_mb'] = int(parts[0]) if parts[0].isdigit() else None
+                    gpu['vram_used_mb'] = int(parts[1]) if parts[1].isdigit() else None
+                    gpu['utilization_percent'] = int(parts[2]) if parts[2].isdigit() else None
+                    gpu['temperature'] = int(parts[3]) if parts[3].isdigit() else None
+                    gpu['driver'] = parts[4] if parts[4] != '[N/A]' else None
+
+        # Fall back to hwmon for temperature (nouveau driver, etc.)
+        if gpu['temperature'] is None:
+            gpu['temperature'] = _read_hwmon_gpu_temp()
+
+        # Detect driver in use
+        if gpu['driver'] is None:
+            drv_output = run_command(f'lspci -k -s {pci_addr} 2>/dev/null')
+            if drv_output:
+                for drv_line in drv_output.split('\n'):
+                    if 'Kernel driver in use:' in drv_line:
+                        gpu['driver'] = drv_line.split(':')[-1].strip()
+                        break
+
+        gpus.append(gpu)
+
+    return gpus if gpus else None
+
+
+def _read_hwmon_gpu_temp():
+    """Read GPU temperature from hwmon (nouveau, amdgpu, etc.)"""
+    hwmon_base = '/sys/class/hwmon'
+    gpu_drivers = {'nouveau', 'amdgpu', 'radeon', 'nvidia'}
+    try:
+        for entry in os.listdir(hwmon_base):
+            name_path = os.path.join(hwmon_base, entry, 'name')
+            try:
+                with open(name_path, 'r') as f:
+                    name = f.read().strip()
+                if name in gpu_drivers:
+                    temp_path = os.path.join(hwmon_base, entry, 'temp1_input')
+                    with open(temp_path, 'r') as f:
+                        return int(f.read().strip()) // 1000
+            except (OSError, ValueError):
+                continue
+    except OSError:
+        pass
+    return None
+
+
+def get_cpu_info():
+    """Get CPU information from the host"""
+    info = {
+        'model': None,
+        'physical_cores': None,
+        'logical_cores': None,
+        'temperature': None,
+        'temperatures': []
+    }
+
+    # CPU model from /proc/cpuinfo
+    try:
+        with open('/proc/cpuinfo', 'r') as f:
+            for line in f:
+                if line.startswith('model name'):
+                    info['model'] = line.split(':', 1)[1].strip()
+                    break
+    except OSError:
+        pass
+
+    # Core counts
+    try:
+        info['logical_cores'] = os.cpu_count()
+    except Exception:
+        pass
+
+    # Physical cores (count unique core IDs)
+    try:
+        with open('/proc/cpuinfo', 'r') as f:
+            core_ids = set()
+            for line in f:
+                if line.startswith('core id'):
+                    core_ids.add(line.split(':', 1)[1].strip())
+            if core_ids:
+                info['physical_cores'] = len(core_ids)
+    except OSError:
+        pass
+
+    # CPU temperatures from coretemp hwmon
+    hwmon_base = '/sys/class/hwmon'
+    try:
+        for entry in os.listdir(hwmon_base):
+            name_path = os.path.join(hwmon_base, entry, 'name')
+            try:
+                with open(name_path, 'r') as f:
+                    name = f.read().strip()
+                if name in ('coretemp', 'k10temp', 'zenpower'):
+                    hwmon_dir = os.path.join(hwmon_base, entry)
+                    temps = []
+                    for fname in sorted(os.listdir(hwmon_dir)):
+                        if fname.startswith('temp') and fname.endswith('_input'):
+                            try:
+                                with open(os.path.join(hwmon_dir, fname), 'r') as f:
+                                    temp_c = int(f.read().strip()) // 1000
+                                    temps.append(temp_c)
+                            except (OSError, ValueError):
+                                continue
+                    if temps:
+                        info['temperatures'] = temps
+                        info['temperature'] = max(temps)
+                    break
+            except (OSError, ValueError):
+                continue
+    except OSError:
+        pass
+
+    return info
+
+
+def get_system_info():
+    """Get host system information"""
+    info = {
+        'hostname': None,
+        'distribution': None,
+        'version_id': None,
+        'kernel': None,
+        'uptime_seconds': None,
+        'uptime_formatted': None,
+        'boot_time': None,
+        'load_average': None,
+        'process_count': None,
+        'users_logged_in': None,
+        'architecture': None
+    }
+
+    # Hostname
+    info['hostname'] = run_command(['hostname']) or os.uname().nodename
+
+    # Distribution from /etc/os-release
+    try:
+        with open('/etc/os-release', 'r') as f:
+            for line in f:
+                if line.startswith('PRETTY_NAME='):
+                    info['distribution'] = line.split('=', 1)[1].strip().strip('"')
+                elif line.startswith('VERSION_ID='):
+                    info['version_id'] = line.split('=', 1)[1].strip().strip('"')
+    except OSError:
+        pass
+
+    # Kernel
+    info['kernel'] = os.uname().release
+
+    # Architecture
+    info['architecture'] = os.uname().machine
+
+    # Uptime from /proc/uptime
+    try:
+        with open('/proc/uptime', 'r') as f:
+            uptime_secs = float(f.read().split()[0])
+            info['uptime_seconds'] = int(uptime_secs)
+            days = int(uptime_secs) // 86400
+            hours = (int(uptime_secs) % 86400) // 3600
+            minutes = (int(uptime_secs) % 3600) // 60
+            parts = []
+            if days > 0:
+                parts.append(f"{days}d")
+            parts.append(f"{hours}h")
+            parts.append(f"{minutes}m")
+            info['uptime_formatted'] = ' '.join(parts)
+    except (OSError, ValueError):
+        pass
+
+    # Boot time
+    boot_output = run_command(['who', '-b'])
+    if boot_output:
+        # Format: "system boot  2026-01-25 13:16"
+        parts = boot_output.strip().split()
+        if len(parts) >= 4:
+            info['boot_time'] = f"{parts[-2]} {parts[-1]}"
+
+    # Load average
+    try:
+        load = os.getloadavg()
+        info['load_average'] = [round(l, 2) for l in load]
+    except OSError:
+        pass
+
+    # Process count
+    try:
+        count = sum(1 for entry in os.listdir('/proc') if entry.isdigit())
+        info['process_count'] = count
+    except OSError:
+        pass
+
+    # Users logged in
+    who_output = run_command(['who'])
+    if who_output:
+        info['users_logged_in'] = len([l for l in who_output.split('\n') if l.strip()])
+    else:
+        info['users_logged_in'] = 0
+
+    return info
+
+
+def get_process_list(limit=100):
+    """Get running processes from the host via ps aux"""
+    processes = []
+
+    output = run_command(['ps', 'aux', '--sort=-pcpu'], timeout=15)
+    if not output:
+        return processes
+
+    # ps aux status codes to readable names
+    status_map = {
+        'R': 'running', 'S': 'sleeping', 'D': 'disk-sleep',
+        'T': 'stopped', 'Z': 'zombie', 'I': 'idle',
+        'X': 'dead', 'W': 'paging'
+    }
+
+    lines = output.split('\n')
+    for line in lines[1:]:  # Skip header
+        parts = line.split(None, 10)
+        if len(parts) < 11:
+            continue
+        try:
+            raw_stat = parts[7]
+            status = status_map.get(raw_stat[0], raw_stat) if raw_stat else 'unknown'
+            # Extract just the command name (not full path with args)
+            command = parts[10]
+            name = command.split()[0].rsplit('/', 1)[-1] if command else 'unknown'
+
+            processes.append({
+                'pid': int(parts[1]),
+                'name': name[:80],
+                'command': command[:200],
+                'user': parts[0],
+                'cpu_percent': float(parts[2]),
+                'memory_percent': float(parts[3]),
+                'rss_kb': int(parts[5]),
+                'status': status,
+            })
+        except (ValueError, IndexError):
+            continue
+
+    return processes[:limit]
 
 
 def collect_all_data():
     """Collect all host system data"""
     return {
+        'system': get_system_info(),
+        'cpu': get_cpu_info(),
+        'gpu': get_gpu_info(),
         'lvm': get_lvm_info(),
         'raid': get_raid_status(),
         'disks': get_disk_layout(),
         'services': get_systemd_services(),
+        'processes': get_process_list(),
         'network': get_network_info(),
         'collected_at': datetime.now().isoformat(),
         'host': os.uname().nodename
@@ -353,11 +878,28 @@ def main():
         data = collect_all_data()
         write_data(data)
         print("\nCollected data:")
+        sys_info = data.get('system') or {}
+        print(f"  Host: {sys_info.get('hostname', '?')} ({sys_info.get('distribution', '?')})")
+        print(f"  Kernel: {sys_info.get('kernel', '?')}")
+        print(f"  Uptime: {sys_info.get('uptime_formatted', '?')}")
+        print(f"  Processes: {sys_info.get('process_count', '?')}, Users: {sys_info.get('users_logged_in', '?')}")
+        cpu_info = data.get('cpu') or {}
+        print(f"  CPU: {cpu_info.get('model', '?')} ({cpu_info.get('physical_cores', '?')}c/{cpu_info.get('logical_cores', '?')}t), Temp: {cpu_info.get('temperature', '?')}°C")
+        gpu_info = data.get('gpu')
+        if gpu_info:
+            for g in gpu_info:
+                print(f"  GPU: {g.get('model', '?')} ({g.get('vendor', '?')}), Temp: {g.get('temperature', '?')}°C, Driver: {g.get('driver', '?')}")
+        else:
+            print("  GPU: None detected")
+        print(f"  Disks: {len(data['disks'])}")
+        for d in data['disks']:
+            print(f"    {d['device']}: {d['size_gb']} GB ({d['model']})")
         print(f"  LVM VGs: {len(data['lvm']['vgs']) if data['lvm'] else 0}")
         print(f"  LVM LVs: {len(data['lvm']['lvs']) if data['lvm'] else 0}")
         print(f"  RAID Arrays: {len(data['raid']['arrays']) if data['raid'] else 0}")
+        print(f"  Processes: {len(data['processes'])} (top by CPU)")
         print(f"  Services: {len(data['services'])}")
-        print(f"  Network Interfaces: {len(data['network']['interfaces'])}")
+        print(f"  Network: {data['network'].get('primary_ip', '?')} ({len(data['network']['interfaces'])} interfaces)")
 
 
 if __name__ == '__main__':

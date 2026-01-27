@@ -522,6 +522,127 @@
         border-radius: 4px;
     }
 
+    /* Network Sub-tabs */
+    .net-subtabs {
+        display: flex;
+        gap: 4px;
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
+        border-radius: 8px;
+        padding: 4px;
+        margin: 16px 0;
+        overflow-x: auto;
+    }
+
+    .net-subtab {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 6px;
+        background: transparent;
+        color: var(--archie-text-muted);
+        cursor: pointer;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+        transition: all 0.2s;
+    }
+
+    .net-subtab:hover {
+        color: var(--archie-text-primary);
+        background: var(--archie-bg-tertiary);
+    }
+
+    .net-subtab.active {
+        background: var(--archie-accent);
+        color: #000;
+        font-weight: 600;
+    }
+
+    .net-subtab-content {
+        display: none;
+    }
+
+    .net-subtab-content.active {
+        display: block;
+    }
+
+    /* Port Map Styles */
+    .port-stack-group {
+        margin-bottom: 16px;
+        border: 1px solid var(--archie-border-default);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .port-stack-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 14px;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+    .port-stack-header .port-count {
+        margin-left: auto;
+        font-size: 0.75rem;
+        font-weight: 400;
+        opacity: 0.7;
+    }
+
+    .port-stack-header .color-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
+        flex-shrink: 0;
+    }
+
+    .web-ui-link {
+        color: var(--archie-cyan);
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.8rem;
+        transition: color 0.2s;
+    }
+
+    .web-ui-link:hover {
+        color: var(--archie-green);
+        text-decoration: underline;
+    }
+
+    /* Topology SVG */
+    .topology-container {
+        padding: 16px;
+        overflow-x: auto;
+        background: var(--archie-bg-secondary);
+        border-radius: 8px;
+        border: 1px solid var(--archie-border-default);
+    }
+
+    .topology-container svg text {
+        font-family: inherit;
+    }
+
+    /* Sparkline */
+    .sparkline-cell {
+        display: inline-block;
+        vertical-align: middle;
+    }
+
+    .sparkline-cell canvas {
+        display: block;
+    }
+
+    .bandwidth-rate {
+        font-size: 0.85rem;
+        font-family: monospace;
+    }
+
     .info-notice {
         display: flex;
         align-items: center;

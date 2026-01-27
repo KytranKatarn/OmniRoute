@@ -392,6 +392,58 @@ def api_network():
             if host_net.get("connections"):
                 data["host_connections"] = host_net["connections"]
 
+        # Add port-to-stack context (inline, lightweight)
+        try:
+            import yaml
+
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute("SELECT name, compose_directory, color, web_ui_ports FROM docker_stacks ORDER BY name")
+            stack_rows = cur.fetchall()
+            cur.close()
+            conn.close()
+
+            port_to_stack = {}
+            stacks_summary = []
+            for sr in stack_rows:
+                compose_dir = sr.get("compose_directory") or ""
+                stack_ports = []
+                compose_file = None
+                for fname in ["docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"]:
+                    candidate = os.path.join(compose_dir, fname)
+                    if os.path.exists(candidate):
+                        compose_file = candidate
+                        break
+                if compose_file:
+                    try:
+                        with open(compose_file, "r") as f:
+                            parsed = yaml.safe_load(f) or {}
+                        for svc_name, svc_config in (parsed.get("services") or {}).items():
+                            for port_entry in svc_config.get("ports") or []:
+                                port_str = str(port_entry).split("/")[0]
+                                parts = port_str.split(":")
+                                try:
+                                    host_port = int(parts[0]) if len(parts) <= 2 else int(parts[1])
+                                except (ValueError, IndexError):
+                                    continue
+                                port_to_stack[str(host_port)] = sr["name"]
+                                stack_ports.append(host_port)
+                    except (yaml.YAMLError, OSError):
+                        pass
+                stacks_summary.append(
+                    {
+                        "name": sr["name"],
+                        "color": sr.get("color") or "#888888",
+                        "ports": stack_ports,
+                        "web_ui_ports": sr.get("web_ui_ports") or [],
+                    }
+                )
+            data["port_to_stack"] = port_to_stack
+            data["stacks_summary"] = stacks_summary
+        except Exception:
+            data["port_to_stack"] = {}
+            data["stacks_summary"] = []
+
         return jsonify({"success": True, "data": data})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -544,6 +596,66 @@ def api_network_bandwidth():
                 },
             }
         )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@system_operations_bp.route("/api/stacks/<stack_name>/web-ui-ports", methods=["PUT"])
+@login_required
+@admin_required
+def api_update_web_ui_ports(stack_name):
+    """Update web UI port definitions for a stack"""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            "SELECT id, name, is_system FROM docker_stacks WHERE name = %s",
+            (stack_name,),
+        )
+        stack = cur.fetchone()
+        if not stack:
+            cur.close()
+            conn.close()
+            return jsonify({"success": False, "error": "Stack not found"}), 404
+
+        # System stack requires re-auth
+        if stack["is_system"]:
+            reauth = require_reauth()
+            if reauth is not None:
+                cur.close()
+                conn.close()
+                return reauth
+
+        data = request.get_json() or {}
+        web_ui_ports = data.get("web_ui_ports", [])
+
+        # Validate structure
+        if not isinstance(web_ui_ports, list):
+            cur.close()
+            conn.close()
+            return jsonify({"success": False, "error": "web_ui_ports must be an array"}), 400
+
+        for entry in web_ui_ports:
+            if not isinstance(entry, dict) or "port" not in entry:
+                cur.close()
+                conn.close()
+                return jsonify({"success": False, "error": "Each entry must have a 'port' field"}), 400
+            if not isinstance(entry["port"], int):
+                cur.close()
+                conn.close()
+                return jsonify({"success": False, "error": "Port must be an integer"}), 400
+
+        cur.execute(
+            "UPDATE docker_stacks SET web_ui_ports = %s WHERE name = %s",
+            (Json(web_ui_ports), stack_name),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        audit_log("update_web_ui_ports", stack_name, {"web_ui_ports": web_ui_ports})
+
+        return jsonify({"success": True, "web_ui_ports": web_ui_ports})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 

@@ -2053,7 +2053,8 @@
                 <span class="storage-overview-label">Health</span>
                 <span class="storage-overview-value" id="storage-health">--</span>
             </div>
-            <button class="action-btn" onclick="loadStorageData()" style="margin-left: auto; padding: 6px 14px;">
+            <span id="host-queue-status" style="margin-left: auto; font-size: 0.75rem; display: flex; align-items: center; gap: 6px;"></span>
+            <button class="action-btn" onclick="loadStorageData()" style="padding: 6px 14px;">
                 <i data-lucide="refresh-cw" style="width:14px; height:14px; display:inline-block; vertical-align:middle; margin-right:4px;"></i>
                 Refresh
             </button>
@@ -2823,6 +2824,14 @@
         </div>
         <div class="modal-footer">
             <button class="btn btn-ghost" onclick="closeLvmExtendModal()">Close</button>
+            <button class="btn btn-primary" id="executeLvmExtendBtn" onclick="executeLvmExtend()">
+                <i data-lucide="play" style="width:14px; height:14px; display:inline-block; vertical-align:middle; margin-right:4px;"></i>
+                Execute on Host
+            </button>
+            <button class="btn btn-primary" id="executeLvmExtendAllBtn" onclick="executeLvmExtendAll()" style="background: var(--archie-orange); border-color: var(--archie-orange);">
+                <i data-lucide="maximize-2" style="width:14px; height:14px; display:inline-block; vertical-align:middle; margin-right:4px;"></i>
+                Use All Free Space
+            </button>
             <button class="btn btn-primary" id="refreshAfterExtend" onclick="refreshAfterLvmExtend()">
                 <i data-lucide="refresh-cw" style="width:14px; height:14px; display:inline-block; vertical-align:middle; margin-right:4px;"></i>
                 Refresh Status
@@ -2952,6 +2961,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('System Operations initialized');
 });
 
+let storageTabLoaded = false;
+
 function initTabs() {
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -2959,6 +2970,16 @@ function initTabs() {
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             btn.classList.add('active');
             document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+            // Load storage data when entering the tab, reset flag when leaving
+            if (btn.dataset.tab === 'storage') {
+                if (!storageTabLoaded) {
+                    storageTabLoaded = true;
+                    loadStorageData();
+                }
+            } else {
+                // Reset so returning to storage tab re-fetches fresh data
+                storageTabLoaded = false;
+            }
             lucide.createIcons();
         });
     });
@@ -3048,8 +3069,10 @@ async function refreshAll() {
             loadProcesses(),
             loadServices(),
             loadDocker(),
-            loadNetwork(),
-            loadStorageData()
+            loadNetwork()
+            // Storage excluded from auto-refresh: data changes rarely and
+            // re-rendering destroys treemap selection/action panel state.
+            // Storage loads on tab activation and manual Refresh button.
         ]);
         // Log any failures
         results.forEach((result, i) => {
@@ -3178,7 +3201,7 @@ async function loadHostData() {
                                     free_gb: child.usage.free_gb || 0,
                                     usage_percent: child.usage.percent || 0,
                                     is_lvm: isLvm,
-                                    lvm_info: isLvm ? { lv_name: child.name, vg_name: '', can_extend: false, vg_free_gb: 0 } : null
+                                    lvm_info: isLvm ? { lv_name: child.lv_name || child.name, vg_name: child.vg_name || '', can_extend: false, vg_free_gb: 0 } : null
                                 });
                             }
                         }
@@ -3399,6 +3422,7 @@ function updateDashboard(data) {
                     partList.appendChild(row);
 
                     // Show LVM children under partition
+                    var childrenTotalGb = 0;
                     (part.children || []).forEach(function(child) {
                         var childRow = document.createElement('div');
                         childRow.style.cssText = 'display: flex; justify-content: space-between; padding: 2px 0 2px 12px; color: var(--archie-text-secondary);';
@@ -3408,6 +3432,7 @@ function updateDashboard(data) {
                         var cInfo = document.createElement('span');
                         cInfo.style.color = 'var(--archie-text-muted)';
                         var childSizeGb = child.size_gb || 0;
+                        childrenTotalGb += childSizeGb;
                         var cText = formatDiskSize(childSizeGb) + ' ' + (child.fstype || '');
                         if (child.mountpoint) cText += ' @ ' + child.mountpoint;
                         if (child.usage) cText += ' (' + (child.usage.percent || 0).toFixed(0) + '% used)';
@@ -3416,6 +3441,24 @@ function updateDashboard(data) {
                         childRow.appendChild(cInfo);
                         partList.appendChild(childRow);
                     });
+
+                    // Show VG free space for LVM parent partitions
+                    if (part.fstype === 'LVM2_member' && part.children && part.children.length > 0) {
+                        var vgFreeGb = Math.max(0, (part.size_gb || 0) - childrenTotalGb);
+                        if (vgFreeGb > 0.1) {
+                            var freeRow = document.createElement('div');
+                            freeRow.style.cssText = 'display: flex; justify-content: space-between; padding: 2px 0 2px 12px; color: var(--archie-text-secondary);';
+                            var fName = document.createElement('span');
+                            fName.style.cssText = 'font-weight: 500; color: var(--archie-green);';
+                            fName.textContent = '\u2514 VG Free';
+                            var fInfo = document.createElement('span');
+                            fInfo.style.cssText = 'color: var(--archie-green);';
+                            fInfo.textContent = formatDiskSize(vgFreeGb) + ' unallocated';
+                            freeRow.appendChild(fName);
+                            freeRow.appendChild(fInfo);
+                            partList.appendChild(freeRow);
+                        }
+                    }
                 });
                 driveDiv.appendChild(partList);
             }
@@ -3593,6 +3636,8 @@ async function loadStorageData() {
     } catch (e) {
         console.error('Storage data error:', e);
     }
+    // Check host command queue status
+    checkHostCommandQueue();
 }
 
 function formatSizeGB(gb) {
@@ -3701,20 +3746,33 @@ function renderStorageTreemap(disks, lvm, vgFree) {
                 });
 
                 // Show VG free space if available
-                // Try to find VG name from LVM data
+                // Try to find VG name from LVM PV data or from child vg_name
+                let vgFreeName = null;
+                let vgFreeGb = 0;
                 if (lvm && lvm.pvs) {
                     const pv = lvm.pvs.find(p => p.pv_name === part.device);
-                    if (pv && vgFree[pv.vg_name] && vgFree[pv.vg_name].free_gb > 0) {
-                        const freeGb = vgFree[pv.vg_name].free_gb;
-                        const freePct = totalBytes > 0 ? (freeGb / disk.size_gb * 100) : 5;
-                        html += '<div class="treemap-partition lvm-free"';
-                        html += ' style="flex: ' + Math.max(freePct, 2) + ';"';
-                        html += ' onclick="selectPartition(this, \'' + disk.name + '\', \'vg-free-' + pv.vg_name + '\', \'lvm-free\')"';
-                        html += ' title="VG Free Space: ' + formatSizeGB(freeGb) + '">';
-                        html += '<span class="treemap-partition-label">Free</span>';
-                        html += '<span class="treemap-partition-size">' + formatSizeGB(freeGb) + '</span>';
-                        html += '</div>';
+                    if (pv && vgFree[pv.vg_name]) {
+                        vgFreeName = pv.vg_name;
+                        vgFreeGb = vgFree[pv.vg_name].free_gb || 0;
                     }
+                }
+                // Fallback: derive VG name from child's vg_name field
+                if (!vgFreeName && part.children.length > 0) {
+                    const childVg = part.children[0].vg_name;
+                    if (childVg && vgFree[childVg]) {
+                        vgFreeName = childVg;
+                        vgFreeGb = vgFree[childVg].free_gb || 0;
+                    }
+                }
+                if (vgFreeName && vgFreeGb > 0) {
+                    const freePct = totalBytes > 0 ? (vgFreeGb / disk.size_gb * 100) : 5;
+                    html += '<div class="treemap-partition lvm-free"';
+                    html += ' style="flex: ' + Math.max(freePct, 2) + ';"';
+                    html += ' onclick="selectPartition(this, \'' + disk.name + '\', \'vg-free-' + vgFreeName + '\', \'lvm-free\')"';
+                    html += ' title="VG Free Space: ' + formatSizeGB(vgFreeGb) + '">';
+                    html += '<span class="treemap-partition-label">Free</span>';
+                    html += '<span class="treemap-partition-size">' + formatSizeGB(vgFreeGb) + '</span>';
+                    html += '</div>';
                 }
             } else {
                 // Regular partition (no LVM children)
@@ -3990,12 +4048,23 @@ function renderPartitionActions(disk, part) {
     if (isMounted) {
         html += '<button class="action-btn-storage" onclick="browsePartition(\'' + part.mountpoint.replace(/'/g, "\\'") + '\')"><i data-lucide="folder-open" style="width:14px;height:14px;"></i> Browse Files</button>';
         if (isLvm) {
-            html += '<button class="action-btn-storage" onclick="openLvmExtendModal(\'' + (part.name || '') + '\', \'' + (part.vg_name || '') + '\', ' + (part.size_gb || 0) + ', 0)"><i data-lucide="expand" style="width:14px;height:14px;"></i> Extend Volume</button>';
+            // Look up VG name from partition data (populated by host_monitor) or LVM data
+            const extVgName = part.vg_name || '';
+            const extLvName = part.lv_name || part.name || '';
+            // Look up VG free space from storageData.vg_free or hostLvmData
+            let extFreeGb = 0;
+            if (extVgName && storageData?.vg_free?.[extVgName]) {
+                extFreeGb = storageData.vg_free[extVgName].free_gb || 0;
+            } else if (extVgName && window.hostLvmData?.vgs) {
+                const vgEntry = window.hostLvmData.vgs.find(v => v.vg_name === extVgName);
+                if (vgEntry) extFreeGb = vgEntry.vg_free_gb || 0;
+            }
+            html += '<button class="action-btn-storage" onclick="openLvmExtendModal(\'' + extLvName.replace(/'/g, "\\'") + '\', \'' + extVgName.replace(/'/g, "\\'") + '\', ' + (part.size_gb || 0) + ', ' + extFreeGb + ')"><i data-lucide="expand" style="width:14px;height:14px;"></i> Extend Volume</button>';
         }
-        html += '<button class="action-btn-storage destructive" onclick="requestReauth(\'Unmount ' + (part.device || '') + '\', function() { showToast(\'info\', \'Unmount not yet implemented via API\'); })"><i data-lucide="hard-drive-download" style="width:14px;height:14px;"></i> Unmount (Re-auth)</button>';
+        html += '<button class="action-btn-storage destructive" onclick="promptAndUnmount(\'' + (part.device || '').replace(/'/g, "\\'") + '\')"><i data-lucide="hard-drive-download" style="width:14px;height:14px;"></i> Unmount</button>';
     } else {
-        html += '<button class="action-btn-storage" onclick="showToast(\'info\', \'Mount wizard coming soon\')"><i data-lucide="arrow-down-to-line" style="width:14px;height:14px;"></i> Mount</button>';
-        html += '<button class="action-btn-storage destructive" onclick="requestReauth(\'Format ' + (part.device || '') + '\', function() { showToast(\'info\', \'Format not yet implemented via API\'); })"><i data-lucide="hard-drive" style="width:14px;height:14px;"></i> Format (Re-auth)</button>';
+        html += '<button class="action-btn-storage" onclick="promptAndMount(\'' + (part.device || '').replace(/'/g, "\\'") + '\')"><i data-lucide="arrow-down-to-line" style="width:14px;height:14px;"></i> Mount</button>';
+        html += '<button class="action-btn-storage destructive" onclick="promptAndFormat(\'' + (part.device || '').replace(/'/g, "\\'") + '\')"><i data-lucide="hard-drive" style="width:14px;height:14px;"></i> Format (Re-auth)</button>';
     }
 
     // Register as managed mount
@@ -4022,8 +4091,8 @@ function renderLvmFreeActions(disk, vgRef) {
     html += '<p style="color: var(--archie-text-secondary); font-size: 0.85rem; margin-bottom: 16px;">This free space can be used to create new logical volumes or extend existing ones.</p>';
 
     html += '<div class="action-buttons">';
-    html += '<button class="action-btn-storage" onclick="showToast(\'info\', \'Create LV wizard coming soon\')"><i data-lucide="plus" style="width:14px;height:14px;"></i> Create New Logical Volume</button>';
-    html += '<button class="action-btn-storage" onclick="showToast(\'info\', \'Extend existing LV from Storage tab coming soon\')"><i data-lucide="expand" style="width:14px;height:14px;"></i> Extend Existing LV</button>';
+    html += '<button class="action-btn-storage" onclick="promptAndCreateLV(\'' + vgName.replace(/'/g, "\\'") + '\', ' + freeGb + ')"><i data-lucide="plus" style="width:14px;height:14px;"></i> Create New Logical Volume</button>';
+    html += '<button class="action-btn-storage" onclick="showToast(\'info\', \'Select an existing LV from the treemap, then use Extend Volume\')"><i data-lucide="expand" style="width:14px;height:14px;"></i> Extend Existing LV</button>';
     html += '</div>';
 
     body.innerHTML = html;
@@ -4043,7 +4112,7 @@ function renderUnallocatedActions(disk) {
     html += '<p style="color: var(--archie-text-secondary); font-size: 0.85rem; margin-bottom: 16px;">This space is not assigned to any partition. You can create a new partition or extend an existing LVM volume group.</p>';
 
     html += '<div class="action-buttons">';
-    html += '<button class="action-btn-storage" onclick="showToast(\'info\', \'Partition creation wizard coming soon\')"><i data-lucide="plus-circle" style="width:14px;height:14px;"></i> Create New Partition</button>';
+    html += '<button class="action-btn-storage" onclick="promptAndCreatePartition(\'' + (disk.device || '').replace(/'/g, "\\'") + '\', ' + (disk.unallocated_gb || 0) + ')"><i data-lucide="plus-circle" style="width:14px;height:14px;"></i> Create New Partition</button>';
     html += '</div>';
 
     body.innerHTML = html;
@@ -5833,6 +5902,300 @@ async function refreshAfterLvmExtend() {
     await loadDisks();
 
     showToast('success', 'LVM status refreshed. Check the updated values.');
+}
+
+// ===== Host Command Queue Functions =====
+
+async function submitHostCommand(commandType, params, options) {
+    options = options || {};
+    var successCallback = options.successCallback || null;
+    var label = options.label || commandType;
+    var timeout = options.timeout || 120000;
+
+    showToast('info', 'Submitting ' + label + '...');
+
+    try {
+        var submitRes = await fetch('/tools/system-operations/api/host-command/submit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command_type: commandType, params: params, confirm: true })
+        });
+        var submitJson = await submitRes.json();
+
+        if (submitJson.requires_reauth) {
+            requestReauth(label, function() {
+                submitHostCommand(commandType, params, options);
+            });
+            return;
+        }
+
+        if (!submitJson.success) {
+            showToast('error', submitJson.error || 'Failed to submit command');
+            return;
+        }
+
+        var commandId = submitJson.command_id;
+        showToast('info', 'Command submitted. Waiting for host execution...');
+
+        var deadline = Date.now() + timeout;
+        var pollInterval = 2000;
+
+        var poll = async function() {
+            if (Date.now() > deadline) {
+                showToast('error', label + ' timed out. The host may still be processing.');
+                return;
+            }
+            try {
+                var resultRes = await fetch('/tools/system-operations/api/host-command/' + commandId + '/result');
+                if (resultRes.status === 200) {
+                    var resultJson = await resultRes.json();
+                    var cmdResult = (resultJson.data && resultJson.data.result) ? resultJson.data.result : {};
+                    if (cmdResult.success) {
+                        showToast('success', cmdResult.message || (label + ' completed successfully'));
+                    } else {
+                        showToast('error', cmdResult.error || (label + ' failed'));
+                    }
+                    if (successCallback) successCallback(cmdResult);
+                    return;
+                } else if (resultRes.status === 202) {
+                    setTimeout(poll, pollInterval);
+                } else {
+                    showToast('error', label + ': unexpected status ' + resultRes.status);
+                }
+            } catch (pollErr) {
+                showToast('error', label + ': polling error - ' + pollErr.message);
+            }
+        };
+        poll();
+    } catch (err) {
+        showToast('error', label + ': ' + err.message);
+    }
+}
+
+function executeLvmExtend() {
+    if (!currentExtendLv) return;
+    var lvName = currentExtendLv.lvName;
+    var vgName = currentExtendLv.vgName;
+    var vgFree = currentExtendLv.vgFree;
+    var extendSize = parseInt(document.getElementById('extendSizeInput').value) || 0;
+
+    if (extendSize <= 0 || extendSize > vgFree) {
+        showToast('error', 'Invalid size. Enter between 1 and ' + Math.floor(vgFree) + ' GB.');
+        return;
+    }
+
+    showConfirmModal('Execute LVM Extend',
+        'Extend ' + vgName + '/' + lvName + ' by ' + extendSize + ' GB on the host? This will resize the filesystem automatically.',
+        function() {
+            closeLvmExtendModal();
+            submitHostCommand('lvm_extend', {
+                vg_name: vgName,
+                lv_name: lvName,
+                size_gb: extendSize
+            }, {
+                label: 'Extend ' + lvName,
+                successCallback: function() { loadStorageData(); loadOverview(); }
+            });
+        }
+    );
+}
+
+function executeLvmExtendAll() {
+    if (!currentExtendLv) return;
+    var lvName = currentExtendLv.lvName;
+    var vgName = currentExtendLv.vgName;
+    var vgFree = currentExtendLv.vgFree;
+
+    if (vgFree <= 0) {
+        showToast('error', 'No free space available in volume group');
+        return;
+    }
+
+    showConfirmModal('Use All Free Space',
+        'Extend ' + vgName + '/' + lvName + ' using ALL ' + vgFree + ' GB of free space? This will resize the filesystem automatically.',
+        function() {
+            closeLvmExtendModal();
+            submitHostCommand('lvm_extend', {
+                vg_name: vgName,
+                lv_name: lvName,
+                extend_all: true
+            }, {
+                label: 'Extend ' + lvName + ' (all free space)',
+                successCallback: function() { loadStorageData(); loadOverview(); }
+            });
+        }
+    );
+}
+
+function promptAndMount(device) {
+    var mountpoint = prompt('Enter mountpoint (e.g., /mnt/data):');
+    if (!mountpoint) return;
+
+    if (!/^\/[a-zA-Z0-9_\/.\-]+$/.test(mountpoint)) {
+        showToast('error', 'Invalid mountpoint. Must be an absolute path.');
+        return;
+    }
+
+    showConfirmModal('Mount Device',
+        'Mount ' + device + ' at ' + mountpoint + '?',
+        function() {
+            submitHostCommand('disk_mount', {
+                device: device,
+                mountpoint: mountpoint
+            }, {
+                label: 'Mount ' + device,
+                successCallback: function() { loadStorageData(); }
+            });
+        }
+    );
+}
+
+function promptAndUnmount(device) {
+    showConfirmModal('Unmount Device',
+        'Unmount ' + device + '? Make sure no processes are using this device.',
+        function() {
+            submitHostCommand('disk_unmount', {
+                device: device
+            }, {
+                label: 'Unmount ' + device,
+                successCallback: function() { loadStorageData(); }
+            });
+        }
+    );
+}
+
+function promptAndFormat(device) {
+    var fstype = prompt('Enter filesystem type (ext4, xfs, btrfs, vfat):', 'ext4');
+    if (!fstype) return;
+
+    if (!/^(ext4|ext3|ext2|xfs|btrfs|vfat|ntfs)$/.test(fstype)) {
+        showToast('error', 'Invalid filesystem type.');
+        return;
+    }
+
+    var label = prompt('Optional label (leave blank for none):', '');
+
+    requestReauth('Format ' + device, function() {
+        showConfirmModal('FORMAT DEVICE',
+            'WARNING: This will ERASE ALL DATA on ' + device + '! Format as ' + fstype + (label ? ' with label "' + label + '"' : '') + '?',
+            function() {
+                var params = { device: device, fstype: fstype };
+                if (label) params.label = label;
+
+                submitHostCommand('disk_format', params, {
+                    label: 'Format ' + device,
+                    successCallback: function() { loadStorageData(); }
+                });
+            }
+        );
+    });
+}
+
+function promptAndCreateLV(vgName, freeGb) {
+    var lvName = prompt('Logical volume name (e.g., data-lv):');
+    if (!lvName) return;
+
+    if (!/^[a-zA-Z0-9_\-]+$/.test(lvName)) {
+        showToast('error', 'Invalid LV name. Use only letters, numbers, hyphens, and underscores.');
+        return;
+    }
+
+    var sizeStr = prompt('Size in GB (max ' + Math.floor(freeGb) + '):', Math.min(10, Math.floor(freeGb)));
+    if (!sizeStr) return;
+    var sizeGb = parseFloat(sizeStr);
+    if (isNaN(sizeGb) || sizeGb <= 0 || sizeGb > freeGb) {
+        showToast('error', 'Invalid size. Must be between 1 and ' + Math.floor(freeGb) + ' GB.');
+        return;
+    }
+
+    var fstype = prompt('Filesystem type (ext4, xfs, btrfs):', 'ext4');
+    if (!fstype) return;
+    if (!/^(ext4|ext3|ext2|xfs|btrfs|vfat)$/.test(fstype)) {
+        showToast('error', 'Invalid filesystem type.');
+        return;
+    }
+
+    var mountpoint = prompt('Mount point (leave blank for none):', '');
+
+    showConfirmModal('Create Logical Volume',
+        'Create LV ' + lvName + ' in VG ' + vgName + '? Size: ' + sizeGb + ' GB, FS: ' + fstype + (mountpoint ? ', Mount: ' + mountpoint : ''),
+        function() {
+            var params = { vg_name: vgName, lv_name: lvName, size_gb: sizeGb, fstype: fstype };
+            if (mountpoint && mountpoint.startsWith('/')) params.mountpoint = mountpoint;
+
+            submitHostCommand('lvm_create', params, {
+                label: 'Create LV ' + lvName,
+                successCallback: function() { loadStorageData(); }
+            });
+        }
+    );
+}
+
+function promptAndCreatePartition(device, unallocatedGb) {
+    var sizeStr = prompt('Partition size in GB (max ' + Math.floor(unallocatedGb) + '):', Math.floor(unallocatedGb));
+    if (!sizeStr) return;
+    var sizeGb = parseFloat(sizeStr);
+    if (isNaN(sizeGb) || sizeGb <= 0 || sizeGb > unallocatedGb) {
+        showToast('error', 'Invalid size. Must be between 1 and ' + Math.floor(unallocatedGb) + ' GB.');
+        return;
+    }
+
+    requestReauth('Create partition on ' + device, function() {
+        showConfirmModal('Create Partition',
+            'Create a ' + sizeGb + ' GB partition on ' + device + '? This modifies the disk partition table.',
+            function() {
+                submitHostCommand('partition_create', {
+                    device: device,
+                    size_gb: sizeGb
+                }, {
+                    label: 'Create partition on ' + device,
+                    successCallback: function() { loadStorageData(); }
+                });
+            }
+        );
+    });
+}
+
+async function checkHostCommandQueue() {
+    try {
+        var res = await fetch('/tools/system-operations/api/host-command/status');
+        var json = await res.json();
+        var el = document.getElementById('host-queue-status');
+        if (!el) return;
+
+        if (json.available) {
+            var statusText = 'Host Queue Ready';
+            el.textContent = '';
+            var dot = document.createElement('span');
+            dot.style.cssText = 'display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--archie-green);';
+            el.appendChild(dot);
+            var txt = document.createElement('span');
+            txt.style.color = 'var(--archie-green)';
+            txt.textContent = ' Host Queue Ready';
+            el.appendChild(txt);
+            if (json.pending_count > 0) {
+                var pending = document.createElement('span');
+                pending.style.color = 'var(--archie-orange)';
+                pending.textContent = ' (' + json.pending_count + ' pending)';
+                el.appendChild(pending);
+            }
+        } else {
+            el.textContent = '';
+            var dot = document.createElement('span');
+            dot.style.cssText = 'display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--archie-text-muted);';
+            el.appendChild(dot);
+            var txt = document.createElement('span');
+            txt.style.color = 'var(--archie-text-muted)';
+            txt.textContent = ' Host Queue Offline';
+            el.appendChild(txt);
+        }
+    } catch (e) {
+        var el = document.getElementById('host-queue-status');
+        if (el) {
+            el.textContent = 'Queue N/A';
+            el.style.color = 'var(--archie-text-muted)';
+        }
+    }
 }
 
 function showToast(type, message) {

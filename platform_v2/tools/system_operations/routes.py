@@ -13,6 +13,14 @@ from datetime import datetime
 
 from . import system_operations_bp
 from .system_service import get_system_service
+from .host_command_client import (
+    submit_host_command,
+    submit_and_wait,
+    get_queue_status,
+    get_result as get_command_result,
+    HostCommandTimeout,
+    HostCommandQueueUnavailable,
+)
 import json as json_lib
 import time as time_mod
 
@@ -1972,7 +1980,7 @@ def api_stack_logs(stack_name):
 @login_required
 @admin_required
 def api_mount_disk(device):
-    """Mount a disk"""
+    """Mount a disk via host command queue"""
     try:
         data = request.get_json() or {}
 
@@ -1983,27 +1991,36 @@ def api_mount_disk(device):
         if not mountpoint:
             return jsonify({"success": False, "error": "Mountpoint required"}), 400
 
-        # Execute mount
-        import subprocess
+        params = {"device": f"/dev/{device}", "mountpoint": mountpoint}
+        if data.get("fstype"):
+            params["fstype"] = data["fstype"]
 
-        result = subprocess.run(
-            ["sudo", "mount", f"/dev/{device}", mountpoint], capture_output=True, text=True, timeout=30
-        )
+        user_id = current_user.id if current_user.is_authenticated else None
+        username = getattr(current_user, "username", "unknown")
 
-        success = result.returncode == 0
+        result_data = submit_and_wait("disk_mount", params, timeout=60, submitted_by=username, user_id=user_id)
+        cmd_result = result_data.get("result", {})
+
         audit_log(
             action_type="disk_mount",
             target=device,
-            details={"mountpoint": mountpoint},
-            success=success,
-            error_message=result.stderr if not success else None,
+            details={"mountpoint": mountpoint, "command_id": result_data.get("command_id")},
+            success=cmd_result.get("success", False),
+            error_message=cmd_result.get("error"),
         )
 
-        if success:
-            return jsonify({"success": True, "message": f"Mounted /dev/{device} at {mountpoint}"})
+        if cmd_result.get("success"):
+            return jsonify(
+                {"success": True, "message": cmd_result.get("message", f"Mounted /dev/{device} at {mountpoint}")}
+            )
         else:
-            return jsonify({"success": False, "error": result.stderr}), 500
+            return jsonify({"success": False, "error": cmd_result.get("error", "mount failed")}), 500
 
+    except HostCommandQueueUnavailable as e:
+        return jsonify({"success": False, "error": str(e), "queue_unavailable": True}), 503
+    except HostCommandTimeout as e:
+        audit_log("disk_mount", device, success=False, error_message=str(e))
+        return jsonify({"success": False, "error": str(e)}), 504
     except Exception as e:
         audit_log("disk_mount", device, success=False, error_message=str(e))
         return jsonify({"success": False, "error": str(e)}), 500
@@ -2013,31 +2030,41 @@ def api_mount_disk(device):
 @login_required
 @admin_required
 def api_unmount_disk(device):
-    """Unmount a disk"""
+    """Unmount a disk via host command queue"""
     try:
         data = request.get_json() or {}
 
         if not data.get("confirm"):
             return jsonify({"success": False, "error": "Confirmation required", "requires_confirm": True}), 400
 
-        # Execute unmount
-        import subprocess
+        params = {"device": f"/dev/{device}"}
+        if data.get("force"):
+            params["force"] = True
 
-        result = subprocess.run(["sudo", "umount", f"/dev/{device}"], capture_output=True, text=True, timeout=30)
+        user_id = current_user.id if current_user.is_authenticated else None
+        username = getattr(current_user, "username", "unknown")
 
-        success = result.returncode == 0
+        result_data = submit_and_wait("disk_unmount", params, timeout=60, submitted_by=username, user_id=user_id)
+        cmd_result = result_data.get("result", {})
+
         audit_log(
             action_type="disk_unmount",
             target=device,
-            success=success,
-            error_message=result.stderr if not success else None,
+            details={"command_id": result_data.get("command_id")},
+            success=cmd_result.get("success", False),
+            error_message=cmd_result.get("error"),
         )
 
-        if success:
-            return jsonify({"success": True, "message": f"Unmounted /dev/{device}"})
+        if cmd_result.get("success"):
+            return jsonify({"success": True, "message": cmd_result.get("message", f"Unmounted /dev/{device}")})
         else:
-            return jsonify({"success": False, "error": result.stderr}), 500
+            return jsonify({"success": False, "error": cmd_result.get("error", "umount failed")}), 500
 
+    except HostCommandQueueUnavailable as e:
+        return jsonify({"success": False, "error": str(e), "queue_unavailable": True}), 503
+    except HostCommandTimeout as e:
+        audit_log("disk_unmount", device, success=False, error_message=str(e))
+        return jsonify({"success": False, "error": str(e)}), 504
     except Exception as e:
         audit_log("disk_unmount", device, success=False, error_message=str(e))
         return jsonify({"success": False, "error": str(e)}), 500
@@ -2052,7 +2079,7 @@ def api_unmount_disk(device):
 @login_required
 @admin_required
 def api_extend_lvm(vg_name, lv_name):
-    """Extend an LVM logical volume"""
+    """Extend an LVM logical volume via host command queue"""
     try:
         data = request.get_json() or {}
 
@@ -2066,20 +2093,51 @@ def api_extend_lvm(vg_name, lv_name):
         if not size_gb and not extend_all:
             return jsonify({"success": False, "error": "Must specify size_gb or extend_all"}), 400
 
-        service = get_system_service()
-        result = service.extend_lvm(vg_name, lv_name, size_gb=size_gb, extend_all=extend_all)
+        params = {"vg_name": vg_name, "lv_name": lv_name}
+        if extend_all:
+            params["extend_all"] = True
+        elif size_gb:
+            params["size_gb"] = size_gb
+
+        user_id = current_user.id if current_user.is_authenticated else None
+        username = getattr(current_user, "username", "unknown")
+
+        result_data = submit_and_wait("lvm_extend", params, timeout=120, submitted_by=username, user_id=user_id)
+        cmd_result = result_data.get("result", {})
 
         # Audit log
         audit_id = audit_log(
             action_type="lvm_extend",
             target=f"{vg_name}/{lv_name}",
-            details={"size_gb": size_gb, "extend_all": extend_all},
-            success=result["success"],
-            error_message=result.get("error"),
+            details={"size_gb": size_gb, "extend_all": extend_all, "command_id": result_data.get("command_id")},
+            success=cmd_result.get("success", False),
+            error_message=cmd_result.get("error"),
         )
 
-        result["audit_id"] = audit_id
-        return jsonify(result)
+        cmd_result["audit_id"] = audit_id
+        return jsonify(cmd_result)
+
+    except HostCommandQueueUnavailable:
+        # Fallback to direct execution (container-side) if queue is unavailable
+        try:
+            service = get_system_service()
+            result = service.extend_lvm(vg_name, lv_name, size_gb=size_gb, extend_all=extend_all)
+            result["fallback"] = True
+            audit_id = audit_log(
+                action_type="lvm_extend",
+                target=f"{vg_name}/{lv_name}",
+                details={"size_gb": size_gb, "extend_all": extend_all, "fallback": True},
+                success=result["success"],
+                error_message=result.get("error"),
+            )
+            result["audit_id"] = audit_id
+            return jsonify(result)
+        except Exception as inner_e:
+            audit_log("lvm_extend", f"{vg_name}/{lv_name}", success=False, error_message=str(inner_e))
+            return jsonify({"success": False, "error": str(inner_e)}), 500
+    except HostCommandTimeout as e:
+        audit_log("lvm_extend", f"{vg_name}/{lv_name}", success=False, error_message=str(e))
+        return jsonify({"success": False, "error": str(e)}), 504
     except Exception as e:
         audit_log("lvm_extend", f"{vg_name}/{lv_name}", success=False, error_message=str(e))
         return jsonify({"success": False, "error": str(e)}), 500
@@ -2094,6 +2152,112 @@ def api_lvm_info():
         service = get_system_service()
         data = service._get_lvm_info()
         return jsonify({"success": True, "data": data})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# HOST COMMAND QUEUE ENDPOINTS
+# ============================================================================
+
+# Commands that require re-authentication before submission
+DANGEROUS_COMMAND_TYPES = {"lvm_shrink", "disk_format", "partition_create", "pv_create_vg_extend"}
+
+
+@system_operations_bp.route("/api/host-command/status")
+@login_required
+@admin_required
+def api_host_command_status():
+    """Get host command queue health status"""
+    try:
+        status = get_queue_status()
+        return jsonify({"success": True, **status})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@system_operations_bp.route("/api/host-command/submit", methods=["POST"])
+@login_required
+@admin_required
+def api_host_command_submit():
+    """Submit a command to the host command queue"""
+    try:
+        data = request.get_json() or {}
+        command_type = data.get("command_type")
+        params = data.get("params", {})
+        confirm = data.get("confirm", False)
+
+        if not command_type:
+            return jsonify({"success": False, "error": "command_type is required"}), 400
+
+        if not confirm:
+            return jsonify({"success": False, "error": "Confirmation required", "requires_confirm": True}), 400
+
+        # Dangerous commands require re-authentication
+        if command_type in DANGEROUS_COMMAND_TYPES:
+            reauth = require_reauth()
+            if reauth is not None:
+                return reauth
+
+        # Submit to queue
+        user_id = current_user.id if current_user.is_authenticated else None
+        username = getattr(current_user, "username", "unknown")
+        command_id = submit_host_command(
+            command_type,
+            params,
+            submitted_by=username,
+            user_id=user_id,
+        )
+
+        # Audit log
+        audit_log(
+            action_type=f"host_command_{command_type}",
+            target=command_type,
+            details={"command_id": command_id, "params": params},
+            success=True,
+        )
+
+        return jsonify({"success": True, "command_id": command_id})
+
+    except HostCommandQueueUnavailable as e:
+        return jsonify({"success": False, "error": str(e), "queue_unavailable": True}), 503
+    except Exception as e:
+        audit_log(
+            action_type="host_command_submit",
+            target=data.get("command_type", "unknown"),
+            success=False,
+            error_message=str(e),
+        )
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@system_operations_bp.route("/api/host-command/<command_id>/result")
+@login_required
+@admin_required
+def api_host_command_result(command_id):
+    """Poll for a host command result.
+    Returns 200 with result if completed, 202 if still pending, 404 if unknown."""
+    try:
+        # Validate command_id format (UUID)
+        import re as re_mod
+
+        if not re_mod.match(r"^[0-9a-f\-]{36}$", command_id):
+            return jsonify({"success": False, "error": "Invalid command ID format"}), 400
+
+        result = get_command_result(command_id)
+        if result is not None:
+            # Completed
+            return jsonify({"success": True, "status": "completed", "data": result})
+        else:
+            # Check if it's still pending
+            pending_path = os.path.join(
+                os.environ.get("ARCHIE_BASE_DIR", "/mnt/archie_brain"), "host_commands", "pending", f"{command_id}.json"
+            )
+            if os.path.exists(pending_path):
+                return jsonify({"success": True, "status": "pending"}), 202
+            else:
+                return jsonify({"success": False, "error": "Command not found", "status": "unknown"}), 404
+
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 

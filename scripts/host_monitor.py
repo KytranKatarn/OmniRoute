@@ -18,11 +18,25 @@ import os
 import subprocess
 import time
 import argparse
+import re
+import uuid
+import glob
 from datetime import datetime
 from pathlib import Path
 
 OUTPUT_FILE = '/mnt/archie_brain/host_monitor_data.json'
 BANDWIDTH_FILE = os.path.join(os.path.dirname(OUTPUT_FILE), 'bandwidth_history.json')
+
+# ============================================================================
+# COMMAND QUEUE CONSTANTS
+# ============================================================================
+
+COMMANDS_DIR = '/mnt/archie_brain/host_commands'
+PENDING_DIR = os.path.join(COMMANDS_DIR, 'pending')
+COMPLETED_DIR = os.path.join(COMMANDS_DIR, 'completed')
+COMMAND_LOG_FILE = os.path.join(COMMANDS_DIR, 'command_log.jsonl')
+COMMAND_MAX_AGE_SECONDS = 300  # 5 minutes
+COMPLETED_TTL_SECONDS = 3600  # 1 hour
 
 
 def run_command(cmd, timeout=10):
@@ -43,11 +57,34 @@ def run_command(cmd, timeout=10):
 
 
 def get_lvm_info():
-    """Get LVM volume group and logical volume information"""
+    """Get LVM volume group and logical volume information.
+
+    Tries sudo -n (non-interactive) first for full LVM data.
+    Falls back to deriving LVM info from lsblk if pvs/vgs/lvs fail
+    (e.g. running as non-root user without sudoers entry).
+    """
+    info = _get_lvm_info_direct()
+    if info:
+        return info
+
+    # Fallback: derive LVM info from lsblk data
+    return _derive_lvm_from_lsblk()
+
+
+def _get_lvm_info_direct():
+    """Try to get LVM info directly via pvs/vgs/lvs (with sudo -n fallback)"""
     info = {'vgs': [], 'lvs': [], 'pvs': []}
 
+    # Try both direct and sudo -n for each command
+    def try_lvm_cmd(cmd_args):
+        result = run_command(cmd_args)
+        if result:
+            return result
+        # Try with sudo -n (non-interactive, fails silently if no sudoers entry)
+        return run_command(['sudo', '-n'] + cmd_args)
+
     # Get Physical Volumes
-    output = run_command(['pvs', '--noheadings', '--units', 'g', '-o', 'pv_name,vg_name,pv_size,pv_free'])
+    output = try_lvm_cmd(['pvs', '--noheadings', '--units', 'g', '-o', 'pv_name,vg_name,pv_size,pv_free'])
     if output:
         for line in output.split('\n'):
             parts = line.split()
@@ -60,7 +97,7 @@ def get_lvm_info():
                 })
 
     # Get Volume Groups
-    output = run_command(['vgs', '--noheadings', '--units', 'g', '-o', 'vg_name,vg_size,vg_free'])
+    output = try_lvm_cmd(['vgs', '--noheadings', '--units', 'g', '-o', 'vg_name,vg_size,vg_free'])
     if output:
         for line in output.split('\n'):
             parts = line.split()
@@ -74,7 +111,7 @@ def get_lvm_info():
                 })
 
     # Get Logical Volumes
-    output = run_command(['lvs', '--noheadings', '--units', 'g', '-o', 'lv_name,vg_name,lv_size'])
+    output = try_lvm_cmd(['lvs', '--noheadings', '--units', 'g', '-o', 'lv_name,vg_name,lv_size'])
     if output:
         for line in output.split('\n'):
             parts = line.split()
@@ -87,6 +124,109 @@ def get_lvm_info():
                 })
 
     return info if (info['vgs'] or info['lvs'] or info['pvs']) else None
+
+
+def _derive_lvm_from_lsblk():
+    """Derive LVM info from lsblk data when pvs/vgs/lvs are unavailable.
+
+    lsblk tells us:
+    - A partition with fstype 'LVM2_member' is a PV
+    - Children with type 'lvm' are LVs (e.g. name 'ubuntu--vg-ubuntu--lv')
+    - Device mapper name format: 'vgname-lvname' (with -- for literal hyphens)
+    - VG total size ≈ PV partition size
+    - VG free = VG total - sum(LV sizes)
+    """
+    output = run_command(['lsblk', '-J', '-b', '-o', 'NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT,PKNAME'])
+    if not output:
+        return None
+
+    try:
+        data = json.loads(output)
+    except (json.JSONDecodeError, ValueError):
+        return None
+
+    info = {'vgs': [], 'lvs': [], 'pvs': []}
+    vg_map = {}  # vg_name -> {'size_bytes': ..., 'lv_total_bytes': ...}
+
+    def scan_devices(devices):
+        for device in devices:
+            # Look for LVM2_member partitions (these are PVs)
+            if device.get('fstype') == 'LVM2_member':
+                pv_size_bytes = int(device.get('size', 0))
+                pv_size_gb = round(pv_size_bytes / (1024**3), 2)
+                pv_device = f"/dev/{device['name']}"
+
+                # Parse children to find LVs and determine VG name
+                for child in device.get('children', []):
+                    if child.get('type') == 'lvm':
+                        vg_name, lv_name = _parse_dm_name(child['name'])
+                        if vg_name:
+                            lv_size_bytes = int(child.get('size', 0))
+                            lv_size_gb = round(lv_size_bytes / (1024**3), 2)
+
+                            info['lvs'].append({
+                                'lv_name': lv_name,
+                                'vg_name': vg_name,
+                                'lv_size_gb': lv_size_gb
+                            })
+
+                            if vg_name not in vg_map:
+                                vg_map[vg_name] = {'size_bytes': pv_size_bytes, 'lv_total_bytes': 0}
+                            vg_map[vg_name]['lv_total_bytes'] += lv_size_bytes
+
+                            # Add PV entry (once per VG)
+                            if not any(p['pv_name'] == pv_device for p in info['pvs']):
+                                pv_free_bytes = pv_size_bytes - vg_map[vg_name]['lv_total_bytes']
+                                info['pvs'].append({
+                                    'pv_name': pv_device,
+                                    'vg_name': vg_name,
+                                    'pv_size': f"{pv_size_gb}g",
+                                    'pv_free': f"{round(max(0, pv_free_bytes) / (1024**3), 2)}g"
+                                })
+
+            # Recurse into children
+            for child in device.get('children', []):
+                scan_devices([child])
+
+    scan_devices(data.get('blockdevices', []))
+
+    # Build VG entries from accumulated data
+    for vg_name, vg_data in vg_map.items():
+        vg_size_gb = round(vg_data['size_bytes'] / (1024**3), 2)
+        vg_free_gb = round(max(0, vg_data['size_bytes'] - vg_data['lv_total_bytes']) / (1024**3), 2)
+        info['vgs'].append({
+            'vg_name': vg_name,
+            'vg_size_gb': vg_size_gb,
+            'vg_free_gb': vg_free_gb
+        })
+
+    # Update PV free values now that we have final LV totals
+    for pv in info['pvs']:
+        vg_name = pv['vg_name']
+        if vg_name in vg_map:
+            pv_free_bytes = vg_map[vg_name]['size_bytes'] - vg_map[vg_name]['lv_total_bytes']
+            pv['pv_free'] = f"{round(max(0, pv_free_bytes) / (1024**3), 2)}g"
+
+    return info if (info['vgs'] or info['lvs'] or info['pvs']) else None
+
+
+def _parse_dm_name(dm_name):
+    """Parse device mapper name to extract VG and LV names.
+
+    Format: 'vgname-lvname' where literal hyphens in names are doubled.
+    Example: 'ubuntu--vg-ubuntu--lv' -> ('ubuntu-vg', 'ubuntu-lv')
+
+    Strategy: replace '--' with a placeholder, split on single '-',
+    then restore hyphens.
+    """
+    placeholder = '\x00'
+    escaped = dm_name.replace('--', placeholder)
+    parts = escaped.split('-', 1)
+    if len(parts) == 2:
+        vg_name = parts[0].replace(placeholder, '-')
+        lv_name = parts[1].replace(placeholder, '-')
+        return vg_name, lv_name
+    return None, None
 
 
 def get_raid_status():
@@ -380,14 +520,21 @@ def get_disk_layout():
 
                         # Check for LVM or other children
                         for grandchild in child.get('children', []):
-                            part_info['children'].append({
+                            child_entry = {
                                 'name': grandchild.get('name'),
                                 'device': f"/dev/mapper/{grandchild.get('name')}" if grandchild.get('type') == 'lvm' else f"/dev/{grandchild.get('name')}",
                                 'size_gb': round(int(grandchild.get('size', 0)) / (1024**3), 2),
                                 'type': grandchild.get('type'),
                                 'fstype': grandchild.get('fstype'),
                                 'mountpoint': grandchild.get('mountpoint')
-                            })
+                            }
+                            # Parse VG/LV names from device mapper name for LVM children
+                            if grandchild.get('type') == 'lvm':
+                                vg_name, lv_name = _parse_dm_name(grandchild.get('name', ''))
+                                if vg_name:
+                                    child_entry['vg_name'] = vg_name
+                                    child_entry['lv_name'] = lv_name
+                            part_info['children'].append(child_entry)
 
                         disk_info['partitions'].append(part_info)
 
@@ -948,6 +1095,534 @@ def get_container_bandwidth():
     return containers
 
 
+# ============================================================================
+# COMMAND QUEUE — run_command_full
+# ============================================================================
+
+
+def run_command_full(cmd, timeout=120):
+    """Run a command and return full result dict with returncode, stdout, stderr.
+    cmd must be a list (no shell=True) to prevent injection."""
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            shell=False
+        )
+        return {
+            'returncode': result.returncode,
+            'stdout': result.stdout,
+            'stderr': result.stderr
+        }
+    except subprocess.TimeoutExpired:
+        return {'returncode': -1, 'stdout': '', 'stderr': f'Command timed out after {timeout}s'}
+    except Exception as e:
+        return {'returncode': -1, 'stdout': '', 'stderr': str(e)}
+
+
+# ============================================================================
+# COMMAND REGISTRY — whitelist of allowed command types
+# ============================================================================
+
+# Param validators: dict of param_name -> {required: bool, regex: str, validator: callable}
+_DEV_PATH_RE = r'^/dev/[a-zA-Z0-9_/\-]+$'
+_MOUNT_PATH_RE = r'^/[a-zA-Z0-9_/.\-]+$'
+_NAME_RE = r'^[a-zA-Z0-9_\-]+$'
+_FSTYPE_RE = r'^(ext4|ext3|ext2|xfs|btrfs|vfat|ntfs|swap)$'
+
+COMMAND_REGISTRY = {
+    'lvm_extend': {
+        'handler': 'handle_lvm_extend',
+        'params': {
+            'vg_name': {'required': True, 'regex': _NAME_RE},
+            'lv_name': {'required': True, 'regex': _NAME_RE},
+            'size_gb': {'required': False, 'validator': lambda v: isinstance(v, (int, float)) and 0 < v <= 10000},
+            'extend_all': {'required': False, 'validator': lambda v: isinstance(v, bool)},
+        },
+    },
+    'lvm_shrink': {
+        'handler': 'handle_lvm_shrink',
+        'dangerous': True,
+        'params': {
+            'vg_name': {'required': True, 'regex': _NAME_RE},
+            'lv_name': {'required': True, 'regex': _NAME_RE},
+            'target_size_gb': {'required': True, 'validator': lambda v: isinstance(v, (int, float)) and v > 0},
+        },
+    },
+    'lvm_create': {
+        'handler': 'handle_lvm_create',
+        'params': {
+            'vg_name': {'required': True, 'regex': _NAME_RE},
+            'lv_name': {'required': True, 'regex': _NAME_RE},
+            'size_gb': {'required': True, 'validator': lambda v: isinstance(v, (int, float)) and v > 0},
+            'fstype': {'required': True, 'regex': _FSTYPE_RE},
+            'mountpoint': {'required': False, 'regex': _MOUNT_PATH_RE},
+        },
+    },
+    'disk_mount': {
+        'handler': 'handle_disk_mount',
+        'params': {
+            'device': {'required': True, 'regex': _DEV_PATH_RE},
+            'mountpoint': {'required': True, 'regex': _MOUNT_PATH_RE},
+            'fstype': {'required': False, 'regex': _FSTYPE_RE},
+            'options': {'required': False, 'regex': r'^[a-zA-Z0-9_,=]+$'},
+        },
+    },
+    'disk_unmount': {
+        'handler': 'handle_disk_unmount',
+        'params': {
+            'device': {'required': True, 'regex': _DEV_PATH_RE},
+            'force': {'required': False, 'validator': lambda v: isinstance(v, bool)},
+        },
+    },
+    'disk_format': {
+        'handler': 'handle_disk_format',
+        'dangerous': True,
+        'params': {
+            'device': {'required': True, 'regex': _DEV_PATH_RE},
+            'fstype': {'required': True, 'regex': _FSTYPE_RE},
+            'label': {'required': False, 'regex': r'^[a-zA-Z0-9_\-]{1,32}$'},
+        },
+    },
+    'partition_create': {
+        'handler': 'handle_partition_create',
+        'dangerous': True,
+        'params': {
+            'device': {'required': True, 'regex': _DEV_PATH_RE},
+            'size_gb': {'required': True, 'validator': lambda v: isinstance(v, (int, float)) and v > 0},
+            'part_type': {'required': False, 'regex': r'^(primary|logical|extended)$'},
+        },
+    },
+    'pv_create_vg_extend': {
+        'handler': 'handle_pv_create_vg_extend',
+        'dangerous': True,
+        'params': {
+            'device': {'required': True, 'regex': _DEV_PATH_RE},
+            'vg_name': {'required': True, 'regex': _NAME_RE},
+        },
+    },
+}
+
+
+# ============================================================================
+# COMMAND VALIDATION
+# ============================================================================
+
+
+def validate_command(cmd_data):
+    """Validate a command dict against the registry.
+    Returns (True, None) or (False, error_string)."""
+    cmd_type = cmd_data.get('command_type')
+    if cmd_type not in COMMAND_REGISTRY:
+        return False, f'Unknown command type: {cmd_type}'
+
+    spec = COMMAND_REGISTRY[cmd_type]
+    params = cmd_data.get('params', {})
+
+    # Check expiry
+    submitted_at = cmd_data.get('submitted_at')
+    if submitted_at:
+        try:
+            sub_time = datetime.fromisoformat(submitted_at).timestamp()
+            if time.time() - sub_time > COMMAND_MAX_AGE_SECONDS:
+                return False, 'Command expired (older than 5 minutes)'
+        except (ValueError, TypeError):
+            return False, 'Invalid submitted_at timestamp'
+
+    # Validate params
+    for param_name, param_spec in spec['params'].items():
+        value = params.get(param_name)
+
+        if param_spec.get('required') and value is None:
+            return False, f'Missing required parameter: {param_name}'
+
+        if value is not None:
+            # Regex validation (string params)
+            if 'regex' in param_spec:
+                if not isinstance(value, str):
+                    return False, f'Parameter {param_name} must be a string'
+                if not re.match(param_spec['regex'], value):
+                    return False, f'Invalid value for {param_name}: fails regex {param_spec["regex"]}'
+
+            # Lambda validation
+            if 'validator' in param_spec:
+                if not param_spec['validator'](value):
+                    return False, f'Invalid value for {param_name}'
+
+    # Check for unexpected params
+    allowed = set(spec['params'].keys())
+    extra = set(params.keys()) - allowed
+    if extra:
+        return False, f'Unexpected parameters: {", ".join(extra)}'
+
+    return True, None
+
+
+# ============================================================================
+# COMMAND HANDLERS
+# ============================================================================
+
+
+def handle_lvm_extend(params):
+    """Extend an LVM logical volume"""
+    vg_name = params['vg_name']
+    lv_name = params['lv_name']
+    lv_path = f'/dev/{vg_name}/{lv_name}'
+
+    # Build lvextend command
+    if params.get('extend_all'):
+        cmd = ['sudo', '-n', 'lvextend', '-l', '+100%FREE', lv_path]
+    elif params.get('size_gb'):
+        cmd = ['sudo', '-n', 'lvextend', '-L', f'+{params["size_gb"]}G', lv_path]
+    else:
+        return {'success': False, 'error': 'Must specify size_gb or extend_all'}
+
+    result = run_command_full(cmd, timeout=60)
+    if result['returncode'] != 0:
+        return {'success': False, 'error': result['stderr'] or 'lvextend failed', 'stdout': result['stdout']}
+
+    # Detect filesystem type and resize
+    fs_result = run_command_full(['sudo', '-n', 'blkid', '-o', 'value', '-s', 'TYPE', lv_path], timeout=10)
+    fs_type = fs_result['stdout'].strip()
+
+    if fs_type in ('ext4', 'ext3', 'ext2'):
+        resize_result = run_command_full(['sudo', '-n', 'resize2fs', lv_path], timeout=120)
+    elif fs_type == 'xfs':
+        # xfs_growfs requires the mount point, not device path
+        mount_result = run_command_full(['findmnt', '-n', '-o', 'TARGET', lv_path], timeout=10)
+        mountpoint = mount_result['stdout'].strip()
+        if not mountpoint:
+            return {'success': True, 'message': f'LV extended but XFS volume is not mounted (cannot resize)', 'filesystem': fs_type}
+        resize_result = run_command_full(['sudo', '-n', 'xfs_growfs', mountpoint], timeout=120)
+    else:
+        return {'success': True, 'message': f'LV extended but filesystem resize not supported for {fs_type}', 'filesystem': fs_type}
+
+    if resize_result['returncode'] != 0:
+        return {'success': True, 'message': 'LV extended but filesystem resize failed', 'error': resize_result['stderr']}
+
+    return {'success': True, 'message': f'Successfully extended {lv_path} and resized {fs_type} filesystem', 'filesystem': fs_type}
+
+
+def handle_lvm_shrink(params):
+    """Shrink an LVM logical volume (ext4 only)"""
+    vg_name = params['vg_name']
+    lv_name = params['lv_name']
+    target_size_gb = params['target_size_gb']
+    lv_path = f'/dev/{vg_name}/{lv_name}'
+
+    # Check filesystem type (only ext4 supports shrink)
+    fs_result = run_command_full(['sudo', '-n', 'blkid', '-o', 'value', '-s', 'TYPE', lv_path], timeout=10)
+    fs_type = fs_result['stdout'].strip()
+    if fs_type not in ('ext4', 'ext3', 'ext2'):
+        return {'success': False, 'error': f'Shrink only supported for ext filesystems, found {fs_type}'}
+
+    # e2fsck first
+    fsck = run_command_full(['sudo', '-n', 'e2fsck', '-f', '-y', lv_path], timeout=300)
+    if fsck['returncode'] not in (0, 1):  # 1 = errors corrected
+        return {'success': False, 'error': f'e2fsck failed: {fsck["stderr"]}'}
+
+    # Shrink filesystem
+    resize = run_command_full(['sudo', '-n', 'resize2fs', lv_path, f'{target_size_gb}G'], timeout=300)
+    if resize['returncode'] != 0:
+        return {'success': False, 'error': f'resize2fs shrink failed: {resize["stderr"]}'}
+
+    # Shrink LV
+    lv_shrink = run_command_full(['sudo', '-n', 'lvreduce', '-f', '-L', f'{target_size_gb}G', lv_path], timeout=60)
+    if lv_shrink['returncode'] != 0:
+        return {'success': False, 'error': f'lvreduce failed: {lv_shrink["stderr"]}'}
+
+    return {'success': True, 'message': f'Shrunk {lv_path} to {target_size_gb}GB'}
+
+
+def handle_lvm_create(params):
+    """Create a new LVM logical volume"""
+    vg_name = params['vg_name']
+    lv_name = params['lv_name']
+    size_gb = params['size_gb']
+    fstype = params['fstype']
+    mountpoint = params.get('mountpoint')
+
+    lv_path = f'/dev/{vg_name}/{lv_name}'
+
+    # Create LV
+    result = run_command_full(['sudo', '-n', 'lvcreate', '-L', f'{size_gb}G', '-n', lv_name, vg_name], timeout=60)
+    if result['returncode'] != 0:
+        return {'success': False, 'error': f'lvcreate failed: {result["stderr"]}'}
+
+    # Format
+    mkfs_cmd = ['sudo', '-n', f'mkfs.{fstype}', lv_path]
+    fmt = run_command_full(mkfs_cmd, timeout=120)
+    if fmt['returncode'] != 0:
+        return {'success': False, 'error': f'mkfs failed: {fmt["stderr"]}'}
+
+    # Optional mount
+    if mountpoint:
+        run_command_full(['sudo', '-n', 'mkdir', '-p', mountpoint], timeout=10)
+        mnt = run_command_full(['sudo', '-n', 'mount', lv_path, mountpoint], timeout=30)
+        if mnt['returncode'] != 0:
+            return {'success': True, 'message': f'LV created and formatted but mount failed: {mnt["stderr"]}'}
+
+    return {'success': True, 'message': f'Created {lv_path} ({size_gb}GB, {fstype})', 'device': lv_path}
+
+
+def handle_disk_mount(params):
+    """Mount a disk device"""
+    device = params['device']
+    mountpoint = params['mountpoint']
+    fstype = params.get('fstype')
+    options = params.get('options')
+
+    # Create mountpoint
+    run_command_full(['sudo', '-n', 'mkdir', '-p', mountpoint], timeout=10)
+
+    # Build mount command
+    cmd = ['sudo', '-n', 'mount']
+    if fstype:
+        cmd.extend(['-t', fstype])
+    if options:
+        cmd.extend(['-o', options])
+    cmd.extend([device, mountpoint])
+
+    result = run_command_full(cmd, timeout=30)
+    if result['returncode'] != 0:
+        return {'success': False, 'error': result['stderr'] or 'mount failed'}
+
+    return {'success': True, 'message': f'Mounted {device} at {mountpoint}'}
+
+
+def handle_disk_unmount(params):
+    """Unmount a disk device"""
+    device = params['device']
+    force = params.get('force', False)
+
+    cmd = ['sudo', '-n', 'umount']
+    if force:
+        cmd.append('-f')
+    cmd.append(device)
+
+    result = run_command_full(cmd, timeout=30)
+    if result['returncode'] != 0:
+        return {'success': False, 'error': result['stderr'] or 'umount failed'}
+
+    return {'success': True, 'message': f'Unmounted {device}'}
+
+
+def handle_disk_format(params):
+    """Format a disk device (DANGEROUS)"""
+    device = params['device']
+    fstype = params['fstype']
+    label = params.get('label')
+
+    # Verify not currently mounted
+    mount_check = run_command_full(['findmnt', '-n', '-o', 'TARGET', device], timeout=10)
+    if mount_check['returncode'] == 0 and mount_check['stdout'].strip():
+        return {'success': False, 'error': f'Device {device} is currently mounted at {mount_check["stdout"].strip()}. Unmount first.'}
+
+    cmd = ['sudo', '-n', f'mkfs.{fstype}']
+    if label:
+        if fstype in ('ext4', 'ext3', 'ext2'):
+            cmd.extend(['-L', label])
+        elif fstype == 'xfs':
+            cmd.extend(['-L', label])
+        elif fstype == 'vfat':
+            cmd.extend(['-n', label])
+    cmd.append(device)
+
+    result = run_command_full(cmd, timeout=120)
+    if result['returncode'] != 0:
+        return {'success': False, 'error': result['stderr'] or 'mkfs failed'}
+
+    return {'success': True, 'message': f'Formatted {device} as {fstype}'}
+
+
+def handle_partition_create(params):
+    """Create a new partition on a device"""
+    device = params['device']
+    size_gb = params['size_gb']
+    part_type = params.get('part_type', 'primary')
+
+    # Use parted to create partition
+    result = run_command_full([
+        'sudo', '-n', 'parted', '-s', device,
+        'mkpart', part_type, '0%', f'{size_gb}GiB'
+    ], timeout=60)
+
+    if result['returncode'] != 0:
+        return {'success': False, 'error': result['stderr'] or 'parted mkpart failed'}
+
+    return {'success': True, 'message': f'Created {part_type} partition ({size_gb}GB) on {device}'}
+
+
+def handle_pv_create_vg_extend(params):
+    """Create PV and extend VG"""
+    device = params['device']
+    vg_name = params['vg_name']
+
+    # pvcreate
+    pv_result = run_command_full(['sudo', '-n', 'pvcreate', device], timeout=60)
+    if pv_result['returncode'] != 0:
+        return {'success': False, 'error': f'pvcreate failed: {pv_result["stderr"]}'}
+
+    # vgextend
+    vg_result = run_command_full(['sudo', '-n', 'vgextend', vg_name, device], timeout=60)
+    if vg_result['returncode'] != 0:
+        return {'success': False, 'error': f'vgextend failed: {vg_result["stderr"]}'}
+
+    return {'success': True, 'message': f'Added {device} as PV and extended VG {vg_name}'}
+
+
+# Handler dispatch table
+_HANDLER_MAP = {
+    'handle_lvm_extend': handle_lvm_extend,
+    'handle_lvm_shrink': handle_lvm_shrink,
+    'handle_lvm_create': handle_lvm_create,
+    'handle_disk_mount': handle_disk_mount,
+    'handle_disk_unmount': handle_disk_unmount,
+    'handle_disk_format': handle_disk_format,
+    'handle_partition_create': handle_partition_create,
+    'handle_pv_create_vg_extend': handle_pv_create_vg_extend,
+}
+
+
+# ============================================================================
+# COMMAND QUEUE PROCESSING
+# ============================================================================
+
+
+def ensure_command_dirs():
+    """Create command queue directories if they don't exist"""
+    for d in (COMMANDS_DIR, PENDING_DIR, COMPLETED_DIR):
+        os.makedirs(d, exist_ok=True)
+        os.chmod(d, 0o777)
+
+
+def log_command(cmd_id, cmd_data, result, duration):
+    """Append command execution to JSONL audit log"""
+    try:
+        entry = {
+            'command_id': cmd_id,
+            'command_type': cmd_data.get('command_type'),
+            'params': cmd_data.get('params'),
+            'submitted_by': cmd_data.get('submitted_by'),
+            'user_id': cmd_data.get('user_id'),
+            'result': result,
+            'duration_seconds': round(duration, 2),
+            'executed_at': datetime.now().isoformat(),
+        }
+        with open(COMMAND_LOG_FILE, 'a') as f:
+            f.write(json.dumps(entry) + '\n')
+    except Exception as e:
+        print(f"  Warning: failed to write command log: {e}")
+
+
+def _cleanup_completed():
+    """Remove completed command files older than TTL"""
+    try:
+        now = time.time()
+        for filepath in glob.glob(os.path.join(COMPLETED_DIR, '*.json')):
+            try:
+                if now - os.path.getmtime(filepath) > COMPLETED_TTL_SECONDS:
+                    os.remove(filepath)
+            except OSError:
+                pass
+    except Exception:
+        pass
+
+
+def process_command_queue():
+    """Scan pending directory, validate, execute, write results.
+    Returns the number of commands processed."""
+    processed = 0
+
+    try:
+        pending_files = sorted(glob.glob(os.path.join(PENDING_DIR, '*.json')))
+    except Exception:
+        return 0
+
+    for filepath in pending_files:
+        cmd_id = os.path.basename(filepath).replace('.json', '')
+        print(f"  Processing command: {cmd_id}")
+
+        try:
+            with open(filepath, 'r') as f:
+                cmd_data = json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            print(f"  Error reading {filepath}: {e}")
+            # Write error result
+            _write_result(cmd_id, {'success': False, 'error': f'Failed to read command file: {e}'}, cmd_data={}, duration=0)
+            _safe_remove(filepath)
+            processed += 1
+            continue
+
+        # Validate
+        valid, error = validate_command(cmd_data)
+        if not valid:
+            print(f"  Validation failed: {error}")
+            _write_result(cmd_id, {'success': False, 'error': error}, cmd_data=cmd_data, duration=0)
+            _safe_remove(filepath)
+            processed += 1
+            continue
+
+        # Execute handler
+        cmd_type = cmd_data['command_type']
+        handler_name = COMMAND_REGISTRY[cmd_type]['handler']
+        handler_fn = _HANDLER_MAP.get(handler_name)
+
+        if not handler_fn:
+            _write_result(cmd_id, {'success': False, 'error': f'No handler for {cmd_type}'}, cmd_data=cmd_data, duration=0)
+            _safe_remove(filepath)
+            processed += 1
+            continue
+
+        start_time = time.time()
+        try:
+            result = handler_fn(cmd_data.get('params', {}))
+        except Exception as e:
+            result = {'success': False, 'error': f'Handler exception: {str(e)}'}
+        duration = time.time() - start_time
+
+        print(f"  Result: {'OK' if result.get('success') else 'FAIL'} ({duration:.1f}s)")
+
+        # Write result
+        _write_result(cmd_id, result, cmd_data=cmd_data, duration=duration)
+        log_command(cmd_id, cmd_data, result, duration)
+        _safe_remove(filepath)
+        processed += 1
+
+    # Periodic cleanup
+    _cleanup_completed()
+
+    return processed
+
+
+def _write_result(cmd_id, result, cmd_data, duration):
+    """Write command result to completed directory"""
+    try:
+        result_data = {
+            'command_id': cmd_id,
+            'command_type': cmd_data.get('command_type', 'unknown'),
+            'result': result,
+            'duration_seconds': round(duration, 2),
+            'completed_at': datetime.now().isoformat(),
+        }
+        result_path = os.path.join(COMPLETED_DIR, f'{cmd_id}.json')
+        with open(result_path, 'w') as f:
+            json.dump(result_data, f, indent=2)
+        os.chmod(result_path, 0o644)
+    except Exception as e:
+        print(f"  Error writing result for {cmd_id}: {e}")
+
+
+def _safe_remove(filepath):
+    """Remove a file, ignoring errors"""
+    try:
+        os.remove(filepath)
+    except OSError:
+        pass
+
+
 def collect_all_data():
     """Collect all host system data"""
     network = get_network_info()
@@ -955,6 +1630,9 @@ def collect_all_data():
 
     # Update rolling bandwidth history
     update_bandwidth_history(network, container_bw)
+
+    # Check command queue availability
+    queue_available = os.path.isdir(PENDING_DIR) and os.path.isdir(COMPLETED_DIR)
 
     return {
         'system': get_system_info(),
@@ -967,6 +1645,7 @@ def collect_all_data():
         'processes': get_process_list(),
         'network': network,
         'container_bandwidth': container_bw,
+        'command_queue': {'available': queue_available},
         'collected_at': datetime.now().isoformat(),
         'host': os.uname().nodename
     }
@@ -1004,18 +1683,39 @@ def main():
 
     OUTPUT_FILE = args.output
 
+    # Ensure command queue directories exist
+    ensure_command_dirs()
+
     print("A.R.C.H.I.E. Host System Monitor")
     print(f"Output file: {OUTPUT_FILE}")
+    print(f"Command queue: {COMMANDS_DIR}")
     print(f"Mode: {'Daemon (interval: {}s)'.format(args.interval) if args.daemon else 'Single run'}")
     print("-" * 50)
 
     if args.daemon:
         print("Starting daemon mode... (Ctrl+C to stop)")
+        QUEUE_CHECK_INTERVAL = 3   # Check command queue every 3 seconds
+        last_data_collect = 0      # Force immediate first collection
+
         while True:
             try:
-                data = collect_all_data()
-                write_data(data)
-                time.sleep(args.interval)
+                now = time.time()
+
+                # Always check the command queue (every 3s)
+                try:
+                    processed = process_command_queue()
+                    if processed > 0:
+                        print(f"[{datetime.now().strftime('%H:%M:%S')}] Processed {processed} command(s)")
+                except Exception as e:
+                    print(f"Command queue error: {e}")
+
+                # Collect system data at the configured interval
+                if now - last_data_collect >= args.interval:
+                    data = collect_all_data()
+                    write_data(data)
+                    last_data_collect = now
+
+                time.sleep(QUEUE_CHECK_INTERVAL)
             except KeyboardInterrupt:
                 print("\nStopping...")
                 break

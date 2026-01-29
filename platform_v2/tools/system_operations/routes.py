@@ -212,11 +212,10 @@ def api_overview():
         service = get_system_service()
         data = service.get_overview()
 
-        # Record metrics for history
+        # Record metrics for history (per-device for multi-GPU/CPU support)
         record_metric("cpu", data["cpu"]["usage_percent"])
+        record_metric("cpu_0", data["cpu"]["usage_percent"])  # Primary CPU aggregate
         record_metric("memory", data["memory"]["usage_percent"])
-        if data["gpu"]["available"]:
-            record_metric("gpu", data["gpu"]["usage_percent"])
 
         # Merge host monitor data for accurate host-level info
         host_data, host_age = load_host_monitor_data()
@@ -254,21 +253,35 @@ def api_overview():
                 if host_load:
                     data["cpu"]["load_avg"] = host_load
 
-            # GPU: use host data (container can't see GPU)
+            # GPU: use host data (container can't see GPU) - supports multiple GPUs
             host_gpus = host_data.get("gpu")
             if host_gpus and len(host_gpus) > 0:
-                gpu = host_gpus[0]
-                data["gpu"] = {
-                    "available": True,
-                    "model": gpu.get("model", "Unknown"),
-                    "vendor": gpu.get("vendor"),
-                    "temperature": gpu.get("temperature"),
-                    "vram_total_mb": gpu.get("vram_total_mb"),
-                    "vram_used_mb": gpu.get("vram_used_mb"),
-                    "usage_percent": gpu.get("utilization_percent"),
-                    "driver": gpu.get("driver"),
-                    "has_detailed_stats": gpu.get("vram_total_mb") is not None,
-                }
+                # Build array of all GPUs
+                gpus_array = []
+                for idx, gpu in enumerate(host_gpus):
+                    gpu_data = {
+                        "index": idx,
+                        "available": True,
+                        "model": gpu.get("model", "Unknown"),
+                        "vendor": gpu.get("vendor"),
+                        "temperature": gpu.get("temperature"),
+                        "vram_total_mb": gpu.get("vram_total_mb"),
+                        "vram_used_mb": gpu.get("vram_used_mb"),
+                        "usage_percent": gpu.get("utilization_percent"),
+                        "driver": gpu.get("driver"),
+                        "has_detailed_stats": gpu.get("vram_total_mb") is not None,
+                    }
+                    gpus_array.append(gpu_data)
+                    # Record per-GPU metric for history
+                    if gpu_data["usage_percent"] is not None:
+                        record_metric(f"gpu_{idx}", gpu_data["usage_percent"])
+                        if idx == 0:
+                            record_metric("gpu", gpu_data["usage_percent"])  # Backward compat
+
+                # Store array of all GPUs
+                data["gpus"] = gpus_array
+                # Keep backward compatible single gpu field (first GPU)
+                data["gpu"] = gpus_array[0]
 
             # Network: use host primary IP
             host_net = host_data.get("network")
@@ -312,6 +325,30 @@ def api_memory():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@system_operations_bp.route("/api/memory-hardware")
+@login_required
+@admin_required
+def api_memory_hardware():
+    """Get physical memory hardware (DIMM) info from host monitor"""
+    try:
+        host_data, host_age = load_host_monitor_data()
+        if host_data and host_data.get("memory_hardware"):
+            mem_hw = host_data["memory_hardware"]
+            return jsonify(
+                {"success": True, "data": mem_hw, "source": "host", "data_age": int(host_age) if host_age else None}
+            )
+        else:
+            return jsonify(
+                {
+                    "success": False,
+                    "error": "Memory hardware info not available. Host monitor may need to be restarted.",
+                    "data": None,
+                }
+            )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @system_operations_bp.route("/api/disks")
 @login_required
 @admin_required
@@ -349,6 +386,12 @@ def api_processes():
                 processes.sort(key=lambda x: x.get("memory_percent", 0), reverse=True)
             elif sort_by == "name":
                 processes.sort(key=lambda x: (x.get("name") or "").lower())
+            elif sort_by == "category":
+                # Sort by category: docker first, then user, system, kernel
+                category_order = {"docker": 0, "user": 1, "system": 2, "kernel": 3}
+                processes.sort(
+                    key=lambda x: (category_order.get(x.get("category", "user"), 1), -(x.get("cpu_percent", 0)))
+                )
 
             return jsonify(
                 {
@@ -620,6 +663,102 @@ def api_network_bandwidth():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@system_operations_bp.route("/api/network/port-usage")
+@login_required
+@admin_required
+def api_port_usage():
+    """Get comprehensive port usage for conflict detection"""
+    try:
+        host_data, host_age = load_host_monitor_data()
+        if not host_data:
+            return jsonify({"success": False, "error": "Host monitor data not available"}), 503
+
+        port_usage = host_data.get("port_usage", {})
+
+        # Known ports for planned services (for highlighting)
+        planned_ports = {
+            "home_assistant": [8123, 1900, 5353],
+            "plex": [32400, 32469, 1900, 3005, 8324, 32410, 32411, 32412, 32413, 32414],
+            "adguard": [53, 80, 443, 3000, 853, 784, 8853],
+            "ntopng": [3000, 5556],
+        }
+
+        # Check for conflicts with planned services
+        conflicts = []
+        for service, ports in planned_ports.items():
+            for port in ports:
+                if str(port) in port_usage or port in port_usage:
+                    port_info = port_usage.get(str(port)) or port_usage.get(port, {})
+                    conflicts.append({"port": port, "planned_service": service, "current_usage": port_info})
+
+        return jsonify(
+            {
+                "success": True,
+                "ports": port_usage,
+                "planned_conflicts": conflicts,
+                "data_age": int(host_age) if host_age else None,
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@system_operations_bp.route("/api/docker/health")
+@login_required
+@admin_required
+def api_docker_health():
+    """Get Docker container health status and resource usage"""
+    try:
+        host_data, host_age = load_host_monitor_data()
+        if not host_data:
+            return jsonify({"success": False, "error": "Host monitor data not available"}), 503
+
+        docker_health = host_data.get("docker_health", [])
+
+        # Aggregate by stack
+        stacks = {}
+        for container in docker_health:
+            name = container.get("name", "")
+            # Extract stack name (container name prefix before first underscore for compose)
+            stack_name = name.split("_")[0] if "_" in name else name
+
+            if stack_name not in stacks:
+                stacks[stack_name] = {
+                    "name": stack_name,
+                    "containers": [],
+                    "total_cpu": 0.0,
+                    "total_mem": 0.0,
+                    "health_summary": "healthy",
+                    "restart_total": 0,
+                }
+
+            stacks[stack_name]["containers"].append(container)
+            stacks[stack_name]["total_cpu"] += container.get("cpu_percent", 0)
+            stacks[stack_name]["total_mem"] += container.get("mem_percent", 0)
+            stacks[stack_name]["restart_total"] += container.get("restart_count", 0)
+
+            # Update health summary (worst status wins)
+            health = container.get("health", "none")
+            current = stacks[stack_name]["health_summary"]
+            if health == "unhealthy":
+                stacks[stack_name]["health_summary"] = "unhealthy"
+            elif health == "starting" and current != "unhealthy":
+                stacks[stack_name]["health_summary"] = "starting"
+            elif container.get("state") != "running" and current not in ["unhealthy", "starting"]:
+                stacks[stack_name]["health_summary"] = "degraded"
+
+        return jsonify(
+            {
+                "success": True,
+                "containers": docker_health,
+                "stacks": list(stacks.values()),
+                "data_age": int(host_age) if host_age else None,
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @system_operations_bp.route("/api/stacks/<stack_name>/web-ui-ports", methods=["PUT"])
 @login_required
 @admin_required
@@ -726,6 +865,71 @@ def api_history():
         import traceback
 
         print(f"History API error: {e}")
+        print(traceback.format_exc())
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@system_operations_bp.route("/api/history/multi")
+@login_required
+@admin_required
+def api_history_multi():
+    """Get historical metrics for multiple devices (e.g., gpu_0, gpu_1)"""
+    try:
+        base_type = request.args.get("type", "gpu")  # 'gpu' or 'cpu'
+        hours = int(request.args.get("hours", 1))
+        hours = min(max(hours, 1), 168)
+
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Find all metric types matching the pattern (e.g., gpu_0, gpu_1, gpu_2)
+        cur.execute(
+            """
+            SELECT DISTINCT metric_type
+            FROM system_metrics_history
+            WHERE metric_type LIKE %s
+              AND recorded_at > NOW() - (%s * INTERVAL '1 hour')
+            ORDER BY metric_type
+        """,
+            (f"{base_type}_%", hours),
+        )
+        device_types = [row["metric_type"] for row in cur.fetchall()]
+
+        if not device_types:
+            # Fall back to base type (backward compat - single device)
+            device_types = [base_type]
+
+        # Fetch data for each device
+        devices = {}
+        for metric_type in device_types:
+            cur.execute(
+                """
+                SELECT value, recorded_at
+                FROM system_metrics_history
+                WHERE metric_type = %s
+                  AND recorded_at > NOW() - (%s * INTERVAL '1 hour')
+                ORDER BY recorded_at ASC
+                LIMIT 720
+            """,
+                (metric_type, hours),
+            )
+            data = cur.fetchall()
+            if data:
+                devices[metric_type] = {
+                    "labels": [row["recorded_at"].strftime("%H:%M") for row in data],
+                    "values": [float(row["value"]) for row in data],
+                }
+
+        cur.close()
+        conn.close()
+
+        return jsonify(
+            {"success": True, "data": {"devices": devices, "base_type": base_type, "device_count": len(devices)}}
+        )
+    except Exception as e:
+        import traceback
+
+        print(f"Multi-history API error: {e}")
         print(traceback.format_exc())
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -2280,6 +2484,7 @@ def api_storage_drives():
         disks = host_data.get("disks", [])
         lvm = host_data.get("lvm")
         raid = host_data.get("raid")
+        docker_mounts = host_data.get("docker_mounts", {})
 
         # Merge LVM VG free space into disk data
         vg_free = {}
@@ -2313,6 +2518,7 @@ def api_storage_drives():
                     "raid": raid,
                     "vg_free": vg_free,
                     "managed_mounts": managed,
+                    "docker_mounts": docker_mounts,
                     "data_age": int(age) if age else None,
                 },
             }
@@ -2473,6 +2679,105 @@ def api_storage_browse():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@system_operations_bp.route("/api/storage/docker-mounts")
+@login_required
+@admin_required
+def api_storage_docker_mounts():
+    """Get Docker stack volume mappings to show which stacks use which paths"""
+    try:
+        import yaml
+
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT name, display_name, compose_directory, color FROM docker_stacks")
+        stacks = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        # Map of host_path -> [stack info]
+        path_to_stacks = {}
+
+        for stack in stacks:
+            compose_dir = stack.get("compose_directory", "")
+            compose_file = os.path.join(compose_dir, "docker-compose.yml") if compose_dir else ""
+
+            if not compose_file or not os.path.exists(compose_file):
+                continue
+
+            try:
+                with open(compose_file, "r") as f:
+                    compose = yaml.safe_load(f)
+
+                if not compose or "services" not in compose:
+                    continue
+
+                for service_name, service in compose.get("services", {}).items():
+                    volumes = service.get("volumes", [])
+                    for vol in volumes:
+                        if isinstance(vol, str) and ":" in vol:
+                            # Format: host_path:container_path or host_path:container_path:mode
+                            parts = vol.split(":")
+                            host_path = parts[0]
+                            container_path = parts[1] if len(parts) > 1 else ""
+
+                            # Skip named volumes (no / at start)
+                            if not host_path.startswith("/") and not host_path.startswith("."):
+                                continue
+
+                            # Resolve relative paths
+                            if host_path.startswith("."):
+                                host_path = os.path.normpath(os.path.join(compose_dir, host_path))
+
+                            # Get the mount point this path belongs to
+                            real_path = os.path.realpath(host_path) if os.path.exists(host_path) else host_path
+
+                            if real_path not in path_to_stacks:
+                                path_to_stacks[real_path] = []
+
+                            path_to_stacks[real_path].append(
+                                {
+                                    "stack_name": stack["name"],
+                                    "display_name": stack.get("display_name") or stack["name"],
+                                    "color": stack.get("color", "#6366f1"),
+                                    "service": service_name,
+                                    "container_path": container_path,
+                                }
+                            )
+                        elif isinstance(vol, dict):
+                            # Long-form volume definition
+                            source = vol.get("source", "")
+                            target = vol.get("target", "")
+                            vol_type = vol.get("type", "volume")
+
+                            if vol_type == "bind" and source:
+                                if source.startswith("."):
+                                    source = os.path.normpath(os.path.join(compose_dir, source))
+
+                                real_path = os.path.realpath(source) if os.path.exists(source) else source
+
+                                if real_path not in path_to_stacks:
+                                    path_to_stacks[real_path] = []
+
+                                path_to_stacks[real_path].append(
+                                    {
+                                        "stack_name": stack["name"],
+                                        "display_name": stack.get("display_name") or stack["name"],
+                                        "color": stack.get("color", "#6366f1"),
+                                        "service": service_name,
+                                        "container_path": target,
+                                    }
+                                )
+            except Exception:
+                # Skip stacks with parse errors
+                continue
+
+        # Group by mount point (find which partition each path belongs to)
+        # This will be matched on the frontend with partition mountpoints
+        return jsonify({"success": True, "data": {"path_mappings": path_to_stacks, "stack_count": len(stacks)}})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 # ============================================================================
 # RE-AUTHENTICATION ENDPOINT
 # ============================================================================
@@ -2506,8 +2811,13 @@ def api_auth_verify():
             return jsonify({"success": False, "error": "User not found"}), 404
 
         if not check_password_hash(user["password_hash"], password):
-            audit_log("reauth_attempt", "verify", success=False, error_message="Invalid password")
-            return jsonify({"success": False, "error": "Invalid password"}), 401
+            audit_log(
+                "reauth_attempt",
+                "verify",
+                success=False,
+                error_message=f"Invalid password for user {current_user.username}",
+            )
+            return jsonify({"success": False, "error": f"Invalid password for user '{current_user.username}'"}), 401
 
         # Store re-auth timestamp in session (valid for 5 minutes)
         session["reauth_timestamp"] = time_mod.time()

@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  nginx-proxy:
+    image: 'jc21/nginx-proxy-manager:latest'
+    container_name: nginx-proxy-manager
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+      - '81:81'
+    volumes:
+      - /mnt/data/homelab/nginx-proxy/data:/data
+      - /mnt/data/homelab/nginx-proxy/letsencrypt:/etc/letsencrypt

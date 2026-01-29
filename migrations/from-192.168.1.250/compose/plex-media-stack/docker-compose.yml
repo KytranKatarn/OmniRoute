@@ -1,0 +1,91 @@
+version: '3.8'
+
+services:
+  plex:
+    image: lscr.io/linuxserver/plex:latest
+    container_name: plex
+    network_mode: host
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+      - VERSION=docker
+    volumes:
+      - /mnt/data/plex/config/plex:/config
+      - /mnt/data/plex/media/movies:/movies
+      - /mnt/data/plex/media/tv:/tv
+      - /mnt/data/plex/media/music:/music
+      - /mnt/data/plex/media/photos:/photos
+    devices:
+      - /dev/dri:/dev/dri
+    restart: unless-stopped
+
+  sabnzbd:
+    image: lscr.io/linuxserver/sabnzbd:latest
+    container_name: sabnzbd
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+    volumes:
+      - /mnt/data/plex/config/sabnzbd:/config
+      - /mnt/data/plex/downloads:/downloads
+    ports:
+      - "8083:8080"
+    restart: unless-stopped
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: sonarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+    volumes:
+      - /mnt/data/plex/config/sonarr:/config
+      - /mnt/data/plex/media/tv:/tv
+      - /mnt/data/plex/downloads:/downloads
+    ports:
+      - "8989:8989"
+    restart: unless-stopped
+
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: radarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+    volumes:
+      - /mnt/data/plex/config/radarr:/config
+      - /mnt/data/plex/media/movies:/movies
+      - /mnt/data/plex/downloads:/downloads
+    ports:
+      - "7878:7878"
+    restart: unless-stopped
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: prowlarr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+    volumes:
+      - /mnt/data/plex/config/prowlarr:/config
+    ports:
+      - "9696:9696"
+    restart: unless-stopped
+
+  overseerr:
+    image: lscr.io/linuxserver/overseerr:latest
+    container_name: overseerr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+    volumes:
+      - /mnt/data/plex/config/overseerr:/config
+    ports:
+      - "5055:5055"
+    restart: unless-stopped

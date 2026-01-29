@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  adguard-home:
+    image: adguard/adguardhome:latest
+    container_name: adguard-home
+    ports:
+      - "5354:80"
+    volumes:
+      - /mnt/data/homelab/adguard/work:/opt/adguardhome/work
+      - /mnt/data/homelab/adguard/conf:/opt/adguardhome/conf
+    restart: unless-stopped
+
+  ntopng:
+    image: ntop/ntopng:latest
+    container_name: ntopng
+    ports:
+      - "3001:3000"
+    environment:
+      - GLOBAL_AFFINITY=4
+      - NTOPNG_HTTP_PORT=3000
+    volumes:
+      - /mnt/data/homelab/ntopng:/var/lib/ntopng
+    restart: unless-stopped

@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: dozzle
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    ports:
+      - "8081:8080"
+    restart: unless-stopped
+
+  nagios:
+    image: jasonrivers/nagios:latest
+    container_name: nagios
+    ports:
+      - "8082:80"
+    environment:
+      - NAGIOSADMIN_USER=nagiosadmin
+      - NAGIOSADMIN_PASS=nagiosadmin
+      - NAGIOS_TIMEZONE=America/New_York
+    volumes:
+      - /mnt/data/homelab/nagios/config:/opt/nagios/etc:rw
+      - /mnt/data/homelab/nagios/scripts:/opt/nagios/scripts:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /mnt/data/homelab/nagios/data/var:/opt/nagios/var:rw
+      - /mnt/data/homelab/nagios/data/lib:/var/lib/apt/lists:rw
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep nagios"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

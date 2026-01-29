@@ -7,7 +7,16 @@
 {% block styles %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 <style>
-    /* Module-specific overrides only - uses shared theme.css and components.css */
+    /* Module-specific overrides only - uses shared theme.css and components.css
+     *
+     * DESIGN SYSTEM COMPLIANCE: HIGH
+     * - Modals: Using design system classes (modal-overlay, modal, modal-header/body/footer)
+     * - Buttons: Using design system classes (btn, btn-primary/danger/ghost, btn-sm)
+     * - Forms: Using design system classes (form-input, form-select, form-group, form-label)
+     * - Tables: Using design system class (data-table)
+     * - Navigation: Using admin_tools_nav.html include
+     * - Responsive: Galaxy Fold 5 breakpoints added (920px)
+     */
     .account-center-container {
         min-height: 100vh;
         background: var(--archie-bg-deep);
@@ -235,6 +244,11 @@
 
     @media (max-width: 1200px) {
         .roles-overview { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    /* Galaxy Fold 5 Cover Screen (904px folded) */
+    @media (max-width: 920px) {
+        .roles-overview { grid-template-columns: repeat(2, 1fr); }
     }
 
     @media (max-width: 768px) {
@@ -495,6 +509,11 @@
     }
 
     @media (max-width: 1200px) {
+        .tiers-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    /* Galaxy Fold 5 Cover Screen (904px folded) */
+    @media (max-width: 920px) {
         .tiers-grid { grid-template-columns: repeat(2, 1fr); }
     }
 

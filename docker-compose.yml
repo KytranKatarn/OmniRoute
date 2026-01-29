@@ -83,6 +83,8 @@ services:
       - ./node_client:/mnt/archie_brain/node_client:ro
       # Host command queue (shared with host_monitor.py for storage operations)
       - ./host_commands:/mnt/archie_brain/host_commands:rw
+      # Migration compose files for Docker stack management
+      - ./migrations:/mnt/archie_brain/migrations:ro
     ports:
       - "3000:3000"
     networks:

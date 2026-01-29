@@ -10,5 +10,5 @@ services:
       - '443:443'
       - '81:81'
     volumes:
-      - /mnt/data/homelab/nginx-proxy/data:/data
-      - /mnt/data/homelab/nginx-proxy/letsencrypt:/etc/letsencrypt
+      - /mnt/HomeLab/nginx-proxy/data:/data
+      - /mnt/HomeLab/nginx-proxy/letsencrypt:/etc/letsencrypt

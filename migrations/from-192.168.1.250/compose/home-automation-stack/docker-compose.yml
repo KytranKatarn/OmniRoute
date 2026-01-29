@@ -9,7 +9,7 @@ services:
       - PGID=1000
       - TZ=America/New_York
     volumes:
-      - /mnt/data/homelab/homeassistant:/config
+      - /mnt/HomeLab/homeassistant:/config
     ports:
       - "8123:8123"
     restart: unless-stopped

@@ -32,11 +32,11 @@ services:
       - NAGIOSADMIN_PASS=nagiosadmin
       - NAGIOS_TIMEZONE=America/New_York
     volumes:
-      - /mnt/data/homelab/nagios/config:/opt/nagios/etc:rw
-      - /mnt/data/homelab/nagios/scripts:/opt/nagios/scripts:rw
+      - /mnt/HomeLab/nagios/config:/opt/nagios/etc:rw
+      - /mnt/HomeLab/nagios/scripts:/opt/nagios/scripts:rw
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /mnt/data/homelab/nagios/data/var:/opt/nagios/var:rw
-      - /mnt/data/homelab/nagios/data/lib:/var/lib/apt/lists:rw
+      - /mnt/HomeLab/nagios/data/var:/opt/nagios/var:rw
+      - /mnt/HomeLab/nagios/data/lib:/var/lib/apt/lists:rw
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pgrep nagios"]

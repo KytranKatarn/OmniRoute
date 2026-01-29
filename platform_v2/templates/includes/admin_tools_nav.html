@@ -56,6 +56,13 @@
             <i data-lucide="server"></i>
             <span>System Ops</span>
         </a>
+        <a href="{{ url_for('backup_manager.index') }}"
+           class="nav-module-btn {% if request.endpoint and 'backup_manager' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="Backup Manager">
+            <i data-lucide="hard-drive"></i>
+            <span>Backups</span>
+        </a>
     </div>
 </nav>
 

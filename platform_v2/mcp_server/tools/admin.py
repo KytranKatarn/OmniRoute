@@ -13,18 +13,18 @@ import psycopg2
 import subprocess
 from psycopg2.extras import RealDictCursor
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any
 
 from . import register_tool
 
-logger = logging.getLogger('archie_mcp.tools.admin')
+logger = logging.getLogger("archie_mcp.tools.admin")
 
 # Database configuration
 DB_CONFIG = {
-    'host': os.getenv('DB_HOST', 'localhost'),
-    'database': os.getenv('DB_NAME', 'archie'),
-    'user': os.getenv('DB_USER', 'archie'),
-    'password': os.getenv('DB_PASSWORD', 'archie_secure_2024')
+    "host": os.getenv("DB_HOST", "localhost"),
+    "database": os.getenv("DB_NAME", "archie"),
+    "user": os.getenv("DB_USER", "archie"),
+    "password": os.getenv("DB_PASSWORD", "archie_secure_2024"),
 }
 
 
@@ -42,6 +42,7 @@ def get_db_connection():
 # ASSIGN AGENT TOOL
 # ============================================================================
 
+
 async def assign_agent_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """
     Assign an agent to a bridge station
@@ -50,66 +51,64 @@ async def assign_agent_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     - Command, Consciousness, HR, R&D, Operations
     - Engineering, Creative, Security, Medical, Away Team
     """
-    agent_id = arguments.get('agent_id')
-    station_code = arguments.get('station_code')
-    assignment_type = arguments.get('assignment_type', 'primary')
-    shift_preference = arguments.get('shift_preference', 'any')
-    notes = arguments.get('notes', '')
-    user_id = arguments.get('user_id', 2)  # Default to admin
+    agent_id = arguments.get("agent_id")
+    station_code = arguments.get("station_code")
+    assignment_type = arguments.get("assignment_type", "primary")
+    shift_preference = arguments.get("shift_preference", "any")
+    notes = arguments.get("notes", "")
+    user_id = arguments.get("user_id", 2)  # Default to admin
 
     if not agent_id or not station_code:
-        return {
-            'success': False,
-            'error': 'agent_id and station_code are required'
-        }
+        return {"success": False, "error": "agent_id and station_code are required"}
 
     conn, cur = get_db_connection()
     if not conn:
-        return {'success': False, 'error': 'Database connection failed'}
+        return {"success": False, "error": "Database connection failed"}
 
     try:
         # Get station ID from code
-        cur.execute("""
+        cur.execute(
+            """
             SELECT id, station_name FROM bridge_stations
             WHERE station_code = %s AND is_active = TRUE
-        """, (station_code.upper(),))
+        """,
+            (station_code.upper(),),
+        )
         station = cur.fetchone()
 
         if not station:
-            return {
-                'success': False,
-                'error': f"Station '{station_code}' not found or inactive"
-            }
+            return {"success": False, "error": f"Station '{station_code}' not found or inactive"}
 
         # Verify agent exists and is active
-        cur.execute("""
+        cur.execute(
+            """
             SELECT id, name, status FROM agents
             WHERE id = %s
-        """, (agent_id,))
+        """,
+            (agent_id,),
+        )
         agent = cur.fetchone()
 
         if not agent:
-            return {
-                'success': False,
-                'error': f"Agent ID {agent_id} not found"
-            }
+            return {"success": False, "error": f"Agent ID {agent_id} not found"}
 
-        if agent['status'] != 'active':
-            return {
-                'success': False,
-                'error': f"Agent '{agent['name']}' is not active (status: {agent['status']})"
-            }
+        if agent["status"] != "active":
+            return {"success": False, "error": f"Agent '{agent['name']}' is not active (status: {agent['status']})"}
 
         # Check if agent is already assigned to this station
-        cur.execute("""
+        cur.execute(
+            """
             SELECT id FROM station_assignments
             WHERE agent_id = %s AND station_id = %s AND is_active = TRUE
-        """, (agent_id, station['id']))
+        """,
+            (agent_id, station["id"]),
+        )
         existing = cur.fetchone()
 
         if existing:
             # Update existing assignment
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE station_assignments
                 SET assignment_type = %s,
                     shift_preference = %s,
@@ -117,58 +116,59 @@ async def assign_agent_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
                     assigned_at = NOW()
                 WHERE id = %s
                 RETURNING id
-            """, (assignment_type, shift_preference, notes, existing['id']))
-            assignment_id = cur.fetchone()['id']
-            action = 'updated'
+            """,
+                (assignment_type, shift_preference, notes, existing["id"]),
+            )
+            assignment_id = cur.fetchone()["id"]
+            action = "updated"
         else:
             # Deactivate any current assignment for this agent
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE station_assignments
                 SET is_active = FALSE
                 WHERE agent_id = %s AND is_active = TRUE
-            """, (agent_id,))
+            """,
+                (agent_id,),
+            )
 
             # Create new assignment
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO station_assignments
                 (station_id, agent_id, assignment_type, shift_preference, priority, assigned_by, notes)
                 VALUES (%s, %s, %s, %s, 10, %s, %s)
                 RETURNING id
-            """, (station['id'], agent_id, assignment_type, shift_preference, user_id, notes))
-            assignment_id = cur.fetchone()['id']
-            action = 'created'
+            """,
+                (station["id"], agent_id, assignment_type, shift_preference, user_id, notes),
+            )
+            assignment_id = cur.fetchone()["id"]
+            action = "created"
 
         conn.commit()
 
         return {
-            'success': True,
-            'action': action,
-            'assignment_id': assignment_id,
-            'agent': {
-                'id': agent['id'],
-                'name': agent['name']
-            },
-            'station': {
-                'id': station['id'],
-                'name': station['station_name'],
-                'code': station_code.upper()
-            },
-            'assignment_type': assignment_type,
-            'shift_preference': shift_preference
+            "success": True,
+            "action": action,
+            "assignment_id": assignment_id,
+            "agent": {"id": agent["id"], "name": agent["name"]},
+            "station": {"id": station["id"], "name": station["station_name"], "code": station_code.upper()},
+            "assignment_type": assignment_type,
+            "shift_preference": shift_preference,
         }
 
     except Exception as e:
         conn.rollback()
         logger.error(f"Error assigning agent: {e}")
-        return {'success': False, 'error': str(e)}
+        return {"success": False, "error": str(e)}
     finally:
         cur.close()
         conn.close()
 
 
 register_tool(
-    name='assign_agent',
-    category='admin',
+    name="assign_agent",
+    category="admin",
     description="""Assign an AI agent to a bridge station.
 
 Available stations: COMMAND, CONSCIOUSNESS, HR, RND, OPERATIONS,
@@ -180,37 +180,37 @@ Shift preferences: any, morning, afternoon, evening, night
 Example: Assign agent 15 to Engineering as primary
 """,
     input_schema={
-        'type': 'object',
-        'properties': {
-            'agent_id': {
-                'type': 'integer',
-                'description': 'ID of the agent to assign'
+        "type": "object",
+        "properties": {
+            "agent_id": {"type": "integer", "description": "ID of the agent to assign"},
+            "station_code": {
+                "type": "string",
+                "description": "Station code (e.g., ENGINEERING, CREATIVE)",
+                "enum": [
+                    "COMMAND",
+                    "CONSCIOUSNESS",
+                    "HR",
+                    "RND",
+                    "OPERATIONS",
+                    "ENGINEERING",
+                    "CREATIVE",
+                    "SECURITY",
+                    "MEDICAL",
+                    "AWAY_TEAM",
+                ],
             },
-            'station_code': {
-                'type': 'string',
-                'description': 'Station code (e.g., ENGINEERING, CREATIVE)',
-                'enum': ['COMMAND', 'CONSCIOUSNESS', 'HR', 'RND', 'OPERATIONS',
-                        'ENGINEERING', 'CREATIVE', 'SECURITY', 'MEDICAL', 'AWAY_TEAM']
+            "assignment_type": {"type": "string", "enum": ["primary", "backup", "trainee"], "default": "primary"},
+            "shift_preference": {
+                "type": "string",
+                "enum": ["any", "morning", "afternoon", "evening", "night"],
+                "default": "any",
             },
-            'assignment_type': {
-                'type': 'string',
-                'enum': ['primary', 'backup', 'trainee'],
-                'default': 'primary'
-            },
-            'shift_preference': {
-                'type': 'string',
-                'enum': ['any', 'morning', 'afternoon', 'evening', 'night'],
-                'default': 'any'
-            },
-            'notes': {
-                'type': 'string',
-                'description': 'Optional assignment notes'
-            }
+            "notes": {"type": "string", "description": "Optional assignment notes"},
         },
-        'required': ['agent_id', 'station_code']
+        "required": ["agent_id", "station_code"],
     },
     handler=assign_agent_handler,
-    requires_permission='write'
+    requires_permission="write",
 )
 
 
@@ -218,104 +218,104 @@ Example: Assign agent 15 to Engineering as primary
 # UNASSIGN AGENT TOOL
 # ============================================================================
 
+
 async def unassign_agent_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """
     Remove an agent from their current station assignment
     """
-    agent_id = arguments.get('agent_id')
+    agent_id = arguments.get("agent_id")
 
     if not agent_id:
-        return {'success': False, 'error': 'agent_id is required'}
+        return {"success": False, "error": "agent_id is required"}
 
     conn, cur = get_db_connection()
     if not conn:
-        return {'success': False, 'error': 'Database connection failed'}
+        return {"success": False, "error": "Database connection failed"}
 
     try:
         # Get current assignment
-        cur.execute("""
+        cur.execute(
+            """
             SELECT sa.id, sa.station_id, bs.station_name, bs.station_code, a.name
             FROM station_assignments sa
             JOIN bridge_stations bs ON sa.station_id = bs.id
             JOIN agents a ON sa.agent_id = a.id
             WHERE sa.agent_id = %s AND sa.is_active = TRUE
-        """, (agent_id,))
+        """,
+            (agent_id,),
+        )
         assignment = cur.fetchone()
 
         if not assignment:
-            return {
-                'success': False,
-                'error': f"Agent {agent_id} has no active station assignment"
-            }
+            return {"success": False, "error": f"Agent {agent_id} has no active station assignment"}
 
         # Check if agent is fixed (ARCHIE or Kytran on Command)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT is_fixed FROM station_assignments
             WHERE id = %s
-        """, (assignment['id'],))
+        """,
+            (assignment["id"],),
+        )
         check = cur.fetchone()
 
-        if check and check['is_fixed']:
-            return {
-                'success': False,
-                'error': f"Cannot unassign {assignment['name']} - they have a fixed assignment"
-            }
+        if check and check["is_fixed"]:
+            return {"success": False, "error": f"Cannot unassign {assignment['name']} - they have a fixed assignment"}
 
         # Deactivate assignment
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE station_assignments
             SET is_active = FALSE
             WHERE id = %s
-        """, (assignment['id'],))
+        """,
+            (assignment["id"],),
+        )
 
         conn.commit()
 
         return {
-            'success': True,
-            'message': f"Unassigned {assignment['name']} from {assignment['station_name']}",
-            'agent_id': agent_id,
-            'agent_name': assignment['name'],
-            'previous_station': {
-                'id': assignment['station_id'],
-                'name': assignment['station_name'],
-                'code': assignment['station_code']
-            }
+            "success": True,
+            "message": f"Unassigned {assignment['name']} from {assignment['station_name']}",
+            "agent_id": agent_id,
+            "agent_name": assignment["name"],
+            "previous_station": {
+                "id": assignment["station_id"],
+                "name": assignment["station_name"],
+                "code": assignment["station_code"],
+            },
         }
 
     except Exception as e:
         conn.rollback()
         logger.error(f"Error unassigning agent: {e}")
-        return {'success': False, 'error': str(e)}
+        return {"success": False, "error": str(e)}
     finally:
         cur.close()
         conn.close()
 
 
 register_tool(
-    name='unassign_agent',
-    category='admin',
+    name="unassign_agent",
+    category="admin",
     description="""Remove an agent from their current bridge station assignment.
 
 Note: Fixed assignments (ARCHIE, Kytran on Command) cannot be removed.
 """,
     input_schema={
-        'type': 'object',
-        'properties': {
-            'agent_id': {
-                'type': 'integer',
-                'description': 'ID of the agent to unassign'
-            }
-        },
-        'required': ['agent_id']
+        "type": "object",
+        "properties": {"agent_id": {"type": "integer", "description": "ID of the agent to unassign"}},
+        "required": ["agent_id"],
     },
     handler=unassign_agent_handler,
-    requires_permission='write'
+    requires_permission="write",
 )
 
 
 # ============================================================================
 # GET SYSTEM STATUS TOOL
 # ============================================================================
+
 
 async def get_system_status_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -328,44 +328,49 @@ async def get_system_status_handler(arguments: Dict[str, Any]) -> Dict[str, Any]
     - Knowledge base stats
     - Recent activity
     """
-    include_details = arguments.get('include_details', False)
+    include_details = arguments.get("include_details", False)
 
     conn, cur = get_db_connection()
     if not conn:
-        return {'success': False, 'error': 'Database connection failed'}
+        return {"success": False, "error": "Database connection failed"}
 
     try:
         status = {
-            'success': True,
-            'timestamp': datetime.now().isoformat(),
-            'platform': 'A.R.C.H.I.E. v5.0',
-            'sections': {}
+            "success": True,
+            "timestamp": datetime.now().isoformat(),
+            "platform": "A.R.C.H.I.E. v5.0",
+            "sections": {},
         }
 
         # Agent statistics
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 COUNT(*) as total,
                 COUNT(*) FILTER (WHERE status = 'active') as active,
                 COUNT(*) FILTER (WHERE status = 'inactive') as inactive,
                 COUNT(*) FILTER (WHERE status = 'training') as training
             FROM agents
-        """)
+        """
+        )
         agent_stats = cur.fetchone()
-        status['sections']['agents'] = dict(agent_stats)
+        status["sections"]["agents"] = dict(agent_stats)
 
         # Agent by department
-        cur.execute("""
+        cur.execute(
+            """
             SELECT department, COUNT(*) as count
             FROM agents
             WHERE department IS NOT NULL
             GROUP BY department
             ORDER BY count DESC
-        """)
-        status['sections']['agents']['by_department'] = [dict(r) for r in cur.fetchall()]
+        """
+        )
+        status["sections"]["agents"]["by_department"] = [dict(r) for r in cur.fetchall()]
 
         # Station assignments
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 bs.station_code,
                 bs.station_name,
@@ -375,94 +380,98 @@ async def get_system_status_handler(arguments: Dict[str, Any]) -> Dict[str, Any]
             WHERE bs.is_active = TRUE
             GROUP BY bs.id, bs.station_code, bs.station_name
             ORDER BY bs.id
-        """)
+        """
+        )
         stations = [dict(r) for r in cur.fetchall()]
-        status['sections']['stations'] = {
-            'total': len(stations),
-            'coverage': [s for s in stations if s['assigned_agents'] > 0],
-            'empty': [s['station_code'] for s in stations if s['assigned_agents'] == 0]
+        status["sections"]["stations"] = {
+            "total": len(stations),
+            "coverage": [s for s in stations if s["assigned_agents"] > 0],
+            "empty": [s["station_code"] for s in stations if s["assigned_agents"] == 0],
         }
 
         # Improvement proposals
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 status,
                 COUNT(*) as count
             FROM improvement_proposals
             GROUP BY status
-        """)
-        improvements = {r['status']: r['count'] for r in cur.fetchall()}
-        status['sections']['improvements'] = {
-            'total': sum(improvements.values()),
-            'by_status': improvements
-        }
+        """
+        )
+        improvements = {r["status"]: r["count"] for r in cur.fetchall()}
+        status["sections"]["improvements"] = {"total": sum(improvements.values()), "by_status": improvements}
 
         # Knowledge base
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 knowledge_type,
                 COUNT(*) as count
             FROM knowledge_base
             GROUP BY knowledge_type
-        """)
-        knowledge = {r['knowledge_type']: r['count'] for r in cur.fetchall()}
-        status['sections']['knowledge'] = {
-            'total': sum(knowledge.values()),
-            'by_type': knowledge
-        }
+        """
+        )
+        knowledge = {r["knowledge_type"]: r["count"] for r in cur.fetchall()}
+        status["sections"]["knowledge"] = {"total": sum(knowledge.values()), "by_type": knowledge}
 
         # Recent activity (last 24 hours)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT COUNT(*) as count
             FROM token_usage_log
             WHERE created_at > NOW() - INTERVAL '24 hours'
-        """)
-        api_calls = cur.fetchone()['count']
+        """
+        )
+        api_calls = cur.fetchone()["count"]
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT COALESCE(SUM(prompt_tokens + completion_tokens), 0) as total
             FROM token_usage_log
             WHERE created_at > NOW() - INTERVAL '24 hours'
-        """)
-        tokens_24h = cur.fetchone()['total']
+        """
+        )
+        tokens_24h = cur.fetchone()["total"]
 
-        status['sections']['activity_24h'] = {
-            'api_calls': api_calls,
-            'tokens_used': int(tokens_24h)
-        }
+        status["sections"]["activity_24h"] = {"api_calls": api_calls, "tokens_used": int(tokens_24h)}
 
         if include_details:
             # Recent improvements
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT id, title, status, priority, proposed_at
                 FROM improvement_proposals
                 ORDER BY proposed_at DESC
                 LIMIT 5
-            """)
-            status['sections']['recent_improvements'] = [dict(r) for r in cur.fetchall()]
+            """
+            )
+            status["sections"]["recent_improvements"] = [dict(r) for r in cur.fetchall()]
 
             # Recent backups
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT id, backup_type, status, file_size_bytes, created_at
                 FROM backup_log
                 ORDER BY created_at DESC
                 LIMIT 5
-            """)
-            status['sections']['recent_backups'] = [dict(r) for r in cur.fetchall()]
+            """
+            )
+            status["sections"]["recent_backups"] = [dict(r) for r in cur.fetchall()]
 
         return status
 
     except Exception as e:
         logger.error(f"Error getting system status: {e}")
-        return {'success': False, 'error': str(e)}
+        return {"success": False, "error": str(e)}
     finally:
         cur.close()
         conn.close()
 
 
 register_tool(
-    name='get_system_status',
-    category='admin',
+    name="get_system_status",
+    category="admin",
     description="""Get comprehensive A.R.C.H.I.E. platform status.
 
 Returns metrics for:
@@ -475,17 +484,17 @@ Returns metrics for:
 Set include_details=true for recent improvements and backups.
 """,
     input_schema={
-        'type': 'object',
-        'properties': {
-            'include_details': {
-                'type': 'boolean',
-                'description': 'Include recent improvements and backups',
-                'default': False
+        "type": "object",
+        "properties": {
+            "include_details": {
+                "type": "boolean",
+                "description": "Include recent improvements and backups",
+                "default": False,
             }
-        }
+        },
     },
     handler=get_system_status_handler,
-    requires_permission='read'
+    requires_permission="read",
 )
 
 
@@ -493,18 +502,19 @@ Set include_details=true for recent improvements and backups.
 # LIST AGENTS TOOL
 # ============================================================================
 
+
 async def list_agents_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """
     List all agents with optional filtering
     """
-    status_filter = arguments.get('status', 'active')
-    department = arguments.get('department')
-    station_code = arguments.get('station_code')
-    limit = min(arguments.get('limit', 50), 100)
+    status_filter = arguments.get("status", "active")
+    department = arguments.get("department")
+    station_code = arguments.get("station_code")
+    limit = min(arguments.get("limit", 50), 100)
 
     conn, cur = get_db_connection()
     if not conn:
-        return {'success': False, 'error': 'Database connection failed'}
+        return {"success": False, "error": "Database connection failed"}
 
     try:
         query = """
@@ -521,7 +531,7 @@ async def list_agents_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
         """
         params = []
 
-        if status_filter and status_filter != 'all':
+        if status_filter and status_filter != "all":
             query += " AND a.status = %s"
             params.append(status_filter)
 
@@ -540,27 +550,23 @@ async def list_agents_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
         agents = [dict(r) for r in cur.fetchall()]
 
         return {
-            'success': True,
-            'count': len(agents),
-            'filters': {
-                'status': status_filter,
-                'department': department,
-                'station_code': station_code
-            },
-            'agents': agents
+            "success": True,
+            "count": len(agents),
+            "filters": {"status": status_filter, "department": department, "station_code": station_code},
+            "agents": agents,
         }
 
     except Exception as e:
         logger.error(f"Error listing agents: {e}")
-        return {'success': False, 'error': str(e)}
+        return {"success": False, "error": str(e)}
     finally:
         cur.close()
         conn.close()
 
 
 register_tool(
-    name='list_agents',
-    category='admin',
+    name="list_agents",
+    category="admin",
     description="""List AI agents with optional filtering.
 
 Filter by:
@@ -569,30 +575,16 @@ Filter by:
 - station_code: COMMAND, ENGINEERING, CREATIVE, etc.
 """,
     input_schema={
-        'type': 'object',
-        'properties': {
-            'status': {
-                'type': 'string',
-                'enum': ['active', 'inactive', 'training', 'all'],
-                'default': 'active'
-            },
-            'department': {
-                'type': 'string',
-                'description': 'Filter by department'
-            },
-            'station_code': {
-                'type': 'string',
-                'description': 'Filter by assigned station'
-            },
-            'limit': {
-                'type': 'integer',
-                'description': 'Max results (default 50, max 100)',
-                'default': 50
-            }
-        }
+        "type": "object",
+        "properties": {
+            "status": {"type": "string", "enum": ["active", "inactive", "training", "all"], "default": "active"},
+            "department": {"type": "string", "description": "Filter by department"},
+            "station_code": {"type": "string", "description": "Filter by assigned station"},
+            "limit": {"type": "integer", "description": "Max results (default 50, max 100)", "default": 50},
+        },
     },
     handler=list_agents_handler,
-    requires_permission='read'
+    requires_permission="read",
 )
 
 
@@ -600,20 +592,21 @@ Filter by:
 # RUN IMPROVEMENT TOOL
 # ============================================================================
 
+
 async def run_improvement_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """
     Manage improvement proposals - create, list, update status
     """
-    action = arguments.get('action', 'list')
+    action = arguments.get("action", "list")
 
     conn, cur = get_db_connection()
     if not conn:
-        return {'success': False, 'error': 'Database connection failed'}
+        return {"success": False, "error": "Database connection failed"}
 
     try:
-        if action == 'list':
-            status_filter = arguments.get('status', 'all')
-            limit = min(arguments.get('limit', 20), 50)
+        if action == "list":
+            status_filter = arguments.get("status", "all")
+            limit = min(arguments.get("limit", 20), 50)
 
             query = """
                 SELECT id, title, description, category, priority, status,
@@ -623,7 +616,7 @@ async def run_improvement_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
             """
             params = []
 
-            if status_filter != 'all':
+            if status_filter != "all":
                 query += " AND status = %s"
                 params.append(status_filter)
 
@@ -633,69 +626,63 @@ async def run_improvement_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
             cur.execute(query, params)
             improvements = [dict(r) for r in cur.fetchall()]
 
-            return {
-                'success': True,
-                'action': 'list',
-                'count': len(improvements),
-                'improvements': improvements
-            }
+            return {"success": True, "action": "list", "count": len(improvements), "improvements": improvements}
 
-        elif action == 'create':
-            title = arguments.get('title')
-            description = arguments.get('description', '')
-            category = arguments.get('category', 'enhancement')
-            priority = arguments.get('priority', 'medium')
-            risk_level = arguments.get('risk_level', 'medium')
-            user_id = arguments.get('user_id', 2)
+        elif action == "create":
+            title = arguments.get("title")
+            description = arguments.get("description", "")
+            category = arguments.get("category", "enhancement")
+            priority = arguments.get("priority", "medium")
+            risk_level = arguments.get("risk_level", "medium")
+            user_id = arguments.get("user_id", 2)
 
             if not title:
-                return {'success': False, 'error': 'title is required'}
+                return {"success": False, "error": "title is required"}
 
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO improvement_proposals
                 (title, description, category, priority, status, risk_level, proposed_by)
                 VALUES (%s, %s, %s, %s, 'proposed', %s, %s)
                 RETURNING id
-            """, (title, description, category, priority, risk_level, user_id))
+            """,
+                (title, description, category, priority, risk_level, user_id),
+            )
 
-            improvement_id = cur.fetchone()['id']
+            improvement_id = cur.fetchone()["id"]
             conn.commit()
 
             return {
-                'success': True,
-                'action': 'create',
-                'improvement_id': improvement_id,
-                'title': title,
-                'status': 'proposed'
+                "success": True,
+                "action": "create",
+                "improvement_id": improvement_id,
+                "title": title,
+                "status": "proposed",
             }
 
-        elif action == 'update_status':
-            improvement_id = arguments.get('improvement_id')
-            new_status = arguments.get('new_status')
-            notes = arguments.get('notes', '')
+        elif action == "update_status":
+            improvement_id = arguments.get("improvement_id")
+            new_status = arguments.get("new_status")
+            notes = arguments.get("notes", "")
 
             if not improvement_id or not new_status:
-                return {'success': False, 'error': 'improvement_id and new_status required'}
+                return {"success": False, "error": "improvement_id and new_status required"}
 
-            valid_statuses = ['proposed', 'approved', 'in_progress', 'testing',
-                           'deployed', 'rejected', 'on_hold']
+            valid_statuses = ["proposed", "approved", "in_progress", "testing", "deployed", "rejected", "on_hold"]
             if new_status not in valid_statuses:
-                return {
-                    'success': False,
-                    'error': f"Invalid status. Must be one of: {valid_statuses}"
-                }
+                return {"success": False, "error": f"Invalid status. Must be one of: {valid_statuses}"}
 
             # Update based on status
             updates = ["status = %s", "notes = COALESCE(notes, '') || %s"]
             params = [new_status, f"\n[{datetime.now().isoformat()}] Status -> {new_status}: {notes}"]
 
-            if new_status == 'approved':
+            if new_status == "approved":
                 updates.append("approved_at = NOW()")
-            elif new_status == 'in_progress':
+            elif new_status == "in_progress":
                 updates.append("reviewed_at = NOW()")
-            elif new_status == 'deployed':
+            elif new_status == "deployed":
                 updates.append("deployed_at = NOW()")
-            elif new_status == 'testing':
+            elif new_status == "testing":
                 updates.append("test_started_at = NOW()")
                 updates.append("test_status = 'running'")
 
@@ -711,55 +698,47 @@ async def run_improvement_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
             result = cur.fetchone()
 
             if not result:
-                return {'success': False, 'error': f"Improvement {improvement_id} not found"}
+                return {"success": False, "error": f"Improvement {improvement_id} not found"}
 
             conn.commit()
 
-            return {
-                'success': True,
-                'action': 'update_status',
-                'improvement': dict(result)
-            }
+            return {"success": True, "action": "update_status", "improvement": dict(result)}
 
-        elif action == 'get':
-            improvement_id = arguments.get('improvement_id')
+        elif action == "get":
+            improvement_id = arguments.get("improvement_id")
 
             if not improvement_id:
-                return {'success': False, 'error': 'improvement_id required'}
+                return {"success": False, "error": "improvement_id required"}
 
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT * FROM improvement_proposals
                 WHERE id = %s
-            """, (improvement_id,))
+            """,
+                (improvement_id,),
+            )
             improvement = cur.fetchone()
 
             if not improvement:
-                return {'success': False, 'error': f"Improvement {improvement_id} not found"}
+                return {"success": False, "error": f"Improvement {improvement_id} not found"}
 
-            return {
-                'success': True,
-                'action': 'get',
-                'improvement': dict(improvement)
-            }
+            return {"success": True, "action": "get", "improvement": dict(improvement)}
 
         else:
-            return {
-                'success': False,
-                'error': f"Unknown action: {action}. Use: list, create, update_status, get"
-            }
+            return {"success": False, "error": f"Unknown action: {action}. Use: list, create, update_status, get"}
 
     except Exception as e:
         conn.rollback()
         logger.error(f"Error in improvement operation: {e}")
-        return {'success': False, 'error': str(e)}
+        return {"success": False, "error": str(e)}
     finally:
         cur.close()
         conn.close()
 
 
 register_tool(
-    name='run_improvement',
-    category='admin',
+    name="run_improvement",
+    category="admin",
     description="""Manage improvement proposals for the A.R.C.H.I.E. platform.
 
 Actions:
@@ -771,58 +750,30 @@ Actions:
 Example: Create a new feature proposal for better search
 """,
     input_schema={
-        'type': 'object',
-        'properties': {
-            'action': {
-                'type': 'string',
-                'enum': ['list', 'create', 'update_status', 'get'],
-                'default': 'list'
+        "type": "object",
+        "properties": {
+            "action": {"type": "string", "enum": ["list", "create", "update_status", "get"], "default": "list"},
+            "improvement_id": {"type": "integer", "description": "For update_status or get actions"},
+            "status": {
+                "type": "string",
+                "description": "For list action - filter by status",
+                "enum": ["all", "proposed", "approved", "in_progress", "testing", "deployed", "rejected"],
             },
-            'improvement_id': {
-                'type': 'integer',
-                'description': 'For update_status or get actions'
+            "new_status": {"type": "string", "description": "For update_status action"},
+            "title": {"type": "string", "description": "For create action"},
+            "description": {"type": "string", "description": "For create action"},
+            "category": {
+                "type": "string",
+                "enum": ["enhancement", "bugfix", "feature", "refactor", "security", "performance"],
             },
-            'status': {
-                'type': 'string',
-                'description': 'For list action - filter by status',
-                'enum': ['all', 'proposed', 'approved', 'in_progress', 'testing', 'deployed', 'rejected']
-            },
-            'new_status': {
-                'type': 'string',
-                'description': 'For update_status action'
-            },
-            'title': {
-                'type': 'string',
-                'description': 'For create action'
-            },
-            'description': {
-                'type': 'string',
-                'description': 'For create action'
-            },
-            'category': {
-                'type': 'string',
-                'enum': ['enhancement', 'bugfix', 'feature', 'refactor', 'security', 'performance']
-            },
-            'priority': {
-                'type': 'string',
-                'enum': ['low', 'medium', 'high', 'critical']
-            },
-            'risk_level': {
-                'type': 'string',
-                'enum': ['low', 'medium', 'high']
-            },
-            'notes': {
-                'type': 'string',
-                'description': 'For update_status action'
-            },
-            'limit': {
-                'type': 'integer',
-                'default': 20
-            }
-        }
+            "priority": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
+            "risk_level": {"type": "string", "enum": ["low", "medium", "high"]},
+            "notes": {"type": "string", "description": "For update_status action"},
+            "limit": {"type": "integer", "default": 20},
+        },
     },
     handler=run_improvement_handler,
-    requires_permission='write'
+    requires_permission="write",
 )
 
 
@@ -830,20 +781,21 @@ Example: Create a new feature proposal for better search
 # MANAGE BACKUP TOOL
 # ============================================================================
 
+
 async def manage_backup_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """
     Manage system backups - list history and create new backups
     """
-    action = arguments.get('action', 'list')
+    action = arguments.get("action", "list")
 
     conn, cur = get_db_connection()
     if not conn:
-        return {'success': False, 'error': 'Database connection failed'}
+        return {"success": False, "error": "Database connection failed"}
 
     try:
-        if action == 'list':
-            limit = min(arguments.get('limit', 20), 50)
-            status_filter = arguments.get('status')
+        if action == "list":
+            limit = min(arguments.get("limit", 20), 50)
+            status_filter = arguments.get("status")
 
             query = """
                 SELECT id, backup_type, file_path, file_size_bytes, status,
@@ -865,80 +817,74 @@ async def manage_backup_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
             for r in cur.fetchall():
                 backup = dict(r)
                 # Format file size
-                if backup.get('file_size_bytes'):
-                    size_mb = backup['file_size_bytes'] / (1024 * 1024)
-                    backup['file_size_formatted'] = f"{size_mb:.2f} MB"
+                if backup.get("file_size_bytes"):
+                    size_mb = backup["file_size_bytes"] / (1024 * 1024)
+                    backup["file_size_formatted"] = f"{size_mb:.2f} MB"
                 backups.append(backup)
 
-            return {
-                'success': True,
-                'action': 'list',
-                'count': len(backups),
-                'backups': backups
-            }
+            return {"success": True, "action": "list", "count": len(backups), "backups": backups}
 
-        elif action == 'create':
-            backup_type = arguments.get('backup_type', 'full')
-            user_id = arguments.get('user_id', 2)
+        elif action == "create":
+            backup_type = arguments.get("backup_type", "full")
+            user_id = arguments.get("user_id", 2)
 
             # Create backup log entry
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO backup_log (backup_type, status, created_by)
                 VALUES (%s, 'pending', %s)
                 RETURNING id
-            """, (backup_type, user_id))
-            backup_id = cur.fetchone()['id']
+            """,
+                (backup_type, user_id),
+            )
+            backup_id = cur.fetchone()["id"]
             conn.commit()
 
             # Note: Actual backup would be triggered via backup_manager
             # This creates the tracking record
             return {
-                'success': True,
-                'action': 'create',
-                'backup_id': backup_id,
-                'backup_type': backup_type,
-                'status': 'pending',
-                'message': 'Backup job created. Use backup_manager UI to execute.'
+                "success": True,
+                "action": "create",
+                "backup_id": backup_id,
+                "backup_type": backup_type,
+                "status": "pending",
+                "message": "Backup job created. Use backup_manager UI to execute.",
             }
 
-        elif action == 'status':
-            backup_id = arguments.get('backup_id')
+        elif action == "status":
+            backup_id = arguments.get("backup_id")
 
             if not backup_id:
-                return {'success': False, 'error': 'backup_id required'}
+                return {"success": False, "error": "backup_id required"}
 
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT * FROM backup_log WHERE id = %s
-            """, (backup_id,))
+            """,
+                (backup_id,),
+            )
             backup = cur.fetchone()
 
             if not backup:
-                return {'success': False, 'error': f"Backup {backup_id} not found"}
+                return {"success": False, "error": f"Backup {backup_id} not found"}
 
-            return {
-                'success': True,
-                'action': 'status',
-                'backup': dict(backup)
-            }
+            return {"success": True, "action": "status", "backup": dict(backup)}
 
         else:
-            return {
-                'success': False,
-                'error': f"Unknown action: {action}. Use: list, create, status"
-            }
+            return {"success": False, "error": f"Unknown action: {action}. Use: list, create, status"}
 
     except Exception as e:
         conn.rollback()
         logger.error(f"Error in backup operation: {e}")
-        return {'success': False, 'error': str(e)}
+        return {"success": False, "error": str(e)}
     finally:
         cur.close()
         conn.close()
 
 
 register_tool(
-    name='manage_backup',
-    category='admin',
+    name="manage_backup",
+    category="admin",
     description="""Manage A.R.C.H.I.E. system backups.
 
 Actions:
@@ -949,35 +895,21 @@ Actions:
 Note: Actual backup execution happens via the Backup Manager UI.
 """,
     input_schema={
-        'type': 'object',
-        'properties': {
-            'action': {
-                'type': 'string',
-                'enum': ['list', 'create', 'status'],
-                'default': 'list'
+        "type": "object",
+        "properties": {
+            "action": {"type": "string", "enum": ["list", "create", "status"], "default": "list"},
+            "backup_id": {"type": "integer", "description": "For status action"},
+            "backup_type": {"type": "string", "enum": ["full", "database", "files", "config"], "default": "full"},
+            "status": {
+                "type": "string",
+                "description": "For list action - filter",
+                "enum": ["pending", "running", "completed", "failed"],
             },
-            'backup_id': {
-                'type': 'integer',
-                'description': 'For status action'
-            },
-            'backup_type': {
-                'type': 'string',
-                'enum': ['full', 'database', 'files', 'config'],
-                'default': 'full'
-            },
-            'status': {
-                'type': 'string',
-                'description': 'For list action - filter',
-                'enum': ['pending', 'running', 'completed', 'failed']
-            },
-            'limit': {
-                'type': 'integer',
-                'default': 20
-            }
-        }
+            "limit": {"type": "integer", "default": 20},
+        },
     },
     handler=manage_backup_handler,
-    requires_permission='write'
+    requires_permission="write",
 )
 
 
@@ -985,37 +917,39 @@ Note: Actual backup execution happens via the Backup Manager UI.
 # VIEW ANALYTICS TOOL
 # ============================================================================
 
+
 async def view_analytics_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """
     View platform analytics - token usage, costs, activity trends
     """
-    period = arguments.get('period', '24h')
-    metric_type = arguments.get('metric_type', 'overview')
+    period = arguments.get("period", "24h")
+    metric_type = arguments.get("metric_type", "overview")
 
     conn, cur = get_db_connection()
     if not conn:
-        return {'success': False, 'error': 'Database connection failed'}
+        return {"success": False, "error": "Database connection failed"}
 
     try:
         # Parse period
         period_map = {
-            '1h': timedelta(hours=1),
-            '24h': timedelta(hours=24),
-            '7d': timedelta(days=7),
-            '30d': timedelta(days=30)
+            "1h": timedelta(hours=1),
+            "24h": timedelta(hours=24),
+            "7d": timedelta(days=7),
+            "30d": timedelta(days=30),
         }
         interval = period_map.get(period, timedelta(hours=24))
 
         analytics = {
-            'success': True,
-            'period': period,
-            'metric_type': metric_type,
-            'timestamp': datetime.now().isoformat()
+            "success": True,
+            "period": period,
+            "metric_type": metric_type,
+            "timestamp": datetime.now().isoformat(),
         }
 
-        if metric_type in ['overview', 'tokens']:
+        if metric_type in ["overview", "tokens"]:
             # Token usage
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     COUNT(*) as total_calls,
                     COALESCE(SUM(prompt_tokens), 0) as input_tokens,
@@ -1024,21 +958,24 @@ async def view_analytics_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
                     COALESCE(SUM(cost), 0) as total_cost
                 FROM token_usage_log
                 WHERE created_at > NOW() - %s
-            """, (interval,))
+            """,
+                (interval,),
+            )
             token_stats = dict(cur.fetchone())
 
             # Convert to native Python types
-            analytics['tokens'] = {
-                'total_calls': int(token_stats['total_calls']),
-                'input_tokens': int(token_stats['input_tokens']),
-                'output_tokens': int(token_stats['output_tokens']),
-                'total_tokens': int(token_stats['total_tokens']),
-                'total_cost': float(token_stats['total_cost'])
+            analytics["tokens"] = {
+                "total_calls": int(token_stats["total_calls"]),
+                "input_tokens": int(token_stats["input_tokens"]),
+                "output_tokens": int(token_stats["output_tokens"]),
+                "total_tokens": int(token_stats["total_tokens"]),
+                "total_cost": float(token_stats["total_cost"]),
             }
 
-        if metric_type in ['overview', 'models']:
+        if metric_type in ["overview", "models"]:
             # Usage by model
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     model,
                     COUNT(*) as calls,
@@ -1049,20 +986,25 @@ async def view_analytics_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
                 GROUP BY model
                 ORDER BY calls DESC
                 LIMIT 10
-            """, (interval,))
+            """,
+                (interval,),
+            )
 
-            analytics['by_model'] = []
+            analytics["by_model"] = []
             for r in cur.fetchall():
-                analytics['by_model'].append({
-                    'model': r['model'],
-                    'calls': int(r['calls']),
-                    'tokens': int(r['tokens']),
-                    'cost': float(r['cost'])
-                })
+                analytics["by_model"].append(
+                    {
+                        "model": r["model"],
+                        "calls": int(r["calls"]),
+                        "tokens": int(r["tokens"]),
+                        "cost": float(r["cost"]),
+                    }
+                )
 
-        if metric_type in ['overview', 'agents']:
+        if metric_type in ["overview", "agents"]:
             # Usage by agent
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     a.name as agent_name,
                     t.agent_id,
@@ -1074,20 +1016,25 @@ async def view_analytics_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
                 GROUP BY t.agent_id, a.name
                 ORDER BY calls DESC
                 LIMIT 10
-            """, (interval,))
+            """,
+                (interval,),
+            )
 
-            analytics['by_agent'] = []
+            analytics["by_agent"] = []
             for r in cur.fetchall():
-                analytics['by_agent'].append({
-                    'agent_id': r['agent_id'],
-                    'agent_name': r['agent_name'] or 'Unknown',
-                    'calls': int(r['calls']),
-                    'tokens': int(r['tokens'])
-                })
+                analytics["by_agent"].append(
+                    {
+                        "agent_id": r["agent_id"],
+                        "agent_name": r["agent_name"] or "Unknown",
+                        "calls": int(r["calls"]),
+                        "tokens": int(r["tokens"]),
+                    }
+                )
 
-        if metric_type in ['overview', 'hourly']:
+        if metric_type in ["overview", "hourly"]:
             # Hourly trend (last 24 hours)
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     date_trunc('hour', created_at) as hour,
                     COUNT(*) as calls,
@@ -1096,29 +1043,32 @@ async def view_analytics_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
                 WHERE created_at > NOW() - INTERVAL '24 hours'
                 GROUP BY hour
                 ORDER BY hour
-            """)
+            """
+            )
 
-            analytics['hourly_trend'] = []
+            analytics["hourly_trend"] = []
             for r in cur.fetchall():
-                analytics['hourly_trend'].append({
-                    'hour': r['hour'].isoformat() if r['hour'] else None,
-                    'calls': int(r['calls']),
-                    'tokens': int(r['tokens'])
-                })
+                analytics["hourly_trend"].append(
+                    {
+                        "hour": r["hour"].isoformat() if r["hour"] else None,
+                        "calls": int(r["calls"]),
+                        "tokens": int(r["tokens"]),
+                    }
+                )
 
         return analytics
 
     except Exception as e:
         logger.error(f"Error getting analytics: {e}")
-        return {'success': False, 'error': str(e)}
+        return {"success": False, "error": str(e)}
     finally:
         cur.close()
         conn.close()
 
 
 register_tool(
-    name='view_analytics',
-    category='admin',
+    name="view_analytics",
+    category="admin",
     description="""View A.R.C.H.I.E. platform analytics.
 
 Periods: 1h, 24h, 7d, 30d
@@ -1132,22 +1082,18 @@ Metric types:
 Example: Get 7-day token usage overview
 """,
     input_schema={
-        'type': 'object',
-        'properties': {
-            'period': {
-                'type': 'string',
-                'enum': ['1h', '24h', '7d', '30d'],
-                'default': '24h'
+        "type": "object",
+        "properties": {
+            "period": {"type": "string", "enum": ["1h", "24h", "7d", "30d"], "default": "24h"},
+            "metric_type": {
+                "type": "string",
+                "enum": ["overview", "tokens", "models", "agents", "hourly"],
+                "default": "overview",
             },
-            'metric_type': {
-                'type': 'string',
-                'enum': ['overview', 'tokens', 'models', 'agents', 'hourly'],
-                'default': 'overview'
-            }
-        }
+        },
     },
     handler=view_analytics_handler,
-    requires_permission='read'
+    requires_permission="read",
 )
 
 
@@ -1155,21 +1101,23 @@ Example: Get 7-day token usage overview
 # GET STATION ASSIGNMENTS TOOL
 # ============================================================================
 
+
 async def get_station_assignments_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """
     Get current bridge station assignments
     """
-    station_code = arguments.get('station_code')
-    include_empty = arguments.get('include_empty', True)
+    station_code = arguments.get("station_code")
+    include_empty = arguments.get("include_empty", True)
 
     conn, cur = get_db_connection()
     if not conn:
-        return {'success': False, 'error': 'Database connection failed'}
+        return {"success": False, "error": "Database connection failed"}
 
     try:
         if station_code:
             # Get specific station
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     bs.id, bs.station_code, bs.station_name, bs.color, bs.icon,
                     a.id as agent_id, a.name as agent_name, a.title as agent_title,
@@ -1179,43 +1127,45 @@ async def get_station_assignments_handler(arguments: Dict[str, Any]) -> Dict[str
                 LEFT JOIN station_assignments sa ON bs.id = sa.station_id AND sa.is_active = TRUE
                 LEFT JOIN agents a ON sa.agent_id = a.id
                 WHERE bs.station_code = %s AND bs.is_active = TRUE
-            """, (station_code.upper(),))
+            """,
+                (station_code.upper(),),
+            )
             results = cur.fetchall()
 
             if not results:
-                return {'success': False, 'error': f"Station '{station_code}' not found"}
+                return {"success": False, "error": f"Station '{station_code}' not found"}
 
             station_info = {
-                'id': results[0]['id'],
-                'code': results[0]['station_code'],
-                'name': results[0]['station_name'],
-                'color': results[0]['color'],
-                'icon': results[0]['icon'],
-                'agents': []
+                "id": results[0]["id"],
+                "code": results[0]["station_code"],
+                "name": results[0]["station_name"],
+                "color": results[0]["color"],
+                "icon": results[0]["icon"],
+                "agents": [],
             }
 
             for r in results:
-                if r['agent_id']:
-                    station_info['agents'].append({
-                        'id': r['agent_id'],
-                        'name': r['agent_name'],
-                        'title': r['agent_title'],
-                        'department': r['department'],
-                        'status': r['agent_status'],
-                        'assignment_type': r['assignment_type'],
-                        'shift_preference': r['shift_preference'],
-                        'is_fixed': r['is_fixed'],
-                        'role_type': r['role_type']
-                    })
+                if r["agent_id"]:
+                    station_info["agents"].append(
+                        {
+                            "id": r["agent_id"],
+                            "name": r["agent_name"],
+                            "title": r["agent_title"],
+                            "department": r["department"],
+                            "status": r["agent_status"],
+                            "assignment_type": r["assignment_type"],
+                            "shift_preference": r["shift_preference"],
+                            "is_fixed": r["is_fixed"],
+                            "role_type": r["role_type"],
+                        }
+                    )
 
-            return {
-                'success': True,
-                'station': station_info
-            }
+            return {"success": True, "station": station_info}
 
         else:
             # Get all stations
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     bs.id, bs.station_code, bs.station_name, bs.color, bs.icon,
                     COUNT(sa.id) as agent_count
@@ -1224,37 +1174,36 @@ async def get_station_assignments_handler(arguments: Dict[str, Any]) -> Dict[str
                 WHERE bs.is_active = TRUE
                 GROUP BY bs.id
                 ORDER BY bs.id
-            """)
+            """
+            )
 
             stations = []
             for r in cur.fetchall():
-                if include_empty or r['agent_count'] > 0:
-                    stations.append({
-                        'id': r['id'],
-                        'code': r['station_code'],
-                        'name': r['station_name'],
-                        'color': r['color'],
-                        'icon': r['icon'],
-                        'agent_count': r['agent_count']
-                    })
+                if include_empty or r["agent_count"] > 0:
+                    stations.append(
+                        {
+                            "id": r["id"],
+                            "code": r["station_code"],
+                            "name": r["station_name"],
+                            "color": r["color"],
+                            "icon": r["icon"],
+                            "agent_count": r["agent_count"],
+                        }
+                    )
 
-            return {
-                'success': True,
-                'total_stations': len(stations),
-                'stations': stations
-            }
+            return {"success": True, "total_stations": len(stations), "stations": stations}
 
     except Exception as e:
         logger.error(f"Error getting station assignments: {e}")
-        return {'success': False, 'error': str(e)}
+        return {"success": False, "error": str(e)}
     finally:
         cur.close()
         conn.close()
 
 
 register_tool(
-    name='get_station_assignments',
-    category='admin',
+    name="get_station_assignments",
+    category="admin",
     description="""Get bridge station assignments overview.
 
 Without station_code: Returns all 10 stations with agent counts
@@ -1264,23 +1213,113 @@ Stations: COMMAND, CONSCIOUSNESS, HR, RND, OPERATIONS,
 ENGINEERING, CREATIVE, SECURITY, MEDICAL, AWAY_TEAM
 """,
     input_schema={
-        'type': 'object',
-        'properties': {
-            'station_code': {
-                'type': 'string',
-                'description': 'Get specific station details'
-            },
-            'include_empty': {
-                'type': 'boolean',
-                'description': 'Include stations with no agents',
-                'default': True
-            }
-        }
+        "type": "object",
+        "properties": {
+            "station_code": {"type": "string", "description": "Get specific station details"},
+            "include_empty": {"type": "boolean", "description": "Include stations with no agents", "default": True},
+        },
     },
     handler=get_station_assignments_handler,
-    requires_permission='read'
+    requires_permission="read",
 )
 
 
-logger.info("Admin tools registered: assign_agent, unassign_agent, get_system_status, "
-            "list_agents, run_improvement, manage_backup, view_analytics, get_station_assignments")
+# ============================================================================
+# RUN BACKUP TOOL - Actually execute backups
+# ============================================================================
+
+
+async def run_backup_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Execute actual system backup (not just log entry)
+
+    Creates a full backup including database, platform files, docs, etc.
+    Runs backup inside Docker container via docker exec.
+    """
+    description = arguments.get("description", "MCP automated backup")
+    # Sanitize description for shell safety
+    safe_description = description.replace("'", "").replace('"', "").replace(";", "").replace("&", "")[:50]
+
+    try:
+        # Execute backup inside Docker container
+        cmd = [
+            "docker",
+            "exec",
+            "archie_platform",
+            "python3",
+            "-c",
+            f"""
+import json
+from tools.backup_manager.backup_manager_routes import create_backup_programmatic
+result = create_backup_programmatic("{safe_description}", "mcp_system")
+print(json.dumps(result, default=str))
+""",
+        ]
+
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+
+        if result.returncode != 0:
+            return {"success": False, "error": f"Docker exec failed: {result.stderr}"}
+
+        # Parse the JSON output
+        try:
+            backup_result = json.loads(result.stdout.strip())
+        except json.JSONDecodeError:
+            return {"success": False, "error": f"Failed to parse backup result: {result.stdout}"}
+
+        if backup_result.get("success"):
+            return {
+                "success": True,
+                "message": f"Backup created successfully (Build #{backup_result.get('build_number')})",
+                "backup_name": backup_result.get("backup_name"),
+                "backup_path": backup_result.get("backup_path"),
+                "build_number": backup_result.get("build_number"),
+                "platform_version": backup_result.get("backup", {}).get("platform_version"),
+                "components": backup_result.get("backup", {}).get("components", {}),
+            }
+        else:
+            return {"success": False, "error": backup_result.get("error", "Unknown backup error")}
+
+    except subprocess.TimeoutExpired:
+        return {"success": False, "error": "Backup timed out after 5 minutes"}
+    except Exception as e:
+        logger.error(f"Error running backup: {e}")
+        return {"success": False, "error": str(e)}
+
+
+register_tool(
+    name="run_backup",
+    category="admin",
+    description="""Execute actual system backup (database + platform files).
+
+Creates a comprehensive backup including:
+- Database (all tables)
+- Platform code (tools, templates, static files)
+- AI bridge code
+- Documentation
+- N8N workflows
+- Scripts and configuration
+
+Returns backup name, path, and build number on success.
+
+Example: Create a backup before making changes
+""",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "description": {
+                "type": "string",
+                "description": "Description for this backup (will be part of backup name)",
+                "default": "MCP automated backup",
+            }
+        },
+    },
+    handler=run_backup_handler,
+    requires_permission="admin",
+)
+
+
+logger.info(
+    "Admin tools registered: assign_agent, unassign_agent, get_system_status, "
+    "list_agents, run_improvement, manage_backup, run_backup, view_analytics, get_station_assignments"
+)

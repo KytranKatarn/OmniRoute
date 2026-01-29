@@ -1,0 +1,24 @@
+# ==============================================================================
+# A.R.C.H.I.E. Crontab Configuration
+# ==============================================================================
+# Install with: crontab /mnt/archie_brain/scripts/archie_crontab.txt
+# Or add entries manually: crontab -e
+#
+# Log locations:
+#   - Backups: /var/log/archie_backup.log
+#   - Memory: /var/log/archie_memory.log
+# ==============================================================================
+
+# Daily backup at 2:00 AM
+0 2 * * * /mnt/archie_brain/scripts/daily_backup.sh >> /var/log/archie_backup.log 2>&1
+
+# Weekly cleanup (Sunday at 3:00 AM)
+0 3 * * 0 /mnt/archie_brain/scripts/weekly_cleanup.sh >> /var/log/archie_backup.log 2>&1
+
+# Weekly memory decay (Sunday at 4:00 AM)
+0 4 * * 0 /mnt/archie_brain/scripts/weekly_memory_decay.sh >> /var/log/archie_memory.log 2>&1
+
+# ==============================================================================
+# Optional: Monthly full backup (1st of month at 1:00 AM)
+# 0 1 1 * * docker exec archie_platform python3 -c "from tools.backup_manager.backup_manager_routes import create_backup_programmatic; create_backup_programmatic('Monthly_Full', 'cron')" >> /var/log/archie_backup.log 2>&1
+# ==============================================================================

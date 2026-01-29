@@ -13,20 +13,17 @@ import json
 from datetime import datetime
 import shutil
 import tarfile
+import tempfile
 import psycopg2
-from psycopg2 import sql
 
-backup_manager_bp = Blueprint('backup_manager', __name__, url_prefix='/tools/backup-manager')
+backup_manager_bp = Blueprint("backup_manager", __name__, url_prefix="/tools/backup-manager")
 
 # =============================================================================
 # PROGRAMMATIC BACKUP FUNCTIONS (can be imported and called directly)
 # =============================================================================
 
-def create_backup_programmatic(
-    description='Auto-backup',
-    created_by_username='system',
-    proposal_id=None
-):
+
+def create_backup_programmatic(description="Auto-backup", created_by_username="system", proposal_id=None):
     """
     Create a comprehensive backup of A.R.C.H.I.E. Platform (programmatic API)
 
@@ -48,7 +45,7 @@ def create_backup_programmatic(
     """
     try:
         # Generate backup name
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_name = f"{timestamp}_{description.replace(' ', '_')}"
         backup_path = os.path.join(BACKUP_DIR, backup_name)
 
@@ -58,23 +55,30 @@ def create_backup_programmatic(
 
         # 1. Backup database using Python
         print("  Backing up database...")
-        db_file = os.path.join(backup_path, 'database.sql')
+        db_file = os.path.join(backup_path, "database.sql")
         backup_database_python(db_file)
         print("  ✓ Database backup complete")
 
         # 2. Backup platform files
         print("  Backing up platform files...")
-        platform_backup = os.path.join(backup_path, 'platform_v2')
+        platform_backup = os.path.join(backup_path, "platform_v2")
 
-        platform_dirs = ['tools', 'templates', 'static', 'consciousness', 'migrations']
+        platform_dirs = ["tools", "templates", "static", "consciousness", "migrations"]
         for dir_name in platform_dirs:
             src = os.path.join(PLATFORM_DIR, dir_name)
             if os.path.exists(src):
                 dst = os.path.join(platform_backup, dir_name)
                 shutil.copytree(src, dst, dirs_exist_ok=True)
 
-        important_files = ['app.py', 'requirements.txt', 'docker-compose.yml', '.env',
-                          'config.py', 'module_registry.py', 'rbac.py']
+        important_files = [
+            "app.py",
+            "requirements.txt",
+            "docker-compose.yml",
+            ".env",
+            "config.py",
+            "module_registry.py",
+            "rbac.py",
+        ]
         for file_name in important_files:
             src = os.path.join(PLATFORM_DIR, file_name)
             if os.path.exists(src):
@@ -85,95 +89,96 @@ def create_backup_programmatic(
 
         # 3. Backup documentation
         print("  Backing up documentation...")
-        docs_src = '/mnt/archie_brain/docs'
-        docs_dst = os.path.join(backup_path, 'docs')
+        docs_src = "/mnt/archie_brain/docs"
+        docs_dst = os.path.join(backup_path, "docs")
         if os.path.exists(docs_src):
             shutil.copytree(docs_src, docs_dst, dirs_exist_ok=True)
             print(f"  ✓ Documentation backup complete - {len(os.listdir(docs_dst))} files")
 
         # 4. Backup AI bridge code
         print("  Backing up AI bridge...")
-        ai_bridge_src = '/mnt/archie_brain/ai_bridge'
-        ai_bridge_dst = os.path.join(backup_path, 'ai_bridge')
+        ai_bridge_src = "/mnt/archie_brain/ai_bridge"
+        ai_bridge_dst = os.path.join(backup_path, "ai_bridge")
         if os.path.exists(ai_bridge_src):
             shutil.copytree(ai_bridge_src, ai_bridge_dst, dirs_exist_ok=True)
             print("  ✓ AI bridge backup complete")
 
         # 5. Backup database migrations
-        db_migrations_src = '/mnt/archie_brain/database/migrations'
+        db_migrations_src = "/mnt/archie_brain/database/migrations"
         if os.path.exists(db_migrations_src):
-            db_migrations_dst = os.path.join(backup_path, 'database/migrations')
+            db_migrations_dst = os.path.join(backup_path, "database/migrations")
             os.makedirs(os.path.dirname(db_migrations_dst), exist_ok=True)
             shutil.copytree(db_migrations_src, db_migrations_dst, dirs_exist_ok=True)
 
         # 6. Backup n8n workflows
-        n8n_src = '/mnt/archie_brain/n8n_workflows'
+        n8n_src = "/mnt/archie_brain/n8n_workflows"
         if os.path.exists(n8n_src):
-            shutil.copytree(n8n_src, os.path.join(backup_path, 'n8n_workflows'), dirs_exist_ok=True)
+            shutil.copytree(n8n_src, os.path.join(backup_path, "n8n_workflows"), dirs_exist_ok=True)
 
         # 7. Backup n8n persistence
-        n8n_persistence_src = '/mnt/archie_brain/persistence/n8n'
+        n8n_persistence_src = "/mnt/archie_brain/persistence/n8n"
         if os.path.exists(n8n_persistence_src):
-            n8n_persistence_dst = os.path.join(backup_path, 'persistence/n8n')
+            n8n_persistence_dst = os.path.join(backup_path, "persistence/n8n")
             os.makedirs(os.path.dirname(n8n_persistence_dst), exist_ok=True)
             shutil.copytree(n8n_persistence_src, n8n_persistence_dst, dirs_exist_ok=True)
 
         # 8. Backup scripts
-        scripts_src = '/mnt/archie_brain/scripts'
+        scripts_src = "/mnt/archie_brain/scripts"
         if os.path.exists(scripts_src):
-            shutil.copytree(scripts_src, os.path.join(backup_path, 'scripts'), dirs_exist_ok=True)
+            shutil.copytree(scripts_src, os.path.join(backup_path, "scripts"), dirs_exist_ok=True)
 
         # 9. Backup nginx configuration
-        nginx_src = '/mnt/archie_brain/nginx'
+        nginx_src = "/mnt/archie_brain/nginx"
         if os.path.exists(nginx_src):
-            shutil.copytree(nginx_src, os.path.join(backup_path, 'nginx'), dirs_exist_ok=True)
+            shutil.copytree(nginx_src, os.path.join(backup_path, "nginx"), dirs_exist_ok=True)
 
         # 10. Backup root docker-compose (environment)
-        root_compose = '/mnt/archie_brain/docker-compose.yml'
+        root_compose = "/mnt/archie_brain/docker-compose.yml"
         if os.path.exists(root_compose):
-            shutil.copy2(root_compose, os.path.join(backup_path, 'docker-compose.yml'))
+            shutil.copy2(root_compose, os.path.join(backup_path, "docker-compose.yml"))
 
         # 11. Backup conversation logs (Claude Code hook transcripts)
-        conversation_logs_src = '/mnt/archie_brain/conversation_logs'
+        conversation_logs_src = "/mnt/archie_brain/conversation_logs"
         if os.path.exists(conversation_logs_src):
-            shutil.copytree(conversation_logs_src, os.path.join(backup_path, 'conversation_logs'), dirs_exist_ok=True)
+            shutil.copytree(conversation_logs_src, os.path.join(backup_path, "conversation_logs"), dirs_exist_ok=True)
             print("  ✓ Conversation logs backup complete")
 
         # 12. Create metadata with auto-assigned build number
         new_build_number = get_next_build_number()
         metadata = {
-            'name': backup_name,
-            'timestamp': timestamp,
-            'description': description,
-            'created_by': created_by_username,
-            'created_at': datetime.now().isoformat(),
-            'platform_version': '3.1.1',
-            'build_number': new_build_number,
-            'backup_type': 'full',
-            'proposal_id': proposal_id,
-            'components': {
-                'database': True,
-                'platform_v2': True,
-                'documentation': os.path.exists(docs_src),
-                'ai_bridge': os.path.exists(ai_bridge_src),
-                'database_migrations': os.path.exists(db_migrations_src),
-                'n8n_workflows': os.path.exists(n8n_src),
-                'n8n_persistence': os.path.exists(n8n_persistence_src),
-                'scripts': os.path.exists(scripts_src),
-                'nginx': os.path.exists(nginx_src),
-                'environment': os.path.exists(root_compose),
-                'conversation_logs': os.path.exists(conversation_logs_src)
-            }
+            "name": backup_name,
+            "timestamp": timestamp,
+            "description": description,
+            "created_by": created_by_username,
+            "created_at": datetime.now().isoformat(),
+            "platform_version": get_platform_version(),
+            "build_number": new_build_number,
+            "backup_type": "full",
+            "proposal_id": proposal_id,
+            "components": {
+                "database": True,
+                "platform_v2": True,
+                "documentation": os.path.exists(docs_src),
+                "ai_bridge": os.path.exists(ai_bridge_src),
+                "database_migrations": os.path.exists(db_migrations_src),
+                "n8n_workflows": os.path.exists(n8n_src),
+                "n8n_persistence": os.path.exists(n8n_persistence_src),
+                "scripts": os.path.exists(scripts_src),
+                "nginx": os.path.exists(nginx_src),
+                "environment": os.path.exists(root_compose),
+                "conversation_logs": os.path.exists(conversation_logs_src),
+            },
         }
 
-        metadata_file = os.path.join(backup_path, 'metadata.json')
-        with open(metadata_file, 'w') as f:
+        metadata_file = os.path.join(backup_path, "metadata.json")
+        with open(metadata_file, "w") as f:
             json.dump(metadata, f, indent=2)
 
         # 11. Generate rollback script
-        rollback_script = os.path.join(backup_path, 'rollback.sh')
-        with open(rollback_script, 'w') as f:
-            f.write(f"""#!/bin/bash
+        rollback_script = os.path.join(backup_path, "rollback.sh")
+        with open(rollback_script, "w") as f:
+            f.write(
+                f"""#!/bin/bash
 # A.R.C.H.I.E. Platform Rollback Script
 # Backup: {backup_name}
 # Created: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
@@ -207,7 +212,8 @@ docker-compose up -d archie_platform
 echo ""
 echo "✓ Rollback complete!"
 echo "Platform should be available at http://192.168.1.200:3000"
-""")
+"""
+            )
         os.chmod(rollback_script, 0o755)
 
         # Set this backup as the current build
@@ -216,24 +222,21 @@ echo "Platform should be available at http://192.168.1.200:3000"
         print(f"✓ Backup created successfully: {backup_name} (Build #{new_build_number})")
 
         return {
-            'success': True,
-            'backup_name': backup_name,
-            'backup_path': backup_path,
-            'build_number': new_build_number,
-            'backup': metadata
+            "success": True,
+            "backup_name": backup_name,
+            "backup_path": backup_path,
+            "build_number": new_build_number,
+            "backup": metadata,
         }
 
     except Exception as e:
         print(f"Backup creation failed: {str(e)}")
-        if 'backup_path' in locals() and os.path.exists(backup_path):
+        if "backup_path" in locals() and os.path.exists(backup_path):
             shutil.rmtree(backup_path)
-        return {
-            'success': False,
-            'error': str(e)
-        }
+        return {"success": False, "error": str(e)}
 
 
-def backup_module(module_name, proposal_id=None, created_by_username='system'):
+def backup_module(module_name, proposal_id=None, created_by_username="system"):
     """
     Backup a single module for isolated sandbox testing
 
@@ -251,71 +254,68 @@ def backup_module(module_name, proposal_id=None, created_by_username='system'):
         }
     """
     try:
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_name = f"{timestamp}_module_{module_name}"
-        backup_path = os.path.join(BACKUP_DIR, 'modules', backup_name)
+        backup_path = os.path.join(BACKUP_DIR, "modules", backup_name)
 
         os.makedirs(backup_path, exist_ok=True)
 
         files_backed_up = []
 
         # 1. Backup tool routes
-        tool_src = os.path.join(PLATFORM_DIR, 'tools', module_name)
+        tool_src = os.path.join(PLATFORM_DIR, "tools", module_name)
         if os.path.exists(tool_src):
-            tool_dst = os.path.join(backup_path, 'tools', module_name)
+            tool_dst = os.path.join(backup_path, "tools", module_name)
             shutil.copytree(tool_src, tool_dst, dirs_exist_ok=True)
-            files_backed_up.append(f'tools/{module_name}/')
+            files_backed_up.append(f"tools/{module_name}/")
 
         # 2. Backup related templates
-        templates_dir = os.path.join(PLATFORM_DIR, 'templates', 'tools')
+        templates_dir = os.path.join(PLATFORM_DIR, "templates", "tools")
         if os.path.exists(templates_dir):
             for f in os.listdir(templates_dir):
                 if module_name in f.lower() or f.startswith(module_name):
                     src = os.path.join(templates_dir, f)
-                    dst = os.path.join(backup_path, 'templates', 'tools', f)
+                    dst = os.path.join(backup_path, "templates", "tools", f)
                     os.makedirs(os.path.dirname(dst), exist_ok=True)
                     if os.path.isfile(src):
                         shutil.copy2(src, dst)
                     else:
                         shutil.copytree(src, dst, dirs_exist_ok=True)
-                    files_backed_up.append(f'templates/tools/{f}')
+                    files_backed_up.append(f"templates/tools/{f}")
 
         # 3. Backup related static JS
-        js_dir = os.path.join(PLATFORM_DIR, 'static', 'js', module_name)
+        js_dir = os.path.join(PLATFORM_DIR, "static", "js", module_name)
         if os.path.exists(js_dir):
-            js_dst = os.path.join(backup_path, 'static', 'js', module_name)
+            js_dst = os.path.join(backup_path, "static", "js", module_name)
             shutil.copytree(js_dir, js_dst, dirs_exist_ok=True)
-            files_backed_up.append(f'static/js/{module_name}/')
+            files_backed_up.append(f"static/js/{module_name}/")
 
         # 4. Create metadata
         metadata = {
-            'name': backup_name,
-            'type': 'module',
-            'module_name': module_name,
-            'timestamp': timestamp,
-            'created_by': created_by_username,
-            'proposal_id': proposal_id,
-            'files_backed_up': files_backed_up
+            "name": backup_name,
+            "type": "module",
+            "module_name": module_name,
+            "timestamp": timestamp,
+            "created_by": created_by_username,
+            "proposal_id": proposal_id,
+            "files_backed_up": files_backed_up,
         }
 
-        with open(os.path.join(backup_path, 'metadata.json'), 'w') as f:
+        with open(os.path.join(backup_path, "metadata.json"), "w") as f:
             json.dump(metadata, f, indent=2)
 
         return {
-            'success': True,
-            'backup_name': backup_name,
-            'backup_path': backup_path,
-            'files_backed_up': files_backed_up,
-            'metadata': metadata
+            "success": True,
+            "backup_name": backup_name,
+            "backup_path": backup_path,
+            "files_backed_up": files_backed_up,
+            "metadata": metadata,
         }
 
     except Exception as e:
-        if 'backup_path' in locals() and os.path.exists(backup_path):
+        if "backup_path" in locals() and os.path.exists(backup_path):
             shutil.rmtree(backup_path)
-        return {
-            'success': False,
-            'error': str(e)
-        }
+        return {"success": False, "error": str(e)}
 
 
 def get_module_dependencies(module_name):
@@ -328,39 +328,29 @@ def get_module_dependencies(module_name):
         - static: static/js/{module}/
         - shared: shared imports (config.py, db.py, etc.)
     """
-    dependencies = {
-        'routes': [],
-        'templates': [],
-        'static': [],
-        'shared': []
-    }
+    dependencies = {"routes": [], "templates": [], "static": [], "shared": []}
 
     # Routes
-    tool_dir = os.path.join(PLATFORM_DIR, 'tools', module_name)
+    tool_dir = os.path.join(PLATFORM_DIR, "tools", module_name)
     if os.path.exists(tool_dir):
         for f in os.listdir(tool_dir):
-            dependencies['routes'].append(f'tools/{module_name}/{f}')
+            dependencies["routes"].append(f"tools/{module_name}/{f}")
 
     # Templates
-    templates_dir = os.path.join(PLATFORM_DIR, 'templates', 'tools')
+    templates_dir = os.path.join(PLATFORM_DIR, "templates", "tools")
     if os.path.exists(templates_dir):
         for f in os.listdir(templates_dir):
             if module_name in f.lower():
-                dependencies['templates'].append(f'templates/tools/{f}')
+                dependencies["templates"].append(f"templates/tools/{f}")
 
     # Static JS
-    js_dir = os.path.join(PLATFORM_DIR, 'static', 'js', module_name)
+    js_dir = os.path.join(PLATFORM_DIR, "static", "js", module_name)
     if os.path.exists(js_dir):
         for f in os.listdir(js_dir):
-            dependencies['static'].append(f'static/js/{module_name}/{f}')
+            dependencies["static"].append(f"static/js/{module_name}/{f}")
 
     # Common shared files (always needed)
-    dependencies['shared'] = [
-        'config.py',
-        'app.py',
-        'module_registry.py',
-        'rbac.py'
-    ]
+    dependencies["shared"] = ["config.py", "app.py", "module_registry.py", "rbac.py"]
 
     return dependencies
 
@@ -373,21 +363,25 @@ create_backup = create_backup_programmatic
 # FLASK ROUTES
 # =============================================================================
 
+
 def admin_required(f):
     """Decorator to require admin access"""
+
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not current_user.is_authenticated or not current_user.is_admin:
-            return jsonify({'error': 'Admin access required'}), 403
+            return jsonify({"error": "Admin access required"}), 403
         return f(*args, **kwargs)
+
     return decorated_function
+
 
 # Configuration
 # Path constants - must match Docker volume mounts in docker-compose.yml
 # Host ./backups is mounted to /backups in container
 # Host ./platform_v2 is mounted to /app in container
-BACKUP_DIR = '/backups'
-PLATFORM_DIR = '/app'
+BACKUP_DIR = "/backups"
+PLATFORM_DIR = "/app"
 
 # Ensure backup directory exists
 os.makedirs(BACKUP_DIR, exist_ok=True)
@@ -395,6 +389,7 @@ os.makedirs(BACKUP_DIR, exist_ok=True)
 # =============================================================================
 # RETENTION POLICY - Grandfather-Father-Son (7 daily + 4 weekly + 6 monthly)
 # =============================================================================
+
 
 def get_backup_retention_status():
     """
@@ -415,17 +410,17 @@ def get_backup_retention_status():
     from collections import defaultdict
 
     if not os.path.exists(BACKUP_DIR):
-        return {'keep': [], 'delete': [], 'stats': {}}
+        return {"keep": [], "delete": [], "stats": {}}
 
     # Get all backups with their dates
     backups = []
     for item in os.listdir(BACKUP_DIR):
         backup_path = os.path.join(BACKUP_DIR, item)
-        if os.path.isdir(backup_path) and item != 'modules':
+        if os.path.isdir(backup_path) and item != "modules":
             # Parse timestamp from backup name (format: YYYYMMDD_HHMMSS_description)
             try:
                 timestamp_str = item[:15]  # YYYYMMDD_HHMMSS
-                backup_date = datetime.strptime(timestamp_str, '%Y%m%d_%H%M%S')
+                backup_date = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
 
                 # Get backup size
                 total_size = sum(
@@ -434,20 +429,22 @@ def get_backup_retention_status():
                     for filename in filenames
                 )
 
-                backups.append({
-                    'name': item,
-                    'path': backup_path,
-                    'date': backup_date,
-                    'size': total_size,
-                    'day_of_week': backup_date.weekday(),  # 0=Monday, 6=Sunday
-                    'day_of_month': backup_date.day
-                })
+                backups.append(
+                    {
+                        "name": item,
+                        "path": backup_path,
+                        "date": backup_date,
+                        "size": total_size,
+                        "day_of_week": backup_date.weekday(),  # 0=Monday, 6=Sunday
+                        "day_of_month": backup_date.day,
+                    }
+                )
             except (ValueError, IndexError):
                 # Skip malformed backup names
                 continue
 
     # Sort by date (newest first)
-    backups.sort(key=lambda x: x['date'], reverse=True)
+    backups.sort(key=lambda x: x["date"], reverse=True)
 
     keep = set()
     now = datetime.now()
@@ -456,23 +453,23 @@ def get_backup_retention_status():
     daily_kept = 0
     for backup in backups:
         if daily_kept < 7:
-            keep.add(backup['name'])
+            keep.add(backup["name"])
             daily_kept += 1
 
     # Rule 2: Keep last 4 weekly backups (prefer Sundays, but take latest each week)
     weeks_seen = set()
     for backup in backups:
-        week_key = backup['date'].strftime('%Y-%W')  # Year-Week number
+        week_key = backup["date"].strftime("%Y-%W")  # Year-Week number
         if week_key not in weeks_seen and len(weeks_seen) < 4:
-            keep.add(backup['name'])
+            keep.add(backup["name"])
             weeks_seen.add(week_key)
 
     # Rule 3: Keep last 6 monthly backups (prefer 1st of month, but take latest each month)
     months_seen = set()
     for backup in backups:
-        month_key = backup['date'].strftime('%Y-%m')  # Year-Month
+        month_key = backup["date"].strftime("%Y-%m")  # Year-Month
         if month_key not in months_seen and len(months_seen) < 6:
-            keep.add(backup['name'])
+            keep.add(backup["name"])
             months_seen.add(month_key)
 
     # Determine which to delete
@@ -482,26 +479,26 @@ def get_backup_retention_status():
     delete_size = 0
 
     for backup in backups:
-        total_size += backup['size']
-        if backup['name'] in keep:
-            keep_list.append(backup['name'])
+        total_size += backup["size"]
+        if backup["name"] in keep:
+            keep_list.append(backup["name"])
         else:
-            delete.append(backup['name'])
-            delete_size += backup['size']
+            delete.append(backup["name"])
+            delete_size += backup["size"]
 
     return {
-        'keep': keep_list,
-        'delete': delete,
-        'stats': {
-            'total_backups': len(backups),
-            'keep_count': len(keep_list),
-            'delete_count': len(delete),
-            'total_size_bytes': total_size,
-            'total_size_mb': round(total_size / (1024 * 1024), 2),
-            'delete_size_bytes': delete_size,
-            'delete_size_mb': round(delete_size / (1024 * 1024), 2),
-            'space_to_free_mb': round(delete_size / (1024 * 1024), 2)
-        }
+        "keep": keep_list,
+        "delete": delete,
+        "stats": {
+            "total_backups": len(backups),
+            "keep_count": len(keep_list),
+            "delete_count": len(delete),
+            "total_size_bytes": total_size,
+            "total_size_mb": round(total_size / (1024 * 1024), 2),
+            "delete_size_bytes": delete_size,
+            "delete_size_mb": round(delete_size / (1024 * 1024), 2),
+            "space_to_free_mb": round(delete_size / (1024 * 1024), 2),
+        },
     }
 
 
@@ -527,7 +524,7 @@ def cleanup_old_backups(dry_run=True):
     space_freed = 0
 
     if not dry_run:
-        for backup_name in retention['delete']:
+        for backup_name in retention["delete"]:
             backup_path = os.path.join(BACKUP_DIR, backup_name)
             try:
                 # Get size before deletion
@@ -544,22 +541,24 @@ def cleanup_old_backups(dry_run=True):
                 print(f"Error deleting {backup_name}: {e}")
 
     return {
-        'success': True,
-        'dry_run': dry_run,
-        'deleted': deleted if not dry_run else retention['delete'],
-        'kept': retention['keep'],
-        'would_delete': retention['delete'] if dry_run else [],
-        'space_freed_mb': round(space_freed / (1024 * 1024), 2) if not dry_run else retention['stats']['delete_size_mb'],
-        'stats': retention['stats']
+        "success": True,
+        "dry_run": dry_run,
+        "deleted": deleted if not dry_run else retention["delete"],
+        "kept": retention["keep"],
+        "would_delete": retention["delete"] if dry_run else [],
+        "space_freed_mb": (
+            round(space_freed / (1024 * 1024), 2) if not dry_run else retention["stats"]["delete_size_mb"]
+        ),
+        "stats": retention["stats"],
     }
 
 
 def get_current_build():
     """Get current build number from file"""
-    current_build_file = os.path.join(BACKUP_DIR, '.current_build')
+    current_build_file = os.path.join(BACKUP_DIR, ".current_build")
     if os.path.exists(current_build_file):
         try:
-            with open(current_build_file, 'r') as f:
+            with open(current_build_file, "r") as f:
                 return int(f.read().strip())
         except (ValueError, IOError):
             return None
@@ -574,101 +573,184 @@ def get_next_build_number():
 
 def set_build_number(build_number):
     """Set the current build number"""
-    current_build_file = os.path.join(BACKUP_DIR, '.current_build')
-    with open(current_build_file, 'w') as f:
+    current_build_file = os.path.join(BACKUP_DIR, ".current_build")
+    with open(current_build_file, "w") as f:
         f.write(str(build_number))
     return build_number
 
 
+def verify_backup_integrity(backup_name):
+    """
+    Verify integrity of a backup.
+
+    Checks:
+    - metadata.json exists and is valid JSON
+    - database.sql exists and is > 1KB
+    - platform_v2/ directory exists
+    - rollback.sh exists
+
+    Returns:
+        {
+            'valid': True/False,
+            'backup_name': str,
+            'checks': {check_name: True/False},
+            'errors': [list of error messages]
+        }
+    """
+    backup_path = os.path.join(BACKUP_DIR, backup_name)
+    checks = {}
+    errors = []
+
+    # Check backup directory exists
+    if not os.path.isdir(backup_path):
+        return {"valid": False, "backup_name": backup_name, "checks": {}, "errors": ["Backup directory does not exist"]}
+
+    # Check metadata.json
+    metadata_file = os.path.join(backup_path, "metadata.json")
+    if os.path.exists(metadata_file):
+        try:
+            with open(metadata_file, "r") as f:
+                json.load(f)  # Validate JSON is parseable
+            checks["metadata_valid"] = True
+        except json.JSONDecodeError:
+            checks["metadata_valid"] = False
+            errors.append("metadata.json is not valid JSON")
+    else:
+        checks["metadata_valid"] = False
+        errors.append("metadata.json missing")
+
+    # Check database.sql
+    db_file = os.path.join(backup_path, "database.sql")
+    if os.path.exists(db_file):
+        db_size = os.path.getsize(db_file)
+        if db_size > 1024:  # > 1KB
+            checks["database_valid"] = True
+        else:
+            checks["database_valid"] = False
+            errors.append(f"database.sql too small ({db_size} bytes)")
+    else:
+        checks["database_valid"] = False
+        errors.append("database.sql missing")
+
+    # Check platform_v2 directory
+    platform_dir = os.path.join(backup_path, "platform_v2")
+    if os.path.isdir(platform_dir):
+        # Check for key subdirectories
+        has_tools = os.path.isdir(os.path.join(platform_dir, "tools"))
+        has_templates = os.path.isdir(os.path.join(platform_dir, "templates"))
+        checks["platform_valid"] = has_tools and has_templates
+        if not has_tools:
+            errors.append("platform_v2/tools directory missing")
+        if not has_templates:
+            errors.append("platform_v2/templates directory missing")
+    else:
+        checks["platform_valid"] = False
+        errors.append("platform_v2 directory missing")
+
+    # Check rollback.sh
+    rollback_file = os.path.join(backup_path, "rollback.sh")
+    if os.path.exists(rollback_file):
+        checks["rollback_exists"] = True
+    else:
+        checks["rollback_exists"] = False
+        errors.append("rollback.sh missing")
+
+    # Overall validity
+    valid = all(checks.values())
+
+    return {"valid": valid, "backup_name": backup_name, "checks": checks, "errors": errors}
+
+
 def get_db_connection():
     """Get database connection using app config"""
-    db_host = os.environ.get('DB_HOST', 'archie_db')
-    db_name = os.environ.get('DB_NAME', 'archie')
-    db_user = os.environ.get('DB_USER', 'archie')
-    db_pass = os.environ.get('DB_PASSWORD', 'archie')
-    db_port = os.environ.get('DB_PORT', '5432')
-    
-    return psycopg2.connect(
-        host=db_host,
-        database=db_name,
-        user=db_user,
-        password=db_pass,
-        port=db_port
-    )
+    db_host = os.environ.get("DB_HOST", "archie_db")
+    db_name = os.environ.get("DB_NAME", "archie")
+    db_user = os.environ.get("DB_USER", "archie")
+    db_pass = os.environ.get("DB_PASSWORD", "archie")
+    db_port = os.environ.get("DB_PORT", "5432")
+
+    return psycopg2.connect(host=db_host, database=db_name, user=db_user, password=db_pass, port=db_port)
+
 
 def backup_database_python(output_file):
     """Backup database using psycopg2 (Python-based, no pg_dump needed)"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
-        with open(output_file, 'w') as f:
+
+        with open(output_file, "w") as f:
             # Write header
             f.write("-- A.R.C.H.I.E. Platform Database Backup\n")
             f.write(f"-- Generated: {datetime.now().isoformat()}\n\n")
-            
+
             # Get all tables
-            cursor.execute("""
-                SELECT tablename FROM pg_tables 
+            cursor.execute(
+                """
+                SELECT tablename FROM pg_tables
                 WHERE schemaname = 'public'
                 ORDER BY tablename;
-            """)
+            """
+            )
             tables = cursor.fetchall()
-            
+
             for (table_name,) in tables:
                 f.write(f"\n-- Table: {table_name}\n")
                 f.write(f"DROP TABLE IF EXISTS {table_name} CASCADE;\n")
-                
+
                 # Get CREATE TABLE statement
-                cursor.execute(f"""
-                    SELECT 
+                cursor.execute(
+                    f"""
+                    SELECT
                         'CREATE TABLE ' || quote_ident(table_name) || ' (' ||
                         string_agg(
-                            quote_ident(column_name) || ' ' || 
+                            quote_ident(column_name) || ' ' ||
                             data_type ||
-                            CASE 
-                                WHEN character_maximum_length IS NOT NULL 
+                            CASE
+                                WHEN character_maximum_length IS NOT NULL
                                 THEN '(' || character_maximum_length || ')'
                                 ELSE ''
                             END ||
-                            CASE 
+                            CASE
                                 WHEN is_nullable = 'NO' THEN ' NOT NULL'
                                 ELSE ''
                             END,
                             ', '
                         ) || ');'
                     FROM information_schema.columns
-                    WHERE table_schema = 'public' 
+                    WHERE table_schema = 'public'
                     AND table_name = '{table_name}'
                     GROUP BY table_name;
-                """)
-                
+                """
+                )
+
                 create_stmt = cursor.fetchone()
                 if create_stmt:
-                    f.write(create_stmt[0] + '\n\n')
-                
+                    f.write(create_stmt[0] + "\n\n")
+
                 # Get data
                 cursor.execute(f"SELECT * FROM {table_name};")
                 rows = cursor.fetchall()
-                
+
                 if rows:
                     # Get column names
-                    cursor.execute(f"""
-                        SELECT column_name 
+                    cursor.execute(
+                        f"""
+                        SELECT column_name
                         FROM information_schema.columns
                         WHERE table_schema = 'public' AND table_name = '{table_name}'
                         ORDER BY ordinal_position;
-                    """)
+                    """
+                    )
                     columns = [col[0] for col in cursor.fetchall()]
-                    
+
                     f.write(f"INSERT INTO {table_name} ({', '.join(columns)}) VALUES\n")
-                    
+
                     for i, row in enumerate(rows):
                         # Format values
                         values = []
                         for val in row:
                             if val is None:
-                                values.append('NULL')
+                                values.append("NULL")
                             elif isinstance(val, str):
                                 # Escape single quotes
                                 escaped = val.replace("'", "''")
@@ -679,114 +761,237 @@ def backup_database_python(output_file):
                                 values.append(f"'{val.isoformat()}'")
                             else:
                                 values.append(f"'{str(val)}'")
-                        
+
                         if i < len(rows) - 1:
                             f.write(f"  ({', '.join(values)}),\n")
                         else:
                             f.write(f"  ({', '.join(values)});\n")
-                    
-                    f.write('\n')
-        
+
+                    f.write("\n")
+
         cursor.close()
         conn.close()
         return True
-        
+
     except Exception as e:
         current_app.logger.error(f"Database backup failed: {str(e)}")
         raise
 
-@backup_manager_bp.route('/')
+
+@backup_manager_bp.route("/")
 @admin_required
 def index():
     """Backup manager main page"""
-    return render_template('admin/backup_manager.html')
+    return render_template("tools/backup_manager.html")
 
-@backup_manager_bp.route('/list')
+
+@backup_manager_bp.route("/list")
 @admin_required
 def list_backups():
     """List all available backups"""
     try:
         backups = []
-        
+
         if os.path.exists(BACKUP_DIR):
             for item in os.listdir(BACKUP_DIR):
                 backup_path = os.path.join(BACKUP_DIR, item)
                 if os.path.isdir(backup_path):
-                    metadata_file = os.path.join(backup_path, 'metadata.json')
+                    metadata_file = os.path.join(backup_path, "metadata.json")
                     if os.path.exists(metadata_file):
-                        with open(metadata_file, 'r') as f:
+                        with open(metadata_file, "r") as f:
                             metadata = json.load(f)
-                            
+
                             # Calculate size
                             total_size = 0
                             for root, dirs, files in os.walk(backup_path):
                                 for file in files:
                                     filepath = os.path.join(root, file)
                                     total_size += os.path.getsize(filepath)
-                            
-                            metadata['size'] = total_size
+
+                            metadata["size"] = total_size
                             backups.append(metadata)
-        
+
         # Sort by timestamp descending
-        backups.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
-        
-        return jsonify({
-            'success': True,
-            'backups': backups,
-            'current_build': get_current_build()
-        })
+        backups.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+
+        return jsonify({"success": True, "backups": backups, "current_build": get_current_build()})
 
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@backup_manager_bp.route('/current-build')
+@backup_manager_bp.route("/current-build")
 @admin_required
 def api_current_build():
     """Get current build number"""
-    return jsonify({
-        'success': True,
-        'current_build': get_current_build()
-    })
+    return jsonify({"success": True, "current_build": get_current_build()})
 
 
-@backup_manager_bp.route('/create', methods=['POST'])
+@backup_manager_bp.route("/health")
+@admin_required
+def backup_health():
+    """Return backup system health status"""
+    try:
+        alerts = []
+        healthy = True
+
+        # Count backups
+        backups = []
+        total_size = 0
+        if os.path.exists(BACKUP_DIR):
+            for item in os.listdir(BACKUP_DIR):
+                backup_path = os.path.join(BACKUP_DIR, item)
+                if os.path.isdir(backup_path):
+                    metadata_file = os.path.join(backup_path, "metadata.json")
+                    if os.path.exists(metadata_file):
+                        with open(metadata_file, "r") as f:
+                            metadata = json.load(f)
+                            # Calculate size
+                            backup_size = 0
+                            for root, dirs, files in os.walk(backup_path):
+                                for file in files:
+                                    filepath = os.path.join(root, file)
+                                    backup_size += os.path.getsize(filepath)
+                            metadata["size"] = backup_size
+                            total_size += backup_size
+                            backups.append(metadata)
+
+        # Sort by timestamp descending
+        backups.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+        backup_count = len(backups)
+
+        # Check: No backups
+        if backup_count == 0:
+            healthy = False
+            alerts.append({"level": "critical", "message": "No backups found - system is unprotected"})
+
+        # Check: Latest backup age
+        latest_backup = None
+        latest_age_hours = None
+        if backups:
+            latest_backup = backups[0]
+            created_at = latest_backup.get("created_at")
+            if created_at:
+                try:
+                    backup_time = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+                    age = datetime.now() - backup_time.replace(tzinfo=None)
+                    latest_age_hours = age.total_seconds() / 3600
+
+                    if latest_age_hours > 48:
+                        healthy = False
+                        alerts.append(
+                            {"level": "warning", "message": f"Latest backup is {latest_age_hours:.1f} hours old (>48h)"}
+                        )
+                    elif latest_age_hours > 24:
+                        alerts.append(
+                            {"level": "info", "message": f"Latest backup is {latest_age_hours:.1f} hours old"}
+                        )
+                except Exception:
+                    pass
+
+        # Check: Backup integrity (database.sql exists and >1KB)
+        if latest_backup:
+            backup_path = os.path.join(BACKUP_DIR, latest_backup.get("name", ""))
+            db_file = os.path.join(backup_path, "database.sql")
+            if os.path.exists(db_file):
+                db_size = os.path.getsize(db_file)
+                if db_size < 1024:
+                    healthy = False
+                    alerts.append(
+                        {"level": "critical", "message": f"Latest backup database.sql is too small ({db_size} bytes)"}
+                    )
+            else:
+                healthy = False
+                alerts.append({"level": "critical", "message": "Latest backup missing database.sql"})
+
+        # Check: Disk space (warning if backups > 10GB)
+        if total_size > 10 * 1024 * 1024 * 1024:  # 10GB
+            alerts.append(
+                {"level": "warning", "message": f"Backup storage exceeds 10GB ({total_size / (1024*1024*1024):.1f}GB)"}
+            )
+
+        return jsonify(
+            {
+                "healthy": healthy,
+                "total_backups": backup_count,
+                "latest_backup": latest_backup.get("name") if latest_backup else None,
+                "latest_age_hours": round(latest_age_hours, 1) if latest_age_hours else None,
+                "total_storage_bytes": total_size,
+                "total_storage_formatted": f"{total_size / (1024*1024):.1f} MB",
+                "platform_version": get_platform_version(),
+                "current_build": get_current_build(),
+                "alerts": alerts,
+            }
+        )
+
+    except Exception as e:
+        return (
+            jsonify(
+                {
+                    "healthy": False,
+                    "error": str(e),
+                    "alerts": [{"level": "critical", "message": f"Health check failed: {str(e)}"}],
+                }
+            ),
+            500,
+        )
+
+
+@backup_manager_bp.route("/verify/<backup_name>")
+@admin_required
+def verify_backup(backup_name):
+    """Verify integrity of a specific backup"""
+    try:
+        result = verify_backup_integrity(backup_name)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"valid": False, "backup_name": backup_name, "error": str(e)}), 500
+
+
+@backup_manager_bp.route("/create", methods=["POST"])
 @admin_required
 def api_create_backup():
     """Create a new backup (API route - use create_backup_programmatic for code)"""
     try:
         data = request.get_json() or {}
-        description = data.get('description', 'Manual backup')
-        backup_type = data.get('backup_type', 'full')
-        custom_components = data.get('components', [])
+        description = data.get("description", "Manual backup")
+        backup_type = data.get("backup_type", "full")
+        custom_components = data.get("components", [])
 
         # Define component sets for each backup type
-        ALL_COMPONENTS = ['database', 'platform', 'documentation', 'ai_bridge', 'migrations',
-                         'n8n_workflows', 'n8n_persistence', 'scripts', 'nginx', 'environment',
-                         'conversation_logs']
-        CRITICAL_COMPONENTS = ['database', 'platform', 'documentation', 'environment']
-        DATABASE_COMPONENTS = ['database']
+        ALL_COMPONENTS = [
+            "database",
+            "platform",
+            "documentation",
+            "ai_bridge",
+            "migrations",
+            "n8n_workflows",
+            "n8n_persistence",
+            "scripts",
+            "nginx",
+            "environment",
+            "conversation_logs",
+        ]
+        CRITICAL_COMPONENTS = ["database", "platform", "documentation", "environment"]
+        DATABASE_COMPONENTS = ["database"]
 
         # Determine which components to backup based on type
-        if backup_type == 'full':
+        if backup_type == "full":
             components_to_backup = ALL_COMPONENTS
-        elif backup_type == 'critical':
+        elif backup_type == "critical":
             components_to_backup = CRITICAL_COMPONENTS
-        elif backup_type == 'database':
+        elif backup_type == "database":
             components_to_backup = DATABASE_COMPONENTS
-        elif backup_type == 'custom':
+        elif backup_type == "custom":
             components_to_backup = custom_components if custom_components else ALL_COMPONENTS
         else:
             components_to_backup = ALL_COMPONENTS
-            backup_type = 'full'
+            backup_type = "full"
 
         current_app.logger.info(f"Creating {backup_type} backup with components: {components_to_backup}")
 
         # Generate backup name
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_name = f"{timestamp}_{description.replace(' ', '_')}"
         backup_path = os.path.join(BACKUP_DIR, backup_name)
 
@@ -796,138 +1001,139 @@ def api_create_backup():
         backed_up = {}
 
         # 1. Backup database
-        if 'database' in components_to_backup:
+        if "database" in components_to_backup:
             current_app.logger.info("Backing up database...")
-            db_file = os.path.join(backup_path, 'database.sql')
+            db_file = os.path.join(backup_path, "database.sql")
             backup_database_python(db_file)
-            backed_up['database'] = True
+            backed_up["database"] = True
             current_app.logger.info("Database backup complete")
 
         # 2. Backup platform files (configs, tools, templates)
-        if 'platform' in components_to_backup:
+        if "platform" in components_to_backup:
             current_app.logger.info("Backing up platform files...")
-            platform_backup = os.path.join(backup_path, 'platform_v2')
-            platform_dirs = ['tools', 'templates', 'static', 'consciousness', 'migrations']
+            platform_backup = os.path.join(backup_path, "platform_v2")
+            platform_dirs = ["tools", "templates", "static", "consciousness", "migrations"]
             for dir_name in platform_dirs:
                 src = os.path.join(PLATFORM_DIR, dir_name)
                 if os.path.exists(src):
                     dst = os.path.join(platform_backup, dir_name)
                     shutil.copytree(src, dst, dirs_exist_ok=True)
-            important_files = ['app.py', 'requirements.txt', 'docker-compose.yml', '.env']
+            important_files = ["app.py", "requirements.txt", "docker-compose.yml", ".env"]
             for file_name in important_files:
                 src = os.path.join(PLATFORM_DIR, file_name)
                 if os.path.exists(src):
                     dst = os.path.join(platform_backup, file_name)
                     os.makedirs(os.path.dirname(dst), exist_ok=True)
                     shutil.copy2(src, dst)
-            backed_up['platform'] = True
+            backed_up["platform"] = True
             current_app.logger.info("Platform files backup complete")
 
         # 3. Backup documentation
-        docs_src = '/mnt/archie_brain/docs'
-        if 'documentation' in components_to_backup and os.path.exists(docs_src):
+        docs_src = "/mnt/archie_brain/docs"
+        if "documentation" in components_to_backup and os.path.exists(docs_src):
             current_app.logger.info("Backing up documentation...")
-            docs_dst = os.path.join(backup_path, 'docs')
+            docs_dst = os.path.join(backup_path, "docs")
             shutil.copytree(docs_src, docs_dst, dirs_exist_ok=True)
-            backed_up['documentation'] = True
+            backed_up["documentation"] = True
             current_app.logger.info(f"Documentation backup complete - {len(os.listdir(docs_dst))} files")
 
         # 4. Backup AI bridge code
-        ai_bridge_src = '/mnt/archie_brain/ai_bridge'
-        if 'ai_bridge' in components_to_backup and os.path.exists(ai_bridge_src):
+        ai_bridge_src = "/mnt/archie_brain/ai_bridge"
+        if "ai_bridge" in components_to_backup and os.path.exists(ai_bridge_src):
             current_app.logger.info("Backing up AI bridge...")
-            ai_bridge_dst = os.path.join(backup_path, 'ai_bridge')
+            ai_bridge_dst = os.path.join(backup_path, "ai_bridge")
             shutil.copytree(ai_bridge_src, ai_bridge_dst, dirs_exist_ok=True)
-            backed_up['ai_bridge'] = True
+            backed_up["ai_bridge"] = True
             current_app.logger.info("AI bridge backup complete")
 
         # 5. Backup database migrations
-        db_migrations_src = '/mnt/archie_brain/database/migrations'
-        if 'migrations' in components_to_backup and os.path.exists(db_migrations_src):
+        db_migrations_src = "/mnt/archie_brain/database/migrations"
+        if "migrations" in components_to_backup and os.path.exists(db_migrations_src):
             current_app.logger.info("Backing up database migrations...")
-            db_migrations_dst = os.path.join(backup_path, 'database/migrations')
+            db_migrations_dst = os.path.join(backup_path, "database/migrations")
             os.makedirs(os.path.dirname(db_migrations_dst), exist_ok=True)
             shutil.copytree(db_migrations_src, db_migrations_dst, dirs_exist_ok=True)
-            backed_up['migrations'] = True
+            backed_up["migrations"] = True
             current_app.logger.info("Database migrations backup complete")
 
         # 6. Backup n8n workflows
-        n8n_workflows_src = '/mnt/archie_brain/n8n_workflows'
-        if 'n8n_workflows' in components_to_backup and os.path.exists(n8n_workflows_src):
+        n8n_workflows_src = "/mnt/archie_brain/n8n_workflows"
+        if "n8n_workflows" in components_to_backup and os.path.exists(n8n_workflows_src):
             current_app.logger.info("Backing up n8n workflows...")
-            n8n_workflows_dst = os.path.join(backup_path, 'n8n_workflows')
+            n8n_workflows_dst = os.path.join(backup_path, "n8n_workflows")
             shutil.copytree(n8n_workflows_src, n8n_workflows_dst, dirs_exist_ok=True)
-            backed_up['n8n_workflows'] = True
+            backed_up["n8n_workflows"] = True
             current_app.logger.info(f"n8n workflows backup complete - {len(os.listdir(n8n_workflows_dst))} files")
 
         # 7. Backup n8n persistence data
-        n8n_persistence_src = '/mnt/archie_brain/persistence/n8n'
-        if 'n8n_persistence' in components_to_backup and os.path.exists(n8n_persistence_src):
+        n8n_persistence_src = "/mnt/archie_brain/persistence/n8n"
+        if "n8n_persistence" in components_to_backup and os.path.exists(n8n_persistence_src):
             current_app.logger.info("Backing up n8n persistence data...")
-            n8n_persistence_dst = os.path.join(backup_path, 'persistence/n8n')
+            n8n_persistence_dst = os.path.join(backup_path, "persistence/n8n")
             os.makedirs(os.path.dirname(n8n_persistence_dst), exist_ok=True)
             shutil.copytree(n8n_persistence_src, n8n_persistence_dst, dirs_exist_ok=True)
-            backed_up['n8n_persistence'] = True
+            backed_up["n8n_persistence"] = True
             current_app.logger.info("n8n persistence backup complete")
 
         # 8. Backup deployment scripts
-        scripts_src = '/mnt/archie_brain/scripts'
-        if 'scripts' in components_to_backup and os.path.exists(scripts_src):
+        scripts_src = "/mnt/archie_brain/scripts"
+        if "scripts" in components_to_backup and os.path.exists(scripts_src):
             current_app.logger.info("Backing up deployment scripts...")
-            scripts_dst = os.path.join(backup_path, 'scripts')
+            scripts_dst = os.path.join(backup_path, "scripts")
             shutil.copytree(scripts_src, scripts_dst, dirs_exist_ok=True)
-            backed_up['scripts'] = True
+            backed_up["scripts"] = True
             current_app.logger.info(f"Scripts backup complete - {len(os.listdir(scripts_dst))} files")
 
         # 9. Backup nginx configuration
-        nginx_src = '/mnt/archie_brain/nginx'
-        if 'nginx' in components_to_backup and os.path.exists(nginx_src):
+        nginx_src = "/mnt/archie_brain/nginx"
+        if "nginx" in components_to_backup and os.path.exists(nginx_src):
             current_app.logger.info("Backing up nginx configuration...")
-            nginx_dst = os.path.join(backup_path, 'nginx')
+            nginx_dst = os.path.join(backup_path, "nginx")
             shutil.copytree(nginx_src, nginx_dst, dirs_exist_ok=True)
-            backed_up['nginx'] = True
+            backed_up["nginx"] = True
             current_app.logger.info("nginx configuration backup complete")
 
         # 10. Backup docker-compose.yml from root (environment)
-        root_compose_src = '/mnt/archie_brain/docker-compose.yml'
-        if 'environment' in components_to_backup and os.path.exists(root_compose_src):
+        root_compose_src = "/mnt/archie_brain/docker-compose.yml"
+        if "environment" in components_to_backup and os.path.exists(root_compose_src):
             current_app.logger.info("Backing up root docker-compose.yml...")
-            root_compose_dst = os.path.join(backup_path, 'docker-compose.yml')
+            root_compose_dst = os.path.join(backup_path, "docker-compose.yml")
             shutil.copy2(root_compose_src, root_compose_dst)
-            backed_up['environment'] = True
+            backed_up["environment"] = True
             current_app.logger.info("Root docker-compose.yml backup complete")
 
         # 11. Backup conversation logs (Claude Code hook transcripts)
-        conversation_logs_src = '/mnt/archie_brain/conversation_logs'
-        if 'conversation_logs' in components_to_backup and os.path.exists(conversation_logs_src):
+        conversation_logs_src = "/mnt/archie_brain/conversation_logs"
+        if "conversation_logs" in components_to_backup and os.path.exists(conversation_logs_src):
             current_app.logger.info("Backing up conversation logs...")
-            conversation_logs_dst = os.path.join(backup_path, 'conversation_logs')
+            conversation_logs_dst = os.path.join(backup_path, "conversation_logs")
             shutil.copytree(conversation_logs_src, conversation_logs_dst, dirs_exist_ok=True)
-            backed_up['conversation_logs'] = True
+            backed_up["conversation_logs"] = True
             current_app.logger.info("Conversation logs backup complete")
 
         # 12. Create metadata with auto-assigned build number
         new_build_number = get_next_build_number()
         metadata = {
-            'name': backup_name,
-            'timestamp': timestamp,
-            'description': description,
-            'created_by': current_user.username,
-            'created_at': datetime.now().isoformat(),
-            'platform_version': '3.1.1',
-            'build_number': new_build_number,
-            'backup_type': backup_type,
-            'components': backed_up
+            "name": backup_name,
+            "timestamp": timestamp,
+            "description": description,
+            "created_by": current_user.username,
+            "created_at": datetime.now().isoformat(),
+            "platform_version": get_platform_version(),
+            "build_number": new_build_number,
+            "backup_type": backup_type,
+            "components": backed_up,
         }
-        
-        metadata_file = os.path.join(backup_path, 'metadata.json')
-        with open(metadata_file, 'w') as f:
+
+        metadata_file = os.path.join(backup_path, "metadata.json")
+        with open(metadata_file, "w") as f:
             json.dump(metadata, f, indent=2)
-        
+
         # 4. Generate rollback script
-        rollback_script = os.path.join(backup_path, 'rollback.sh')
-        with open(rollback_script, 'w') as f:
-            f.write(f"""#!/bin/bash
+        rollback_script = os.path.join(backup_path, "rollback.sh")
+        with open(rollback_script, "w") as f:
+            f.write(
+                f"""#!/bin/bash
 # A.R.C.H.I.E. Platform Rollback Script
 # Backup: {backup_name}
 # Created: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
@@ -961,8 +1167,9 @@ docker-compose up -d archie_platform
 echo ""
 echo "✓ Rollback complete!"
 echo "Platform should be available at http://192.168.1.200:3000"
-""")
-        
+"""
+            )
+
         os.chmod(rollback_script, 0o755)
 
         # Set this backup as the current build
@@ -970,140 +1177,124 @@ echo "Platform should be available at http://192.168.1.200:3000"
 
         current_app.logger.info(f"Backup created successfully: {backup_name} (Build #{new_build_number})")
 
-        return jsonify({
-            'success': True,
-            'message': f'Backup created successfully (Build #{new_build_number})',
-            'backup': metadata
-        })
-        
+        return jsonify(
+            {"success": True, "message": f"Backup created successfully (Build #{new_build_number})", "backup": metadata}
+        )
+
     except Exception as e:
         current_app.logger.error(f"Backup creation failed: {str(e)}")
         # Clean up failed backup
-        if 'backup_path' in locals() and os.path.exists(backup_path):
+        if "backup_path" in locals() and os.path.exists(backup_path):
             shutil.rmtree(backup_path)
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
-@backup_manager_bp.route('/restore/<backup_name>', methods=['POST'])
+
+@backup_manager_bp.route("/restore/<backup_name>", methods=["POST"])
 @admin_required
 def restore_backup(backup_name):
     """Restore a backup"""
     try:
         backup_path = os.path.join(BACKUP_DIR, backup_name)
-        
+
         if not os.path.exists(backup_path):
-            return jsonify({
-                'success': False,
-                'error': 'Backup not found'
-            }), 404
-        
-        rollback_script = os.path.join(backup_path, 'rollback.sh')
-        
+            return jsonify({"success": False, "error": "Backup not found"}), 404
+
+        rollback_script = os.path.join(backup_path, "rollback.sh")
+
         if not os.path.exists(rollback_script):
-            return jsonify({
-                'success': False,
-                'error': 'Rollback script not found'
-            }), 404
-        
+            return jsonify({"success": False, "error": "Rollback script not found"}), 404
+
         # Execute rollback script
-        result = subprocess.run(
-            ['bash', rollback_script],
-            capture_output=True,
-            text=True
-        )
-        
+        result = subprocess.run(["bash", rollback_script], capture_output=True, text=True)
+
         if result.returncode != 0:
             raise Exception(f"Rollback failed: {result.stderr}")
-        
-        return jsonify({
-            'success': True,
-            'message': 'Backup restored successfully. Platform is restarting...',
-            'output': result.stdout
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
 
-@backup_manager_bp.route('/download/<backup_name>')
+        return jsonify(
+            {
+                "success": True,
+                "message": "Backup restored successfully. Platform is restarting...",
+                "output": result.stdout,
+            }
+        )
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@backup_manager_bp.route("/download/<backup_name>")
 @admin_required
 def download_backup(backup_name):
     """Download a backup as tar.gz"""
     try:
         backup_path = os.path.join(BACKUP_DIR, backup_name)
-        
-        if not os.path.exists(backup_path):
-            return jsonify({
-                'success': False,
-                'error': 'Backup not found'
-            }), 404
-        
-        # Create tar.gz archive
-        archive_path = f"/tmp/{backup_name}.tar.gz"
-        
-        with tarfile.open(archive_path, 'w:gz') as tar:
-            tar.add(backup_path, arcname=backup_name)
-        
-        return send_file(
-            archive_path,
-            as_attachment=True,
-            download_name=f"{backup_name}.tar.gz",
-            mimetype='application/gzip'
-        )
-        
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
 
-@backup_manager_bp.route('/delete/<backup_name>', methods=['DELETE'])
+        if not os.path.exists(backup_path):
+            return jsonify({"success": False, "error": "Backup not found"}), 404
+
+        # Create tar.gz archive using tempfile for proper cleanup
+        with tempfile.NamedTemporaryFile(suffix=".tar.gz", delete=False) as tmp:
+            archive_path = tmp.name
+
+        try:
+            with tarfile.open(archive_path, "w:gz") as tar:
+                tar.add(backup_path, arcname=backup_name)
+
+            response = send_file(
+                archive_path, as_attachment=True, download_name=f"{backup_name}.tar.gz", mimetype="application/gzip"
+            )
+
+            # Schedule cleanup after response is sent
+            @response.call_on_close
+            def cleanup():
+                try:
+                    if os.path.exists(archive_path):
+                        os.unlink(archive_path)
+                except Exception:
+                    pass
+
+            return response
+        except Exception:
+            # Cleanup on error
+            if os.path.exists(archive_path):
+                os.unlink(archive_path)
+            raise
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@backup_manager_bp.route("/delete/<backup_name>", methods=["DELETE"])
 @admin_required
 def delete_backup(backup_name):
     """Delete a backup"""
     try:
         backup_path = os.path.join(BACKUP_DIR, backup_name)
-        
+
         if not os.path.exists(backup_path):
-            return jsonify({
-                'success': False,
-                'error': 'Backup not found'
-            }), 404
-        
+            return jsonify({"success": False, "error": "Backup not found"}), 404
+
         # Safety check: don't delete if it's the only/newest backup
-        all_backups = [d for d in os.listdir(BACKUP_DIR) 
-                      if os.path.isdir(os.path.join(BACKUP_DIR, d))]
-        
+        all_backups = [d for d in os.listdir(BACKUP_DIR) if os.path.isdir(os.path.join(BACKUP_DIR, d))]
+
         if len(all_backups) == 1:
-            return jsonify({
-                'success': False,
-                'error': 'Cannot delete the only backup'
-            }), 400
-        
+            return jsonify({"success": False, "error": "Cannot delete the only backup"}), 400
+
         # Delete backup directory
         shutil.rmtree(backup_path)
 
-        return jsonify({
-            'success': True,
-            'message': 'Backup deleted successfully'
-        })
+        return jsonify({"success": True, "message": "Backup deleted successfully"})
 
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # =============================================================================
 # RETENTION POLICY ROUTES
 # =============================================================================
 
-@backup_manager_bp.route('/retention-status')
+
+@backup_manager_bp.route("/retention-status")
 @admin_required
 def retention_status():
     """
@@ -1124,19 +1315,12 @@ def retention_status():
     """
     try:
         status = get_backup_retention_status()
-        return jsonify({
-            'success': True,
-            'retention_policy': '7 daily + 4 weekly + 6 monthly',
-            **status
-        })
+        return jsonify({"success": True, "retention_policy": "7 daily + 4 weekly + 6 monthly", **status})
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@backup_manager_bp.route('/cleanup', methods=['POST'])
+@backup_manager_bp.route("/cleanup", methods=["POST"])
 @admin_required
 def cleanup_backups():
     """
@@ -1158,24 +1342,23 @@ def cleanup_backups():
     """
     try:
         data = request.get_json() or {}
-        dry_run = data.get('dry_run', True)  # Default to dry run for safety
+        dry_run = data.get("dry_run", True)  # Default to dry run for safety
 
         result = cleanup_old_backups(dry_run=dry_run)
 
         if not dry_run:
-            current_app.logger.info(f"Retention cleanup: deleted {len(result['deleted'])} backups, freed {result['space_freed_mb']} MB")
+            current_app.logger.info(
+                f"Retention cleanup: deleted {len(result['deleted'])} backups, freed {result['space_freed_mb']} MB"
+            )
 
         return jsonify(result)
 
     except Exception as e:
         current_app.logger.error(f"Cleanup failed: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@backup_manager_bp.route('/storage-stats')
+@backup_manager_bp.route("/storage-stats")
 @admin_required
 def storage_stats():
     """
@@ -1197,37 +1380,36 @@ def storage_stats():
         backups = []
         for item in os.listdir(BACKUP_DIR):
             backup_path = os.path.join(BACKUP_DIR, item)
-            if os.path.isdir(backup_path) and item != 'modules':
+            if os.path.isdir(backup_path) and item != "modules":
                 try:
                     timestamp_str = item[:15]
-                    backup_date = datetime.strptime(timestamp_str, '%Y%m%d_%H%M%S')
-                    backups.append({'name': item, 'date': backup_date})
+                    backup_date = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
+                    backups.append({"name": item, "date": backup_date})
                 except (ValueError, IndexError):
                     continue
 
-        backups.sort(key=lambda x: x['date'])
+        backups.sort(key=lambda x: x["date"])
 
-        return jsonify({
-            'success': True,
-            'total_backups': retention['stats']['total_backups'],
-            'total_size_mb': retention['stats']['total_size_mb'],
-            'oldest_backup': backups[0]['name'] if backups else None,
-            'newest_backup': backups[-1]['name'] if backups else None,
-            'retention_summary': {
-                'keep_count': retention['stats']['keep_count'],
-                'delete_count': retention['stats']['delete_count'],
-                'space_to_free_mb': retention['stats']['space_to_free_mb']
+        return jsonify(
+            {
+                "success": True,
+                "total_backups": retention["stats"]["total_backups"],
+                "total_size_mb": retention["stats"]["total_size_mb"],
+                "oldest_backup": backups[0]["name"] if backups else None,
+                "newest_backup": backups[-1]["name"] if backups else None,
+                "retention_summary": {
+                    "keep_count": retention["stats"]["keep_count"],
+                    "delete_count": retention["stats"]["delete_count"],
+                    "space_to_free_mb": retention["stats"]["space_to_free_mb"],
+                },
             }
-        })
+        )
 
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@backup_manager_bp.route('/deploy-to-sandbox', methods=['POST'])
+@backup_manager_bp.route("/deploy-to-sandbox", methods=["POST"])
 @admin_required
 def deploy_backup_to_sandbox():
     """
@@ -1250,42 +1432,36 @@ def deploy_backup_to_sandbox():
     """
     try:
         data = request.get_json()
-        backup_name = data.get('backup_name')
-        sandbox_id = data.get('sandbox_id')
+        backup_name = data.get("backup_name")
+        sandbox_id = data.get("sandbox_id")
 
         if not backup_name or not sandbox_id:
-            return jsonify({
-                'success': False,
-                'error': 'backup_name and sandbox_id required'
-            }), 400
+            return jsonify({"success": False, "error": "backup_name and sandbox_id required"}), 400
 
         # Get backup path
         backup_path = os.path.join(BACKUP_DIR, backup_name)
         if not os.path.exists(backup_path):
-            return jsonify({
-                'success': False,
-                'error': f'Backup {backup_name} not found'
-            }), 404
+            return jsonify({"success": False, "error": f"Backup {backup_name} not found"}), 404
 
         # Get sandbox details
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("""
+        cur.execute(
+            """
             SELECT id, proposal_id, sandbox_type, schema_name, container_id, status
             FROM sandbox_instances
             WHERE id = %s
             AND destroyed_at IS NULL
-        """, (sandbox_id,))
+        """,
+            (sandbox_id,),
+        )
 
         sandbox = cur.fetchone()
 
         if not sandbox:
             cur.close()
             conn.close()
-            return jsonify({
-                'success': False,
-                'error': f'Sandbox #{sandbox_id} not found or destroyed'
-            }), 404
+            return jsonify({"success": False, "error": f"Sandbox #{sandbox_id} not found or destroyed"}), 404
 
         sandbox_type = sandbox[2]
         schema_name = sandbox[3]
@@ -1295,140 +1471,177 @@ def deploy_backup_to_sandbox():
         components_deployed = []
 
         # Deploy based on sandbox type
-        if sandbox_type == 'schema_separation':
+        if sandbox_type == "schema_separation":
             # Deploy to schema-based sandbox
-            deployment_log.append(f'Deploying to schema: {schema_name}')
+            deployment_log.append(f"Deploying to schema: {schema_name}")
 
             # 1. Restore database backup to sandbox schema
-            db_backup_path = os.path.join(backup_path, 'database.sql')
+            db_backup_path = os.path.join(backup_path, "database.sql")
             if os.path.exists(db_backup_path):
-                deployment_log.append('Found database backup, restoring to sandbox schema...')
+                deployment_log.append("Found database backup, restoring to sandbox schema...")
 
                 # Modify SQL to use sandbox schema instead of public
-                with open(db_backup_path, 'r') as f:
+                with open(db_backup_path, "r") as f:
                     sql_content = f.read()
 
                 # Replace schema references (simple approach - for production you'd want more robust handling)
-                sql_content = sql_content.replace('SET search_path = public', f'SET search_path = {schema_name}')
+                sql_content = sql_content.replace("SET search_path = public", f"SET search_path = {schema_name}")
 
                 # Write modified SQL to temp file
                 import tempfile
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.sql', delete=False) as tmp:
+
+                with tempfile.NamedTemporaryFile(mode="w", suffix=".sql", delete=False) as tmp:
                     tmp.write(sql_content)
                     tmp_path = tmp.name
 
                 try:
                     # Execute SQL in sandbox schema
-                    result = subprocess.run([
-                        'docker', 'exec', '-i', 'archie_database',
-                        'psql', '-U', 'archie', '-d', 'archie',
-                        '-c', f'SET search_path TO {schema_name}; \\i {tmp_path}'
-                    ], capture_output=True, text=True, timeout=300)
+                    result = subprocess.run(
+                        [
+                            "docker",
+                            "exec",
+                            "-i",
+                            "archie_database",
+                            "psql",
+                            "-U",
+                            "archie",
+                            "-d",
+                            "archie",
+                            "-c",
+                            f"SET search_path TO {schema_name}; \\i {tmp_path}",
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=300,
+                    )
 
                     if result.returncode == 0:
-                        deployment_log.append('✓ Database restored to sandbox schema')
-                        components_deployed.append('database')
+                        deployment_log.append("✓ Database restored to sandbox schema")
+                        components_deployed.append("database")
                     else:
-                        deployment_log.append(f'⚠ Database restore warning: {result.stderr}')
+                        deployment_log.append(f"⚠ Database restore warning: {result.stderr}")
                 finally:
                     os.unlink(tmp_path)
 
             # 2. Note: Platform code would be applied to production, not sandbox
             #    (schema sandboxes share the same codebase)
-            deployment_log.append('Note: Platform code shared with production (schema isolation only)')
+            deployment_log.append("Note: Platform code shared with production (schema isolation only)")
 
-        elif sandbox_type == 'docker_container':
+        elif sandbox_type == "docker_container":
             # Deploy to Docker container sandbox
-            deployment_log.append(f'Deploying to Docker container: {container_id}')
+            deployment_log.append(f"Deploying to Docker container: {container_id}")
 
             # 1. Copy platform code files
-            platform_backup_path = os.path.join(backup_path, 'platform_v2')
+            platform_backup_path = os.path.join(backup_path, "platform_v2")
             if os.path.exists(platform_backup_path):
-                deployment_log.append('Found platform code, copying to container...')
+                deployment_log.append("Found platform code, copying to container...")
 
-                result = subprocess.run([
-                    'docker', 'cp',
-                    platform_backup_path + '/.',
-                    f'{container_id}:/app/'
-                ], capture_output=True, text=True, timeout=60)
+                result = subprocess.run(
+                    ["docker", "cp", platform_backup_path + "/.", f"{container_id}:/app/"],
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                )
 
                 if result.returncode == 0:
-                    deployment_log.append('✓ Platform code deployed to container')
-                    components_deployed.append('platform_code')
+                    deployment_log.append("✓ Platform code deployed to container")
+                    components_deployed.append("platform_code")
                 else:
-                    deployment_log.append(f'⚠ Platform copy warning: {result.stderr}')
+                    deployment_log.append(f"⚠ Platform copy warning: {result.stderr}")
 
             # 2. Restore database to container's database
-            db_backup_path = os.path.join(backup_path, 'database.sql')
+            db_backup_path = os.path.join(backup_path, "database.sql")
             if os.path.exists(db_backup_path):
-                deployment_log.append('Found database backup, restoring to container database...')
+                deployment_log.append("Found database backup, restoring to container database...")
 
-                result = subprocess.run([
-                    'docker', 'exec', '-i', container_id,
-                    'psql', '-U', 'archie', '-d', 'archie', '-f', db_backup_path
-                ], capture_output=True, text=True, timeout=300)
+                result = subprocess.run(
+                    [
+                        "docker",
+                        "exec",
+                        "-i",
+                        container_id,
+                        "psql",
+                        "-U",
+                        "archie",
+                        "-d",
+                        "archie",
+                        "-f",
+                        db_backup_path,
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=300,
+                )
 
                 if result.returncode == 0:
-                    deployment_log.append('✓ Database restored to container')
-                    components_deployed.append('database')
+                    deployment_log.append("✓ Database restored to container")
+                    components_deployed.append("database")
                 else:
-                    deployment_log.append(f'⚠ Database restore warning: {result.stderr}')
+                    deployment_log.append(f"⚠ Database restore warning: {result.stderr}")
 
         # Update sandbox metadata
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE sandbox_instances
             SET metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
             WHERE id = %s
-        """, (json.dumps({
-            'last_backup_deployed': backup_name,
-            'deployment_time': datetime.now().isoformat(),
-            'components_deployed': components_deployed,
-            'deployment_log': deployment_log
-        }), sandbox_id))
+        """,
+            (
+                json.dumps(
+                    {
+                        "last_backup_deployed": backup_name,
+                        "deployment_time": datetime.now().isoformat(),
+                        "components_deployed": components_deployed,
+                        "deployment_log": deployment_log,
+                    }
+                ),
+                sandbox_id,
+            ),
+        )
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'sandbox_id': sandbox_id,
-            'sandbox_type': sandbox_type,
-            'components_deployed': components_deployed,
-            'deployment_log': '\n'.join(deployment_log)
-        })
+        return jsonify(
+            {
+                "success": True,
+                "sandbox_id": sandbox_id,
+                "sandbox_type": sandbox_type,
+                "components_deployed": components_deployed,
+                "deployment_log": "\n".join(deployment_log),
+            }
+        )
 
     except Exception as e:
         import traceback
-        traceback.print_exc()
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
 
-@backup_manager_bp.route('/set-current/<int:build_number>', methods=['POST'])
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@backup_manager_bp.route("/set-current/<int:build_number>", methods=["POST"])
 @admin_required
 def set_current_build(build_number):
     """Set current running build number"""
     try:
-        current_build_file = '/backups/.current_build'
-        with open(current_build_file, 'w') as f:
+        current_build_file = "/backups/.current_build"
+        with open(current_build_file, "w") as f:
             f.write(str(build_number))
 
-        return jsonify({
-            'success': True,
-            'current_build': build_number,
-            'message': f'Current build set to #{build_number}'
-        })
+        return jsonify(
+            {"success": True, "current_build": build_number, "message": f"Current build set to #{build_number}"}
+        )
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
 # =============================================================================
 # MODULE-LEVEL BACKUP ROUTES (NEW)
 # =============================================================================
 
-@backup_manager_bp.route('/backup-module', methods=['POST'])
+
+@backup_manager_bp.route("/backup-module", methods=["POST"])
 @admin_required
 def api_backup_module():
     """
@@ -1450,34 +1663,26 @@ def api_backup_module():
     """
     try:
         data = request.get_json() or {}
-        module_name = data.get('module_name')
-        proposal_id = data.get('proposal_id')
+        module_name = data.get("module_name")
+        proposal_id = data.get("proposal_id")
 
         if not module_name:
-            return jsonify({
-                'success': False,
-                'error': 'module_name is required'
-            }), 400
+            return jsonify({"success": False, "error": "module_name is required"}), 400
 
         result = backup_module(
-            module_name=module_name,
-            proposal_id=proposal_id,
-            created_by_username=current_user.username
+            module_name=module_name, proposal_id=proposal_id, created_by_username=current_user.username
         )
 
-        if result['success']:
+        if result["success"]:
             return jsonify(result)
         else:
             return jsonify(result), 500
 
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@backup_manager_bp.route('/module-dependencies/<module_name>')
+@backup_manager_bp.route("/module-dependencies/<module_name>")
 @admin_required
 def api_module_dependencies(module_name):
     """
@@ -1498,34 +1703,27 @@ def api_module_dependencies(module_name):
     try:
         dependencies = get_module_dependencies(module_name)
 
-        return jsonify({
-            'success': True,
-            'module_name': module_name,
-            'dependencies': dependencies
-        })
+        return jsonify({"success": True, "module_name": module_name, "dependencies": dependencies})
 
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@backup_manager_bp.route('/modules/list')
+@backup_manager_bp.route("/modules/list")
 @admin_required
 def list_module_backups():
     """List all module-level backups"""
     try:
-        module_backup_dir = os.path.join(BACKUP_DIR, 'modules')
+        module_backup_dir = os.path.join(BACKUP_DIR, "modules")
         backups = []
 
         if os.path.exists(module_backup_dir):
             for item in os.listdir(module_backup_dir):
                 backup_path = os.path.join(module_backup_dir, item)
                 if os.path.isdir(backup_path):
-                    metadata_file = os.path.join(backup_path, 'metadata.json')
+                    metadata_file = os.path.join(backup_path, "metadata.json")
                     if os.path.exists(metadata_file):
-                        with open(metadata_file, 'r') as f:
+                        with open(metadata_file, "r") as f:
                             metadata = json.load(f)
 
                             # Calculate size
@@ -1535,132 +1733,117 @@ def list_module_backups():
                                     filepath = os.path.join(root, file)
                                     total_size += os.path.getsize(filepath)
 
-                            metadata['size'] = total_size
+                            metadata["size"] = total_size
                             backups.append(metadata)
 
         # Sort by timestamp descending
-        backups.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+        backups.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
 
-        return jsonify({
-            'success': True,
-            'backups': backups
-        })
+        return jsonify({"success": True, "backups": backups})
 
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@backup_manager_bp.route('/restore-module/<backup_name>', methods=['POST'])
+@backup_manager_bp.route("/restore-module/<backup_name>", methods=["POST"])
 @admin_required
 def restore_module_backup(backup_name):
     """Restore a module backup to the platform"""
     try:
-        backup_path = os.path.join(BACKUP_DIR, 'modules', backup_name)
+        backup_path = os.path.join(BACKUP_DIR, "modules", backup_name)
 
         if not os.path.exists(backup_path):
-            return jsonify({
-                'success': False,
-                'error': f'Module backup {backup_name} not found'
-            }), 404
+            return jsonify({"success": False, "error": f"Module backup {backup_name} not found"}), 404
 
         # Read metadata
-        metadata_file = os.path.join(backup_path, 'metadata.json')
+        metadata_file = os.path.join(backup_path, "metadata.json")
         if not os.path.exists(metadata_file):
-            return jsonify({
-                'success': False,
-                'error': 'Backup metadata not found'
-            }), 400
+            return jsonify({"success": False, "error": "Backup metadata not found"}), 400
 
-        with open(metadata_file, 'r') as f:
+        with open(metadata_file, "r") as f:
             metadata = json.load(f)
 
         files_restored = []
 
         # Restore tools directory
-        tools_backup = os.path.join(backup_path, 'tools')
+        tools_backup = os.path.join(backup_path, "tools")
         if os.path.exists(tools_backup):
             for item in os.listdir(tools_backup):
                 src = os.path.join(tools_backup, item)
-                dst = os.path.join(PLATFORM_DIR, 'tools', item)
+                dst = os.path.join(PLATFORM_DIR, "tools", item)
                 if os.path.isdir(src):
                     if os.path.exists(dst):
                         shutil.rmtree(dst)
                     shutil.copytree(src, dst)
-                    files_restored.append(f'tools/{item}/')
+                    files_restored.append(f"tools/{item}/")
 
         # Restore templates
-        templates_backup = os.path.join(backup_path, 'templates', 'tools')
+        templates_backup = os.path.join(backup_path, "templates", "tools")
         if os.path.exists(templates_backup):
             for item in os.listdir(templates_backup):
                 src = os.path.join(templates_backup, item)
-                dst = os.path.join(PLATFORM_DIR, 'templates', 'tools', item)
+                dst = os.path.join(PLATFORM_DIR, "templates", "tools", item)
                 if os.path.isfile(src):
                     shutil.copy2(src, dst)
                 else:
                     if os.path.exists(dst):
                         shutil.rmtree(dst)
                     shutil.copytree(src, dst)
-                files_restored.append(f'templates/tools/{item}')
+                files_restored.append(f"templates/tools/{item}")
 
         # Restore static JS
-        static_backup = os.path.join(backup_path, 'static', 'js')
+        static_backup = os.path.join(backup_path, "static", "js")
         if os.path.exists(static_backup):
             for item in os.listdir(static_backup):
                 src = os.path.join(static_backup, item)
-                dst = os.path.join(PLATFORM_DIR, 'static', 'js', item)
+                dst = os.path.join(PLATFORM_DIR, "static", "js", item)
                 if os.path.isdir(src):
                     if os.path.exists(dst):
                         shutil.rmtree(dst)
                     shutil.copytree(src, dst)
-                    files_restored.append(f'static/js/{item}/')
+                    files_restored.append(f"static/js/{item}/")
 
-        return jsonify({
-            'success': True,
-            'message': f'Module {metadata.get("module_name", "unknown")} restored successfully',
-            'files_restored': files_restored
-        })
+        return jsonify(
+            {
+                "success": True,
+                "message": f'Module {metadata.get("module_name", "unknown")} restored successfully',
+                "files_restored": files_restored,
+            }
+        )
 
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@backup_manager_bp.route('/modules/available')
+@backup_manager_bp.route("/modules/available")
 @admin_required
 def list_available_modules():
     """List all available modules that can be backed up"""
     try:
-        tools_dir = os.path.join(PLATFORM_DIR, 'tools')
+        tools_dir = os.path.join(PLATFORM_DIR, "tools")
         modules = []
 
         # Modules to exclude (not real modules)
-        exclude = {'__pycache__', 'admin', '_deprecated'}
+        exclude = {"__pycache__", "admin", "_deprecated"}
 
         if os.path.exists(tools_dir):
             for item in sorted(os.listdir(tools_dir)):
-                if item in exclude or item.startswith('.') or item.startswith('_'):
+                if item in exclude or item.startswith(".") or item.startswith("_"):
                     continue
 
                 module_path = os.path.join(tools_dir, item)
                 if os.path.isdir(module_path):
                     # Check if it has routes.py (actual module)
-                    has_routes = os.path.exists(os.path.join(module_path, 'routes.py'))
+                    has_routes = os.path.exists(os.path.join(module_path, "routes.py"))
 
                     # Count files
-                    file_count = sum(1 for f in os.listdir(module_path)
-                                    if os.path.isfile(os.path.join(module_path, f)))
+                    file_count = sum(1 for f in os.listdir(module_path) if os.path.isfile(os.path.join(module_path, f)))
 
                     # Check for related templates
-                    templates_dir = os.path.join(PLATFORM_DIR, 'templates', 'tools')
+                    templates_dir = os.path.join(PLATFORM_DIR, "templates", "tools")
                     template_count = 0
                     if os.path.exists(templates_dir):
-                        template_count = sum(1 for f in os.listdir(templates_dir)
-                                           if item in f.lower())
+                        template_count = sum(1 for f in os.listdir(templates_dir) if item in f.lower())
 
                     # Calculate size
                     total_size = 0
@@ -1668,33 +1851,29 @@ def list_available_modules():
                         for f in files:
                             total_size += os.path.getsize(os.path.join(root, f))
 
-                    modules.append({
-                        'name': item,
-                        'has_routes': has_routes,
-                        'file_count': file_count,
-                        'template_count': template_count,
-                        'size_bytes': total_size,
-                        'size_kb': round(total_size / 1024, 1)
-                    })
+                    modules.append(
+                        {
+                            "name": item,
+                            "has_routes": has_routes,
+                            "file_count": file_count,
+                            "template_count": template_count,
+                            "size_bytes": total_size,
+                            "size_kb": round(total_size / 1024, 1),
+                        }
+                    )
 
-        return jsonify({
-            'success': True,
-            'modules': modules,
-            'total_count': len(modules)
-        })
+        return jsonify({"success": True, "modules": modules, "total_count": len(modules)})
 
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # =============================================================================
 # MODULE REGISTRY SYNC / VERIFICATION
 # =============================================================================
 
-@backup_manager_bp.route('/verify-modules')
+
+@backup_manager_bp.route("/verify-modules")
 @admin_required
 def verify_modules_coverage():
     """
@@ -1718,12 +1897,10 @@ def verify_modules_coverage():
         # Import module registry
         try:
             from module_registry import get_all_modules
+
             modules = get_all_modules()
         except ImportError:
-            return jsonify({
-                'success': False,
-                'error': 'Could not import module_registry'
-            }), 500
+            return jsonify({"success": False, "error": "Could not import module_registry"}), 500
 
         covered = []
         missing = []
@@ -1733,25 +1910,30 @@ def verify_modules_coverage():
             module_name = module.name
 
             # Check if module has files in expected locations
-            tool_dir = os.path.join(PLATFORM_DIR, 'tools', module_id)
+            tool_dir = os.path.join(PLATFORM_DIR, "tools", module_id)
             has_routes = os.path.exists(tool_dir)
 
             # Check for templates
-            templates_dir = os.path.join(PLATFORM_DIR, 'templates', 'tools')
-            has_templates = any(
-                f.startswith(module_id) or f.startswith(module_id.replace('_', ''))
-                for f in os.listdir(templates_dir) if f.endswith('.html')
-            ) if os.path.exists(templates_dir) else False
+            templates_dir = os.path.join(PLATFORM_DIR, "templates", "tools")
+            has_templates = (
+                any(
+                    f.startswith(module_id) or f.startswith(module_id.replace("_", ""))
+                    for f in os.listdir(templates_dir)
+                    if f.endswith(".html")
+                )
+                if os.path.exists(templates_dir)
+                else False
+            )
 
             # Module status
             module_info = {
-                'id': module_id,
-                'name': module_name,
-                'category': module.category.value if hasattr(module.category, 'value') else str(module.category),
-                'has_routes': has_routes,
-                'has_templates': has_templates,
-                'enabled': module.enabled,
-                'status': 'live' if not module.coming_soon else 'coming_soon'
+                "id": module_id,
+                "name": module_name,
+                "category": module.category.value if hasattr(module.category, "value") else str(module.category),
+                "has_routes": has_routes,
+                "has_templates": has_templates,
+                "enabled": module.enabled,
+                "status": "live" if not module.coming_soon else "coming_soon",
             }
 
             if has_routes:
@@ -1759,40 +1941,40 @@ def verify_modules_coverage():
             else:
                 # Check if it's a placeholder module (expected to not have files yet)
                 if module.coming_soon:
-                    module_info['note'] = 'Placeholder module - not yet implemented'
+                    module_info["note"] = "Placeholder module - not yet implemented"
                     covered.append(module_info)  # Still count as covered (intentionally missing)
                 else:
                     missing.append(module_info)
 
         coverage_pct = (len(covered) / len(modules) * 100) if modules else 0
 
-        return jsonify({
-            'success': True,
-            'total_modules': len(modules),
-            'covered_count': len(covered),
-            'missing_count': len(missing),
-            'coverage_percentage': round(coverage_pct, 1),
-            'covered_modules': covered,
-            'missing_modules': missing,
-            'backup_paths': {
-                'tools_dir': os.path.join(PLATFORM_DIR, 'tools'),
-                'templates_dir': os.path.join(PLATFORM_DIR, 'templates', 'tools'),
-                'static_dir': os.path.join(PLATFORM_DIR, 'static')
+        return jsonify(
+            {
+                "success": True,
+                "total_modules": len(modules),
+                "covered_count": len(covered),
+                "missing_count": len(missing),
+                "coverage_percentage": round(coverage_pct, 1),
+                "covered_modules": covered,
+                "missing_modules": missing,
+                "backup_paths": {
+                    "tools_dir": os.path.join(PLATFORM_DIR, "tools"),
+                    "templates_dir": os.path.join(PLATFORM_DIR, "templates", "tools"),
+                    "static_dir": os.path.join(PLATFORM_DIR, "static"),
+                },
             }
-        })
+        )
 
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # =============================================================================
 # DEPLOYMENT BACKUPS API
 # =============================================================================
 
-@backup_manager_bp.route('/api/deployment-backups')
+
+@backup_manager_bp.route("/api/deployment-backups")
 @admin_required
 def get_deployment_backups():
     """
@@ -1805,7 +1987,8 @@ def get_deployment_backups():
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 id.id,
                 id.proposal_id,
@@ -1824,53 +2007,49 @@ def get_deployment_backups():
             WHERE id.backup_name IS NOT NULL
             ORDER BY id.deployed_at DESC
             LIMIT 100
-        """)
+        """
+        )
         deployments = cur.fetchall()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'deployments': [dict(d) for d in deployments]
-        })
+        return jsonify({"success": True, "deployments": [dict(d) for d in deployments]})
 
     except Exception as e:
-        return jsonify({
-            'success': True,
-            'deployments': [],
-            'note': f'Error loading deployment backups: {str(e)}'
-        })
+        return jsonify({"success": True, "deployments": [], "note": f"Error loading deployment backups: {str(e)}"})
 
 
 # =============================================================================
 # DEPLOYMENT PACKAGE API (Phase 31.1)
 # =============================================================================
 
+
 def get_platform_version():
     """Get current platform version from CHANGELOG or default"""
     try:
-        changelog_path = '/mnt/archie_brain/docs/CHANGELOG.md'
+        changelog_path = "/mnt/archie_brain/docs/CHANGELOG.md"
         if os.path.exists(changelog_path):
-            with open(changelog_path, 'r') as f:
+            with open(changelog_path, "r") as f:
                 for line in f:
-                    if line.startswith('## [') or line.startswith('## v'):
+                    if line.startswith("## [") or line.startswith("## v"):
                         # Extract version from line like "## [5.33.0]" or "## v5.33.0"
                         import re
-                        match = re.search(r'[\d]+\.[\d]+\.[\d]+', line)
+
+                        match = re.search(r"[\d]+\.[\d]+\.[\d]+", line)
                         if match:
                             return match.group()
-        return '5.0.0'
+        return "5.0.0"
     except:
-        return '5.0.0'
+        return "5.0.0"
 
 
 def generate_deploy_script(package_name, components):
     """Generate the deploy.sh script for deployment packages"""
     version = get_platform_version()
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    return f'''#!/bin/bash
+    return f"""#!/bin/bash
 # ============================================================================
 # A.R.C.H.I.E. Deployment Script
 # Package: {package_name}
@@ -2087,10 +2266,10 @@ echo ""
 echo -e "${{YELLOW}}IMPORTANT: Save this database password securely!${{NC}}"
 echo -e "Database Password: ${{RED}}$DB_PASSWORD${{NC}}"
 echo ""
-'''
+"""
 
 
-@backup_manager_bp.route('/api/deployment-packages')
+@backup_manager_bp.route("/api/deployment-packages")
 @admin_required
 def list_deployment_packages():
     """List all deployment packages"""
@@ -2100,7 +2279,8 @@ def list_deployment_packages():
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 dp.id,
                 dp.package_name,
@@ -2119,25 +2299,20 @@ def list_deployment_packages():
             FROM deployment_packages dp
             LEFT JOIN users u ON dp.created_by = u.id
             ORDER BY dp.created_at DESC
-        """)
+        """
+        )
         packages = cur.fetchall()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'packages': [dict(p) for p in packages]
-        })
+        return jsonify({"success": True, "packages": [dict(p) for p in packages]})
 
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@backup_manager_bp.route('/api/create-deployment-package', methods=['POST'])
+@backup_manager_bp.route("/api/create-deployment-package", methods=["POST"])
 @admin_required
 def create_deployment_package():
     """
@@ -2156,18 +2331,18 @@ def create_deployment_package():
 
     try:
         data = request.get_json() or {}
-        description = data.get('description', 'Deployment package')
-        version_tag = data.get('version_tag', get_platform_version())
-        from_backup = data.get('from_backup')
-        target_platform = data.get('target_platform', 'linux')
+        description = data.get("description", "Deployment package")
+        version_tag = data.get("version_tag", get_platform_version())
+        from_backup = data.get("from_backup")
+        target_platform = data.get("target_platform", "linux")
 
         # Generate package name
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        safe_version = version_tag.replace('.', '_').replace(' ', '_')
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_version = version_tag.replace(".", "_").replace(" ", "_")
         package_name = f"archie-deployment-{safe_version}-{timestamp}"
 
         # Create package directory
-        package_dir = os.path.join('/tmp', package_name)
+        package_dir = os.path.join("/tmp", package_name)
         os.makedirs(package_dir, exist_ok=True)
 
         current_app.logger.info(f"Creating deployment package: {package_name}")
@@ -2178,10 +2353,7 @@ def create_deployment_package():
         if from_backup:
             backup_path = os.path.join(BACKUP_DIR, from_backup)
             if not os.path.exists(backup_path):
-                return jsonify({
-                    'success': False,
-                    'error': f'Backup {from_backup} not found'
-                }), 404
+                return jsonify({"success": False, "error": f"Backup {from_backup} not found"}), 404
 
             # Copy backup contents
             for item in os.listdir(backup_path):
@@ -2191,21 +2363,21 @@ def create_deployment_package():
                     shutil.copytree(src, dst, dirs_exist_ok=True)
                 else:
                     shutil.copy2(src, dst)
-            components_included.append('backup_contents')
+            components_included.append("backup_contents")
 
         else:
             # Create fresh from current system
 
             # 1. Database dump
             current_app.logger.info("  Dumping database...")
-            db_file = os.path.join(package_dir, 'database.sql')
+            db_file = os.path.join(package_dir, "database.sql")
             backup_database_python(db_file)
-            components_included.append('database')
+            components_included.append("database")
 
             # 2. Platform code
             current_app.logger.info("  Copying platform code...")
-            platform_dst = os.path.join(package_dir, 'platform_v2')
-            platform_dirs = ['tools', 'templates', 'static', 'consciousness', 'migrations']
+            platform_dst = os.path.join(package_dir, "platform_v2")
+            platform_dirs = ["tools", "templates", "static", "consciousness", "migrations"]
             for dir_name in platform_dirs:
                 src = os.path.join(PLATFORM_DIR, dir_name)
                 if os.path.exists(src):
@@ -2213,61 +2385,61 @@ def create_deployment_package():
                     shutil.copytree(src, dst, dirs_exist_ok=True)
 
             # Copy important platform files
-            important_files = ['app.py', 'requirements.txt', 'config.py', 'module_registry.py', 'rbac.py']
+            important_files = ["app.py", "requirements.txt", "config.py", "module_registry.py", "rbac.py"]
             for file_name in important_files:
                 src = os.path.join(PLATFORM_DIR, file_name)
                 if os.path.exists(src):
                     shutil.copy2(src, os.path.join(platform_dst, file_name))
-            components_included.append('platform_v2')
+            components_included.append("platform_v2")
 
             # 3. AI Bridge
-            ai_bridge_src = '/mnt/archie_brain/ai_bridge'
+            ai_bridge_src = "/mnt/archie_brain/ai_bridge"
             if os.path.exists(ai_bridge_src):
-                shutil.copytree(ai_bridge_src, os.path.join(package_dir, 'ai_bridge'), dirs_exist_ok=True)
-                components_included.append('ai_bridge')
+                shutil.copytree(ai_bridge_src, os.path.join(package_dir, "ai_bridge"), dirs_exist_ok=True)
+                components_included.append("ai_bridge")
 
             # 4. Documentation
-            docs_src = '/mnt/archie_brain/docs'
+            docs_src = "/mnt/archie_brain/docs"
             if os.path.exists(docs_src):
-                shutil.copytree(docs_src, os.path.join(package_dir, 'docs'), dirs_exist_ok=True)
-                components_included.append('docs')
+                shutil.copytree(docs_src, os.path.join(package_dir, "docs"), dirs_exist_ok=True)
+                components_included.append("docs")
 
             # 5. Database migrations
-            migrations_src = '/mnt/archie_brain/database/migrations'
+            migrations_src = "/mnt/archie_brain/database/migrations"
             if os.path.exists(migrations_src):
-                migrations_dst = os.path.join(package_dir, 'database/migrations')
+                migrations_dst = os.path.join(package_dir, "database/migrations")
                 os.makedirs(os.path.dirname(migrations_dst), exist_ok=True)
                 shutil.copytree(migrations_src, migrations_dst, dirs_exist_ok=True)
-                components_included.append('migrations')
+                components_included.append("migrations")
 
             # 6. Scripts
-            scripts_src = '/mnt/archie_brain/scripts'
+            scripts_src = "/mnt/archie_brain/scripts"
             if os.path.exists(scripts_src):
-                shutil.copytree(scripts_src, os.path.join(package_dir, 'scripts'), dirs_exist_ok=True)
-                components_included.append('scripts')
+                shutil.copytree(scripts_src, os.path.join(package_dir, "scripts"), dirs_exist_ok=True)
+                components_included.append("scripts")
 
             # 7. Nginx config
-            nginx_src = '/mnt/archie_brain/nginx'
+            nginx_src = "/mnt/archie_brain/nginx"
             if os.path.exists(nginx_src):
-                shutil.copytree(nginx_src, os.path.join(package_dir, 'nginx'), dirs_exist_ok=True)
-                components_included.append('nginx')
+                shutil.copytree(nginx_src, os.path.join(package_dir, "nginx"), dirs_exist_ok=True)
+                components_included.append("nginx")
 
             # 8. Node client
-            node_client_src = '/mnt/archie_brain/node_client'
+            node_client_src = "/mnt/archie_brain/node_client"
             if os.path.exists(node_client_src):
-                shutil.copytree(node_client_src, os.path.join(package_dir, 'node_client'), dirs_exist_ok=True)
-                components_included.append('node_client')
+                shutil.copytree(node_client_src, os.path.join(package_dir, "node_client"), dirs_exist_ok=True)
+                components_included.append("node_client")
 
             # 9. Docker compose
-            compose_src = '/mnt/archie_brain/docker-compose.yml'
+            compose_src = "/mnt/archie_brain/docker-compose.yml"
             if os.path.exists(compose_src):
-                shutil.copy2(compose_src, os.path.join(package_dir, 'docker-compose.yml'))
-                components_included.append('docker-compose')
+                shutil.copy2(compose_src, os.path.join(package_dir, "docker-compose.yml"))
+                components_included.append("docker-compose")
 
         # Generate deploy.sh
         deploy_script = generate_deploy_script(package_name, components_included)
-        deploy_script_path = os.path.join(package_dir, 'deploy.sh')
-        with open(deploy_script_path, 'w') as f:
+        deploy_script_path = os.path.join(package_dir, "deploy.sh")
+        with open(deploy_script_path, "w") as f:
             f.write(deploy_script)
         os.chmod(deploy_script_path, 0o755)
 
@@ -2323,7 +2495,7 @@ If the automated script fails, you can:
 - Documentation: /docs folder
 - Issues: https://github.com/KytranKatarn/archie-platform/issues
 """
-        with open(os.path.join(package_dir, 'README.md'), 'w') as f:
+        with open(os.path.join(package_dir, "README.md"), "w") as f:
             f.write(readme_content)
 
         # Create checksums file
@@ -2332,23 +2504,23 @@ If the automated script fails, you can:
             for file in files:
                 filepath = os.path.join(root, file)
                 relpath = os.path.relpath(filepath, package_dir)
-                with open(filepath, 'rb') as f:
+                with open(filepath, "rb") as f:
                     file_hash = hashlib.sha256(f.read()).hexdigest()
                 checksums.append(f"{file_hash}  {relpath}")
 
-        with open(os.path.join(package_dir, 'checksums.sha256'), 'w') as f:
-            f.write('\n'.join(checksums))
+        with open(os.path.join(package_dir, "checksums.sha256"), "w") as f:
+            f.write("\n".join(checksums))
 
         # Create tar.gz archive
-        archive_path = os.path.join(BACKUP_DIR, f'{package_name}.tar.gz')
+        archive_path = os.path.join(BACKUP_DIR, f"{package_name}.tar.gz")
         current_app.logger.info(f"  Creating archive: {archive_path}")
 
-        with tarfile.open(archive_path, 'w:gz') as tar:
+        with tarfile.open(archive_path, "w:gz") as tar:
             tar.add(package_dir, arcname=package_name)
 
         # Get archive size and checksum
         archive_size = os.path.getsize(archive_path)
-        with open(archive_path, 'rb') as f:
+        with open(archive_path, "rb") as f:
             archive_checksum = hashlib.sha256(f.read()).hexdigest()
 
         # Clean up temp directory
@@ -2358,24 +2530,27 @@ If the automated script fails, you can:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO deployment_packages
             (package_name, version_tag, description, backup_source, file_path,
              file_size, checksum, components, target_platform, created_by)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id, package_name, version_tag, file_size, created_at
-        """, (
-            package_name,
-            version_tag,
-            description,
-            from_backup,
-            archive_path,
-            archive_size,
-            archive_checksum,
-            json.dumps(components_included),
-            target_platform,
-            current_user.id if current_user.is_authenticated else None
-        ))
+        """,
+            (
+                package_name,
+                version_tag,
+                description,
+                from_backup,
+                archive_path,
+                archive_size,
+                archive_checksum,
+                json.dumps(components_included),
+                target_platform,
+                current_user.id if current_user.is_authenticated else None,
+            ),
+        )
 
         package = cur.fetchone()
         conn.commit()
@@ -2384,31 +2559,30 @@ If the automated script fails, you can:
 
         current_app.logger.info(f"Deployment package created: {package_name} ({archive_size / 1024 / 1024:.1f} MB)")
 
-        return jsonify({
-            'success': True,
-            'message': f'Deployment package created successfully',
-            'package': {
-                'name': package_name,
-                'version': version_tag,
-                'size_mb': round(archive_size / 1024 / 1024, 2),
-                'checksum': archive_checksum,
-                'components': components_included,
-                'download_url': f'/tools/backup-manager/api/download-deployment/{package_name}'
+        return jsonify(
+            {
+                "success": True,
+                "message": f"Deployment package created successfully",
+                "package": {
+                    "name": package_name,
+                    "version": version_tag,
+                    "size_mb": round(archive_size / 1024 / 1024, 2),
+                    "checksum": archive_checksum,
+                    "components": components_included,
+                    "download_url": f"/tools/backup-manager/api/download-deployment/{package_name}",
+                },
             }
-        })
+        )
 
     except Exception as e:
         current_app.logger.error(f"Deployment package creation failed: {str(e)}")
         # Cleanup on failure
-        if 'package_dir' in locals() and os.path.exists(package_dir):
+        if "package_dir" in locals() and os.path.exists(package_dir):
             shutil.rmtree(package_dir)
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@backup_manager_bp.route('/api/download-deployment/<package_name>')
+@backup_manager_bp.route("/api/download-deployment/<package_name>")
 @admin_required
 def download_deployment_package(package_name):
     """Download a deployment package"""
@@ -2419,49 +2593,49 @@ def download_deployment_package(package_name):
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT file_path FROM deployment_packages
             WHERE package_name = %s
-        """, (package_name,))
+        """,
+            (package_name,),
+        )
 
         package = cur.fetchone()
 
         if not package:
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Package not found'}), 404
+            return jsonify({"success": False, "error": "Package not found"}), 404
 
-        file_path = package['file_path']
+        file_path = package["file_path"]
 
         # Update download count
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE deployment_packages
             SET download_count = download_count + 1,
                 last_downloaded_at = NOW()
             WHERE package_name = %s
-        """, (package_name,))
+        """,
+            (package_name,),
+        )
         conn.commit()
         cur.close()
         conn.close()
 
         if not os.path.exists(file_path):
-            return jsonify({'success': False, 'error': 'Package file not found'}), 404
+            return jsonify({"success": False, "error": "Package file not found"}), 404
 
         return send_file(
-            file_path,
-            as_attachment=True,
-            download_name=f"{package_name}.tar.gz",
-            mimetype='application/gzip'
+            file_path, as_attachment=True, download_name=f"{package_name}.tar.gz", mimetype="application/gzip"
         )
 
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@backup_manager_bp.route('/api/delete-deployment/<package_name>', methods=['DELETE'])
+@backup_manager_bp.route("/api/delete-deployment/<package_name>", methods=["DELETE"])
 @admin_required
 def delete_deployment_package(package_name):
     """Delete a deployment package"""
@@ -2472,39 +2646,39 @@ def delete_deployment_package(package_name):
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get file path
-        cur.execute("""
+        cur.execute(
+            """
             SELECT file_path FROM deployment_packages
             WHERE package_name = %s
-        """, (package_name,))
+        """,
+            (package_name,),
+        )
 
         package = cur.fetchone()
 
         if not package:
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Package not found'}), 404
+            return jsonify({"success": False, "error": "Package not found"}), 404
 
         # Delete file
-        if package['file_path'] and os.path.exists(package['file_path']):
-            os.remove(package['file_path'])
+        if package["file_path"] and os.path.exists(package["file_path"]):
+            os.remove(package["file_path"])
 
         # Delete from database
-        cur.execute("""
+        cur.execute(
+            """
             DELETE FROM deployment_packages
             WHERE package_name = %s
-        """, (package_name,))
+        """,
+            (package_name,),
+        )
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'message': f'Package {package_name} deleted'
-        })
+        return jsonify({"success": True, "message": f"Package {package_name} deleted"})
 
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500

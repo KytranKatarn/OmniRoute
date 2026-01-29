@@ -1,0 +1,1556 @@
+{% extends "base.html" %}
+
+{% block title %}Backup Manager - Admin Tools{% endblock %}
+
+{% block module_name %}backup-manager{% endblock %}
+
+{% block styles %}
+<style>
+    /* Module-specific overrides only - uses shared theme.css and components.css
+     *
+     * DESIGN SYSTEM COMPLIANCE: HIGH
+     * - Uses design system variables (--archie-*)
+     * - Navigation: Using admin_tools_nav.html include
+     * - Orange ADMIN TOOLS theme (#f97316)
+     */
+    .backup-manager-container {
+        min-height: 100vh;
+        background: var(--archie-bg-deep);
+    }
+
+    .backup-manager-content {
+        padding-top: 70px;
+    }
+
+    .backup-manager-header {
+        padding: var(--archie-space-5) var(--archie-space-6);
+        border-bottom: 1px solid rgba(255, 107, 107, 0.2);
+    }
+
+    .backup-manager-header h1 {
+        font-family: var(--archie-font-heading);
+        font-size: var(--archie-text-2xl);
+        color: #f97316;
+        text-shadow: 0 0 20px rgba(255, 107, 107, 0.3);
+        margin: 0;
+    }
+
+    .backup-manager-header p {
+        color: var(--archie-text-secondary);
+        margin: var(--archie-space-2) 0 0 0;
+        font-size: var(--archie-text-sm);
+    }
+
+    /* Main Container */
+    .container {
+        max-width: 1600px;
+        margin: 0 auto;
+        padding: var(--archie-space-5) var(--archie-space-6);
+    }
+
+    /* Tab Navigation */
+    .tab-nav {
+        display: flex;
+        gap: 5px;
+        margin-bottom: var(--archie-space-5);
+        border-bottom: 1px solid var(--archie-border-default);
+        padding-bottom: var(--archie-space-3);
+        flex-wrap: wrap;
+    }
+
+    .tab-btn {
+        padding: var(--archie-space-2) var(--archie-space-4);
+        background: transparent;
+        border: 1px solid var(--archie-border-default);
+        color: var(--archie-text-secondary);
+        font-family: var(--archie-font-mono);
+        font-size: var(--archie-text-sm);
+        cursor: pointer;
+        border-radius: var(--archie-radius-md) var(--archie-radius-md) 0 0;
+        transition: all 0.3s;
+    }
+
+    .tab-btn:hover {
+        border-color: #f97316;
+        color: #f97316;
+    }
+
+    .tab-btn.active {
+        background: rgba(249, 115, 22, 0.1);
+        border-color: #f97316;
+        color: #f97316;
+    }
+
+    .tab-content {
+        display: none;
+    }
+
+    .tab-content.active {
+        display: block;
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: var(--archie-space-4);
+        margin-bottom: var(--archie-space-6);
+    }
+
+    .stat-card {
+        background: var(--archie-bg-surface);
+        border: 1px solid var(--archie-border-default);
+        padding: var(--archie-space-4);
+        text-align: center;
+        border-radius: var(--archie-radius-lg);
+        transition: all 0.3s;
+    }
+
+    .stat-card:hover {
+        border-color: #f97316;
+        box-shadow: 0 0 15px rgba(249, 115, 22, 0.15);
+    }
+
+    .stat-card h3 {
+        font-size: var(--archie-text-xs);
+        color: var(--archie-text-secondary);
+        margin-bottom: var(--archie-space-2);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .stat-card .value {
+        font-family: var(--archie-font-heading);
+        font-size: var(--archie-text-2xl);
+        font-weight: bold;
+        color: #f97316;
+    }
+
+    .stat-card .sub {
+        font-size: var(--archie-text-xs);
+        color: var(--archie-text-tertiary);
+        margin-top: var(--archie-space-1);
+    }
+
+    /* Buttons */
+    .btn {
+        padding: var(--archie-space-2) var(--archie-space-4);
+        border: 1px solid #f97316;
+        background: transparent;
+        color: #f97316;
+        font-family: var(--archie-font-mono);
+        font-size: var(--archie-text-sm);
+        cursor: pointer;
+        border-radius: var(--archie-radius-md);
+        transition: all 0.3s;
+    }
+
+    .btn:hover {
+        background: #f97316;
+        color: var(--archie-bg-primary);
+        box-shadow: 0 0 15px rgba(249, 115, 22, 0.4);
+    }
+
+    .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .btn-orange { border-color: #fb923c; color: #fb923c; }
+    .btn-orange:hover { background: #fb923c; color: var(--archie-bg-primary); box-shadow: 0 0 15px rgba(251, 146, 60, 0.4); }
+
+    .btn-red { border-color: #ef4444; color: #ef4444; }
+    .btn-red:hover { background: #ef4444; color: var(--archie-bg-primary); box-shadow: 0 0 15px rgba(239, 68, 68, 0.4); }
+
+    .btn-cyan { border-color: #22d3ee; color: #22d3ee; }
+    .btn-cyan:hover { background: #22d3ee; color: var(--archie-bg-primary); box-shadow: 0 0 15px rgba(34, 211, 238, 0.4); }
+
+    .btn-purple { border-color: #a855f7; color: #a855f7; }
+    .btn-purple:hover { background: #a855f7; color: var(--archie-bg-primary); box-shadow: 0 0 15px rgba(168, 85, 247, 0.4); }
+
+    /* Quick Backup Section */
+    .quick-backup {
+        background: rgba(249, 115, 22, 0.05);
+        border: 2px solid #f97316;
+        border-radius: var(--archie-radius-lg);
+        padding: var(--archie-space-5);
+        margin-bottom: var(--archie-space-5);
+    }
+
+    .quick-backup h3 {
+        color: #f97316;
+        font-family: var(--archie-font-heading);
+        margin-bottom: var(--archie-space-4);
+    }
+
+    .backup-buttons {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: var(--archie-space-4);
+        margin-bottom: var(--archie-space-4);
+    }
+
+    .backup-type-btn {
+        padding: var(--archie-space-5);
+        border-radius: var(--archie-radius-lg);
+        cursor: pointer;
+        font-weight: bold;
+        font-size: var(--archie-text-base);
+        transition: all 0.3s;
+        border: 2px solid;
+        font-family: var(--archie-font-mono);
+        text-align: center;
+    }
+
+    .backup-type-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+    }
+
+    .backup-type-btn .icon { font-size: 1.8rem; margin-bottom: var(--archie-space-2); }
+    .backup-type-btn .size { font-size: var(--archie-text-xs); opacity: 0.8; margin-top: var(--archie-space-1); }
+
+    .btn-full { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-color: #8B5CF6; }
+    .btn-critical { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; border-color: #22c55e; }
+    .btn-database { background: linear-gradient(135deg, #F09819 0%, #EDDE5D 100%); color: #333; border-color: #fbbf24; }
+
+    /* Backup List */
+    .backup-list {
+        background: var(--archie-bg-surface);
+        border: 1px solid var(--archie-border-default);
+        border-radius: var(--archie-radius-lg);
+        overflow: hidden;
+    }
+
+    .backup-item {
+        padding: var(--archie-space-4) var(--archie-space-5);
+        border-bottom: 1px solid var(--archie-border-subtle);
+        transition: all 0.3s;
+    }
+
+    .backup-item:last-child { border-bottom: none; }
+    .backup-item:hover { background: rgba(249, 115, 22, 0.05); }
+
+    .backup-item.current {
+        background: rgba(249, 115, 22, 0.1);
+        border-left: 4px solid #f97316;
+    }
+
+    .backup-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: start;
+        margin-bottom: var(--archie-space-2);
+    }
+
+    .backup-title {
+        display: flex;
+        align-items: center;
+        gap: var(--archie-space-2);
+        margin-bottom: var(--archie-space-1);
+    }
+
+    .backup-title .build {
+        font-size: var(--archie-text-lg);
+        font-weight: bold;
+        color: #f97316;
+    }
+
+    .badge {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: var(--archie-text-xs);
+        font-weight: bold;
+    }
+
+    .badge-full { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+    .badge-critical { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; }
+    .badge-database { background: linear-gradient(135deg, #F09819 0%, #EDDE5D 100%); color: #333; }
+    .badge-custom { background: rgba(251, 146, 60, 0.3); color: #fb923c; }
+    .badge-legacy { background: rgba(100, 100, 100, 0.3); color: var(--archie-text-secondary); }
+    .badge-current { background: #f97316; color: var(--archie-bg-primary); }
+    .badge-deployed { background: rgba(34, 197, 94, 0.2); color: #22c55e; border: 1px solid #22c55e; }
+    .badge-failed { background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid #ef4444; }
+
+    .backup-description { font-size: var(--archie-text-sm); color: var(--archie-text-primary); margin-bottom: 3px; }
+    .backup-meta { font-size: var(--archie-text-xs); color: var(--archie-text-secondary); }
+    .backup-meta .author { color: #fb923c; }
+    .backup-components { font-size: var(--archie-text-xs); color: var(--archie-text-tertiary); margin-top: var(--archie-space-1); }
+
+    .backup-size { text-align: right; }
+    .backup-size .value { font-size: var(--archie-text-xl); font-weight: bold; color: #f97316; }
+    .backup-size .duration { font-size: var(--archie-text-xs); color: var(--archie-text-secondary); }
+
+    .backup-actions {
+        display: flex;
+        gap: var(--archie-space-2);
+        justify-content: flex-end;
+        border-top: 1px solid var(--archie-border-subtle);
+        padding-top: var(--archie-space-2);
+        margin-top: var(--archie-space-2);
+    }
+
+    /* Deployment Item */
+    .deployment-item {
+        background: var(--archie-bg-surface);
+        border: 1px solid var(--archie-border-default);
+        border-radius: var(--archie-radius-lg);
+        padding: var(--archie-space-4) var(--archie-space-5);
+        margin-bottom: var(--archie-space-4);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        transition: all 0.3s;
+    }
+
+    .deployment-item:hover { border-color: #f97316; }
+    .deployment-item.success { border-left: 4px solid #22c55e; }
+    .deployment-item.failed { border-left: 4px solid #ef4444; }
+
+    .deployment-info h4 { color: #f97316; margin-bottom: var(--archie-space-1); }
+    .deployment-meta { font-size: var(--archie-text-sm); color: var(--archie-text-secondary); }
+
+    .deployment-stats {
+        display: flex;
+        gap: var(--archie-space-5);
+        align-items: center;
+    }
+
+    .deployment-stat { text-align: center; }
+    .deployment-stat .value { font-size: var(--archie-text-lg); font-weight: bold; }
+    .deployment-stat .label { font-size: var(--archie-text-xs); color: var(--archie-text-tertiary); }
+
+    /* Module Cards */
+    .module-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: var(--archie-space-4);
+    }
+
+    .module-card {
+        background: var(--archie-bg-surface);
+        border: 1px solid var(--archie-border-default);
+        border-radius: var(--archie-radius-lg);
+        padding: var(--archie-space-4);
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+
+    .module-card:hover {
+        border-color: #a855f7;
+        background: rgba(168, 85, 247, 0.1);
+    }
+
+    .module-card.selected {
+        border-color: #a855f7;
+        background: rgba(168, 85, 247, 0.2);
+    }
+
+    .module-card .name { color: #a855f7; font-weight: bold; margin-bottom: var(--archie-space-1); }
+    .module-card .info { font-size: var(--archie-text-sm); color: var(--archie-text-secondary); }
+
+    /* Retention Section */
+    .retention-info {
+        background: var(--archie-bg-surface);
+        border: 1px solid var(--archie-border-default);
+        border-radius: var(--archie-radius-lg);
+        padding: var(--archie-space-5);
+        margin-bottom: var(--archie-space-5);
+    }
+
+    .retention-info h4 {
+        color: #f97316;
+        margin-bottom: var(--archie-space-4);
+    }
+
+    .retention-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: var(--archie-space-4);
+    }
+
+    .retention-card {
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: var(--archie-radius-lg);
+        padding: var(--archie-space-4);
+        text-align: center;
+    }
+
+    .retention-card .number { font-size: var(--archie-text-3xl); color: #f97316; font-weight: bold; }
+    .retention-card .label { font-size: var(--archie-text-sm); color: var(--archie-text-secondary); }
+
+    /* Toast */
+    .toast-container {
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        z-index: 2000;
+    }
+
+    .toast {
+        background: var(--archie-bg-surface);
+        border: 1px solid #22c55e;
+        border-radius: var(--archie-radius-lg);
+        padding: var(--archie-space-3) var(--archie-space-5);
+        margin-bottom: var(--archie-space-2);
+        animation: slideIn 0.3s ease;
+        max-width: 350px;
+        color: var(--archie-text-primary);
+    }
+
+    .toast.error { border-color: #ef4444; }
+    .toast.success { border-color: #22c55e; }
+    .toast.info { border-color: #f97316; }
+
+    @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* Loading */
+    .loading {
+        text-align: center;
+        padding: var(--archie-space-8);
+        color: var(--archie-text-secondary);
+    }
+
+    .spinner {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 2px solid var(--archie-border-default);
+        border-top-color: #f97316;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Empty State */
+    .empty-state {
+        text-align: center;
+        padding: var(--archie-space-8);
+        color: var(--archie-text-tertiary);
+    }
+
+    .empty-state h3 { color: var(--archie-text-secondary); margin-bottom: var(--archie-space-2); }
+
+    /* Input */
+    .input-row {
+        display: flex;
+        gap: var(--archie-space-2);
+        margin-top: var(--archie-space-4);
+    }
+
+    .input-row input {
+        flex: 1;
+        padding: var(--archie-space-2) var(--archie-space-3);
+        background: var(--archie-bg-primary);
+        border: 1px solid var(--archie-border-default);
+        border-radius: var(--archie-radius-md);
+        color: #f97316;
+        font-family: var(--archie-font-mono);
+    }
+
+    .input-row input:focus {
+        outline: none;
+        border-color: #f97316;
+    }
+
+    .input-row input::placeholder {
+        color: var(--archie-text-tertiary);
+    }
+
+    /* Section Headers */
+    .section-header {
+        color: #f97316;
+        font-family: var(--archie-font-heading);
+        margin-bottom: var(--archie-space-3);
+    }
+
+    .section-description {
+        color: var(--archie-text-secondary);
+        font-size: var(--archie-text-sm);
+        margin-bottom: var(--archie-space-4);
+    }
+
+    /* Responsive */
+    @media (max-width: 1200px) {
+        .stats-grid { grid-template-columns: repeat(3, 1fr); }
+        .backup-buttons { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 768px) {
+        .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        .tab-nav { flex-wrap: wrap; }
+        .retention-grid { grid-template-columns: 1fr; }
+        .deployment-item { flex-direction: column; gap: var(--archie-space-4); }
+        .deployment-stats { flex-wrap: wrap; justify-content: center; }
+    }
+
+    /* Light Mode Overrides */
+    body.light-mode .backup-manager-container {
+        background: var(--archie-bg-deep);
+    }
+
+    body.light-mode .stat-card,
+    body.light-mode .backup-list,
+    body.light-mode .deployment-item,
+    body.light-mode .module-card,
+    body.light-mode .retention-info {
+        background: var(--archie-bg-surface);
+    }
+
+    body.light-mode .backup-manager-header h1 {
+        color: #ea580c;
+        text-shadow: none;
+    }
+
+    body.light-mode .stat-card .value,
+    body.light-mode .backup-title .build,
+    body.light-mode .backup-size .value,
+    body.light-mode .retention-card .number,
+    body.light-mode .deployment-info h4,
+    body.light-mode .quick-backup h3,
+    body.light-mode .retention-info h4,
+    body.light-mode .section-header {
+        color: #ea580c;
+    }
+
+    body.light-mode .btn {
+        border-color: #ea580c;
+        color: #ea580c;
+    }
+
+    body.light-mode .btn:hover {
+        background: #ea580c;
+        color: white;
+    }
+
+    body.light-mode .tab-btn:hover,
+    body.light-mode .tab-btn.active {
+        border-color: #ea580c;
+        color: #ea580c;
+    }
+
+    body.light-mode .quick-backup {
+        border-color: #ea580c;
+        background: rgba(234, 88, 12, 0.05);
+    }
+
+    body.light-mode .toast {
+        background: var(--archie-bg-surface);
+    }
+
+    body.light-mode .input-row input {
+        color: #ea580c;
+        background: var(--archie-bg-surface);
+    }
+
+    body.light-mode .badge-current {
+        background: #ea580c;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="backup-manager-container" data-module="backup-manager">
+    <!-- Admin Tools Navigation -->
+    {% include 'includes/admin_tools_nav.html' %}
+
+    <div class="backup-manager-content">
+        <!-- Page Header -->
+        <div class="backup-manager-header">
+            <h1>BACKUP MANAGER</h1>
+            <p>System backups, restore, version control</p>
+        </div>
+
+        <div class="toast-container" id="toastContainer"></div>
+
+        <div class="container">
+            <!-- Stats -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>Total Backups</h3>
+                    <div class="value" id="stat-total">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Current Build</h3>
+                    <div class="value" id="stat-build">#-</div>
+                    <div class="sub" id="stat-build-status">READY</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Total Size</h3>
+                    <div class="value" id="stat-size">0 MB</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Deployments</h3>
+                    <div class="value" id="stat-deployments">0</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Latest Backup</h3>
+                    <div class="value" id="stat-latest" style="font-size: 0.9rem;">-</div>
+                </div>
+            </div>
+
+            <!-- Tab Navigation -->
+            <div class="tab-nav">
+                <button class="tab-btn active" onclick="switchTab('backups')">BACKUPS</button>
+                <button class="tab-btn" onclick="switchTab('deployments')">DEPLOYMENT</button>
+                <button class="tab-btn" onclick="switchTab('modules')">MODULES</button>
+                <button class="tab-btn" onclick="switchTab('retention')">RETENTION</button>
+                <button class="tab-btn" onclick="switchTab('packages')">PACKAGES</button>
+            </div>
+
+            <!-- BACKUPS TAB -->
+            <div class="tab-content active" id="tab-backups">
+                <!-- Quick Backup -->
+                <div class="quick-backup">
+                    <h3>Quick Backup</h3>
+                    <div class="backup-buttons">
+                        <button class="backup-type-btn btn-full" onclick="createQuickBackup('full')">
+                            <div class="icon">&#x1F535;</div>
+                            FULL BACKUP
+                            <div class="size">All components (~100-200 MB)</div>
+                        </button>
+                        <button class="backup-type-btn btn-critical" onclick="createQuickBackup('critical')">
+                            <div class="icon">&#x1F7E2;</div>
+                            CRITICAL ONLY
+                            <div class="size">Essential only (~30-50 MB)</div>
+                        </button>
+                        <button class="backup-type-btn btn-database" onclick="createQuickBackup('database')">
+                            <div class="icon">&#x1F7E1;</div>
+                            DATABASE ONLY
+                            <div class="size">Database dump (~5-20 MB)</div>
+                        </button>
+                    </div>
+                    <div class="input-row">
+                        <input type="text" id="backupDescription" placeholder="Backup description (optional)">
+                        <button class="btn" onclick="loadBackups()">Refresh</button>
+                    </div>
+                </div>
+
+                <!-- Backup List -->
+                <div id="backupsList" class="backup-list">
+                    <div class="loading"><div class="spinner"></div><p>Loading backups...</p></div>
+                </div>
+            </div>
+
+            <!-- DEPLOYMENT BACKUPS TAB -->
+            <div class="tab-content" id="tab-deployments">
+                <div style="margin-bottom: var(--archie-space-5);">
+                    <h3 class="section-header">Deployment Backups</h3>
+                    <p class="section-description">Backups automatically created before deploying proposals from Improvements Lab.</p>
+                </div>
+                <div id="deploymentBackupsList">
+                    <div class="loading"><div class="spinner"></div><p>Loading deployment backups...</p></div>
+                </div>
+            </div>
+
+            <!-- MODULE BACKUPS TAB -->
+            <div class="tab-content" id="tab-modules">
+                <div style="margin-bottom: var(--archie-space-5);">
+                    <h3 class="section-header" style="color: #a855f7;">Module Backups</h3>
+                    <p class="section-description">Select individual modules to backup for isolated sandbox testing.</p>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--archie-space-4);">
+                    <div>
+                        <button class="btn btn-purple" onclick="selectAllModules()">Select All</button>
+                        <button class="btn btn-purple" onclick="deselectAllModules()" style="margin-left: var(--archie-space-1);">Clear All</button>
+                    </div>
+                    <div>
+                        <span style="color: var(--archie-text-secondary);">Selected: </span>
+                        <span id="selectedModuleCount" style="color: #a855f7; font-weight: bold;">0</span>
+                        <span style="color: var(--archie-text-secondary); margin-left: var(--archie-space-4);">Size: </span>
+                        <span id="moduleEstimatedSize" style="color: #f97316; font-weight: bold;">0 KB</span>
+                    </div>
+                </div>
+
+                <div id="moduleGrid" class="module-grid">
+                    <div class="loading"><div class="spinner"></div><p>Loading modules...</p></div>
+                </div>
+
+                <div class="input-row" style="margin-top: var(--archie-space-5);">
+                    <input type="text" id="moduleBackupDescription" placeholder="Module backup description (optional)" style="border-color: #a855f7;">
+                    <button class="btn btn-purple" onclick="createModuleBackup()">Backup Selected</button>
+                </div>
+
+                <div style="margin-top: var(--archie-space-6);">
+                    <h4 style="color: #a855f7; margin-bottom: var(--archie-space-4);">Recent Module Backups</h4>
+                    <div id="moduleBackupsList">
+                        <div class="loading">Loading...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RETENTION TAB -->
+            <div class="tab-content" id="tab-retention">
+                <div class="retention-info">
+                    <h4>Retention Policy (GFS - Grandfather-Father-Son)</h4>
+                    <div class="retention-grid">
+                        <div class="retention-card">
+                            <div class="number">7</div>
+                            <div class="label">Daily Backups</div>
+                        </div>
+                        <div class="retention-card">
+                            <div class="number">4</div>
+                            <div class="label">Weekly Backups</div>
+                        </div>
+                        <div class="retention-card">
+                            <div class="number">6</div>
+                            <div class="label">Monthly Backups</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: var(--archie-space-5);">
+                    <h4 class="section-header">Retention Status</h4>
+                    <div id="retentionStatus">
+                        <div class="loading"><div class="spinner"></div><p>Loading retention status...</p></div>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: var(--archie-space-2);">
+                    <button class="btn" onclick="checkRetention()">Check Retention</button>
+                    <button class="btn btn-orange" onclick="cleanupBackups(true)">Preview Cleanup</button>
+                    <button class="btn btn-red" onclick="cleanupBackups(false)">Run Cleanup</button>
+                </div>
+            </div>
+
+            <!-- DEPLOYMENT PACKAGES TAB -->
+            <div class="tab-content" id="tab-packages">
+                <div style="margin-bottom: var(--archie-space-5);">
+                    <h3 class="section-header" style="color: #22d3ee;">Deployment Packages</h3>
+                    <p class="section-description">
+                        Create self-contained deployment packages for migrating A.R.C.H.I.E. to new machines.
+                        Each package includes all code, database, and a deploy.sh script for one-command installation.
+                    </p>
+                </div>
+
+                <!-- Create Package Section -->
+                <div class="quick-backup" style="border-color: #22d3ee; background: rgba(34, 211, 238, 0.05);">
+                    <h3 style="color: #22d3ee;">Create Deployment Package</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--archie-space-4); margin-bottom: var(--archie-space-4);">
+                        <div>
+                            <label style="color: var(--archie-text-secondary); font-size: var(--archie-text-sm);">Version Tag</label>
+                            <input type="text" id="packageVersion" placeholder="e.g., v5.33.0" style="width: 100%; margin-top: var(--archie-space-1); padding: var(--archie-space-2) var(--archie-space-3); background: var(--archie-bg-primary); border: 1px solid var(--archie-border-default); border-radius: var(--archie-radius-md); color: #f97316; font-family: var(--archie-font-mono);">
+                        </div>
+                        <div>
+                            <label style="color: var(--archie-text-secondary); font-size: var(--archie-text-sm);">Target Platform</label>
+                            <select id="packagePlatform" style="width: 100%; margin-top: var(--archie-space-1); padding: var(--archie-space-2) var(--archie-space-3); background: var(--archie-bg-primary); border: 1px solid var(--archie-border-default); border-radius: var(--archie-radius-md); color: #f97316; font-family: var(--archie-font-mono);">
+                                <option value="linux">Linux (Ubuntu/Debian)</option>
+                                <option value="docker">Docker Only</option>
+                                <option value="all">All Platforms</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="margin-bottom: var(--archie-space-4);">
+                        <label style="color: var(--archie-text-secondary); font-size: var(--archie-text-sm);">Description</label>
+                        <input type="text" id="packageDescription" placeholder="e.g., Production release with Phase 31 features" style="width: 100%; margin-top: var(--archie-space-1); padding: var(--archie-space-2) var(--archie-space-3); background: var(--archie-bg-primary); border: 1px solid var(--archie-border-default); border-radius: var(--archie-radius-md); color: #f97316; font-family: var(--archie-font-mono);">
+                    </div>
+                    <div style="display: flex; gap: var(--archie-space-2);">
+                        <button class="btn btn-cyan" onclick="createDeploymentPackage()">Create Package</button>
+                        <button class="btn" onclick="loadDeploymentPackages()">Refresh</button>
+                    </div>
+                </div>
+
+                <!-- Packages List -->
+                <h4 style="color: #22d3ee; margin-bottom: var(--archie-space-4);">Available Packages</h4>
+                <div id="packagesList">
+                    <div class="loading"><div class="spinner"></div><p>Loading packages...</p></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentBuildNum = null;
+    let availableModules = [];
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        loadBackups();
+        loadDeploymentBackups();
+    });
+
+    // Tab switching
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+
+        event.target.classList.add('active');
+        document.getElementById('tab-' + tabId).classList.add('active');
+
+        // Load data for specific tabs
+        if (tabId === 'deployments') loadDeploymentBackups();
+        if (tabId === 'modules') { loadAvailableModules(); loadModuleBackups(); }
+        if (tabId === 'packages') loadDeploymentPackages();
+        if (tabId === 'retention') checkRetention();
+    }
+
+    // =====================================================================
+    // BACKUPS TAB
+    // =====================================================================
+
+    async function loadBackups() {
+        try {
+            const response = await fetch('/tools/backup-manager/list', { credentials: 'same-origin' });
+            const data = await response.json();
+
+            if (data.success) {
+                currentBuildNum = data.current_build;
+                renderBackupsList(data.backups);
+                updateStats(data.backups, data.current_build);
+            } else {
+                showToast('Error loading backups: ' + data.error, 'error');
+            }
+        } catch (error) {
+            showToast('Error: ' + error.message, 'error');
+        }
+    }
+
+    function renderBackupsList(backups) {
+        const container = document.getElementById('backupsList');
+
+        if (!backups || backups.length === 0) {
+            container.textContent = '';
+            const emptyDiv = document.createElement('div');
+            emptyDiv.className = 'empty-state';
+            emptyDiv.innerHTML = '<h3>No Backups Yet</h3><p>Create your first backup to get started</p>';
+            container.appendChild(emptyDiv);
+            return;
+        }
+
+        container.textContent = '';
+        backups.forEach(backup => {
+            const sizeMB = backup.total_size_mb || (backup.size / 1024 / 1024).toFixed(2);
+            const buildNum = backup.build_number || '-';
+            const isCurrent = currentBuildNum && backup.build_number === currentBuildNum;
+            const backupType = backup.backup_type || 'legacy';
+
+            const item = document.createElement('div');
+            item.className = 'backup-item' + (isCurrent ? ' current' : '');
+
+            let typeBadge = '';
+            if (backupType === 'full') typeBadge = '<span class="badge badge-full">FULL</span>';
+            else if (backupType === 'critical') typeBadge = '<span class="badge badge-critical">CRITICAL</span>';
+            else if (backupType === 'database') typeBadge = '<span class="badge badge-database">DATABASE</span>';
+            else if (backupType === 'custom') typeBadge = '<span class="badge badge-custom">CUSTOM</span>';
+            else typeBadge = '<span class="badge badge-legacy">LEGACY</span>';
+
+            item.innerHTML = `
+                <div class="backup-header">
+                    <div style="flex: 1;">
+                        <div class="backup-title">
+                            <span class="build">Build #${escapeHtml(String(buildNum))}</span>
+                            ${typeBadge}
+                            ${isCurrent ? '<span class="badge badge-current">CURRENT</span>' : ''}
+                        </div>
+                        <div class="backup-description">${escapeHtml(backup.description || 'Platform backup')}</div>
+                        <div class="backup-meta">
+                            Created by <span class="author">${escapeHtml(backup.created_by || 'system')}</span> on ${escapeHtml(backup.created_at || backup.name)}
+                        </div>
+                    </div>
+                    <div class="backup-size">
+                        <div class="value">${escapeHtml(String(sizeMB))} MB</div>
+                    </div>
+                </div>
+                <div class="backup-actions">
+                    ${!isCurrent && backup.build_number ? `<button class="btn" onclick="setCurrentBuild(${backup.build_number})">Set Current</button>` : ''}
+                    <button class="btn btn-cyan" onclick="downloadBackup('${escapeHtml(backup.name)}')">Download</button>
+                    <button class="btn btn-red" onclick="deleteBackup('${escapeHtml(backup.name)}')">Delete</button>
+                </div>
+            `;
+            container.appendChild(item);
+        });
+    }
+
+    function updateStats(backups, currentBuild) {
+        document.getElementById('stat-total').textContent = backups.length;
+
+        if (backups.length > 0) {
+            const latest = backups[0].created_at || backups[0].name;
+            document.getElementById('stat-latest').textContent = formatTime(latest);
+
+            const totalSize = backups.reduce((sum, b) => sum + (b.size || 0), 0);
+            document.getElementById('stat-size').textContent = (totalSize / 1024 / 1024).toFixed(1) + ' MB';
+        }
+
+        if (currentBuild) {
+            document.getElementById('stat-build').textContent = '#' + currentBuild;
+            document.getElementById('stat-build-status').textContent = 'DEPLOYED';
+        }
+    }
+
+    async function createQuickBackup(backupType) {
+        const description = document.getElementById('backupDescription').value || `Quick ${backupType} backup`;
+
+        if (!confirm(`Create ${backupType.toUpperCase()} backup?`)) return;
+
+        showToast('Creating backup...', 'info');
+
+        try {
+            const response = await fetch('/tools/backup-manager/create', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ backup_type: backupType, description: description })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                showToast('Backup created successfully!', 'success');
+                loadBackups();
+                document.getElementById('backupDescription').value = '';
+            } else {
+                showToast('Error: ' + data.error, 'error');
+            }
+        } catch (error) {
+            showToast('Error: ' + error.message, 'error');
+        }
+    }
+
+    async function setCurrentBuild(buildNumber) {
+        if (!confirm('Set build #' + buildNumber + ' as current?')) return;
+
+        try {
+            const response = await fetch('/tools/backup-manager/set-current/' + buildNumber, {
+                method: 'POST', credentials: 'same-origin'
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                showToast('Build #' + buildNumber + ' set as current', 'success');
+                loadBackups();
+            } else {
+                showToast('Error: ' + data.error, 'error');
+            }
+        } catch (error) {
+            showToast('Error: ' + error.message, 'error');
+        }
+    }
+
+    function downloadBackup(name) {
+        window.location.href = '/tools/backup-manager/download/' + encodeURIComponent(name);
+    }
+
+    async function deleteBackup(name) {
+        if (!confirm('Delete backup: ' + name + '?')) return;
+
+        try {
+            const response = await fetch('/tools/backup-manager/delete/' + encodeURIComponent(name), {
+                method: 'DELETE', credentials: 'same-origin'
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                showToast('Backup deleted', 'success');
+                loadBackups();
+            } else {
+                showToast('Error: ' + data.error, 'error');
+            }
+        } catch (error) {
+            showToast('Error: ' + error.message, 'error');
+        }
+    }
+
+    // =====================================================================
+    // DEPLOYMENT BACKUPS TAB
+    // =====================================================================
+
+    async function loadDeploymentBackups() {
+        try {
+            const response = await fetch('/tools/backup-manager/api/deployment-backups', { credentials: 'same-origin' });
+            const data = await response.json();
+
+            if (data.success) {
+                renderDeploymentBackups(data.deployments);
+                document.getElementById('stat-deployments').textContent = data.deployments.length;
+            } else {
+                const container = document.getElementById('deploymentBackupsList');
+                container.textContent = '';
+                const emptyDiv = document.createElement('div');
+                emptyDiv.className = 'empty-state';
+                emptyDiv.textContent = 'Error loading deployment backups';
+                container.appendChild(emptyDiv);
+            }
+        } catch (error) {
+            const container = document.getElementById('deploymentBackupsList');
+            container.textContent = '';
+            const emptyDiv = document.createElement('div');
+            emptyDiv.className = 'empty-state';
+            emptyDiv.textContent = 'Error: ' + error.message;
+            container.appendChild(emptyDiv);
+        }
+    }
+
+    function renderDeploymentBackups(deployments) {
+        const container = document.getElementById('deploymentBackupsList');
+        container.textContent = '';
+
+        if (!deployments || deployments.length === 0) {
+            const emptyDiv = document.createElement('div');
+            emptyDiv.className = 'empty-state';
+            emptyDiv.innerHTML = '<h3>No Deployment Backups Yet</h3><p>Deploy proposals from Improvements Lab to create backups.</p>';
+            container.appendChild(emptyDiv);
+            return;
+        }
+
+        deployments.forEach(d => {
+            const isSuccess = d.status === 'deployed';
+            let healthDisplay = 'N/A', healthColor = 'var(--archie-text-secondary)';
+            if (d.health_check_passed === true) { healthDisplay = 'PASS'; healthColor = '#22c55e'; }
+            else if (d.health_check_passed === false) { healthDisplay = 'FAIL'; healthColor = '#ef4444'; }
+
+            const item = document.createElement('div');
+            item.className = 'deployment-item ' + (isSuccess ? 'success' : 'failed');
+            item.innerHTML = `
+                <div class="deployment-info">
+                    <h4>${escapeHtml(d.proposal_title || 'Proposal #' + d.proposal_id)}</h4>
+                    <div class="deployment-meta">
+                        ${escapeHtml(formatTime(d.deployed_at))} |
+                        Backup: <span style="color: #22d3ee;">${escapeHtml(d.backup_name || 'none')}</span>
+                    </div>
+                </div>
+                <div class="deployment-stats">
+                    <div class="deployment-stat">
+                        <div class="value" style="color: ${healthColor};">${healthDisplay}</div>
+                        <div class="label">Health</div>
+                    </div>
+                    <div class="deployment-stat">
+                        <div class="value">${d.deployment_duration_ms ? (d.deployment_duration_ms / 1000).toFixed(1) + 's' : '-'}</div>
+                        <div class="label">Duration</div>
+                    </div>
+                    <span class="badge badge-${isSuccess ? 'deployed' : 'failed'}">${escapeHtml(d.status)}</span>
+                </div>
+            `;
+            container.appendChild(item);
+        });
+    }
+
+    // =====================================================================
+    // MODULE BACKUPS TAB
+    // =====================================================================
+
+    async function loadAvailableModules() {
+        try {
+            const response = await fetch('/tools/backup-manager/modules/available', { credentials: 'same-origin' });
+            const data = await response.json();
+
+            if (data.success) {
+                availableModules = data.modules;
+                renderModuleGrid(data.modules);
+            }
+        } catch (error) {
+            const grid = document.getElementById('moduleGrid');
+            grid.textContent = '';
+            const emptyDiv = document.createElement('div');
+            emptyDiv.className = 'empty-state';
+            emptyDiv.textContent = 'Error loading modules';
+            grid.appendChild(emptyDiv);
+        }
+    }
+
+    function renderModuleGrid(modules) {
+        const grid = document.getElementById('moduleGrid');
+        grid.textContent = '';
+
+        if (modules.length === 0) {
+            const emptyDiv = document.createElement('div');
+            emptyDiv.className = 'empty-state';
+            emptyDiv.textContent = 'No modules found';
+            grid.appendChild(emptyDiv);
+            return;
+        }
+
+        modules.forEach(mod => {
+            const card = document.createElement('div');
+            card.className = 'module-card';
+            card.dataset.module = mod.name;
+            card.dataset.size = mod.size_bytes;
+            card.onclick = function() { toggleModule(this); };
+
+            const nameDiv = document.createElement('div');
+            nameDiv.className = 'name';
+            nameDiv.textContent = mod.name;
+            card.appendChild(nameDiv);
+
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'info';
+            infoDiv.textContent = mod.file_count + ' files | ' + mod.size_kb + ' KB' + (mod.template_count > 0 ? ' | ' + mod.template_count + ' templates' : '');
+            card.appendChild(infoDiv);
+
+            grid.appendChild(card);
+        });
+    }
+
+    function toggleModule(card) {
+        card.classList.toggle('selected');
+        updateModuleEstimate();
+    }
+
+    function selectAllModules() {
+        document.querySelectorAll('.module-card').forEach(c => c.classList.add('selected'));
+        updateModuleEstimate();
+    }
+
+    function deselectAllModules() {
+        document.querySelectorAll('.module-card').forEach(c => c.classList.remove('selected'));
+        updateModuleEstimate();
+    }
+
+    function updateModuleEstimate() {
+        const selected = document.querySelectorAll('.module-card.selected');
+        let totalSize = 0;
+        selected.forEach(c => totalSize += parseInt(c.dataset.size) || 0);
+
+        document.getElementById('selectedModuleCount').textContent = selected.length;
+        document.getElementById('moduleEstimatedSize').textContent =
+            totalSize > 1024 * 1024 ? (totalSize / 1024 / 1024).toFixed(1) + ' MB' : (totalSize / 1024).toFixed(1) + ' KB';
+    }
+
+    async function createModuleBackup() {
+        const selectedModules = Array.from(document.querySelectorAll('.module-card.selected'))
+            .map(c => c.dataset.module);
+
+        if (selectedModules.length === 0) {
+            showToast('Please select at least one module', 'error');
+            return;
+        }
+
+        const description = document.getElementById('moduleBackupDescription').value || 'Module backup';
+
+        if (!confirm(`Backup ${selectedModules.length} module(s)?`)) return;
+
+        showToast('Creating module backup...', 'info');
+
+        try {
+            for (const moduleName of selectedModules) {
+                await fetch('/tools/backup-manager/backup-module', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ module_name: moduleName })
+                });
+            }
+
+            showToast(`Backed up ${selectedModules.length} module(s)`, 'success');
+            loadModuleBackups();
+            deselectAllModules();
+        } catch (error) {
+            showToast('Error: ' + error.message, 'error');
+        }
+    }
+
+    async function loadModuleBackups() {
+        try {
+            const response = await fetch('/tools/backup-manager/modules/list', { credentials: 'same-origin' });
+            const data = await response.json();
+
+            if (data.success) {
+                renderModuleBackupsList(data.backups);
+            }
+        } catch (error) {
+            const container = document.getElementById('moduleBackupsList');
+            container.textContent = '';
+            const emptyDiv = document.createElement('div');
+            emptyDiv.className = 'empty-state';
+            emptyDiv.textContent = 'Error loading';
+            container.appendChild(emptyDiv);
+        }
+    }
+
+    function renderModuleBackupsList(backups) {
+        const container = document.getElementById('moduleBackupsList');
+        container.textContent = '';
+
+        if (backups.length === 0) {
+            const emptyDiv = document.createElement('div');
+            emptyDiv.className = 'empty-state';
+            emptyDiv.textContent = 'No module backups yet';
+            container.appendChild(emptyDiv);
+            return;
+        }
+
+        backups.slice(0, 10).forEach(b => {
+            const item = document.createElement('div');
+            item.className = 'deployment-item';
+            item.style.borderLeftColor = '#a855f7';
+
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'deployment-info';
+
+            const h4 = document.createElement('h4');
+            h4.style.color = '#a855f7';
+            h4.textContent = b.module_name;
+            infoDiv.appendChild(h4);
+
+            const metaDiv = document.createElement('div');
+            metaDiv.className = 'deployment-meta';
+            metaDiv.textContent = formatTime(b.timestamp) + ' | ' + (b.size / 1024).toFixed(1) + ' KB';
+            infoDiv.appendChild(metaDiv);
+
+            item.appendChild(infoDiv);
+
+            const btn = document.createElement('button');
+            btn.className = 'btn btn-purple';
+            btn.textContent = 'Restore';
+            btn.onclick = function() { restoreModuleBackup(b.name); };
+            item.appendChild(btn);
+
+            container.appendChild(item);
+        });
+    }
+
+    async function restoreModuleBackup(backupName) {
+        if (!confirm('Restore module backup: ' + backupName + '?')) return;
+
+        try {
+            const response = await fetch('/tools/backup-manager/restore-module/' + encodeURIComponent(backupName), {
+                method: 'POST', credentials: 'same-origin'
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                showToast('Module restored successfully', 'success');
+            } else {
+                showToast('Error: ' + data.error, 'error');
+            }
+        } catch (error) {
+            showToast('Error: ' + error.message, 'error');
+        }
+    }
+
+    // =====================================================================
+    // RETENTION TAB
+    // =====================================================================
+
+    async function checkRetention() {
+        try {
+            const response = await fetch('/tools/backup-manager/retention-status', { credentials: 'same-origin' });
+            const data = await response.json();
+
+            if (data.success) {
+                renderRetentionStatus(data);
+            }
+        } catch (error) {
+            const container = document.getElementById('retentionStatus');
+            container.textContent = '';
+            const emptyDiv = document.createElement('div');
+            emptyDiv.className = 'empty-state';
+            emptyDiv.textContent = 'Error loading';
+            container.appendChild(emptyDiv);
+        }
+    }
+
+    function renderRetentionStatus(data) {
+        const container = document.getElementById('retentionStatus');
+        container.textContent = '';
+        const stats = data.stats || {};
+
+        // Stats grid
+        const statsGrid = document.createElement('div');
+        statsGrid.style.cssText = 'display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--archie-space-4); margin-bottom: var(--archie-space-5);';
+
+        const statItems = [
+            { num: stats.keep_count || 0, color: '#22c55e', label: 'Keep' },
+            { num: stats.delete_count || 0, color: '#ef4444', label: 'To Delete' },
+            { num: (stats.total_size_mb || 0) + ' MB', color: null, label: 'Total Size' },
+            { num: (stats.space_to_free_mb || 0) + ' MB', color: '#fb923c', label: 'Space to Free' }
+        ];
+
+        statItems.forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'retention-card';
+
+            const num = document.createElement('div');
+            num.className = 'number';
+            if (item.color) num.style.color = item.color;
+            num.textContent = item.num;
+            card.appendChild(num);
+
+            const label = document.createElement('div');
+            label.className = 'label';
+            label.textContent = item.label;
+            card.appendChild(label);
+
+            statsGrid.appendChild(card);
+        });
+
+        container.appendChild(statsGrid);
+
+        // Delete list or success message
+        if (data.delete && data.delete.length > 0) {
+            const deleteBox = document.createElement('div');
+            deleteBox.style.cssText = 'background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; border-radius: var(--archie-radius-lg); padding: var(--archie-space-4);';
+
+            const h4 = document.createElement('h4');
+            h4.style.cssText = 'color: #ef4444; margin-bottom: var(--archie-space-2);';
+            h4.textContent = 'Backups to Delete:';
+            deleteBox.appendChild(h4);
+
+            const listDiv = document.createElement('div');
+            listDiv.style.cssText = 'max-height: 200px; overflow-y: auto; color: var(--archie-text-secondary); font-size: var(--archie-text-sm);';
+
+            data.delete.forEach(b => {
+                const itemDiv = document.createElement('div');
+                itemDiv.style.padding = '3px 0';
+                itemDiv.textContent = b;
+                listDiv.appendChild(itemDiv);
+            });
+
+            deleteBox.appendChild(listDiv);
+            container.appendChild(deleteBox);
+        } else {
+            const successDiv = document.createElement('div');
+            successDiv.style.color = '#22c55e';
+            successDiv.textContent = 'All backups within retention policy';
+            container.appendChild(successDiv);
+        }
+    }
+
+    async function cleanupBackups(dryRun) {
+        const action = dryRun ? 'preview' : 'run';
+        if (!dryRun && !confirm('This will permanently delete old backups. Continue?')) return;
+
+        try {
+            const response = await fetch('/tools/backup-manager/cleanup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ dry_run: dryRun })
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                if (dryRun) {
+                    showToast(`Would delete ${data.deleted.length} backups, free ${data.space_freed_mb} MB`, 'info');
+                } else {
+                    showToast(`Deleted ${data.deleted.length} backups, freed ${data.space_freed_mb} MB`, 'success');
+                    loadBackups();
+                }
+                checkRetention();
+            } else {
+                showToast('Error: ' + data.error, 'error');
+            }
+        } catch (error) {
+            showToast('Error: ' + error.message, 'error');
+        }
+    }
+
+    // =====================================================================
+    // DEPLOYMENT PACKAGES TAB
+    // =====================================================================
+
+    async function loadDeploymentPackages() {
+        try {
+            const response = await fetch('/tools/backup-manager/api/deployment-packages', { credentials: 'same-origin' });
+            const data = await response.json();
+
+            if (data.success) {
+                renderDeploymentPackages(data.packages);
+            } else {
+                const container = document.getElementById('packagesList');
+                container.textContent = '';
+                const emptyDiv = document.createElement('div');
+                emptyDiv.className = 'empty-state';
+                emptyDiv.textContent = 'Error loading packages: ' + data.error;
+                container.appendChild(emptyDiv);
+            }
+        } catch (error) {
+            const container = document.getElementById('packagesList');
+            container.textContent = '';
+            const emptyDiv = document.createElement('div');
+            emptyDiv.className = 'empty-state';
+            emptyDiv.textContent = 'Error: ' + error.message;
+            container.appendChild(emptyDiv);
+        }
+    }
+
+    function renderDeploymentPackages(packages) {
+        const container = document.getElementById('packagesList');
+        container.textContent = '';
+
+        if (!packages || packages.length === 0) {
+            const emptyDiv = document.createElement('div');
+            emptyDiv.className = 'empty-state';
+            emptyDiv.innerHTML = '<h3>No Deployment Packages Yet</h3><p>Create your first deployment package to enable system migration.</p>';
+            container.appendChild(emptyDiv);
+            return;
+        }
+
+        packages.forEach(pkg => {
+            const sizeMB = pkg.file_size ? (pkg.file_size / 1024 / 1024).toFixed(1) : '?';
+            const components = pkg.components || [];
+
+            const item = document.createElement('div');
+            item.className = 'deployment-item';
+            item.style.borderLeftColor = '#22d3ee';
+
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'deployment-info';
+            infoDiv.style.flex = '1';
+
+            const h4 = document.createElement('h4');
+            h4.style.color = '#22d3ee';
+            h4.textContent = pkg.package_name;
+            infoDiv.appendChild(h4);
+
+            const metaDiv = document.createElement('div');
+            metaDiv.className = 'deployment-meta';
+            metaDiv.innerHTML = `
+                ${escapeHtml(pkg.description || 'Deployment package')}<br>
+                <span style="color: var(--archie-text-tertiary);">
+                    Version: <span style="color: #f97316;">${escapeHtml(pkg.version_tag || '-')}</span> |
+                    Platform: <span style="color: #fb923c;">${escapeHtml(pkg.target_platform || 'linux')}</span> |
+                    Created: ${escapeHtml(formatTime(pkg.created_at))} by ${escapeHtml(pkg.created_by || 'system')}
+                </span>
+            `;
+            infoDiv.appendChild(metaDiv);
+
+            const compDiv = document.createElement('div');
+            compDiv.style.cssText = 'margin-top: var(--archie-space-1); font-size: var(--archie-text-xs); color: var(--archie-text-tertiary);';
+            compDiv.textContent = 'Components: ' + (components.join(', ') || 'all');
+            infoDiv.appendChild(compDiv);
+
+            item.appendChild(infoDiv);
+
+            const statsDiv = document.createElement('div');
+            statsDiv.className = 'deployment-stats';
+
+            const sizeStat = document.createElement('div');
+            sizeStat.className = 'deployment-stat';
+            sizeStat.innerHTML = `<div class="value" style="color: #22d3ee;">${sizeMB} MB</div><div class="label">Size</div>`;
+            statsDiv.appendChild(sizeStat);
+
+            const dlStat = document.createElement('div');
+            dlStat.className = 'deployment-stat';
+            dlStat.innerHTML = `<div class="value">${pkg.download_count || 0}</div><div class="label">Downloads</div>`;
+            statsDiv.appendChild(dlStat);
+
+            const btnGroup = document.createElement('div');
+            btnGroup.style.cssText = 'display: flex; gap: var(--archie-space-1);';
+
+            const dlBtn = document.createElement('button');
+            dlBtn.className = 'btn btn-cyan';
+            dlBtn.textContent = 'Download';
+            dlBtn.onclick = function() { downloadDeploymentPackage(pkg.package_name); };
+            btnGroup.appendChild(dlBtn);
+
+            const delBtn = document.createElement('button');
+            delBtn.className = 'btn btn-red';
+            delBtn.textContent = 'Delete';
+            delBtn.onclick = function() { deleteDeploymentPackage(pkg.package_name); };
+            btnGroup.appendChild(delBtn);
+
+            statsDiv.appendChild(btnGroup);
+            item.appendChild(statsDiv);
+
+            container.appendChild(item);
+        });
+    }
+
+    async function createDeploymentPackage() {
+        const version = document.getElementById('packageVersion').value || 'v5.33.0';
+        const platform = document.getElementById('packagePlatform').value;
+        const description = document.getElementById('packageDescription').value || 'Deployment package';
+
+        if (!confirm(`Create deployment package (${version}) for ${platform}? This may take a few minutes.`)) return;
+
+        showToast('Creating deployment package... This may take a minute.', 'info');
+
+        try {
+            const response = await fetch('/tools/backup-manager/api/create-deployment-package', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    version_tag: version,
+                    target_platform: platform,
+                    description: description
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                showToast(`Package created: ${data.package.name} (${data.package.size_mb} MB)`, 'success');
+                loadDeploymentPackages();
+                // Clear inputs
+                document.getElementById('packageVersion').value = '';
+                document.getElementById('packageDescription').value = '';
+            } else {
+                showToast('Error: ' + data.error, 'error');
+            }
+        } catch (error) {
+            showToast('Error: ' + error.message, 'error');
+        }
+    }
+
+    function downloadDeploymentPackage(packageName) {
+        window.location.href = '/tools/backup-manager/api/download-deployment/' + encodeURIComponent(packageName);
+    }
+
+    async function deleteDeploymentPackage(packageName) {
+        if (!confirm(`Delete deployment package: ${packageName}?`)) return;
+
+        try {
+            const response = await fetch('/tools/backup-manager/api/delete-deployment/' + encodeURIComponent(packageName), {
+                method: 'DELETE',
+                credentials: 'same-origin'
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                showToast('Package deleted', 'success');
+                loadDeploymentPackages();
+            } else {
+                showToast('Error: ' + data.error, 'error');
+            }
+        } catch (error) {
+            showToast('Error: ' + error.message, 'error');
+        }
+    }
+
+    // =====================================================================
+    // UTILITIES
+    // =====================================================================
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    function formatTime(timestamp) {
+        if (!timestamp) return '-';
+        try {
+            const date = new Date(timestamp);
+            if (isNaN(date)) return timestamp.substring(0, 15) || timestamp;
+            const now = new Date();
+            const diff = now - date;
+
+            if (diff < 60000) return 'Just now';
+            if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+            if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+            return date.toLocaleDateString();
+        } catch {
+            return timestamp;
+        }
+    }
+
+    function showToast(message, type = 'info') {
+        const container = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.textContent = message;
+        container.appendChild(toast);
+        setTimeout(() => toast.remove(), 4000);
+    }
+</script>
+{% endblock %}

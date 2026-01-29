@@ -594,11 +594,18 @@
                 </div>
             </div>
 
+            <!-- Lock Status Warning -->
+            <div id="lockWarning" style="display: none; background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; border-radius: var(--archie-radius-lg); padding: var(--archie-space-3) var(--archie-space-4); margin-bottom: var(--archie-space-4); color: #ef4444;">
+                <span style="font-weight: bold;">⚠ Backup in Progress:</span> <span id="lockDetails"></span>
+            </div>
+
             <!-- Tab Navigation -->
             <div class="tab-nav">
                 <button class="tab-btn active" onclick="switchTab('backups')">BACKUPS</button>
+                <button class="tab-btn" onclick="switchTab('external')">EXTERNAL</button>
                 <button class="tab-btn" onclick="switchTab('deployments')">DEPLOYMENT</button>
                 <button class="tab-btn" onclick="switchTab('modules')">MODULES</button>
+                <button class="tab-btn" onclick="switchTab('hooks')">HOOKS</button>
                 <button class="tab-btn" onclick="switchTab('retention')">RETENTION</button>
                 <button class="tab-btn" onclick="switchTab('packages')">PACKAGES</button>
             </div>
@@ -634,6 +641,82 @@
                 <!-- Backup List -->
                 <div id="backupsList" class="backup-list">
                     <div class="loading"><div class="spinner"></div><p>Loading backups...</p></div>
+                </div>
+            </div>
+
+            <!-- EXTERNAL STORAGE TAB -->
+            <div class="tab-content" id="tab-external">
+                <div style="margin-bottom: var(--archie-space-5);">
+                    <h3 class="section-header" style="color: #22d3ee;">External Storage</h3>
+                    <p class="section-description">USB/external drive backup storage for physical disaster recovery.</p>
+                </div>
+
+                <!-- External Storage Status -->
+                <div id="externalStatus" class="quick-backup" style="border-color: #22d3ee; background: rgba(34, 211, 238, 0.05);">
+                    <div class="loading"><div class="spinner"></div><p>Checking external storage...</p></div>
+                </div>
+
+                <!-- External Backups List -->
+                <h4 style="color: #22d3ee; margin: var(--archie-space-5) 0 var(--archie-space-3);">Backups on External Storage</h4>
+                <div id="externalBackupsList" class="backup-list">
+                    <div class="loading"><div class="spinner"></div><p>Loading external backups...</p></div>
+                </div>
+            </div>
+
+            <!-- HOOKS TAB -->
+            <div class="tab-content" id="tab-hooks">
+                <div style="margin-bottom: var(--archie-space-5);">
+                    <h3 class="section-header" style="color: #a855f7;">Backup Hooks</h3>
+                    <p class="section-description">Pre and post backup scripts that run automatically during backup operations.</p>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--archie-space-5);">
+                    <!-- Pre Hooks -->
+                    <div class="retention-info" style="border-color: #22c55e;">
+                        <h4 style="color: #22c55e; margin-bottom: var(--archie-space-3);">Pre-Backup Hooks</h4>
+                        <p style="font-size: var(--archie-text-sm); color: var(--archie-text-secondary); margin-bottom: var(--archie-space-3);">
+                            Run before backup starts. If any hook fails, the backup is aborted.
+                        </p>
+                        <div id="preHooksList" style="min-height: 100px;">
+                            <div class="loading">Loading...</div>
+                        </div>
+                    </div>
+
+                    <!-- Post Hooks -->
+                    <div class="retention-info" style="border-color: #fb923c;">
+                        <h4 style="color: #fb923c; margin-bottom: var(--archie-space-3);">Post-Backup Hooks</h4>
+                        <p style="font-size: var(--archie-text-sm); color: var(--archie-text-secondary); margin-bottom: var(--archie-space-3);">
+                            Run after backup completes. Failures are logged but don't fail the backup.
+                        </p>
+                        <div id="postHooksList" style="min-height: 100px;">
+                            <div class="loading">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-top: var(--archie-space-5); padding: var(--archie-space-4); background: rgba(0,0,0,0.2); border-radius: var(--archie-radius-lg);">
+                    <h4 style="color: var(--archie-text-secondary); margin-bottom: var(--archie-space-2);">Hook Environment Variables</h4>
+                    <div style="font-family: var(--archie-font-mono); font-size: var(--archie-text-sm); color: var(--archie-text-tertiary);">
+                        <code>ARCHIE_BACKUP_NAME</code> - Name of the backup<br>
+                        <code>ARCHIE_BACKUP_DIR</code> - Backup directory path<br>
+                        <code>ARCHIE_BACKUP_METADATA</code> - JSON metadata (post hooks only)
+                    </div>
+                </div>
+
+                <!-- Webhooks Section -->
+                <div style="margin-top: var(--archie-space-6);">
+                    <h3 class="section-header" style="color: #f97316;">Webhooks</h3>
+                    <p class="section-description">HTTP endpoints notified on backup events.</p>
+
+                    <div class="retention-info">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--archie-space-4);">
+                            <h4 style="color: #f97316;">Configured Webhooks</h4>
+                            <button class="btn" onclick="showAddWebhookModal()">Add Webhook</button>
+                        </div>
+                        <div id="webhooksList">
+                            <div class="loading">Loading webhooks...</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -774,6 +857,7 @@
     document.addEventListener('DOMContentLoaded', function() {
         loadBackups();
         loadDeploymentBackups();
+        checkLockStatus();
     });
 
     // Tab switching
@@ -789,6 +873,31 @@
         if (tabId === 'modules') { loadAvailableModules(); loadModuleBackups(); }
         if (tabId === 'packages') loadDeploymentPackages();
         if (tabId === 'retention') checkRetention();
+        if (tabId === 'external') { loadExternalStatus(); loadExternalBackups(); }
+        if (tabId === 'hooks') { loadHooks(); loadWebhooks(); }
+    }
+
+    // =====================================================================
+    // LOCK STATUS
+    // =====================================================================
+
+    async function checkLockStatus() {
+        try {
+            const response = await fetch('/tools/backup-manager/lock-status', { credentials: 'same-origin' });
+            const data = await response.json();
+
+            const warning = document.getElementById('lockWarning');
+            if (data.locked && data.lock_info) {
+                const info = data.lock_info;
+                document.getElementById('lockDetails').textContent =
+                    `"${info.backup_name}" by ${info.created_by} (${info.age_seconds}s ago)`;
+                warning.style.display = 'block';
+            } else {
+                warning.style.display = 'none';
+            }
+        } catch (error) {
+            console.error('Error checking lock status:', error);
+        }
     }
 
     // =====================================================================
@@ -830,40 +939,138 @@
             const buildNum = backup.build_number || '-';
             const isCurrent = currentBuildNum && backup.build_number === currentBuildNum;
             const backupType = backup.backup_type || 'legacy';
+            const isCompressed = backup.compression === 'gzip';
+            const hasExternalCopy = backup.external_copy === true;
 
             const item = document.createElement('div');
             item.className = 'backup-item' + (isCurrent ? ' current' : '');
 
-            let typeBadge = '';
-            if (backupType === 'full') typeBadge = '<span class="badge badge-full">FULL</span>';
-            else if (backupType === 'critical') typeBadge = '<span class="badge badge-critical">CRITICAL</span>';
-            else if (backupType === 'database') typeBadge = '<span class="badge badge-database">DATABASE</span>';
-            else if (backupType === 'custom') typeBadge = '<span class="badge badge-custom">CUSTOM</span>';
-            else typeBadge = '<span class="badge badge-legacy">LEGACY</span>';
+            // Build the header section
+            const header = document.createElement('div');
+            header.className = 'backup-header';
 
-            item.innerHTML = `
-                <div class="backup-header">
-                    <div style="flex: 1;">
-                        <div class="backup-title">
-                            <span class="build">Build #${escapeHtml(String(buildNum))}</span>
-                            ${typeBadge}
-                            ${isCurrent ? '<span class="badge badge-current">CURRENT</span>' : ''}
-                        </div>
-                        <div class="backup-description">${escapeHtml(backup.description || 'Platform backup')}</div>
-                        <div class="backup-meta">
-                            Created by <span class="author">${escapeHtml(backup.created_by || 'system')}</span> on ${escapeHtml(backup.created_at || backup.name)}
-                        </div>
-                    </div>
-                    <div class="backup-size">
-                        <div class="value">${escapeHtml(String(sizeMB))} MB</div>
-                    </div>
-                </div>
-                <div class="backup-actions">
-                    ${!isCurrent && backup.build_number ? `<button class="btn" onclick="setCurrentBuild(${backup.build_number})">Set Current</button>` : ''}
-                    <button class="btn btn-cyan" onclick="downloadBackup('${escapeHtml(backup.name)}')">Download</button>
-                    <button class="btn btn-red" onclick="deleteBackup('${escapeHtml(backup.name)}')">Delete</button>
-                </div>
-            `;
+            const infoDiv = document.createElement('div');
+            infoDiv.style.flex = '1';
+
+            const titleDiv = document.createElement('div');
+            titleDiv.className = 'backup-title';
+
+            const buildSpan = document.createElement('span');
+            buildSpan.className = 'build';
+            buildSpan.textContent = 'Build #' + buildNum;
+            titleDiv.appendChild(buildSpan);
+
+            // Type badge
+            const typeBadgeSpan = document.createElement('span');
+            typeBadgeSpan.className = 'badge';
+            if (backupType === 'full') { typeBadgeSpan.classList.add('badge-full'); typeBadgeSpan.textContent = 'FULL'; }
+            else if (backupType === 'critical') { typeBadgeSpan.classList.add('badge-critical'); typeBadgeSpan.textContent = 'CRITICAL'; }
+            else if (backupType === 'database') { typeBadgeSpan.classList.add('badge-database'); typeBadgeSpan.textContent = 'DATABASE'; }
+            else if (backupType === 'custom') { typeBadgeSpan.classList.add('badge-custom'); typeBadgeSpan.textContent = 'CUSTOM'; }
+            else { typeBadgeSpan.classList.add('badge-legacy'); typeBadgeSpan.textContent = 'LEGACY'; }
+            titleDiv.appendChild(typeBadgeSpan);
+
+            // Compression badge
+            if (isCompressed) {
+                const gzipBadge = document.createElement('span');
+                gzipBadge.className = 'badge';
+                gzipBadge.style.cssText = 'background: rgba(34, 197, 94, 0.2); color: #22c55e; border: 1px solid #22c55e;';
+                gzipBadge.textContent = 'GZIP';
+                titleDiv.appendChild(gzipBadge);
+            }
+
+            // External copy badge
+            if (hasExternalCopy) {
+                const usbBadge = document.createElement('span');
+                usbBadge.className = 'badge';
+                usbBadge.style.cssText = 'background: rgba(34, 211, 238, 0.2); color: #22d3ee; border: 1px solid #22d3ee;';
+                usbBadge.title = 'Copied to external storage';
+                usbBadge.textContent = 'USB';
+                titleDiv.appendChild(usbBadge);
+            }
+
+            // Current badge
+            if (isCurrent) {
+                const currentBadge = document.createElement('span');
+                currentBadge.className = 'badge badge-current';
+                currentBadge.textContent = 'CURRENT';
+                titleDiv.appendChild(currentBadge);
+            }
+
+            infoDiv.appendChild(titleDiv);
+
+            const descDiv = document.createElement('div');
+            descDiv.className = 'backup-description';
+            descDiv.textContent = backup.description || 'Platform backup';
+            infoDiv.appendChild(descDiv);
+
+            const metaDiv = document.createElement('div');
+            metaDiv.className = 'backup-meta';
+            metaDiv.textContent = 'Created by ';
+            const authorSpan = document.createElement('span');
+            authorSpan.className = 'author';
+            authorSpan.textContent = backup.created_by || 'system';
+            metaDiv.appendChild(authorSpan);
+            metaDiv.appendChild(document.createTextNode(' on ' + (backup.created_at || backup.name)));
+            infoDiv.appendChild(metaDiv);
+
+            header.appendChild(infoDiv);
+
+            const sizeDiv = document.createElement('div');
+            sizeDiv.className = 'backup-size';
+            const sizeValue = document.createElement('div');
+            sizeValue.className = 'value';
+            sizeValue.textContent = sizeMB + ' MB';
+            sizeDiv.appendChild(sizeValue);
+            header.appendChild(sizeDiv);
+
+            item.appendChild(header);
+
+            // Actions
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'backup-actions';
+
+            // Preview button
+            const previewBtn = document.createElement('button');
+            previewBtn.className = 'btn btn-purple';
+            previewBtn.textContent = 'Preview';
+            previewBtn.onclick = function() { previewRestore(backup.name); };
+            actionsDiv.appendChild(previewBtn);
+
+            // Set Current button
+            if (!isCurrent && backup.build_number) {
+                const setCurrentBtn = document.createElement('button');
+                setCurrentBtn.className = 'btn';
+                setCurrentBtn.textContent = 'Set Current';
+                setCurrentBtn.onclick = function() { setCurrentBuild(backup.build_number); };
+                actionsDiv.appendChild(setCurrentBtn);
+            }
+
+            // Sync USB button (only if not already copied)
+            if (!hasExternalCopy) {
+                const syncBtn = document.createElement('button');
+                syncBtn.className = 'btn btn-cyan';
+                syncBtn.textContent = 'Sync USB';
+                syncBtn.title = 'Copy to external storage';
+                syncBtn.onclick = function() { syncToExternal(backup.name); };
+                actionsDiv.appendChild(syncBtn);
+            }
+
+            // Download button
+            const downloadBtn = document.createElement('button');
+            downloadBtn.className = 'btn btn-cyan';
+            downloadBtn.textContent = 'Download';
+            downloadBtn.onclick = function() { downloadBackup(backup.name); };
+            actionsDiv.appendChild(downloadBtn);
+
+            // Delete button
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn btn-red';
+            deleteBtn.textContent = 'Delete';
+            deleteBtn.onclick = function() { deleteBackup(backup.name); };
+            actionsDiv.appendChild(deleteBtn);
+
+            item.appendChild(actionsDiv);
             container.appendChild(item);
         });
     }
@@ -1551,6 +1758,503 @@
         toast.textContent = message;
         container.appendChild(toast);
         setTimeout(() => toast.remove(), 4000);
+    }
+
+    // =====================================================================
+    // EXTERNAL STORAGE TAB
+    // =====================================================================
+
+    async function loadExternalStatus() {
+        const container = document.getElementById('externalStatus');
+        try {
+            const response = await fetch('/tools/backup-manager/external-status', { credentials: 'same-origin' });
+            const data = await response.json();
+
+            container.textContent = '';
+
+            if (data.available) {
+                const statusHtml = document.createElement('div');
+
+                const h3 = document.createElement('h3');
+                h3.style.cssText = 'color: #22d3ee; margin-bottom: var(--archie-space-3);';
+                h3.textContent = 'External Storage: Connected';
+                statusHtml.appendChild(h3);
+
+                const grid = document.createElement('div');
+                grid.style.cssText = 'display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--archie-space-4);';
+
+                const stats = [
+                    { label: 'Total Space', value: data.total_gb + ' GB' },
+                    { label: 'Free Space', value: data.free_gb + ' GB' },
+                    { label: 'Backups', value: data.backup_count },
+                    { label: 'Backup Size', value: data.backup_size_gb + ' GB' }
+                ];
+
+                stats.forEach(stat => {
+                    const card = document.createElement('div');
+                    card.className = 'retention-card';
+                    const num = document.createElement('div');
+                    num.className = 'number';
+                    num.style.color = '#22d3ee';
+                    num.textContent = stat.value;
+                    card.appendChild(num);
+                    const lbl = document.createElement('div');
+                    lbl.className = 'label';
+                    lbl.textContent = stat.label;
+                    card.appendChild(lbl);
+                    grid.appendChild(card);
+                });
+
+                statusHtml.appendChild(grid);
+
+                const pathInfo = document.createElement('div');
+                pathInfo.style.cssText = 'margin-top: var(--archie-space-3); font-size: var(--archie-text-sm); color: var(--archie-text-tertiary);';
+                pathInfo.textContent = 'Mount point: ' + data.mount_point;
+                statusHtml.appendChild(pathInfo);
+
+                container.appendChild(statusHtml);
+            } else {
+                const notMounted = document.createElement('div');
+                notMounted.style.cssText = 'text-align: center; padding: var(--archie-space-5);';
+
+                const icon = document.createElement('div');
+                icon.style.cssText = 'font-size: 3rem; margin-bottom: var(--archie-space-2);';
+                icon.textContent = '⚠️';
+                notMounted.appendChild(icon);
+
+                const h3 = document.createElement('h3');
+                h3.style.color = '#fb923c';
+                h3.textContent = 'External Storage Not Mounted';
+                notMounted.appendChild(h3);
+
+                const p = document.createElement('p');
+                p.style.color = 'var(--archie-text-secondary)';
+                p.textContent = data.error || 'Connect a USB drive to /mnt/external-backup';
+                notMounted.appendChild(p);
+
+                container.appendChild(notMounted);
+            }
+        } catch (error) {
+            container.textContent = 'Error loading status: ' + error.message;
+        }
+    }
+
+    async function loadExternalBackups() {
+        const container = document.getElementById('externalBackupsList');
+        try {
+            const response = await fetch('/tools/backup-manager/external-list', { credentials: 'same-origin' });
+            const data = await response.json();
+
+            container.textContent = '';
+
+            if (!data.success) {
+                const emptyDiv = document.createElement('div');
+                emptyDiv.className = 'empty-state';
+                emptyDiv.textContent = data.error || 'External storage not available';
+                container.appendChild(emptyDiv);
+                return;
+            }
+
+            if (!data.backups || data.backups.length === 0) {
+                const emptyDiv = document.createElement('div');
+                emptyDiv.className = 'empty-state';
+                const h3 = document.createElement('h3');
+                h3.textContent = 'No Backups on External Storage';
+                emptyDiv.appendChild(h3);
+                const p = document.createElement('p');
+                p.textContent = 'Use "Sync USB" on backups to copy them to external storage';
+                emptyDiv.appendChild(p);
+                container.appendChild(emptyDiv);
+                return;
+            }
+
+            data.backups.forEach(backup => {
+                const item = document.createElement('div');
+                item.className = 'backup-item';
+                item.style.borderLeftColor = '#22d3ee';
+
+                const header = document.createElement('div');
+                header.className = 'backup-header';
+
+                const infoDiv = document.createElement('div');
+                infoDiv.style.flex = '1';
+
+                const titleDiv = document.createElement('div');
+                titleDiv.className = 'backup-title';
+                const buildSpan = document.createElement('span');
+                buildSpan.className = 'build';
+                buildSpan.style.color = '#22d3ee';
+                buildSpan.textContent = backup.name || 'Unknown';
+                titleDiv.appendChild(buildSpan);
+                infoDiv.appendChild(titleDiv);
+
+                const descDiv = document.createElement('div');
+                descDiv.className = 'backup-description';
+                descDiv.textContent = backup.description || '';
+                infoDiv.appendChild(descDiv);
+
+                header.appendChild(infoDiv);
+
+                const sizeDiv = document.createElement('div');
+                sizeDiv.className = 'backup-size';
+                const sizeValue = document.createElement('div');
+                sizeValue.className = 'value';
+                sizeValue.style.color = '#22d3ee';
+                sizeValue.textContent = (backup.size_mb || 0) + ' MB';
+                sizeDiv.appendChild(sizeValue);
+                header.appendChild(sizeDiv);
+
+                item.appendChild(header);
+                container.appendChild(item);
+            });
+        } catch (error) {
+            container.textContent = 'Error: ' + error.message;
+        }
+    }
+
+    async function syncToExternal(backupName) {
+        if (!confirm('Copy backup to external storage?')) return;
+
+        showToast('Syncing to external storage...', 'info');
+
+        try {
+            const response = await fetch('/tools/backup-manager/sync-to-external/' + encodeURIComponent(backupName), {
+                method: 'POST',
+                credentials: 'same-origin'
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                showToast('Backup synced to external storage (' + data.size_mb + ' MB)', 'success');
+                loadBackups();
+                loadExternalBackups();
+            } else {
+                showToast('Error: ' + data.error, 'error');
+            }
+        } catch (error) {
+            showToast('Error: ' + error.message, 'error');
+        }
+    }
+
+    // =====================================================================
+    // HOOKS TAB
+    // =====================================================================
+
+    async function loadHooks() {
+        try {
+            const response = await fetch('/tools/backup-manager/api/hooks', { credentials: 'same-origin' });
+            const data = await response.json();
+
+            if (data.success) {
+                renderHooksList('preHooksList', data.hooks.pre, 'pre');
+                renderHooksList('postHooksList', data.hooks.post, 'post');
+            }
+        } catch (error) {
+            document.getElementById('preHooksList').textContent = 'Error loading hooks';
+            document.getElementById('postHooksList').textContent = 'Error loading hooks';
+        }
+    }
+
+    function renderHooksList(containerId, hooks, hookType) {
+        const container = document.getElementById(containerId);
+        container.textContent = '';
+
+        if (!hooks || hooks.length === 0) {
+            const emptyDiv = document.createElement('div');
+            emptyDiv.style.cssText = 'text-align: center; padding: var(--archie-space-4); color: var(--archie-text-tertiary);';
+            emptyDiv.textContent = 'No ' + hookType + ' hooks installed';
+            container.appendChild(emptyDiv);
+            return;
+        }
+
+        hooks.forEach(hook => {
+            const item = document.createElement('div');
+            item.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: var(--archie-space-2) 0; border-bottom: 1px solid var(--archie-border-subtle);';
+
+            const info = document.createElement('div');
+            const name = document.createElement('span');
+            name.style.cssText = 'color: ' + (hookType === 'pre' ? '#22c55e' : '#fb923c') + '; font-weight: bold;';
+            name.textContent = hook.name;
+            info.appendChild(name);
+
+            const meta = document.createElement('div');
+            meta.style.cssText = 'font-size: var(--archie-text-xs); color: var(--archie-text-tertiary);';
+            meta.textContent = (hook.executable ? 'Executable' : 'Not executable') + ' | ' + hook.size + ' bytes';
+            info.appendChild(meta);
+
+            item.appendChild(info);
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn btn-red';
+            deleteBtn.style.padding = 'var(--archie-space-1) var(--archie-space-2)';
+            deleteBtn.textContent = 'Delete';
+            deleteBtn.onclick = function() { deleteHook(hookType, hook.name); };
+            item.appendChild(deleteBtn);
+
+            container.appendChild(item);
+        });
+    }
+
+    async function deleteHook(hookType, hookName) {
+        if (!confirm('Delete hook: ' + hookName + '?')) return;
+
+        try {
+            const response = await fetch('/tools/backup-manager/api/hooks/' + hookType + '/' + encodeURIComponent(hookName), {
+                method: 'DELETE',
+                credentials: 'same-origin'
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                showToast('Hook deleted', 'success');
+                loadHooks();
+            } else {
+                showToast('Error: ' + data.error, 'error');
+            }
+        } catch (error) {
+            showToast('Error: ' + error.message, 'error');
+        }
+    }
+
+    // =====================================================================
+    // WEBHOOKS
+    // =====================================================================
+
+    async function loadWebhooks() {
+        const container = document.getElementById('webhooksList');
+        try {
+            const response = await fetch('/tools/backup-manager/api/webhooks', { credentials: 'same-origin' });
+            const data = await response.json();
+
+            container.textContent = '';
+
+            if (!data.webhooks || data.webhooks.length === 0) {
+                const emptyDiv = document.createElement('div');
+                emptyDiv.style.cssText = 'text-align: center; padding: var(--archie-space-4); color: var(--archie-text-tertiary);';
+                emptyDiv.textContent = 'No webhooks configured';
+                container.appendChild(emptyDiv);
+                return;
+            }
+
+            data.webhooks.forEach(webhook => {
+                const item = document.createElement('div');
+                item.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: var(--archie-space-3); background: rgba(0,0,0,0.2); border-radius: var(--archie-radius-md); margin-bottom: var(--archie-space-2);';
+
+                const info = document.createElement('div');
+                info.style.flex = '1';
+
+                const url = document.createElement('div');
+                url.style.cssText = 'color: #f97316; font-family: var(--archie-font-mono); font-size: var(--archie-text-sm);';
+                url.textContent = webhook.url;
+                info.appendChild(url);
+
+                const meta = document.createElement('div');
+                meta.style.cssText = 'font-size: var(--archie-text-xs); color: var(--archie-text-tertiary);';
+                meta.textContent = 'Events: ' + (webhook.event_types || []).join(', ') +
+                    (webhook.last_triggered ? ' | Last: ' + formatTime(webhook.last_triggered) : '');
+                info.appendChild(meta);
+
+                item.appendChild(info);
+
+                const actions = document.createElement('div');
+                actions.style.cssText = 'display: flex; gap: var(--archie-space-1);';
+
+                const testBtn = document.createElement('button');
+                testBtn.className = 'btn';
+                testBtn.style.padding = 'var(--archie-space-1) var(--archie-space-2)';
+                testBtn.textContent = 'Test';
+                testBtn.onclick = function() { testWebhook(webhook.id); };
+                actions.appendChild(testBtn);
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'btn btn-red';
+                deleteBtn.style.padding = 'var(--archie-space-1) var(--archie-space-2)';
+                deleteBtn.textContent = 'Delete';
+                deleteBtn.onclick = function() { deleteWebhook(webhook.id); };
+                actions.appendChild(deleteBtn);
+
+                item.appendChild(actions);
+                container.appendChild(item);
+            });
+        } catch (error) {
+            container.textContent = 'Error loading webhooks: ' + error.message;
+        }
+    }
+
+    async function testWebhook(webhookId) {
+        showToast('Testing webhook...', 'info');
+        try {
+            const response = await fetch('/tools/backup-manager/api/webhooks/' + webhookId + '/test', {
+                method: 'POST',
+                credentials: 'same-origin'
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                showToast('Webhook test: HTTP ' + data.status_code, data.status_code < 300 ? 'success' : 'error');
+            } else {
+                showToast('Error: ' + data.error, 'error');
+            }
+        } catch (error) {
+            showToast('Error: ' + error.message, 'error');
+        }
+    }
+
+    async function deleteWebhook(webhookId) {
+        if (!confirm('Delete this webhook?')) return;
+
+        try {
+            const response = await fetch('/tools/backup-manager/api/webhooks/' + webhookId, {
+                method: 'DELETE',
+                credentials: 'same-origin'
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                showToast('Webhook deleted', 'success');
+                loadWebhooks();
+            } else {
+                showToast('Error: ' + data.error, 'error');
+            }
+        } catch (error) {
+            showToast('Error: ' + error.message, 'error');
+        }
+    }
+
+    function showAddWebhookModal() {
+        const url = prompt('Enter webhook URL:');
+        if (!url) return;
+
+        addWebhook(url);
+    }
+
+    async function addWebhook(url) {
+        try {
+            const response = await fetch('/tools/backup-manager/api/webhooks', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: url })
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                showToast('Webhook added', 'success');
+                loadWebhooks();
+            } else {
+                showToast('Error: ' + data.error, 'error');
+            }
+        } catch (error) {
+            showToast('Error: ' + error.message, 'error');
+        }
+    }
+
+    // =====================================================================
+    // RESTORE PREVIEW
+    // =====================================================================
+
+    async function previewRestore(backupName) {
+        showToast('Loading restore preview...', 'info');
+
+        try {
+            const response = await fetch('/tools/backup-manager/preview-restore/' + encodeURIComponent(backupName), {
+                credentials: 'same-origin'
+            });
+            const data = await response.json();
+
+            if (!data.success) {
+                showToast('Error: ' + data.error, 'error');
+                return;
+            }
+
+            // Build preview modal content
+            let componentList = '';
+            data.components.forEach(comp => {
+                const size = comp.size_bytes ? ' (' + (comp.size_bytes / 1024 / 1024).toFixed(1) + ' MB)' : '';
+                const files = comp.file_count ? ' - ' + comp.file_count + ' files' : '';
+                componentList += '- ' + comp.name + size + files + '\n';
+            });
+
+            let warnings = '';
+            if (data.warnings && data.warnings.length > 0) {
+                warnings = '\n⚠️ Warnings:\n' + data.warnings.join('\n');
+            }
+
+            const meta = data.backup_metadata || {};
+            const msg = `Restore Preview: ${backupName}
+
+Build #${meta.build_number || '-'} | Version: ${meta.platform_version || '-'}
+Created: ${meta.created_at || '-'} by ${meta.created_by || '-'}
+
+Components (${data.total_size_mb} MB total):
+${componentList}
+Database tables: ${data.database_tables}
+Files to restore: ${data.files_to_restore}
+${warnings}
+
+Do you want to restore this backup?`;
+
+            if (confirm(msg)) {
+                showSelectiveRestoreDialog(backupName, data.components);
+            }
+        } catch (error) {
+            showToast('Error: ' + error.message, 'error');
+        }
+    }
+
+    function showSelectiveRestoreDialog(backupName, components) {
+        const componentNames = components.map(c => c.name);
+        const selected = prompt(
+            'Enter components to restore (comma-separated):\n\n' +
+            'Available: ' + componentNames.join(', ') + '\n\n' +
+            'Or type "all" for full restore:',
+            'all'
+        );
+
+        if (!selected) return;
+
+        let toRestore;
+        if (selected.toLowerCase() === 'all') {
+            toRestore = componentNames;
+        } else {
+            toRestore = selected.split(',').map(s => s.trim()).filter(s => s);
+        }
+
+        if (toRestore.length === 0) {
+            showToast('No components selected', 'error');
+            return;
+        }
+
+        restoreSelective(backupName, toRestore);
+    }
+
+    async function restoreSelective(backupName, components) {
+        if (!confirm('Restore ' + components.length + ' component(s) from ' + backupName + '?\n\nThis will overwrite current files!')) {
+            return;
+        }
+
+        showToast('Restoring backup...', 'info');
+
+        try {
+            const response = await fetch('/tools/backup-manager/restore-selective/' + encodeURIComponent(backupName), {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ components: components })
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                showToast('Restored: ' + data.restored.join(', '), 'success');
+                if (data.warnings && data.warnings.length > 0) {
+                    showToast('Warnings: ' + data.warnings.join(', '), 'info');
+                }
+            } else {
+                showToast('Restore failed: ' + (data.errors ? data.errors.map(e => e.error).join(', ') : 'Unknown error'), 'error');
+            }
+        } catch (error) {
+            showToast('Error: ' + error.message, 'error');
+        }
     }
 </script>
 {% endblock %}

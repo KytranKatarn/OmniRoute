@@ -15,6 +15,11 @@ import shutil
 import tarfile
 import tempfile
 import psycopg2
+import gzip
+import time
+import hashlib
+import hmac
+import requests
 
 backup_manager_bp = Blueprint("backup_manager", __name__, url_prefix="/tools/backup-manager")
 
@@ -23,7 +28,9 @@ backup_manager_bp = Blueprint("backup_manager", __name__, url_prefix="/tools/bac
 # =============================================================================
 
 
-def create_backup_programmatic(description="Auto-backup", created_by_username="system", proposal_id=None):
+def create_backup_programmatic(
+    description="Auto-backup", created_by_username="system", proposal_id=None, compress=True
+):
     """
     Create a comprehensive backup of A.R.C.H.I.E. Platform (programmatic API)
 
@@ -34,6 +41,7 @@ def create_backup_programmatic(description="Auto-backup", created_by_username="s
         description: Description for this backup
         created_by_username: Username of who created the backup
         proposal_id: Optional proposal ID this backup is for
+        compress: If True, compress database backup with gzip (default: True)
 
     Returns:
         {
@@ -43,21 +51,36 @@ def create_backup_programmatic(description="Auto-backup", created_by_username="s
             'backup': { metadata }
         }
     """
+    backup_path = None
+    lock_acquired = False
+
     try:
         # Generate backup name
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_name = f"{timestamp}_{description.replace(' ', '_')}"
         backup_path = os.path.join(BACKUP_DIR, backup_name)
 
+        # Acquire backup lock
+        lock_acquired, lock_error = acquire_backup_lock(backup_name, created_by_username)
+        if not lock_acquired:
+            return {"success": False, "error": lock_error}
+
+        # Execute pre-backup hooks
+        pre_ok, pre_results = execute_pre_hooks(backup_name)
+        if not pre_ok:
+            release_backup_lock()
+            return {"success": False, "error": "Pre-backup hook failed", "hook_results": pre_results}
+
         os.makedirs(backup_path, exist_ok=True)
 
         print(f"Creating backup: {backup_name}")
 
-        # 1. Backup database using Python
-        print("  Backing up database...")
+        # 1. Backup database using Python with compression
+        print("  Backing up database (compressed)..." if compress else "  Backing up database...")
         db_file = os.path.join(backup_path, "database.sql")
-        backup_database_python(db_file)
-        print("  ✓ Database backup complete")
+        actual_db_file = backup_database_python(db_file, compress=compress)
+        db_file_name = os.path.basename(actual_db_file)
+        print(f"  ✓ Database backup complete ({db_file_name})")
 
         # 2. Backup platform files
         print("  Backing up platform files...")
@@ -143,6 +166,22 @@ def create_backup_programmatic(description="Auto-backup", created_by_username="s
             shutil.copytree(conversation_logs_src, os.path.join(backup_path, "conversation_logs"), dirs_exist_ok=True)
             print("  ✓ Conversation logs backup complete")
 
+        # Calculate total backup size
+        total_size = 0
+        for root, dirs, files in os.walk(backup_path):
+            for f in files:
+                total_size += os.path.getsize(os.path.join(root, f))
+
+        # Copy to external storage if available
+        external_result = {"success": False, "error": "External storage not mounted"}
+        if is_external_storage_available():
+            print("  Copying to external storage...")
+            external_result = copy_to_external_storage(backup_name, backup_path)
+            if external_result["success"]:
+                print(f"  ✓ External copy complete ({external_result.get('size_mb', 0)} MB)")
+            else:
+                print(f"  ⚠ External copy failed: {external_result.get('error', 'unknown')}")
+
         # 12. Create metadata with auto-assigned build number
         new_build_number = get_next_build_number()
         metadata = {
@@ -155,6 +194,12 @@ def create_backup_programmatic(description="Auto-backup", created_by_username="s
             "build_number": new_build_number,
             "backup_type": "full",
             "proposal_id": proposal_id,
+            "compression": "gzip" if compress else "none",
+            "database_file": db_file_name,
+            "total_size_bytes": total_size,
+            "total_size_mb": round(total_size / (1024 * 1024), 2),
+            "external_copy": external_result.get("success", False),
+            "external_path": external_result.get("external_path") if external_result.get("success") else None,
             "components": {
                 "database": True,
                 "platform_v2": True,
@@ -174,8 +219,13 @@ def create_backup_programmatic(description="Auto-backup", created_by_username="s
         with open(metadata_file, "w") as f:
             json.dump(metadata, f, indent=2)
 
-        # 11. Generate rollback script
+        # Generate rollback script (handles both compressed and uncompressed)
         rollback_script = os.path.join(backup_path, "rollback.sh")
+        db_restore_cmd = (
+            f"zcat {backup_path}/{db_file_name} | docker exec -i archie_database psql -U archie -d archie"
+            if compress
+            else f"docker exec -i archie_database psql -U archie -d archie < {backup_path}/database.sql"
+        )
         with open(rollback_script, "w") as f:
             f.write(
                 f"""#!/bin/bash
@@ -197,7 +247,7 @@ docker-compose stop archie_platform
 echo "Restoring database..."
 docker exec -i archie_database psql -U archie -c "DROP DATABASE IF EXISTS archie;"
 docker exec -i archie_database psql -U archie -c "CREATE DATABASE archie;"
-docker exec -i archie_database psql -U archie -d archie < {backup_path}/database.sql
+{db_restore_cmd}
 
 # Restore platform files
 echo "Restoring platform files..."
@@ -219,6 +269,35 @@ echo "Platform should be available at http://192.168.1.200:3000"
         # Set this backup as the current build
         set_build_number(new_build_number)
 
+        # Execute post-backup hooks
+        post_results = execute_post_hooks(backup_name, metadata)
+        metadata["hook_results"] = {"pre": pre_results, "post": post_results}
+
+        # Update metadata with hook results
+        with open(metadata_file, "w") as f:
+            json.dump(metadata, f, indent=2)
+
+        # Trigger webhooks
+        webhook_results = trigger_webhooks(
+            "backup_complete",
+            {
+                "event": "backup_complete",
+                "backup_name": backup_name,
+                "build_number": new_build_number,
+                "platform_version": get_platform_version(),
+                "components": list(metadata["components"].keys()),
+                "size_bytes": total_size,
+                "size_mb": metadata["total_size_mb"],
+                "compression": metadata["compression"],
+                "external_copy": external_result.get("success", False),
+                "timestamp": datetime.now().isoformat(),
+            },
+        )
+
+        # Release lock
+        release_backup_lock()
+        lock_acquired = False
+
         print(f"✓ Backup created successfully: {backup_name} (Build #{new_build_number})")
 
         return {
@@ -227,12 +306,33 @@ echo "Platform should be available at http://192.168.1.200:3000"
             "backup_path": backup_path,
             "build_number": new_build_number,
             "backup": metadata,
+            "external_copy": external_result,
+            "webhook_results": webhook_results,
         }
 
     except Exception as e:
         print(f"Backup creation failed: {str(e)}")
-        if "backup_path" in locals() and os.path.exists(backup_path):
+
+        # Trigger failure webhook
+        try:
+            trigger_webhooks(
+                "backup_failed",
+                {
+                    "event": "backup_failed",
+                    "description": description,
+                    "error": str(e),
+                    "timestamp": datetime.now().isoformat(),
+                },
+            )
+        except Exception:
+            pass
+
+        # Cleanup
+        if backup_path and os.path.exists(backup_path):
             shutil.rmtree(backup_path)
+        if lock_acquired:
+            release_backup_lock()
+
         return {"success": False, "error": str(e)}
 
 
@@ -383,8 +483,24 @@ def admin_required(f):
 BACKUP_DIR = "/backups"
 PLATFORM_DIR = "/app"
 
+# External backup storage configuration
+EXTERNAL_BACKUP_DIR = "/mnt/external-backup"
+
+# Backup locking configuration
+LOCK_FILE = os.path.join(BACKUP_DIR, ".backup_lock")
+LOCK_TIMEOUT = 7200  # 2 hours
+
+# Hook directories
+HOOKS_DIR = os.path.join(BACKUP_DIR, ".hooks")
+PRE_HOOKS_DIR = os.path.join(HOOKS_DIR, "pre")
+POST_HOOKS_DIR = os.path.join(HOOKS_DIR, "post")
+
 # Ensure backup directory exists
 os.makedirs(BACKUP_DIR, exist_ok=True)
+
+# Ensure hook directories exist
+for d in [HOOKS_DIR, PRE_HOOKS_DIR, POST_HOOKS_DIR]:
+    os.makedirs(d, exist_ok=True)
 
 # =============================================================================
 # RETENTION POLICY - Grandfather-Father-Son (7 daily + 4 weekly + 6 monthly)
@@ -407,8 +523,6 @@ def get_backup_retention_status():
             'stats': {storage info}
         }
     """
-    from collections import defaultdict
-
     if not os.path.exists(BACKUP_DIR):
         return {"keep": [], "delete": [], "stats": {}}
 
@@ -447,7 +561,6 @@ def get_backup_retention_status():
     backups.sort(key=lambda x: x["date"], reverse=True)
 
     keep = set()
-    now = datetime.now()
 
     # Rule 1: Keep last 7 daily backups
     daily_kept = 0
@@ -619,18 +732,34 @@ def verify_backup_integrity(backup_name):
         checks["metadata_valid"] = False
         errors.append("metadata.json missing")
 
-    # Check database.sql
-    db_file = os.path.join(backup_path, "database.sql")
+    # Check database.sql or database.sql.gz
+    db_file = os.path.join(backup_path, "database.sql.gz")
+    db_compressed = True
+    if not os.path.exists(db_file):
+        db_file = os.path.join(backup_path, "database.sql")
+        db_compressed = False
+
     if os.path.exists(db_file):
         db_size = os.path.getsize(db_file)
-        if db_size > 1024:  # > 1KB
+        # For compressed files, even 1KB compressed is valid (uncompressed ~95MB -> ~5MB compressed)
+        min_size = 512 if db_compressed else 1024
+        if db_size > min_size:
             checks["database_valid"] = True
+            checks["database_compressed"] = db_compressed
+            # Verify gzip can be opened if compressed
+            if db_compressed:
+                try:
+                    with gzip.open(db_file, "rt", encoding="utf-8") as f:
+                        f.read(100)  # Read first 100 chars to verify
+                except Exception as e:
+                    checks["database_valid"] = False
+                    errors.append(f"database.sql.gz is corrupted: {str(e)}")
         else:
             checks["database_valid"] = False
-            errors.append(f"database.sql too small ({db_size} bytes)")
+            errors.append(f"database file too small ({db_size} bytes)")
     else:
         checks["database_valid"] = False
-        errors.append("database.sql missing")
+        errors.append("database.sql or database.sql.gz missing")
 
     # Check platform_v2 directory
     platform_dir = os.path.join(backup_path, "platform_v2")
@@ -672,106 +801,700 @@ def get_db_connection():
     return psycopg2.connect(host=db_host, database=db_name, user=db_user, password=db_pass, port=db_port)
 
 
-def backup_database_python(output_file):
-    """Backup database using psycopg2 (Python-based, no pg_dump needed)"""
+# =============================================================================
+# EXTERNAL STORAGE FUNCTIONS
+# =============================================================================
+
+
+def is_external_storage_available():
+    """Check if external backup storage is mounted and writable"""
+    if not os.path.exists(EXTERNAL_BACKUP_DIR):
+        return False
+    # Check if it's a mount point
+    try:
+        return os.path.ismount(EXTERNAL_BACKUP_DIR) and os.access(EXTERNAL_BACKUP_DIR, os.W_OK)
+    except Exception:
+        return False
+
+
+def get_external_storage_stats():
+    """Get external storage statistics"""
+    if not is_external_storage_available():
+        return {"available": False, "error": "External storage not mounted"}
+
+    try:
+        statvfs = os.statvfs(EXTERNAL_BACKUP_DIR)
+        total_bytes = statvfs.f_frsize * statvfs.f_blocks
+        free_bytes = statvfs.f_frsize * statvfs.f_bavail
+        used_bytes = total_bytes - free_bytes
+
+        # Count backups on external storage
+        backup_count = 0
+        backup_size = 0
+        if os.path.exists(EXTERNAL_BACKUP_DIR):
+            for item in os.listdir(EXTERNAL_BACKUP_DIR):
+                item_path = os.path.join(EXTERNAL_BACKUP_DIR, item)
+                if os.path.isdir(item_path):
+                    backup_count += 1
+                    for root, dirs, files in os.walk(item_path):
+                        for f in files:
+                            backup_size += os.path.getsize(os.path.join(root, f))
+
+        return {
+            "available": True,
+            "mount_point": EXTERNAL_BACKUP_DIR,
+            "total_bytes": total_bytes,
+            "total_gb": round(total_bytes / (1024**3), 2),
+            "free_bytes": free_bytes,
+            "free_gb": round(free_bytes / (1024**3), 2),
+            "used_bytes": used_bytes,
+            "used_gb": round(used_bytes / (1024**3), 2),
+            "backup_count": backup_count,
+            "backup_size_bytes": backup_size,
+            "backup_size_gb": round(backup_size / (1024**3), 2),
+        }
+    except Exception as e:
+        return {"available": False, "error": str(e)}
+
+
+def copy_to_external_storage(backup_name, backup_path):
+    """Copy backup to external USB storage for physical disaster recovery"""
+    if not is_external_storage_available():
+        return {"success": False, "error": "External storage not mounted"}
+
+    external_path = os.path.join(EXTERNAL_BACKUP_DIR, backup_name)
+    try:
+        shutil.copytree(backup_path, external_path, dirs_exist_ok=True)
+        # Calculate size of copied backup
+        total_size = 0
+        for root, dirs, files in os.walk(external_path):
+            for f in files:
+                total_size += os.path.getsize(os.path.join(root, f))
+
+        return {
+            "success": True,
+            "external_path": external_path,
+            "size_bytes": total_size,
+            "size_mb": round(total_size / (1024 * 1024), 2),
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+# =============================================================================
+# BACKUP LOCKING FUNCTIONS
+# =============================================================================
+
+
+def acquire_backup_lock(backup_name, created_by):
+    """Acquire exclusive backup lock, returns (success, error_msg)"""
+    if os.path.exists(LOCK_FILE):
+        try:
+            with open(LOCK_FILE, "r") as f:
+                lock_data = json.load(f)
+            lock_age = time.time() - lock_data.get("timestamp", 0)
+            if lock_age < LOCK_TIMEOUT:
+                backup_name = lock_data.get("backup_name", "unknown")
+                created_by = lock_data.get("created_by", "unknown")
+                msg = f"Backup '{backup_name}' in progress by {created_by} (started {int(lock_age)}s ago)"
+                return (False, msg)
+            # Stale lock, remove it
+            os.remove(LOCK_FILE)
+        except (json.JSONDecodeError, IOError):
+            # Corrupted lock file, remove it
+            os.remove(LOCK_FILE)
+
+    try:
+        with open(LOCK_FILE, "w") as f:
+            json.dump(
+                {
+                    "backup_name": backup_name,
+                    "created_by": created_by,
+                    "timestamp": time.time(),
+                    "pid": os.getpid(),
+                },
+                f,
+            )
+        return True, None
+    except Exception as e:
+        return False, str(e)
+
+
+def release_backup_lock():
+    """Release backup lock"""
+    if os.path.exists(LOCK_FILE):
+        try:
+            os.remove(LOCK_FILE)
+        except Exception:
+            pass
+
+
+def check_backup_in_progress():
+    """Check if backup is currently running"""
+    if not os.path.exists(LOCK_FILE):
+        return None
+    try:
+        with open(LOCK_FILE, "r") as f:
+            lock_data = json.load(f)
+        lock_age = time.time() - lock_data.get("timestamp", 0)
+        if lock_age >= LOCK_TIMEOUT:
+            return None  # Stale lock
+        lock_data["age_seconds"] = int(lock_age)
+        return lock_data
+    except (json.JSONDecodeError, IOError):
+        return None
+
+
+# =============================================================================
+# HOOK FUNCTIONS
+# =============================================================================
+
+
+def execute_hooks(hook_dir, backup_name, metadata=None):
+    """Execute all scripts in hook directory"""
+    results = []
+
+    if not os.path.exists(hook_dir):
+        return results
+
+    try:
+        scripts = sorted(os.listdir(hook_dir))
+    except Exception:
+        return results
+
+    for script in scripts:
+        script_path = os.path.join(hook_dir, script)
+        if not os.path.isfile(script_path) or not os.access(script_path, os.X_OK):
+            continue
+
+        env = os.environ.copy()
+        env["ARCHIE_BACKUP_NAME"] = backup_name
+        env["ARCHIE_BACKUP_DIR"] = BACKUP_DIR
+        if metadata:
+            env["ARCHIE_BACKUP_METADATA"] = json.dumps(metadata)
+
+        try:
+            result = subprocess.run(
+                [script_path],
+                capture_output=True,
+                text=True,
+                timeout=300,  # 5 minute timeout
+                env=env,
+            )
+            results.append(
+                {
+                    "script": script,
+                    "success": result.returncode == 0,
+                    "output": result.stdout[:1000] if result.stdout else "",
+                    "error": result.stderr[:500] if result.returncode != 0 and result.stderr else None,
+                }
+            )
+        except subprocess.TimeoutExpired:
+            results.append({"script": script, "success": False, "error": "Timeout after 5 minutes"})
+        except Exception as e:
+            results.append({"script": script, "success": False, "error": str(e)})
+
+    return results
+
+
+def execute_pre_hooks(backup_name):
+    """Execute pre-backup hooks, fail backup if any hook fails"""
+    results = execute_hooks(PRE_HOOKS_DIR, backup_name)
+    failed = [r for r in results if not r["success"]]
+    return len(failed) == 0, results
+
+
+def execute_post_hooks(backup_name, metadata):
+    """Execute post-backup hooks (failures logged but don't fail backup)"""
+    return execute_hooks(POST_HOOKS_DIR, backup_name, metadata)
+
+
+# =============================================================================
+# WEBHOOK FUNCTIONS
+# =============================================================================
+
+
+def get_webhooks(event_type):
+    """Get active webhooks for event type"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT id, url, secret_key FROM backup_webhooks
+            WHERE active = TRUE AND %s = ANY(event_types)
+        """,
+            (event_type,),
+        )
+        webhooks = cur.fetchall()
+        cur.close()
+        conn.close()
+        return [{"id": w[0], "url": w[1], "secret_key": w[2]} for w in webhooks]
+    except Exception:
+        return []
+
+
+def trigger_webhooks(event_type, payload):
+    """Trigger all webhooks for an event"""
+    webhooks = get_webhooks(event_type)
+    results = []
+
+    for webhook in webhooks:
+        try:
+            headers = {"Content-Type": "application/json"}
+            if webhook.get("secret_key"):
+                signature = hmac.new(
+                    webhook["secret_key"].encode(),
+                    json.dumps(payload).encode(),
+                    hashlib.sha256,
+                ).hexdigest()
+                headers["X-Archie-Signature"] = signature
+
+            response = requests.post(
+                webhook["url"],
+                json=payload,
+                headers=headers,
+                timeout=10,
+            )
+            results.append(
+                {"url": webhook["url"], "status": response.status_code, "success": 200 <= response.status_code < 300}
+            )
+
+            # Update webhook last triggered
+            try:
+                conn = get_db_connection()
+                cur = conn.cursor()
+                cur.execute(
+                    "UPDATE backup_webhooks SET last_triggered = NOW(), last_status = %s WHERE id = %s",
+                    (response.status_code, webhook["id"]),
+                )
+                conn.commit()
+                cur.close()
+                conn.close()
+            except Exception:
+                pass
+
+        except Exception as e:
+            results.append({"url": webhook["url"], "error": str(e), "success": False})
+
+    return results
+
+
+# =============================================================================
+# RESTORE PREVIEW & SELECTIVE RESTORE FUNCTIONS
+# =============================================================================
+
+
+def preview_restore(backup_name):
+    """Preview what would change during restore (dry-run)"""
+    backup_path = os.path.join(BACKUP_DIR, backup_name)
+
+    if not os.path.exists(backup_path):
+        return {"error": f"Backup {backup_name} not found"}
+
+    preview = {
+        "backup_name": backup_name,
+        "components": [],
+        "warnings": [],
+        "database_tables": 0,
+        "files_to_restore": 0,
+        "total_size_bytes": 0,
+    }
+
+    # Check database
+    db_file = os.path.join(backup_path, "database.sql.gz")
+    if not os.path.exists(db_file):
+        db_file = os.path.join(backup_path, "database.sql")
+
+    if os.path.exists(db_file):
+        preview["components"].append(
+            {
+                "name": "database",
+                "file": os.path.basename(db_file),
+                "size_bytes": os.path.getsize(db_file),
+                "compressed": db_file.endswith(".gz"),
+            }
+        )
+        preview["total_size_bytes"] += os.path.getsize(db_file)
+
+        # Count tables by parsing SQL
+        try:
+            if db_file.endswith(".gz"):
+                with gzip.open(db_file, "rt", encoding="utf-8") as f:
+                    content = f.read()
+            else:
+                with open(db_file, "r") as f:
+                    content = f.read()
+            preview["database_tables"] = content.count("CREATE TABLE")
+        except Exception:
+            pass
+
+    # Check platform files
+    platform_dir = os.path.join(backup_path, "platform_v2")
+    if os.path.exists(platform_dir):
+        file_count = 0
+        dir_size = 0
+        for root, dirs, files in os.walk(platform_dir):
+            file_count += len(files)
+            for f in files:
+                dir_size += os.path.getsize(os.path.join(root, f))
+
+        preview["components"].append(
+            {
+                "name": "platform_v2",
+                "file_count": file_count,
+                "size_bytes": dir_size,
+            }
+        )
+        preview["files_to_restore"] += file_count
+        preview["total_size_bytes"] += dir_size
+
+    # Check other directories
+    for dir_name in ["ai_bridge", "docs", "scripts", "nginx", "n8n_workflows"]:
+        dir_path = os.path.join(backup_path, dir_name)
+        if os.path.exists(dir_path):
+            file_count = sum(len(files) for _, _, files in os.walk(dir_path))
+            dir_size = sum(
+                os.path.getsize(os.path.join(root, f)) for root, _, files in os.walk(dir_path) for f in files
+            )
+            preview["components"].append(
+                {
+                    "name": dir_name,
+                    "file_count": file_count,
+                    "size_bytes": dir_size,
+                }
+            )
+            preview["files_to_restore"] += file_count
+            preview["total_size_bytes"] += dir_size
+
+    # Load metadata for version info
+    metadata_file = os.path.join(backup_path, "metadata.json")
+    if os.path.exists(metadata_file):
+        try:
+            with open(metadata_file, "r") as f:
+                metadata = json.load(f)
+            preview["backup_metadata"] = {
+                "created_at": metadata.get("created_at"),
+                "created_by": metadata.get("created_by"),
+                "platform_version": metadata.get("platform_version"),
+                "build_number": metadata.get("build_number"),
+                "backup_type": metadata.get("backup_type"),
+            }
+            # Check for version mismatch warning
+            current_version = get_platform_version()
+            backup_version = metadata.get("platform_version", "unknown")
+            if current_version != backup_version:
+                preview["warnings"].append(f"Version mismatch: current={current_version}, backup={backup_version}")
+        except Exception:
+            pass
+
+    preview["total_size_mb"] = round(preview["total_size_bytes"] / (1024 * 1024), 2)
+    return preview
+
+
+def restore_database_from_backup(db_file_path):
+    """Restore database from SQL file (handles both .sql and .sql.gz)"""
+    if not os.path.exists(db_file_path):
+        return {"success": False, "error": f"Database file not found: {db_file_path}"}
+
+    try:
+        # Read SQL content
+        if db_file_path.endswith(".gz"):
+            with gzip.open(db_file_path, "rt", encoding="utf-8") as f:
+                sql_content = f.read()
+        else:
+            with open(db_file_path, "r") as f:
+                sql_content = f.read()
+
+        # Execute SQL
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(sql_content)
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def restore_components(backup_name, components):
+    """Restore specific components from backup"""
+    backup_path = os.path.join(BACKUP_DIR, backup_name)
+    if not os.path.exists(backup_path):
+        return {"success": False, "error": f"Backup {backup_name} not found"}
+
+    results = {"restored": [], "errors": [], "warnings": []}
+
+    if "database" in components:
+        try:
+            db_file = os.path.join(backup_path, "database.sql.gz")
+            if not os.path.exists(db_file):
+                db_file = os.path.join(backup_path, "database.sql")
+
+            if os.path.exists(db_file):
+                restore_result = restore_database_from_backup(db_file)
+                if restore_result["success"]:
+                    results["restored"].append("database")
+                else:
+                    results["errors"].append({"component": "database", "error": restore_result["error"]})
+            else:
+                results["errors"].append({"component": "database", "error": "Database file not found in backup"})
+        except Exception as e:
+            results["errors"].append({"component": "database", "error": str(e)})
+
+    if "platform" in components:
+        try:
+            platform_src = os.path.join(backup_path, "platform_v2")
+            if os.path.exists(platform_src):
+                for subdir in ["tools", "templates", "static"]:
+                    src = os.path.join(platform_src, subdir)
+                    dst = os.path.join(PLATFORM_DIR, subdir)
+                    if os.path.exists(src):
+                        shutil.copytree(src, dst, dirs_exist_ok=True)
+                results["restored"].append("platform")
+            else:
+                results["errors"].append({"component": "platform", "error": "Platform directory not found in backup"})
+        except Exception as e:
+            results["errors"].append({"component": "platform", "error": str(e)})
+
+    # Restore other components
+    component_paths = {
+        "ai_bridge": ("/mnt/archie_brain/ai_bridge", "ai_bridge"),
+        "docs": ("/mnt/archie_brain/docs", "docs"),
+        "scripts": ("/mnt/archie_brain/scripts", "scripts"),
+        "nginx": ("/mnt/archie_brain/nginx", "nginx"),
+        "n8n_workflows": ("/mnt/archie_brain/n8n_workflows", "n8n_workflows"),
+    }
+
+    for comp_name, (dst_path, src_subdir) in component_paths.items():
+        if comp_name in components:
+            try:
+                src = os.path.join(backup_path, src_subdir)
+                if os.path.exists(src):
+                    shutil.copytree(src, dst_path, dirs_exist_ok=True)
+                    results["restored"].append(comp_name)
+                else:
+                    results["warnings"].append(f"{comp_name} not found in backup")
+            except Exception as e:
+                results["errors"].append({"component": comp_name, "error": str(e)})
+
+    results["success"] = len(results["errors"]) == 0
+    return results
+
+
+# =============================================================================
+# BACKUP COMPARISON FUNCTIONS
+# =============================================================================
+
+
+def get_all_files(directory):
+    """Get list of all files relative to directory"""
+    files = []
+    for root, dirs, filenames in os.walk(directory):
+        for f in filenames:
+            full_path = os.path.join(root, f)
+            rel_path = os.path.relpath(full_path, directory)
+            files.append(rel_path)
+    return files
+
+
+def file_hash(filepath):
+    """Get SHA256 hash of file"""
+    hasher = hashlib.sha256()
+    try:
+        with open(filepath, "rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):
+                hasher.update(chunk)
+        return hasher.hexdigest()
+    except Exception:
+        return None
+
+
+def compare_backups(backup1_name, backup2_name):
+    """Compare two backups and show differences"""
+    backup1_path = os.path.join(BACKUP_DIR, backup1_name)
+    backup2_path = os.path.join(BACKUP_DIR, backup2_name)
+
+    if not os.path.exists(backup1_path):
+        return {"error": f"Backup {backup1_name} not found"}
+    if not os.path.exists(backup2_path):
+        return {"error": f"Backup {backup2_name} not found"}
+
+    comparison = {
+        "backup1": backup1_name,
+        "backup2": backup2_name,
+        "metadata_diff": {},
+        "file_changes": {
+            "added": [],
+            "removed": [],
+            "modified": [],
+        },
+    }
+
+    # Compare metadata
+    try:
+        with open(os.path.join(backup1_path, "metadata.json")) as f:
+            meta1 = json.load(f)
+        with open(os.path.join(backup2_path, "metadata.json")) as f:
+            meta2 = json.load(f)
+
+        comparison["metadata_diff"] = {
+            "build_number": {"old": meta1.get("build_number"), "new": meta2.get("build_number")},
+            "platform_version": {"old": meta1.get("platform_version"), "new": meta2.get("platform_version")},
+            "created_at": {"old": meta1.get("created_at"), "new": meta2.get("created_at")},
+        }
+    except Exception:
+        pass
+
+    # Compare file lists (exclude metadata.json and rollback.sh)
+    exclude = {"metadata.json", "rollback.sh"}
+    files1 = set(f for f in get_all_files(backup1_path) if f not in exclude)
+    files2 = set(f for f in get_all_files(backup2_path) if f not in exclude)
+
+    comparison["file_changes"]["added"] = sorted(list(files2 - files1))[:100]  # Limit to 100
+    comparison["file_changes"]["removed"] = sorted(list(files1 - files2))[:100]
+
+    # Check modified files (same name, different content) - limit to first 50 common files
+    common_files = list(files1 & files2)[:50]
+    for f in common_files:
+        hash1 = file_hash(os.path.join(backup1_path, f))
+        hash2 = file_hash(os.path.join(backup2_path, f))
+        if hash1 and hash2 and hash1 != hash2:
+            comparison["file_changes"]["modified"].append(f)
+
+    comparison["summary"] = {
+        "files_added": len(files2 - files1),
+        "files_removed": len(files1 - files2),
+        "files_modified": len(comparison["file_changes"]["modified"]),
+        "files_unchanged": len(files1 & files2) - len(comparison["file_changes"]["modified"]),
+    }
+
+    return comparison
+
+
+def backup_database_python(output_file, compress=True):
+    """Backup database using psycopg2 (Python-based, no pg_dump needed)
+
+    Args:
+        output_file: Base output file path (without .gz extension if compress=True)
+        compress: If True, compress with gzip (adds .gz extension)
+
+    Returns:
+        str: Actual output file path (with .gz if compressed)
+    """
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        with open(output_file, "w") as f:
-            # Write header
-            f.write("-- A.R.C.H.I.E. Platform Database Backup\n")
-            f.write(f"-- Generated: {datetime.now().isoformat()}\n\n")
+        # Generate SQL content
+        sql_lines = []
+        sql_lines.append("-- A.R.C.H.I.E. Platform Database Backup\n")
+        sql_lines.append(f"-- Generated: {datetime.now().isoformat()}\n")
+        sql_lines.append(f"-- Compression: {'gzip' if compress else 'none'}\n\n")
 
-            # Get all tables
+        # Get all tables
+        cursor.execute(
+            """
+            SELECT tablename FROM pg_tables
+            WHERE schemaname = 'public'
+            ORDER BY tablename;
+        """
+        )
+        tables = cursor.fetchall()
+
+        for (table_name,) in tables:
+            sql_lines.append(f"\n-- Table: {table_name}\n")
+            sql_lines.append(f"DROP TABLE IF EXISTS {table_name} CASCADE;\n")
+
+            # Get CREATE TABLE statement
             cursor.execute(
-                """
-                SELECT tablename FROM pg_tables
-                WHERE schemaname = 'public'
-                ORDER BY tablename;
+                f"""
+                SELECT
+                    'CREATE TABLE ' || quote_ident(table_name) || ' (' ||
+                    string_agg(
+                        quote_ident(column_name) || ' ' ||
+                        data_type ||
+                        CASE
+                            WHEN character_maximum_length IS NOT NULL
+                            THEN '(' || character_maximum_length || ')'
+                            ELSE ''
+                        END ||
+                        CASE
+                            WHEN is_nullable = 'NO' THEN ' NOT NULL'
+                            ELSE ''
+                        END,
+                        ', '
+                    ) || ');'
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                AND table_name = '{table_name}'
+                GROUP BY table_name;
             """
             )
-            tables = cursor.fetchall()
 
-            for (table_name,) in tables:
-                f.write(f"\n-- Table: {table_name}\n")
-                f.write(f"DROP TABLE IF EXISTS {table_name} CASCADE;\n")
+            create_stmt = cursor.fetchone()
+            if create_stmt:
+                sql_lines.append(create_stmt[0] + "\n\n")
 
-                # Get CREATE TABLE statement
+            # Get data
+            cursor.execute(f"SELECT * FROM {table_name};")
+            rows = cursor.fetchall()
+
+            if rows:
+                # Get column names
                 cursor.execute(
                     f"""
-                    SELECT
-                        'CREATE TABLE ' || quote_ident(table_name) || ' (' ||
-                        string_agg(
-                            quote_ident(column_name) || ' ' ||
-                            data_type ||
-                            CASE
-                                WHEN character_maximum_length IS NOT NULL
-                                THEN '(' || character_maximum_length || ')'
-                                ELSE ''
-                            END ||
-                            CASE
-                                WHEN is_nullable = 'NO' THEN ' NOT NULL'
-                                ELSE ''
-                            END,
-                            ', '
-                        ) || ');'
+                    SELECT column_name
                     FROM information_schema.columns
-                    WHERE table_schema = 'public'
-                    AND table_name = '{table_name}'
-                    GROUP BY table_name;
+                    WHERE table_schema = 'public' AND table_name = '{table_name}'
+                    ORDER BY ordinal_position;
                 """
                 )
+                columns = [col[0] for col in cursor.fetchall()]
 
-                create_stmt = cursor.fetchone()
-                if create_stmt:
-                    f.write(create_stmt[0] + "\n\n")
+                sql_lines.append(f"INSERT INTO {table_name} ({', '.join(columns)}) VALUES\n")
 
-                # Get data
-                cursor.execute(f"SELECT * FROM {table_name};")
-                rows = cursor.fetchall()
-
-                if rows:
-                    # Get column names
-                    cursor.execute(
-                        f"""
-                        SELECT column_name
-                        FROM information_schema.columns
-                        WHERE table_schema = 'public' AND table_name = '{table_name}'
-                        ORDER BY ordinal_position;
-                    """
-                    )
-                    columns = [col[0] for col in cursor.fetchall()]
-
-                    f.write(f"INSERT INTO {table_name} ({', '.join(columns)}) VALUES\n")
-
-                    for i, row in enumerate(rows):
-                        # Format values
-                        values = []
-                        for val in row:
-                            if val is None:
-                                values.append("NULL")
-                            elif isinstance(val, str):
-                                # Escape single quotes
-                                escaped = val.replace("'", "''")
-                                values.append(f"'{escaped}'")
-                            elif isinstance(val, (int, float)):
-                                values.append(str(val))
-                            elif isinstance(val, datetime):
-                                values.append(f"'{val.isoformat()}'")
-                            else:
-                                values.append(f"'{str(val)}'")
-
-                        if i < len(rows) - 1:
-                            f.write(f"  ({', '.join(values)}),\n")
+                for i, row in enumerate(rows):
+                    # Format values
+                    values = []
+                    for val in row:
+                        if val is None:
+                            values.append("NULL")
+                        elif isinstance(val, str):
+                            # Escape single quotes
+                            escaped = val.replace("'", "''")
+                            values.append(f"'{escaped}'")
+                        elif isinstance(val, (int, float)):
+                            values.append(str(val))
+                        elif isinstance(val, datetime):
+                            values.append(f"'{val.isoformat()}'")
                         else:
-                            f.write(f"  ({', '.join(values)});\n")
+                            values.append(f"'{str(val)}'")
 
-                    f.write("\n")
+                    if i < len(rows) - 1:
+                        sql_lines.append(f"  ({', '.join(values)}),\n")
+                    else:
+                        sql_lines.append(f"  ({', '.join(values)});\n")
+
+                sql_lines.append("\n")
 
         cursor.close()
         conn.close()
-        return True
+
+        # Write to file (compressed or uncompressed)
+        sql_content = "".join(sql_lines)
+
+        if compress:
+            output_path = output_file + ".gz" if not output_file.endswith(".gz") else output_file
+            with gzip.open(output_path, "wt", encoding="utf-8") as f:
+                f.write(sql_content)
+            return output_path
+        else:
+            with open(output_file, "w") as f:
+                f.write(sql_content)
+            return output_file
 
     except Exception as e:
         current_app.logger.error(f"Database backup failed: {str(e)}")
@@ -889,20 +1612,27 @@ def backup_health():
                 except Exception:
                     pass
 
-        # Check: Backup integrity (database.sql exists and >1KB)
+        # Check: Backup integrity (database.sql or database.sql.gz exists)
         if latest_backup:
             backup_path = os.path.join(BACKUP_DIR, latest_backup.get("name", ""))
-            db_file = os.path.join(backup_path, "database.sql")
+            db_file = os.path.join(backup_path, "database.sql.gz")
+            db_compressed = True
+            if not os.path.exists(db_file):
+                db_file = os.path.join(backup_path, "database.sql")
+                db_compressed = False
+
             if os.path.exists(db_file):
                 db_size = os.path.getsize(db_file)
-                if db_size < 1024:
+                # For compressed files, even 512B is valid
+                min_size = 512 if db_compressed else 1024
+                if db_size < min_size:
                     healthy = False
                     alerts.append(
-                        {"level": "critical", "message": f"Latest backup database.sql is too small ({db_size} bytes)"}
+                        {"level": "critical", "message": f"Latest backup database file is too small ({db_size} bytes)"}
                     )
             else:
                 healthy = False
-                alerts.append({"level": "critical", "message": "Latest backup missing database.sql"})
+                alerts.append({"level": "critical", "message": "Latest backup missing database.sql or database.sql.gz"})
 
         # Check: Disk space (warning if backups > 10GB)
         if total_size > 10 * 1024 * 1024 * 1024:  # 10GB
@@ -995,18 +1725,31 @@ def api_create_backup():
         backup_name = f"{timestamp}_{description.replace(' ', '_')}"
         backup_path = os.path.join(BACKUP_DIR, backup_name)
 
+        # Acquire backup lock
+        lock_acquired, lock_error = acquire_backup_lock(backup_name, current_user.username)
+        if not lock_acquired:
+            return jsonify({"success": False, "error": lock_error}), 409
+
+        # Execute pre-backup hooks
+        pre_ok, pre_results = execute_pre_hooks(backup_name)
+        if not pre_ok:
+            release_backup_lock()
+            return jsonify({"success": False, "error": "Pre-backup hook failed", "hook_results": pre_results}), 500
+
         os.makedirs(backup_path, exist_ok=True)
 
         # Track which components were backed up
         backed_up = {}
+        db_file_name = "database.sql.gz"  # Default to compressed
 
-        # 1. Backup database
+        # 1. Backup database (with compression)
         if "database" in components_to_backup:
-            current_app.logger.info("Backing up database...")
+            current_app.logger.info("Backing up database (compressed)...")
             db_file = os.path.join(backup_path, "database.sql")
-            backup_database_python(db_file)
+            actual_db_file = backup_database_python(db_file, compress=True)
+            db_file_name = os.path.basename(actual_db_file)
             backed_up["database"] = True
-            current_app.logger.info("Database backup complete")
+            current_app.logger.info(f"Database backup complete ({db_file_name})")
 
         # 2. Backup platform files (configs, tools, templates)
         if "platform" in components_to_backup:
@@ -1111,6 +1854,20 @@ def api_create_backup():
             backed_up["conversation_logs"] = True
             current_app.logger.info("Conversation logs backup complete")
 
+        # Calculate total backup size
+        total_size = 0
+        for root, dirs, files in os.walk(backup_path):
+            for f in files:
+                total_size += os.path.getsize(os.path.join(root, f))
+
+        # Copy to external storage if available
+        external_result = {"success": False, "error": "External storage not mounted"}
+        if is_external_storage_available():
+            current_app.logger.info("Copying to external storage...")
+            external_result = copy_to_external_storage(backup_name, backup_path)
+            if external_result["success"]:
+                current_app.logger.info(f"External copy complete ({external_result.get('size_mb', 0)} MB)")
+
         # 12. Create metadata with auto-assigned build number
         new_build_number = get_next_build_number()
         metadata = {
@@ -1122,6 +1879,11 @@ def api_create_backup():
             "platform_version": get_platform_version(),
             "build_number": new_build_number,
             "backup_type": backup_type,
+            "compression": "gzip",
+            "database_file": db_file_name,
+            "total_size_bytes": total_size,
+            "total_size_mb": round(total_size / (1024 * 1024), 2),
+            "external_copy": external_result.get("success", False),
             "components": backed_up,
         }
 
@@ -1129,7 +1891,12 @@ def api_create_backup():
         with open(metadata_file, "w") as f:
             json.dump(metadata, f, indent=2)
 
-        # 4. Generate rollback script
+        # Generate rollback script (handles compressed database)
+        db_restore_cmd = (
+            f"zcat {backup_path}/{db_file_name} | docker exec -i archie_db psql -U archie -d archie"
+            if db_file_name.endswith(".gz")
+            else f"docker exec -i archie_db psql -U archie -d archie < {backup_path}/database.sql"
+        )
         rollback_script = os.path.join(backup_path, "rollback.sh")
         with open(rollback_script, "w") as f:
             f.write(
@@ -1152,7 +1919,7 @@ docker-compose stop archie_platform
 echo "Restoring database..."
 docker exec -i archie_db psql -U archie -c "DROP DATABASE IF EXISTS archie;"
 docker exec -i archie_db psql -U archie -c "CREATE DATABASE archie;"
-docker exec -i archie_db psql -U archie -d archie < {backup_path}/database.sql
+{db_restore_cmd}
 
 # Restore platform files
 echo "Restoring platform files..."
@@ -1175,17 +1942,70 @@ echo "Platform should be available at http://192.168.1.200:3000"
         # Set this backup as the current build
         set_build_number(new_build_number)
 
+        # Execute post-backup hooks
+        post_results = execute_post_hooks(backup_name, metadata)
+        metadata["hook_results"] = {"pre": pre_results, "post": post_results}
+
+        # Update metadata with hook results
+        with open(metadata_file, "w") as f:
+            json.dump(metadata, f, indent=2)
+
+        # Trigger webhooks
+        webhook_results = trigger_webhooks(
+            "backup_complete",
+            {
+                "event": "backup_complete",
+                "backup_name": backup_name,
+                "build_number": new_build_number,
+                "platform_version": get_platform_version(),
+                "backup_type": backup_type,
+                "size_bytes": total_size,
+                "compression": "gzip",
+                "external_copy": external_result.get("success", False),
+                "timestamp": datetime.now().isoformat(),
+            },
+        )
+
+        # Release lock
+        release_backup_lock()
+
         current_app.logger.info(f"Backup created successfully: {backup_name} (Build #{new_build_number})")
 
         return jsonify(
-            {"success": True, "message": f"Backup created successfully (Build #{new_build_number})", "backup": metadata}
+            {
+                "success": True,
+                "message": f"Backup created successfully (Build #{new_build_number})",
+                "backup": metadata,
+                "external_copy": external_result,
+                "webhook_results": webhook_results,
+            }
         )
 
     except Exception as e:
         current_app.logger.error(f"Backup creation failed: {str(e)}")
+
+        # Trigger failure webhook
+        try:
+            trigger_webhooks(
+                "backup_failed",
+                {
+                    "event": "backup_failed",
+                    "description": description,
+                    "error": str(e),
+                    "timestamp": datetime.now().isoformat(),
+                },
+            )
+        except Exception:
+            pass
+
         # Clean up failed backup
         if "backup_path" in locals() and os.path.exists(backup_path):
             shutil.rmtree(backup_path)
+
+        # Release lock if acquired
+        if "lock_acquired" in locals() and lock_acquired:
+            release_backup_lock()
+
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -1984,7 +2804,7 @@ def get_deployment_backups():
     from psycopg2.extras import RealDictCursor
 
     try:
-        conn = get_db()
+        conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         cur.execute(
@@ -2040,7 +2860,7 @@ def get_platform_version():
                         if match:
                             return match.group()
         return "5.0.0"
-    except:
+    except Exception:
         return "5.0.0"
 
 
@@ -2562,7 +3382,7 @@ If the automated script fails, you can:
         return jsonify(
             {
                 "success": True,
-                "message": f"Deployment package created successfully",
+                "message": "Deployment package created successfully",
                 "package": {
                     "name": package_name,
                     "version": version_tag,
@@ -2679,6 +3499,385 @@ def delete_deployment_package(package_name):
         conn.close()
 
         return jsonify({"success": True, "message": f"Package {package_name} deleted"})
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# =============================================================================
+# EXTERNAL STORAGE API ROUTES
+# =============================================================================
+
+
+@backup_manager_bp.route("/external-status")
+@admin_required
+def external_storage_status():
+    """Get external storage status and statistics"""
+    try:
+        stats = get_external_storage_stats()
+        return jsonify({"success": True, **stats})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@backup_manager_bp.route("/external-list")
+@admin_required
+def list_external_backups():
+    """List backups on external storage"""
+    try:
+        if not is_external_storage_available():
+            return jsonify({"success": False, "error": "External storage not mounted"})
+
+        backups = []
+        for item in os.listdir(EXTERNAL_BACKUP_DIR):
+            item_path = os.path.join(EXTERNAL_BACKUP_DIR, item)
+            if os.path.isdir(item_path):
+                metadata_file = os.path.join(item_path, "metadata.json")
+                if os.path.exists(metadata_file):
+                    try:
+                        with open(metadata_file, "r") as f:
+                            metadata = json.load(f)
+                        # Calculate size
+                        total_size = sum(
+                            os.path.getsize(os.path.join(root, f))
+                            for root, _, files in os.walk(item_path)
+                            for f in files
+                        )
+                        metadata["size"] = total_size
+                        metadata["size_mb"] = round(total_size / (1024 * 1024), 2)
+                        backups.append(metadata)
+                    except Exception:
+                        # Backup without valid metadata
+                        backups.append(
+                            {
+                                "name": item,
+                                "error": "Invalid metadata",
+                            }
+                        )
+
+        backups.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+        return jsonify({"success": True, "backups": backups})
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@backup_manager_bp.route("/sync-to-external/<backup_name>", methods=["POST"])
+@admin_required
+def sync_backup_to_external(backup_name):
+    """Manually copy a specific backup to external storage"""
+    try:
+        backup_path = os.path.join(BACKUP_DIR, backup_name)
+        if not os.path.exists(backup_path):
+            return jsonify({"success": False, "error": f"Backup {backup_name} not found"}), 404
+
+        result = copy_to_external_storage(backup_name, backup_path)
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# =============================================================================
+# BACKUP LOCKING API ROUTES
+# =============================================================================
+
+
+@backup_manager_bp.route("/lock-status")
+@admin_required
+def get_lock_status():
+    """Check if backup is currently in progress"""
+    try:
+        lock_info = check_backup_in_progress()
+        return jsonify(
+            {
+                "success": True,
+                "locked": lock_info is not None,
+                "lock_info": lock_info,
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# =============================================================================
+# RESTORE PREVIEW & SELECTIVE RESTORE API ROUTES
+# =============================================================================
+
+
+@backup_manager_bp.route("/preview-restore/<backup_name>")
+@admin_required
+def api_preview_restore(backup_name):
+    """Preview what would be restored from a backup (dry-run)"""
+    try:
+        preview = preview_restore(backup_name)
+        if "error" in preview:
+            return jsonify({"success": False, "error": preview["error"]}), 404
+        return jsonify({"success": True, **preview})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@backup_manager_bp.route("/restore-selective/<backup_name>", methods=["POST"])
+@admin_required
+def api_restore_selective(backup_name):
+    """Restore specific components from a backup"""
+    try:
+        data = request.get_json() or {}
+        components = data.get("components", [])
+
+        if not components:
+            return jsonify({"success": False, "error": "No components specified"}), 400
+
+        result = restore_components(backup_name, components)
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# =============================================================================
+# BACKUP COMPARISON API ROUTES
+# =============================================================================
+
+
+@backup_manager_bp.route("/compare/<backup1>/<backup2>")
+@admin_required
+def api_compare_backups(backup1, backup2):
+    """Compare two backups and show differences"""
+    try:
+        result = compare_backups(backup1, backup2)
+        if "error" in result:
+            return jsonify({"success": False, "error": result["error"]}), 404
+        return jsonify({"success": True, **result})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# =============================================================================
+# WEBHOOK API ROUTES
+# =============================================================================
+
+
+@backup_manager_bp.route("/api/webhooks")
+@admin_required
+def list_webhooks():
+    """List all configured webhooks"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT id, url, event_types, active, created_at, last_triggered, last_status
+            FROM backup_webhooks
+            ORDER BY created_at DESC
+        """
+        )
+        webhooks = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        return jsonify(
+            {
+                "success": True,
+                "webhooks": [
+                    {
+                        "id": w[0],
+                        "url": w[1],
+                        "event_types": w[2],
+                        "active": w[3],
+                        "created_at": w[4].isoformat() if w[4] else None,
+                        "last_triggered": w[5].isoformat() if w[5] else None,
+                        "last_status": w[6],
+                    }
+                    for w in webhooks
+                ],
+            }
+        )
+    except Exception as e:
+        # Table might not exist yet
+        return jsonify({"success": True, "webhooks": [], "note": str(e)})
+
+
+@backup_manager_bp.route("/api/webhooks", methods=["POST"])
+@admin_required
+def create_webhook():
+    """Create a new webhook"""
+    try:
+        data = request.get_json() or {}
+        url = data.get("url")
+        event_types = data.get("event_types", ["backup_complete", "backup_failed"])
+        secret_key = data.get("secret_key")
+
+        if not url:
+            return jsonify({"success": False, "error": "URL is required"}), 400
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO backup_webhooks (url, event_types, secret_key, active)
+            VALUES (%s, %s, %s, TRUE)
+            RETURNING id
+        """,
+            (url, event_types, secret_key),
+        )
+        webhook_id = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({"success": True, "webhook_id": webhook_id})
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@backup_manager_bp.route("/api/webhooks/<int:webhook_id>", methods=["DELETE"])
+@admin_required
+def delete_webhook(webhook_id):
+    """Delete a webhook"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM backup_webhooks WHERE id = %s", (webhook_id,))
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({"success": True, "message": f"Webhook {webhook_id} deleted"})
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@backup_manager_bp.route("/api/webhooks/<int:webhook_id>/test", methods=["POST"])
+@admin_required
+def test_webhook(webhook_id):
+    """Send a test webhook"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT url, secret_key FROM backup_webhooks WHERE id = %s", (webhook_id,))
+        webhook = cur.fetchone()
+        cur.close()
+        conn.close()
+
+        if not webhook:
+            return jsonify({"success": False, "error": "Webhook not found"}), 404
+
+        url, secret_key = webhook
+
+        payload = {
+            "event": "test",
+            "message": "This is a test webhook from A.R.C.H.I.E. Backup Manager",
+            "timestamp": datetime.now().isoformat(),
+        }
+
+        headers = {"Content-Type": "application/json"}
+        if secret_key:
+            signature = hmac.new(
+                secret_key.encode(),
+                json.dumps(payload).encode(),
+                hashlib.sha256,
+            ).hexdigest()
+            headers["X-Archie-Signature"] = signature
+
+        response = requests.post(url, json=payload, headers=headers, timeout=10)
+
+        return jsonify(
+            {
+                "success": True,
+                "status_code": response.status_code,
+                "response": response.text[:500] if response.text else None,
+            }
+        )
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# =============================================================================
+# HOOK API ROUTES
+# =============================================================================
+
+
+@backup_manager_bp.route("/api/hooks")
+@admin_required
+def list_hooks():
+    """List installed pre and post hooks"""
+    try:
+        hooks = {"pre": [], "post": []}
+
+        for hook_type, hook_dir in [("pre", PRE_HOOKS_DIR), ("post", POST_HOOKS_DIR)]:
+            if os.path.exists(hook_dir):
+                for script in sorted(os.listdir(hook_dir)):
+                    script_path = os.path.join(hook_dir, script)
+                    if os.path.isfile(script_path):
+                        hooks[hook_type].append(
+                            {
+                                "name": script,
+                                "executable": os.access(script_path, os.X_OK),
+                                "size": os.path.getsize(script_path),
+                                "modified": datetime.fromtimestamp(os.path.getmtime(script_path)).isoformat(),
+                            }
+                        )
+
+        return jsonify({"success": True, "hooks": hooks, "hooks_dir": HOOKS_DIR})
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@backup_manager_bp.route("/api/hooks/<hook_type>", methods=["POST"])
+@admin_required
+def upload_hook(hook_type):
+    """Upload a new hook script"""
+    try:
+        if hook_type not in ["pre", "post"]:
+            return jsonify({"success": False, "error": "Invalid hook type (use 'pre' or 'post')"}), 400
+
+        if "file" not in request.files:
+            return jsonify({"success": False, "error": "No file provided"}), 400
+
+        file = request.files["file"]
+        if not file.filename:
+            return jsonify({"success": False, "error": "No file selected"}), 400
+
+        hook_dir = PRE_HOOKS_DIR if hook_type == "pre" else POST_HOOKS_DIR
+        script_path = os.path.join(hook_dir, file.filename)
+
+        file.save(script_path)
+        os.chmod(script_path, 0o755)
+
+        return jsonify(
+            {
+                "success": True,
+                "message": f"Hook {file.filename} uploaded to {hook_type} hooks",
+                "path": script_path,
+            }
+        )
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@backup_manager_bp.route("/api/hooks/<hook_type>/<name>", methods=["DELETE"])
+@admin_required
+def delete_hook(hook_type, name):
+    """Delete a hook script"""
+    try:
+        if hook_type not in ["pre", "post"]:
+            return jsonify({"success": False, "error": "Invalid hook type"}), 400
+
+        hook_dir = PRE_HOOKS_DIR if hook_type == "pre" else POST_HOOKS_DIR
+        script_path = os.path.join(hook_dir, name)
+
+        if not os.path.exists(script_path):
+            return jsonify({"success": False, "error": f"Hook {name} not found"}), 404
+
+        os.remove(script_path)
+        return jsonify({"success": True, "message": f"Hook {name} deleted"})
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

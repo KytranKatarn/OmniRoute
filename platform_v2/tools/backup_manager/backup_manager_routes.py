@@ -1,7 +1,96 @@
 """
 A.R.C.H.I.E. Platform - Backup Manager Routes
-Provides web interface for creating, managing, and restoring backups
-Uses psycopg2 for database backup (no pg_dump needed)
+==============================================
+
+Provides comprehensive backup, restore, and disaster recovery functionality
+for the A.R.C.H.I.E. platform. Uses psycopg2 for database backup (no pg_dump needed).
+
+FEATURES:
+---------
+- Full/Critical/Database backup creation
+- Gzip compression for database backups (~82% size reduction)
+- External USB storage sync for physical disaster recovery
+- Backup locking to prevent concurrent operations (2-hour timeout)
+- Pre/Post backup hooks for custom automation scripts
+- Webhook notifications (with HMAC signature verification)
+- Selective component restore with preview
+- Backup comparison between versions
+- Module-level backup management
+- Deployment history tracking
+
+BACKUP COMPONENTS:
+------------------
+Restorable (have restore logic):
+- database: Full PostgreSQL dump (compressed with gzip)
+- platform_v2: Flask app code, modules, templates
+- ai_bridge: AI routing and model configuration
+- docs: Documentation files
+- scripts: Shell scripts (backup, cron jobs)
+- nginx: Web server configuration
+- n8n_workflows: Automation workflow definitions
+
+Archive Only (backed up but not auto-restored):
+- conversation_logs: Claude Code chat transcripts (~600MB+)
+- n8n_persistence: n8n internal state/cache
+- database_migrations: SQL migration files (in git)
+- environment: .env files (sensitive, manual restore)
+
+CONFIGURATION:
+--------------
+- BACKUP_DIR: /backups (inside container)
+- EXTERNAL_BACKUP_DIR: /mnt/external-backup (USB mount)
+- LOCK_FILE: /backups/.backup_lock
+- LOCK_TIMEOUT: 7200 seconds (2 hours)
+- HOOKS_DIR: /backups/.hooks/{pre,post}/
+
+DATABASE TABLE:
+---------------
+- backup_webhooks: Webhook endpoints for notifications
+  - url, event_types[], active, secret_key, last_triggered, last_status
+
+API ENDPOINTS:
+--------------
+Backup Management:
+- GET  /api/list                - List all backups with metadata
+- POST /api/create              - Create new backup
+- GET  /api/download/<name>     - Download backup as tar.gz
+- POST /api/delete/<name>       - Delete a backup
+
+Restore Operations:
+- GET  /preview-restore/<name>  - Preview what restore would include
+- POST /restore-selective/<name> - Restore specific components
+- POST /restore/<name>          - Full restore (legacy)
+
+External Storage:
+- GET  /external-status         - USB storage stats and status
+- GET  /external-list           - List backups on USB
+- POST /sync-external/<name>    - Copy backup to USB
+
+Comparison & Lock:
+- GET  /compare/<b1>/<b2>       - Compare two backups
+- GET  /lock-status             - Check if backup is in progress
+
+Hooks & Webhooks:
+- GET  /api/hooks               - List installed hook scripts
+- GET  /api/webhooks            - List configured webhooks
+- POST /api/webhooks            - Add new webhook
+- DELETE /api/webhooks/<id>     - Remove webhook
+- POST /api/webhooks/<id>/test  - Test webhook delivery
+
+PROGRAMMATIC API:
+-----------------
+These functions can be imported and called directly:
+
+    from tools.backup_manager.backup_manager_routes import (
+        create_backup_programmatic,
+        preview_restore,
+        restore_components,
+        compare_backups,
+        copy_to_external_storage,
+        trigger_webhooks
+    )
+
+LAST UPDATED: 2026-01-30
 """
 
 from flask import Blueprint, render_template, jsonify, request, send_file, current_app

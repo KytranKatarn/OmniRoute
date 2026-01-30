@@ -6,12 +6,53 @@
 
 {% block styles %}
 <style>
-    /* Module-specific overrides only - uses shared theme.css and components.css
+    /* =========================================================================
+     * A.R.C.H.I.E. BACKUP MANAGER - Admin Tools Module
+     * =========================================================================
+     *
+     * PURPOSE: System backup, restore, and disaster recovery management
+     *
+     * FEATURES:
+     * - Full/Critical/Database backup creation with gzip compression
+     * - External USB storage sync for physical disaster recovery
+     * - Backup locking to prevent concurrent operations
+     * - Pre/Post backup hooks for custom automation
+     * - Webhook notifications for alerting systems
+     * - Selective component restore with preview
+     * - Backup comparison and version tracking
+     * - Module-level backup management
+     * - Deployment history tracking
+     *
+     * API ENDPOINTS (see backup_manager_routes.py):
+     * - GET  /api/list              - List all backups
+     * - POST /api/create            - Create new backup
+     * - GET  /preview-restore/<name> - Preview restore contents
+     * - POST /restore-selective/<name> - Restore specific components
+     * - GET  /compare/<b1>/<b2>     - Compare two backups
+     * - GET  /external-status       - USB storage status
+     * - POST /sync-external/<name>  - Sync backup to USB
+     * - GET  /lock-status           - Check backup lock
+     * - GET  /api/hooks             - List installed hooks
+     * - GET  /api/webhooks          - List configured webhooks
      *
      * DESIGN SYSTEM COMPLIANCE: HIGH
-     * - Uses design system variables (--archie-*)
+     * - Modals: Using design system classes (modal-overlay, modal, modal-header/body/footer)
+     * - Buttons: Using design system classes (btn, btn-primary/danger/ghost/purple)
+     * - Forms: Using design system classes (form-input)
      * - Navigation: Using admin_tools_nav.html include
-     * - Orange ADMIN TOOLS theme (#f97316)
+     * - Variables: Using --archie-* CSS variables throughout
+     * - Theme: Orange ADMIN TOOLS accent (#f97316)
+     * - Responsive: Supports mobile/tablet breakpoints
+     *
+     * DEPENDENCIES:
+     * - base.html (extends)
+     * - admin_tools_nav.html (include)
+     * - theme.css, components.css (shared styles)
+     * - backup_manager_routes.py (backend)
+     * - PostgreSQL database (backup_webhooks table)
+     *
+     * LAST UPDATED: 2026-01-30
+     * =========================================================================
      */
     .backup-manager-container {
         min-height: 100vh;

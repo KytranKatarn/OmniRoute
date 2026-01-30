@@ -1,0 +1,329 @@
+"""
+Jellyfin Media Server Client
+============================
+Client for interacting with Jellyfin Media Server API.
+"""
+
+import requests
+import logging
+from typing import List, Optional, Dict
+from urllib.parse import urljoin
+from ..services import MediaServerInterface, MediaItem, MediaType, LibraryStats
+
+logger = logging.getLogger(__name__)
+
+
+class JellyfinClient(MediaServerInterface):
+    """Client for Jellyfin Media Server"""
+
+    def __init__(self, host: str, port: int, api_key: str, use_ssl: bool = False):
+        """
+        Initialize Jellyfin client.
+
+        Args:
+            host: Jellyfin server host
+            port: Jellyfin server port (usually 8096)
+            api_key: Jellyfin API key
+            use_ssl: Use HTTPS
+        """
+        protocol = "https" if use_ssl else "http"
+        self.base_url = f"{protocol}://{host}:{port}"
+        self.api_key = api_key
+        self.timeout = 10
+        self._user_id = None
+
+    def _request(self, endpoint: str, params: Optional[Dict] = None, method: str = "GET") -> Optional[Dict]:
+        """Make authenticated request to Jellyfin API"""
+        url = urljoin(self.base_url, endpoint)
+        headers = {"X-MediaBrowser-Token": self.api_key, "Accept": "application/json"}
+
+        try:
+            if method == "GET":
+                response = requests.get(url, headers=headers, params=params, timeout=self.timeout)
+            else:
+                response = requests.post(url, headers=headers, json=params, timeout=self.timeout)
+            response.raise_for_status()
+            return response.json() if response.content else {}
+        except requests.RequestException as e:
+            logger.error(f"Jellyfin API request failed: {e}")
+            return None
+
+    def _get_user_id(self) -> Optional[str]:
+        """Get the first user ID for API calls"""
+        if self._user_id:
+            return self._user_id
+
+        result = self._request("/Users")
+        if result and isinstance(result, list) and len(result) > 0:
+            self._user_id = result[0].get("Id")
+            return self._user_id
+        return None
+
+    def test_connection(self) -> bool:
+        """Test connection to Jellyfin server"""
+        try:
+            result = self._request("/System/Info")
+            return result is not None and "ServerName" in result
+        except Exception as e:
+            logger.error(f"Jellyfin connection test failed: {e}")
+            return False
+
+    def _get_image_url(self, item_id: str, image_type: str = "Primary") -> Optional[str]:
+        """Get image URL for an item"""
+        return f"{self.base_url}/Items/{item_id}/Images/{image_type}?api_key={self.api_key}"
+
+    def _parse_media_item(self, item: Dict, media_type: Optional[MediaType] = None) -> MediaItem:
+        """Parse Jellyfin media item to unified format"""
+        item_id = item.get("Id", "")
+        item_type_str = item.get("Type", "").lower()
+
+        # Determine media type
+        if media_type is None:
+            if item_type_str == "movie":
+                media_type = MediaType.MOVIE
+            elif item_type_str == "series":
+                media_type = MediaType.SHOW
+            elif item_type_str == "season":
+                media_type = MediaType.SEASON
+            elif item_type_str == "episode":
+                media_type = MediaType.EPISODE
+            else:
+                media_type = MediaType.MOVIE  # Default
+
+        # Build image URLs
+        poster_url = self._get_image_url(item_id, "Primary") if item.get("ImageTags", {}).get("Primary") else None
+        backdrop_url = self._get_image_url(item_id, "Backdrop") if item.get("BackdropImageTags") else None
+
+        # Parse rating
+        rating = item.get("CommunityRating")
+
+        # Parse genres
+        genres = item.get("Genres", [])
+
+        # Parse file info
+        file_size = 0
+        quality = None
+        file_path = None
+        media_sources = item.get("MediaSources", [])
+        if media_sources:
+            first_source = media_sources[0]
+            file_size = first_source.get("Size", 0)
+            file_path = first_source.get("Path", "")
+
+            # Get quality from video stream
+            streams = first_source.get("MediaStreams", [])
+            for stream in streams:
+                if stream.get("Type") == "Video":
+                    height = stream.get("Height", 0)
+                    if height >= 2160:
+                        quality = "4K"
+                    elif height >= 1080:
+                        quality = "1080p"
+                    elif height >= 720:
+                        quality = "720p"
+                    else:
+                        quality = "SD"
+                    break
+
+        # Parse external IDs
+        provider_ids = item.get("ProviderIds", {})
+
+        return MediaItem(
+            id=item_id,
+            title=item.get("Name", "Unknown"),
+            media_type=media_type,
+            year=item.get("ProductionYear"),
+            overview=item.get("Overview", ""),
+            poster_url=poster_url,
+            backdrop_url=backdrop_url,
+            rating=rating,
+            rating_source="jellyfin",
+            genres=genres,
+            runtime_minutes=item.get("RunTimeTicks", 0) // 600000000 if item.get("RunTimeTicks") else None,
+            quality=quality,
+            file_size_bytes=file_size,
+            file_path=file_path,
+            added_at=item.get("DateCreated"),
+            tmdb_id=int(provider_ids.get("Tmdb")) if provider_ids.get("Tmdb") else None,
+            imdb_id=provider_ids.get("Imdb"),
+            tvdb_id=int(provider_ids.get("Tvdb")) if provider_ids.get("Tvdb") else None,
+            season_number=item.get("ParentIndexNumber"),
+            episode_number=item.get("IndexNumber"),
+            parent_id=item.get("ParentId"),
+            in_library=True,
+            metadata={
+                "studios": [s.get("Name", "") for s in item.get("Studios", [])],
+                "officialRating": item.get("OfficialRating", ""),
+            },
+        )
+
+    def search_library(self, query: str, media_type: Optional[str] = None) -> List[MediaItem]:
+        """Search the Jellyfin library"""
+        user_id = self._get_user_id()
+        if not user_id:
+            return []
+
+        params = {
+            "searchTerm": query,
+            "Limit": 50,
+            "Recursive": True,
+            "Fields": "Overview,Genres,ProviderIds,MediaSources,DateCreated",
+        }
+
+        # Filter by type
+        if media_type == "movie":
+            params["IncludeItemTypes"] = "Movie"
+        elif media_type in ("show", "tv"):
+            params["IncludeItemTypes"] = "Series"
+        else:
+            params["IncludeItemTypes"] = "Movie,Series"
+
+        result = self._request(f"/Users/{user_id}/Items", params)
+        items = []
+
+        if result and "Items" in result:
+            for item in result["Items"]:
+                items.append(self._parse_media_item(item))
+
+        return items
+
+    def get_recent_additions(self, limit: int = 20) -> List[MediaItem]:
+        """Get recently added items"""
+        user_id = self._get_user_id()
+        if not user_id:
+            return []
+
+        params = {
+            "Limit": limit,
+            "Recursive": True,
+            "SortBy": "DateCreated",
+            "SortOrder": "Descending",
+            "IncludeItemTypes": "Movie,Series",
+            "Fields": "Overview,Genres,ProviderIds,DateCreated",
+        }
+
+        result = self._request(f"/Users/{user_id}/Items", params)
+        items = []
+
+        if result and "Items" in result:
+            for item in result["Items"]:
+                items.append(self._parse_media_item(item))
+
+        return items
+
+    def get_library_stats(self) -> LibraryStats:
+        """Get library statistics"""
+        stats = LibraryStats()
+        user_id = self._get_user_id()
+        if not user_id:
+            return stats
+
+        # Get movie count and size
+        movie_result = self._request(
+            f"/Users/{user_id}/Items", {"IncludeItemTypes": "Movie", "Recursive": True, "Fields": "MediaSources"}
+        )
+        if movie_result and "Items" in movie_result:
+            stats.movie_count = movie_result.get("TotalRecordCount", len(movie_result["Items"]))
+            for movie in movie_result["Items"]:
+                for source in movie.get("MediaSources", []):
+                    stats.total_size_bytes += source.get("Size", 0)
+
+        # Get show count
+        show_result = self._request(f"/Users/{user_id}/Items", {"IncludeItemTypes": "Series", "Recursive": True})
+        if show_result and "Items" in show_result:
+            stats.show_count = show_result.get("TotalRecordCount", len(show_result["Items"]))
+
+        # Get episode count and size
+        episode_result = self._request(
+            f"/Users/{user_id}/Items", {"IncludeItemTypes": "Episode", "Recursive": True, "Fields": "MediaSources"}
+        )
+        if episode_result and "Items" in episode_result:
+            stats.episode_count = episode_result.get("TotalRecordCount", len(episode_result["Items"]))
+            for episode in episode_result["Items"]:
+                for source in episode.get("MediaSources", []):
+                    stats.total_size_bytes += source.get("Size", 0)
+
+        return stats
+
+    def get_media_details(self, media_id: str) -> Optional[MediaItem]:
+        """Get detailed information about a media item"""
+        user_id = self._get_user_id()
+        if not user_id:
+            return None
+
+        result = self._request(
+            f"/Users/{user_id}/Items/{media_id}",
+            {"Fields": "Overview,Genres,ProviderIds,MediaSources,DateCreated,People,Studios"},
+        )
+
+        if result:
+            return self._parse_media_item(result)
+
+        return None
+
+    def get_all_movies(self, limit: int = 100, offset: int = 0) -> List[MediaItem]:
+        """Get all movies with pagination"""
+        user_id = self._get_user_id()
+        if not user_id:
+            return []
+
+        params = {
+            "IncludeItemTypes": "Movie",
+            "Recursive": True,
+            "SortBy": "SortName",
+            "SortOrder": "Ascending",
+            "Limit": limit,
+            "StartIndex": offset,
+            "Fields": "Overview,Genres,ProviderIds,MediaSources,DateCreated",
+        }
+
+        result = self._request(f"/Users/{user_id}/Items", params)
+        items = []
+
+        if result and "Items" in result:
+            for item in result["Items"]:
+                items.append(self._parse_media_item(item, MediaType.MOVIE))
+
+        return items
+
+    def get_all_shows(self, limit: int = 100, offset: int = 0) -> List[MediaItem]:
+        """Get all TV shows with pagination"""
+        user_id = self._get_user_id()
+        if not user_id:
+            return []
+
+        params = {
+            "IncludeItemTypes": "Series",
+            "Recursive": True,
+            "SortBy": "SortName",
+            "SortOrder": "Ascending",
+            "Limit": limit,
+            "StartIndex": offset,
+            "Fields": "Overview,Genres,ProviderIds,DateCreated",
+        }
+
+        result = self._request(f"/Users/{user_id}/Items", params)
+        items = []
+
+        if result and "Items" in result:
+            for item in result["Items"]:
+                items.append(self._parse_media_item(item, MediaType.SHOW))
+
+        return items
+
+    def get_continue_watching(self, limit: int = 10) -> List[MediaItem]:
+        """Get items to continue watching"""
+        user_id = self._get_user_id()
+        if not user_id:
+            return []
+
+        result = self._request(
+            f"/Users/{user_id}/Items/Resume", {"Limit": limit, "Fields": "Overview,Genres,ProviderIds"}
+        )
+        items = []
+
+        if result and "Items" in result:
+            for item in result["Items"]:
+                items.append(self._parse_media_item(item))
+
+        return items

@@ -77,6 +77,20 @@
             <i data-lucide="pickaxe"></i>
             <span>Pool</span>
         </a>
+        <a href="{{ url_for('plex_stack.index') if 'plex_stack' in url_for.__globals__['current_app'].blueprints else '#' }}"
+           class="nav-module-btn {% if request.endpoint and 'plex_stack' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="Plex Media Stack">
+            <i data-lucide="clapperboard"></i>
+            <span>Plex</span>
+        </a>
+        <a href="{{ url_for('media_hub.index') if 'media_hub' in url_for.__globals__['current_app'].blueprints else '#' }}"
+           class="nav-module-btn {% if request.endpoint and 'media_hub' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="Media Hub (Plex/Jellyfin)">
+            <i data-lucide="tv-2"></i>
+            <span>Hub</span>
+        </a>
     </div>
 </nav>
 

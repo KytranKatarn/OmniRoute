@@ -1,0 +1,1901 @@
+/**
+ * Media Hub Module JavaScript
+ * Enhanced with: Continue Watching, Collections, Quality Badges,
+ * TMDB Integration, Download Controls, Statistics, Lazy Loading,
+ * Keyboard Navigation, and Mobile Optimizations
+ */
+
+const API_BASE = '/tools/media-hub/api';
+let currentTab = 'dashboard';
+let moviesOffset = 0;
+let showsOffset = 0;
+let calendarWeekOffset = 0;
+let searchTimeout = null;
+let focusedIndex = -1;
+let tmdbConfigured = false;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INITIALIZATION
+// ─────────────────────────────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', function() {
+    lucide.createIcons();
+    initTabs();
+    initSearch();
+    initFilterChips();
+    initKeyboardNavigation();
+    initLazyLoading();
+    initTrendingTabs();
+    checkTMDBStatus();
+    loadDashboard();
+    loadSettings();
+});
+
+function initTrendingTabs() {
+    document.querySelectorAll('.trending-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.trending-tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            loadTrending(tab.dataset.type);
+        });
+    });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// KEYBOARD NAVIGATION
+// ─────────────────────────────────────────────────────────────────────────────
+
+function initKeyboardNavigation() {
+    document.addEventListener('keydown', (e) => {
+        // Focus search with /
+        if (e.key === '/' && !e.target.matches('input, textarea')) {
+            e.preventDefault();
+            document.getElementById('globalSearch').focus();
+        }
+
+        // Close panels/modals with Escape
+        if (e.key === 'Escape') {
+            closeMediaPanel();
+            closeServiceModal();
+            closeSearchDropdown();
+        }
+
+        // Tab navigation with number keys
+        if (e.altKey && e.key >= '1' && e.key <= '7') {
+            e.preventDefault();
+            const tabs = ['dashboard', 'movies', 'shows', 'collections', 'requests', 'calendar', 'stats'];
+            const index = parseInt(e.key) - 1;
+            if (tabs[index]) switchTab(tabs[index]);
+        }
+
+        // Grid navigation with arrow keys
+        if (currentTab === 'movies' || currentTab === 'shows' || currentTab === 'collections') {
+            handleGridNavigation(e);
+        }
+    });
+}
+
+function handleGridNavigation(e) {
+    const grid = document.querySelector('.tab-panel.active .media-grid');
+    if (!grid) return;
+
+    const items = grid.querySelectorAll('.poster-card');
+    if (items.length === 0) return;
+
+    const cols = Math.floor(grid.offsetWidth / items[0].offsetWidth);
+
+    if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        focusedIndex = Math.min(focusedIndex + 1, items.length - 1);
+    } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        focusedIndex = Math.max(focusedIndex - 1, 0);
+    } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        focusedIndex = Math.min(focusedIndex + cols, items.length - 1);
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        focusedIndex = Math.max(focusedIndex - cols, 0);
+    } else if (e.key === 'Enter' && focusedIndex >= 0) {
+        e.preventDefault();
+        items[focusedIndex].click();
+    }
+
+    if (focusedIndex >= 0) {
+        items.forEach((item, i) => item.classList.toggle('keyboard-focused', i === focusedIndex));
+        items[focusedIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LAZY LOADING
+// ─────────────────────────────────────────────────────────────────────────────
+
+function initLazyLoading() {
+    if ('IntersectionObserver' in window) {
+        window.imageObserver = new IntersectionObserver((entries, observer) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const img = entry.target;
+                    if (img.dataset.src) {
+                        img.src = img.dataset.src;
+                        img.classList.add('loaded');
+                        observer.unobserve(img);
+                    }
+                }
+            });
+        }, { rootMargin: '50px' });
+    }
+}
+
+function lazyLoadImage(img) {
+    if (window.imageObserver) {
+        window.imageObserver.observe(img);
+    } else {
+        // Fallback for older browsers
+        img.src = img.dataset.src;
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TAB NAVIGATION
+// ─────────────────────────────────────────────────────────────────────────────
+
+function initTabs() {
+    document.querySelectorAll('.nav-tab').forEach(tab => {
+        tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+    });
+}
+
+function switchTab(tabId) {
+    focusedIndex = -1; // Reset keyboard focus
+
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    const targetTab = document.querySelector(`.nav-tab[data-tab="${tabId}"]`);
+    if (targetTab) targetTab.classList.add('active');
+
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    const targetPanel = document.getElementById(`tab-${tabId}`);
+    if (targetPanel) targetPanel.classList.add('active');
+
+    currentTab = tabId;
+
+    switch(tabId) {
+        case 'movies':
+            if (document.getElementById('moviesGrid')?.querySelector('.grid-loading')) {
+                loadMovies();
+            }
+            break;
+        case 'shows':
+            if (document.getElementById('showsGrid')?.querySelector('.grid-loading')) {
+                loadShows();
+            }
+            break;
+        case 'collections':
+            loadCollections();
+            break;
+        case 'requests':
+            loadRequests();
+            break;
+        case 'calendar':
+            loadCalendar();
+            break;
+        case 'stats':
+            loadStatistics();
+            break;
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SEARCH
+// ─────────────────────────────────────────────────────────────────────────────
+
+function initSearch() {
+    const searchInput = document.getElementById('globalSearch');
+    const searchDropdown = document.getElementById('searchDropdown');
+
+    if (!searchInput) return;
+
+    searchInput.addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        const query = e.target.value.trim();
+
+        if (query.length < 2) {
+            closeSearchDropdown();
+            return;
+        }
+
+        searchTimeout = setTimeout(() => performSearch(query), 300);
+    });
+
+    searchInput.addEventListener('focus', () => {
+        if (searchDropdown && searchDropdown.children.length > 0) {
+            searchDropdown.classList.add('active');
+        }
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.header-search')) {
+            closeSearchDropdown();
+        }
+    });
+}
+
+async function performSearch(query) {
+    const dropdown = document.getElementById('searchDropdown');
+    dropdown.textContent = '';
+
+    const loading = createLoadingElement('Searching...');
+    dropdown.appendChild(loading);
+    dropdown.classList.add('active');
+
+    try {
+        // Search local library and TMDB in parallel
+        const [localResponse, tmdbResponse] = await Promise.all([
+            fetch(`${API_BASE}/search?q=${encodeURIComponent(query)}`),
+            tmdbConfigured ? fetch(`${API_BASE}/tmdb/search?q=${encodeURIComponent(query)}`) : Promise.resolve(null)
+        ]);
+
+        const localData = await localResponse.json();
+        const tmdbData = tmdbResponse ? await tmdbResponse.json() : null;
+
+        dropdown.textContent = '';
+
+        const allResults = localData.success ? localData.results : [];
+
+        // Add TMDB results that aren't in library
+        if (tmdbData?.success && tmdbData.results) {
+            const localTitles = new Set(allResults.map(r => r.title.toLowerCase()));
+            tmdbData.results.forEach(item => {
+                if (!localTitles.has(item.title.toLowerCase()) && !item.in_library) {
+                    item.source = 'tmdb';
+                    allResults.push(item);
+                }
+            });
+        }
+
+        if (allResults.length > 0) {
+            renderSearchResults(allResults);
+        } else {
+            const empty = createEmptyState(null, 'No results found');
+            dropdown.appendChild(empty);
+        }
+    } catch (error) {
+        dropdown.textContent = '';
+        const empty = createEmptyState(null, 'Search failed');
+        dropdown.appendChild(empty);
+    }
+}
+
+function renderSearchResults(results) {
+    const dropdown = document.getElementById('searchDropdown');
+    dropdown.textContent = '';
+
+    const inLibrary = results.filter(r => r.in_library);
+    const notInLibrary = results.filter(r => !r.in_library);
+
+    if (inLibrary.length > 0) {
+        const section = document.createElement('div');
+        section.className = 'search-section';
+
+        const title = document.createElement('div');
+        title.className = 'search-section-title';
+        title.textContent = 'In Your Library';
+        section.appendChild(title);
+
+        inLibrary.forEach(item => {
+            section.appendChild(createSearchResultElement(item, true));
+        });
+        dropdown.appendChild(section);
+    }
+
+    if (notInLibrary.length > 0) {
+        const section = document.createElement('div');
+        section.className = 'search-section';
+
+        const title = document.createElement('div');
+        title.className = 'search-section-title';
+        title.textContent = 'Available to Request';
+        section.appendChild(title);
+
+        notInLibrary.slice(0, 10).forEach(item => {
+            section.appendChild(createSearchResultElement(item, false));
+        });
+        dropdown.appendChild(section);
+    }
+}
+
+function createSearchResultElement(item, inLibrary) {
+    const el = document.createElement('div');
+    el.className = 'search-result';
+    el.onclick = () => openMediaDetails(item);
+
+    const poster = document.createElement('img');
+    poster.className = 'search-result-poster';
+    poster.src = item.poster_url || '/static/img/no-poster.png';
+    poster.alt = '';
+    poster.onerror = function() { this.style.display = 'none'; };
+
+    const info = document.createElement('div');
+    info.className = 'search-result-info';
+
+    const titleEl = document.createElement('div');
+    titleEl.className = 'search-result-title';
+    titleEl.textContent = item.title;
+
+    const meta = document.createElement('div');
+    meta.className = 'search-result-meta';
+    const typeLabel = item.media_type === 'movie' ? 'Movie' : 'TV Show';
+    const rating = item.rating ? ` • ★ ${item.rating.toFixed(1)}` : '';
+    meta.textContent = `${item.year || ''} • ${typeLabel}${rating}`;
+
+    info.appendChild(titleEl);
+    info.appendChild(meta);
+
+    el.appendChild(poster);
+    el.appendChild(info);
+
+    const badge = document.createElement('span');
+    badge.className = inLibrary ? 'search-result-badge' : 'search-result-badge request';
+    badge.textContent = inLibrary ? 'In Library' : 'Request';
+    if (!inLibrary) {
+        badge.onclick = (e) => {
+            e.stopPropagation();
+            requestMedia(item);
+        };
+    }
+    el.appendChild(badge);
+
+    return el;
+}
+
+function closeSearchDropdown() {
+    const dropdown = document.getElementById('searchDropdown');
+    if (dropdown) dropdown.classList.remove('active');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DASHBOARD
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function loadDashboard() {
+    loadStatus();
+    loadStats();
+    loadContinueWatching();
+    loadRecentAdditions();
+    loadDownloads();
+    loadAiringToday();
+    if (tmdbConfigured) loadTrending();
+}
+
+async function checkTMDBStatus() {
+    try {
+        const response = await fetch(`${API_BASE}/tmdb/status`);
+        const data = await response.json();
+        tmdbConfigured = data.configured;
+
+        // Show/hide trending section based on TMDB availability
+        const trendingSection = document.getElementById('trendingSection');
+        if (trendingSection) {
+            trendingSection.style.display = tmdbConfigured ? 'block' : 'none';
+        }
+    } catch (error) {
+        tmdbConfigured = false;
+    }
+}
+
+async function loadStatus() {
+    try {
+        const response = await fetch(`${API_BASE}/status`);
+        const data = await response.json();
+
+        if (data.success) {
+            const services = Object.values(data.services);
+            const onlineCount = services.filter(s => s.online).length;
+            const totalCount = services.filter(s => s.is_enabled).length;
+
+            const statusOrb = document.getElementById('systemStatus');
+            const statusLabel = document.getElementById('statusLabel');
+
+            if (statusOrb && statusLabel) {
+                if (onlineCount === totalCount && totalCount > 0) {
+                    statusOrb.className = 'status-orb online';
+                    statusLabel.textContent = 'All Systems Online';
+                } else if (onlineCount > 0) {
+                    statusOrb.className = 'status-orb partial';
+                    statusLabel.textContent = `${onlineCount}/${totalCount} Online`;
+                } else {
+                    statusOrb.className = 'status-orb offline';
+                    statusLabel.textContent = 'Services Offline';
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Status load error:', error);
+    }
+}
+
+async function loadStats() {
+    try {
+        const response = await fetch(`${API_BASE}/library/stats`);
+        const data = await response.json();
+
+        if (data.success && data.stats) {
+            const setEl = (id, val) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = val;
+            };
+
+            setEl('statMovies', data.stats.movie_count || '0');
+            setEl('statShows', data.stats.show_count || '0');
+            setEl('statEpisodes', data.stats.episode_count || '0');
+            setEl('statStorage', data.stats.total_size_formatted || '0 B');
+            setEl('movieCount', data.stats.movie_count || '--');
+            setEl('showCount', data.stats.show_count || '--');
+        }
+    } catch (error) {
+        console.error('Stats load error:', error);
+    }
+}
+
+async function loadContinueWatching() {
+    const container = document.getElementById('continueWatching');
+    const section = document.getElementById('continueWatchingSection');
+    if (!container) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/library/continue-watching?limit=10`);
+        const data = await response.json();
+
+        container.textContent = '';
+
+        if (data.success && data.items && data.items.length > 0) {
+            data.items.forEach(item => {
+                container.appendChild(createContinueWatchingCard(item));
+            });
+            // Show the section
+            if (section) section.style.display = 'block';
+        } else {
+            // Hide if no items
+            if (section) section.style.display = 'none';
+        }
+        lucide.createIcons();
+    } catch (error) {
+        if (section) section.style.display = 'none';
+    }
+}
+
+function createContinueWatchingCard(item) {
+    const card = document.createElement('div');
+    card.className = 'continue-card';
+    card.onclick = () => openMediaDetails(item);
+
+    // Backdrop/thumb
+    const thumb = document.createElement('div');
+    thumb.className = 'continue-thumb';
+    if (item.backdrop_url || item.poster_url) {
+        thumb.style.backgroundImage = `url(${item.backdrop_url || item.poster_url})`;
+    }
+
+    // Progress bar
+    const progress = item.metadata?.watch_progress || 0;
+    const progressBar = document.createElement('div');
+    progressBar.className = 'continue-progress';
+    const progressFill = document.createElement('div');
+    progressFill.className = 'continue-progress-fill';
+    progressFill.style.width = `${progress}%`;
+    progressBar.appendChild(progressFill);
+    thumb.appendChild(progressBar);
+
+    // Play icon
+    const playIcon = document.createElement('div');
+    playIcon.className = 'continue-play';
+    const icon = document.createElement('i');
+    icon.setAttribute('data-lucide', 'play');
+    playIcon.appendChild(icon);
+    thumb.appendChild(playIcon);
+
+    // Info
+    const info = document.createElement('div');
+    info.className = 'continue-info';
+
+    const title = document.createElement('div');
+    title.className = 'continue-title';
+    if (item.media_type === 'episode') {
+        title.textContent = item.metadata?.show_title || item.title;
+    } else {
+        title.textContent = item.title;
+    }
+
+    const meta = document.createElement('div');
+    meta.className = 'continue-meta';
+    if (item.media_type === 'episode' && item.season_number && item.episode_number) {
+        meta.textContent = `S${item.season_number}E${item.episode_number} • ${item.title}`;
+    } else {
+        meta.textContent = `${progress}% watched`;
+    }
+
+    info.appendChild(title);
+    info.appendChild(meta);
+
+    card.appendChild(thumb);
+    card.appendChild(info);
+
+    return card;
+}
+
+async function loadRecentAdditions() {
+    const container = document.getElementById('recentAdditions');
+    if (!container) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/library/recent?limit=12`);
+        const data = await response.json();
+
+        container.textContent = '';
+
+        if (data.success && data.items && data.items.length > 0) {
+            data.items.forEach(item => {
+                container.appendChild(createPosterCard(item));
+            });
+            lucide.createIcons();
+        } else {
+            container.appendChild(createEmptyState('film', 'No recent additions'));
+            lucide.createIcons();
+        }
+    } catch (error) {
+        container.textContent = '';
+        container.appendChild(createEmptyState('alert-circle', 'Failed to load'));
+        lucide.createIcons();
+    }
+}
+
+async function loadTrending(type = 'all') {
+    const container = document.getElementById('trendingContent');
+    const section = document.getElementById('trendingSection');
+    if (!container || !tmdbConfigured) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/tmdb/trending?type=${type}&window=week`);
+        const data = await response.json();
+
+        container.textContent = '';
+
+        if (data.success && data.items && data.items.length > 0) {
+            data.items.slice(0, 12).forEach(item => {
+                container.appendChild(createPosterCard(item, true));
+            });
+            if (section) section.style.display = 'block';
+            lucide.createIcons();
+        } else {
+            if (section) section.style.display = 'none';
+        }
+    } catch (error) {
+        console.error('Trending load error:', error);
+        if (section) section.style.display = 'none';
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POSTER CARDS WITH QUALITY BADGES
+// ─────────────────────────────────────────────────────────────────────────────
+
+function createPosterCard(item, showRequestButton = false) {
+    const card = document.createElement('div');
+    card.className = 'poster-card';
+    card.onclick = () => openMediaDetails(item);
+
+    // Image with lazy loading
+    const imgContainer = document.createElement('div');
+    imgContainer.className = 'poster-image';
+
+    const img = document.createElement('img');
+    img.className = 'lazy-image';
+    img.alt = item.title || '';
+
+    // Use placeholder initially
+    img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 450"%3E%3Crect fill="%231a1a2e" width="300" height="450"/%3E%3C/svg%3E';
+    img.dataset.src = item.poster_url || '/static/img/no-poster.png';
+    img.onerror = function() { this.src = '/static/img/no-poster.png'; };
+
+    lazyLoadImage(img);
+    imgContainer.appendChild(img);
+
+    // Quality badges
+    const badges = item.metadata?.quality_badges || [];
+    if (badges.length > 0) {
+        const badgeContainer = document.createElement('div');
+        badgeContainer.className = 'quality-badges';
+
+        badges.slice(0, 3).forEach(badge => {
+            const badgeEl = document.createElement('span');
+            badgeEl.className = 'quality-badge';
+            if (badge === '4K') badgeEl.classList.add('badge-4k');
+            else if (badge === 'DV' || badge.includes('HDR')) badgeEl.classList.add('badge-hdr');
+            else if (badge === 'Atmos' || badge === 'DTS:X') badgeEl.classList.add('badge-audio');
+            badgeEl.textContent = badge;
+            badgeContainer.appendChild(badgeEl);
+        });
+
+        imgContainer.appendChild(badgeContainer);
+    }
+
+    // In library badge
+    if (item.in_library) {
+        const libraryBadge = document.createElement('div');
+        libraryBadge.className = 'library-badge';
+        const checkIcon = document.createElement('i');
+        checkIcon.setAttribute('data-lucide', 'check');
+        libraryBadge.appendChild(checkIcon);
+        imgContainer.appendChild(libraryBadge);
+    }
+
+    // Request button for items not in library
+    if (showRequestButton && !item.in_library) {
+        const requestBtn = document.createElement('button');
+        requestBtn.className = 'poster-request-btn';
+        requestBtn.onclick = (e) => {
+            e.stopPropagation();
+            requestMedia(item);
+        };
+        const plusIcon = document.createElement('i');
+        plusIcon.setAttribute('data-lucide', 'plus');
+        requestBtn.appendChild(plusIcon);
+        imgContainer.appendChild(requestBtn);
+    }
+
+    // Title
+    const title = document.createElement('div');
+    title.className = 'poster-title';
+    title.textContent = item.title || 'Unknown';
+
+    // Meta (year, type)
+    const meta = document.createElement('div');
+    meta.className = 'poster-meta';
+    const parts = [];
+    if (item.year) parts.push(item.year);
+    if (item.media_type) parts.push(item.media_type === 'movie' ? 'Movie' : 'TV');
+    if (item.rating) parts.push(`★ ${Number(item.rating).toFixed(1)}`);
+    meta.textContent = parts.join(' • ');
+
+    card.appendChild(imgContainer);
+    card.appendChild(title);
+    card.appendChild(meta);
+
+    return card;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DOWNLOADS WITH CONTROLS
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function loadDownloads() {
+    const container = document.getElementById('downloadsPanel');
+    if (!container) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/downloads`);
+        const data = await response.json();
+
+        container.textContent = '';
+
+        // Speed indicator
+        const speedInfo = document.createElement('div');
+        speedInfo.className = 'download-speed-info';
+        if (data.speed) {
+            const speedText = document.createElement('span');
+            speedText.className = 'download-speed';
+            speedText.textContent = data.speed.speed || '0 B/s';
+
+            const controls = document.createElement('div');
+            controls.className = 'download-controls';
+
+            if (data.speed.paused) {
+                const resumeBtn = createButton('play', 'Resume All', () => controlDownloads('resume'));
+                controls.appendChild(resumeBtn);
+            } else {
+                const pauseBtn = createButton('pause', 'Pause All', () => controlDownloads('pause'));
+                controls.appendChild(pauseBtn);
+            }
+
+            speedInfo.appendChild(speedText);
+            speedInfo.appendChild(controls);
+            container.appendChild(speedInfo);
+        }
+
+        if (data.success && data.queue && data.queue.length > 0) {
+            data.queue.forEach(item => {
+                container.appendChild(createDownloadItem(item));
+            });
+        } else {
+            const empty = document.createElement('div');
+            empty.className = 'download-empty';
+            empty.textContent = 'No active downloads';
+            container.appendChild(empty);
+        }
+        lucide.createIcons();
+    } catch (error) {
+        container.textContent = '';
+        const empty = document.createElement('div');
+        empty.className = 'download-empty';
+        empty.textContent = 'Failed to load downloads';
+        container.appendChild(empty);
+    }
+}
+
+function createDownloadItem(item) {
+    const el = document.createElement('div');
+    el.className = 'download-item';
+
+    const info = document.createElement('div');
+    info.className = 'download-info';
+
+    const name = document.createElement('div');
+    name.className = 'download-name';
+    name.textContent = item.filename || 'Unknown';
+    name.title = item.filename;
+
+    const meta = document.createElement('div');
+    meta.className = 'download-meta';
+    const sizeLeft = formatBytes(item.size_left_bytes || 0);
+    const eta = item.eta_seconds ? formatETA(item.eta_seconds) : '';
+    meta.textContent = `${sizeLeft} left${eta ? ' • ' + eta : ''}`;
+
+    info.appendChild(name);
+    info.appendChild(meta);
+
+    const progress = document.createElement('div');
+    progress.className = 'download-progress';
+    const progressBar = document.createElement('div');
+    progressBar.className = 'download-progress-bar';
+    progressBar.style.width = `${item.progress_percent || 0}%`;
+    progress.appendChild(progressBar);
+
+    const progressText = document.createElement('span');
+    progressText.className = 'download-progress-text';
+    progressText.textContent = `${item.progress_percent || 0}%`;
+
+    const controls = document.createElement('div');
+    controls.className = 'download-item-controls';
+
+    if (item.status === 'paused') {
+        controls.appendChild(createButton('play', '', () => controlDownloadItem(item.id, 'resume'), 'small'));
+    } else {
+        controls.appendChild(createButton('pause', '', () => controlDownloadItem(item.id, 'pause'), 'small'));
+    }
+    controls.appendChild(createButton('trash-2', '', () => controlDownloadItem(item.id, 'delete'), 'small danger'));
+
+    el.appendChild(info);
+    el.appendChild(progress);
+    el.appendChild(progressText);
+    el.appendChild(controls);
+
+    return el;
+}
+
+async function controlDownloads(action) {
+    try {
+        await fetch(`${API_BASE}/downloads/${action}`, { method: 'POST' });
+        loadDownloads();
+    } catch (error) {
+        showToast('Failed to ' + action + ' downloads', 'error');
+    }
+}
+
+async function controlDownloadItem(id, action) {
+    try {
+        if (action === 'delete') {
+            await fetch(`${API_BASE}/downloads/${id}`, { method: 'DELETE' });
+        } else {
+            await fetch(`${API_BASE}/downloads/${id}/${action}`, { method: 'POST' });
+        }
+        loadDownloads();
+    } catch (error) {
+        showToast('Failed to ' + action + ' download', 'error');
+    }
+}
+
+function createButton(icon, text, onClick, className = '') {
+    const btn = document.createElement('button');
+    btn.className = `btn-icon ${className}`;
+    btn.onclick = onClick;
+
+    const iconEl = document.createElement('i');
+    iconEl.setAttribute('data-lucide', icon);
+    btn.appendChild(iconEl);
+
+    if (text) {
+        const span = document.createElement('span');
+        span.textContent = text;
+        btn.appendChild(span);
+    }
+
+    return btn;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AIRING TODAY / CALENDAR
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function loadAiringToday() {
+    const container = document.getElementById('airingTodayPanel');
+    if (!container) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/calendar/upcoming?days=1`);
+        const data = await response.json();
+
+        container.textContent = '';
+
+        if (data.success && data.episodes && data.episodes.length > 0) {
+            data.episodes.slice(0, 5).forEach(ep => {
+                container.appendChild(createEpisodeCard(ep));
+            });
+        } else {
+            const empty = document.createElement('div');
+            empty.className = 'airing-empty';
+            empty.textContent = 'Nothing airing today';
+            container.appendChild(empty);
+        }
+        lucide.createIcons();
+    } catch (error) {
+        container.textContent = '';
+        const empty = document.createElement('div');
+        empty.className = 'airing-empty';
+        empty.textContent = 'Calendar unavailable';
+        container.appendChild(empty);
+    }
+}
+
+function createEpisodeCard(ep) {
+    const card = document.createElement('div');
+    card.className = 'episode-card';
+
+    const poster = document.createElement('img');
+    poster.className = 'episode-poster';
+    poster.src = ep.poster_url || '/static/img/no-poster.png';
+    poster.alt = '';
+    poster.onerror = function() { this.style.display = 'none'; };
+
+    const info = document.createElement('div');
+    info.className = 'episode-info';
+
+    const title = document.createElement('div');
+    title.className = 'episode-title';
+    title.textContent = ep.series_title;
+
+    const meta = document.createElement('div');
+    meta.className = 'episode-meta';
+    meta.textContent = `S${String(ep.season_number).padStart(2, '0')}E${String(ep.episode_number).padStart(2, '0')}`;
+    if (ep.air_time) meta.textContent += ` • ${ep.air_time}`;
+
+    const epTitle = document.createElement('div');
+    epTitle.className = 'episode-name';
+    epTitle.textContent = ep.episode_title;
+
+    info.appendChild(title);
+    info.appendChild(meta);
+    info.appendChild(epTitle);
+
+    const status = document.createElement('div');
+    status.className = ep.has_file ? 'episode-status available' : 'episode-status pending';
+    const icon = document.createElement('i');
+    icon.setAttribute('data-lucide', ep.has_file ? 'check-circle' : 'clock');
+    status.appendChild(icon);
+
+    card.appendChild(poster);
+    card.appendChild(info);
+    card.appendChild(status);
+
+    return card;
+}
+
+async function loadCalendar() {
+    const container = document.getElementById('calendarGrid');
+    if (!container) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/calendar/upcoming?days=14`);
+        const data = await response.json();
+
+        container.textContent = '';
+
+        if (data.success && data.episodes && data.episodes.length > 0) {
+            // Group by date
+            const grouped = {};
+            data.episodes.forEach(ep => {
+                const date = ep.air_date || 'Unknown';
+                if (!grouped[date]) grouped[date] = [];
+                grouped[date].push(ep);
+            });
+
+            Object.entries(grouped).forEach(([date, episodes]) => {
+                const daySection = document.createElement('div');
+                daySection.className = 'calendar-day';
+
+                const dateHeader = document.createElement('div');
+                dateHeader.className = 'calendar-date';
+                dateHeader.textContent = formatDate(date);
+                daySection.appendChild(dateHeader);
+
+                const episodesList = document.createElement('div');
+                episodesList.className = 'calendar-episodes';
+                episodes.forEach(ep => {
+                    episodesList.appendChild(createEpisodeCard(ep));
+                });
+                daySection.appendChild(episodesList);
+
+                container.appendChild(daySection);
+            });
+        } else {
+            container.appendChild(createEmptyState('calendar', 'No upcoming episodes'));
+        }
+        lucide.createIcons();
+    } catch (error) {
+        container.textContent = '';
+        container.appendChild(createEmptyState('alert-circle', 'Failed to load calendar'));
+        lucide.createIcons();
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COLLECTIONS
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function loadCollections() {
+    const container = document.getElementById('collectionsGrid');
+    if (!container) return;
+
+    container.textContent = '';
+    container.appendChild(createLoadingElement('Loading collections...'));
+
+    try {
+        const response = await fetch(`${API_BASE}/library/collections`);
+        const data = await response.json();
+
+        container.textContent = '';
+
+        if (data.success && data.collections && data.collections.length > 0) {
+            data.collections.forEach(coll => {
+                container.appendChild(createCollectionCard(coll));
+            });
+        } else {
+            container.appendChild(createEmptyState('folder', 'No collections found'));
+        }
+        lucide.createIcons();
+    } catch (error) {
+        container.textContent = '';
+        container.appendChild(createEmptyState('alert-circle', 'Failed to load collections'));
+        lucide.createIcons();
+    }
+}
+
+function createCollectionCard(collection) {
+    const card = document.createElement('div');
+    card.className = 'collection-card';
+    card.onclick = () => openCollection(collection.id, collection.title);
+
+    const imgContainer = document.createElement('div');
+    imgContainer.className = 'collection-image';
+    if (collection.poster_url) {
+        const img = document.createElement('img');
+        img.src = collection.poster_url;
+        img.alt = '';
+        img.onerror = function() { this.style.display = 'none'; };
+        imgContainer.appendChild(img);
+    }
+
+    const count = document.createElement('div');
+    count.className = 'collection-count';
+    count.textContent = `${collection.child_count} items`;
+    imgContainer.appendChild(count);
+
+    const title = document.createElement('div');
+    title.className = 'collection-title';
+    title.textContent = collection.title;
+
+    card.appendChild(imgContainer);
+    card.appendChild(title);
+
+    return card;
+}
+
+async function openCollection(collectionId, title) {
+    const container = document.getElementById('collectionsGrid');
+    container.textContent = '';
+
+    // Back button
+    const backBtn = document.createElement('button');
+    backBtn.className = 'collection-back-btn';
+    backBtn.onclick = loadCollections;
+    const backIcon = document.createElement('i');
+    backIcon.setAttribute('data-lucide', 'arrow-left');
+    backBtn.appendChild(backIcon);
+    const backText = document.createElement('span');
+    backText.textContent = 'Back to Collections';
+    backBtn.appendChild(backText);
+    container.appendChild(backBtn);
+
+    // Title
+    const titleEl = document.createElement('h2');
+    titleEl.className = 'collection-detail-title';
+    titleEl.textContent = title;
+    container.appendChild(titleEl);
+
+    // Grid
+    const grid = document.createElement('div');
+    grid.className = 'media-grid';
+    grid.appendChild(createLoadingElement('Loading...'));
+    container.appendChild(grid);
+
+    lucide.createIcons();
+
+    try {
+        const response = await fetch(`${API_BASE}/library/collections/${collectionId}`);
+        const data = await response.json();
+
+        grid.textContent = '';
+
+        if (data.success && data.items && data.items.length > 0) {
+            data.items.forEach(item => {
+                grid.appendChild(createPosterCard(item));
+            });
+        } else {
+            grid.appendChild(createEmptyState('film', 'Collection is empty'));
+        }
+        lucide.createIcons();
+    } catch (error) {
+        grid.textContent = '';
+        grid.appendChild(createEmptyState('alert-circle', 'Failed to load'));
+        lucide.createIcons();
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MOVIES & SHOWS
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function loadMovies(append = false) {
+    const grid = document.getElementById('moviesGrid');
+    if (!grid) return;
+
+    if (!append) {
+        grid.textContent = '';
+        moviesOffset = 0;
+    }
+
+    const loading = createLoadingElement('Loading movies...');
+    grid.appendChild(loading);
+
+    try {
+        const response = await fetch(`${API_BASE}/library/movies?limit=50&offset=${moviesOffset}`);
+        const data = await response.json();
+
+        loading.remove();
+
+        if (data.success && data.items) {
+            data.items.forEach(item => {
+                grid.appendChild(createPosterCard(item));
+            });
+            moviesOffset += data.items.length;
+
+            // Load more button
+            if (data.items.length === 50) {
+                const loadMore = document.createElement('button');
+                loadMore.className = 'load-more-btn';
+                loadMore.textContent = 'Load More';
+                loadMore.onclick = () => {
+                    loadMore.remove();
+                    loadMovies(true);
+                };
+                grid.appendChild(loadMore);
+            }
+        }
+        lucide.createIcons();
+    } catch (error) {
+        loading.remove();
+        grid.appendChild(createEmptyState('alert-circle', 'Failed to load movies'));
+        lucide.createIcons();
+    }
+}
+
+async function loadShows(append = false) {
+    const grid = document.getElementById('showsGrid');
+    if (!grid) return;
+
+    if (!append) {
+        grid.textContent = '';
+        showsOffset = 0;
+    }
+
+    const loading = createLoadingElement('Loading shows...');
+    grid.appendChild(loading);
+
+    try {
+        const response = await fetch(`${API_BASE}/library/shows?limit=50&offset=${showsOffset}`);
+        const data = await response.json();
+
+        loading.remove();
+
+        if (data.success && data.items) {
+            data.items.forEach(item => {
+                grid.appendChild(createPosterCard(item));
+            });
+            showsOffset += data.items.length;
+
+            if (data.items.length === 50) {
+                const loadMore = document.createElement('button');
+                loadMore.className = 'load-more-btn';
+                loadMore.textContent = 'Load More';
+                loadMore.onclick = () => {
+                    loadMore.remove();
+                    loadShows(true);
+                };
+                grid.appendChild(loadMore);
+            }
+        }
+        lucide.createIcons();
+    } catch (error) {
+        loading.remove();
+        grid.appendChild(createEmptyState('alert-circle', 'Failed to load shows'));
+        lucide.createIcons();
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REQUESTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function loadRequests() {
+    const container = document.getElementById('requestsList');
+    if (!container) return;
+
+    container.textContent = '';
+    container.appendChild(createLoadingElement('Loading requests...'));
+
+    try {
+        const response = await fetch(`${API_BASE}/requests`);
+        const data = await response.json();
+
+        container.textContent = '';
+
+        if (data.success && data.requests && data.requests.length > 0) {
+            data.requests.forEach(req => {
+                container.appendChild(createRequestCard(req));
+            });
+        } else {
+            container.appendChild(createEmptyState('inbox', 'No pending requests'));
+        }
+        lucide.createIcons();
+    } catch (error) {
+        container.textContent = '';
+        container.appendChild(createEmptyState('alert-circle', 'Failed to load requests'));
+        lucide.createIcons();
+    }
+}
+
+function createRequestCard(req) {
+    const card = document.createElement('div');
+    card.className = 'request-card';
+
+    const poster = document.createElement('img');
+    poster.className = 'request-poster';
+    poster.src = req.poster_url || '/static/img/no-poster.png';
+    poster.alt = '';
+
+    const info = document.createElement('div');
+    info.className = 'request-info';
+
+    const title = document.createElement('div');
+    title.className = 'request-title';
+    title.textContent = req.title;
+
+    const meta = document.createElement('div');
+    meta.className = 'request-meta';
+    meta.textContent = `${req.media_type === 'movie' ? 'Movie' : 'TV Show'} • ${req.year || 'N/A'}`;
+
+    const status = document.createElement('div');
+    status.className = `request-status status-${req.status}`;
+    status.textContent = req.status_label || req.status;
+
+    info.appendChild(title);
+    info.appendChild(meta);
+    info.appendChild(status);
+
+    card.appendChild(poster);
+    card.appendChild(info);
+
+    return card;
+}
+
+async function requestMedia(item) {
+    if (!item.tmdb_id && !item.id) {
+        showToast('Cannot request this item', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/requests`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                media_type: item.media_type,
+                tmdb_id: item.tmdb_id || item.id
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showToast(`Requested: ${item.title}`, 'success');
+        } else {
+            showToast(data.error || 'Request failed', 'error');
+        }
+    } catch (error) {
+        showToast('Request failed', 'error');
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STATISTICS
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function loadStatistics() {
+    const container = document.getElementById('statsContent');
+    if (!container) return;
+
+    container.textContent = '';
+    container.appendChild(createLoadingElement('Loading statistics...'));
+
+    try {
+        const response = await fetch(`${API_BASE}/stats`);
+        const data = await response.json();
+
+        container.textContent = '';
+
+        if (data.success) {
+            // Quality breakdown chart
+            const qualitySection = document.createElement('div');
+            qualitySection.className = 'stats-section';
+
+            const qualityTitle = document.createElement('h3');
+            qualityTitle.textContent = 'Quality Breakdown';
+            qualitySection.appendChild(qualityTitle);
+
+            const qualityChart = createQualityChart(data.quality_breakdown);
+            qualitySection.appendChild(qualityChart);
+
+            // HDR/Atmos counts
+            const specialSection = document.createElement('div');
+            specialSection.className = 'stats-grid';
+
+            specialSection.appendChild(createStatCard('HDR Content', data.hdr_count, 'sun'));
+            specialSection.appendChild(createStatCard('Dolby Atmos', data.atmos_count, 'volume-2'));
+
+            // Size breakdown
+            const sizeSection = document.createElement('div');
+            sizeSection.className = 'stats-section';
+
+            const sizeTitle = document.createElement('h3');
+            sizeTitle.textContent = 'Storage Breakdown';
+            sizeSection.appendChild(sizeTitle);
+
+            const sizeChart = createSizeChart(data.size_breakdown);
+            sizeSection.appendChild(sizeChart);
+
+            container.appendChild(qualitySection);
+            container.appendChild(specialSection);
+            container.appendChild(sizeSection);
+        } else {
+            container.appendChild(createEmptyState('bar-chart', 'Statistics unavailable'));
+        }
+        lucide.createIcons();
+    } catch (error) {
+        container.textContent = '';
+        container.appendChild(createEmptyState('alert-circle', 'Failed to load statistics'));
+        lucide.createIcons();
+    }
+}
+
+function createQualityChart(breakdown) {
+    const chart = document.createElement('div');
+    chart.className = 'quality-chart';
+
+    const total = Object.values(breakdown).reduce((a, b) => a + b, 0);
+
+    Object.entries(breakdown).forEach(([quality, count]) => {
+        const bar = document.createElement('div');
+        bar.className = 'quality-bar';
+
+        const label = document.createElement('span');
+        label.className = 'quality-label';
+        label.textContent = quality;
+
+        const track = document.createElement('div');
+        track.className = 'quality-track';
+
+        const fill = document.createElement('div');
+        fill.className = `quality-fill quality-${quality.toLowerCase().replace('p', '')}`;
+        fill.style.width = total > 0 ? `${(count / total) * 100}%` : '0%';
+        track.appendChild(fill);
+
+        const value = document.createElement('span');
+        value.className = 'quality-value';
+        value.textContent = count;
+
+        bar.appendChild(label);
+        bar.appendChild(track);
+        bar.appendChild(value);
+        chart.appendChild(bar);
+    });
+
+    return chart;
+}
+
+function createSizeChart(breakdown) {
+    const chart = document.createElement('div');
+    chart.className = 'size-chart';
+
+    const total = (breakdown.movies || 0) + (breakdown.shows || 0);
+
+    const moviesPercent = total > 0 ? (breakdown.movies / total) * 100 : 50;
+    const showsPercent = total > 0 ? (breakdown.shows / total) * 100 : 50;
+
+    const bar = document.createElement('div');
+    bar.className = 'size-bar';
+
+    const moviesFill = document.createElement('div');
+    moviesFill.className = 'size-fill movies';
+    moviesFill.style.width = `${moviesPercent}%`;
+    moviesFill.title = `Movies: ${formatBytes(breakdown.movies || 0)}`;
+
+    const showsFill = document.createElement('div');
+    showsFill.className = 'size-fill shows';
+    showsFill.style.width = `${showsPercent}%`;
+    showsFill.title = `TV Shows: ${formatBytes(breakdown.shows || 0)}`;
+
+    bar.appendChild(moviesFill);
+    bar.appendChild(showsFill);
+
+    const legend = document.createElement('div');
+    legend.className = 'size-legend';
+
+    const moviesLegend = document.createElement('span');
+    moviesLegend.className = 'legend-item movies';
+    moviesLegend.textContent = `Movies: ${formatBytes(breakdown.movies || 0)}`;
+
+    const showsLegend = document.createElement('span');
+    showsLegend.className = 'legend-item shows';
+    showsLegend.textContent = `TV Shows: ${formatBytes(breakdown.shows || 0)}`;
+
+    legend.appendChild(moviesLegend);
+    legend.appendChild(showsLegend);
+
+    chart.appendChild(bar);
+    chart.appendChild(legend);
+
+    return chart;
+}
+
+function createStatCard(label, value, icon) {
+    const card = document.createElement('div');
+    card.className = 'stat-card';
+
+    const iconEl = document.createElement('i');
+    iconEl.setAttribute('data-lucide', icon);
+
+    const valueEl = document.createElement('div');
+    valueEl.className = 'stat-value';
+    valueEl.textContent = value || 0;
+
+    const labelEl = document.createElement('div');
+    labelEl.className = 'stat-label';
+    labelEl.textContent = label;
+
+    card.appendChild(iconEl);
+    card.appendChild(valueEl);
+    card.appendChild(labelEl);
+
+    return card;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MEDIA DETAILS PANEL
+// ─────────────────────────────────────────────────────────────────────────────
+
+function openMediaDetails(item) {
+    const panel = document.getElementById('mediaPanel');
+    const content = document.getElementById('mediaPanelContent');
+
+    content.textContent = '';
+    content.appendChild(createLoadingElement('Loading details...'));
+    panel.classList.add('active');
+
+    // Fetch additional details if needed
+    if (item.in_library && item.id) {
+        fetchLibraryDetails(item);
+    } else if (item.tmdb_id || item.id) {
+        fetchTMDBDetails(item);
+    } else {
+        renderMediaDetails(item);
+    }
+}
+
+async function fetchLibraryDetails(item) {
+    try {
+        const [detailsResponse, qualityResponse] = await Promise.all([
+            fetch(`${API_BASE}/media/${item.media_type}/${item.id}`),
+            fetch(`${API_BASE}/media/${item.id}/quality`)
+        ]);
+
+        const detailsData = await detailsResponse.json();
+        const qualityData = await qualityResponse.json();
+
+        if (detailsData.success && detailsData.item) {
+            const enrichedItem = { ...detailsData.item };
+            if (qualityData.success) {
+                enrichedItem.quality_info = qualityData.quality;
+            }
+            renderMediaDetails(enrichedItem);
+        } else {
+            renderMediaDetails(item);
+        }
+    } catch (error) {
+        renderMediaDetails(item);
+    }
+}
+
+async function fetchTMDBDetails(item) {
+    if (!tmdbConfigured) {
+        renderMediaDetails(item);
+        return;
+    }
+
+    try {
+        const endpoint = item.media_type === 'movie' ? 'movie' : 'tv';
+        const id = item.tmdb_id || item.id;
+        const response = await fetch(`${API_BASE}/tmdb/${endpoint}/${id}`);
+        const data = await response.json();
+
+        if (data.success) {
+            const details = data.movie || data.show;
+            renderMediaDetails({ ...item, ...details });
+        } else {
+            renderMediaDetails(item);
+        }
+    } catch (error) {
+        renderMediaDetails(item);
+    }
+}
+
+function renderMediaDetails(item) {
+    const content = document.getElementById('mediaPanelContent');
+    content.textContent = '';
+
+    // Backdrop
+    if (item.backdrop_url) {
+        const backdrop = document.createElement('div');
+        backdrop.className = 'panel-backdrop';
+        backdrop.style.backgroundImage = `url(${item.backdrop_url})`;
+        content.appendChild(backdrop);
+    }
+
+    // Main content
+    const main = document.createElement('div');
+    main.className = 'panel-main';
+
+    // Poster
+    const posterContainer = document.createElement('div');
+    posterContainer.className = 'panel-poster';
+    const poster = document.createElement('img');
+    poster.src = item.poster_url || '/static/img/no-poster.png';
+    poster.alt = item.title;
+    posterContainer.appendChild(poster);
+
+    // Quality badges on poster
+    const badges = item.metadata?.quality_badges || item.quality_info ? ['4K', 'HDR', 'Atmos'].filter(b => {
+        if (b === '4K') return item.quality_info?.is_4k;
+        if (b === 'HDR') return item.quality_info?.is_hdr;
+        if (b === 'Atmos') return item.quality_info?.is_atmos;
+        return false;
+    }) : [];
+
+    if (badges.length > 0 || item.metadata?.quality_badges?.length > 0) {
+        const badgeContainer = document.createElement('div');
+        badgeContainer.className = 'panel-badges';
+        (item.metadata?.quality_badges || badges).forEach(badge => {
+            const badgeEl = document.createElement('span');
+            badgeEl.className = 'quality-badge';
+            badgeEl.textContent = badge;
+            badgeContainer.appendChild(badgeEl);
+        });
+        posterContainer.appendChild(badgeContainer);
+    }
+
+    main.appendChild(posterContainer);
+
+    // Info
+    const info = document.createElement('div');
+    info.className = 'panel-info';
+
+    // Title
+    const title = document.createElement('h2');
+    title.className = 'panel-title';
+    title.textContent = item.title;
+    info.appendChild(title);
+
+    // Tagline
+    if (item.tagline) {
+        const tagline = document.createElement('div');
+        tagline.className = 'panel-tagline';
+        tagline.textContent = item.tagline;
+        info.appendChild(tagline);
+    }
+
+    // Meta row
+    const meta = document.createElement('div');
+    meta.className = 'panel-meta';
+    const metaParts = [];
+    if (item.year) metaParts.push(item.year);
+    if (item.runtime_minutes) metaParts.push(`${item.runtime_minutes} min`);
+    if (item.rating) metaParts.push(`★ ${Number(item.rating).toFixed(1)}`);
+    if (item.metadata?.contentRating) metaParts.push(item.metadata.contentRating);
+    meta.textContent = metaParts.join(' • ');
+    info.appendChild(meta);
+
+    // Genres
+    if (item.genres && item.genres.length > 0) {
+        const genres = document.createElement('div');
+        genres.className = 'panel-genres';
+        item.genres.forEach(g => {
+            const genre = document.createElement('span');
+            genre.className = 'genre-tag';
+            genre.textContent = g;
+            genres.appendChild(genre);
+        });
+        info.appendChild(genres);
+    }
+
+    // Overview
+    if (item.overview) {
+        const overview = document.createElement('p');
+        overview.className = 'panel-overview';
+        overview.textContent = item.overview;
+        info.appendChild(overview);
+    }
+
+    // Cast
+    if (item.cast && item.cast.length > 0) {
+        const castSection = document.createElement('div');
+        castSection.className = 'panel-cast';
+
+        const castTitle = document.createElement('h4');
+        castTitle.textContent = 'Cast';
+        castSection.appendChild(castTitle);
+
+        const castList = document.createElement('div');
+        castList.className = 'cast-list';
+        item.cast.slice(0, 6).forEach(c => {
+            const castItem = document.createElement('div');
+            castItem.className = 'cast-item';
+            castItem.textContent = c.name;
+            if (c.character) {
+                const role = document.createElement('span');
+                role.className = 'cast-role';
+                role.textContent = ` as ${c.character}`;
+                castItem.appendChild(role);
+            }
+            castList.appendChild(castItem);
+        });
+        castSection.appendChild(castList);
+        info.appendChild(castSection);
+    }
+
+    // File info (for library items)
+    if (item.in_library && (item.file_path || item.file_size_bytes)) {
+        const fileInfo = document.createElement('div');
+        fileInfo.className = 'panel-file-info';
+
+        if (item.quality_info) {
+            const qi = item.quality_info;
+            const techSpecs = [];
+            if (qi.resolution) techSpecs.push(qi.resolution);
+            if (qi.video_codec) techSpecs.push(qi.video_codec);
+            if (qi.hdr_type) techSpecs.push(qi.hdr_type);
+            if (qi.audio_codec) techSpecs.push(qi.audio_codec);
+            if (qi.audio_channels) techSpecs.push(`${qi.audio_channels}ch`);
+
+            if (techSpecs.length > 0) {
+                const specs = document.createElement('div');
+                specs.className = 'panel-specs';
+                specs.textContent = techSpecs.join(' • ');
+                fileInfo.appendChild(specs);
+            }
+        }
+
+        if (item.file_size_bytes) {
+            const size = document.createElement('div');
+            size.className = 'panel-size';
+            size.textContent = `File size: ${formatBytes(item.file_size_bytes)}`;
+            fileInfo.appendChild(size);
+        }
+
+        info.appendChild(fileInfo);
+    }
+
+    // Action buttons
+    const actions = document.createElement('div');
+    actions.className = 'panel-actions';
+
+    if (item.in_library) {
+        // Play button (open in Plex)
+        const playBtn = document.createElement('a');
+        playBtn.className = 'btn btn-primary';
+        playBtn.href = `https://app.plex.tv/desktop#!/server/`;
+        playBtn.target = '_blank';
+        const playIcon = document.createElement('i');
+        playIcon.setAttribute('data-lucide', 'play');
+        playBtn.appendChild(playIcon);
+        const playText = document.createElement('span');
+        playText.textContent = 'Open in Plex';
+        playBtn.appendChild(playText);
+        actions.appendChild(playBtn);
+    } else {
+        // Request button
+        const requestBtn = document.createElement('button');
+        requestBtn.className = 'btn btn-primary';
+        requestBtn.onclick = () => requestMedia(item);
+        const reqIcon = document.createElement('i');
+        reqIcon.setAttribute('data-lucide', 'plus');
+        requestBtn.appendChild(reqIcon);
+        const reqText = document.createElement('span');
+        reqText.textContent = 'Request';
+        requestBtn.appendChild(reqText);
+        actions.appendChild(requestBtn);
+    }
+
+    // Trailer button
+    if (item.trailer_url) {
+        const trailerBtn = document.createElement('a');
+        trailerBtn.className = 'btn btn-secondary';
+        trailerBtn.href = item.trailer_url;
+        trailerBtn.target = '_blank';
+        const trailerIcon = document.createElement('i');
+        trailerIcon.setAttribute('data-lucide', 'youtube');
+        trailerBtn.appendChild(trailerIcon);
+        const trailerText = document.createElement('span');
+        trailerText.textContent = 'Trailer';
+        trailerBtn.appendChild(trailerText);
+        actions.appendChild(trailerBtn);
+    }
+
+    info.appendChild(actions);
+    main.appendChild(info);
+    content.appendChild(main);
+
+    lucide.createIcons();
+}
+
+function closeMediaPanel() {
+    document.getElementById('mediaPanel')?.classList.remove('active');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SETTINGS
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function loadSettings() {
+    const container = document.getElementById('servicesGrid');
+    if (!container) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/settings`);
+        const data = await response.json();
+
+        container.textContent = '';
+
+        if (data.success && data.services) {
+            data.services.forEach(service => {
+                container.appendChild(createServiceCard(service));
+            });
+        }
+        lucide.createIcons();
+    } catch (error) {
+        console.error('Settings load error:', error);
+    }
+}
+
+function createServiceCard(service) {
+    const card = document.createElement('div');
+    card.className = 'service-card';
+
+    const header = document.createElement('div');
+    header.className = 'service-header';
+
+    const info = document.createElement('div');
+    info.className = 'service-info';
+
+    const name = document.createElement('div');
+    name.className = 'service-name';
+    name.textContent = service.name;
+
+    const url = document.createElement('div');
+    url.className = 'service-url';
+    url.textContent = `${service.host}:${service.port}`;
+
+    info.appendChild(name);
+    info.appendChild(url);
+
+    const status = document.createElement('div');
+    status.className = `service-status ${service.health_status || 'unknown'}`;
+    const statusIcon = document.createElement('i');
+    statusIcon.setAttribute('data-lucide', service.health_status === 'healthy' ? 'check-circle' : 'alert-circle');
+    status.appendChild(statusIcon);
+
+    header.appendChild(info);
+    header.appendChild(status);
+
+    const actions = document.createElement('div');
+    actions.className = 'service-actions';
+
+    const testBtn = document.createElement('button');
+    testBtn.className = 'btn-small';
+    testBtn.textContent = 'Test';
+    testBtn.onclick = () => testService(service.id);
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'btn-small';
+    editBtn.textContent = 'Edit';
+    editBtn.onclick = () => openServiceModal(service);
+
+    actions.appendChild(testBtn);
+    actions.appendChild(editBtn);
+
+    card.appendChild(header);
+    card.appendChild(actions);
+
+    return card;
+}
+
+async function testService(serviceId) {
+    showToast('Testing connection...', 'info');
+
+    try {
+        const response = await fetch(`${API_BASE}/settings/test/${serviceId}`, { method: 'POST' });
+        const data = await response.json();
+
+        if (data.healthy) {
+            showToast('Connection successful!', 'success');
+        } else {
+            showToast(data.message || 'Connection failed', 'error');
+        }
+        loadSettings();
+    } catch (error) {
+        showToast('Test failed', 'error');
+    }
+}
+
+async function discoverServices() {
+    showToast('Discovering services...', 'info');
+
+    try {
+        const response = await fetch(`${API_BASE}/settings/discover`, { method: 'POST' });
+        const data = await response.json();
+
+        if (data.success) {
+            showToast(`Found ${data.saved_count} API keys`, 'success');
+            loadSettings();
+        } else {
+            showToast(data.error || 'Discovery failed', 'error');
+        }
+    } catch (error) {
+        showToast('Discovery failed', 'error');
+    }
+}
+
+function openServiceModal(service = null) {
+    // Implementation for service modal
+    showToast('Service configuration coming soon', 'info');
+}
+
+function closeServiceModal() {
+    document.getElementById('serviceModal')?.classList.remove('active');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FILTER CHIPS
+// ─────────────────────────────────────────────────────────────────────────────
+
+function initFilterChips() {
+    document.querySelectorAll('.filter-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            const group = chip.closest('.filter-group');
+            group?.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+            chip.classList.add('active');
+            // Apply filter based on chip data
+        });
+    });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UTILITY FUNCTIONS
+// ─────────────────────────────────────────────────────────────────────────────
+
+function createLoadingElement(text = 'Loading...') {
+    const el = document.createElement('div');
+    el.className = 'grid-loading';
+
+    const spinner = document.createElement('div');
+    spinner.className = 'loading-spinner';
+
+    const label = document.createElement('span');
+    label.textContent = text;
+
+    el.appendChild(spinner);
+    el.appendChild(label);
+
+    return el;
+}
+
+function createEmptyState(icon, message) {
+    const el = document.createElement('div');
+    el.className = 'empty-state';
+
+    if (icon) {
+        const iconEl = document.createElement('i');
+        iconEl.setAttribute('data-lucide', icon);
+        el.appendChild(iconEl);
+    }
+
+    const msg = document.createElement('span');
+    msg.textContent = message;
+    el.appendChild(msg);
+
+    return el;
+}
+
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return 'Unknown';
+    const date = new Date(dateStr);
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    if (date.toDateString() === today.toDateString()) return 'Today';
+    if (date.toDateString() === tomorrow.toDateString()) return 'Tomorrow';
+
+    return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function formatETA(seconds) {
+    if (!seconds || seconds <= 0) return '';
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    return `${minutes}m`;
+}
+
+function showToast(message, type = 'info') {
+    // Remove existing toasts
+    document.querySelectorAll('.toast').forEach(t => t.remove());
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
+
+    document.body.appendChild(toast);
+
+    setTimeout(() => toast.classList.add('show'), 10);
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}

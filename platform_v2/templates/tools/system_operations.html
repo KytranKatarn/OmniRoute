@@ -2083,6 +2083,10 @@
             <i data-lucide="network" style="width: 16px; height: 16px;"></i>
             Network
         </button>
+        <button class="tab-btn" data-tab="firewall">
+            <i data-lucide="shield" style="width: 16px; height: 16px;"></i>
+            Firewall
+        </button>
     </div>
 
     <!-- Tab: Dashboard -->
@@ -3133,6 +3137,236 @@
     </div>
 </div>
 
+<!-- Tab: Firewall -->
+<div id="tab-firewall" class="tab-content">
+    <div class="section-title" style="display: flex; align-items: center; justify-content: space-between;">
+        <span style="display: flex; align-items: center; gap: 8px;">
+            <i data-lucide="shield" style="width: 18px; height: 18px;"></i>
+            UFW Firewall Management
+        </span>
+        <button class="btn btn-secondary" onclick="loadFirewallData()" style="font-size: 0.8rem; padding: 4px 12px;">
+            <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i> Refresh
+        </button>
+    </div>
+
+    <!-- Firewall Status and Controls -->
+    <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 20px;">
+        <div class="stat-card">
+            <div class="stat-card-header">
+                <div class="stat-card-title">
+                    <i data-lucide="shield-check" style="width: 20px; height: 20px;"></i>
+                    Firewall Status
+                </div>
+            </div>
+            <div class="stat-value" id="firewall-status-value" style="font-size: 1.5rem;">--</div>
+            <div class="stat-label" id="firewall-status-label">Checking...</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-header">
+                <div class="stat-card-title">
+                    <i data-lucide="list" style="width: 20px; height: 20px;"></i>
+                    Active Rules
+                </div>
+            </div>
+            <div class="stat-value" id="firewall-rules-count" style="font-size: 1.5rem;">--</div>
+            <div class="stat-label">Total rules configured</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-header">
+                <div class="stat-card-title">
+                    <i data-lucide="settings" style="width: 20px; height: 20px;"></i>
+                    Controls
+                </div>
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px;">
+                <button class="btn btn-success" id="firewall-enable-btn" onclick="enableFirewall()" style="font-size: 0.8rem;">
+                    <i data-lucide="power" style="width: 14px; height: 14px;"></i> Enable
+                </button>
+                <button class="btn btn-danger" id="firewall-disable-btn" onclick="confirmDisableFirewall()" style="font-size: 0.8rem;">
+                    <i data-lucide="power-off" style="width: 14px; height: 14px;"></i> Disable
+                </button>
+                <button class="btn btn-primary" onclick="openAddRuleModal()" style="font-size: 0.8rem;">
+                    <i data-lucide="plus" style="width: 14px; height: 14px;"></i> Add Rule
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firewall Rules Table -->
+    <div class="section-title">
+        <i data-lucide="shield-alert" style="width: 18px; height: 18px;"></i>
+        Firewall Rules
+        <span id="firewall-from-config-badge" style="display: none; margin-left: 10px; font-size: 0.7rem; background: rgba(251, 191, 36, 0.2); color: var(--archie-yellow); padding: 2px 8px; border-radius: 4px;">
+            From Config (UFW Inactive)
+        </span>
+    </div>
+    <div class="panel">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th style="width: 50px;">#</th>
+                    <th>Port</th>
+                    <th>Action</th>
+                    <th>Direction</th>
+                    <th>From</th>
+                    <th>Service/Comment</th>
+                    <th style="width: 100px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="firewall-rules-table">
+                <tr><td colspan="7" class="loading"><i data-lucide="loader"></i> Loading firewall rules...</td></tr>
+            </tbody>
+        </table>
+        <div id="firewall-no-rules" style="display: none; text-align: center; padding: 30px; color: var(--archie-text-muted);">
+            <i data-lucide="shield-off" style="width: 48px; height: 48px; opacity: 0.5;"></i>
+            <p style="margin-top: 10px;">No firewall rules configured.</p>
+        </div>
+    </div>
+</div>
+
+<!-- Firewall: Disable Confirmation Modal -->
+<div class="modal-overlay" id="firewallDisableModal">
+    <div class="modal modal-sm">
+        <div class="modal-header">
+            <h3 class="modal-title" style="color: var(--archie-red);">
+                <i data-lucide="alert-triangle" style="width: 20px; height: 20px; display: inline-block; vertical-align: middle; margin-right: 8px;"></i>
+                Disable Firewall?
+            </h3>
+            <button class="modal-close" onclick="closeFirewallDisableModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid var(--archie-red); border-radius: 8px; padding: 15px; margin-bottom: 15px;">
+                <p style="color: var(--archie-red); font-weight: 600; margin-bottom: 8px;">
+                    <i data-lucide="shield-off" style="width: 16px; height: 16px; display: inline-block; vertical-align: middle;"></i>
+                    Warning: This will expose all ports!
+                </p>
+                <p style="color: var(--archie-text-muted); font-size: 0.9rem; margin: 0;">
+                    Disabling the firewall removes all protection. All ports will be accessible from any network.
+                </p>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeFirewallDisableModal()">Cancel</button>
+            <button class="btn btn-danger" onclick="disableFirewall()">
+                <i data-lucide="power-off" style="width: 14px; height: 14px;"></i> Disable Firewall
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Firewall: Add Rule Modal -->
+<div class="modal-overlay" id="firewallAddRuleModal">
+    <div class="modal" style="max-width: 450px;">
+        <div class="modal-header">
+            <h3 class="modal-title" style="color: var(--archie-cyan);">
+                <i data-lucide="plus-circle" style="width: 20px; height: 20px; display: inline-block; vertical-align: middle; margin-right: 8px;"></i>
+                Add Firewall Rule
+            </h3>
+            <button class="modal-close" onclick="closeAddRuleModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Port Number</label>
+                <input type="number" id="firewall-port-input" class="form-input" placeholder="e.g. 8080" min="1" max="65535">
+                <small style="color: var(--archie-text-muted);">Valid range: 1-65535</small>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Protocol</label>
+                <select id="firewall-protocol-select" class="form-input">
+                    <option value="tcp">TCP</option>
+                    <option value="udp">UDP</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Action</label>
+                <select id="firewall-action-select" class="form-input">
+                    <option value="allow">Allow (permit traffic)</option>
+                    <option value="deny">Deny (block traffic)</option>
+                </select>
+            </div>
+            <div id="firewall-add-rule-warning" style="display: none; background: rgba(251, 191, 36, 0.1); border: 1px solid var(--archie-yellow); border-radius: 8px; padding: 10px; margin-top: 10px;">
+                <p style="color: var(--archie-yellow); font-size: 0.85rem; margin: 0;">
+                    <i data-lucide="alert-triangle" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle;"></i>
+                    <span id="firewall-add-rule-warning-text"></span>
+                </p>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeAddRuleModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="addFirewallRule()">
+                <i data-lucide="plus" style="width: 14px; height: 14px;"></i> Add Rule
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Firewall: Edit Rule Modal -->
+<div class="modal-overlay" id="firewallEditRuleModal">
+    <div class="modal" style="max-width: 450px;">
+        <div class="modal-header">
+            <h3 class="modal-title" style="color: var(--archie-cyan);">
+                <i data-lucide="edit" style="width: 20px; height: 20px; display: inline-block; vertical-align: middle; margin-right: 8px;"></i>
+                Edit Firewall Rule
+            </h3>
+            <button class="modal-close" onclick="closeEditRuleModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="firewall-edit-old-port">
+            <input type="hidden" id="firewall-edit-old-protocol">
+            <div class="form-group">
+                <label class="form-label">Port Number</label>
+                <input type="number" id="firewall-edit-port-input" class="form-input" placeholder="e.g. 8080" min="1" max="65535">
+                <small style="color: var(--archie-text-muted);">Valid range: 1-65535</small>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Protocol</label>
+                <select id="firewall-edit-protocol-select" class="form-input">
+                    <option value="tcp">TCP</option>
+                    <option value="udp">UDP</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Action</label>
+                <select id="firewall-edit-action-select" class="form-input">
+                    <option value="allow">Allow (permit traffic)</option>
+                    <option value="deny">Deny (block traffic)</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeEditRuleModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="updateFirewallRule()">
+                <i data-lucide="save" style="width: 14px; height: 14px;"></i> Save Changes
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Firewall: Delete Rule Confirmation Modal -->
+<div class="modal-overlay" id="firewallDeleteModal">
+    <div class="modal modal-sm">
+        <div class="modal-header">
+            <h3 class="modal-title" style="color: var(--archie-red);">
+                <i data-lucide="trash-2" style="width: 20px; height: 20px; display: inline-block; vertical-align: middle; margin-right: 8px;"></i>
+                Delete Rule?
+            </h3>
+            <button class="modal-close" onclick="closeDeleteRuleModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p style="color: var(--archie-text-muted);">Are you sure you want to delete this firewall rule?</p>
+            <div style="background: var(--archie-surface); border-radius: 8px; padding: 12px; margin-top: 10px; font-family: monospace;">
+                <span id="firewall-delete-rule-details">Rule #--</span>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeDeleteRuleModal()">Cancel</button>
+            <button class="btn btn-danger" onclick="deleteFirewallRule()">
+                <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i> Delete Rule
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- Confirmation Modal -->
 <div class="modal-overlay" id="confirmModal">
     <div class="modal modal-sm">
@@ -4011,6 +4245,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 let storageTabLoaded = false;
 let memoryTabLoaded = false;
+let firewallTabLoaded = false;
+let pendingDeleteRuleNumber = null;  // Rule number pending deletion
 
 function initTabs() {
     document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -4055,6 +4291,17 @@ function initTabs() {
             // Load health alerts when entering Docker tab
             if (btn.dataset.tab === 'docker') {
                 loadHealthAlerts();
+            }
+
+            // Load firewall data when entering the tab
+            if (btn.dataset.tab === 'firewall') {
+                if (!firewallTabLoaded) {
+                    firewallTabLoaded = true;
+                    loadFirewallData();
+                }
+            } else {
+                // Reset when leaving so returning re-fetches fresh data
+                firewallTabLoaded = false;
             }
 
             lucide.createIcons();
@@ -9776,6 +10023,447 @@ async function createStack() {
         }
     } catch (e) {
         showToast('error', 'Create error: ' + e.message);
+    }
+}
+
+// ============================================================================
+// FIREWALL MANAGEMENT FUNCTIONS
+// ============================================================================
+
+async function loadFirewallData() {
+    // Load cached data immediately for instant display
+    loadCachedFirewallData();
+
+    try {
+        // Fetch fresh data in background
+        const [statusRes, rulesRes] = await Promise.all([
+            fetch('/tools/system-operations/api/firewall/status'),
+            fetch('/tools/system-operations/api/firewall/rules')
+        ]);
+
+        const statusData = await statusRes.json();
+        const rulesData = await rulesRes.json();
+
+        // Apply fresh data to UI
+        applyFirewallStatus(statusData);
+        const fromConfig = rulesData.from_config || false;
+        renderFirewallRules(rulesData.success ? rulesData.rules : [], fromConfig);
+
+        // Cache the fresh data
+        saveFirewallCache(statusData, rulesData);
+
+        lucide.createIcons();
+    } catch (e) {
+        console.error('Firewall load error:', e);
+        // Don't show error toast if we have cached data displayed
+        const cached = localStorage.getItem('archie_firewall_cache');
+        if (!cached) {
+            showToast('error', 'Failed to load firewall data: ' + e.message);
+        }
+    }
+}
+
+function loadCachedFirewallData() {
+    try {
+        const cached = localStorage.getItem('archie_firewall_cache');
+        if (cached) {
+            const data = JSON.parse(cached);
+            // Apply cached status
+            if (data.status) {
+                applyFirewallStatus(data.status);
+            }
+            // Apply cached rules
+            if (data.rules) {
+                renderFirewallRules(data.rules.rules || [], data.rules.from_config || false);
+            }
+            console.log('Loaded cached firewall data');
+        }
+    } catch (e) {
+        console.log('No cached firewall data available');
+    }
+}
+
+function saveFirewallCache(statusData, rulesData) {
+    try {
+        localStorage.setItem('archie_firewall_cache', JSON.stringify({
+            status: statusData,
+            rules: rulesData,
+            timestamp: Date.now()
+        }));
+    } catch (e) {
+        console.error('Failed to cache firewall data:', e);
+    }
+}
+
+function applyFirewallStatus(statusData) {
+    const statusValue = document.getElementById('firewall-status-value');
+    const statusLabel = document.getElementById('firewall-status-label');
+    const enableBtn = document.getElementById('firewall-enable-btn');
+    const disableBtn = document.getElementById('firewall-disable-btn');
+
+    if (statusData.success) {
+        if (statusData.active) {
+            statusValue.textContent = 'Active';
+            statusValue.style.color = 'var(--archie-green)';
+            statusLabel.textContent = 'Firewall is protecting your system';
+            enableBtn.disabled = true;
+            enableBtn.style.opacity = '0.5';
+            disableBtn.disabled = false;
+            disableBtn.style.opacity = '1';
+        } else {
+            statusValue.textContent = 'Inactive';
+            statusValue.style.color = 'var(--archie-red)';
+            statusLabel.textContent = 'All ports are exposed';
+            enableBtn.disabled = false;
+            enableBtn.style.opacity = '1';
+            disableBtn.disabled = true;
+            disableBtn.style.opacity = '0.5';
+        }
+    } else {
+        statusValue.textContent = 'Unknown';
+        statusValue.style.color = 'var(--archie-yellow)';
+        statusLabel.textContent = statusData.error || 'Could not determine status';
+    }
+}
+
+function renderFirewallRules(rules, fromConfig) {
+    const tbody = document.getElementById('firewall-rules-table');
+    const noRulesDiv = document.getElementById('firewall-no-rules');
+    const rulesCount = document.getElementById('firewall-rules-count');
+    const configBadge = document.getElementById('firewall-from-config-badge');
+
+    rulesCount.textContent = rules.length;
+    tbody.textContent = '';  // Clear existing
+
+    // Show/hide "from config" badge
+    if (configBadge) {
+        configBadge.style.display = fromConfig ? 'inline' : 'none';
+    }
+
+    if (!rules || rules.length === 0) {
+        noRulesDiv.style.display = 'block';
+        tbody.parentElement.style.display = 'none';
+        return;
+    }
+
+    noRulesDiv.style.display = 'none';
+    tbody.parentElement.style.display = '';
+
+    rules.forEach(rule => {
+        const tr = document.createElement('tr');
+
+        // Rule number
+        const tdNum = document.createElement('td');
+        tdNum.textContent = rule.number;
+        tdNum.style.fontFamily = 'monospace';
+        tdNum.style.color = 'var(--archie-text-muted)';
+        tr.appendChild(tdNum);
+
+        // Port/Service
+        const tdPort = document.createElement('td');
+        tdPort.textContent = rule.port;
+        tdPort.style.fontFamily = 'monospace';
+        tdPort.style.fontWeight = '600';
+        tr.appendChild(tdPort);
+
+        // Action badge
+        const tdAction = document.createElement('td');
+        const actionBadge = document.createElement('span');
+        actionBadge.textContent = rule.action;
+        actionBadge.style.cssText = 'padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;';
+        if (rule.action === 'ALLOW') {
+            actionBadge.style.background = 'rgba(16, 185, 129, 0.2)';
+            actionBadge.style.color = 'var(--archie-green)';
+        } else if (rule.action === 'DENY' || rule.action === 'REJECT') {
+            actionBadge.style.background = 'rgba(239, 68, 68, 0.2)';
+            actionBadge.style.color = 'var(--archie-red)';
+        } else if (rule.action === 'LIMIT') {
+            actionBadge.style.background = 'rgba(251, 191, 36, 0.2)';
+            actionBadge.style.color = 'var(--archie-yellow)';
+        }
+        tdAction.appendChild(actionBadge);
+        tr.appendChild(tdAction);
+
+        // Direction
+        const tdDir = document.createElement('td');
+        tdDir.textContent = rule.direction || 'IN';
+        tr.appendChild(tdDir);
+
+        // From
+        const tdFrom = document.createElement('td');
+        tdFrom.textContent = rule.from || 'Anywhere';
+        tr.appendChild(tdFrom);
+
+        // Comment/Service
+        const tdComment = document.createElement('td');
+        tdComment.textContent = rule.comment || '';
+        tdComment.style.color = 'var(--archie-text-muted)';
+        tdComment.style.fontSize = '0.85rem';
+        tr.appendChild(tdComment);
+
+        // Actions - Edit and Delete buttons
+        const tdActions = document.createElement('td');
+        tdActions.style.cssText = 'display: flex; gap: 4px;';
+
+        // Edit button
+        const editBtn = document.createElement('button');
+        editBtn.className = 'btn btn-secondary';
+        editBtn.style.cssText = 'padding: 4px 8px; font-size: 0.75rem;';
+        editBtn.title = 'Edit rule';
+        const editIcon = document.createElement('i');
+        editIcon.setAttribute('data-lucide', 'edit');
+        editIcon.style.cssText = 'width: 12px; height: 12px;';
+        editBtn.appendChild(editIcon);
+        editBtn.onclick = () => openEditRuleModal(rule);
+        tdActions.appendChild(editBtn);
+
+        // Delete button
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'btn btn-danger';
+        deleteBtn.style.cssText = 'padding: 4px 8px; font-size: 0.75rem;';
+        deleteBtn.title = 'Delete rule';
+        const deleteIcon = document.createElement('i');
+        deleteIcon.setAttribute('data-lucide', 'trash-2');
+        deleteIcon.style.cssText = 'width: 12px; height: 12px;';
+        deleteBtn.appendChild(deleteIcon);
+        deleteBtn.onclick = () => confirmDeleteRule(rule.number, rule.port);
+        tdActions.appendChild(deleteBtn);
+
+        tr.appendChild(tdActions);
+
+        tbody.appendChild(tr);
+    });
+}
+
+async function enableFirewall() {
+    try {
+        showToast('info', 'Enabling firewall...');
+        const res = await fetch('/tools/system-operations/api/firewall/enable', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await res.json();
+
+        if (data.requires_reauth) {
+            openReauthModal(() => enableFirewall());
+            return;
+        }
+
+        if (data.success) {
+            showToast('success', data.message || 'Firewall enabled');
+            loadFirewallData();
+        } else {
+            showToast('error', data.error || 'Failed to enable firewall');
+        }
+    } catch (e) {
+        showToast('error', 'Error enabling firewall: ' + e.message);
+    }
+}
+
+function confirmDisableFirewall() {
+    document.getElementById('firewallDisableModal').classList.add('active');
+}
+
+function closeFirewallDisableModal() {
+    document.getElementById('firewallDisableModal').classList.remove('active');
+}
+
+async function disableFirewall() {
+    closeFirewallDisableModal();
+    try {
+        showToast('info', 'Disabling firewall...');
+        const res = await fetch('/tools/system-operations/api/firewall/disable', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await res.json();
+
+        if (data.requires_reauth) {
+            openReauthModal(() => confirmDisableFirewall());
+            return;
+        }
+
+        if (data.success) {
+            showToast('success', data.message || 'Firewall disabled');
+            loadFirewallData();
+        } else {
+            showToast('error', data.error || 'Failed to disable firewall');
+        }
+    } catch (e) {
+        showToast('error', 'Error disabling firewall: ' + e.message);
+    }
+}
+
+function openAddRuleModal() {
+    document.getElementById('firewall-port-input').value = '';
+    document.getElementById('firewall-protocol-select').value = 'tcp';
+    document.getElementById('firewall-action-select').value = 'allow';
+    document.getElementById('firewall-add-rule-warning').style.display = 'none';
+    document.getElementById('firewallAddRuleModal').classList.add('active');
+    document.getElementById('firewall-port-input').focus();
+}
+
+function closeAddRuleModal() {
+    document.getElementById('firewallAddRuleModal').classList.remove('active');
+}
+
+async function addFirewallRule() {
+    const portInput = document.getElementById('firewall-port-input');
+    const port = parseInt(portInput.value, 10);
+    const protocol = document.getElementById('firewall-protocol-select').value;
+    const action = document.getElementById('firewall-action-select').value;
+
+    // Validate port
+    if (!port || port < 1 || port > 65535) {
+        showToast('error', 'Invalid port number. Must be 1-65535.');
+        portInput.focus();
+        return;
+    }
+
+    // Warn about critical ports
+    const warningDiv = document.getElementById('firewall-add-rule-warning');
+    const warningText = document.getElementById('firewall-add-rule-warning-text');
+    if (action === 'deny' && (port === 22 || port === 3000)) {
+        const portName = port === 22 ? 'SSH' : 'platform';
+        warningText.textContent = 'Blocking port ' + port + ' (' + portName + ') may lock you out!';
+        warningDiv.style.display = 'block';
+    }
+
+    closeAddRuleModal();
+    showToast('info', 'Adding firewall rule for ' + port + '/' + protocol + '...');
+
+    try {
+        const endpoint = action === 'allow' ? '/api/firewall/allow' : '/api/firewall/deny';
+        const res = await fetch('/tools/system-operations' + endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ port, protocol })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            showToast('success', data.message || 'Rule added: ' + action + ' ' + port + '/' + protocol);
+            loadFirewallData();
+        } else {
+            showToast('error', data.error || 'Failed to add rule');
+        }
+    } catch (e) {
+        showToast('error', 'Error adding rule: ' + e.message);
+    }
+}
+
+function openEditRuleModal(rule) {
+    // Parse port/protocol from rule.port (e.g., "22/tcp")
+    const parts = rule.port.split('/');
+    const port = parseInt(parts[0], 10);
+    const protocol = parts[1] || 'tcp';
+    const action = rule.action.toLowerCase();
+
+    // Store old values for the update
+    document.getElementById('firewall-edit-old-port').value = port;
+    document.getElementById('firewall-edit-old-protocol').value = protocol;
+
+    // Set current values in form
+    document.getElementById('firewall-edit-port-input').value = port;
+    document.getElementById('firewall-edit-protocol-select').value = protocol;
+    document.getElementById('firewall-edit-action-select').value = (action === 'allow' || action === 'deny') ? action : 'allow';
+
+    document.getElementById('firewallEditRuleModal').classList.add('active');
+    document.getElementById('firewall-edit-port-input').focus();
+}
+
+function closeEditRuleModal() {
+    document.getElementById('firewallEditRuleModal').classList.remove('active');
+}
+
+async function updateFirewallRule() {
+    const oldPort = parseInt(document.getElementById('firewall-edit-old-port').value, 10);
+    const oldProtocol = document.getElementById('firewall-edit-old-protocol').value;
+    const newPort = parseInt(document.getElementById('firewall-edit-port-input').value, 10);
+    const newProtocol = document.getElementById('firewall-edit-protocol-select').value;
+    const action = document.getElementById('firewall-edit-action-select').value;
+
+    // Validate new port
+    if (!newPort || newPort < 1 || newPort > 65535) {
+        showToast('error', 'Invalid port number. Must be 1-65535.');
+        document.getElementById('firewall-edit-port-input').focus();
+        return;
+    }
+
+    closeEditRuleModal();
+    showToast('info', 'Updating firewall rule...');
+
+    try {
+        const res = await fetch('/tools/system-operations/api/firewall/update', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                old_port: oldPort,
+                old_protocol: oldProtocol,
+                new_port: newPort,
+                new_protocol: newProtocol,
+                action: action
+            })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            showToast('success', data.message || 'Rule updated successfully');
+            loadFirewallData();
+        } else {
+            showToast('error', data.error || 'Failed to update rule');
+        }
+    } catch (e) {
+        showToast('error', 'Error updating rule: ' + e.message);
+    }
+}
+
+function confirmDeleteRule(ruleNumber, portInfo) {
+    pendingDeleteRuleNumber = ruleNumber;
+    document.getElementById('firewall-delete-rule-details').textContent = 'Rule #' + ruleNumber + ': ' + portInfo;
+    document.getElementById('firewallDeleteModal').classList.add('active');
+}
+
+function closeDeleteRuleModal() {
+    document.getElementById('firewallDeleteModal').classList.remove('active');
+    pendingDeleteRuleNumber = null;
+}
+
+async function deleteFirewallRule() {
+    const ruleNumber = pendingDeleteRuleNumber;
+    closeDeleteRuleModal();
+
+    if (!ruleNumber) {
+        showToast('error', 'No rule selected for deletion');
+        return;
+    }
+
+    showToast('info', 'Deleting firewall rule #' + ruleNumber + '...');
+
+    try {
+        const res = await fetch('/tools/system-operations/api/firewall/delete', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rule_number: ruleNumber })
+        });
+        const data = await res.json();
+
+        if (data.requires_reauth) {
+            openReauthModal(() => {
+                pendingDeleteRuleNumber = ruleNumber;
+                deleteFirewallRule();
+            });
+            return;
+        }
+
+        if (data.success) {
+            showToast('success', data.message || 'Rule #' + ruleNumber + ' deleted');
+            loadFirewallData();
+        } else {
+            showToast('error', data.error || 'Failed to delete rule');
+        }
+    } catch (e) {
+        showToast('error', 'Error deleting rule: ' + e.message);
     }
 }
 </script>

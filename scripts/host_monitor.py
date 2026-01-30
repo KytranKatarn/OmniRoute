@@ -1470,6 +1470,58 @@ COMMAND_REGISTRY = {
             'fstype': {'required': True, 'regex': _FSTYPE_RE},
         },
     },
+    # -------------------------------------------------------------------------
+    # FIREWALL (UFW) COMMANDS
+    # -------------------------------------------------------------------------
+    'firewall_status': {
+        'handler': 'handle_firewall_status',
+        'params': {},
+    },
+    'firewall_rules': {
+        'handler': 'handle_firewall_rules',
+        'params': {},
+    },
+    'firewall_enable': {
+        'handler': 'handle_firewall_enable',
+        'dangerous': True,
+        'params': {},
+    },
+    'firewall_disable': {
+        'handler': 'handle_firewall_disable',
+        'dangerous': True,
+        'params': {},
+    },
+    'firewall_allow': {
+        'handler': 'handle_firewall_allow',
+        'params': {
+            'port': {'required': True, 'validator': lambda v: isinstance(v, int) and 1 <= v <= 65535},
+            'protocol': {'required': True, 'regex': r'^(tcp|udp)$'},
+        },
+    },
+    'firewall_deny': {
+        'handler': 'handle_firewall_deny',
+        'params': {
+            'port': {'required': True, 'validator': lambda v: isinstance(v, int) and 1 <= v <= 65535},
+            'protocol': {'required': True, 'regex': r'^(tcp|udp)$'},
+        },
+    },
+    'firewall_delete': {
+        'handler': 'handle_firewall_delete',
+        'dangerous': True,
+        'params': {
+            'rule_number': {'required': True, 'validator': lambda v: isinstance(v, int) and v >= 1},
+        },
+    },
+    'firewall_update': {
+        'handler': 'handle_firewall_update',
+        'params': {
+            'old_port': {'required': True, 'validator': lambda v: isinstance(v, int) and 1 <= v <= 65535},
+            'old_protocol': {'required': True, 'regex': r'^(tcp|udp)$'},
+            'new_port': {'required': True, 'validator': lambda v: isinstance(v, int) and 1 <= v <= 65535},
+            'new_protocol': {'required': True, 'regex': r'^(tcp|udp)$'},
+            'action': {'required': True, 'regex': r'^(allow|deny)$'},
+        },
+    },
 }
 
 
@@ -2035,6 +2087,206 @@ def handle_convert_to_lvm(params):
     }
 
 
+# ============================================================================
+# FIREWALL (UFW) HANDLERS
+# ============================================================================
+
+
+def handle_firewall_status(params):
+    """Get UFW firewall status"""
+    result = run_command_full(['sudo', '-n', 'ufw', 'status', 'verbose'], timeout=10)
+    if result['returncode'] != 0:
+        return {'success': False, 'error': result['stderr'] or 'Failed to get UFW status'}
+
+    output = result['stdout']
+    # Parse status line to determine if active
+    active = 'Status: active' in output
+
+    return {
+        'success': True,
+        'active': active,
+        'output': output
+    }
+
+
+def handle_firewall_rules(params):
+    """Get numbered list of UFW firewall rules - works even when inactive"""
+    # First try ufw status numbered (works when active)
+    result = run_command_full(['sudo', '-n', 'ufw', 'status', 'numbered'], timeout=10)
+    if result['returncode'] != 0:
+        return {'success': False, 'error': result['stderr'] or 'Failed to get UFW rules'}
+
+    # Check if inactive - if so, parse config file directly
+    if 'Status: inactive' in result['stdout']:
+        rules = _parse_ufw_config_rules()
+        return {
+            'success': True,
+            'output': result['stdout'],
+            'rules': rules,
+            'from_config': True
+        }
+
+    return {
+        'success': True,
+        'output': result['stdout'],
+        'from_config': False
+    }
+
+
+def _parse_ufw_config_rules():
+    """Parse UFW rules from config file (for when UFW is inactive)"""
+    rules = []
+    rule_num = 1
+
+    # Parse IPv4 rules
+    try:
+        with open('/etc/ufw/user.rules', 'r') as f:
+            for line in f:
+                if line.startswith('### tuple ###'):
+                    rule = _parse_ufw_tuple_line(line, rule_num)
+                    if rule:
+                        rules.append(rule)
+                        rule_num += 1
+    except (IOError, PermissionError):
+        pass
+
+    return rules
+
+
+def _parse_ufw_tuple_line(line, rule_num):
+    """Parse a UFW tuple line from config file.
+    Format: ### tuple ### allow tcp 22 0.0.0.0/0 any 0.0.0.0/0 in comment=...
+    """
+    import re
+    # Pattern: action protocol port dest_addr dest_port src_addr direction
+    match = re.match(
+        r'### tuple ### (allow|deny|reject|limit) (tcp|udp) (\d+) ([\d./]+) (\w+) ([\d./]+) (in|out)',
+        line
+    )
+    if match:
+        action = match.group(1).upper()
+        protocol = match.group(2)
+        port = match.group(3)
+        direction = match.group(7).upper()
+        src = match.group(6)
+
+        # Extract comment if present
+        comment_match = re.search(r'comment=([a-fA-F0-9]+)', line)
+        comment = ''
+        if comment_match:
+            try:
+                comment = bytes.fromhex(comment_match.group(1)).decode('utf-8')
+            except (ValueError, UnicodeDecodeError):
+                pass
+
+        return {
+            'number': rule_num,
+            'port': f'{port}/{protocol}',
+            'action': action,
+            'direction': direction,
+            'from': 'Anywhere' if src == '0.0.0.0/0' else src,
+            'comment': comment
+        }
+    return None
+
+
+def handle_firewall_enable(params):
+    """Enable UFW firewall (DANGEROUS - may lock out if SSH not allowed)"""
+    result = run_command_full(['sudo', '-n', 'ufw', '--force', 'enable'], timeout=30)
+    if result['returncode'] != 0:
+        return {'success': False, 'error': result['stderr'] or 'Failed to enable UFW'}
+
+    return {
+        'success': True,
+        'message': 'UFW firewall enabled'
+    }
+
+
+def handle_firewall_disable(params):
+    """Disable UFW firewall (DANGEROUS - exposes all ports)"""
+    result = run_command_full(['sudo', '-n', 'ufw', '--force', 'disable'], timeout=30)
+    if result['returncode'] != 0:
+        return {'success': False, 'error': result['stderr'] or 'Failed to disable UFW'}
+
+    return {
+        'success': True,
+        'message': 'UFW firewall disabled'
+    }
+
+
+def handle_firewall_allow(params):
+    """Allow a port through the firewall"""
+    port = params['port']
+    protocol = params['protocol']
+
+    result = run_command_full(['sudo', '-n', 'ufw', 'allow', f'{port}/{protocol}'], timeout=30)
+    if result['returncode'] != 0:
+        return {'success': False, 'error': result['stderr'] or f'Failed to allow {port}/{protocol}'}
+
+    return {
+        'success': True,
+        'message': f'Allowed {port}/{protocol} through firewall'
+    }
+
+
+def handle_firewall_deny(params):
+    """Deny a port through the firewall"""
+    port = params['port']
+    protocol = params['protocol']
+
+    result = run_command_full(['sudo', '-n', 'ufw', 'deny', f'{port}/{protocol}'], timeout=30)
+    if result['returncode'] != 0:
+        return {'success': False, 'error': result['stderr'] or f'Failed to deny {port}/{protocol}'}
+
+    return {
+        'success': True,
+        'message': f'Denied {port}/{protocol} through firewall'
+    }
+
+
+def handle_firewall_delete(params):
+    """Delete a firewall rule by number (DANGEROUS)"""
+    rule_number = params['rule_number']
+
+    result = run_command_full(['sudo', '-n', 'ufw', '--force', 'delete', str(rule_number)], timeout=30)
+    if result['returncode'] != 0:
+        return {'success': False, 'error': result['stderr'] or f'Failed to delete rule {rule_number}'}
+
+    return {
+        'success': True,
+        'message': f'Deleted firewall rule #{rule_number}'
+    }
+
+
+def handle_firewall_update(params):
+    """Update a firewall rule (delete old + add new)"""
+    old_port = params['old_port']
+    old_protocol = params['old_protocol']
+    new_port = params['new_port']
+    new_protocol = params['new_protocol']
+    action = params['action']
+
+    # Delete old rule
+    delete_result = run_command_full(
+        ['sudo', '-n', 'ufw', '--force', 'delete', action, f'{old_port}/{old_protocol}'],
+        timeout=30
+    )
+    # Note: delete might fail if rule doesn't exist exactly, that's ok
+
+    # Add new rule
+    add_result = run_command_full(
+        ['sudo', '-n', 'ufw', action, f'{new_port}/{new_protocol}'],
+        timeout=30
+    )
+    if add_result['returncode'] != 0:
+        return {'success': False, 'error': add_result['stderr'] or f'Failed to add {action} {new_port}/{new_protocol}'}
+
+    return {
+        'success': True,
+        'message': f'Updated rule: {action} {new_port}/{new_protocol}'
+    }
+
+
 # Handler dispatch table
 _HANDLER_MAP = {
     'handle_lvm_extend': handle_lvm_extend,
@@ -2049,6 +2301,15 @@ _HANDLER_MAP = {
     'handle_disk_prepare': handle_disk_prepare,
     'handle_disk_label': handle_disk_label,
     'handle_convert_to_lvm': handle_convert_to_lvm,
+    # Firewall handlers
+    'handle_firewall_status': handle_firewall_status,
+    'handle_firewall_rules': handle_firewall_rules,
+    'handle_firewall_enable': handle_firewall_enable,
+    'handle_firewall_disable': handle_firewall_disable,
+    'handle_firewall_allow': handle_firewall_allow,
+    'handle_firewall_deny': handle_firewall_deny,
+    'handle_firewall_delete': handle_firewall_delete,
+    'handle_firewall_update': handle_firewall_update,
 }
 
 

@@ -60,6 +60,12 @@
                 <div id="searchDropdown" class="search-dropdown"></div>
             </div>
 
+            <!-- Install App Button (shown when PWA install available) -->
+            <button class="install-app-btn" id="installAppBtn" style="display: none;" onclick="installPWA()">
+                <i data-lucide="download"></i>
+                <span>Install App</span>
+            </button>
+
             <div class="header-status">
                 <div class="status-orb" id="systemStatus" title="System Status">
                     <span class="orb-ring"></span>
@@ -792,6 +798,56 @@
 .search-result-badge.request {
     background: var(--mh-accent-alpha-20);
     color: var(--mh-accent);
+}
+
+/* Install App Button */
+.install-app-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    background: linear-gradient(135deg, var(--mh-accent) 0%, var(--mh-accent-bright) 100%);
+    border: none;
+    border-radius: 8px;
+    color: #000;
+    font-family: var(--font-display);
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(229, 160, 13, 0.3);
+}
+
+.install-app-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(229, 160, 13, 0.5);
+}
+
+.install-app-btn:active {
+    transform: translateY(0);
+}
+
+.install-app-btn i {
+    width: 18px;
+    height: 18px;
+}
+
+/* Pulse animation to draw attention */
+.install-app-btn.pulse {
+    animation: installPulse 2s ease-in-out infinite;
+}
+
+@keyframes installPulse {
+    0%, 100% { box-shadow: 0 2px 8px rgba(229, 160, 13, 0.3); }
+    50% { box-shadow: 0 4px 20px rgba(229, 160, 13, 0.6); }
+}
+
+/* TV mode - larger button */
+body.tv-mode .install-app-btn {
+    padding: 14px 24px;
+    font-size: 1rem;
 }
 
 /* Status Indicator */

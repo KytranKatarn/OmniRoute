@@ -17,6 +17,50 @@ let primaryMediaServer = { type: 'plex', url: '', name: 'Plex' };
 let availableMediaServers = [];
 
 // ─────────────────────────────────────────────────────────────────────────────
+// LOCAL STORAGE CACHE
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CACHE_PREFIX = 'media-hub-cache-';
+const CACHE_TTL = 60 * 60 * 1000; // 1 hour in milliseconds
+
+function cacheSet(key, data) {
+    try {
+        const item = {
+            data: data,
+            timestamp: Date.now()
+        };
+        localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(item));
+    } catch (e) {
+        console.warn('[Media Hub] Cache write failed:', e);
+    }
+}
+
+function cacheGet(key, maxAge = CACHE_TTL) {
+    try {
+        const item = localStorage.getItem(CACHE_PREFIX + key);
+        if (!item) return null;
+
+        const parsed = JSON.parse(item);
+        const age = Date.now() - parsed.timestamp;
+
+        // Return data even if stale (for instant display), but include age
+        return {
+            data: parsed.data,
+            age: age,
+            isStale: age > maxAge
+        };
+    } catch (e) {
+        return null;
+    }
+}
+
+function cacheClear() {
+    const keys = Object.keys(localStorage).filter(k => k.startsWith(CACHE_PREFIX));
+    keys.forEach(k => localStorage.removeItem(k));
+    console.log(`[Media Hub] Cleared ${keys.length} cached items`);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // INITIALIZATION
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -457,25 +501,43 @@ async function loadStatus() {
 }
 
 async function loadStats() {
+    const setEl = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = val;
+    };
+
+    const updateStatsUI = (stats) => {
+        setEl('statMovies', stats.movie_count || '0');
+        setEl('statShows', stats.show_count || '0');
+        setEl('statEpisodes', stats.episode_count || '0');
+        setEl('statStorage', stats.total_size_formatted || '0 B');
+        setEl('movieCount', stats.movie_count || '--');
+        setEl('showCount', stats.show_count || '--');
+    };
+
+    // Load from cache first for instant display
+    const cached = cacheGet('stats');
+    if (cached && cached.data) {
+        updateStatsUI(cached.data);
+        console.log(`[Media Hub] Stats loaded from cache (age: ${Math.round(cached.age / 1000)}s)`);
+    }
+
+    // Fetch fresh data in background
     try {
         const response = await fetch(`${API_BASE}/library/stats`);
         const data = await response.json();
 
         if (data.success && data.stats) {
-            const setEl = (id, val) => {
-                const el = document.getElementById(id);
-                if (el) el.textContent = val;
-            };
-
-            setEl('statMovies', data.stats.movie_count || '0');
-            setEl('statShows', data.stats.show_count || '0');
-            setEl('statEpisodes', data.stats.episode_count || '0');
-            setEl('statStorage', data.stats.total_size_formatted || '0 B');
-            setEl('movieCount', data.stats.movie_count || '--');
-            setEl('showCount', data.stats.show_count || '--');
+            updateStatsUI(data.stats);
+            cacheSet('stats', data.stats);
         }
     } catch (error) {
         console.error('Stats load error:', error);
+        // If fetch failed and no cache, show error state
+        if (!cached) {
+            setEl('statMovies', '--');
+            setEl('statShows', '--');
+        }
     }
 }
 
@@ -569,14 +631,10 @@ async function loadRecentAdditions() {
     const container = document.getElementById('recentAdditions');
     if (!container) return;
 
-    try {
-        const response = await fetch(`${API_BASE}/library/recent?limit=12`);
-        const data = await response.json();
-
+    const renderItems = (items) => {
         container.textContent = '';
-
-        if (data.success && data.items && data.items.length > 0) {
-            data.items.forEach(item => {
+        if (items && items.length > 0) {
+            items.forEach(item => {
                 container.appendChild(createPosterCard(item));
             });
             lucide.createIcons();
@@ -584,10 +642,31 @@ async function loadRecentAdditions() {
             container.appendChild(createEmptyState('film', 'No recent additions'));
             lucide.createIcons();
         }
+    };
+
+    // Load from cache first for instant display
+    const cached = cacheGet('recent-additions');
+    if (cached && cached.data) {
+        renderItems(cached.data);
+        console.log(`[Media Hub] Recent additions loaded from cache (age: ${Math.round(cached.age / 1000)}s)`);
+    }
+
+    // Fetch fresh data
+    try {
+        const response = await fetch(`${API_BASE}/library/recent?limit=12`);
+        const data = await response.json();
+
+        if (data.success && data.items) {
+            renderItems(data.items);
+            cacheSet('recent-additions', data.items);
+        }
     } catch (error) {
-        container.textContent = '';
-        container.appendChild(createEmptyState('alert-circle', 'Failed to load'));
-        lucide.createIcons();
+        // Only show error if no cached data
+        if (!cached) {
+            container.textContent = '';
+            container.appendChild(createEmptyState('alert-circle', 'Failed to load'));
+            lucide.createIcons();
+        }
     }
 }
 
@@ -2397,11 +2476,35 @@ window.addEventListener('beforeinstallprompt', (e) => {
     deferredPrompt = e;
     console.log('[Media Hub] Install prompt available');
 
+    // Show the install button in header
+    showInstallButton();
+
     // Don't show banner immediately on TV
     if (!document.body.classList.contains('tv-mode')) {
         setTimeout(() => showInstallBanner(), 3000);
     }
 });
+
+// Show install button in header
+function showInstallButton() {
+    const btn = document.getElementById('installAppBtn');
+    if (btn && deferredPrompt) {
+        btn.style.display = 'flex';
+        // Re-initialize lucide icon
+        lucide.createIcons({ icons: { download: lucide.icons.download }, attrs: {} });
+        // Add pulse animation after a short delay
+        setTimeout(() => btn.classList.add('pulse'), 500);
+    }
+}
+
+// Hide install button
+function hideInstallButton() {
+    const btn = document.getElementById('installAppBtn');
+    if (btn) {
+        btn.style.display = 'none';
+        btn.classList.remove('pulse');
+    }
+}
 
 function showInstallBanner() {
     if (!deferredPrompt) return;
@@ -2467,7 +2570,7 @@ function dismissInstallBanner() {
 
 async function installPWA() {
     if (!deferredPrompt) {
-        showToast('Install not available', 'error');
+        showToast('Install not available - try browser menu', 'info');
         return;
     }
 
@@ -2484,6 +2587,7 @@ async function installPWA() {
         if (outcome === 'accepted') {
             showToast('Media Hub installed successfully!', 'success');
             console.log('[Media Hub] PWA installed');
+            hideInstallButton();
         } else {
             console.log('[Media Hub] PWA install declined');
         }
@@ -2499,8 +2603,17 @@ async function installPWA() {
 window.addEventListener('appinstalled', () => {
     console.log('[Media Hub] PWA was installed');
     deferredPrompt = null;
+    hideInstallButton();
     showToast('Media Hub installed!', 'success');
 });
 
 // Initialize TV mode detection on load
-document.addEventListener('DOMContentLoaded', detectTVMode);
+document.addEventListener('DOMContentLoaded', () => {
+    detectTVMode();
+
+    // Hide install button if already in standalone mode (app already installed)
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+        hideInstallButton();
+        console.log('[Media Hub] Running in standalone mode - already installed');
+    }
+});

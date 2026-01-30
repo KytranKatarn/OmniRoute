@@ -2,8 +2,8 @@
   "name": "Media Hub - A.R.C.H.I.E.",
   "short_name": "Media Hub",
   "description": "Unified streaming command center for your media library",
-  "start_url": "/tools/media-hub",
-  "scope": "/tools/media-hub",
+  "start_url": "/tools/media-hub/",
+  "scope": "/tools/media-hub/",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#0a0a0f",
@@ -80,21 +80,21 @@
       "name": "Movies",
       "short_name": "Movies",
       "description": "Browse your movie library",
-      "url": "/tools/media-hub#movies",
+      "url": "/tools/media-hub/#movies",
       "icons": [{ "src": "/static/icons/media-hub-movies.png", "sizes": "96x96" }]
     },
     {
       "name": "TV Shows",
       "short_name": "TV Shows",
       "description": "Browse your TV shows",
-      "url": "/tools/media-hub#shows",
+      "url": "/tools/media-hub/#shows",
       "icons": [{ "src": "/static/icons/media-hub-tv.png", "sizes": "96x96" }]
     },
     {
       "name": "Search",
       "short_name": "Search",
       "description": "Search your library",
-      "url": "/tools/media-hub#search",
+      "url": "/tools/media-hub/#search",
       "icons": [{ "src": "/static/icons/media-hub-search.png", "sizes": "96x96" }]
     }
   ],

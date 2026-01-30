@@ -28,6 +28,90 @@ _stats_cache = {
     "ttl": 3600,  # 1 hour cache TTL
 }
 
+# Cache for TMDB metadata enrichment
+_tmdb_enrichment_cache = {}
+
+
+def enrich_items_with_tmdb(items: list) -> list:
+    """
+    Enrich items with missing metadata from TMDB.
+    Checks if items are missing poster/overview and fetches from TMDB.
+    """
+    from .clients.tmdb import TMDBClient
+
+    tmdb = TMDBClient()
+    if not tmdb.is_configured():
+        return items
+
+    enriched = []
+    for item in items:
+        # Check if item needs enrichment (missing poster or overview)
+        needs_enrichment = not item.get("poster_url") or not item.get("overview") or item.get("overview") == ""
+
+        if needs_enrichment and item.get("title"):
+            # Clean title for search (remove suffixes like "(US)")
+            title = item.get("title", "")
+            clean_title = title.replace(" (US)", "").replace(" (UK)", "").strip()
+            cache_key = f"{item.get('media_type', 'movie')}:{clean_title}"
+
+            # Check cache first
+            if cache_key in _tmdb_enrichment_cache:
+                cached = _tmdb_enrichment_cache[cache_key]
+                if cached:
+                    item = {**item, **cached}
+                    logger.debug(f"Using cached TMDB data for '{title}'")
+            else:
+                # Search TMDB
+                try:
+                    media_type = item.get("media_type", "movie")
+
+                    if media_type == "show":
+                        results = tmdb.search_tv(clean_title, year=item.get("year"))
+                    else:
+                        results = tmdb.search_movies(clean_title, year=item.get("year"))
+
+                    if results and results.get("results"):
+                        # Find best match (first result usually best)
+                        match = results["results"][0]
+                        enrichment = {}
+
+                        # TMDB client already formats poster_url/backdrop_url
+                        if not item.get("poster_url") and match.get("poster_url"):
+                            enrichment["poster_url"] = match["poster_url"]
+
+                        if not item.get("backdrop_url") and match.get("backdrop_url"):
+                            enrichment["backdrop_url"] = match["backdrop_url"]
+
+                        if (not item.get("overview") or item.get("overview") == "") and match.get("overview"):
+                            enrichment["overview"] = match["overview"]
+
+                        if not item.get("rating") and match.get("rating"):
+                            enrichment["rating"] = match["rating"]
+                            enrichment["rating_source"] = "tmdb"
+
+                        if not item.get("year") and match.get("year"):
+                            enrichment["year"] = match["year"]
+
+                        if not item.get("tmdb_id") and match.get("tmdb_id"):
+                            enrichment["tmdb_id"] = match["tmdb_id"]
+
+                        # Cache the enrichment
+                        _tmdb_enrichment_cache[cache_key] = enrichment if enrichment else None
+
+                        if enrichment:
+                            item = {**item, **enrichment}
+                            logger.info(f"Enriched '{title}' with TMDB metadata: {list(enrichment.keys())}")
+                    else:
+                        _tmdb_enrichment_cache[cache_key] = None
+                        logger.debug(f"No TMDB results for '{clean_title}'")
+                except Exception as e:
+                    logger.warning(f"TMDB enrichment failed for '{title}': {e}")
+                    _tmdb_enrichment_cache[cache_key] = None
+
+        enriched.append(item)
+
+    return enriched
+
 
 def get_db():
     """Get database connection"""
@@ -308,6 +392,9 @@ def api_search():
         except Exception as e:
             logger.error(f"Overseerr search error: {e}")
 
+    # Enrich results with missing metadata from TMDB
+    results = enrich_items_with_tmdb(results)
+
     return jsonify({"success": True, "query": query, "results": results, "total": len(results)})
 
 
@@ -327,7 +414,12 @@ def api_library_recent():
 
     try:
         items = media_server.get_recent_additions(limit)
-        return jsonify({"success": True, "items": [item.to_dict() for item in items], "source": server_type})
+        items_dict = [item.to_dict() for item in items]
+
+        # Enrich items with missing metadata from TMDB
+        items_dict = enrich_items_with_tmdb(items_dict)
+
+        return jsonify({"success": True, "items": items_dict, "source": server_type})
     except Exception as e:
         logger.error(f"Error getting recent additions: {e}")
         return jsonify({"success": False, "error": str(e), "items": []})

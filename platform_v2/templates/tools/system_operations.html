@@ -1115,6 +1115,113 @@
         flex-wrap: wrap;
     }
 
+    /* Health Alerts Panel */
+    .health-alerts-panel {
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
+        border-radius: var(--archie-radius-lg);
+        margin-bottom: var(--archie-space-5);
+        max-height: 300px;
+        overflow-y: auto;
+    }
+
+    .health-alert-badge {
+        background: var(--archie-red);
+        color: var(--archie-bg-primary);
+        font-size: var(--archie-text-xs);
+        font-weight: var(--archie-font-bold);
+        padding: 2px 8px;
+        border-radius: var(--archie-radius-full);
+        margin-left: var(--archie-space-2);
+    }
+
+    .health-alert-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        padding: var(--archie-space-3) var(--archie-space-4);
+        border-bottom: 1px solid var(--archie-border-subtle);
+        transition: background var(--archie-transition-fast);
+    }
+
+    .health-alert-item:hover {
+        background: var(--archie-bg-tertiary);
+    }
+
+    .health-alert-item:last-child {
+        border-bottom: none;
+    }
+
+    .health-alert-item.critical {
+        border-left: 3px solid var(--archie-red);
+    }
+
+    .health-alert-item.warning {
+        border-left: 3px solid var(--archie-orange);
+    }
+
+    .health-alert-item.info {
+        border-left: 3px solid var(--archie-cyan);
+    }
+
+    .health-alert-content {
+        flex: 1;
+    }
+
+    .health-alert-header {
+        display: flex;
+        align-items: center;
+        gap: var(--archie-space-2);
+        margin-bottom: var(--archie-space-1);
+    }
+
+    .health-alert-severity {
+        font-size: var(--archie-text-xs);
+        font-weight: var(--archie-font-semibold);
+        padding: 2px 6px;
+        border-radius: var(--archie-radius-sm);
+        text-transform: uppercase;
+    }
+
+    .health-alert-severity.critical {
+        background: var(--archie-red-alpha-20);
+        color: var(--archie-red);
+    }
+
+    .health-alert-severity.warning {
+        background: var(--archie-orange-alpha-20);
+        color: var(--archie-orange);
+    }
+
+    .health-alert-container {
+        font-family: var(--archie-font-mono);
+        font-size: var(--archie-text-sm);
+        color: var(--archie-cyan);
+    }
+
+    .health-alert-message {
+        font-size: var(--archie-text-sm);
+        color: var(--archie-text-secondary);
+        margin-top: var(--archie-space-1);
+    }
+
+    .health-alert-time {
+        font-size: var(--archie-text-xs);
+        color: var(--archie-text-muted);
+        margin-top: var(--archie-space-1);
+    }
+
+    .health-alert-actions {
+        display: flex;
+        gap: var(--archie-space-2);
+        margin-left: var(--archie-space-3);
+    }
+
+    .health-alert-actions button {
+        padding: var(--archie-space-1) var(--archie-space-2);
+        font-size: var(--archie-text-xs);
+    }
+
     .docker-action-btn {
         display: flex;
         align-items: center;
@@ -2502,6 +2609,25 @@
                         <span class="docker-stat-value" id="docker-stacks-count">0</span>
                         <span class="docker-stat-label">Stacks</span>
                     </div>
+                </div>
+            </div>
+
+            <!-- Health Alerts Panel -->
+            <div class="section-title" style="display: flex; justify-content: space-between; align-items: center; margin-top: var(--archie-space-4);">
+                <span>
+                    <i data-lucide="alert-triangle" style="width: 18px; height: 18px;"></i>
+                    Health Alerts
+                    <span class="health-alert-badge" id="health-alert-badge" style="display: none;">0</span>
+                </span>
+                <button class="btn btn-sm btn-ghost" onclick="showAlertConfigModal()">
+                    <i data-lucide="settings" style="width: 14px; height: 14px;"></i>
+                    Configure
+                </button>
+            </div>
+            <div class="health-alerts-panel" id="health-alerts-panel">
+                <div class="empty-state" style="padding: var(--archie-space-4); text-align: center; color: var(--archie-text-muted);">
+                    <i data-lucide="check-circle" style="width: 24px; height: 24px; color: var(--archie-green);"></i>
+                    <p style="margin-top: var(--archie-space-2);">No active alerts</p>
                 </div>
             </div>
 
@@ -3926,6 +4052,11 @@ function initTabs() {
             }
             // Don't reset memory tab - hardware info doesn't change often
 
+            // Load health alerts when entering Docker tab
+            if (btn.dataset.tab === 'docker') {
+                loadHealthAlerts();
+            }
+
             lucide.createIcons();
         });
     });
@@ -4051,7 +4182,8 @@ async function refreshAll() {
             loadDocker(),
             loadNetwork(),
             loadDockerMounts(),
-            loadDashboardMemoryHardware()
+            loadDashboardMemoryHardware(),
+            loadHealthAlerts()
             // Storage excluded from auto-refresh: data changes rarely and
             // re-rendering destroys treemap selection/action panel state.
             // Storage loads on tab activation and manual Refresh button.
@@ -4911,6 +5043,155 @@ async function loadDashboardMemoryHardware() {
     } catch (e) {
         console.error('Dashboard memory hardware error:', e);
     }
+}
+
+// ===== Health Alerts Functions =====
+
+async function loadHealthAlerts() {
+    try {
+        const res = await fetch('/tools/system-operations/api/health/alerts');
+        const data = await res.json();
+        if (data.success) {
+            renderHealthAlerts(data.alerts || [], data.counts || {});
+        }
+    } catch (e) {
+        console.error('Health alerts error:', e);
+    }
+}
+
+function renderHealthAlerts(alerts, counts) {
+    const panel = document.getElementById('health-alerts-panel');
+    const badge = document.getElementById('health-alert-badge');
+
+    const totalAlerts = counts.total || 0;
+
+    // Update badge
+    if (totalAlerts > 0) {
+        badge.textContent = totalAlerts;
+        badge.style.display = 'inline';
+    } else {
+        badge.style.display = 'none';
+    }
+
+    // Clear panel
+    panel.textContent = '';
+
+    if (!alerts || alerts.length === 0) {
+        const emptyState = document.createElement('div');
+        emptyState.className = 'empty-state';
+        emptyState.style.cssText = 'padding: var(--archie-space-4); text-align: center; color: var(--archie-text-muted);';
+
+        const icon = document.createElement('i');
+        icon.setAttribute('data-lucide', 'check-circle');
+        icon.style.cssText = 'width: 24px; height: 24px; color: var(--archie-green);';
+        emptyState.appendChild(icon);
+
+        const p = document.createElement('p');
+        p.style.marginTop = 'var(--archie-space-2)';
+        p.textContent = 'No active alerts';
+        emptyState.appendChild(p);
+        panel.appendChild(emptyState);
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        return;
+    }
+
+    alerts.forEach(alert => {
+        const item = document.createElement('div');
+        item.className = 'health-alert-item ' + alert.severity;
+
+        const content = document.createElement('div');
+        content.className = 'health-alert-content';
+
+        // Header row
+        const header = document.createElement('div');
+        header.className = 'health-alert-header';
+
+        const severityBadge = document.createElement('span');
+        severityBadge.className = 'health-alert-severity ' + alert.severity;
+        severityBadge.textContent = alert.severity;
+
+        const container = document.createElement('span');
+        container.className = 'health-alert-container';
+        container.textContent = alert.container_name || alert.stack_name;
+
+        header.appendChild(severityBadge);
+        header.appendChild(container);
+
+        // Message
+        const message = document.createElement('div');
+        message.className = 'health-alert-message';
+        message.textContent = alert.message;
+
+        // Time
+        const time = document.createElement('div');
+        time.className = 'health-alert-time';
+        time.textContent = new Date(alert.created_at).toLocaleString();
+
+        content.appendChild(header);
+        content.appendChild(message);
+        content.appendChild(time);
+
+        // Actions
+        const actions = document.createElement('div');
+        actions.className = 'health-alert-actions';
+
+        if (!alert.acknowledged) {
+            const ackBtn = document.createElement('button');
+            ackBtn.className = 'btn btn-sm btn-ghost';
+            ackBtn.textContent = 'Ack';
+            ackBtn.onclick = () => acknowledgeAlert(alert.id);
+            actions.appendChild(ackBtn);
+        }
+
+        const resolveBtn = document.createElement('button');
+        resolveBtn.className = 'btn btn-sm btn-primary';
+        resolveBtn.textContent = 'Resolve';
+        resolveBtn.onclick = () => resolveAlert(alert.id);
+        actions.appendChild(resolveBtn);
+
+        item.appendChild(content);
+        item.appendChild(actions);
+        panel.appendChild(item);
+    });
+}
+
+async function acknowledgeAlert(alertId) {
+    try {
+        const res = await fetch('/tools/system-operations/api/health/alerts/' + alertId + '/acknowledge', {
+            method: 'POST'
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast('success', 'Alert acknowledged');
+            loadHealthAlerts();
+        } else {
+            showToast('error', data.error || 'Failed to acknowledge alert');
+        }
+    } catch (e) {
+        showToast('error', 'Error: ' + e.message);
+    }
+}
+
+async function resolveAlert(alertId) {
+    try {
+        const res = await fetch('/tools/system-operations/api/health/alerts/' + alertId + '/resolve', {
+            method: 'POST'
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast('success', 'Alert resolved');
+            loadHealthAlerts();
+        } else {
+            showToast('error', data.error || 'Failed to resolve alert');
+        }
+    } catch (e) {
+        showToast('error', 'Error: ' + e.message);
+    }
+}
+
+function showAlertConfigModal() {
+    // Show info about configuration
+    showToast('info', 'Alert thresholds: CPU 80%/95%, Memory 85%/95%, Restarts 3/5. Configure via API.');
 }
 
 // ===== Multi-Stack State =====
@@ -5826,7 +6107,7 @@ function renderPartitions(partitions) {
             </td>
             <td>
                 ${canExtend ?
-                    `<button class="extend-btn" onclick="extendLVM('${lvmInfo.vg_name}', '${lvmInfo.lv_name}', ${vgFree})">
+                    `<button class="extend-btn" onclick="openLvmExtendModal('${lvmInfo.lv_name}', '${lvmInfo.vg_name}', ${p.total_gb || 0}, ${vgFree})">
                         Extend <span class="vg-free-badge">+${vgFree} GB</span>
                     </button>` :
                     (p.is_lvm ? '<span style="color: var(--archie-text-muted); font-size: 0.75rem;">No free space</span>' : '-')
@@ -7554,73 +7835,8 @@ function dockerAction(id, action) {
 }
 
 function mountDisk(device) {
-    const mountpoint = prompt('Enter mountpoint (e.g., /mnt/data):');
-    if (!mountpoint) return;
-    showConfirmModal('Mount Disk', `Mount ${device} at ${mountpoint}?`, async () => {
-        const res = await fetch(`/tools/system-operations/api/disk/${device}/mount`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ confirm: true, mountpoint })
-        });
-        const json = await res.json();
-        showToast(json.success ? 'success' : 'error', json.message || json.error || 'Action completed');
-        if (json.success) loadDisks();
-    });
-}
-
-function extendLVM(vgName, lvName, freeSpace) {
-    const options = [
-        `Use all free space (+${freeSpace} GB)`,
-        'Specify size manually'
-    ];
-    const choice = confirm(`Extend ${vgName}/${lvName}?\n\nAvailable: ${freeSpace} GB\n\nClick OK to use all free space, Cancel to specify size.`);
-
-    if (choice) {
-        // Use all free space
-        showConfirmModal('Extend LVM Volume',
-            `Extend ${vgName}/${lvName} using ALL available space (${freeSpace} GB)?<br><br><strong style="color: var(--archie-orange);">This will resize the filesystem automatically.</strong>`,
-            async () => {
-                const res = await fetch(`/tools/system-operations/api/lvm/${vgName}/${lvName}/extend`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ confirm: true, extend_all: true })
-                });
-                const json = await res.json();
-                showToast(json.success ? 'success' : 'error', json.message || json.error || 'Action completed');
-                if (json.success) {
-                    loadDisks();
-                    loadOverview();
-                }
-            }
-        );
-    } else {
-        // Specify size manually
-        const sizeStr = prompt(`Enter size to add (in GB, max ${freeSpace}):`, Math.floor(freeSpace));
-        if (!sizeStr) return;
-
-        const sizeGb = parseFloat(sizeStr);
-        if (isNaN(sizeGb) || sizeGb <= 0 || sizeGb > freeSpace) {
-            showToast('error', `Invalid size. Must be between 0 and ${freeSpace} GB.`);
-            return;
-        }
-
-        showConfirmModal('Extend LVM Volume',
-            `Extend ${vgName}/${lvName} by ${sizeGb} GB?`,
-            async () => {
-                const res = await fetch(`/tools/system-operations/api/lvm/${vgName}/${lvName}/extend`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ confirm: true, size_gb: sizeGb })
-                });
-                const json = await res.json();
-                showToast(json.success ? 'success' : 'error', json.message || json.error || 'Action completed');
-                if (json.success) {
-                    loadDisks();
-                    loadOverview();
-                }
-            }
-        );
-    }
+    // Use the themed mount modal instead of browser prompt
+    openMountModal(device);
 }
 
 // Modal & Toast
@@ -8908,13 +9124,19 @@ function applyComposeChanges() {
     );
 }
 
-function closeComposeModal() {
+function closeComposeModal(forceClose = false) {
     const hasChanges = document.getElementById('composeEditor').value !== originalComposeContent;
 
-    if (hasChanges && composeEditMode) {
-        if (!confirm('You have unsaved changes. Close anyway?')) {
-            return;
-        }
+    if (hasChanges && composeEditMode && !forceClose) {
+        showConfirmModal(
+            'Unsaved Changes',
+            'You have unsaved changes. Close anyway?',
+            () => {
+                document.getElementById('composeModal').classList.remove('active');
+                composeEditMode = false;
+            }
+        );
+        return;
     }
 
     document.getElementById('composeModal').classList.remove('active');

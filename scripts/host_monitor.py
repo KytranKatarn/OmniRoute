@@ -2412,6 +2412,378 @@ def get_docker_health():
     return containers
 
 
+# ============================================================================
+# HEALTH ALERTING SYSTEM
+# ============================================================================
+
+# In-memory state for tracking changes
+_last_restart_counts = {}
+_last_alert_times = {}  # (container_name, alert_type) -> timestamp
+
+def get_db_connection():
+    """Get database connection for alert storage"""
+    import psycopg2
+    return psycopg2.connect(
+        host=os.environ.get('DB_HOST', '192.168.1.200'),
+        port=os.environ.get('DB_PORT', '5432'),
+        database=os.environ.get('DB_NAME', 'archie'),
+        user=os.environ.get('DB_USER', 'archie'),
+        password=os.environ.get('DB_PASSWORD', '')
+    )
+
+
+def get_health_config():
+    """Load health alert configuration from database"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT stack_name, metric_type, threshold_warning, threshold_critical,
+                   enabled, cooldown_minutes
+            FROM stack_health_config
+            WHERE enabled = TRUE
+        """)
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        config = {}
+        for row in rows:
+            stack_name, metric_type, warn, crit, enabled, cooldown = row
+            key = (stack_name, metric_type)  # stack_name can be None for global
+            config[key] = {
+                'threshold_warning': float(warn) if warn else None,
+                'threshold_critical': float(crit) if crit else None,
+                'cooldown_minutes': cooldown or 15
+            }
+        return config
+    except Exception as e:
+        print(f"Error loading health config: {e}")
+        return {}
+
+
+def get_threshold(config, stack_name, metric_type, level):
+    """Get threshold value, checking stack-specific first then global"""
+    # Try stack-specific
+    stack_config = config.get((stack_name, metric_type))
+    if stack_config:
+        return stack_config.get(f'threshold_{level}')
+    # Fall back to global (stack_name = None)
+    global_config = config.get((None, metric_type))
+    if global_config:
+        return global_config.get(f'threshold_{level}')
+    return None
+
+
+def get_cooldown(config, stack_name, metric_type):
+    """Get cooldown minutes, checking stack-specific first then global"""
+    stack_config = config.get((stack_name, metric_type))
+    if stack_config:
+        return stack_config.get('cooldown_minutes', 15)
+    global_config = config.get((None, metric_type))
+    if global_config:
+        return global_config.get('cooldown_minutes', 15)
+    return 15
+
+
+def should_alert(container_name, alert_type, cooldown_minutes):
+    """Check if enough time has passed since last alert"""
+    key = (container_name, alert_type)
+    last_time = _last_alert_times.get(key, 0)
+    now = time.time()
+    if now - last_time < cooldown_minutes * 60:
+        return False
+    return True
+
+
+def create_alert(stack_name, container_name, alert_type, severity, message, details=None):
+    """Create a health alert in the database"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO stack_health_alerts
+            (stack_name, container_name, alert_type, severity, message, details)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            RETURNING id
+        """, (
+            stack_name,
+            container_name,
+            alert_type,
+            severity,
+            message,
+            json.dumps(details) if details else None
+        ))
+        alert_id = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        # Update last alert time
+        key = (container_name, alert_type)
+        _last_alert_times[key] = time.time()
+
+        print(f"[ALERT] {severity.upper()}: {message}")
+
+        # Fire webhooks
+        fire_health_webhooks(alert_type, severity, {
+            'id': alert_id,
+            'stack_name': stack_name,
+            'container_name': container_name,
+            'alert_type': alert_type,
+            'severity': severity,
+            'message': message,
+            'details': details
+        })
+
+        return alert_id
+    except Exception as e:
+        print(f"Error creating alert: {e}")
+        return None
+
+
+def fire_health_webhooks(event_type, severity, alert_data):
+    """Fire webhooks for health alerts"""
+    import requests
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        # Map alert types to webhook event types
+        event_map = {
+            'restart_loop': 'container_crash',
+            'crash': 'container_crash',
+            'unhealthy': 'health_warning' if severity == 'warning' else 'health_critical',
+            'resource_threshold': 'health_warning' if severity == 'warning' else 'health_critical'
+        }
+        webhook_event = event_map.get(event_type, 'health_warning')
+
+        cur.execute("""
+            SELECT id, url, secret_key, stack_filter
+            FROM health_alert_webhooks
+            WHERE active = TRUE
+              AND %s = ANY(event_types)
+        """, (webhook_event,))
+        webhooks = cur.fetchall()
+
+        for webhook_id, url, secret_key, stack_filter in webhooks:
+            # Check stack filter
+            if stack_filter and alert_data.get('stack_name') not in stack_filter:
+                continue
+
+            try:
+                headers = {'Content-Type': 'application/json'}
+                if secret_key:
+                    headers['X-Webhook-Secret'] = secret_key
+
+                payload = {
+                    'event_type': webhook_event,
+                    'timestamp': datetime.now().isoformat(),
+                    'alert': alert_data
+                }
+
+                response = requests.post(url, json=payload, headers=headers, timeout=10)
+
+                # Update webhook status
+                cur.execute("""
+                    UPDATE health_alert_webhooks
+                    SET last_triggered = CURRENT_TIMESTAMP,
+                        last_status = %s,
+                        last_error = %s
+                    WHERE id = %s
+                """, (
+                    response.status_code,
+                    None if response.ok else response.text[:500],
+                    webhook_id
+                ))
+                conn.commit()
+
+            except Exception as e:
+                cur.execute("""
+                    UPDATE health_alert_webhooks
+                    SET last_triggered = CURRENT_TIMESTAMP,
+                        last_status = 0,
+                        last_error = %s
+                    WHERE id = %s
+                """, (str(e)[:500], webhook_id))
+                conn.commit()
+
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"Error firing webhooks: {e}")
+
+
+def record_container_metrics(containers):
+    """Record container metrics to history table"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        for container in containers:
+            if container.get('state') != 'running':
+                continue
+
+            # Parse memory usage to MB
+            mem_usage_mb = 0
+            mem_str = container.get('mem_usage', '0B')
+            try:
+                if 'GiB' in mem_str:
+                    mem_usage_mb = int(float(mem_str.replace('GiB', '').strip()) * 1024)
+                elif 'MiB' in mem_str:
+                    mem_usage_mb = int(float(mem_str.replace('MiB', '').strip()))
+                elif 'KiB' in mem_str:
+                    mem_usage_mb = int(float(mem_str.replace('KiB', '').strip()) / 1024)
+            except:
+                pass
+
+            # Infer stack name from container name (e.g., archie_platform -> archie)
+            name_parts = container['name'].split('_')
+            stack_name = name_parts[0] if len(name_parts) > 1 else 'default'
+
+            cur.execute("""
+                INSERT INTO container_metrics_history
+                (container_name, stack_name, cpu_percent, mem_percent, mem_usage_mb, restart_count, health_status)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, (
+                container['name'],
+                stack_name,
+                container.get('cpu_percent', 0),
+                container.get('mem_percent', 0),
+                mem_usage_mb,
+                container.get('restart_count', 0),
+                container.get('health', 'none')
+            ))
+
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"Error recording metrics: {e}")
+
+
+def check_container_health(containers):
+    """Check containers against health thresholds and create alerts"""
+    global _last_restart_counts
+
+    try:
+        config = get_health_config()
+        if not config:
+            return  # No config loaded, skip checks
+
+        for container in containers:
+            name = container['name']
+
+            # Infer stack name from container name
+            name_parts = name.split('_')
+            stack_name = name_parts[0] if len(name_parts) > 1 else 'default'
+
+            # Check restart count changes (restart loop detection)
+            current_restart = container.get('restart_count', 0)
+            last_restart = _last_restart_counts.get(name, 0)
+
+            if current_restart > last_restart:
+                restart_diff = current_restart - last_restart
+                cooldown = get_cooldown(config, stack_name, 'restart_count')
+
+                if should_alert(name, 'restart_loop', cooldown):
+                    # Check thresholds
+                    crit_threshold = get_threshold(config, stack_name, 'restart_count', 'critical')
+                    warn_threshold = get_threshold(config, stack_name, 'restart_count', 'warning')
+
+                    if crit_threshold and current_restart >= crit_threshold:
+                        create_alert(
+                            stack_name, name, 'restart_loop', 'critical',
+                            f"Container {name} has restarted {current_restart} times (threshold: {crit_threshold})",
+                            {'restart_count': current_restart, 'previous': last_restart}
+                        )
+                    elif warn_threshold and current_restart >= warn_threshold:
+                        create_alert(
+                            stack_name, name, 'restart_loop', 'warning',
+                            f"Container {name} has restarted {current_restart} times (threshold: {warn_threshold})",
+                            {'restart_count': current_restart, 'previous': last_restart}
+                        )
+
+            _last_restart_counts[name] = current_restart
+
+            # Skip remaining checks for non-running containers
+            if container.get('state') != 'running':
+                continue
+
+            # Check unhealthy status
+            health = container.get('health', 'none')
+            if health == 'unhealthy':
+                cooldown = get_cooldown(config, stack_name, 'unhealthy')
+                if should_alert(name, 'unhealthy', cooldown):
+                    create_alert(
+                        stack_name, name, 'unhealthy', 'warning',
+                        f"Container {name} is reporting unhealthy status",
+                        {'health_status': health}
+                    )
+
+            # Check CPU threshold
+            cpu_percent = container.get('cpu_percent', 0)
+            cooldown = get_cooldown(config, stack_name, 'cpu')
+            if should_alert(name, 'cpu_threshold', cooldown):
+                crit_threshold = get_threshold(config, stack_name, 'cpu', 'critical')
+                warn_threshold = get_threshold(config, stack_name, 'cpu', 'warning')
+
+                if crit_threshold and cpu_percent >= crit_threshold:
+                    create_alert(
+                        stack_name, name, 'resource_threshold', 'critical',
+                        f"Container {name} CPU at {cpu_percent:.1f}% (threshold: {crit_threshold}%)",
+                        {'metric': 'cpu', 'value': cpu_percent, 'threshold': crit_threshold}
+                    )
+                elif warn_threshold and cpu_percent >= warn_threshold:
+                    create_alert(
+                        stack_name, name, 'resource_threshold', 'warning',
+                        f"Container {name} CPU at {cpu_percent:.1f}% (threshold: {warn_threshold}%)",
+                        {'metric': 'cpu', 'value': cpu_percent, 'threshold': warn_threshold}
+                    )
+
+            # Check memory threshold
+            mem_percent = container.get('mem_percent', 0)
+            cooldown = get_cooldown(config, stack_name, 'memory')
+            if should_alert(name, 'memory_threshold', cooldown):
+                crit_threshold = get_threshold(config, stack_name, 'memory', 'critical')
+                warn_threshold = get_threshold(config, stack_name, 'memory', 'warning')
+
+                if crit_threshold and mem_percent >= crit_threshold:
+                    create_alert(
+                        stack_name, name, 'resource_threshold', 'critical',
+                        f"Container {name} memory at {mem_percent:.1f}% (threshold: {crit_threshold}%)",
+                        {'metric': 'memory', 'value': mem_percent, 'threshold': crit_threshold}
+                    )
+                elif warn_threshold and mem_percent >= warn_threshold:
+                    create_alert(
+                        stack_name, name, 'resource_threshold', 'warning',
+                        f"Container {name} memory at {mem_percent:.1f}% (threshold: {warn_threshold}%)",
+                        {'metric': 'memory', 'value': mem_percent, 'threshold': warn_threshold}
+                    )
+
+    except Exception as e:
+        print(f"Error checking container health: {e}")
+
+
+def cleanup_old_metrics():
+    """Remove metrics older than 7 days"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            DELETE FROM container_metrics_history
+            WHERE recorded_at < NOW() - INTERVAL '7 days'
+        """)
+        deleted = cur.rowcount
+        conn.commit()
+        cur.close()
+        conn.close()
+        if deleted > 0:
+            print(f"[Cleanup] Removed {deleted} old metric records")
+    except Exception as e:
+        print(f"Error cleaning up old metrics: {e}")
+
+
 def collect_all_data():
     """Collect all host system data"""
     network = get_network_info()
@@ -2487,8 +2859,13 @@ def main():
 
     if args.daemon:
         print("Starting daemon mode... (Ctrl+C to stop)")
+        print("Health alerting: ENABLED")
         QUEUE_CHECK_INTERVAL = 3   # Check command queue every 3 seconds
+        HEALTH_CHECK_INTERVAL = 60  # Check health every 60 seconds
+        CLEANUP_INTERVAL = 3600    # Cleanup old metrics every hour
         last_data_collect = 0      # Force immediate first collection
+        last_health_check = 0
+        last_cleanup = 0
 
         while True:
             try:
@@ -2512,6 +2889,25 @@ def main():
                     data = collect_all_data()
                     write_data(data)
                     last_data_collect = now
+
+                    # Check container health after data collection
+                    if now - last_health_check >= HEALTH_CHECK_INTERVAL:
+                        try:
+                            docker_health = data.get('docker_health', [])
+                            if docker_health:
+                                check_container_health(docker_health)
+                                record_container_metrics(docker_health)
+                            last_health_check = now
+                        except Exception as e:
+                            print(f"Health check error: {e}")
+
+                # Periodic cleanup of old metrics
+                if now - last_cleanup >= CLEANUP_INTERVAL:
+                    try:
+                        cleanup_old_metrics()
+                        last_cleanup = now
+                    except Exception as e:
+                        print(f"Cleanup error: {e}")
 
                 time.sleep(QUEUE_CHECK_INTERVAL)
             except KeyboardInterrupt:

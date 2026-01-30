@@ -457,14 +457,14 @@
     </main>
 </div>
 
-<!-- Media Details Slide Panel -->
-<div class="slide-panel" id="mediaPanel">
-    <div class="panel-backdrop" onclick="closeMediaPanel()"></div>
-    <div class="panel-drawer">
-        <button class="panel-close" onclick="closeMediaPanel()">
+<!-- Media Details Modal -->
+<div class="media-modal" id="mediaPanel">
+    <div class="media-modal-backdrop" onclick="closeMediaPanel()"></div>
+    <div class="media-modal-content">
+        <button class="media-modal-close" onclick="closeMediaPanel()">
             <i data-lucide="x"></i>
         </button>
-        <div class="panel-body" id="mediaPanelContent">
+        <div class="media-modal-body" id="mediaPanelContent">
             <!-- Loaded dynamically -->
         </div>
     </div>
@@ -1680,13 +1680,19 @@
 }
 
 /* Slide Panel (Media Details) */
-.slide-panel {
+/* ─────────────────────────────────────────────────────────────────────────────
+   MEDIA DETAILS MODAL - Centered for all devices (TV, Fold, Mobile)
+   ───────────────────────────────────────────────────────────────────────────── */
+.media-modal {
     position: fixed;
     inset: 0;
     z-index: 1000;
     display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
 
-    /* Inherit Media Hub theme variables */
+    /* Theme variables */
     --mh-accent: #E5A00D;
     --mh-accent-bright: #FFC230;
     --mh-accent-dim: #B8860B;
@@ -1696,32 +1702,83 @@
     --mh-glow: 0 0 20px rgba(229, 160, 13, 0.4);
 }
 
-.slide-panel.active { display: block; }
+.media-modal.active { display: flex; }
 
-.panel-backdrop {
+.media-modal-backdrop {
     position: absolute;
     inset: 0;
-    background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(4px);
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(8px);
     animation: fadeIn 0.2s ease;
 }
 
-.panel-drawer {
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: 500px;
-    max-width: 90vw;
+.media-modal-content {
+    position: relative;
+    width: 100%;
+    max-width: 600px;
+    max-height: 90vh;
     background: var(--archie-bg-secondary);
-    border-left: 1px solid var(--archie-border-muted);
-    overflow-y: auto;
-    animation: slideIn 0.3s ease;
+    border: 1px solid var(--archie-border-muted);
+    border-radius: 16px;
+    overflow: hidden;
+    animation: modalZoom 0.3s ease;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6), var(--mh-glow);
 }
 
-@keyframes slideIn {
-    from { transform: translateX(100%); }
-    to { transform: translateX(0); }
+@keyframes modalZoom {
+    from { transform: scale(0.9); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+.media-modal-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    z-index: 10;
+    width: 40px;
+    height: 40px;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid var(--archie-border-muted);
+    border-radius: 50%;
+    color: var(--archie-text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.media-modal-close:hover {
+    background: var(--mh-accent);
+    color: #000;
+    border-color: var(--mh-accent);
+}
+
+.media-modal-close i { width: 20px; height: 20px; }
+
+.media-modal-body {
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+/* TV Mode - Larger modal */
+@media (min-width: 1200px) {
+    .media-modal-content { max-width: 700px; }
+}
+
+/* Mobile / Fold - Full width */
+@media (max-width: 640px) {
+    .media-modal { padding: 10px; }
+    .media-modal-content {
+        max-width: 100%;
+        max-height: 95vh;
+        border-radius: 12px;
+    }
+}
+
+/* Fold landscape */
+@media (min-width: 640px) and (max-width: 900px) {
+    .media-modal-content { max-width: 90%; }
 }
 
 .panel-close {
@@ -3035,43 +3092,45 @@ body.light-mode .stat-value { color: #1a1a1a; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   MEDIA DETAILS PANEL ADDITIONS
+   MEDIA DETAILS MODAL CONTENT
    ───────────────────────────────────────────────────────────────────────────── */
-.panel-backdrop {
+.modal-backdrop-image {
     position: relative;
-    height: 250px;
+    height: 200px;
     background-size: cover;
-    background-position: center;
+    background-position: center top;
+    border-radius: 16px 16px 0 0;
 }
 
-.panel-backdrop::after {
+.modal-backdrop-image::after {
     content: '';
     position: absolute;
     inset: 0;
-    background: linear-gradient(to bottom, transparent, var(--archie-bg-secondary));
+    background: linear-gradient(to bottom, transparent 50%, var(--archie-bg-secondary));
+    border-radius: 16px 16px 0 0;
 }
 
-.panel-main {
+.modal-main {
     padding: 0 24px 24px;
-    margin-top: -60px;
+    margin-top: -50px;
     position: relative;
     display: flex;
     gap: 20px;
 }
 
-.panel-poster {
+.modal-poster {
     position: relative;
-    width: 120px;
+    width: 100px;
     flex-shrink: 0;
 }
 
-.panel-poster img {
+.modal-poster img {
     width: 100%;
     border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
 
-.panel-badges {
+.modal-badges {
     position: absolute;
     bottom: -8px;
     left: 50%;
@@ -3080,34 +3139,34 @@ body.light-mode .stat-value { color: #1a1a1a; }
     gap: 4px;
 }
 
-.panel-info { flex: 1; min-width: 0; }
+.modal-info { flex: 1; min-width: 0; }
 
-.panel-title {
+.modal-title {
     font-family: 'Orbitron', sans-serif;
-    font-size: 1.3rem;
+    font-size: 1.2rem;
     font-weight: 700;
     color: var(--archie-text-secondary);
     margin: 0 0 8px;
 }
 
-.panel-tagline {
-    font-size: 0.9rem;
+.modal-tagline {
+    font-size: 0.85rem;
     color: var(--archie-text-muted);
     font-style: italic;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
 }
 
-.panel-meta {
-    font-size: 0.85rem;
+.modal-meta {
+    font-size: 0.8rem;
     color: var(--archie-text-tertiary);
-    margin-bottom: 12px;
+    margin-bottom: 10px;
 }
 
-.panel-genres {
+.modal-genres {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    margin-bottom: 16px;
+    margin-bottom: 14px;
 }
 
 .genre-tag {
@@ -3119,26 +3178,28 @@ body.light-mode .stat-value { color: #1a1a1a; }
     color: var(--mh-accent);
 }
 
-.panel-overview {
-    font-size: 0.9rem;
-    line-height: 1.6;
+.modal-overview {
+    font-size: 0.85rem;
+    line-height: 1.5;
     color: var(--archie-text-tertiary);
-    margin: 0 0 16px;
+    margin: 0 0 14px;
+    max-height: 120px;
+    overflow-y: auto;
 }
 
-.panel-cast { margin-bottom: 16px; }
+.modal-cast { margin-bottom: 14px; }
 
-.panel-cast h4 {
-    font-size: 0.8rem;
+.modal-cast h4 {
+    font-size: 0.75rem;
     font-weight: 600;
     color: var(--archie-text-secondary);
-    margin: 0 0 8px;
+    margin: 0 0 6px;
 }
 
-.cast-list { display: flex; flex-direction: column; gap: 4px; }
+.cast-list { display: flex; flex-direction: column; gap: 3px; }
 
 .cast-item {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     color: var(--archie-text-tertiary);
 }
 
@@ -3146,29 +3207,38 @@ body.light-mode .stat-value { color: #1a1a1a; }
     color: var(--archie-text-muted);
 }
 
-.panel-file-info {
-    padding: 12px;
+.modal-file-info {
+    padding: 10px 12px;
     background: var(--archie-bg-tertiary);
     border-radius: 8px;
-    margin-bottom: 16px;
+    margin-bottom: 14px;
 }
 
-.panel-specs {
+.modal-specs {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     color: var(--mh-accent);
-    margin-bottom: 4px;
+    margin-bottom: 3px;
 }
 
-.panel-size {
-    font-size: 0.8rem;
+.modal-size {
+    font-size: 0.75rem;
     color: var(--archie-text-muted);
 }
 
-.panel-actions {
+.modal-actions {
     display: flex;
-    gap: 12px;
+    gap: 10px;
     flex-wrap: wrap;
+}
+
+/* Responsive adjustments for modal content */
+@media (max-width: 640px) {
+    .modal-main { flex-direction: column; align-items: center; text-align: center; }
+    .modal-poster { width: 80px; }
+    .modal-info { text-align: center; }
+    .modal-genres { justify-content: center; }
+    .modal-actions { justify-content: center; }
 }
 
 .btn {

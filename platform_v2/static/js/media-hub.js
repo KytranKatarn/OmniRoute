@@ -1513,21 +1513,21 @@ function renderMediaDetails(item) {
     const content = document.getElementById('mediaPanelContent');
     content.textContent = '';
 
-    // Backdrop
+    // Backdrop image
     if (item.backdrop_url) {
         const backdrop = document.createElement('div');
-        backdrop.className = 'panel-backdrop';
+        backdrop.className = 'modal-backdrop-image';
         backdrop.style.backgroundImage = `url(${item.backdrop_url})`;
         content.appendChild(backdrop);
     }
 
     // Main content
     const main = document.createElement('div');
-    main.className = 'panel-main';
+    main.className = 'modal-main';
 
     // Poster
     const posterContainer = document.createElement('div');
-    posterContainer.className = 'panel-poster';
+    posterContainer.className = 'modal-poster';
     const poster = document.createElement('img');
     poster.src = item.poster_url || '/static/img/no-poster.png';
     poster.alt = item.title;
@@ -1543,7 +1543,7 @@ function renderMediaDetails(item) {
 
     if (badges.length > 0 || item.metadata?.quality_badges?.length > 0) {
         const badgeContainer = document.createElement('div');
-        badgeContainer.className = 'panel-badges';
+        badgeContainer.className = 'modal-badges';
         (item.metadata?.quality_badges || badges).forEach(badge => {
             const badgeEl = document.createElement('span');
             badgeEl.className = 'quality-badge';
@@ -1557,25 +1557,25 @@ function renderMediaDetails(item) {
 
     // Info
     const info = document.createElement('div');
-    info.className = 'panel-info';
+    info.className = 'modal-info';
 
     // Title
     const title = document.createElement('h2');
-    title.className = 'panel-title';
+    title.className = 'modal-title';
     title.textContent = item.title;
     info.appendChild(title);
 
     // Tagline
     if (item.tagline) {
         const tagline = document.createElement('div');
-        tagline.className = 'panel-tagline';
+        tagline.className = 'modal-tagline';
         tagline.textContent = item.tagline;
         info.appendChild(tagline);
     }
 
     // Meta row
     const meta = document.createElement('div');
-    meta.className = 'panel-meta';
+    meta.className = 'modal-meta';
     const metaParts = [];
     if (item.year) metaParts.push(item.year);
     if (item.runtime_minutes) metaParts.push(`${item.runtime_minutes} min`);
@@ -1587,7 +1587,7 @@ function renderMediaDetails(item) {
     // Genres
     if (item.genres && item.genres.length > 0) {
         const genres = document.createElement('div');
-        genres.className = 'panel-genres';
+        genres.className = 'modal-genres';
         item.genres.forEach(g => {
             const genre = document.createElement('span');
             genre.className = 'genre-tag';
@@ -1600,7 +1600,7 @@ function renderMediaDetails(item) {
     // Overview
     if (item.overview) {
         const overview = document.createElement('p');
-        overview.className = 'panel-overview';
+        overview.className = 'modal-overview';
         overview.textContent = item.overview;
         info.appendChild(overview);
     }
@@ -1608,7 +1608,7 @@ function renderMediaDetails(item) {
     // Cast
     if (item.cast && item.cast.length > 0) {
         const castSection = document.createElement('div');
-        castSection.className = 'panel-cast';
+        castSection.className = 'modal-cast';
 
         const castTitle = document.createElement('h4');
         castTitle.textContent = 'Cast';
@@ -1635,7 +1635,7 @@ function renderMediaDetails(item) {
     // File info (for library items)
     if (item.in_library && (item.file_path || item.file_size_bytes)) {
         const fileInfo = document.createElement('div');
-        fileInfo.className = 'panel-file-info';
+        fileInfo.className = 'modal-file-info';
 
         if (item.quality_info) {
             const qi = item.quality_info;
@@ -1648,7 +1648,7 @@ function renderMediaDetails(item) {
 
             if (techSpecs.length > 0) {
                 const specs = document.createElement('div');
-                specs.className = 'panel-specs';
+                specs.className = 'modal-specs';
                 specs.textContent = techSpecs.join(' • ');
                 fileInfo.appendChild(specs);
             }
@@ -1656,7 +1656,7 @@ function renderMediaDetails(item) {
 
         if (item.file_size_bytes) {
             const size = document.createElement('div');
-            size.className = 'panel-size';
+            size.className = 'modal-size';
             size.textContent = `File size: ${formatBytes(item.file_size_bytes)}`;
             fileInfo.appendChild(size);
         }
@@ -1666,7 +1666,7 @@ function renderMediaDetails(item) {
 
     // Action buttons
     const actions = document.createElement('div');
-    actions.className = 'panel-actions';
+    actions.className = 'modal-actions';
 
     if (item.in_library) {
         // Ensure we have servers loaded, fallback to defaults if not

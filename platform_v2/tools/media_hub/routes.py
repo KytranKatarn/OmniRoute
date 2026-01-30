@@ -928,6 +928,48 @@ def api_watch_history():
 
 
 # =============================================================================
+# STREAMING ENDPOINT
+# =============================================================================
+
+
+@media_hub_bp.route("/api/stream/<media_id>")
+def api_stream_info(media_id):
+    """
+    Get streaming URL for a media item.
+    Returns direct stream URL for HTML5 video player.
+    """
+    direct = request.args.get("direct", "true").lower() == "true"
+
+    # Get Jellyfin client specifically (streaming only supported for Jellyfin currently)
+    jellyfin_config = get_service_config("jellyfin")
+    if not jellyfin_config or not jellyfin_config.get("api_key"):
+        return jsonify({"success": False, "error": "Jellyfin not configured for streaming"})
+
+    try:
+        from .clients.jellyfin import JellyfinClient
+
+        client = JellyfinClient(
+            host=jellyfin_config["host"],
+            port=jellyfin_config["port"],
+            api_key=jellyfin_config["api_key"],
+            use_ssl=jellyfin_config["use_ssl"],
+        )
+
+        stream_info = client.get_stream_url(media_id, direct=direct)
+        if stream_info:
+            return jsonify({"success": True, "stream": stream_info})
+        else:
+            return jsonify({"success": False, "error": "Could not get stream URL"})
+
+    except Exception as e:
+        logger.error(f"Error getting stream URL: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)})
+
+
+# =============================================================================
 # DOWNLOAD CONTROL ENDPOINTS
 # =============================================================================
 

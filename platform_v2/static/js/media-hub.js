@@ -1669,6 +1669,26 @@ function renderMediaDetails(item) {
     actions.className = 'modal-actions';
 
     if (item.in_library) {
+        // Stream Now button (native HTML5 player) - only for Jellyfin items
+        const hasJellyfin = availableMediaServers.some(s => s.type === 'jellyfin') ||
+                           availableMediaServers.length === 0; // Assume Jellyfin available if no servers loaded
+
+        if (hasJellyfin) {
+            const streamBtn = document.createElement('button');
+            streamBtn.className = 'btn btn-stream';
+            streamBtn.onclick = () => {
+                closeMediaPanel();
+                openVideoPlayer(item);
+            };
+            const streamIcon = document.createElement('i');
+            streamIcon.setAttribute('data-lucide', 'monitor-play');
+            streamBtn.appendChild(streamIcon);
+            const streamText = document.createElement('span');
+            streamText.textContent = 'Stream Now';
+            streamBtn.appendChild(streamText);
+            actions.appendChild(streamBtn);
+        }
+
         // Ensure we have servers loaded, fallback to defaults if not
         const servers = availableMediaServers.length > 0 ? availableMediaServers : [
             { type: 'jellyfin', url: 'http://192.168.1.200:8096', name: 'Jellyfin' },
@@ -1678,8 +1698,8 @@ function renderMediaDetails(item) {
         // Show play button for each available media server
         servers.forEach((server, index) => {
             const playBtn = document.createElement('a');
-            // First button (primary server) gets gold styling
-            playBtn.className = index === 0 ? 'btn btn-primary' : 'btn btn-secondary';
+            // Secondary styling since Stream Now is primary
+            playBtn.className = 'btn btn-secondary';
 
             // Build URL based on server type
             if (server.type === 'jellyfin') {
@@ -1692,7 +1712,7 @@ function renderMediaDetails(item) {
 
             playBtn.target = '_blank';
             const playIcon = document.createElement('i');
-            playIcon.setAttribute('data-lucide', 'play');
+            playIcon.setAttribute('data-lucide', 'external-link');
             playBtn.appendChild(playIcon);
             const playText = document.createElement('span');
             playText.textContent = server.name;
@@ -1738,6 +1758,177 @@ function renderMediaDetails(item) {
 function closeMediaPanel() {
     document.getElementById('mediaPanel')?.classList.remove('active');
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VIDEO PLAYER
+// ─────────────────────────────────────────────────────────────────────────────
+
+let currentStreamInfo = null;
+
+async function openVideoPlayer(item) {
+    const modal = document.getElementById('videoPlayerModal');
+    const video = document.getElementById('videoPlayer');
+    const loading = document.getElementById('videoLoading');
+    const title = document.getElementById('videoPlayerTitle');
+    const qualityInfo = document.getElementById('videoQualityInfo');
+    const subtitleSelector = document.getElementById('videoSubtitleSelector');
+
+    // Show modal with loading state
+    modal.classList.add('active');
+    loading.classList.remove('hidden');
+    title.textContent = item.title || 'Now Playing';
+    qualityInfo.innerHTML = '';
+    subtitleSelector.innerHTML = '';
+
+    try {
+        // Get stream URL from API
+        const response = await fetch(`${API_BASE}/stream/${item.id}`);
+        const data = await response.json();
+
+        if (!data.success || !data.stream) {
+            throw new Error(data.error || 'Failed to get stream URL');
+        }
+
+        currentStreamInfo = data.stream;
+
+        // Check if HLS (transcoded) stream
+        if (data.stream.container === 'm3u8') {
+            // Use HLS.js if available, otherwise native HLS (Safari)
+            if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+                const hls = new Hls();
+                hls.loadSource(data.stream.stream_url);
+                hls.attachMedia(video);
+                hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                    video.play();
+                    loading.classList.add('hidden');
+                });
+                hls.on(Hls.Events.ERROR, (event, errorData) => {
+                    console.error('[Video Player] HLS error:', errorData);
+                    if (errorData.fatal) {
+                        showToast('Playback error: ' + errorData.type, 'error');
+                    }
+                });
+                // Store HLS instance for cleanup
+                video.hlsInstance = hls;
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                // Native HLS support (Safari)
+                video.src = data.stream.stream_url;
+                video.addEventListener('loadedmetadata', () => {
+                    video.play();
+                    loading.classList.add('hidden');
+                }, { once: true });
+            } else {
+                throw new Error('HLS playback not supported in this browser');
+            }
+        } else {
+            // Direct stream - standard video source
+            video.src = data.stream.stream_url;
+            video.addEventListener('loadedmetadata', () => {
+                video.play();
+                loading.classList.add('hidden');
+            }, { once: true });
+        }
+
+        // Show quality info
+        const qualityBadge = data.stream.transcode ? 'TRANSCODE' : 'DIRECT';
+        qualityInfo.innerHTML = `
+            <span class="quality-badge">${qualityBadge}</span>
+            <span>${formatDuration(data.stream.duration_seconds)}</span>
+        `;
+
+        // Add subtitles if available
+        if (data.stream.subtitles && data.stream.subtitles.length > 0) {
+            const select = document.createElement('select');
+            select.innerHTML = '<option value="">Subtitles: Off</option>';
+
+            data.stream.subtitles.forEach((sub, index) => {
+                const option = document.createElement('option');
+                option.value = sub.url;
+                option.textContent = sub.title;
+                if (sub.default) option.selected = true;
+                select.appendChild(option);
+            });
+
+            select.addEventListener('change', (e) => {
+                // Remove existing tracks
+                const existingTracks = video.querySelectorAll('track');
+                existingTracks.forEach(t => t.remove());
+
+                if (e.target.value) {
+                    const track = document.createElement('track');
+                    track.kind = 'subtitles';
+                    track.src = e.target.value;
+                    track.default = true;
+                    video.appendChild(track);
+                    // Enable the track
+                    setTimeout(() => {
+                        if (video.textTracks[0]) {
+                            video.textTracks[0].mode = 'showing';
+                        }
+                    }, 100);
+                }
+            });
+
+            subtitleSelector.appendChild(select);
+        }
+
+        // Handle video errors
+        video.addEventListener('error', (e) => {
+            console.error('[Video Player] Video error:', video.error);
+            loading.classList.add('hidden');
+            showToast('Video playback error', 'error');
+        }, { once: true });
+
+    } catch (error) {
+        console.error('[Video Player] Error:', error);
+        loading.classList.add('hidden');
+        showToast(error.message || 'Failed to load video', 'error');
+        closeVideoPlayer();
+    }
+}
+
+function closeVideoPlayer() {
+    const modal = document.getElementById('videoPlayerModal');
+    const video = document.getElementById('videoPlayer');
+
+    // Stop playback
+    video.pause();
+    video.src = '';
+
+    // Cleanup HLS instance if exists
+    if (video.hlsInstance) {
+        video.hlsInstance.destroy();
+        video.hlsInstance = null;
+    }
+
+    // Remove subtitle tracks
+    const tracks = video.querySelectorAll('track');
+    tracks.forEach(t => t.remove());
+
+    modal.classList.remove('active');
+    currentStreamInfo = null;
+}
+
+function formatDuration(seconds) {
+    if (!seconds) return '';
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    if (hours > 0) {
+        return `${hours}h ${minutes}m`;
+    }
+    return `${minutes}m`;
+}
+
+// Close video player on Escape (add to existing keyboard handler)
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        const videoModal = document.getElementById('videoPlayerModal');
+        if (videoModal?.classList.contains('active')) {
+            closeVideoPlayer();
+            e.stopPropagation();
+        }
+    }
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SETTINGS

@@ -470,6 +470,32 @@
     </div>
 </div>
 
+<!-- Video Player Modal -->
+<div class="video-player-modal" id="videoPlayerModal">
+    <div class="video-player-backdrop" onclick="closeVideoPlayer()"></div>
+    <div class="video-player-container">
+        <div class="video-player-header">
+            <div class="video-player-title" id="videoPlayerTitle">Now Playing</div>
+            <button class="video-player-close" onclick="closeVideoPlayer()">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <div class="video-player-wrapper">
+            <video id="videoPlayer" controls autoplay playsinline>
+                Your browser does not support HTML5 video.
+            </video>
+            <div class="video-loading" id="videoLoading">
+                <div class="video-spinner"></div>
+                <span>Loading stream...</span>
+            </div>
+        </div>
+        <div class="video-player-controls">
+            <div class="video-quality-info" id="videoQualityInfo"></div>
+            <div class="video-subtitle-selector" id="videoSubtitleSelector"></div>
+        </div>
+    </div>
+</div>
+
 <!-- Add/Edit Service Modal -->
 <div class="modal" id="serviceModal">
     <div class="modal-backdrop" onclick="closeServiceModal()"></div>
@@ -1781,6 +1807,192 @@
     .media-modal-content { max-width: 90%; }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   VIDEO PLAYER MODAL
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.video-player-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    --mh-accent: #E5A00D;
+}
+
+.video-player-modal.active {
+    display: flex;
+}
+
+.video-player-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.95);
+    backdrop-filter: blur(10px);
+}
+
+.video-player-container {
+    position: relative;
+    width: 100%;
+    max-width: 1200px;
+    max-height: 90vh;
+    background: #0a0a0f;
+    border-radius: 16px;
+    overflow: hidden;
+    border: 1px solid rgba(229, 160, 13, 0.3);
+    animation: videoZoom 0.3s ease;
+}
+
+@keyframes videoZoom {
+    from { transform: scale(0.9); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+.video-player-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.8) 0%, transparent 100%);
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+}
+
+.video-player-title {
+    font-family: 'Orbitron', monospace;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--mh-accent);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.video-player-close {
+    width: 40px;
+    height: 40px;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.video-player-close:hover {
+    background: var(--mh-accent);
+    color: #000;
+    border-color: var(--mh-accent);
+}
+
+.video-player-close i { width: 20px; height: 20px; }
+
+.video-player-wrapper {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #000;
+}
+
+.video-player-wrapper video {
+    width: 100%;
+    height: 100%;
+    background: #000;
+}
+
+.video-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    background: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    font-size: 0.9rem;
+}
+
+.video-loading.hidden { display: none; }
+
+.video-spinner {
+    width: 48px;
+    height: 48px;
+    border: 3px solid rgba(229, 160, 13, 0.2);
+    border-top-color: var(--mh-accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.video-player-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    background: rgba(0, 0, 0, 0.8);
+    gap: 16px;
+}
+
+.video-quality-info {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.6);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.video-quality-info .quality-badge {
+    background: var(--mh-accent);
+    color: #000;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 0.7rem;
+}
+
+.video-subtitle-selector select {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    color: #fff;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+.video-subtitle-selector select:hover {
+    border-color: var(--mh-accent);
+}
+
+/* Video player responsive */
+@media (max-width: 768px) {
+    .video-player-modal { padding: 0; }
+    .video-player-container {
+        max-width: 100%;
+        max-height: 100vh;
+        border-radius: 0;
+        border: none;
+    }
+    .video-player-header { padding: 12px 16px; }
+    .video-player-controls { padding: 10px 16px; }
+}
+
+/* TV Mode - Fullscreen friendly */
+@media (min-width: 1200px) {
+    .video-player-container { max-width: 1400px; }
+}
+
 .panel-close {
     position: absolute;
     top: 16px;
@@ -2018,6 +2230,37 @@
 
 .btn-primary:hover { background: var(--mh-accent-bright); box-shadow: var(--mh-glow); }
 .btn-primary i { width: 18px; height: 18px; }
+
+/* Stream Now Button - Gradient accent style */
+.btn-stream {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    background: linear-gradient(135deg, #E5A00D 0%, #FF6B35 100%);
+    border: none;
+    border-radius: 8px;
+    color: #000;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    box-shadow: 0 4px 15px rgba(229, 160, 13, 0.3);
+}
+
+.btn-stream:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 25px rgba(229, 160, 13, 0.5);
+}
+
+.btn-stream:active {
+    transform: translateY(0);
+}
+
+.btn-stream i { width: 20px; height: 20px; }
 
 .btn-outline {
     display: inline-flex;
@@ -3535,6 +3778,9 @@ body.light-mode .stat-value { color: #1a1a1a; }
     body.tv-mode .continue-card { width: 320px; }
 }
 </style>
+
+<!-- HLS.js for adaptive streaming -->
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7/dist/hls.min.js"></script>
 
 <script src="{{ url_for('static', filename='js/media-hub.js') }}"></script>
 {% endblock %}

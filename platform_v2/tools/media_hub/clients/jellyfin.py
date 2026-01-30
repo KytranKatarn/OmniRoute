@@ -328,6 +328,84 @@ class JellyfinClient(MediaServerInterface):
 
         return items
 
+    def get_seasons(self, series_id: str) -> List[Dict]:
+        """Get seasons for a TV series"""
+        user_id = self._get_user_id()
+        if not user_id:
+            return []
+
+        result = self._request(
+            f"/Shows/{series_id}/Seasons",
+            {"UserId": user_id, "Fields": "Overview,DateCreated"},
+        )
+
+        seasons = []
+        if result and "Items" in result:
+            for item in result["Items"]:
+                seasons.append(
+                    {
+                        "id": item.get("Id"),
+                        "name": item.get("Name", f"Season {item.get('IndexNumber', 0)}"),
+                        "season_number": item.get("IndexNumber", 0),
+                        "episode_count": item.get("ChildCount", 0),
+                        "poster_url": self._get_image_url(item.get("Id"), "Primary"),
+                        "overview": item.get("Overview", ""),
+                    }
+                )
+        return seasons
+
+    def get_episodes(self, series_id: str, season_number: int = None) -> List[Dict]:
+        """Get episodes for a TV series, optionally filtered by season"""
+        user_id = self._get_user_id()
+        if not user_id:
+            return []
+
+        params = {
+            "UserId": user_id,
+            "Fields": "Overview,DateCreated,MediaSources",
+        }
+        if season_number is not None:
+            params["Season"] = season_number
+
+        result = self._request(f"/Shows/{series_id}/Episodes", params)
+
+        episodes = []
+        if result and "Items" in result:
+            for item in result["Items"]:
+                # Get quality info from media sources
+                quality = None
+                runtime = item.get("RunTimeTicks", 0) // 600000000 if item.get("RunTimeTicks") else None
+                media_sources = item.get("MediaSources", [])
+                if media_sources:
+                    for stream in media_sources[0].get("MediaStreams", []):
+                        if stream.get("Type") == "Video":
+                            height = stream.get("Height", 0)
+                            if height >= 2160:
+                                quality = "4K"
+                            elif height >= 1080:
+                                quality = "1080p"
+                            elif height >= 720:
+                                quality = "720p"
+                            else:
+                                quality = "SD"
+                            break
+
+                episodes.append(
+                    {
+                        "id": item.get("Id"),
+                        "title": item.get("Name", ""),
+                        "season_number": item.get("ParentIndexNumber", 0),
+                        "episode_number": item.get("IndexNumber", 0),
+                        "overview": item.get("Overview", ""),
+                        "runtime_minutes": runtime,
+                        "quality": quality,
+                        "poster_url": self._get_image_url(item.get("Id"), "Primary"),
+                        "air_date": item.get("PremiereDate"),
+                        "has_file": len(media_sources) > 0,
+                    }
+                )
+        return episodes
+
     def get_stream_url(self, media_id: str, direct: bool = True) -> Optional[Dict]:
         """
         Get streaming URL for a media item.
@@ -369,10 +447,23 @@ class JellyfinClient(MediaServerInterface):
         container = container_map.get(container, container)
         media_source_id = media_source.get("Id", media_id)
 
+        # Check audio codec compatibility - browsers only support AAC, MP3, Opus, FLAC
+        browser_audio_codecs = {"aac", "mp3", "opus", "flac", "vorbis", "pcm"}
+        audio_codec = None
+        needs_audio_transcode = False
+
+        for stream in media_source.get("MediaStreams", []):
+            if stream.get("Type") == "Audio":
+                audio_codec = stream.get("Codec", "").lower()
+                # AC3, EAC3, DTS, TrueHD are not supported by browsers
+                if audio_codec not in browser_audio_codecs:
+                    needs_audio_transcode = True
+                    logger.info(f"Audio codec '{audio_codec}' requires transcoding")
+                break
+
         # Build stream URL
-        if direct and media_source.get("SupportsDirectStream", False):
-            # Direct stream - no transcoding
-            # Use the original container for the URL but mp4 for browser compatibility
+        if direct and media_source.get("SupportsDirectStream", False) and not needs_audio_transcode:
+            # Direct stream - no transcoding (video and audio both compatible)
             stream_url = (
                 f"{self.base_url}/Videos/{media_id}/stream.{container}"
                 f"?Static=true&mediaSourceId={media_source_id}&api_key={self.api_key}"

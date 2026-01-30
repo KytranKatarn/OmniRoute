@@ -490,6 +490,46 @@ def api_library_shows():
         return jsonify({"success": False, "error": str(e), "items": []})
 
 
+@media_hub_bp.route("/api/shows/<series_id>/seasons")
+def api_show_seasons(series_id):
+    """Get seasons for a TV series"""
+    media_server, server_type = get_primary_media_server()
+    if not media_server:
+        return jsonify({"success": False, "error": "No media server configured", "seasons": []})
+
+    try:
+        # Check if the client has get_seasons method (Jellyfin)
+        if hasattr(media_server, "get_seasons"):
+            seasons = media_server.get_seasons(series_id)
+            return jsonify({"success": True, "seasons": seasons, "source": server_type})
+        else:
+            return jsonify({"success": False, "error": "Seasons not supported", "seasons": []})
+    except Exception as e:
+        logger.error(f"Error getting seasons: {e}")
+        return jsonify({"success": False, "error": str(e), "seasons": []})
+
+
+@media_hub_bp.route("/api/shows/<series_id>/episodes")
+def api_show_episodes(series_id):
+    """Get episodes for a TV series, optionally filtered by season"""
+    season = request.args.get("season", type=int)
+
+    media_server, server_type = get_primary_media_server()
+    if not media_server:
+        return jsonify({"success": False, "error": "No media server configured", "episodes": []})
+
+    try:
+        # Check if the client has get_episodes method (Jellyfin)
+        if hasattr(media_server, "get_episodes"):
+            episodes = media_server.get_episodes(series_id, season)
+            return jsonify({"success": True, "episodes": episodes, "source": server_type})
+        else:
+            return jsonify({"success": False, "error": "Episodes not supported", "episodes": []})
+    except Exception as e:
+        logger.error(f"Error getting episodes: {e}")
+        return jsonify({"success": False, "error": str(e), "episodes": []})
+
+
 @media_hub_bp.route("/api/media/<media_type>/<media_id>")
 def api_media_details(media_type, media_id):
     """Get detailed information about a specific media item"""

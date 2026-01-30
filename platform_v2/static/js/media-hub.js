@@ -1664,6 +1664,41 @@ function renderMediaDetails(item) {
         info.appendChild(fileInfo);
     }
 
+    // Episode browser for TV shows
+    if (item.in_library && (item.media_type === 'show' || item.media_type === 'season')) {
+        const episodeBrowser = document.createElement('div');
+        episodeBrowser.className = 'episode-browser';
+        episodeBrowser.id = 'episodeBrowser';
+
+        const browserHeader = document.createElement('div');
+        browserHeader.className = 'episode-browser-header';
+
+        const browserTitle = document.createElement('h4');
+        browserTitle.innerHTML = '<i data-lucide="list"></i> Episodes';
+        browserHeader.appendChild(browserTitle);
+
+        // Season selector
+        const seasonSelector = document.createElement('select');
+        seasonSelector.className = 'season-selector';
+        seasonSelector.id = 'seasonSelector';
+        seasonSelector.innerHTML = '<option value="">Loading seasons...</option>';
+        browserHeader.appendChild(seasonSelector);
+
+        episodeBrowser.appendChild(browserHeader);
+
+        // Episode list container
+        const episodeList = document.createElement('div');
+        episodeList.className = 'episode-list';
+        episodeList.id = 'episodeList';
+        episodeList.innerHTML = '<div class="episode-loading">Loading episodes...</div>';
+        episodeBrowser.appendChild(episodeList);
+
+        info.appendChild(episodeBrowser);
+
+        // Load seasons
+        loadSeasonsForShow(item.id, seasonSelector, episodeList);
+    }
+
     // Action buttons
     const actions = document.createElement('div');
     actions.className = 'modal-actions';
@@ -1688,19 +1723,6 @@ function renderMediaDetails(item) {
             streamText.textContent = 'Stream Now';
             streamBtn.appendChild(streamText);
             actions.appendChild(streamBtn);
-        } else if (hasJellyfin && (item.media_type === 'show' || item.media_type === 'season')) {
-            // For shows/seasons, show a hint to select episode
-            const hintBtn = document.createElement('button');
-            hintBtn.className = 'btn btn-secondary';
-            hintBtn.disabled = true;
-            hintBtn.title = 'Select an episode to stream';
-            const hintIcon = document.createElement('i');
-            hintIcon.setAttribute('data-lucide', 'monitor-play');
-            hintBtn.appendChild(hintIcon);
-            const hintText = document.createElement('span');
-            hintText.textContent = 'Select Episode';
-            hintBtn.appendChild(hintText);
-            actions.appendChild(hintBtn);
         }
 
         // Ensure we have servers loaded, fallback to defaults if not
@@ -1778,6 +1800,129 @@ function renderMediaDetails(item) {
 
 function closeMediaPanel() {
     document.getElementById('mediaPanel')?.classList.remove('active');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EPISODE BROWSER
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function loadSeasonsForShow(seriesId, seasonSelector, episodeList) {
+    try {
+        const response = await fetch(`${API_BASE}/shows/${seriesId}/seasons`);
+        const data = await response.json();
+
+        if (data.success && data.seasons && data.seasons.length > 0) {
+            seasonSelector.innerHTML = '';
+            data.seasons.forEach((season, index) => {
+                const option = document.createElement('option');
+                option.value = season.season_number;
+                option.textContent = season.name;
+                if (index === 0) option.selected = true;
+                seasonSelector.appendChild(option);
+            });
+
+            // Load first season's episodes
+            loadEpisodesForSeason(seriesId, data.seasons[0].season_number, episodeList);
+
+            // Add change listener
+            seasonSelector.addEventListener('change', () => {
+                loadEpisodesForSeason(seriesId, parseInt(seasonSelector.value), episodeList);
+            });
+        } else {
+            seasonSelector.innerHTML = '<option value="">No seasons found</option>';
+            episodeList.innerHTML = '<div class="episode-empty">No episodes available</div>';
+        }
+    } catch (error) {
+        console.error('[Episode Browser] Error loading seasons:', error);
+        seasonSelector.innerHTML = '<option value="">Error loading seasons</option>';
+    }
+    lucide.createIcons();
+}
+
+async function loadEpisodesForSeason(seriesId, seasonNumber, episodeList) {
+    episodeList.innerHTML = '<div class="episode-loading"><div class="spinner"></div> Loading episodes...</div>';
+
+    try {
+        const response = await fetch(`${API_BASE}/shows/${seriesId}/episodes?season=${seasonNumber}`);
+        const data = await response.json();
+
+        if (data.success && data.episodes && data.episodes.length > 0) {
+            episodeList.innerHTML = '';
+
+            data.episodes.forEach(ep => {
+                const episodeCard = document.createElement('div');
+                episodeCard.className = 'episode-card' + (ep.has_file ? '' : ' unavailable');
+
+                // Episode number badge
+                const epNum = document.createElement('div');
+                epNum.className = 'episode-number';
+                epNum.textContent = ep.episode_number;
+                episodeCard.appendChild(epNum);
+
+                // Episode info
+                const epInfo = document.createElement('div');
+                epInfo.className = 'episode-info';
+
+                const epTitle = document.createElement('div');
+                epTitle.className = 'episode-title';
+                epTitle.textContent = ep.title || `Episode ${ep.episode_number}`;
+                epInfo.appendChild(epTitle);
+
+                const epMeta = document.createElement('div');
+                epMeta.className = 'episode-meta';
+                const metaParts = [];
+                if (ep.runtime_minutes) metaParts.push(`${ep.runtime_minutes}m`);
+                if (ep.quality) metaParts.push(ep.quality);
+                if (!ep.has_file) metaParts.push('Not downloaded');
+                epMeta.textContent = metaParts.join(' • ');
+                epInfo.appendChild(epMeta);
+
+                episodeCard.appendChild(epInfo);
+
+                // Action buttons
+                const epActions = document.createElement('div');
+                epActions.className = 'episode-actions';
+
+                if (ep.has_file) {
+                    // Stream button
+                    const streamBtn = document.createElement('button');
+                    streamBtn.className = 'btn-icon btn-stream-small';
+                    streamBtn.title = 'Stream Now';
+                    streamBtn.innerHTML = '<i data-lucide="play"></i>';
+                    streamBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        closeMediaPanel();
+                        openVideoPlayer({
+                            id: ep.id,
+                            title: `${ep.title || 'Episode ' + ep.episode_number}`,
+                            media_type: 'episode'
+                        });
+                    };
+                    epActions.appendChild(streamBtn);
+
+                    // Jellyfin link
+                    const jellyfinBtn = document.createElement('a');
+                    jellyfinBtn.className = 'btn-icon';
+                    jellyfinBtn.title = 'Open in Jellyfin';
+                    jellyfinBtn.href = `http://192.168.1.200:8096/web/index.html#!/details?id=${ep.id}`;
+                    jellyfinBtn.target = '_blank';
+                    jellyfinBtn.innerHTML = '<i data-lucide="external-link"></i>';
+                    jellyfinBtn.onclick = (e) => e.stopPropagation();
+                    epActions.appendChild(jellyfinBtn);
+                }
+
+                episodeCard.appendChild(epActions);
+                episodeList.appendChild(episodeCard);
+            });
+
+            lucide.createIcons();
+        } else {
+            episodeList.innerHTML = '<div class="episode-empty">No episodes in this season</div>';
+        }
+    } catch (error) {
+        console.error('[Episode Browser] Error loading episodes:', error);
+        episodeList.innerHTML = '<div class="episode-error">Error loading episodes</div>';
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

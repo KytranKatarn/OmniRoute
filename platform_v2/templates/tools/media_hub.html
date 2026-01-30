@@ -4,6 +4,31 @@
 
 {% block module_name %}media_hub{% endblock %}
 
+{% block extra_head %}
+<!-- PWA Meta Tags -->
+<meta name="theme-color" content="#E5A00D">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Media Hub">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="application-name" content="Media Hub">
+<meta name="msapplication-TileColor" content="#0a0a0f">
+<meta name="msapplication-TileImage" content="/static/icons/media-hub-144.png">
+
+<!-- PWA Manifest -->
+<link rel="manifest" href="/static/manifest.json">
+
+<!-- Apple Touch Icons -->
+<link rel="apple-touch-icon" href="/static/icons/media-hub-192.png">
+<link rel="apple-touch-icon" sizes="152x152" href="/static/icons/media-hub-152.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/static/icons/media-hub-192.png">
+<link rel="apple-touch-icon" sizes="167x167" href="/static/icons/media-hub-192.png">
+
+<!-- Favicon -->
+<link rel="icon" type="image/png" sizes="32x32" href="/static/icons/media-hub-96.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/static/icons/media-hub-72.png">
+{% endblock %}
+
 {% block content %}
 <!-- Include Standalone Apps Navigation -->
 {% include 'includes/standalone_apps_nav.html' %}
@@ -3265,6 +3290,170 @@ body.light-mode .stat-value { color: #1a1a1a; }
     background: var(--archie-bg-elevated);
     border-color: var(--mh-accent);
     color: var(--mh-accent);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   PWA INSTALL BANNER
+   ───────────────────────────────────────────────────────────────────────────── */
+.pwa-install-banner {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(150px);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px 24px;
+    background: var(--archie-bg-elevated);
+    border: 1px solid var(--mh-accent);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), var(--mh-glow);
+    z-index: 9999;
+    opacity: 0;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pwa-install-banner.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+.pwa-install-icon {
+    width: 48px;
+    height: 48px;
+    background: var(--mh-accent-alpha-20);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.pwa-install-icon i { width: 24px; height: 24px; color: var(--mh-accent); }
+
+.pwa-install-content { flex: 1; }
+
+.pwa-install-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--archie-text-secondary);
+    margin: 0 0 4px;
+}
+
+.pwa-install-text {
+    font-size: 0.8rem;
+    color: var(--archie-text-muted);
+    margin: 0;
+}
+
+.pwa-install-actions { display: flex; gap: 8px; }
+
+.pwa-install-btn {
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.pwa-install-btn.primary {
+    background: var(--mh-accent);
+    border: none;
+    color: #000;
+}
+
+.pwa-install-btn.primary:hover { background: var(--mh-accent-bright); }
+
+.pwa-install-btn.secondary {
+    background: transparent;
+    border: 1px solid var(--archie-border-default);
+    color: var(--archie-text-muted);
+}
+
+.pwa-install-btn.secondary:hover { border-color: var(--archie-text-muted); }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   TV / D-PAD NAVIGATION STYLES
+   Fire TV, Android TV, Smart TV remote control support
+   ───────────────────────────────────────────────────────────────────────────── */
+@media (min-width: 960px) and (hover: none) {
+    /* TV mode - no hover, uses D-pad */
+    body.tv-mode {
+        --focus-ring-width: 4px;
+        --focus-ring-offset: 4px;
+    }
+
+    body.tv-mode .poster-card,
+    body.tv-mode .collection-card,
+    body.tv-mode .continue-card,
+    body.tv-mode .media-card,
+    body.tv-mode .nav-tab,
+    body.tv-mode .btn,
+    body.tv-mode .service-card,
+    body.tv-mode .filter-chip,
+    body.tv-mode .trending-tab,
+    body.tv-mode .episode-card {
+        outline: none;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    body.tv-mode .poster-card:focus,
+    body.tv-mode .collection-card:focus,
+    body.tv-mode .continue-card:focus,
+    body.tv-mode .media-card:focus {
+        outline: var(--focus-ring-width) solid var(--mh-accent);
+        outline-offset: var(--focus-ring-offset);
+        transform: scale(1.05);
+        z-index: 10;
+    }
+
+    body.tv-mode .nav-tab:focus {
+        outline: var(--focus-ring-width) solid var(--mh-accent);
+        outline-offset: 2px;
+        background: var(--mh-accent-alpha-20);
+    }
+
+    body.tv-mode .btn:focus,
+    body.tv-mode .filter-chip:focus,
+    body.tv-mode .trending-tab:focus,
+    body.tv-mode .service-card:focus {
+        outline: var(--focus-ring-width) solid var(--mh-accent);
+        outline-offset: 2px;
+    }
+
+    /* Large touch targets for remote */
+    body.tv-mode .poster-card { min-width: 180px; min-height: 270px; }
+    body.tv-mode .nav-tab { padding: 16px 24px; font-size: 1rem; }
+    body.tv-mode .btn { padding: 14px 24px; font-size: 1rem; }
+
+    /* Hide hover-only elements */
+    body.tv-mode .poster-overlay,
+    body.tv-mode .poster-request-btn,
+    body.tv-mode .search-hint { display: none; }
+
+    /* Always show play button */
+    body.tv-mode .continue-play { opacity: 0.8; }
+
+    /* Larger fonts for TV viewing distance */
+    body.tv-mode .poster-title { font-size: 1rem; }
+    body.tv-mode .section-header h2 { font-size: 1.3rem; }
+    body.tv-mode .brand-text h1 { font-size: 1.8rem; }
+}
+
+/* Standalone PWA mode adjustments */
+@media (display-mode: standalone) {
+    .hub-header { padding-top: env(safe-area-inset-top, 12px); }
+    .media-hub { padding-bottom: env(safe-area-inset-bottom, 24px); }
+}
+
+/* Fire TV specific (16:9 landscape) */
+@media screen and (min-width: 1920px) and (aspect-ratio: 16/9) {
+    body.tv-mode .media-grid { grid-template-columns: repeat(6, 1fr); gap: 24px; }
+    body.tv-mode .poster-carousel { gap: 20px; }
+    body.tv-mode .continue-card { width: 320px; }
 }
 </style>
 

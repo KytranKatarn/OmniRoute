@@ -1899,3 +1899,192 @@ function showToast(message, type = 'info') {
         setTimeout(() => toast.remove(), 300);
     }, 3000);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PWA SERVICE WORKER & INSTALL
+// ─────────────────────────────────────────────────────────────────────────────
+
+let deferredPrompt = null;
+
+// Register service worker
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', async () => {
+        try {
+            const registration = await navigator.serviceWorker.register('/static/js/media-hub-sw.js', {
+                scope: '/tools/media-hub'
+            });
+            console.log('[Media Hub] Service Worker registered:', registration.scope);
+
+            // Check for updates
+            registration.addEventListener('updatefound', () => {
+                const newWorker = registration.installing;
+                console.log('[Media Hub] Service Worker updating...');
+
+                newWorker.addEventListener('statechange', () => {
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                        showToast('Update available! Refresh to get the latest version.', 'info');
+                    }
+                });
+            });
+        } catch (error) {
+            console.error('[Media Hub] Service Worker registration failed:', error);
+        }
+    });
+}
+
+// Detect TV mode (Fire TV, Android TV)
+function detectTVMode() {
+    const isTV = /AFT|AFTB|AFTT|AFTS|AFTM|FireTV|Roku|CrKey|AppleTV|BRAVIA|Tizen|WebOS|SmartTV/i.test(navigator.userAgent);
+    const isLargeScreen = window.innerWidth >= 960;
+    const hasNoPointer = !window.matchMedia('(hover: hover)').matches;
+
+    if (isTV || (isLargeScreen && hasNoPointer)) {
+        document.body.classList.add('tv-mode');
+        enableTVNavigation();
+        console.log('[Media Hub] TV mode enabled');
+    }
+}
+
+function enableTVNavigation() {
+    // Make all interactive elements focusable
+    document.querySelectorAll('.poster-card, .collection-card, .continue-card, .media-card, .nav-tab, .btn, .filter-chip').forEach(el => {
+        if (!el.hasAttribute('tabindex')) {
+            el.setAttribute('tabindex', '0');
+        }
+    });
+
+    // Enhanced keyboard navigation for TV remotes
+    document.addEventListener('keydown', (e) => {
+        const focused = document.activeElement;
+
+        // Handle OK/Enter on remote
+        if (e.key === 'Enter' && focused) {
+            if (focused.classList.contains('poster-card') || focused.classList.contains('collection-card')) {
+                focused.click();
+            }
+        }
+
+        // Handle Back button on remote
+        if (e.key === 'Escape' || e.key === 'GoBack' || e.keyCode === 10009) {
+            const panel = document.getElementById('mediaPanel');
+            if (panel && panel.classList.contains('open')) {
+                closeMediaPanel();
+                e.preventDefault();
+            }
+        }
+    });
+}
+
+// PWA Install prompt handling
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    console.log('[Media Hub] Install prompt available');
+
+    // Don't show banner immediately on TV
+    if (!document.body.classList.contains('tv-mode')) {
+        setTimeout(() => showInstallBanner(), 3000);
+    }
+});
+
+function showInstallBanner() {
+    if (!deferredPrompt) return;
+
+    // Check if already dismissed
+    if (localStorage.getItem('media-hub-install-dismissed')) return;
+
+    // Check if already installed
+    if (window.matchMedia('(display-mode: standalone)').matches) return;
+
+    // Build banner using DOM methods
+    const banner = document.createElement('div');
+    banner.className = 'pwa-install-banner';
+
+    const iconDiv = document.createElement('div');
+    iconDiv.className = 'pwa-install-icon';
+    const iconEl = document.createElement('i');
+    iconEl.setAttribute('data-lucide', 'download');
+    iconDiv.appendChild(iconEl);
+
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'pwa-install-content';
+    const title = document.createElement('h3');
+    title.className = 'pwa-install-title';
+    title.textContent = 'Install Media Hub';
+    const text = document.createElement('p');
+    text.className = 'pwa-install-text';
+    text.textContent = 'Add to your home screen for quick access';
+    contentDiv.appendChild(title);
+    contentDiv.appendChild(text);
+
+    const actionsDiv = document.createElement('div');
+    actionsDiv.className = 'pwa-install-actions';
+    const dismissBtn = document.createElement('button');
+    dismissBtn.className = 'pwa-install-btn secondary';
+    dismissBtn.textContent = 'Not now';
+    dismissBtn.addEventListener('click', dismissInstallBanner);
+    const installBtn = document.createElement('button');
+    installBtn.className = 'pwa-install-btn primary';
+    installBtn.textContent = 'Install';
+    installBtn.addEventListener('click', installPWA);
+    actionsDiv.appendChild(dismissBtn);
+    actionsDiv.appendChild(installBtn);
+
+    banner.appendChild(iconDiv);
+    banner.appendChild(contentDiv);
+    banner.appendChild(actionsDiv);
+
+    document.body.appendChild(banner);
+    lucide.createIcons({ icons: { download: lucide.icons.download }, attrs: {} });
+
+    setTimeout(() => banner.classList.add('show'), 100);
+}
+
+function dismissInstallBanner() {
+    const banner = document.querySelector('.pwa-install-banner');
+    if (banner) {
+        banner.classList.remove('show');
+        setTimeout(() => banner.remove(), 400);
+    }
+    localStorage.setItem('media-hub-install-dismissed', 'true');
+}
+
+async function installPWA() {
+    if (!deferredPrompt) {
+        showToast('Install not available', 'error');
+        return;
+    }
+
+    const banner = document.querySelector('.pwa-install-banner');
+    if (banner) {
+        banner.classList.remove('show');
+        setTimeout(() => banner.remove(), 400);
+    }
+
+    try {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+
+        if (outcome === 'accepted') {
+            showToast('Media Hub installed successfully!', 'success');
+            console.log('[Media Hub] PWA installed');
+        } else {
+            console.log('[Media Hub] PWA install declined');
+        }
+
+        deferredPrompt = null;
+    } catch (error) {
+        console.error('[Media Hub] Install error:', error);
+        showToast('Installation failed', 'error');
+    }
+}
+
+// Listen for successful install
+window.addEventListener('appinstalled', () => {
+    console.log('[Media Hub] PWA was installed');
+    deferredPrompt = null;
+    showToast('Media Hub installed!', 'success');
+});
+
+// Initialize TV mode detection on load
+document.addEventListener('DOMContentLoaded', detectTVMode);

@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="100%" style="stop-color:#0a0a0f"/>
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFC230"/>
+      <stop offset="100%" style="stop-color:#E5A00D"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="8" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="url(#bgGrad)"/>
+
+  <!-- Outer ring glow -->
+  <circle cx="256" cy="256" r="180" fill="none" stroke="url(#goldGrad)" stroke-width="4" opacity="0.3" filter="url(#glow)"/>
+
+  <!-- Clapperboard base -->
+  <g transform="translate(256, 256)" filter="url(#glow)">
+    <!-- Screen/display area -->
+    <rect x="-120" y="-60" width="240" height="150" rx="12" fill="#16213e" stroke="url(#goldGrad)" stroke-width="3"/>
+
+    <!-- Clapper top -->
+    <path d="M-120,-60 L-120,-90 L120,-90 L120,-60 Z" fill="url(#goldGrad)"/>
+
+    <!-- Clapper stripes -->
+    <rect x="-100" y="-85" width="30" height="20" fill="#0a0a0f"/>
+    <rect x="-50" y="-85" width="30" height="20" fill="#0a0a0f"/>
+    <rect x="0" y="-85" width="30" height="20" fill="#0a0a0f"/>
+    <rect x="50" y="-85" width="30" height="20" fill="#0a0a0f"/>
+
+    <!-- Play button -->
+    <polygon points="-20,-10 -20,40 30,15" fill="url(#goldGrad)"/>
+
+    <!-- Film reels decoration -->
+    <circle cx="-85" cy="55" r="20" fill="none" stroke="url(#goldGrad)" stroke-width="2"/>
+    <circle cx="-85" cy="55" r="8" fill="url(#goldGrad)"/>
+    <circle cx="85" cy="55" r="20" fill="none" stroke="url(#goldGrad)" stroke-width="2"/>
+    <circle cx="85" cy="55" r="8" fill="url(#goldGrad)"/>
+  </g>
+
+  <!-- Corner accent -->
+  <path d="M440,72 L472,72 L472,104" fill="none" stroke="url(#goldGrad)" stroke-width="4" stroke-linecap="round"/>
+  <path d="M72,440 L40,440 L40,408" fill="none" stroke="url(#goldGrad)" stroke-width="4" stroke-linecap="round"/>
+</svg>

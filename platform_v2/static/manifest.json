@@ -1,0 +1,106 @@
+{
+  "name": "Media Hub - A.R.C.H.I.E.",
+  "short_name": "Media Hub",
+  "description": "Unified streaming command center for your media library",
+  "start_url": "/tools/media-hub",
+  "scope": "/tools/media-hub",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0a0a0f",
+  "theme_color": "#E5A00D",
+  "categories": ["entertainment", "utilities"],
+  "icons": [
+    {
+      "src": "/static/icons/media-hub-72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/media-hub-96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/media-hub-128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/media-hub-144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/media-hub-152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/media-hub-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/icons/media-hub-384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/media-hub-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/static/icons/media-hub-screenshot-wide.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Media Hub Dashboard"
+    },
+    {
+      "src": "/static/icons/media-hub-screenshot-narrow.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Media Hub Mobile"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Movies",
+      "short_name": "Movies",
+      "description": "Browse your movie library",
+      "url": "/tools/media-hub#movies",
+      "icons": [{ "src": "/static/icons/media-hub-movies.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "TV Shows",
+      "short_name": "TV Shows",
+      "description": "Browse your TV shows",
+      "url": "/tools/media-hub#shows",
+      "icons": [{ "src": "/static/icons/media-hub-tv.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Search",
+      "short_name": "Search",
+      "description": "Search your library",
+      "url": "/tools/media-hub#search",
+      "icons": [{ "src": "/static/icons/media-hub-search.png", "sizes": "96x96" }]
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false,
+  "launch_handler": {
+    "client_mode": "navigate-existing"
+  }
+}

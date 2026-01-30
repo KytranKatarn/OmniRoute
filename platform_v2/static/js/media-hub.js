@@ -14,6 +14,7 @@ let searchTimeout = null;
 let focusedIndex = -1;
 let tmdbConfigured = false;
 let primaryMediaServer = { type: 'plex', url: '', name: 'Plex' };
+let availableMediaServers = [];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // INITIALIZATION
@@ -39,30 +40,32 @@ async function loadPrimaryMediaServer() {
         const data = await response.json();
 
         if (data.services) {
-            // Find primary media server (Plex or Jellyfin)
+            // Collect all available media servers
+            availableMediaServers = [];
             for (const [type, svc] of Object.entries(data.services)) {
-                if ((type === 'plex' || type === 'jellyfin') && svc.is_primary && svc.online) {
-                    primaryMediaServer = {
+                if ((type === 'plex' || type === 'jellyfin') && svc.online && svc.is_enabled) {
+                    const server = {
                         type: type,
                         url: svc.url,
-                        name: svc.name
+                        name: svc.name,
+                        is_primary: svc.is_primary
                     };
-                    console.log(`[Media Hub] Primary server: ${primaryMediaServer.name}`);
-                    return;
+                    availableMediaServers.push(server);
+
+                    // Set primary
+                    if (svc.is_primary) {
+                        primaryMediaServer = server;
+                    }
                 }
             }
-            // Fallback: find any online media server
-            for (const [type, svc] of Object.entries(data.services)) {
-                if ((type === 'plex' || type === 'jellyfin') && svc.online) {
-                    primaryMediaServer = {
-                        type: type,
-                        url: svc.url,
-                        name: svc.name
-                    };
-                    console.log(`[Media Hub] Fallback server: ${primaryMediaServer.name}`);
-                    return;
-                }
+
+            // Fallback if no primary set
+            if (!primaryMediaServer.url && availableMediaServers.length > 0) {
+                primaryMediaServer = availableMediaServers[0];
             }
+
+            console.log(`[Media Hub] Available servers: ${availableMediaServers.map(s => s.name).join(', ')}`);
+            console.log(`[Media Hub] Primary server: ${primaryMediaServer.name}`);
         }
     } catch (error) {
         console.error('[Media Hub] Failed to load primary server:', error);
@@ -1666,27 +1669,27 @@ function renderMediaDetails(item) {
     actions.className = 'panel-actions';
 
     if (item.in_library) {
-        // Play button (open in primary media server)
-        const playBtn = document.createElement('a');
-        playBtn.className = 'btn btn-primary';
+        // Show play button for each available media server
+        availableMediaServers.forEach((server, index) => {
+            const playBtn = document.createElement('a');
+            playBtn.className = index === 0 ? 'btn btn-primary' : 'btn btn-secondary';
 
-        // Build URL based on primary media server
-        if (primaryMediaServer.type === 'jellyfin') {
-            // Jellyfin web URL with item details
-            playBtn.href = `${primaryMediaServer.url}/web/index.html#!/details?id=${item.id}`;
-        } else {
-            // Plex web URL
-            playBtn.href = `${primaryMediaServer.url}/web/index.html#!/server`;
-        }
+            // Build URL based on server type
+            if (server.type === 'jellyfin') {
+                playBtn.href = `${server.url}/web/index.html#!/details?id=${item.id}`;
+            } else {
+                playBtn.href = `${server.url}/web/index.html#!/server`;
+            }
 
-        playBtn.target = '_blank';
-        const playIcon = document.createElement('i');
-        playIcon.setAttribute('data-lucide', 'play');
-        playBtn.appendChild(playIcon);
-        const playText = document.createElement('span');
-        playText.textContent = `Open in ${primaryMediaServer.name}`;
-        playBtn.appendChild(playText);
-        actions.appendChild(playBtn);
+            playBtn.target = '_blank';
+            const playIcon = document.createElement('i');
+            playIcon.setAttribute('data-lucide', 'play');
+            playBtn.appendChild(playIcon);
+            const playText = document.createElement('span');
+            playText.textContent = server.name;
+            playBtn.appendChild(playText);
+            actions.appendChild(playBtn);
+        });
     } else {
         // Request button
         const requestBtn = document.createElement('button');

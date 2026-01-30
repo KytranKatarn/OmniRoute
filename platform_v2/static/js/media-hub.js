@@ -1669,11 +1669,12 @@ function renderMediaDetails(item) {
     actions.className = 'modal-actions';
 
     if (item.in_library) {
-        // Stream Now button (native HTML5 player) - only for Jellyfin items
+        // Stream Now button - only for playable items (movies, episodes) not series/seasons
+        const isPlayable = item.media_type === 'movie' || item.media_type === 'episode';
         const hasJellyfin = availableMediaServers.some(s => s.type === 'jellyfin') ||
-                           availableMediaServers.length === 0; // Assume Jellyfin available if no servers loaded
+                           availableMediaServers.length === 0;
 
-        if (hasJellyfin) {
+        if (hasJellyfin && isPlayable) {
             const streamBtn = document.createElement('button');
             streamBtn.className = 'btn btn-stream';
             streamBtn.onclick = () => {
@@ -1687,6 +1688,19 @@ function renderMediaDetails(item) {
             streamText.textContent = 'Stream Now';
             streamBtn.appendChild(streamText);
             actions.appendChild(streamBtn);
+        } else if (hasJellyfin && (item.media_type === 'show' || item.media_type === 'season')) {
+            // For shows/seasons, show a hint to select episode
+            const hintBtn = document.createElement('button');
+            hintBtn.className = 'btn btn-secondary';
+            hintBtn.disabled = true;
+            hintBtn.title = 'Select an episode to stream';
+            const hintIcon = document.createElement('i');
+            hintIcon.setAttribute('data-lucide', 'monitor-play');
+            hintBtn.appendChild(hintIcon);
+            const hintText = document.createElement('span');
+            hintText.textContent = 'Select Episode';
+            hintBtn.appendChild(hintText);
+            actions.appendChild(hintBtn);
         }
 
         // Ensure we have servers loaded, fallback to defaults if not
@@ -1698,16 +1712,23 @@ function renderMediaDetails(item) {
         // Show play button for each available media server
         servers.forEach((server, index) => {
             const playBtn = document.createElement('a');
-            // Secondary styling since Stream Now is primary
             playBtn.className = 'btn btn-secondary';
 
-            // Build URL based on server type
             if (server.type === 'jellyfin') {
                 // Jellyfin deep link to item
                 playBtn.href = `${server.url}/web/index.html#!/details?id=${item.id}`;
             } else {
-                // Plex - open web interface (can't deep link without Plex ID)
-                playBtn.href = `${server.url}/web/index.html#!/search?query=${encodeURIComponent(item.title)}`;
+                // Plex - use GUID matching if TMDB/TVDB ID available, otherwise search
+                if (item.tmdb_id && item.media_type === 'movie') {
+                    // Plex can resolve TMDB GUIDs for movies
+                    playBtn.href = `${server.url}/web/index.html#!/provider/tv.plex.provider.metadata/details?key=/library/metadata/plex://movie?guid=tmdb://${item.tmdb_id}`;
+                } else if (item.tvdb_id && (item.media_type === 'show' || item.media_type === 'episode')) {
+                    // Plex can resolve TVDB GUIDs for shows
+                    playBtn.href = `${server.url}/web/index.html#!/provider/tv.plex.provider.metadata/details?key=/library/metadata/plex://show?guid=tvdb://${item.tvdb_id}`;
+                } else {
+                    // Fallback to search
+                    playBtn.href = `${server.url}/web/index.html#!/search?query=${encodeURIComponent(item.title)}`;
+                }
             }
 
             playBtn.target = '_blank';

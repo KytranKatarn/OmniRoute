@@ -113,12 +113,35 @@ def get_all_services() -> list:
 
 def get_primary_media_server():
     """Get the primary media server client (Plex or Jellyfin)"""
-    # Try Plex first
+    from .clients.plex import PlexClient
+    from .clients.jellyfin import JellyfinClient
+
+    # Check which server is marked as primary
+    services = get_all_services()
+    primary_type = None
+    for svc in services:
+        if svc.get("is_primary") and svc.get("service_type") in ("plex", "jellyfin"):
+            primary_type = svc.get("service_type")
+            break
+
+    # Try primary server first
+    if primary_type == "jellyfin":
+        config = get_service_config("jellyfin")
+        if config and config.get("api_key"):
+            try:
+                return (
+                    JellyfinClient(
+                        host=config["host"], port=config["port"], api_key=config["api_key"], use_ssl=config["use_ssl"]
+                    ),
+                    "jellyfin",
+                )
+            except Exception as e:
+                logger.error(f"Failed to create Jellyfin client: {e}")
+
+    # Try Plex (either as primary or fallback)
     config = get_service_config("plex")
     if config and config.get("api_key"):
         try:
-            from .clients.plex import PlexClient
-
             return (
                 PlexClient(
                     host=config["host"], port=config["port"], api_key=config["api_key"], use_ssl=config["use_ssl"]
@@ -128,12 +151,10 @@ def get_primary_media_server():
         except Exception as e:
             logger.error(f"Failed to create Plex client: {e}")
 
-    # Try Jellyfin
+    # Try Jellyfin as fallback
     config = get_service_config("jellyfin")
     if config and config.get("api_key"):
         try:
-            from .clients.jellyfin import JellyfinClient
-
             return (
                 JellyfinClient(
                     host=config["host"], port=config["port"], api_key=config["api_key"], use_ssl=config["use_ssl"]

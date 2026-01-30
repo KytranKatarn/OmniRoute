@@ -13,6 +13,7 @@ let calendarWeekOffset = 0;
 let searchTimeout = null;
 let focusedIndex = -1;
 let tmdbConfigured = false;
+let primaryMediaServer = { type: 'plex', url: '', name: 'Plex' };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // INITIALIZATION
@@ -27,9 +28,46 @@ document.addEventListener('DOMContentLoaded', function() {
     initLazyLoading();
     initTrendingTabs();
     checkTMDBStatus();
+    loadPrimaryMediaServer();
     loadDashboard();
     loadSettings();
 });
+
+async function loadPrimaryMediaServer() {
+    try {
+        const response = await fetch(`${API_BASE}/status`);
+        const data = await response.json();
+
+        if (data.services) {
+            // Find primary media server (Plex or Jellyfin)
+            for (const [type, svc] of Object.entries(data.services)) {
+                if ((type === 'plex' || type === 'jellyfin') && svc.is_primary && svc.online) {
+                    primaryMediaServer = {
+                        type: type,
+                        url: svc.url,
+                        name: svc.name
+                    };
+                    console.log(`[Media Hub] Primary server: ${primaryMediaServer.name}`);
+                    return;
+                }
+            }
+            // Fallback: find any online media server
+            for (const [type, svc] of Object.entries(data.services)) {
+                if ((type === 'plex' || type === 'jellyfin') && svc.online) {
+                    primaryMediaServer = {
+                        type: type,
+                        url: svc.url,
+                        name: svc.name
+                    };
+                    console.log(`[Media Hub] Fallback server: ${primaryMediaServer.name}`);
+                    return;
+                }
+            }
+        }
+    } catch (error) {
+        console.error('[Media Hub] Failed to load primary server:', error);
+    }
+}
 
 function initTrendingTabs() {
     document.querySelectorAll('.trending-tab').forEach(tab => {
@@ -1628,16 +1666,25 @@ function renderMediaDetails(item) {
     actions.className = 'panel-actions';
 
     if (item.in_library) {
-        // Play button (open in Plex)
+        // Play button (open in primary media server)
         const playBtn = document.createElement('a');
         playBtn.className = 'btn btn-primary';
-        playBtn.href = `https://app.plex.tv/desktop#!/server/`;
+
+        // Build URL based on primary media server
+        if (primaryMediaServer.type === 'jellyfin') {
+            // Jellyfin web URL with item details
+            playBtn.href = `${primaryMediaServer.url}/web/index.html#!/details?id=${item.id}`;
+        } else {
+            // Plex web URL
+            playBtn.href = `${primaryMediaServer.url}/web/index.html#!/server`;
+        }
+
         playBtn.target = '_blank';
         const playIcon = document.createElement('i');
         playIcon.setAttribute('data-lucide', 'play');
         playBtn.appendChild(playIcon);
         const playText = document.createElement('span');
-        playText.textContent = 'Open in Plex';
+        playText.textContent = `Open in ${primaryMediaServer.name}`;
         playBtn.appendChild(playText);
         actions.appendChild(playBtn);
     } else {

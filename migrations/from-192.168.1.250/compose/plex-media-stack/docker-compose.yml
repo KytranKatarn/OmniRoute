@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   plex:
     image: lscr.io/linuxserver/plex:latest
@@ -88,4 +86,23 @@ services:
       - /mnt/Plex/config/overseerr:/config
     ports:
       - "5055:5055"
+    restart: unless-stopped
+
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+    volumes:
+      - /mnt/Plex/config/jellyfin:/config
+      - /mnt/Plex/config/jellyfin/cache:/cache
+      - /mnt/Plex/media/movies:/data/movies:ro
+      - /mnt/Plex/media/tv:/data/tv:ro
+      - /mnt/Plex/media/music:/data/music:ro
+    ports:
+      - "8096:8096"
+    devices:
+      - /dev/dri:/dev/dri
     restart: unless-stopped

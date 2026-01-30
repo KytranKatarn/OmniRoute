@@ -5613,8 +5613,8 @@ function renderStorageOverview(disks, lvm) {
 }
 
 function getUsageColor(pct) {
-    if (pct >= 90) return 'var(--archie-red)';
-    if (pct >= 70) return 'var(--archie-orange)';
+    if (pct >= 80) return 'var(--archie-red)';
+    if (pct >= 60) return 'var(--archie-orange)';
     return 'var(--archie-green)';
 }
 
@@ -5627,6 +5627,7 @@ function renderStorageTreemap(disks, lvm, vgFree, dockerMounts) {
     }
 
     // Helper: get Docker stacks using a mountpoint
+    // Handles both formats: container names (strings) or stack objects
     function getDockerStacks(mountpoint) {
         if (!dockerMounts || !mountpoint) return [];
         const stacks = [];
@@ -5641,10 +5642,23 @@ function renderStorageTreemap(disks, lvm, vgFree, dockerMounts) {
                 matches = hostPath.startsWith(mountpoint + '/') || hostPath === mountpoint;
             }
             if (matches) {
-                dockerMounts[hostPath].forEach(stack => {
-                    if (!seenStacks.has(stack.stack_name)) {
-                        seenStacks.add(stack.stack_name);
-                        stacks.push(stack);
+                dockerMounts[hostPath].forEach(item => {
+                    // Handle both string (container name) and object (stack info) formats
+                    let stackName, displayName;
+                    if (typeof item === 'string') {
+                        // Container name format - derive stack from prefix
+                        stackName = item.includes('_') ? item.split('_')[0] : item;
+                        // Use friendly names for known stacks
+                        if (stackName === 'archie') displayName = 'A.R.C.H.I.E.';
+                        else displayName = stackName.charAt(0).toUpperCase() + stackName.slice(1);
+                    } else {
+                        // Stack object format
+                        stackName = item.stack_name;
+                        displayName = item.display_name || stackName;
+                    }
+                    if (!seenStacks.has(stackName)) {
+                        seenStacks.add(stackName);
+                        stacks.push({ stack_name: stackName, display_name: displayName });
                     }
                 });
             }

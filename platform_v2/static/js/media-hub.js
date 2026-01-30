@@ -464,6 +464,17 @@ async function checkTMDBStatus() {
         if (trendingSection) {
             trendingSection.style.display = tmdbConfigured ? 'block' : 'none';
         }
+
+        // Load trending immediately if TMDB is configured
+        if (tmdbConfigured) {
+            // Ensure "All" tab is active
+            const allTab = document.querySelector('.trending-tab[data-type="all"]');
+            if (allTab && !allTab.classList.contains('active')) {
+                document.querySelectorAll('.trending-tab').forEach(t => t.classList.remove('active'));
+                allTab.classList.add('active');
+            }
+            loadTrending('all');
+        }
     } catch (error) {
         tmdbConfigured = false;
     }
@@ -675,14 +686,10 @@ async function loadTrending(type = 'all') {
     const section = document.getElementById('trendingSection');
     if (!container || !tmdbConfigured) return;
 
-    try {
-        const response = await fetch(`${API_BASE}/tmdb/trending?type=${type}&window=week`);
-        const data = await response.json();
-
+    const renderTrending = (items) => {
         container.textContent = '';
-
-        if (data.success && data.items && data.items.length > 0) {
-            data.items.slice(0, 12).forEach(item => {
+        if (items && items.length > 0) {
+            items.slice(0, 12).forEach(item => {
                 container.appendChild(createPosterCard(item, true));
             });
             if (section) section.style.display = 'block';
@@ -690,9 +697,30 @@ async function loadTrending(type = 'all') {
         } else {
             if (section) section.style.display = 'none';
         }
+    };
+
+    // Load from cache first for instant display
+    const cacheKey = `trending-${type}`;
+    const cached = cacheGet(cacheKey, 1800000); // 30 min cache for trending
+    if (cached && cached.data) {
+        renderTrending(cached.data);
+        console.log(`[Media Hub] Trending '${type}' loaded from cache`);
+    }
+
+    // Fetch fresh data
+    try {
+        const response = await fetch(`${API_BASE}/tmdb/trending?type=${type}&window=week`);
+        const data = await response.json();
+
+        if (data.success && data.items && data.items.length > 0) {
+            renderTrending(data.items);
+            cacheSet(cacheKey, data.items);
+        } else if (!cached) {
+            if (section) section.style.display = 'none';
+        }
     } catch (error) {
         console.error('Trending load error:', error);
-        if (section) section.style.display = 'none';
+        if (!cached && section) section.style.display = 'none';
     }
 }
 

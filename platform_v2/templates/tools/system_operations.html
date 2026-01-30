@@ -6012,11 +6012,11 @@ function renderStorageCharts(disks) {
             addStat(summary, 'Used', formatDiskSizeStorage(usedGb), 'var(--archie-orange)');
             driveDiv.appendChild(summary);
 
-            // Partition breakdown
+            // Partition breakdown (matching Dashboard style)
             const parts = disk.partitions || [];
             if (parts.length > 0) {
                 const partList = document.createElement('div');
-                partList.style.cssText = 'margin-top: 8px; padding-left: 10px; border-left: 2px solid var(--archie-border); font-size: 0.72rem;';
+                partList.style.cssText = 'margin-top: 6px; padding-left: 8px; border-left: 2px solid var(--archie-border); font-size: 0.72rem;';
                 parts.forEach(part => {
                     const row = document.createElement('div');
                     row.style.cssText = 'display: flex; justify-content: space-between; padding: 2px 0; color: var(--archie-text-secondary);';
@@ -6027,8 +6027,7 @@ function renderStorageCharts(disks) {
 
                     const infoSpan = document.createElement('span');
                     infoSpan.style.color = 'var(--archie-text-muted)';
-                    let infoText = formatDiskSizeStorage(part.size_gb || 0);
-                    if (part.fstype) infoText += ' ' + part.fstype;
+                    let infoText = formatDiskSizeStorage(part.size_gb || 0) + ' ' + (part.fstype || '');
                     if (part.mountpoint) infoText += ' @ ' + part.mountpoint;
                     if (part.usage) {
                         infoText += ' (' + (part.usage.percent || 0).toFixed(0) + '% used)';
@@ -6039,26 +6038,85 @@ function renderStorageCharts(disks) {
                     row.appendChild(infoSpan);
                     partList.appendChild(row);
 
-                    // Show children (LVM logical volumes, etc.)
+                    // Show Docker stacks using this partition's mount
+                    if (part.mountpoint) {
+                        const partStacks = getStacksForPath(part.mountpoint);
+                        if (partStacks.length > 0) {
+                            const stackRow = document.createElement('div');
+                            stackRow.style.cssText = 'display: flex; gap: 4px; flex-wrap: wrap; padding: 2px 0 2px 12px;';
+                            partStacks.forEach(stack => {
+                                const badge = document.createElement('span');
+                                const color = stack.color || '#6366f1';
+                                badge.style.cssText = 'padding: 1px 5px; font-size: 0.65rem; border-radius: 3px; background: ' + color + '33; color: ' + color + '; border: 1px solid ' + color + '44;';
+                                badge.textContent = stack.display_name || stack.stack_name;
+                                badge.title = 'Docker: ' + (stack.service || '') + ' → ' + (stack.container_path || '');
+                                stackRow.appendChild(badge);
+                            });
+                            partList.appendChild(stackRow);
+                        }
+                    }
+
+                    // Show LVM children under partition
+                    let childrenTotalGb = 0;
                     (part.children || []).forEach(child => {
                         const childRow = document.createElement('div');
-                        childRow.style.cssText = 'display: flex; justify-content: space-between; padding: 2px 0 2px 12px; color: var(--archie-text-muted); font-size: 0.7rem;';
+                        childRow.style.cssText = 'display: flex; justify-content: space-between; padding: 2px 0 2px 12px; color: var(--archie-text-secondary);';
 
                         const childName = document.createElement('span');
+                        childName.style.cssText = 'font-weight: 500; color: var(--archie-cyan);';
                         childName.textContent = '\u2514 ' + (child.name || child.device || '?');
 
                         const childInfo = document.createElement('span');
-                        let childInfoText = formatDiskSizeStorage(child.size_gb || 0);
+                        childInfo.style.color = 'var(--archie-text-muted)';
+                        const childSizeGb = child.size_gb || 0;
+                        childrenTotalGb += childSizeGb;
+                        let childInfoText = formatDiskSizeStorage(childSizeGb) + ' ' + (child.fstype || '');
                         if (child.mountpoint) childInfoText += ' @ ' + child.mountpoint;
-                        if (child.usage) {
-                            childInfoText += ' (' + (child.usage.percent || 0).toFixed(0) + '%)';
-                        }
+                        if (child.usage) childInfoText += ' (' + (child.usage.percent || 0).toFixed(0) + '% used)';
                         childInfo.textContent = childInfoText;
 
                         childRow.appendChild(childName);
                         childRow.appendChild(childInfo);
                         partList.appendChild(childRow);
+
+                        // Show Docker stacks using this LVM child's mount
+                        if (child.mountpoint) {
+                            const childStacks = getStacksForPath(child.mountpoint);
+                            if (childStacks.length > 0) {
+                                const childStackRow = document.createElement('div');
+                                childStackRow.style.cssText = 'display: flex; gap: 4px; flex-wrap: wrap; padding: 2px 0 2px 24px;';
+                                childStacks.forEach(stack => {
+                                    const badge = document.createElement('span');
+                                    const color = stack.color || '#6366f1';
+                                    badge.style.cssText = 'padding: 1px 5px; font-size: 0.65rem; border-radius: 3px; background: ' + color + '33; color: ' + color + '; border: 1px solid ' + color + '44;';
+                                    badge.textContent = stack.display_name || stack.stack_name;
+                                    badge.title = 'Docker: ' + (stack.service || '') + ' → ' + (stack.container_path || '');
+                                    childStackRow.appendChild(badge);
+                                });
+                                partList.appendChild(childStackRow);
+                            }
+                        }
                     });
+
+                    // Show VG free space for LVM parent partitions
+                    if (part.fstype === 'LVM2_member' && part.children && part.children.length > 0) {
+                        const vgName = part.children[0].vg_name;
+                        if (vgName && storageData?.vg_free?.[vgName]) {
+                            const vgFreeGb = storageData.vg_free[vgName].free_gb || 0;
+                            if (vgFreeGb > 0.1) {
+                                const freeRow = document.createElement('div');
+                                freeRow.style.cssText = 'display: flex; justify-content: space-between; padding: 2px 0 2px 12px; color: var(--archie-text-muted); font-style: italic;';
+                                const freeName = document.createElement('span');
+                                freeName.textContent = '\u2514 VG Free';
+                                const freeInfo = document.createElement('span');
+                                freeInfo.style.color = 'var(--archie-green)';
+                                freeInfo.textContent = formatDiskSizeStorage(vgFreeGb) + ' available';
+                                freeRow.appendChild(freeName);
+                                freeRow.appendChild(freeInfo);
+                                partList.appendChild(freeRow);
+                            }
+                        }
+                    }
                 });
                 driveDiv.appendChild(partList);
             }

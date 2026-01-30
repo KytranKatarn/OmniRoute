@@ -849,9 +849,78 @@
     </div>
 </div>
 
+<!-- Restore Preview Modal -->
+<div class="modal-overlay" id="restore-preview-modal" style="display: none;">
+    <div class="modal" style="max-width: 600px;">
+        <div class="modal-header">
+            <h3 id="restore-preview-title">Restore Preview</h3>
+            <button class="modal-close" onclick="closeRestorePreviewModal()">&times;</button>
+        </div>
+        <div class="modal-body" id="restore-preview-body">
+            <!-- Content populated by JavaScript -->
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-ghost" onclick="closeRestorePreviewModal()">Cancel</button>
+            <button type="button" class="btn btn-primary" id="restore-preview-proceed">Proceed to Restore</button>
+        </div>
+    </div>
+</div>
+
+<!-- Selective Restore Modal -->
+<div class="modal-overlay" id="selective-restore-modal" style="display: none;">
+    <div class="modal" style="max-width: 500px;">
+        <div class="modal-header">
+            <h3>Select Components to Restore</h3>
+            <button class="modal-close" onclick="closeSelectiveRestoreModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p style="color: var(--archie-text-secondary); margin-bottom: var(--archie-space-4);">
+                Select which components you want to restore from this backup:
+            </p>
+            <div id="component-checkboxes" style="display: flex; flex-direction: column; gap: var(--archie-space-2);">
+                <!-- Checkboxes populated by JavaScript -->
+            </div>
+            <div style="margin-top: var(--archie-space-4); padding-top: var(--archie-space-3); border-top: 1px solid var(--archie-border-default);">
+                <label style="display: flex; align-items: center; gap: var(--archie-space-2); cursor: pointer; color: var(--archie-text-secondary);">
+                    <input type="checkbox" id="select-all-components" onchange="toggleAllComponents(this.checked)">
+                    <span>Select All</span>
+                </label>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-ghost" onclick="closeSelectiveRestoreModal()">Cancel</button>
+            <button type="button" class="btn btn-danger" id="selective-restore-confirm">Restore Selected</button>
+        </div>
+    </div>
+</div>
+
+<!-- Confirm Restore Modal -->
+<div class="modal-overlay" id="confirm-restore-modal" style="display: none;">
+    <div class="modal" style="max-width: 450px;">
+        <div class="modal-header">
+            <h3 style="color: #ef4444;">⚠️ Confirm Restore</h3>
+            <button class="modal-close" onclick="closeConfirmRestoreModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p style="color: var(--archie-text-primary); margin-bottom: var(--archie-space-3);" id="confirm-restore-message">
+                <!-- Message populated by JavaScript -->
+            </p>
+            <p style="color: #ef4444; font-weight: 500;">
+                This will overwrite current files and cannot be undone!
+            </p>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-ghost" onclick="closeConfirmRestoreModal()">Cancel</button>
+            <button type="button" class="btn btn-danger" id="confirm-restore-btn">Yes, Restore Now</button>
+        </div>
+    </div>
+</div>
+
 <script>
     let currentBuildNum = null;
     let availableModules = [];
+    let pendingRestoreBackup = null;
+    let pendingRestoreComponents = [];
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
@@ -2167,72 +2236,135 @@
                 return;
             }
 
+            // Store for later use
+            pendingRestoreBackup = backupName;
+            pendingRestoreComponents = data.components;
+
             // Build preview modal content
-            let componentList = '';
+            const meta = data.backup_metadata || {};
+            let html = `
+                <div style="margin-bottom: var(--archie-space-4);">
+                    <div style="display: flex; gap: var(--archie-space-3); margin-bottom: var(--archie-space-3);">
+                        <span class="badge" style="background: var(--archie-purple);">Build #${meta.build_number || '-'}</span>
+                        <span class="badge" style="background: var(--archie-blue);">v${meta.platform_version || '-'}</span>
+                    </div>
+                    <p style="color: var(--archie-text-secondary); font-size: var(--archie-text-sm);">
+                        Created: ${meta.created_at || '-'} by <strong>${meta.created_by || '-'}</strong>
+                    </p>
+                </div>
+                <div style="background: var(--archie-bg-deep); border: 1px solid var(--archie-border-default); border-radius: var(--archie-radius-md); padding: var(--archie-space-4); margin-bottom: var(--archie-space-4);">
+                    <h4 style="color: #f97316; margin-bottom: var(--archie-space-3);">Components (${data.total_size_mb} MB total)</h4>
+                    <div style="display: flex; flex-direction: column; gap: var(--archie-space-2);">
+            `;
+
             data.components.forEach(comp => {
-                const size = comp.size_bytes ? ' (' + (comp.size_bytes / 1024 / 1024).toFixed(1) + ' MB)' : '';
-                const files = comp.file_count ? ' - ' + comp.file_count + ' files' : '';
-                componentList += '- ' + comp.name + size + files + '\n';
+                const size = comp.size_bytes ? (comp.size_bytes / 1024 / 1024).toFixed(1) + ' MB' : '';
+                const files = comp.file_count ? comp.file_count + ' files' : '';
+                const details = [size, files].filter(x => x).join(' · ');
+                const compressed = comp.compressed ? ' <span style="color: #22c55e;">[GZIP]</span>' : '';
+                html += `
+                    <div style="display: flex; justify-content: space-between; padding: var(--archie-space-2); background: var(--archie-bg-card); border-radius: var(--archie-radius-sm);">
+                        <span style="color: var(--archie-text-primary);">${comp.name}${compressed}</span>
+                        <span style="color: var(--archie-text-tertiary); font-size: var(--archie-text-sm);">${details}</span>
+                    </div>
+                `;
             });
 
-            let warnings = '';
+            html += `
+                    </div>
+                </div>
+                <div style="display: flex; gap: var(--archie-space-6); color: var(--archie-text-secondary);">
+                    <div><strong style="color: #f97316;">${data.database_tables}</strong> tables</div>
+                    <div><strong style="color: #f97316;">${data.files_to_restore}</strong> files</div>
+                </div>
+            `;
+
             if (data.warnings && data.warnings.length > 0) {
-                warnings = '\n⚠️ Warnings:\n' + data.warnings.join('\n');
+                html += `
+                    <div style="margin-top: var(--archie-space-4); padding: var(--archie-space-3); background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; border-radius: var(--archie-radius-md);">
+                        <h4 style="color: #ef4444; margin-bottom: var(--archie-space-2);">⚠️ Warnings</h4>
+                        <ul style="margin: 0; padding-left: var(--archie-space-4); color: var(--archie-text-secondary);">
+                            ${data.warnings.map(w => `<li>${w}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
             }
 
-            const meta = data.backup_metadata || {};
-            const msg = `Restore Preview: ${backupName}
-
-Build #${meta.build_number || '-'} | Version: ${meta.platform_version || '-'}
-Created: ${meta.created_at || '-'} by ${meta.created_by || '-'}
-
-Components (${data.total_size_mb} MB total):
-${componentList}
-Database tables: ${data.database_tables}
-Files to restore: ${data.files_to_restore}
-${warnings}
-
-Do you want to restore this backup?`;
-
-            if (confirm(msg)) {
+            document.getElementById('restore-preview-title').textContent = 'Restore Preview: ' + backupName.substring(0, 40) + (backupName.length > 40 ? '...' : '');
+            document.getElementById('restore-preview-body').innerHTML = html;
+            document.getElementById('restore-preview-proceed').onclick = function() {
+                closeRestorePreviewModal();
                 showSelectiveRestoreDialog(backupName, data.components);
-            }
+            };
+            document.getElementById('restore-preview-modal').style.display = 'flex';
+
         } catch (error) {
             showToast('Error: ' + error.message, 'error');
         }
     }
 
-    function showSelectiveRestoreDialog(backupName, components) {
-        const componentNames = components.map(c => c.name);
-        const selected = prompt(
-            'Enter components to restore (comma-separated):\n\n' +
-            'Available: ' + componentNames.join(', ') + '\n\n' +
-            'Or type "all" for full restore:',
-            'all'
-        );
-
-        if (!selected) return;
-
-        let toRestore;
-        if (selected.toLowerCase() === 'all') {
-            toRestore = componentNames;
-        } else {
-            toRestore = selected.split(',').map(s => s.trim()).filter(s => s);
-        }
-
-        if (toRestore.length === 0) {
-            showToast('No components selected', 'error');
-            return;
-        }
-
-        restoreSelective(backupName, toRestore);
+    function closeRestorePreviewModal() {
+        document.getElementById('restore-preview-modal').style.display = 'none';
     }
 
-    async function restoreSelective(backupName, components) {
-        if (!confirm('Restore ' + components.length + ' component(s) from ' + backupName + '?\n\nThis will overwrite current files!')) {
-            return;
-        }
+    function showSelectiveRestoreDialog(backupName, components) {
+        pendingRestoreBackup = backupName;
+        pendingRestoreComponents = components;
 
+        // Build checkboxes for each component
+        let html = '';
+        components.forEach(comp => {
+            const size = comp.size_bytes ? (comp.size_bytes / 1024 / 1024).toFixed(1) + ' MB' : '';
+            const files = comp.file_count ? comp.file_count + ' files' : '';
+            const details = [size, files].filter(x => x).join(' · ');
+            html += `
+                <label style="display: flex; align-items: center; gap: var(--archie-space-3); padding: var(--archie-space-2); background: var(--archie-bg-card); border-radius: var(--archie-radius-sm); cursor: pointer;">
+                    <input type="checkbox" class="component-checkbox" value="${comp.name}" checked>
+                    <span style="flex: 1; color: var(--archie-text-primary);">${comp.name}</span>
+                    <span style="color: var(--archie-text-tertiary); font-size: var(--archie-text-sm);">${details}</span>
+                </label>
+            `;
+        });
+
+        document.getElementById('component-checkboxes').innerHTML = html;
+        document.getElementById('select-all-components').checked = true;
+        document.getElementById('selective-restore-confirm').onclick = function() {
+            const selected = Array.from(document.querySelectorAll('.component-checkbox:checked')).map(cb => cb.value);
+            if (selected.length === 0) {
+                showToast('Please select at least one component', 'error');
+                return;
+            }
+            closeSelectiveRestoreModal();
+            showConfirmRestoreDialog(backupName, selected);
+        };
+        document.getElementById('selective-restore-modal').style.display = 'flex';
+    }
+
+    function closeSelectiveRestoreModal() {
+        document.getElementById('selective-restore-modal').style.display = 'none';
+    }
+
+    function toggleAllComponents(checked) {
+        document.querySelectorAll('.component-checkbox').forEach(cb => cb.checked = checked);
+    }
+
+    function showConfirmRestoreDialog(backupName, components) {
+        document.getElementById('confirm-restore-message').innerHTML = `
+            You are about to restore <strong>${components.length}</strong> component(s) from:<br>
+            <code style="color: #f97316;">${backupName}</code>
+        `;
+        document.getElementById('confirm-restore-btn').onclick = function() {
+            closeConfirmRestoreModal();
+            executeRestore(backupName, components);
+        };
+        document.getElementById('confirm-restore-modal').style.display = 'flex';
+    }
+
+    function closeConfirmRestoreModal() {
+        document.getElementById('confirm-restore-modal').style.display = 'none';
+    }
+
+    async function executeRestore(backupName, components) {
         showToast('Restoring backup...', 'info');
 
         try {
@@ -2255,6 +2387,11 @@ Do you want to restore this backup?`;
         } catch (error) {
             showToast('Error: ' + error.message, 'error');
         }
+    }
+
+    // Legacy function name kept for compatibility
+    async function restoreSelective(backupName, components) {
+        showConfirmRestoreDialog(backupName, components);
     }
 </script>
 {% endblock %}

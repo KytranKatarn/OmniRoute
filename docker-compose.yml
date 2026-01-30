@@ -59,6 +59,8 @@ services:
       # Mount platform code (for development)
       - ./platform_v2:/app:rw
       - ./backups:/backups
+      # Mount external USB backup storage
+      - /mnt/external-backup:/mnt/external-backup:rw
       # Mount conversation logs for Claude Code hook capture
       - ./conversation_logs:/mnt/archie_brain/conversation_logs:rw
       # Mount Docker socket for sandbox management

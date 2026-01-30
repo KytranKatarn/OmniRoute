@@ -2259,31 +2259,44 @@
     <!-- Tab: Storage -->
     <div id="tab-storage" class="tab-content">
         <!-- Storage Overview Bar -->
-        <div class="storage-overview-bar">
-            <div class="storage-overview-stat">
-                <span class="storage-overview-label">Total Capacity</span>
-                <span class="storage-overview-value" id="storage-total">--</span>
+        <div class="storage-overview-bar" style="flex-wrap: wrap; gap: 12px;">
+            <!-- Local Storage Section -->
+            <div style="display: flex; gap: 16px; align-items: center; padding-right: 16px; border-right: 1px solid var(--archie-border);">
+                <span style="font-size: 0.7rem; color: var(--archie-cyan); font-weight: 600;">LOCAL</span>
+                <div class="storage-overview-stat">
+                    <span class="storage-overview-label">Capacity</span>
+                    <span class="storage-overview-value" id="storage-local-total">--</span>
+                </div>
+                <div class="storage-overview-stat">
+                    <span class="storage-overview-label">Used</span>
+                    <span class="storage-overview-value" id="storage-local-used">--</span>
+                </div>
+                <div class="storage-overview-stat">
+                    <span class="storage-overview-label">Free</span>
+                    <span class="storage-overview-value" id="storage-local-free">--</span>
+                </div>
+                <div class="storage-overview-stat">
+                    <span class="storage-overview-label">Drives</span>
+                    <span class="storage-overview-value" id="storage-local-count">--</span>
+                </div>
             </div>
-            <div class="storage-overview-stat">
-                <span class="storage-overview-label">Allocated</span>
-                <span class="storage-overview-value" id="storage-allocated">--</span>
+            <!-- Attached Storage Section -->
+            <div style="display: flex; gap: 16px; align-items: center; padding-right: 16px; border-right: 1px solid var(--archie-border);">
+                <span style="font-size: 0.7rem; color: var(--archie-orange); font-weight: 600;">USB/ATTACHED</span>
+                <div class="storage-overview-stat">
+                    <span class="storage-overview-label">Capacity</span>
+                    <span class="storage-overview-value" id="storage-attached-total">--</span>
+                </div>
+                <div class="storage-overview-stat">
+                    <span class="storage-overview-label">Used</span>
+                    <span class="storage-overview-value" id="storage-attached-used">--</span>
+                </div>
+                <div class="storage-overview-stat">
+                    <span class="storage-overview-label">Drives</span>
+                    <span class="storage-overview-value" id="storage-attached-count">--</span>
+                </div>
             </div>
-            <div class="storage-overview-stat">
-                <span class="storage-overview-label">Unallocated</span>
-                <span class="storage-overview-value" id="storage-unallocated">--</span>
-            </div>
-            <div class="storage-overview-stat">
-                <span class="storage-overview-label">Used</span>
-                <span class="storage-overview-value" id="storage-used">--</span>
-            </div>
-            <div class="storage-overview-stat">
-                <span class="storage-overview-label">Free</span>
-                <span class="storage-overview-value" id="storage-free">--</span>
-            </div>
-            <div class="storage-overview-stat">
-                <span class="storage-overview-label">Drives</span>
-                <span class="storage-overview-value" id="storage-drives-count">--</span>
-            </div>
+            <!-- Health -->
             <div class="storage-overview-stat">
                 <span class="storage-overview-label">Health</span>
                 <span class="storage-overview-value" id="storage-health">--</span>
@@ -5540,78 +5553,77 @@ function formatSizeGB(gb) {
 }
 
 function renderStorageOverview(disks, lvm) {
-    let totalGB = 0, allocatedGB = 0, unallocatedGB = 0, usedGB = 0, freeGB = 0;
-    let healthyCount = 0, failingCount = 0, unavailableCount = 0;
-    let lvmFreeGB = 0;
-
-    // Calculate LVM VG free space (unallocated within volume groups)
-    if (lvm && lvm.vgs) {
-        lvm.vgs.forEach(vg => {
-            lvmFreeGB += vg.vg_free_gb || 0;
-        });
+    // Helper to check if disk is USB/removable
+    function isAttachedDrive(disk) {
+        const name = (disk.name || disk.device || '').toLowerCase();
+        const model = (disk.model || '').toLowerCase();
+        const transport = (disk.transport || '').toLowerCase();
+        const removable = disk.removable === true || disk.removable === 'true' || disk.removable === 1;
+        const smart = disk.smart_health;
+        // USB devices: have "usb" in model/transport, or are removable, or sd[c-z] without healthy SMART
+        return transport === 'usb' || removable ||
+               model.includes('usb') || model.includes('sandisk') || model.includes('flash') ||
+               (name.match(/sd[c-z]/) && smart !== 'healthy');
     }
 
-    disks.forEach(disk => {
-        const diskSize = disk.size_gb || 0;
-        totalGB += diskSize;
+    // Separate local and attached drives
+    const localDisks = disks.filter(d => !isAttachedDrive(d));
+    const attachedDisks = disks.filter(d => isAttachedDrive(d));
 
-        // Unallocated space on disk (raw partition level)
-        const diskUnalloc = disk.unallocated_gb || 0;
-        unallocatedGB += diskUnalloc;
-
-        // Calculate allocated from partitions
-        let diskAllocated = 0;
-        (disk.partitions || []).forEach(part => {
-            const partSize = part.size_gb || 0;
-            diskAllocated += partSize;
-
-            if (part.usage) {
-                usedGB += part.usage.used_gb || 0;
-                freeGB += part.usage.free_gb || 0;
-            }
-            (part.children || []).forEach(child => {
-                if (child.usage) {
-                    usedGB += child.usage.used_gb || 0;
-                    freeGB += child.usage.free_gb || 0;
+    // Calculate stats for a set of disks
+    function calcStats(diskList) {
+        let total = 0, used = 0, free = 0;
+        diskList.forEach(disk => {
+            total += disk.size_gb || 0;
+            (disk.partitions || []).forEach(part => {
+                if (part.usage) {
+                    used += part.usage.used_gb || 0;
+                    free += part.usage.free_gb || 0;
                 }
+                (part.children || []).forEach(child => {
+                    if (child.usage) {
+                        used += child.usage.used_gb || 0;
+                        free += child.usage.free_gb || 0;
+                    }
+                });
             });
         });
-        allocatedGB += diskAllocated;
+        return { total, used, free, count: diskList.length };
+    }
 
-        // Track health status
+    const localStats = calcStats(localDisks);
+    const attachedStats = calcStats(attachedDisks);
+
+    // Update Local storage stats
+    document.getElementById('storage-local-total').textContent = formatSizeGB(localStats.total);
+    document.getElementById('storage-local-used').textContent = formatSizeGB(localStats.used);
+    document.getElementById('storage-local-free').textContent = formatSizeGB(localStats.free);
+    document.getElementById('storage-local-count').textContent = localStats.count;
+
+    // Update Attached storage stats
+    document.getElementById('storage-attached-total').textContent = formatSizeGB(attachedStats.total);
+    document.getElementById('storage-attached-used').textContent = formatSizeGB(attachedStats.used);
+    document.getElementById('storage-attached-count').textContent = attachedStats.count;
+
+    // Track health status (local drives only - USB typically has no SMART)
+    let healthyCount = 0, failingCount = 0;
+    localDisks.forEach(disk => {
         if (disk.smart_health === 'healthy' || disk.smart_health === 'PASSED') {
             healthyCount++;
         } else if (disk.smart_health === 'failing' || disk.smart_health === 'FAILED') {
             failingCount++;
-        } else {
-            unavailableCount++;
         }
     });
-
-    // Add LVM VG free space to unallocated total
-    unallocatedGB += lvmFreeGB;
-
-    // If unallocated still wasn't calculated, fall back to total - allocated
-    if (unallocatedGB === 0 && totalGB > allocatedGB) {
-        unallocatedGB = totalGB - allocatedGB;
-    }
-
-    document.getElementById('storage-total').textContent = formatSizeGB(totalGB);
-    document.getElementById('storage-allocated').textContent = formatSizeGB(allocatedGB);
-    document.getElementById('storage-unallocated').textContent = formatSizeGB(unallocatedGB);
-    document.getElementById('storage-used').textContent = formatSizeGB(usedGB);
-    document.getElementById('storage-free').textContent = formatSizeGB(freeGB);
-    document.getElementById('storage-drives-count').textContent = disks.length;
 
     const healthEl = document.getElementById('storage-health');
     if (failingCount > 0) {
         healthEl.textContent = failingCount + ' FAILING';
         healthEl.style.color = 'var(--archie-red)';
     } else if (healthyCount > 0) {
-        healthEl.textContent = healthyCount + '/' + disks.length + ' OK';
+        healthEl.textContent = healthyCount + '/' + localDisks.length + ' OK';
         healthEl.style.color = 'var(--archie-green)';
-    } else if (unavailableCount === disks.length) {
-        healthEl.textContent = 'SMART N/A';
+    } else if (localDisks.length === 0) {
+        healthEl.textContent = 'No Local';
         healthEl.style.color = 'var(--archie-text-muted)';
     } else {
         healthEl.textContent = 'Mixed';
@@ -5697,8 +5709,26 @@ function renderStorageTreemap(disks, lvm, vgFree, dockerMounts) {
         return '/' + parts.slice(-2).join('/');
     }
 
-    let html = '';
-    disks.forEach(disk => {
+    // Helper to check if disk is USB/removable
+    function isAttachedDrive(disk) {
+        const name = (disk.name || disk.device || '').toLowerCase();
+        const model = (disk.model || '').toLowerCase();
+        const transport = (disk.transport || '').toLowerCase();
+        const removable = disk.removable === true || disk.removable === 'true' || disk.removable === 1;
+        const smart = disk.smart_health;
+        // USB devices: have "usb" in model/transport, or are removable, or sd[c-z] without healthy SMART
+        return transport === 'usb' || removable ||
+               model.includes('usb') || model.includes('sandisk') || model.includes('flash') ||
+               (name.match(/sd[c-z]/) && smart !== 'healthy');
+    }
+
+    // Separate local and attached drives
+    const localDisks = disks.filter(d => !isAttachedDrive(d));
+    const attachedDisks = disks.filter(d => isAttachedDrive(d));
+
+    // Helper to render a single disk
+    function renderDisk(disk) {
+        let diskHtml = '';
         const healthClass = disk.smart_health || 'unknown';
         const healthLabel = disk.smart_health === 'healthy' ? 'HEALTHY' :
                            disk.smart_health === 'failing' ? 'FAILING' : 'N/A';
@@ -5709,22 +5739,22 @@ function renderStorageTreemap(disks, lvm, vgFree, dockerMounts) {
             return (part.children || []).some(child => child.mountpoint === '/' || child.mountpoint === '/boot');
         });
 
-        html += '<div class="treemap-drive">';
-        html += '<div class="treemap-drive-header">';
-        html += '<span class="treemap-drive-name">' + disk.device + '</span>';
+        diskHtml += '<div class="treemap-drive">';
+        diskHtml += '<div class="treemap-drive-header">';
+        diskHtml += '<span class="treemap-drive-name">' + disk.device + '</span>';
         if (isSystemDrive) {
-            html += '<span class="treemap-drive-system" style="background: var(--archie-orange); color: #000; padding: 2px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 600;">BOOT DRIVE</span>';
+            diskHtml += '<span class="treemap-drive-system" style="background: var(--archie-orange); color: #000; padding: 2px 6px; border-radius: 4px; font-size: 0.65rem; font-weight: 600;">BOOT DRIVE</span>';
         }
-        html += '<span class="treemap-drive-model">' + (disk.model || 'Unknown') + '</span>';
-        html += '<span class="treemap-drive-health ' + healthClass + '">' + healthLabel + '</span>';
-        html += '<span class="treemap-drive-size">' + formatSizeGB(disk.size_gb) + '</span>';
+        diskHtml += '<span class="treemap-drive-model">' + (disk.model || 'Unknown') + '</span>';
+        diskHtml += '<span class="treemap-drive-health ' + healthClass + '">' + healthLabel + '</span>';
+        diskHtml += '<span class="treemap-drive-size">' + formatSizeGB(disk.size_gb) + '</span>';
         // Only show Prepare Drive for non-system drives
         if (!isSystemDrive) {
-            html += '<button class="btn btn-sm btn-ghost" style="margin-left: auto; padding: 4px 10px; font-size: 0.7rem;" onclick="event.stopPropagation(); openPrepareDriveModal(\'' + disk.device + '\', ' + (disk.size_gb || 0) + ', \'' + (disk.model || 'Unknown').replace(/'/g, "\\'") + '\')"><i data-lucide="hard-drive" style="width:12px;height:12px;margin-right:4px;"></i>Prepare Drive</button>';
+            diskHtml += '<button class="btn btn-sm btn-ghost" style="margin-left: auto; padding: 4px 10px; font-size: 0.7rem;" onclick="event.stopPropagation(); openPrepareDriveModal(\'' + disk.device + '\', ' + (disk.size_gb || 0) + ', \'' + (disk.model || 'Unknown').replace(/'/g, "\\'") + '\')"><i data-lucide="hard-drive" style="width:12px;height:12px;margin-right:4px;"></i>Prepare Drive</button>';
         }
-        html += '</div>';
+        diskHtml += '</div>';
 
-        html += '<div class="treemap-partitions">';
+        diskHtml += '<div class="treemap-partitions">';
 
         const totalBytes = disk.size_bytes || (disk.size_gb * 1073741824);
 
@@ -5748,35 +5778,35 @@ function renderStorageTreemap(disks, lvm, vgFree, dockerMounts) {
                     const childDockerStacks = getStacksForPath(child.mountpoint);
                     const childMountLabel = getMountLabel(child.mountpoint);
 
-                    html += '<div class="treemap-partition ' + stateClass + '"';
-                    html += ' style="flex: ' + Math.max(childPct, 2) + ';"';
-                    html += ' onclick="selectPartition(this, \'' + disk.name + '\', \'' + (child.device || '').replace(/'/g, "\\'") + '\', \'lvm\')"';
-                    html += ' title="' + label + ' (' + sizeLabel + ')' + (child.mountpoint ? ' → ' + child.mountpoint : '') + (isRootVolume ? ' [ROOT]' : '') + '">';
+                    diskHtml += '<div class="treemap-partition ' + stateClass + '"';
+                    diskHtml += ' style="flex: ' + Math.max(childPct, 2) + ';"';
+                    diskHtml += ' onclick="selectPartition(this, \'' + disk.name + '\', \'' + (child.device || '').replace(/'/g, "\\'") + '\', \'lvm\')"';
+                    diskHtml += ' title="' + label + ' (' + sizeLabel + ')' + (child.mountpoint ? ' → ' + child.mountpoint : '') + (isRootVolume ? ' [ROOT]' : '') + '">';
                     // Badge container for multiple badges
-                    html += '<div class="treemap-partition-badges" style="position:absolute;top:2px;right:4px;display:flex;gap:2px;flex-wrap:wrap;justify-content:flex-end;max-width:80%;">';
+                    diskHtml += '<div class="treemap-partition-badges" style="position:absolute;top:2px;right:4px;display:flex;gap:2px;flex-wrap:wrap;justify-content:flex-end;max-width:80%;">';
                     if (isRootVolume) {
-                        html += '<span style="background:var(--archie-orange);color:#000;padding:1px 4px;border-radius:3px;font-size:0.5rem;font-weight:600;">ROOT</span>';
+                        diskHtml += '<span style="background:var(--archie-orange);color:#000;padding:1px 4px;border-radius:3px;font-size:0.5rem;font-weight:600;">ROOT</span>';
                     } else if (childMountLabel && child.mountpoint !== '/boot' && child.mountpoint !== '/boot/efi') {
                         // Show mountpoint badge for non-system mounts (blue)
-                        html += '<span style="background:var(--archie-cyan);color:#000;padding:1px 4px;border-radius:3px;font-size:0.5rem;font-weight:600;">' + childMountLabel + '</span>';
+                        diskHtml += '<span style="background:var(--archie-cyan);color:#000;padding:1px 4px;border-radius:3px;font-size:0.5rem;font-weight:600;">' + childMountLabel + '</span>';
                     }
                     if (childDockerStacks.length > 0) {
                         // Show individual Docker badge for each stack with its own color
                         childDockerStacks.forEach(stack => {
                             const bgColor = stack.color || 'var(--archie-purple)';
                             const textColor = getContrastColor(bgColor);
-                            html += '<span style="background:' + bgColor + ';color:' + textColor + ';padding:1px 4px;border-radius:3px;font-size:0.5rem;font-weight:600;">🐳 ' + (stack.display_name || stack.stack_name) + '</span>';
+                            diskHtml += '<span style="background:' + bgColor + ';color:' + textColor + ';padding:1px 4px;border-radius:3px;font-size:0.5rem;font-weight:600;">🐳 ' + (stack.display_name || stack.stack_name) + '</span>';
                         });
                     }
-                    html += '</div>';
-                    html += '<span class="treemap-partition-label">' + label + '</span>';
-                    html += '<span class="treemap-partition-size">' + sizeLabel + '</span>';
+                    diskHtml += '</div>';
+                    diskHtml += '<span class="treemap-partition-label">' + label + '</span>';
+                    diskHtml += '<span class="treemap-partition-size">' + sizeLabel + '</span>';
                     if (isMounted && child.usage) {
-                        html += '<div class="treemap-partition-usage">';
-                        html += '<div class="treemap-partition-usage-bar" style="width: ' + usagePct + '%; background: ' + getUsageColor(usagePct) + ';"></div>';
-                        html += '</div>';
+                        diskHtml += '<div class="treemap-partition-usage">';
+                        diskHtml += '<div class="treemap-partition-usage-bar" style="width: ' + usagePct + '%; background: ' + getUsageColor(usagePct) + ';"></div>';
+                        diskHtml += '</div>';
                     }
-                    html += '</div>';
+                    diskHtml += '</div>';
                 });
 
                 // Show VG free space if available
@@ -5800,13 +5830,13 @@ function renderStorageTreemap(disks, lvm, vgFree, dockerMounts) {
                 }
                 if (vgFreeName && vgFreeGb > 0) {
                     const freePct = totalBytes > 0 ? (vgFreeGb / disk.size_gb * 100) : 5;
-                    html += '<div class="treemap-partition lvm-free"';
-                    html += ' style="flex: ' + Math.max(freePct, 2) + ';"';
-                    html += ' onclick="selectPartition(this, \'' + disk.name + '\', \'vg-free-' + vgFreeName + '\', \'lvm-free\')"';
-                    html += ' title="VG Free Space: ' + formatSizeGB(vgFreeGb) + '">';
-                    html += '<span class="treemap-partition-label">Free</span>';
-                    html += '<span class="treemap-partition-size">' + formatSizeGB(vgFreeGb) + '</span>';
-                    html += '</div>';
+                    diskHtml += '<div class="treemap-partition lvm-free"';
+                    diskHtml += ' style="flex: ' + Math.max(freePct, 2) + ';"';
+                    diskHtml += ' onclick="selectPartition(this, \'' + disk.name + '\', \'vg-free-' + vgFreeName + '\', \'lvm-free\')"';
+                    diskHtml += ' title="VG Free Space: ' + formatSizeGB(vgFreeGb) + '">';
+                    diskHtml += '<span class="treemap-partition-label">Free</span>';
+                    diskHtml += '<span class="treemap-partition-size">' + formatSizeGB(vgFreeGb) + '</span>';
+                    diskHtml += '</div>';
                 }
             } else {
                 // Regular partition (no LVM children)
@@ -5823,53 +5853,74 @@ function renderStorageTreemap(disks, lvm, vgFree, dockerMounts) {
                 const partDockerStacks = getStacksForPath(part.mountpoint);
                 const partMountLabel = getMountLabel(part.mountpoint);
 
-                html += '<div class="treemap-partition ' + stateClass + '"';
-                html += ' style="flex: ' + Math.max(partPct, 2) + ';"';
-                html += ' onclick="selectPartition(this, \'' + disk.name + '\', \'' + (part.device || '').replace(/'/g, "\\'") + '\', \'partition\')"';
-                html += ' title="' + label + ' (' + sizeLabel + ')' + (part.mountpoint ? ' → ' + part.mountpoint : '') + (isSystemPartition ? ' [SYSTEM]' : '') + '">';
+                diskHtml += '<div class="treemap-partition ' + stateClass + '"';
+                diskHtml += ' style="flex: ' + Math.max(partPct, 2) + ';"';
+                diskHtml += ' onclick="selectPartition(this, \'' + disk.name + '\', \'' + (part.device || '').replace(/'/g, "\\'") + '\', \'partition\')"';
+                diskHtml += ' title="' + label + ' (' + sizeLabel + ')' + (part.mountpoint ? ' → ' + part.mountpoint : '') + (isSystemPartition ? ' [SYSTEM]' : '') + '">';
                 // Badge container for multiple badges
-                html += '<div class="treemap-partition-badges" style="position:absolute;top:2px;right:4px;display:flex;gap:2px;flex-wrap:wrap;justify-content:flex-end;max-width:80%;">';
+                diskHtml += '<div class="treemap-partition-badges" style="position:absolute;top:2px;right:4px;display:flex;gap:2px;flex-wrap:wrap;justify-content:flex-end;max-width:80%;">';
                 if (isSystemPartition) {
-                    html += '<span style="background:var(--archie-orange);color:#000;padding:1px 4px;border-radius:3px;font-size:0.5rem;font-weight:600;">SYS</span>';
+                    diskHtml += '<span style="background:var(--archie-orange);color:#000;padding:1px 4px;border-radius:3px;font-size:0.5rem;font-weight:600;">SYS</span>';
                 } else if (partMountLabel) {
                     // Show mountpoint badge for non-system mounts (blue/cyan)
-                    html += '<span style="background:var(--archie-cyan);color:#000;padding:1px 4px;border-radius:3px;font-size:0.5rem;font-weight:600;">' + partMountLabel + '</span>';
+                    diskHtml += '<span style="background:var(--archie-cyan);color:#000;padding:1px 4px;border-radius:3px;font-size:0.5rem;font-weight:600;">' + partMountLabel + '</span>';
                 }
                 if (partDockerStacks.length > 0) {
                     // Show individual Docker badge for each stack with its own color
                     partDockerStacks.forEach(stack => {
                         const bgColor = stack.color || 'var(--archie-purple)';
                         const textColor = getContrastColor(bgColor);
-                        html += '<span style="background:' + bgColor + ';color:' + textColor + ';padding:1px 4px;border-radius:3px;font-size:0.5rem;font-weight:600;">🐳 ' + (stack.display_name || stack.stack_name) + '</span>';
+                        diskHtml += '<span style="background:' + bgColor + ';color:' + textColor + ';padding:1px 4px;border-radius:3px;font-size:0.5rem;font-weight:600;">🐳 ' + (stack.display_name || stack.stack_name) + '</span>';
                     });
                 }
-                html += '</div>';
-                html += '<span class="treemap-partition-label">' + label + '</span>';
-                html += '<span class="treemap-partition-size">' + sizeLabel + '</span>';
+                diskHtml += '</div>';
+                diskHtml += '<span class="treemap-partition-label">' + label + '</span>';
+                diskHtml += '<span class="treemap-partition-size">' + sizeLabel + '</span>';
                 if (isMounted && part.usage) {
-                    html += '<div class="treemap-partition-usage">';
-                    html += '<div class="treemap-partition-usage-bar" style="width: ' + usagePct + '%; background: ' + getUsageColor(usagePct) + ';"></div>';
-                    html += '</div>';
+                    diskHtml += '<div class="treemap-partition-usage">';
+                    diskHtml += '<div class="treemap-partition-usage-bar" style="width: ' + usagePct + '%; background: ' + getUsageColor(usagePct) + ';"></div>';
+                    diskHtml += '</div>';
                 }
-                html += '</div>';
+                diskHtml += '</div>';
             }
         });
 
         // Unallocated space
         if (disk.unallocated_gb > 0.5) {
             const unallocPct = disk.unallocated_gb / disk.size_gb * 100;
-            html += '<div class="treemap-partition unallocated"';
-            html += ' style="flex: ' + Math.max(unallocPct, 2) + ';"';
-            html += ' onclick="selectPartition(this, \'' + disk.name + '\', \'unallocated\', \'unallocated\')"';
-            html += ' title="Unallocated: ' + formatSizeGB(disk.unallocated_gb) + '">';
-            html += '<span class="treemap-partition-label">Free</span>';
-            html += '<span class="treemap-partition-size">' + formatSizeGB(disk.unallocated_gb) + '</span>';
-            html += '</div>';
+            diskHtml += '<div class="treemap-partition unallocated"';
+            diskHtml += ' style="flex: ' + Math.max(unallocPct, 2) + ';"';
+            diskHtml += ' onclick="selectPartition(this, \'' + disk.name + '\', \'unallocated\', \'unallocated\')"';
+            diskHtml += ' title="Unallocated: ' + formatSizeGB(disk.unallocated_gb) + '">';
+            diskHtml += '<span class="treemap-partition-label">Free</span>';
+            diskHtml += '<span class="treemap-partition-size">' + formatSizeGB(disk.unallocated_gb) + '</span>';
+            diskHtml += '</div>';
         }
 
-        html += '</div>'; // close treemap-partitions
-        html += '</div>'; // close treemap-drive
-    });
+        diskHtml += '</div>'; // close treemap-partitions
+        diskHtml += '</div>'; // close treemap-drive
+        return diskHtml;
+    }
+
+    let html = '';
+
+    // Render Local Drives section
+    if (localDisks.length > 0) {
+        html += '<div style="margin-bottom: 8px; padding: 6px 12px; background: var(--archie-bg-tertiary); border-radius: 6px; display: flex; align-items: center; gap: 8px;">';
+        html += '<span style="font-size: 0.75rem; font-weight: 600; color: var(--archie-cyan);">LOCAL DRIVES</span>';
+        html += '<span style="font-size: 0.7rem; color: var(--archie-text-muted);">(' + localDisks.length + ' drive' + (localDisks.length > 1 ? 's' : '') + ')</span>';
+        html += '</div>';
+        localDisks.forEach(disk => { html += renderDisk(disk); });
+    }
+
+    // Render Attached/USB Drives section
+    if (attachedDisks.length > 0) {
+        html += '<div style="margin: 16px 0 8px 0; padding: 6px 12px; background: var(--archie-bg-tertiary); border-radius: 6px; display: flex; align-items: center; gap: 8px; border-top: 2px dashed var(--archie-orange);">';
+        html += '<span style="font-size: 0.75rem; font-weight: 600; color: var(--archie-orange);">USB / ATTACHED DRIVES</span>';
+        html += '<span style="font-size: 0.7rem; color: var(--archie-text-muted);">(' + attachedDisks.length + ' drive' + (attachedDisks.length > 1 ? 's' : '') + ') - SMART health not available for removable media</span>';
+        html += '</div>';
+        attachedDisks.forEach(disk => { html += renderDisk(disk); });
+    }
 
     container.innerHTML = html;
 }

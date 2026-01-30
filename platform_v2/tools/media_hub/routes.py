@@ -14,11 +14,19 @@ from .discovery import discover_all_api_keys
 from .services import get_service_client
 import logging
 import traceback
+import time
 
 logger = logging.getLogger(__name__)
 
 # Host configuration
 MEDIA_HOST = "192.168.1.200"
+
+# Cache for library stats (reduces API calls to media server)
+_stats_cache = {
+    "data": None,
+    "timestamp": 0,
+    "ttl": 3600,  # 1 hour cache TTL
+}
 
 
 def get_db():
@@ -327,7 +335,30 @@ def api_library_recent():
 
 @media_hub_bp.route("/api/library/stats")
 def api_library_stats():
-    """Get library statistics"""
+    """Get library statistics with caching"""
+    global _stats_cache
+    force_refresh = request.args.get("refresh", "false").lower() == "true"
+    current_time = time.time()
+
+    # Check cache validity
+    cache_valid = (
+        _stats_cache["data"] is not None
+        and (current_time - _stats_cache["timestamp"]) < _stats_cache["ttl"]
+        and not force_refresh
+    )
+
+    if cache_valid:
+        return jsonify(
+            {
+                "success": True,
+                "stats": _stats_cache["data"]["stats"],
+                "source": _stats_cache["data"]["source"],
+                "cached": True,
+                "cache_age": int(current_time - _stats_cache["timestamp"]),
+            }
+        )
+
+    # Fetch fresh stats
     media_server, server_type = get_primary_media_server()
     if not media_server:
         return jsonify(
@@ -340,10 +371,71 @@ def api_library_stats():
 
     try:
         stats = media_server.get_library_stats()
-        return jsonify({"success": True, "stats": stats.to_dict(), "source": server_type})
+        stats_dict = stats.to_dict()
+
+        # Update cache
+        _stats_cache["data"] = {"stats": stats_dict, "source": server_type}
+        _stats_cache["timestamp"] = current_time
+
+        return jsonify(
+            {
+                "success": True,
+                "stats": stats_dict,
+                "source": server_type,
+                "cached": False,
+            }
+        )
     except Exception as e:
         logger.error(f"Error getting library stats: {e}")
+        # Return cached data if available, even if stale
+        if _stats_cache["data"] is not None:
+            return jsonify(
+                {
+                    "success": True,
+                    "stats": _stats_cache["data"]["stats"],
+                    "source": _stats_cache["data"]["source"],
+                    "cached": True,
+                    "stale": True,
+                }
+            )
         return jsonify({"success": False, "error": str(e), "stats": {}})
+
+
+@media_hub_bp.route("/api/cache/clear", methods=["POST"])
+def api_clear_cache():
+    """Clear library stats cache"""
+    global _stats_cache
+    _stats_cache["data"] = None
+    _stats_cache["timestamp"] = 0
+    return jsonify({"success": True, "message": "Cache cleared"})
+
+
+@media_hub_bp.route("/api/cache/status")
+def api_cache_status():
+    """Get cache status"""
+    current_time = time.time()
+    if _stats_cache["data"] is None:
+        return jsonify(
+            {
+                "success": True,
+                "cached": False,
+                "message": "No cached data",
+            }
+        )
+
+    age = int(current_time - _stats_cache["timestamp"])
+    ttl_remaining = max(0, _stats_cache["ttl"] - age)
+
+    return jsonify(
+        {
+            "success": True,
+            "cached": True,
+            "age_seconds": age,
+            "ttl_remaining": ttl_remaining,
+            "ttl_total": _stats_cache["ttl"],
+            "expires_in": f"{ttl_remaining // 60}m {ttl_remaining % 60}s",
+        }
+    )
 
 
 @media_hub_bp.route("/api/library/movies")

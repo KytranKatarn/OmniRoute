@@ -4666,7 +4666,14 @@ function getStacksForPath(mountpoint) {
 
     for (const [path, stackList] of Object.entries(dockerMounts)) {
         // Check if this path is under the mountpoint
-        if (path.startsWith(mountpoint + '/') || path === mountpoint) {
+        let matches = false;
+        if (mountpoint === '/') {
+            // Root filesystem - all absolute paths fall under it
+            matches = path.startsWith('/');
+        } else {
+            matches = path.startsWith(mountpoint + '/') || path === mountpoint;
+        }
+        if (matches) {
             for (const stack of stackList) {
                 if (!seenStacks.has(stack.stack_name)) {
                     seenStacks.add(stack.stack_name);
@@ -5618,6 +5625,17 @@ function getUsageColor(pct) {
     return 'var(--archie-green)';
 }
 
+// Get contrasting text color (black or white) based on background
+function getContrastColor(hexColor) {
+    if (!hexColor || hexColor.startsWith('var(')) return '#fff';
+    const hex = hexColor.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance > 0.5 ? '#000' : '#fff';
+}
+
 function renderStorageTreemap(disks, lvm, vgFree, dockerMounts) {
     const container = document.getElementById('storage-treemap');
     console.log('renderStorageTreemap called with dockerMounts:', dockerMounts, 'keys:', Object.keys(dockerMounts || {}));
@@ -5627,13 +5645,16 @@ function renderStorageTreemap(disks, lvm, vgFree, dockerMounts) {
     }
 
     // Helper: get Docker stacks using a mountpoint
-    // Handles both formats: container names (strings) or stack objects
+    // Uses global dockerMounts (from /api/storage/docker-mounts) which has stack colors
+    // Falls back to parameter dockerMounts (from host_monitor) if global not available
     function getDockerStacks(mountpoint) {
-        if (!dockerMounts || !mountpoint) return [];
+        // Prefer global dockerMounts (has colors from database) over parameter
+        const mounts = window.dockerMounts || dockerMounts;
+        if (!mounts || !mountpoint) return [];
         const stacks = [];
         const seenStacks = new Set();
         // Check if any Docker mount path falls under this mountpoint
-        Object.keys(dockerMounts).forEach(hostPath => {
+        Object.keys(mounts).forEach(hostPath => {
             let matches = false;
             if (mountpoint === '/') {
                 // Root filesystem - all absolute paths fall under it
@@ -5642,23 +5663,25 @@ function renderStorageTreemap(disks, lvm, vgFree, dockerMounts) {
                 matches = hostPath.startsWith(mountpoint + '/') || hostPath === mountpoint;
             }
             if (matches) {
-                dockerMounts[hostPath].forEach(item => {
+                mounts[hostPath].forEach(item => {
                     // Handle both string (container name) and object (stack info) formats
-                    let stackName, displayName;
+                    let stackName, displayName, color;
                     if (typeof item === 'string') {
                         // Container name format - derive stack from prefix
                         stackName = item.includes('_') ? item.split('_')[0] : item;
                         // Use friendly names for known stacks
                         if (stackName === 'archie') displayName = 'A.R.C.H.I.E.';
                         else displayName = stackName.charAt(0).toUpperCase() + stackName.slice(1);
+                        color = null; // Will use default purple
                     } else {
-                        // Stack object format
+                        // Stack object format (has color from database)
                         stackName = item.stack_name;
                         displayName = item.display_name || stackName;
+                        color = item.color;
                     }
                     if (!seenStacks.has(stackName)) {
                         seenStacks.add(stackName);
-                        stacks.push({ stack_name: stackName, display_name: displayName });
+                        stacks.push({ stack_name: stackName, display_name: displayName, color: color });
                     }
                 });
             }
@@ -5722,7 +5745,7 @@ function renderStorageTreemap(disks, lvm, vgFree, dockerMounts) {
                     const isRootVolume = child.mountpoint === '/';
 
                     // Check for Docker stacks using this mount
-                    const childDockerStacks = getDockerStacks(child.mountpoint);
+                    const childDockerStacks = getStacksForPath(child.mountpoint);
                     const childMountLabel = getMountLabel(child.mountpoint);
 
                     html += '<div class="treemap-partition ' + stateClass + '"';
@@ -5738,9 +5761,12 @@ function renderStorageTreemap(disks, lvm, vgFree, dockerMounts) {
                         html += '<span style="background:var(--archie-cyan);color:#000;padding:1px 4px;border-radius:3px;font-size:0.5rem;font-weight:600;">' + childMountLabel + '</span>';
                     }
                     if (childDockerStacks.length > 0) {
-                        // Show Docker badge (purple) with stack names
-                        const stackNames = childDockerStacks.map(s => s.display_name || s.stack_name).join(', ');
-                        html += '<span style="background:var(--archie-purple);color:#fff;padding:1px 4px;border-radius:3px;font-size:0.5rem;font-weight:600;">🐳 ' + stackNames + '</span>';
+                        // Show individual Docker badge for each stack with its own color
+                        childDockerStacks.forEach(stack => {
+                            const bgColor = stack.color || 'var(--archie-purple)';
+                            const textColor = getContrastColor(bgColor);
+                            html += '<span style="background:' + bgColor + ';color:' + textColor + ';padding:1px 4px;border-radius:3px;font-size:0.5rem;font-weight:600;">🐳 ' + (stack.display_name || stack.stack_name) + '</span>';
+                        });
                     }
                     html += '</div>';
                     html += '<span class="treemap-partition-label">' + label + '</span>';
@@ -5794,7 +5820,7 @@ function renderStorageTreemap(disks, lvm, vgFree, dockerMounts) {
                 const isSystemPartition = part.mountpoint === '/boot' || part.mountpoint === '/boot/efi' ||
                                          part.fstype === 'Unknown' && part.size_gb < 0.1; // BIOS boot partition
                 // Check for Docker stacks using this mount
-                const partDockerStacks = getDockerStacks(part.mountpoint);
+                const partDockerStacks = getStacksForPath(part.mountpoint);
                 const partMountLabel = getMountLabel(part.mountpoint);
 
                 html += '<div class="treemap-partition ' + stateClass + '"';
@@ -5810,9 +5836,12 @@ function renderStorageTreemap(disks, lvm, vgFree, dockerMounts) {
                     html += '<span style="background:var(--archie-cyan);color:#000;padding:1px 4px;border-radius:3px;font-size:0.5rem;font-weight:600;">' + partMountLabel + '</span>';
                 }
                 if (partDockerStacks.length > 0) {
-                    // Show Docker badge (purple) with stack names
-                    const stackNames = partDockerStacks.map(s => s.display_name || s.stack_name).join(', ');
-                    html += '<span style="background:var(--archie-purple);color:#fff;padding:1px 4px;border-radius:3px;font-size:0.5rem;font-weight:600;">🐳 ' + stackNames + '</span>';
+                    // Show individual Docker badge for each stack with its own color
+                    partDockerStacks.forEach(stack => {
+                        const bgColor = stack.color || 'var(--archie-purple)';
+                        const textColor = getContrastColor(bgColor);
+                        html += '<span style="background:' + bgColor + ';color:' + textColor + ';padding:1px 4px;border-radius:3px;font-size:0.5rem;font-weight:600;">🐳 ' + (stack.display_name || stack.stack_name) + '</span>';
+                    });
                 }
                 html += '</div>';
                 html += '<span class="treemap-partition-label">' + label + '</span>';
@@ -6129,6 +6158,23 @@ function buildPartitionModalContent(disk, part) {
     if (isMounted) html += '<span style="padding: 2px 6px; font-size: 0.7rem; background: var(--archie-green-alpha-20); color: var(--archie-green); border-radius: 3px;">MOUNTED</span>';
     if (disk.smart_health) html += '<span class="treemap-drive-health ' + disk.smart_health + '" style="font-size: 0.7rem;">' + disk.smart_health.toUpperCase() + '</span>';
     html += '</div>';
+
+    // Docker stacks using this partition
+    if (isMounted) {
+        const stacks = getStacksForPath(part.mountpoint);
+        if (stacks.length > 0) {
+            html += '<div style="margin-bottom: 16px; padding: 12px; background: var(--archie-bg-tertiary); border-radius: 6px;">';
+            html += '<div style="color: var(--archie-text-muted); font-size: 0.75rem; margin-bottom: 8px;">DOCKER STACKS ON THIS VOLUME</div>';
+            html += '<div style="display: flex; gap: 6px; flex-wrap: wrap;">';
+            stacks.forEach(stack => {
+                const bgColor = stack.color || 'var(--archie-purple)';
+                const textColor = getContrastColor(bgColor);
+                html += '<span style="background:' + bgColor + ';color:' + textColor + ';padding: 4px 10px;border-radius: 4px;font-size: 0.8rem;font-weight: 600;display: inline-flex;align-items: center;gap: 4px;">🐳 ' + (stack.display_name || stack.stack_name) + '</span>';
+            });
+            html += '</div>';
+            html += '</div>';
+        }
+    }
 
     // Check if this is a protected system partition
     const isSystemPartition = part.mountpoint === '/' || part.mountpoint === '/boot' || part.mountpoint === '/boot/efi';

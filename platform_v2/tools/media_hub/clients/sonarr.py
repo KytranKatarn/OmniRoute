@@ -85,13 +85,17 @@ class SonarrClient(ArrServiceInterface, CalendarServiceInterface):
         """Get series details by ID"""
         return self._request(f"/series/{series_id}")
 
-    def get_upcoming_episodes(self, days: int = 7) -> List[UpcomingEpisode]:
-        """Get upcoming episodes for the next N days"""
-        start_date = datetime.now().strftime("%Y-%m-%d")
-        end_date = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d")
+    def get_upcoming_episodes(self, days: int = 7, start_date: str = None) -> List[UpcomingEpisode]:
+        """Get upcoming episodes for the next N days from the given start date"""
+        if start_date:
+            start = datetime.strptime(start_date, "%Y-%m-%d")
+        else:
+            start = datetime.now()
+        start_date_str = start.strftime("%Y-%m-%d")
+        end_date = (start + timedelta(days=days)).strftime("%Y-%m-%d")
 
         result = self._request(
-            "/calendar", {"start": start_date, "end": end_date, "includeSeries": True, "includeEpisodeFile": True}
+            "/calendar", {"start": start_date_str, "end": end_date, "includeSeries": True, "includeEpisodeFile": True}
         )
 
         episodes = []

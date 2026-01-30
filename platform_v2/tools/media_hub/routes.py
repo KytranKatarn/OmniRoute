@@ -647,7 +647,7 @@ def api_media_details(media_type, media_id):
 
 @media_hub_bp.route("/api/requests")
 def api_requests():
-    """Get media requests from Overseerr/Jellyseerr"""
+    """Get media requests from Overseerr/Jellyseerr, enriched with TMDB data"""
     status = request.args.get("status")  # 'pending', 'approved', 'available', etc.
 
     overseerr_config = get_service_config("overseerr") or get_service_config("jellyseerr")
@@ -656,6 +656,7 @@ def api_requests():
 
     try:
         from .clients.overseerr import OverseerrClient
+        from .clients.tmdb import TMDBClient
 
         overseerr = OverseerrClient(
             host=overseerr_config["host"],
@@ -664,7 +665,29 @@ def api_requests():
             use_ssl=overseerr_config["use_ssl"],
         )
         requests_list = overseerr.get_requests(status)
-        return jsonify({"success": True, "requests": [r.to_dict() for r in requests_list]})
+        requests_dict = [r.to_dict() for r in requests_list]
+
+        # Enrich requests with TMDB data if title is Unknown
+        tmdb = TMDBClient()
+        if tmdb.is_configured():
+            for req in requests_dict:
+                if req.get("title") == "Unknown" and req.get("tmdb_id"):
+                    try:
+                        tmdb_id = req["tmdb_id"]
+                        if req["media_type"] == "movie":
+                            details = tmdb.get_movie_details(tmdb_id)
+                        else:
+                            details = tmdb.get_tv_details(tmdb_id)
+
+                        if details:
+                            req["title"] = details.get("title", "Unknown")
+                            req["year"] = details.get("year")
+                            req["poster_url"] = details.get("poster_url")
+                            req["overview"] = details.get("overview", "")[:200]
+                    except Exception as e:
+                        logger.debug(f"TMDB enrichment failed for request {req.get('id')}: {e}")
+
+        return jsonify({"success": True, "requests": requests_dict})
     except Exception as e:
         logger.error(f"Error getting requests: {e}")
         return jsonify({"success": False, "error": str(e), "requests": []})
@@ -710,6 +733,7 @@ def api_create_request():
 def api_calendar_upcoming():
     """Get upcoming episodes from Sonarr"""
     days = request.args.get("days", 7, type=int)
+    start_date = request.args.get("start")  # Optional: YYYY-MM-DD format
 
     sonarr_config = get_service_config("sonarr")
     if not sonarr_config or not sonarr_config.get("api_key"):
@@ -724,8 +748,10 @@ def api_calendar_upcoming():
             api_key=sonarr_config["api_key"],
             use_ssl=sonarr_config["use_ssl"],
         )
-        episodes = sonarr.get_upcoming_episodes(days)
-        return jsonify({"success": True, "episodes": [ep.to_dict() for ep in episodes], "days": days})
+        episodes = sonarr.get_upcoming_episodes(days, start_date)
+        return jsonify(
+            {"success": True, "episodes": [ep.to_dict() for ep in episodes], "days": days, "start": start_date}
+        )
     except Exception as e:
         logger.error(f"Error getting calendar: {e}")
         return jsonify({"success": False, "error": str(e), "episodes": []})

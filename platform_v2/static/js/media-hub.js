@@ -1038,12 +1038,51 @@ function createEpisodeCard(ep) {
     return card;
 }
 
+function changeCalendarWeek(direction) {
+    calendarWeekOffset += direction;
+    updateCalendarRange();
+    loadCalendar();
+}
+
+function updateCalendarRange() {
+    const rangeEl = document.getElementById('calendarRange');
+    if (!rangeEl) return;
+
+    const today = new Date();
+    const startDate = new Date(today);
+    startDate.setDate(startDate.getDate() + (calendarWeekOffset * 7));
+
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + 13);
+
+    if (calendarWeekOffset === 0) {
+        rangeEl.textContent = 'This Week';
+    } else if (calendarWeekOffset === 1) {
+        rangeEl.textContent = 'Next Week';
+    } else if (calendarWeekOffset === -1) {
+        rangeEl.textContent = 'Last Week';
+    } else {
+        const options = { month: 'short', day: 'numeric' };
+        rangeEl.textContent = `${startDate.toLocaleDateString('en-US', options)} - ${endDate.toLocaleDateString('en-US', options)}`;
+    }
+}
+
 async function loadCalendar() {
     const container = document.getElementById('calendarGrid');
     if (!container) return;
 
+    // Calculate date range based on offset
+    const today = new Date();
+    const startDate = new Date(today);
+    startDate.setDate(startDate.getDate() + (calendarWeekOffset * 7));
+
+    const startStr = startDate.toISOString().split('T')[0];
+
+    // Update range display
+    updateCalendarRange();
+
     try {
-        const response = await fetch(`${API_BASE}/calendar/upcoming?days=14`);
+        const response = await fetch(`${API_BASE}/calendar/upcoming?days=14&start=${startStr}`);
         const data = await response.json();
 
         container.textContent = '';
@@ -1057,7 +1096,11 @@ async function loadCalendar() {
                 grouped[date].push(ep);
             });
 
-            Object.entries(grouped).forEach(([date, episodes]) => {
+            // Sort dates
+            const sortedDates = Object.keys(grouped).sort();
+
+            sortedDates.forEach(date => {
+                const episodes = grouped[date];
                 const daySection = document.createElement('div');
                 daySection.className = 'calendar-day';
 
@@ -1076,7 +1119,7 @@ async function loadCalendar() {
                 container.appendChild(daySection);
             });
         } else {
-            container.appendChild(createEmptyState('calendar', 'No upcoming episodes'));
+            container.appendChild(createEmptyState('calendar', 'No upcoming episodes in this period'));
         }
         lucide.createIcons();
     } catch (error) {
@@ -1392,16 +1435,10 @@ async function loadStatistics() {
     const container = document.getElementById('statsContent');
     if (!container) return;
 
-    container.textContent = '';
-    container.appendChild(createLoadingElement('Loading statistics...'));
-
-    try {
-        const response = await fetch(`${API_BASE}/stats`);
-        const data = await response.json();
-
+    const renderStats = (data) => {
         container.textContent = '';
 
-        if (data.success) {
+        if (data) {
             // Quality breakdown chart
             const qualitySection = document.createElement('div');
             qualitySection.className = 'stats-section';
@@ -1434,10 +1471,36 @@ async function loadStatistics() {
             container.appendChild(qualitySection);
             container.appendChild(specialSection);
             container.appendChild(sizeSection);
+            lucide.createIcons();
         } else {
             container.appendChild(createEmptyState('bar-chart', 'Statistics unavailable'));
+            lucide.createIcons();
         }
-        lucide.createIcons();
+    };
+
+    // Load from cache first for instant display
+    const cached = cacheGet('statistics', 3600000); // 1 hour cache
+    if (cached && cached.data) {
+        renderStats(cached.data);
+        console.log(`[Media Hub] Statistics loaded from cache`);
+    } else {
+        container.textContent = '';
+        container.appendChild(createLoadingElement('Loading statistics...'));
+    }
+
+    // Fetch fresh data
+    try {
+        const response = await fetch(`${API_BASE}/stats`);
+        const data = await response.json();
+
+        if (data.success) {
+            renderStats(data);
+            cacheSet('statistics', data);
+        } else if (!cached) {
+            container.textContent = '';
+            container.appendChild(createEmptyState('bar-chart', 'Statistics unavailable'));
+            lucide.createIcons();
+        }
     } catch (error) {
         container.textContent = '';
         container.appendChild(createEmptyState('alert-circle', 'Failed to load statistics'));

@@ -2242,30 +2242,56 @@
 
             // Build preview modal content
             const meta = data.backup_metadata || {};
+            const totalBackupMB = meta.total_backup_size_mb || 0;
+            const restorableMB = data.restorable_size_mb || data.total_size_mb || 0;
+
             let html = `
                 <div style="margin-bottom: var(--archie-space-4);">
-                    <div style="display: flex; gap: var(--archie-space-3); margin-bottom: var(--archie-space-3);">
+                    <div style="display: flex; gap: var(--archie-space-3); flex-wrap: wrap; margin-bottom: var(--archie-space-3);">
                         <span class="badge" style="background: var(--archie-purple);">Build #${meta.build_number || '-'}</span>
                         <span class="badge" style="background: var(--archie-blue);">v${meta.platform_version || '-'}</span>
+                        ${meta.compression ? '<span class="badge" style="background: #22c55e;">GZIP</span>' : ''}
                     </div>
                     <p style="color: var(--archie-text-secondary); font-size: var(--archie-text-sm);">
                         Created: ${meta.created_at || '-'} by <strong>${meta.created_by || '-'}</strong>
                     </p>
                 </div>
+
+                <!-- Size Summary -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--archie-space-3); margin-bottom: var(--archie-space-4);">
+                    <div style="background: var(--archie-bg-card); border: 1px solid var(--archie-border-default); border-radius: var(--archie-radius-md); padding: var(--archie-space-3); text-align: center;">
+                        <div style="color: #f97316; font-size: 1.5rem; font-weight: bold;">${totalBackupMB} MB</div>
+                        <div style="color: var(--archie-text-tertiary); font-size: var(--archie-text-sm);">Total Backup Size</div>
+                    </div>
+                    <div style="background: var(--archie-bg-card); border: 1px solid var(--archie-border-default); border-radius: var(--archie-radius-md); padding: var(--archie-space-3); text-align: center;">
+                        <div style="color: #22c55e; font-size: 1.5rem; font-weight: bold;">${restorableMB} MB</div>
+                        <div style="color: var(--archie-text-tertiary); font-size: var(--archie-text-sm);">Restorable Components</div>
+                    </div>
+                </div>
+
+                <!-- Restorable Components -->
                 <div style="background: var(--archie-bg-deep); border: 1px solid var(--archie-border-default); border-radius: var(--archie-radius-md); padding: var(--archie-space-4); margin-bottom: var(--archie-space-4);">
-                    <h4 style="color: #f97316; margin-bottom: var(--archie-space-3);">Components (${data.total_size_mb} MB total)</h4>
+                    <h4 style="color: #22c55e; margin-bottom: var(--archie-space-3);">Restorable Components</h4>
                     <div style="display: flex; flex-direction: column; gap: var(--archie-space-2);">
             `;
 
             data.components.forEach(comp => {
-                const size = comp.size_bytes ? (comp.size_bytes / 1024 / 1024).toFixed(1) + ' MB' : '';
+                const sizeMB = comp.size_bytes ? (comp.size_bytes / 1024 / 1024).toFixed(1) : '0';
                 const files = comp.file_count ? comp.file_count + ' files' : '';
-                const details = [size, files].filter(x => x).join(' · ');
-                const compressed = comp.compressed ? ' <span style="color: #22c55e;">[GZIP]</span>' : '';
+
+                // Build size display - show compressed vs uncompressed for database
+                let sizeDisplay = sizeMB + ' MB';
+                if (comp.compressed && comp.estimated_uncompressed_mb) {
+                    sizeDisplay = `${sizeMB} MB <span style="color: var(--archie-text-tertiary);">→ ~${comp.estimated_uncompressed_mb} MB uncompressed</span>`;
+                }
+
+                const details = files ? `<span style="margin-left: var(--archie-space-2);">${files}</span>` : '';
+                const compressed = comp.compressed ? ' <span class="badge" style="background: #22c55e; font-size: 0.65rem; padding: 2px 6px;">GZIP</span>' : '';
+
                 html += `
-                    <div style="display: flex; justify-content: space-between; padding: var(--archie-space-2); background: var(--archie-bg-card); border-radius: var(--archie-radius-sm);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--archie-space-2); background: var(--archie-bg-card); border-radius: var(--archie-radius-sm);">
                         <span style="color: var(--archie-text-primary);">${comp.name}${compressed}</span>
-                        <span style="color: var(--archie-text-tertiary); font-size: var(--archie-text-sm);">${details}</span>
+                        <span style="color: var(--archie-text-tertiary); font-size: var(--archie-text-sm);">${sizeDisplay}${details}</span>
                     </div>
                 `;
             });
@@ -2273,9 +2299,31 @@
             html += `
                     </div>
                 </div>
+            `;
+
+            // Non-restorable components explanation
+            if (data.non_restorable_components && data.non_restorable_components.length > 0) {
+                const nonRestorableSize = totalBackupMB - restorableMB;
+                html += `
+                    <div style="background: rgba(100, 100, 100, 0.1); border: 1px solid var(--archie-border-default); border-radius: var(--archie-radius-md); padding: var(--archie-space-3); margin-bottom: var(--archie-space-4);">
+                        <h4 style="color: var(--archie-text-secondary); margin-bottom: var(--archie-space-2); font-size: var(--archie-text-sm);">
+                            📦 Also backed up (~${nonRestorableSize.toFixed(0)} MB) - Archive only:
+                        </h4>
+                        <p style="color: var(--archie-text-tertiary); font-size: var(--archie-text-sm); margin: 0;">
+                            ${data.non_restorable_components.join(', ')}
+                        </p>
+                        <p style="color: var(--archie-text-tertiary); font-size: 0.7rem; margin: var(--archie-space-2) 0 0 0; font-style: italic;">
+                            These are archived for reference but typically don't need restoration (logs, caches, etc.)
+                        </p>
+                    </div>
+                `;
+            }
+
+            // Summary stats
+            html += `
                 <div style="display: flex; gap: var(--archie-space-6); color: var(--archie-text-secondary);">
-                    <div><strong style="color: #f97316;">${data.database_tables}</strong> tables</div>
-                    <div><strong style="color: #f97316;">${data.files_to_restore}</strong> files</div>
+                    <div><strong style="color: #f97316;">${data.database_tables}</strong> database tables</div>
+                    <div><strong style="color: #f97316;">${data.files_to_restore}</strong> files to restore</div>
                 </div>
             `;
 

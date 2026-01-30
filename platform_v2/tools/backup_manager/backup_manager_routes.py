@@ -1179,7 +1179,18 @@ def preview_restore(backup_name):
                 "platform_version": metadata.get("platform_version"),
                 "build_number": metadata.get("build_number"),
                 "backup_type": metadata.get("backup_type"),
+                "compression": metadata.get("compression"),
+                "total_backup_size_bytes": metadata.get("total_size_bytes", 0),
+                "total_backup_size_mb": metadata.get("total_size_mb", 0),
             }
+
+            # Add info about non-restorable components (for user understanding)
+            all_components = metadata.get("components", {})
+            restorable = {"database", "platform_v2", "ai_bridge", "docs", "scripts", "nginx", "n8n_workflows"}
+            non_restorable = [k for k, v in all_components.items() if v and k not in restorable]
+            if non_restorable:
+                preview["non_restorable_components"] = non_restorable
+
             # Check for version mismatch warning
             current_version = get_platform_version()
             backup_version = metadata.get("platform_version", "unknown")
@@ -1188,7 +1199,16 @@ def preview_restore(backup_name):
         except Exception:
             pass
 
+    # Add estimated uncompressed size for database if compressed
+    for comp in preview["components"]:
+        if comp.get("name") == "database" and comp.get("compressed"):
+            # Gzip typically achieves ~80% compression on SQL, so estimate 5x uncompressed
+            comp["estimated_uncompressed_bytes"] = int(comp["size_bytes"] * 5)
+            comp["estimated_uncompressed_mb"] = round(comp["size_bytes"] * 5 / (1024 * 1024), 1)
+
     preview["total_size_mb"] = round(preview["total_size_bytes"] / (1024 * 1024), 2)
+    preview["restorable_size_bytes"] = preview["total_size_bytes"]
+    preview["restorable_size_mb"] = preview["total_size_mb"]
     return preview
 
 

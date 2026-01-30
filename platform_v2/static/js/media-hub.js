@@ -1669,16 +1669,25 @@ function renderMediaDetails(item) {
     actions.className = 'panel-actions';
 
     if (item.in_library) {
+        // Ensure we have servers loaded, fallback to defaults if not
+        const servers = availableMediaServers.length > 0 ? availableMediaServers : [
+            { type: 'jellyfin', url: 'http://192.168.1.200:8096', name: 'Jellyfin' },
+            { type: 'plex', url: 'http://192.168.1.200:32400', name: 'Plex' }
+        ];
+
         // Show play button for each available media server
-        availableMediaServers.forEach((server, index) => {
+        servers.forEach((server, index) => {
             const playBtn = document.createElement('a');
+            // First button (primary server) gets gold styling
             playBtn.className = index === 0 ? 'btn btn-primary' : 'btn btn-secondary';
 
             // Build URL based on server type
             if (server.type === 'jellyfin') {
+                // Jellyfin deep link to item
                 playBtn.href = `${server.url}/web/index.html#!/details?id=${item.id}`;
             } else {
-                playBtn.href = `${server.url}/web/index.html#!/server`;
+                // Plex - open web interface (can't deep link without Plex ID)
+                playBtn.href = `${server.url}/web/index.html#!/search?query=${encodeURIComponent(item.title)}`;
             }
 
             playBtn.target = '_blank';

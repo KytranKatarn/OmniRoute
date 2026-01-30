@@ -5626,27 +5626,30 @@ function renderStorageTreemap(disks, lvm, vgFree, dockerMounts) {
         return;
     }
 
-    // Helper: get Docker containers using a mountpoint
-    function getDockerContainers(mountpoint) {
+    // Helper: get Docker stacks using a mountpoint
+    function getDockerStacks(mountpoint) {
         if (!dockerMounts || !mountpoint) return [];
-        const containers = [];
+        const stacks = [];
+        const seenStacks = new Set();
         // Check if any Docker mount path falls under this mountpoint
         Object.keys(dockerMounts).forEach(hostPath => {
             let matches = false;
             if (mountpoint === '/') {
                 // Root filesystem - all absolute paths fall under it
-                // But skip if another mount is more specific (handled by caller)
                 matches = hostPath.startsWith('/');
             } else {
                 matches = hostPath.startsWith(mountpoint + '/') || hostPath === mountpoint;
             }
             if (matches) {
-                dockerMounts[hostPath].forEach(c => {
-                    if (!containers.includes(c)) containers.push(c);
+                dockerMounts[hostPath].forEach(stack => {
+                    if (!seenStacks.has(stack.stack_name)) {
+                        seenStacks.add(stack.stack_name);
+                        stacks.push(stack);
+                    }
                 });
             }
         });
-        return containers;
+        return stacks;
     }
 
     // Helper: get short mountpoint label (last 2 parts of path)
@@ -5704,8 +5707,8 @@ function renderStorageTreemap(disks, lvm, vgFree, dockerMounts) {
                     // Check if this is the root filesystem
                     const isRootVolume = child.mountpoint === '/';
 
-                    // Check for Docker containers using this mount
-                    const childDockerContainers = getDockerContainers(child.mountpoint);
+                    // Check for Docker stacks using this mount
+                    const childDockerStacks = getDockerStacks(child.mountpoint);
                     const childMountLabel = getMountLabel(child.mountpoint);
 
                     html += '<div class="treemap-partition ' + stateClass + '"';
@@ -5720,11 +5723,10 @@ function renderStorageTreemap(disks, lvm, vgFree, dockerMounts) {
                         // Show mountpoint badge for non-system mounts (blue)
                         html += '<span style="background:var(--archie-cyan);color:#000;padding:1px 4px;border-radius:3px;font-size:0.5rem;font-weight:600;">' + childMountLabel + '</span>';
                     }
-                    if (childDockerContainers.length > 0) {
-                        // Show Docker badge (purple) - use A.R.C.H.I.E. if archie containers
-                        const hasArchieContainers = childDockerContainers.some(c => c.startsWith('archie_'));
-                        const dockerLabel = hasArchieContainers ? 'A.R.C.H.I.E.' : (childDockerContainers.length + ' containers');
-                        html += '<span style="background:var(--archie-purple);color:#fff;padding:1px 4px;border-radius:3px;font-size:0.5rem;font-weight:600;">🐳 ' + dockerLabel + '</span>';
+                    if (childDockerStacks.length > 0) {
+                        // Show Docker badge (purple) with stack names
+                        const stackNames = childDockerStacks.map(s => s.display_name || s.stack_name).join(', ');
+                        html += '<span style="background:var(--archie-purple);color:#fff;padding:1px 4px;border-radius:3px;font-size:0.5rem;font-weight:600;">🐳 ' + stackNames + '</span>';
                     }
                     html += '</div>';
                     html += '<span class="treemap-partition-label">' + label + '</span>';
@@ -5777,8 +5779,8 @@ function renderStorageTreemap(disks, lvm, vgFree, dockerMounts) {
                 // Check if this is a system partition (boot, EFI, or BIOS boot)
                 const isSystemPartition = part.mountpoint === '/boot' || part.mountpoint === '/boot/efi' ||
                                          part.fstype === 'Unknown' && part.size_gb < 0.1; // BIOS boot partition
-                // Check for Docker containers using this mount
-                const partDockerContainers = getDockerContainers(part.mountpoint);
+                // Check for Docker stacks using this mount
+                const partDockerStacks = getDockerStacks(part.mountpoint);
                 const partMountLabel = getMountLabel(part.mountpoint);
 
                 html += '<div class="treemap-partition ' + stateClass + '"';
@@ -5793,11 +5795,10 @@ function renderStorageTreemap(disks, lvm, vgFree, dockerMounts) {
                     // Show mountpoint badge for non-system mounts (blue/cyan)
                     html += '<span style="background:var(--archie-cyan);color:#000;padding:1px 4px;border-radius:3px;font-size:0.5rem;font-weight:600;">' + partMountLabel + '</span>';
                 }
-                if (partDockerContainers.length > 0) {
-                    // Show Docker badge (purple) - use A.R.C.H.I.E. if archie containers
-                    const hasArchieContainers = partDockerContainers.some(c => c.startsWith('archie_'));
-                    const dockerLabel = hasArchieContainers ? 'A.R.C.H.I.E.' : (partDockerContainers.length + ' containers');
-                    html += '<span style="background:var(--archie-purple);color:#fff;padding:1px 4px;border-radius:3px;font-size:0.5rem;font-weight:600;">🐳 ' + dockerLabel + '</span>';
+                if (partDockerStacks.length > 0) {
+                    // Show Docker badge (purple) with stack names
+                    const stackNames = partDockerStacks.map(s => s.display_name || s.stack_name).join(', ');
+                    html += '<span style="background:var(--archie-purple);color:#fff;padding:1px 4px;border-radius:3px;font-size:0.5rem;font-weight:600;">🐳 ' + stackNames + '</span>';
                 }
                 html += '</div>';
                 html += '<span class="treemap-partition-label">' + label + '</span>';

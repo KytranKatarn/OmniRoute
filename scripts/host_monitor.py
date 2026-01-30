@@ -2626,17 +2626,22 @@ def get_docker_health():
         elif '(health: starting)' in status:
             health = 'starting'
 
-        # Get restart count
+        # Get restart count and compose project label
         restart_count = 0
-        restart_output = run_command(
-            ['docker', 'inspect', '--format', '{{.RestartCount}}', name],
+        compose_project = ''
+        inspect_output = run_command(
+            ['docker', 'inspect', '--format',
+             '{{.RestartCount}}|{{index .Config.Labels "com.docker.compose.project"}}', name],
             timeout=5
         )
-        if restart_output:
+        if inspect_output:
+            inspect_parts = inspect_output.strip().split('|')
             try:
-                restart_count = int(restart_output.strip())
+                restart_count = int(inspect_parts[0]) if inspect_parts[0] else 0
             except ValueError:
                 pass
+            if len(inspect_parts) > 1 and inspect_parts[1]:
+                compose_project = inspect_parts[1]
 
         # Get resource usage from docker stats (no-stream for single snapshot)
         cpu_percent = 0.0
@@ -2667,7 +2672,8 @@ def get_docker_health():
             'restart_count': restart_count,
             'cpu_percent': cpu_percent,
             'mem_percent': mem_percent,
-            'mem_usage': mem_usage
+            'mem_usage': mem_usage,
+            'compose_project': compose_project
         })
 
     return containers
@@ -2684,12 +2690,28 @@ _last_alert_times = {}  # (container_name, alert_type) -> timestamp
 def get_db_connection():
     """Get database connection for alert storage"""
     import psycopg2
+
+    # Try to load from .env file if env vars not set
+    db_password = os.environ.get('DB_PASSWORD', '')
+    if not db_password:
+        env_file = Path('/mnt/archie_brain/.env')
+        if env_file.exists():
+            try:
+                with open(env_file) as f:
+                    for line in f:
+                        line = line.strip()
+                        if line.startswith('DB_PASSWORD='):
+                            db_password = line.split('=', 1)[1].strip('"\'')
+                            break
+            except Exception:
+                pass
+
     return psycopg2.connect(
         host=os.environ.get('DB_HOST', '192.168.1.200'),
         port=os.environ.get('DB_PORT', '5432'),
         database=os.environ.get('DB_NAME', 'archie'),
         user=os.environ.get('DB_USER', 'archie'),
-        password=os.environ.get('DB_PASSWORD', '')
+        password=db_password
     )
 
 

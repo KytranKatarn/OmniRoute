@@ -715,12 +715,15 @@ def api_docker_health():
 
         docker_health = host_data.get("docker_health", [])
 
-        # Aggregate by stack
+        # Aggregate by stack using compose_project label (preferred) or container name prefix (fallback)
         stacks = {}
         for container in docker_health:
             name = container.get("name", "")
-            # Extract stack name (container name prefix before first underscore for compose)
-            stack_name = name.split("_")[0] if "_" in name else name
+            # Use compose_project label if available, otherwise fall back to name prefix
+            stack_name = container.get("compose_project", "")
+            if not stack_name:
+                # Fallback: extract prefix before first underscore
+                stack_name = name.split("_")[0] if "_" in name else name
 
             if stack_name not in stacks:
                 stacks[stack_name] = {

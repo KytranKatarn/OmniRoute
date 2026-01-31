@@ -930,6 +930,410 @@ def get_memory_hardware():
     return result
 
 
+def get_cpu_hardware():
+    """Get extended CPU hardware info from dmidecode for Hardware tab"""
+    result = {
+        'socket_type': None,
+        'max_speed_mhz': None,
+        'current_speed_mhz': None,
+        'voltage': None,
+        'cache_l1': None,
+        'cache_l2': None,
+        'cache_l3': None,
+        'max_processors': 0,
+        'populated_sockets': 0,
+        'processors': []
+    }
+
+    try:
+        # Get processor info from dmidecode
+        proc_output = subprocess.check_output(
+            ['sudo', '-n', 'dmidecode', '-t', 'processor'],
+            stderr=subprocess.DEVNULL,
+            timeout=10
+        ).decode('utf-8', errors='replace')
+
+        current_proc = None
+        for line in proc_output.split('\n'):
+            line_stripped = line.strip()
+
+            if 'Processor Information' in line and not line.startswith('\t'):
+                if current_proc:
+                    result['processors'].append(current_proc)
+                current_proc = {
+                    'socket': None,
+                    'model': None,
+                    'family': None,
+                    'max_speed_mhz': None,
+                    'current_speed_mhz': None,
+                    'voltage': None,
+                    'cores': None,
+                    'threads': None,
+                    'status': None
+                }
+                result['max_processors'] += 1
+            elif current_proc is not None:
+                if line_stripped.startswith('Socket Designation:'):
+                    current_proc['socket'] = line_stripped.split(':', 1)[1].strip()
+                    if result['socket_type'] is None:
+                        result['socket_type'] = current_proc['socket']
+                elif line_stripped.startswith('Version:'):
+                    ver = line_stripped.split(':', 1)[1].strip()
+                    if ver and ver not in ['Unknown', 'Not Specified']:
+                        current_proc['model'] = ver
+                elif line_stripped.startswith('Family:'):
+                    fam = line_stripped.split(':', 1)[1].strip()
+                    if fam and fam not in ['Unknown', 'Other']:
+                        current_proc['family'] = fam
+                elif line_stripped.startswith('Max Speed:'):
+                    speed_str = line_stripped.split(':', 1)[1].strip()
+                    if 'MHz' in speed_str:
+                        try:
+                            current_proc['max_speed_mhz'] = int(speed_str.replace('MHz', '').strip())
+                            if result['max_speed_mhz'] is None:
+                                result['max_speed_mhz'] = current_proc['max_speed_mhz']
+                        except ValueError:
+                            pass
+                elif line_stripped.startswith('Current Speed:'):
+                    speed_str = line_stripped.split(':', 1)[1].strip()
+                    if 'MHz' in speed_str:
+                        try:
+                            current_proc['current_speed_mhz'] = int(speed_str.replace('MHz', '').strip())
+                            if result['current_speed_mhz'] is None:
+                                result['current_speed_mhz'] = current_proc['current_speed_mhz']
+                        except ValueError:
+                            pass
+                elif line_stripped.startswith('Voltage:'):
+                    voltage = line_stripped.split(':', 1)[1].strip()
+                    if voltage and voltage not in ['Unknown']:
+                        current_proc['voltage'] = voltage
+                        if result['voltage'] is None:
+                            result['voltage'] = voltage
+                elif line_stripped.startswith('Core Count:'):
+                    try:
+                        current_proc['cores'] = int(line_stripped.split(':', 1)[1].strip())
+                    except ValueError:
+                        pass
+                elif line_stripped.startswith('Thread Count:'):
+                    try:
+                        current_proc['threads'] = int(line_stripped.split(':', 1)[1].strip())
+                    except ValueError:
+                        pass
+                elif line_stripped.startswith('Status:'):
+                    status = line_stripped.split(':', 1)[1].strip()
+                    current_proc['status'] = status
+                    if 'Populated' in status:
+                        result['populated_sockets'] += 1
+                elif line_stripped.startswith('Upgrade:'):
+                    # This contains the actual socket type (e.g., "Socket LGA2011")
+                    upgrade = line_stripped.split(':', 1)[1].strip()
+                    if upgrade and upgrade not in ['Unknown', 'None', 'Other']:
+                        current_proc['socket_type'] = upgrade
+                        # Use this as the socket type (overrides Socket Designation)
+                        result['socket_type'] = upgrade
+
+        # Don't forget the last processor
+        if current_proc:
+            result['processors'].append(current_proc)
+
+        # Get cache info from dmidecode
+        cache_output = subprocess.check_output(
+            ['sudo', '-n', 'dmidecode', '-t', 'cache'],
+            stderr=subprocess.DEVNULL,
+            timeout=10
+        ).decode('utf-8', errors='replace')
+
+        for line in cache_output.split('\n'):
+            line_stripped = line.strip()
+            if line_stripped.startswith('Socket Designation:'):
+                cache_name = line_stripped.split(':', 1)[1].strip().upper()
+            elif line_stripped.startswith('Installed Size:'):
+                size_str = line_stripped.split(':', 1)[1].strip()
+                if 'KB' in size_str or 'MB' in size_str:
+                    size_val = size_str
+                    if 'L1' in cache_name:
+                        result['cache_l1'] = size_val
+                    elif 'L2' in cache_name:
+                        result['cache_l2'] = size_val
+                    elif 'L3' in cache_name:
+                        result['cache_l3'] = size_val
+
+    except subprocess.TimeoutExpired:
+        pass
+    except subprocess.CalledProcessError:
+        pass
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        print(f"CPU hardware error: {e}")
+
+    return result
+
+
+def get_motherboard_info():
+    """Get motherboard and system info from dmidecode"""
+    result = {
+        'manufacturer': None,
+        'product_name': None,
+        'system_product': None,
+        'system_manufacturer': None,
+        'serial_number': None,
+        'version': None,
+        'chipset': None,
+        'bios_vendor': None,
+        'bios_version': None,
+        'bios_date': None
+    }
+
+    try:
+        # Get baseboard info
+        baseboard_output = subprocess.check_output(
+            ['sudo', '-n', 'dmidecode', '-t', 'baseboard'],
+            stderr=subprocess.DEVNULL,
+            timeout=10
+        ).decode('utf-8', errors='replace')
+
+        for line in baseboard_output.split('\n'):
+            line_stripped = line.strip()
+            if line_stripped.startswith('Manufacturer:'):
+                mfg = line_stripped.split(':', 1)[1].strip()
+                if mfg and mfg not in ['Unknown', 'Not Specified', 'To Be Filled By O.E.M.']:
+                    result['manufacturer'] = mfg
+            elif line_stripped.startswith('Product Name:'):
+                pn = line_stripped.split(':', 1)[1].strip()
+                if pn and pn not in ['Unknown', 'Not Specified', 'To Be Filled By O.E.M.']:
+                    result['product_name'] = pn
+            elif line_stripped.startswith('Version:'):
+                ver = line_stripped.split(':', 1)[1].strip()
+                if ver and ver not in ['Unknown', 'Not Specified', 'To Be Filled By O.E.M.']:
+                    result['version'] = ver
+            elif line_stripped.startswith('Serial Number:'):
+                sn = line_stripped.split(':', 1)[1].strip()
+                if sn and sn not in ['Unknown', 'Not Specified', 'To Be Filled By O.E.M.']:
+                    result['serial_number'] = sn
+
+        # Get system info (for full product name like "HP Z420 Workstation")
+        system_output = subprocess.check_output(
+            ['sudo', '-n', 'dmidecode', '-t', 'system'],
+            stderr=subprocess.DEVNULL,
+            timeout=10
+        ).decode('utf-8', errors='replace')
+
+        for line in system_output.split('\n'):
+            line_stripped = line.strip()
+            if line_stripped.startswith('Product Name:'):
+                pn = line_stripped.split(':', 1)[1].strip()
+                if pn and pn not in ['Unknown', 'Not Specified', 'To Be Filled By O.E.M.']:
+                    result['system_product'] = pn
+            elif line_stripped.startswith('Manufacturer:'):
+                mfg = line_stripped.split(':', 1)[1].strip()
+                if mfg and mfg not in ['Unknown', 'Not Specified', 'To Be Filled By O.E.M.']:
+                    result['system_manufacturer'] = mfg
+
+        # Get BIOS info
+        bios_output = subprocess.check_output(
+            ['sudo', '-n', 'dmidecode', '-t', 'bios'],
+            stderr=subprocess.DEVNULL,
+            timeout=10
+        ).decode('utf-8', errors='replace')
+
+        for line in bios_output.split('\n'):
+            line_stripped = line.strip()
+            if line_stripped.startswith('Vendor:'):
+                vendor = line_stripped.split(':', 1)[1].strip()
+                if vendor and vendor not in ['Unknown', 'Not Specified']:
+                    result['bios_vendor'] = vendor
+            elif line_stripped.startswith('Version:'):
+                ver = line_stripped.split(':', 1)[1].strip()
+                if ver and ver not in ['Unknown', 'Not Specified']:
+                    result['bios_version'] = ver
+            elif line_stripped.startswith('Release Date:'):
+                date = line_stripped.split(':', 1)[1].strip()
+                if date and date not in ['Unknown', 'Not Specified']:
+                    result['bios_date'] = date
+
+        # Get chipset from lspci (Host bridge)
+        lspci_output = run_command('lspci 2>/dev/null | grep -i "Host bridge"')
+        if lspci_output:
+            # Parse: "00:00.0 Host bridge: Intel Corporation Xeon E5/Core i7..."
+            if ':' in lspci_output:
+                chipset_part = lspci_output.split('Host bridge:', 1)[-1].strip()
+                # Extract chipset name (e.g., "Intel X79" from full description)
+                if 'Intel' in chipset_part:
+                    result['chipset'] = 'Intel ' + chipset_part.split('(')[0].strip().split()[-1] if '(' in chipset_part else chipset_part[:50]
+                elif 'AMD' in chipset_part:
+                    result['chipset'] = chipset_part[:50]
+                else:
+                    result['chipset'] = chipset_part[:50]
+
+    except subprocess.TimeoutExpired:
+        pass
+    except subprocess.CalledProcessError:
+        pass
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        print(f"Motherboard info error: {e}")
+
+    return result
+
+
+def get_pci_slots():
+    """Get PCI/PCIe expansion slot info from dmidecode with device mapping from lspci"""
+    slots = []
+
+    try:
+        # First, build a map of PCI addresses to device names from lspci
+        pci_devices = {}
+        lspci_output = run_command('lspci 2>/dev/null')
+        if lspci_output:
+            for line in lspci_output.split('\n'):
+                if not line.strip():
+                    continue
+                parts = line.split(' ', 1)
+                if len(parts) >= 2:
+                    addr = parts[0].strip()
+                    # Extract device name (text after the colon)
+                    if ':' in parts[1]:
+                        device_desc = parts[1].split(':', 1)[-1].strip()
+                        # Shorten long device names
+                        if '[' in device_desc and ']' in device_desc:
+                            # Extract bracketed model name: [Quadro M4000]
+                            device_desc = device_desc[device_desc.index('[') + 1:device_desc.index(']')]
+                        elif len(device_desc) > 40:
+                            device_desc = device_desc[:40] + '...'
+                        pci_devices[addr] = device_desc
+
+        # Get slot info from dmidecode
+        slot_output = subprocess.check_output(
+            ['sudo', '-n', 'dmidecode', '-t', 'slot'],
+            stderr=subprocess.DEVNULL,
+            timeout=10
+        ).decode('utf-8', errors='replace')
+
+        current_slot = None
+        for line in slot_output.split('\n'):
+            line_stripped = line.strip()
+
+            if 'System Slot Information' in line and not line.startswith('\t'):
+                if current_slot:
+                    slots.append(current_slot)
+                current_slot = {
+                    'designation': None,
+                    'type': None,
+                    'current_usage': None,
+                    'length': None,
+                    'bus_address': None,
+                    'device': None
+                }
+            elif current_slot is not None:
+                if line_stripped.startswith('Designation:'):
+                    current_slot['designation'] = line_stripped.split(':', 1)[1].strip()
+                elif line_stripped.startswith('Type:'):
+                    slot_type = line_stripped.split(':', 1)[1].strip()
+                    # Simplify slot type description
+                    if 'PCI Express' in slot_type:
+                        # Extract "x16 PCI Express 3" style
+                        current_slot['type'] = slot_type
+                    else:
+                        current_slot['type'] = slot_type
+                elif line_stripped.startswith('Current Usage:'):
+                    current_slot['current_usage'] = line_stripped.split(':', 1)[1].strip()
+                elif line_stripped.startswith('Length:'):
+                    current_slot['length'] = line_stripped.split(':', 1)[1].strip()
+                elif line_stripped.startswith('Bus Address:'):
+                    bus_addr = line_stripped.split(':', 1)[1].strip()
+                    current_slot['bus_address'] = bus_addr
+                    # Try to match with lspci device (strip leading 0000: if present)
+                    short_addr = bus_addr.replace('0000:', '') if bus_addr.startswith('0000:') else bus_addr
+                    if short_addr in pci_devices:
+                        current_slot['device'] = pci_devices[short_addr]
+
+        # Don't forget the last slot
+        if current_slot:
+            slots.append(current_slot)
+
+    except subprocess.TimeoutExpired:
+        pass
+    except subprocess.CalledProcessError:
+        pass
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        print(f"PCI slots error: {e}")
+
+    return slots
+
+
+def get_sata_ports():
+    """Get SATA port information from /sys/class/ata_port"""
+    result = {
+        'total_ports': 0,
+        'used_ports': 0,
+        'available_ports': 0,
+        'ports': []
+    }
+
+    try:
+        ata_path = '/sys/class/ata_port'
+        if not os.path.exists(ata_path):
+            return result
+
+        # Get list of ata ports
+        ports = sorted([p for p in os.listdir(ata_path) if p.startswith('ata')])
+        result['total_ports'] = len(ports)
+
+        for port_name in ports:
+            port_path = os.path.join(ata_path, port_name)
+            port_info = {
+                'name': port_name,
+                'port_number': int(port_name.replace('ata', '')),
+                'device': None,
+                'device_model': None,
+                'in_use': False
+            }
+
+            # Try to find connected device
+            try:
+                # Look for block device in the port's host
+                real_path = os.path.realpath(port_path)
+                parent_dir = os.path.dirname(os.path.dirname(real_path))
+
+                # Look for scsi_host subdirs
+                for entry in os.listdir(parent_dir):
+                    if entry.startswith('host'):
+                        host_path = os.path.join(parent_dir, entry)
+                        # Look for target subdirs
+                        for subentry in os.listdir(host_path):
+                            if subentry.startswith('target'):
+                                target_path = os.path.join(host_path, subentry)
+                                for dev_entry in os.listdir(target_path):
+                                    if ':' in dev_entry:
+                                        block_path = os.path.join(target_path, dev_entry, 'block')
+                                        if os.path.exists(block_path):
+                                            devices = os.listdir(block_path)
+                                            if devices:
+                                                port_info['device'] = devices[0]
+                                                port_info['in_use'] = True
+                                                # Try to get model
+                                                model_path = os.path.join(target_path, dev_entry, 'model')
+                                                if os.path.exists(model_path):
+                                                    with open(model_path, 'r') as f:
+                                                        port_info['device_model'] = f.read().strip()
+            except (OSError, IOError):
+                pass
+
+            result['ports'].append(port_info)
+
+        result['used_ports'] = sum(1 for p in result['ports'] if p['in_use'])
+        result['available_ports'] = result['total_ports'] - result['used_ports']
+
+    except Exception as e:
+        print(f"SATA ports error: {e}")
+
+    return result
+
+
 def get_cpu_info():
     """Get CPU information from the host"""
     info = {
@@ -3081,8 +3485,12 @@ def collect_all_data():
     return {
         'system': get_system_info(),
         'cpu': get_cpu_info(),
+        'cpu_hardware': get_cpu_hardware(),
         'gpu': get_gpu_info(),
         'memory_hardware': get_memory_hardware(),
+        'motherboard': get_motherboard_info(),
+        'pci_slots': get_pci_slots(),
+        'sata_ports': get_sata_ports(),
         'lvm': get_lvm_info(),
         'raid': get_raid_status(),
         'disks': get_disk_layout(),

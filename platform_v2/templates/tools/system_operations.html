@@ -672,39 +672,6 @@
         letter-spacing: 0.5px;
     }
 
-    /* ===== Port Conflict Detection ===== */
-    .planned-stack-ports {
-        background: var(--archie-bg-tertiary);
-        padding: 12px;
-        border-radius: 8px;
-        border: 1px solid var(--archie-border-default);
-    }
-    .port-check-list {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-    }
-    .port-item {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        padding: 4px 8px;
-        background: var(--archie-bg-secondary);
-        border: 1px solid var(--archie-border-default);
-        border-radius: 4px;
-        font-family: var(--archie-font-mono);
-        font-size: 0.8rem;
-        cursor: help;
-        transition: all 0.2s ease;
-    }
-    .port-item:hover {
-        transform: scale(1.05);
-    }
-    .port-status {
-        font-size: 0.7rem;
-        font-weight: 600;
-    }
-
     /* ===== Storage Tab - Interactive Disk Management ===== */
     .storage-overview-bar {
         display: flex;
@@ -2067,6 +2034,10 @@
             <i data-lucide="hard-drive" style="width: 16px; height: 16px;"></i>
             Storage
         </button>
+        <button class="tab-btn" data-tab="hardware">
+            <i data-lucide="server" style="width: 16px; height: 16px;"></i>
+            Hardware
+        </button>
         <button class="tab-btn" data-tab="memory">
             <i data-lucide="memory-stick" style="width: 16px; height: 16px;"></i>
             Memory
@@ -2385,6 +2356,157 @@
             </div>
 
             <!-- Action Panel removed - using modals instead -->
+        </div>
+    </div>
+
+    <!-- Tab: Hardware -->
+    <div id="tab-hardware" class="tab-content">
+        <div class="section-title">
+            <i data-lucide="server" style="width: 18px; height: 18px;"></i>
+            Hardware Configuration
+            <span id="hardware-data-age" style="font-size: 0.75rem; color: var(--archie-text-muted); font-weight: normal; margin-left: 8px;"></span>
+        </div>
+
+        <!-- Hardware Summary Cards -->
+        <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 1.5rem;">
+            <div class="stat-card">
+                <div class="stat-label">CPU SOCKETS</div>
+                <div class="stat-value" id="hw-cpu-sockets">--</div>
+                <div class="stat-subtitle" id="hw-cpu-socket-type">--</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">MEMORY SLOTS</div>
+                <div class="stat-value" id="hw-mem-slots">--</div>
+                <div class="stat-subtitle" id="hw-mem-capacity">--</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">PCI SLOTS</div>
+                <div class="stat-value" id="hw-pci-slots">--</div>
+                <div class="stat-subtitle" id="hw-pci-available">--</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">GPU</div>
+                <div class="stat-value" id="hw-gpu-count">--</div>
+                <div class="stat-subtitle" id="hw-gpu-model">--</div>
+            </div>
+        </div>
+
+        <!-- Two column layout for CPU and Memory sections -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+            <!-- CPU Section -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <i data-lucide="cpu" style="width: 16px; height: 16px;"></i>
+                        Processor
+                    </div>
+                </div>
+                <div id="hw-cpu-content">
+                    <div style="color: var(--archie-text-muted);">Loading CPU info...</div>
+                </div>
+            </div>
+
+            <!-- Memory Section -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <i data-lucide="memory-stick" style="width: 16px; height: 16px;"></i>
+                        Memory
+                    </div>
+                </div>
+                <div id="hw-memory-content">
+                    <div style="color: var(--archie-text-muted);">Loading memory info...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Two column layout for GPU and Motherboard sections -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+            <!-- GPU Section -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <i data-lucide="monitor" style="width: 16px; height: 16px;"></i>
+                        Graphics
+                    </div>
+                </div>
+                <div id="hw-gpu-content">
+                    <div style="color: var(--archie-text-muted);">Loading GPU info...</div>
+                </div>
+            </div>
+
+            <!-- Motherboard Section -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <i data-lucide="circuit-board" style="width: 16px; height: 16px;"></i>
+                        Motherboard
+                    </div>
+                </div>
+                <div id="hw-motherboard-content">
+                    <div style="color: var(--archie-text-muted);">Loading motherboard info...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PCI Expansion Slots Section -->
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <i data-lucide="plug" style="width: 16px; height: 16px;"></i>
+                    PCI Expansion Slots
+                </div>
+                <button class="btn btn-ghost btn-sm" onclick="loadHardwareData()">
+                    <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i>
+                    Refresh
+                </button>
+            </div>
+            <div class="table-container">
+                <table class="data-table" id="pci-slots-table">
+                    <thead>
+                        <tr>
+                            <th>Slot</th>
+                            <th>Type</th>
+                            <th>Length</th>
+                            <th>Status</th>
+                            <th>Device</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pci-slots-body">
+                        <tr>
+                            <td colspan="5" style="text-align: center; color: var(--archie-text-muted);">
+                                Loading PCI slot info...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- SATA Ports Section -->
+        <div class="panel" style="margin-top: 20px;">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <i data-lucide="hard-drive" style="width: 16px; height: 16px;"></i>
+                    SATA Ports
+                </div>
+            </div>
+            <div id="hw-sata-content">
+                <div style="color: var(--archie-text-muted);">Loading SATA port info...</div>
+            </div>
+        </div>
+
+        <!-- Upgrade Potential Section -->
+        <div class="panel" style="margin-top: 20px;">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <i data-lucide="trending-up" style="width: 16px; height: 16px;"></i>
+                    Upgrade Potential
+                </div>
+            </div>
+            <div id="hw-upgrade-content">
+                <div style="color: var(--archie-text-muted);">Loading upgrade information...</div>
+            </div>
         </div>
     </div>
 
@@ -3036,71 +3158,6 @@
 
         <!-- Sub-tab: Port Map -->
         <div id="net-subtab-portmap" class="net-subtab-content">
-            <!-- Port Conflict Detection Panel -->
-            <div class="section-title" style="display: flex; align-items: center; justify-content: space-between;">
-                <span style="display: flex; align-items: center; gap: 8px;">
-                    <i data-lucide="alert-triangle" style="width: 18px; height: 18px;"></i>
-                    Port Availability Check
-                    <span id="port-conflict-badge" style="display: none; background: var(--archie-red); color: #fff; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: 600;">0 conflicts</span>
-                </span>
-                <button class="btn btn-secondary" onclick="loadPortUsage()" style="font-size: 0.8rem; padding: 4px 12px;">
-                    <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i> Check Ports
-                </button>
-            </div>
-            <div id="port-usage-container" class="panel" style="margin-bottom: 16px;">
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; padding: 12px;">
-                    <div class="planned-stack-ports" data-stack="home_assistant">
-                        <div style="font-weight: 600; color: var(--archie-cyan); margin-bottom: 8px;">
-                            <i data-lucide="home" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle;"></i>
-                            Home Assistant
-                        </div>
-                        <div class="port-check-list" id="ports-home_assistant">
-                            <span class="port-item" data-port="8123">8123 <span class="port-status">...</span></span>
-                            <span class="port-item" data-port="1900">1900 <span class="port-status">...</span></span>
-                            <span class="port-item" data-port="5353">5353 <span class="port-status">...</span></span>
-                        </div>
-                    </div>
-                    <div class="planned-stack-ports" data-stack="plex">
-                        <div style="font-weight: 600; color: var(--archie-orange); margin-bottom: 8px;">
-                            <i data-lucide="play-circle" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle;"></i>
-                            Plex
-                        </div>
-                        <div class="port-check-list" id="ports-plex">
-                            <span class="port-item" data-port="32400">32400 <span class="port-status">...</span></span>
-                            <span class="port-item" data-port="32469">32469 <span class="port-status">...</span></span>
-                            <span class="port-item" data-port="3005">3005 <span class="port-status">...</span></span>
-                            <span class="port-item" data-port="8324">8324 <span class="port-status">...</span></span>
-                        </div>
-                    </div>
-                    <div class="planned-stack-ports" data-stack="adguard">
-                        <div style="font-weight: 600; color: var(--archie-green); margin-bottom: 8px;">
-                            <i data-lucide="shield" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle;"></i>
-                            AdGuard Home
-                        </div>
-                        <div class="port-check-list" id="ports-adguard">
-                            <span class="port-item" data-port="53">53 <span class="port-status">...</span></span>
-                            <span class="port-item" data-port="80">80 <span class="port-status">...</span></span>
-                            <span class="port-item" data-port="443">443 <span class="port-status">...</span></span>
-                            <span class="port-item" data-port="3000">3000 <span class="port-status">...</span></span>
-                        </div>
-                    </div>
-                    <div class="planned-stack-ports" data-stack="ntopng">
-                        <div style="font-weight: 600; color: var(--archie-purple); margin-bottom: 8px;">
-                            <i data-lucide="activity" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle;"></i>
-                            ntopng
-                        </div>
-                        <div class="port-check-list" id="ports-ntopng">
-                            <span class="port-item" data-port="3000">3000 <span class="port-status">...</span></span>
-                            <span class="port-item" data-port="5556">5556 <span class="port-status">...</span></span>
-                        </div>
-                    </div>
-                </div>
-                <div id="port-conflict-details" style="display: none; margin-top: 12px; padding: 12px; background: rgba(255,107,107,0.1); border: 1px solid var(--archie-red); border-radius: 6px;">
-                    <strong style="color: var(--archie-red);">Port Conflicts Detected:</strong>
-                    <ul id="port-conflict-list" style="margin: 8px 0 0 20px; color: var(--archie-text-secondary);"></ul>
-                </div>
-            </div>
-
             <div class="section-title" style="display: flex; align-items: center; justify-content: space-between;">
                 <span style="display: flex; align-items: center; gap: 8px;">
                     <i data-lucide="git-branch" style="width: 18px; height: 18px;"></i>
@@ -3141,6 +3198,60 @@
                     <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i> Refresh
                 </button>
             </div>
+
+            <!-- Total Traffic Summary -->
+            <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 16px;">
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <div class="stat-card-title">
+                            <i data-lucide="download" style="width: 18px; height: 18px; color: var(--archie-green);"></i>
+                            Total Downloaded
+                        </div>
+                    </div>
+                    <div class="stat-value" id="total-rx-bytes" style="font-size: 1.4rem; color: var(--archie-green);">--</div>
+                    <div class="stat-label" id="total-rx-packets">-- packets</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <div class="stat-card-title">
+                            <i data-lucide="upload" style="width: 18px; height: 18px; color: var(--archie-cyan);"></i>
+                            Total Uploaded
+                        </div>
+                    </div>
+                    <div class="stat-value" id="total-tx-bytes" style="font-size: 1.4rem; color: var(--archie-cyan);">--</div>
+                    <div class="stat-label" id="total-tx-packets">-- packets</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <div class="stat-card-title">
+                            <i data-lucide="hard-drive" style="width: 18px; height: 18px; color: var(--archie-purple);"></i>
+                            Total Traffic
+                        </div>
+                    </div>
+                    <div class="stat-value" id="total-traffic" style="font-size: 1.4rem; color: var(--archie-purple);">--</div>
+                    <div class="stat-label" id="total-traffic-label">Since last reboot</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-header">
+                        <div class="stat-card-title">
+                            <i data-lucide="gauge" style="width: 18px; height: 18px; color: var(--archie-orange);"></i>
+                            Current Rate
+                        </div>
+                    </div>
+                    <div class="stat-value" id="current-rate" style="font-size: 1.4rem; color: var(--archie-orange);">--</div>
+                    <div class="stat-label" id="current-rate-label">Combined RX+TX</div>
+                </div>
+            </div>
+
+            <!-- Bandwidth History Chart -->
+            <div class="chart-card" style="margin-bottom: 16px; height: 250px;">
+                <h3 style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <span>Bandwidth History</span>
+                    <span id="bandwidth-chart-info" style="font-size: 0.75rem; color: var(--archie-text-muted); font-weight: normal;">--</span>
+                </h3>
+                <canvas id="bandwidthChart"></canvas>
+            </div>
+
             <div id="bandwidth-monitor-container" class="panel">
                 <p style="color: var(--archie-text-muted); padding: 20px; text-align: center;">
                     <i data-lucide="loader" style="width: 16px; height: 16px;"></i> Loading bandwidth data...
@@ -4153,6 +4264,7 @@ let refreshInterval = null;
 let cpuChart = null;
 let memChart = null;
 let gpuChart = null;
+let bandwidthChart = null;
 let cpuHistory = [];
 let memHistory = [];
 let gpuHistory = {};  // Multi-GPU: { gpu_0: [], gpu_1: [], ... }
@@ -4221,12 +4333,88 @@ function saveCachedValues(cpuPct, memPct, cpuModel, memDetail) {
     } catch (e) {}
 }
 
+// ===== Tab Data Caching Functions =====
+// Cache keys for different tabs
+const CACHE_KEYS = {
+    storage: 'archie_storage_cache',
+    hardware: 'archie_hardware_cache',
+    docker: 'archie_docker_cache',
+    portMap: 'archie_portmap_cache',
+    bandwidth: 'archie_bandwidth_cache'
+};
+
+// Generic cache save function
+function saveToCache(key, data) {
+    try {
+        localStorage.setItem(key, JSON.stringify({
+            data: data,
+            timestamp: Date.now()
+        }));
+    } catch (e) {
+        console.log('Cache save failed for', key);
+    }
+}
+
+// Generic cache load function (returns null if no cache or expired)
+function loadFromCache(key, maxAgeMs = 300000) { // 5 min default
+    try {
+        const cached = localStorage.getItem(key);
+        if (cached) {
+            const parsed = JSON.parse(cached);
+            const age = Date.now() - (parsed.timestamp || 0);
+            if (age < maxAgeMs) {
+                return parsed.data;
+            }
+        }
+    } catch (e) {}
+    return null;
+}
+
+// Load all cached tab data on startup
+function loadAllCachedTabData() {
+    // Storage cache
+    const storageCache = loadFromCache(CACHE_KEYS.storage, 600000); // 10 min
+    if (storageCache) {
+        storageData = storageCache;
+        console.log('Loaded storage from cache');
+    }
+
+    // Hardware cache
+    const hardwareCache = loadFromCache(CACHE_KEYS.hardware, 3600000); // 1 hour (rarely changes)
+    if (hardwareCache) {
+        window.cachedHardwareData = hardwareCache;
+        console.log('Loaded hardware from cache');
+    }
+
+    // Docker cache
+    const dockerCache = loadFromCache(CACHE_KEYS.docker, 300000); // 5 min
+    if (dockerCache) {
+        window.cachedDockerData = dockerCache;
+        console.log('Loaded docker from cache');
+    }
+
+    // Port Map cache
+    const portMapCache = loadFromCache(CACHE_KEYS.portMap, 300000); // 5 min
+    if (portMapCache) {
+        window.cachedPortMapData = portMapCache;
+        console.log('Loaded port map from cache');
+    }
+
+    // Bandwidth cache
+    const bandwidthCache = loadFromCache(CACHE_KEYS.bandwidth, 120000); // 2 min
+    if (bandwidthCache) {
+        window.cachedBandwidthData = bandwidthCache;
+        console.log('Loaded bandwidth from cache');
+    }
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('System Operations initializing...');
 
     // Load cached values IMMEDIATELY (before anything else)
     loadCachedValues();
+    loadAllCachedTabData();
 
     if (typeof lucide !== 'undefined') lucide.createIcons();
     initTabs();
@@ -4257,6 +4445,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 let storageTabLoaded = false;
+let hardwareTabLoaded = false;
 let memoryTabLoaded = false;
 let firewallTabLoaded = false;
 let pendingDeleteRuleNumber = null;  // Rule number pending deletion
@@ -4291,6 +4480,15 @@ function initTabs() {
                 // Reset so returning to storage tab re-fetches fresh data
                 storageTabLoaded = false;
             }
+
+            // Load hardware data when entering the tab
+            if (btn.dataset.tab === 'hardware') {
+                if (!hardwareTabLoaded) {
+                    hardwareTabLoaded = true;
+                    loadHardwareData();
+                }
+            }
+            // Don't reset hardware tab - hardware info doesn't change often
 
             // Load memory hardware data when entering the tab
             if (btn.dataset.tab === 'memory') {
@@ -4398,6 +4596,67 @@ function initCharts() {
         }
     };
     gpuChart = new Chart(document.getElementById('gpuChart'), gpuChartConfig);
+
+    // Bandwidth chart config - shows RX/TX rates over time
+    const bandwidthCanvas = document.getElementById('bandwidthChart');
+    if (bandwidthCanvas) {
+        const bandwidthChartConfig = {
+            type: 'line',
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: { color: '#8b949e', boxWidth: 12, padding: 8, font: { size: 10 } }
+                    },
+                    title: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.dataset.label + ': ' + formatBandwidthRate(context.raw);
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        min: 0,
+                        grid: { color: '#30363d' },
+                        ticks: {
+                            color: '#8b949e',
+                            callback: function(value) { return formatBandwidthRate(value); }
+                        }
+                    },
+                    x: { grid: { color: '#30363d' }, ticks: { color: '#8b949e', maxTicksLimit: 10 } }
+                },
+                elements: { point: { radius: 0 }, line: { tension: 0.4 } }
+            },
+            data: {
+                labels: ['Loading...'],
+                datasets: [
+                    {
+                        label: 'Download (RX)',
+                        data: [null],
+                        borderColor: '#00D4AA',
+                        backgroundColor: 'rgba(0, 212, 170, 0.1)',
+                        fill: true,
+                        borderWidth: 2
+                    },
+                    {
+                        label: 'Upload (TX)',
+                        data: [null],
+                        borderColor: '#00D4FF',
+                        backgroundColor: 'rgba(0, 212, 255, 0.1)',
+                        fill: true,
+                        borderWidth: 2
+                    }
+                ]
+            }
+        };
+        bandwidthChart = new Chart(bandwidthCanvas, bandwidthChartConfig);
+    }
 }
 
 function initEventListeners() {
@@ -5156,6 +5415,661 @@ async function loadServices() {
     }
 }
 
+// ===== Hardware Tab =====
+
+async function loadHardwareData() {
+    // Show cached data immediately if available
+    if (window.cachedHardwareData) {
+        renderHardwareTab(window.cachedHardwareData);
+        document.getElementById('hardware-data-age').textContent = '(from cache)';
+    }
+
+    // Fetch fresh data
+    try {
+        const res = await fetch('/tools/system-operations/api/hardware');
+        const json = await res.json();
+
+        if (json.success && json.data) {
+            window.cachedHardwareData = json.data;
+            saveToCache(CACHE_KEYS.hardware, json.data);
+            renderHardwareTab(json.data);
+            if (json.data_age) {
+                document.getElementById('hardware-data-age').textContent = '(updated ' + json.data_age + 's ago)';
+            }
+        } else {
+            document.getElementById('hw-cpu-content').textContent = json.error || 'Hardware info not available';
+        }
+    } catch (e) {
+        console.error('Hardware data error:', e);
+        if (!window.cachedHardwareData) {
+            document.getElementById('hw-cpu-content').textContent = 'Failed to load hardware info';
+        }
+    }
+}
+
+function renderHardwareTab(data) {
+    var upgrade = data.upgrade_summary || {};
+    renderHardwareSummary(data);
+    renderCpuSection(data.cpu || {}, upgrade.cpu || {});
+    renderHwMemorySection(data.memory || {}, data.memory_config || {}, upgrade.memory || {});
+    renderGpuSection(data.gpu || [], upgrade.pci || {});
+    renderMotherboardSection(data.motherboard || {});
+    renderPciSlotsTable(data.pci_slots || []);
+    renderSataPortsSection(data.sata_ports || {});
+    renderUpgradeSummaryCompact(upgrade);
+    lucide.createIcons();
+}
+
+function renderHardwareSummary(data) {
+    var cpu = data.cpu || {};
+    var mem = data.memory || {};
+    var pci = data.pci_slots || [];
+    var gpu = data.gpu || [];
+
+    // CPU sockets
+    var populated = cpu.populated_sockets || 0;
+    var maxSockets = cpu.max_processors || 1;
+    document.getElementById('hw-cpu-sockets').textContent = populated + '/' + maxSockets;
+    document.getElementById('hw-cpu-socket-type').textContent = cpu.socket_type || 'Unknown';
+
+    // Memory slots
+    var memPopulated = mem.populated_slots || 0;
+    var memTotal = mem.total_slots || 0;
+    document.getElementById('hw-mem-slots').textContent = memPopulated + '/' + memTotal;
+    document.getElementById('hw-mem-capacity').textContent = mem.total_capacity_gb ? mem.total_capacity_gb + ' GB installed' : 'Unknown';
+
+    // PCI slots
+    var pciAvailable = 0;
+    for (var i = 0; i < pci.length; i++) {
+        if ((pci[i].current_usage || '').toLowerCase() === 'available') pciAvailable++;
+    }
+    document.getElementById('hw-pci-slots').textContent = pciAvailable + '/' + pci.length;
+    document.getElementById('hw-pci-available').textContent = pciAvailable > 0 ? pciAvailable + ' available' : 'All in use';
+
+    // GPU
+    document.getElementById('hw-gpu-count').textContent = gpu.length > 0 ? gpu.length : '0';
+    document.getElementById('hw-gpu-model').textContent = gpu.length > 0 ? (gpu[0].model || 'Unknown') : 'No GPU detected';
+}
+
+function renderCpuSection(cpu, cpuUpgrade) {
+    var container = document.getElementById('hw-cpu-content');
+    var procs = cpu.processors || [];
+
+    if (procs.length === 0 && !cpu.model) {
+        container.textContent = 'CPU hardware information not available';
+        return;
+    }
+
+    var proc = procs[0] || {};
+    var model = proc.model || cpu.model || 'Unknown';
+    var cores = proc.cores || cpu.physical_cores || '--';
+    var threads = proc.threads || cpu.logical_cores || '--';
+
+    container.textContent = '';
+
+    // Current CPU info
+    var currentSection = document.createElement('div');
+    currentSection.style.cssText = 'margin-bottom: 15px;';
+
+    var currentLabel = document.createElement('div');
+    currentLabel.style.cssText = 'font-size: 0.7rem; text-transform: uppercase; color: var(--archie-text-muted); margin-bottom: 8px;';
+    currentLabel.textContent = 'Current Processor';
+    currentSection.appendChild(currentLabel);
+
+    var grid = document.createElement('div');
+    grid.className = 'info-grid';
+    grid.style.gridTemplateColumns = 'repeat(2, 1fr)';
+
+    function addItem(label, value, color) {
+        var item = document.createElement('div');
+        item.className = 'info-item';
+        var lbl = document.createElement('span');
+        lbl.className = 'info-label';
+        lbl.textContent = label;
+        var val = document.createElement('span');
+        val.className = 'info-value';
+        val.textContent = value;
+        if (color) val.style.color = color;
+        item.appendChild(lbl);
+        item.appendChild(val);
+        grid.appendChild(item);
+    }
+
+    addItem('Model', model);
+    addItem('Socket', cpu.socket_type || proc.socket || '--');
+    addItem('Cores / Threads', cores + 'C / ' + threads + 'T');
+    addItem('Current Speed', cpu.current_speed_mhz ? cpu.current_speed_mhz + ' MHz' : '--');
+    addItem('Max Speed', cpu.max_speed_mhz ? cpu.max_speed_mhz + ' MHz' : '--');
+    addItem('Voltage', cpu.voltage || '--');
+
+    currentSection.appendChild(grid);
+    container.appendChild(currentSection);
+
+    // Upgrade info section
+    if (cpuUpgrade && (cpuUpgrade.max_supported || cpuUpgrade.upgrade_note)) {
+        var upgradeSection = document.createElement('div');
+        upgradeSection.style.cssText = 'padding: 12px; background: var(--archie-bg-tertiary); border-radius: 8px; border-left: 3px solid var(--archie-green);';
+
+        var upgradeLabel = document.createElement('div');
+        upgradeLabel.style.cssText = 'font-size: 0.7rem; text-transform: uppercase; color: var(--archie-green); margin-bottom: 8px; font-weight: 600;';
+        upgradeLabel.textContent = 'Maximum Supported CPU';
+        upgradeSection.appendChild(upgradeLabel);
+
+        if (cpuUpgrade.max_supported) {
+            var maxDiv = document.createElement('div');
+            maxDiv.style.cssText = 'font-size: 0.95rem; font-weight: 500; margin-bottom: 6px;';
+            maxDiv.textContent = cpuUpgrade.max_supported;
+            upgradeSection.appendChild(maxDiv);
+        }
+
+        var detailsGrid = document.createElement('div');
+        detailsGrid.style.cssText = 'display: flex; gap: 20px; font-size: 0.8rem; margin-bottom: 6px;';
+
+        if (cpuUpgrade.max_tdp) {
+            var tdpSpan = document.createElement('span');
+            tdpSpan.innerHTML = '<span style="color: var(--archie-text-muted);">Max TDP:</span> ' + cpuUpgrade.max_tdp + 'W';
+            detailsGrid.appendChild(tdpSpan);
+        }
+
+        if (cpuUpgrade.socket_type) {
+            var socketSpan = document.createElement('span');
+            socketSpan.innerHTML = '<span style="color: var(--archie-text-muted);">Socket:</span> ' + cpuUpgrade.socket_type;
+            detailsGrid.appendChild(socketSpan);
+        }
+
+        upgradeSection.appendChild(detailsGrid);
+
+        if (cpuUpgrade.upgrade_note) {
+            var noteDiv = document.createElement('div');
+            noteDiv.style.cssText = 'font-size: 0.8rem; color: var(--archie-text-muted); font-style: italic;';
+            noteDiv.textContent = cpuUpgrade.upgrade_note;
+            upgradeSection.appendChild(noteDiv);
+        }
+
+        container.appendChild(upgradeSection);
+    }
+}
+
+function renderHwMemorySection(mem, memConfig, memUpgrade) {
+    var container = document.getElementById('hw-memory-content');
+
+    if (!mem.total_slots && !mem.total_capacity_gb) {
+        container.textContent = 'Memory hardware information not available';
+        return;
+    }
+
+    var totalSlots = mem.total_slots || 8;
+    var populatedSlots = mem.populated_slots || 0;
+    var maxCapacity = mem.max_capacity_gb || 0;
+    var currentCapacity = mem.total_capacity_gb || 0;
+    var dimms = mem.dimms || [];
+    var memType = mem.memory_type || 'DDR';
+    var memSpeed = mem.max_speed_mhz || 0;
+
+    container.textContent = '';
+
+    // Two-column layout: Current on left, Optimal on right
+    var mainGrid = document.createElement('div');
+    mainGrid.style.cssText = 'display: grid; grid-template-columns: 1fr 1fr; gap: 20px;';
+
+    // === CURRENT CONFIGURATION (Left) ===
+    var currentSection = document.createElement('div');
+
+    var currentHeader = document.createElement('div');
+    currentHeader.style.cssText = 'font-size: 0.7rem; text-transform: uppercase; color: var(--archie-cyan); margin-bottom: 10px; font-weight: 600; padding-bottom: 6px; border-bottom: 2px solid var(--archie-cyan);';
+    currentHeader.textContent = 'Current Configuration';
+    currentSection.appendChild(currentHeader);
+
+    // Summary line
+    var currentSummary = document.createElement('div');
+    currentSummary.style.cssText = 'font-size: 1.1rem; font-weight: 600; margin-bottom: 10px;';
+    currentSummary.textContent = currentCapacity + ' GB (' + populatedSlots + '/' + totalSlots + ' slots)';
+    currentSection.appendChild(currentSummary);
+
+    // Slot list
+    var slotList = document.createElement('div');
+    slotList.style.cssText = 'font-size: 0.8rem;';
+
+    for (var i = 0; i < totalSlots; i++) {
+        var slotDiv = document.createElement('div');
+        slotDiv.style.cssText = 'padding: 4px 0; display: flex; justify-content: space-between; border-bottom: 1px solid var(--archie-border-subtle);';
+
+        var slotLabel = document.createElement('span');
+        slotLabel.style.color = 'var(--archie-text-muted)';
+        slotLabel.textContent = 'Slot ' + (i + 1);
+
+        var slotValue = document.createElement('span');
+        if (dimms[i] && dimms[i].size_gb) {
+            slotValue.textContent = dimms[i].size_gb + ' GB ' + (dimms[i].type || memType) + ' @ ' + (dimms[i].speed_mhz || memSpeed) + ' MT/s';
+        } else if (i < populatedSlots) {
+            // Fallback if we don't have individual DIMM data
+            var avgSize = Math.round(currentCapacity / populatedSlots);
+            slotValue.textContent = avgSize + ' GB ' + memType + ' @ ' + memSpeed + ' MT/s';
+        } else {
+            slotValue.style.color = 'var(--archie-text-muted)';
+            slotValue.textContent = 'Empty';
+        }
+
+        slotDiv.appendChild(slotLabel);
+        slotDiv.appendChild(slotValue);
+        slotList.appendChild(slotDiv);
+    }
+
+    currentSection.appendChild(slotList);
+    mainGrid.appendChild(currentSection);
+
+    // === OPTIMAL CONFIGURATION (Right) ===
+    var optimalSection = document.createElement('div');
+
+    var optimalHeader = document.createElement('div');
+    optimalHeader.style.cssText = 'font-size: 0.7rem; text-transform: uppercase; color: var(--archie-green); margin-bottom: 10px; font-weight: 600; padding-bottom: 6px; border-bottom: 2px solid var(--archie-green);';
+    optimalHeader.textContent = 'Optimal / Maximum';
+    optimalSection.appendChild(optimalHeader);
+
+    // Summary line
+    var optimalSummary = document.createElement('div');
+    optimalSummary.style.cssText = 'font-size: 1.1rem; font-weight: 600; margin-bottom: 10px; color: var(--archie-green);';
+    optimalSummary.textContent = maxCapacity + ' GB (' + totalSlots + '/' + totalSlots + ' slots)';
+    optimalSection.appendChild(optimalSummary);
+
+    // Optimal slot list
+    var optimalList = document.createElement('div');
+    optimalList.style.cssText = 'font-size: 0.8rem;';
+
+    var maxPerSlot = Math.floor(maxCapacity / totalSlots);
+
+    for (var j = 0; j < totalSlots; j++) {
+        var optSlotDiv = document.createElement('div');
+        optSlotDiv.style.cssText = 'padding: 4px 0; display: flex; justify-content: space-between; border-bottom: 1px solid var(--archie-border-subtle);';
+
+        var optSlotLabel = document.createElement('span');
+        optSlotLabel.style.color = 'var(--archie-text-muted)';
+        optSlotLabel.textContent = 'Slot ' + (j + 1);
+
+        var optSlotValue = document.createElement('span');
+        optSlotValue.style.color = 'var(--archie-green)';
+        optSlotValue.textContent = maxPerSlot + ' GB ' + memType + ' (max)';
+
+        optSlotDiv.appendChild(optSlotLabel);
+        optSlotDiv.appendChild(optSlotValue);
+        optimalList.appendChild(optSlotDiv);
+    }
+
+    optimalSection.appendChild(optimalList);
+    mainGrid.appendChild(optimalSection);
+
+    container.appendChild(mainGrid);
+
+    // Upgrade recommendation footer
+    if (memUpgrade && (memUpgrade.expandable_gb > 0 || memUpgrade.empty_slots > 0)) {
+        var upgradeFooter = document.createElement('div');
+        upgradeFooter.style.cssText = 'margin-top: 15px; padding: 10px; background: var(--archie-bg-tertiary); border-radius: 6px; border-left: 3px solid var(--archie-green); font-size: 0.85rem;';
+
+        var upgradeText = 'Upgrade Potential: ';
+        if (memUpgrade.empty_slots > 0) {
+            upgradeText += memUpgrade.empty_slots + ' empty slot' + (memUpgrade.empty_slots !== 1 ? 's' : '');
+        }
+        if (memUpgrade.expandable_gb > 0) {
+            if (memUpgrade.empty_slots > 0) upgradeText += ', ';
+            upgradeText += '+' + memUpgrade.expandable_gb + ' GB available';
+        }
+
+        upgradeFooter.innerHTML = '<span style="color: var(--archie-green); font-weight: 600;">&#x2713;</span> ' + upgradeText;
+        container.appendChild(upgradeFooter);
+    }
+
+    // Memory config recommendation if available
+    if (memConfig && memConfig.optimal && memConfig.optimal.recommendation) {
+        var recFooter = document.createElement('div');
+        recFooter.style.cssText = 'margin-top: 10px; font-size: 0.8rem; color: var(--archie-text-muted); font-style: italic;';
+        recFooter.textContent = memConfig.optimal.recommendation;
+        container.appendChild(recFooter);
+    }
+}
+
+function renderGpuSection(gpus, pciUpgrade) {
+    var container = document.getElementById('hw-gpu-content');
+    container.textContent = '';
+
+    // Current GPU section
+    var currentSection = document.createElement('div');
+    currentSection.style.cssText = 'margin-bottom: 15px;';
+
+    var currentLabel = document.createElement('div');
+    currentLabel.style.cssText = 'font-size: 0.7rem; text-transform: uppercase; color: var(--archie-text-muted); margin-bottom: 8px;';
+    currentLabel.textContent = 'Current Graphics';
+    currentSection.appendChild(currentLabel);
+
+    if (!gpus || gpus.length === 0) {
+        var noGpu = document.createElement('div');
+        noGpu.style.cssText = 'color: var(--archie-text-muted); font-style: italic;';
+        noGpu.textContent = 'No dedicated GPU detected';
+        currentSection.appendChild(noGpu);
+    } else {
+        for (var idx = 0; idx < gpus.length; idx++) {
+            var gpu = gpus[idx];
+            var grid = document.createElement('div');
+            grid.className = 'info-grid';
+            grid.style.gridTemplateColumns = 'repeat(2, 1fr)';
+
+            function addGpuItem(label, value) {
+                var item = document.createElement('div');
+                item.className = 'info-item';
+                var lbl = document.createElement('span');
+                lbl.className = 'info-label';
+                lbl.textContent = label;
+                var val = document.createElement('span');
+                val.className = 'info-value';
+                val.textContent = value;
+                item.appendChild(lbl);
+                item.appendChild(val);
+                grid.appendChild(item);
+            }
+
+            addGpuItem('Model', gpu.model || 'Unknown');
+            addGpuItem('Vendor', gpu.vendor || '--');
+
+            if (gpu.vram_total_mb) {
+                addGpuItem('VRAM', Math.round(gpu.vram_total_mb / 1024) + ' GB');
+            }
+            if (gpu.driver) {
+                addGpuItem('Driver', gpu.driver);
+            }
+
+            currentSection.appendChild(grid);
+        }
+    }
+
+    container.appendChild(currentSection);
+
+    // PCIe Slot specs section
+    var gpuSlot = pciUpgrade.gpu_slot_info || {};
+    if (gpuSlot.primary_slot || gpuSlot.pcie_version) {
+        var slotSection = document.createElement('div');
+        slotSection.style.cssText = 'padding: 12px; background: var(--archie-bg-tertiary); border-radius: 8px; border-left: 3px solid var(--archie-purple);';
+
+        var slotLabel = document.createElement('div');
+        slotLabel.style.cssText = 'font-size: 0.7rem; text-transform: uppercase; color: var(--archie-purple); margin-bottom: 8px; font-weight: 600;';
+        slotLabel.textContent = 'GPU Slot Specifications';
+        slotSection.appendChild(slotLabel);
+
+        var slotGrid = document.createElement('div');
+        slotGrid.style.cssText = 'display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; font-size: 0.85rem;';
+
+        function addSlotStat(label, value) {
+            var stat = document.createElement('div');
+            stat.innerHTML = '<div style="color: var(--archie-text-muted); font-size: 0.7rem; text-transform: uppercase;">' + label + '</div>' +
+                '<div style="font-weight: 500;">' + (value || '--') + '</div>';
+            slotGrid.appendChild(stat);
+        }
+
+        addSlotStat('Slot', gpuSlot.primary_slot);
+        addSlotStat('PCIe Version', gpuSlot.pcie_version ? gpuSlot.pcie_version : null);
+        addSlotStat('Lanes', gpuSlot.lanes ? 'x' + gpuSlot.lanes : null);
+        addSlotStat('Bandwidth', gpuSlot.bandwidth);
+        addSlotStat('Max Length', gpuSlot.max_length || 'Full-length');
+
+        slotSection.appendChild(slotGrid);
+
+        if (gpuSlot.power_note) {
+            var powerNote = document.createElement('div');
+            powerNote.style.cssText = 'font-size: 0.75rem; color: var(--archie-text-muted); margin-top: 10px; font-style: italic;';
+            powerNote.textContent = gpuSlot.power_note;
+            slotSection.appendChild(powerNote);
+        }
+
+        container.appendChild(slotSection);
+    }
+}
+
+function renderMotherboardSection(mb) {
+    var container = document.getElementById('hw-motherboard-content');
+
+    if (!mb.system_product && !mb.product_name && !mb.manufacturer) {
+        container.textContent = 'Motherboard information not available';
+        return;
+    }
+
+    container.textContent = '';
+    var grid = document.createElement('div');
+    grid.className = 'info-grid';
+    grid.style.gridTemplateColumns = 'repeat(2, 1fr)';
+
+    function addItem(label, value) {
+        var item = document.createElement('div');
+        item.className = 'info-item';
+        var lbl = document.createElement('span');
+        lbl.className = 'info-label';
+        lbl.textContent = label;
+        var val = document.createElement('span');
+        val.className = 'info-value';
+        val.textContent = value;
+        item.appendChild(lbl);
+        item.appendChild(val);
+        grid.appendChild(item);
+    }
+
+    addItem('System', mb.system_product || '--');
+    addItem('Manufacturer', mb.system_manufacturer || mb.manufacturer || '--');
+    addItem('Board', mb.product_name || '--');
+    addItem('Chipset', mb.chipset || '--');
+
+    if (mb.bios_vendor || mb.bios_version) {
+        var biosInfo = (mb.bios_vendor || '') + ' ' + (mb.bios_version || '');
+        if (mb.bios_date) {
+            biosInfo += ' (' + mb.bios_date + ')';
+        }
+        addItem('BIOS', biosInfo);
+    }
+
+    container.appendChild(grid);
+}
+
+function renderPciSlotsTable(slots) {
+    var tbody = document.getElementById('pci-slots-body');
+    tbody.textContent = '';
+
+    if (!slots || slots.length === 0) {
+        var tr = document.createElement('tr');
+        var td = document.createElement('td');
+        td.colSpan = 5;
+        td.style.cssText = 'text-align: center; color: var(--archie-text-muted);';
+        td.textContent = 'No PCI slot information available';
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+        return;
+    }
+
+    for (var i = 0; i < slots.length; i++) {
+        var slot = slots[i];
+        var usage = (slot.current_usage || '').toLowerCase();
+        var isAvailable = usage === 'available' || usage === 'empty';
+
+        var tr = document.createElement('tr');
+        if (isAvailable) {
+            tr.style.background = 'var(--archie-green-alpha-10)';
+        }
+
+        var tdSlot = document.createElement('td');
+        var code = document.createElement('code');
+        code.textContent = slot.designation || '--';
+        tdSlot.appendChild(code);
+        tr.appendChild(tdSlot);
+
+        var tdType = document.createElement('td');
+        tdType.textContent = slot.type || '--';
+        tr.appendChild(tdType);
+
+        var tdLength = document.createElement('td');
+        tdLength.textContent = slot.length || '--';
+        tr.appendChild(tdLength);
+
+        var tdStatus = document.createElement('td');
+        var badge = document.createElement('span');
+        badge.className = 'badge';
+        if (isAvailable) {
+            badge.classList.add('badge-success');
+            badge.textContent = 'Available';
+        } else {
+            badge.style.cssText = 'background: var(--archie-cyan-alpha-20); color: var(--archie-cyan);';
+            badge.textContent = 'In Use';
+        }
+        tdStatus.appendChild(badge);
+        tr.appendChild(tdStatus);
+
+        var tdDevice = document.createElement('td');
+        tdDevice.textContent = slot.device || (isAvailable ? '—' : 'Unknown device');
+        if (!slot.device) tdDevice.style.color = 'var(--archie-text-muted)';
+        tr.appendChild(tdDevice);
+
+        tbody.appendChild(tr);
+    }
+}
+
+function renderSataPortsSection(sata) {
+    var container = document.getElementById('hw-sata-content');
+    container.textContent = '';
+
+    // Summary row
+    var summary = document.createElement('div');
+    summary.style.cssText = 'display: flex; gap: 30px; margin-bottom: 15px; padding: 15px; background: var(--archie-bg-tertiary); border-radius: 8px;';
+
+    var totalPorts = sata.total_ports || 0;
+    var usedPorts = sata.used_ports || 0;
+    var availPorts = sata.available_ports || 0;
+
+    function addStat(label, value, color) {
+        var stat = document.createElement('div');
+        stat.innerHTML = '<div style="font-size: 0.75rem; color: var(--archie-text-muted); text-transform: uppercase;">' + label + '</div>' +
+            '<div style="font-size: 1.5rem; font-weight: 600; color: ' + color + ';">' + value + '</div>';
+        summary.appendChild(stat);
+    }
+
+    addStat('Total Ports', totalPorts, 'var(--archie-text-primary)');
+    addStat('In Use', usedPorts, 'var(--archie-cyan)');
+    addStat('Available', availPorts, availPorts > 0 ? 'var(--archie-green)' : 'var(--archie-text-muted)');
+
+    container.appendChild(summary);
+
+    // Ports table
+    var ports = sata.ports || [];
+    if (ports.length === 0) {
+        var noData = document.createElement('div');
+        noData.style.cssText = 'color: var(--archie-text-muted); text-align: center; padding: 20px;';
+        noData.textContent = 'No SATA port information available';
+        container.appendChild(noData);
+        return;
+    }
+
+    var table = document.createElement('table');
+    table.style.cssText = 'width: 100%; border-collapse: collapse; background: #2d2d3a; border-radius: 8px; overflow: hidden;';
+
+    var thead = document.createElement('thead');
+    thead.innerHTML = '<tr style="border-bottom: 1px solid #3d3d4a; background: #252532;">' +
+        '<th style="padding: 10px; text-align: left; color: #888; font-weight: 500; font-size: 0.8rem; text-transform: uppercase;">Port</th>' +
+        '<th style="padding: 10px; text-align: left; color: #888; font-weight: 500; font-size: 0.8rem; text-transform: uppercase;">Status</th>' +
+        '<th style="padding: 10px; text-align: left; color: #888; font-weight: 500; font-size: 0.8rem; text-transform: uppercase;">Device</th>' +
+        '<th style="padding: 10px; text-align: left; color: #888; font-weight: 500; font-size: 0.8rem; text-transform: uppercase;">Model</th>' +
+        '</tr>';
+    table.appendChild(thead);
+
+    var tbody = document.createElement('tbody');
+    table.appendChild(tbody);
+
+    for (var i = 0; i < ports.length; i++) {
+        var port = ports[i];
+        var tr = document.createElement('tr');
+        tr.style.cssText = 'border-bottom: 1px solid #3d3d4a; background: #2d2d3a;';
+
+        var tdPort = document.createElement('td');
+        tdPort.style.cssText = 'padding: 10px; color: #e0e0e0; background: #2d2d3a;';
+        tdPort.innerHTML = '<strong>' + (port.name || 'SATA ' + (port.port_number || i)) + '</strong>';
+        tr.appendChild(tdPort);
+
+        var tdStatus = document.createElement('td');
+        tdStatus.style.cssText = 'padding: 10px; background: #2d2d3a;';
+        var badge = document.createElement('span');
+        if (port.in_use || port.device) {
+            badge.style.cssText = 'background: rgba(0, 188, 212, 0.2); color: #00bcd4; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem;';
+            badge.textContent = 'Connected';
+        } else {
+            badge.style.cssText = 'background: rgba(34, 197, 94, 0.2); color: #22c55e; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem;';
+            badge.textContent = 'Available';
+        }
+        tdStatus.appendChild(badge);
+        tr.appendChild(tdStatus);
+
+        var tdDevice = document.createElement('td');
+        tdDevice.style.cssText = 'padding: 10px; background: #2d2d3a; color: ' + (port.device ? '#e0e0e0' : '#666') + ';';
+        tdDevice.textContent = port.device || '—';
+        tr.appendChild(tdDevice);
+
+        var tdModel = document.createElement('td');
+        tdModel.style.cssText = 'padding: 10px; background: #2d2d3a; color: ' + (port.device_model ? '#e0e0e0' : '#666') + ';';
+        tdModel.textContent = port.device_model || '—';
+        tr.appendChild(tdModel);
+
+        tbody.appendChild(tr);
+    }
+
+    container.appendChild(table);
+}
+
+function renderUpgradeSummaryCompact(upgrade) {
+    var container = document.getElementById('hw-upgrade-content');
+    var mem = upgrade.memory || {};
+    var pci = upgrade.pci || {};
+    var cpu = upgrade.cpu || {};
+    var sata = upgrade.sata || {};
+
+    container.textContent = '';
+
+    // Simple summary grid - just quick stats since details are in each section
+    var wrapper = document.createElement('div');
+    wrapper.style.cssText = 'display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;';
+
+    function createMiniCard(title, value, isPositive) {
+        var card = document.createElement('div');
+        card.style.cssText = 'padding: 12px; background: var(--archie-bg-tertiary); border-radius: 6px; text-align: center;';
+
+        var titleDiv = document.createElement('div');
+        titleDiv.style.cssText = 'font-size: 0.7rem; color: var(--archie-text-muted); text-transform: uppercase; margin-bottom: 4px;';
+        titleDiv.textContent = title;
+        card.appendChild(titleDiv);
+
+        var valDiv = document.createElement('div');
+        valDiv.style.cssText = 'font-size: 1rem; font-weight: 600; color: ' + (isPositive ? 'var(--archie-green)' : 'var(--archie-text-muted)') + ';';
+        valDiv.textContent = value;
+        card.appendChild(valDiv);
+
+        return card;
+    }
+
+    // Memory
+    var memExpand = mem.expandable_gb || 0;
+    wrapper.appendChild(createMiniCard('Memory', memExpand > 0 ? '+' + memExpand + ' GB' : 'Maxed', memExpand > 0));
+
+    // PCI
+    var pciAvail = pci.available_slots || 0;
+    wrapper.appendChild(createMiniCard('PCI Slots', pciAvail > 0 ? pciAvail + ' Free' : 'Full', pciAvail > 0));
+
+    // SATA
+    var sataAvail = sata.available_ports || 0;
+    wrapper.appendChild(createMiniCard('SATA', sataAvail > 0 ? sataAvail + ' Free' : 'Full', sataAvail > 0));
+
+    // CPU
+    var cpuCanAdd = cpu.can_add_cpu;
+    wrapper.appendChild(createMiniCard('CPU', cpuCanAdd ? '+1 Socket' : '1/1', cpuCanAdd));
+
+    container.appendChild(wrapper);
+
+    // Note that details are above
+    var noteDiv = document.createElement('div');
+    noteDiv.style.cssText = 'margin-top: 10px; font-size: 0.75rem; color: var(--archie-text-muted); text-align: center;';
+    noteDiv.textContent = 'See detailed upgrade info in each section above';
+    container.appendChild(noteDiv);
+}
+
 // ===== Memory Hardware =====
 let memoryHardwareLoaded = false;
 
@@ -5466,6 +6380,13 @@ let currentStackName = null;
 let stacksData = [];
 
 async function loadDocker() {
+    // Show cached data immediately if available
+    if (window.cachedDockerData && window.cachedDockerData.length > 0) {
+        stacksData = window.cachedDockerData;
+        renderStackOverview(stacksData);
+    }
+
+    // Fetch fresh data
     try {
         // Fetch stacks and health data in parallel
         const [stacksRes, healthRes] = await Promise.all([
@@ -5493,6 +6414,10 @@ async function loadDocker() {
                     }
                 });
             }
+
+            // Save to cache
+            window.cachedDockerData = stacksData;
+            saveToCache(CACHE_KEYS.docker, stacksData);
 
             renderStackOverview(stacksData);
             // If detail view is active, refresh it too
@@ -5527,11 +6452,24 @@ async function loadNetwork() {
 // ===== Storage Tab Functions =====
 
 async function loadStorageData() {
+    // Show cached data immediately if available
+    if (window.cachedStorageData || storageData) {
+        const cached = window.cachedStorageData || storageData;
+        renderStorageOverview(cached.disks || [], cached.lvm);
+        renderStorageTreemap(cached.disks || [], cached.lvm, cached.vg_free || {}, cached.docker_mounts || {});
+        renderStorageCharts(cached.disks || []);
+        renderLVM(cached.lvm);
+        renderRaid(cached.raid);
+    }
+
+    // Fetch fresh data
     try {
         const res = await fetch('/tools/system-operations/api/storage/drives');
         const json = await res.json();
         if (json.success && json.data) {
             storageData = json.data;
+            window.cachedStorageData = json.data;
+            saveToCache(CACHE_KEYS.storage, json.data);
             console.log('Docker mounts received:', json.data.docker_mounts);
             renderStorageOverview(json.data.disks || [], json.data.lvm);
             renderStorageTreemap(json.data.disks || [], json.data.lvm, json.data.vg_free || {}, json.data.docker_mounts || {});
@@ -7477,136 +8415,30 @@ const COMMON_WEB_PORTS = {
 };
 
 async function loadPortMap() {
+    // Show cached data immediately if available
+    if (window.cachedPortMapData) {
+        renderPortMap(window.cachedPortMapData);
+    }
+
+    // Fetch fresh data
     try {
         const res = await fetch('/tools/system-operations/api/network/port-map');
         const json = await res.json();
         if (json.success) {
+            window.cachedPortMapData = json;
+            saveToCache(CACHE_KEYS.portMap, json);
             renderPortMap(json);
             portMapLoaded = true;
         } else {
-            document.getElementById('port-map-container').textContent = 'Error: ' + (json.error || 'Unknown error');
+            if (!window.cachedPortMapData) {
+                document.getElementById('port-map-container').textContent = 'Error: ' + (json.error || 'Unknown error');
+            }
         }
     } catch (e) {
         console.error('Port map error:', e);
-        document.getElementById('port-map-container').textContent = 'Failed to load port map';
-    }
-}
-
-// Port Usage / Conflict Detection
-async function loadPortUsage() {
-    try {
-        const res = await fetch('/tools/system-operations/api/network/port-usage');
-        const json = await res.json();
-        if (json.success) {
-            renderPortUsage(json);
-        } else {
-            console.error('Port usage error:', json.error);
+        if (!window.cachedPortMapData) {
+            document.getElementById('port-map-container').textContent = 'Failed to load port map';
         }
-    } catch (e) {
-        console.error('Port usage error:', e);
-    }
-}
-
-function renderPortUsage(data) {
-    const ports = data.ports || {};
-    const conflicts = data.planned_conflicts || [];
-
-    // Define planned ports for each service
-    const plannedPorts = {
-        'home_assistant': [8123, 1900, 5353],
-        'plex': [32400, 32469, 3005, 8324],
-        'adguard': [53, 80, 443, 3000],
-        'ntopng': [3000, 5556]
-    };
-
-    let totalConflicts = 0;
-    const conflictDetails = [];
-
-    // Check each planned stack
-    Object.entries(plannedPorts).forEach(([stack, stackPorts]) => {
-        const container = document.getElementById(`ports-${stack}`);
-        if (!container) return;
-
-        container.innerHTML = '';
-        stackPorts.forEach(port => {
-            const portInfo = ports[port] || ports[String(port)];
-            const isInUse = portInfo && (
-                (portInfo.tcp && portInfo.tcp.length > 0) ||
-                (portInfo.udp && portInfo.udp.length > 0)
-            );
-
-            const span = document.createElement('span');
-            span.className = 'port-item';
-            span.dataset.port = port;
-
-            const portNum = document.createElement('span');
-            portNum.textContent = port + ' ';
-
-            const status = document.createElement('span');
-            status.className = 'port-status';
-
-            if (isInUse) {
-                totalConflicts++;
-                status.textContent = '⛔ IN USE';
-                status.style.color = 'var(--archie-red)';
-                span.style.background = 'rgba(255,107,107,0.15)';
-                span.style.borderColor = 'var(--archie-red)';
-
-                // Get what's using it
-                let users = [];
-                if (portInfo.tcp) {
-                    portInfo.tcp.forEach(t => {
-                        if (t.process) users.push(t.process);
-                    });
-                }
-                if (portInfo.udp) {
-                    portInfo.udp.forEach(u => {
-                        if (u.process) users.push(u.process);
-                    });
-                }
-                const userStr = [...new Set(users)].join(', ') || 'unknown';
-                span.title = `Port ${port} is used by: ${userStr}`;
-
-                conflictDetails.push({
-                    port: port,
-                    stack: stack,
-                    usedBy: userStr
-                });
-            } else {
-                status.textContent = '✓ Available';
-                status.style.color = 'var(--archie-green)';
-                span.style.background = 'rgba(0,255,65,0.1)';
-                span.style.borderColor = 'var(--archie-green)';
-            }
-
-            span.appendChild(portNum);
-            span.appendChild(status);
-            container.appendChild(span);
-        });
-    });
-
-    // Update conflict badge
-    const badge = document.getElementById('port-conflict-badge');
-    if (totalConflicts > 0) {
-        badge.textContent = `${totalConflicts} conflict${totalConflicts > 1 ? 's' : ''}`;
-        badge.style.display = 'inline-block';
-    } else {
-        badge.style.display = 'none';
-    }
-
-    // Update conflict details
-    const detailsPanel = document.getElementById('port-conflict-details');
-    const detailsList = document.getElementById('port-conflict-list');
-    if (conflictDetails.length > 0) {
-        detailsPanel.style.display = 'block';
-        detailsList.innerHTML = '';
-        conflictDetails.forEach(c => {
-            const li = document.createElement('li');
-            li.innerHTML = `Port <strong>${c.port}</strong> needed by <strong>${c.stack.replace('_', ' ')}</strong> is currently used by <strong>${c.usedBy}</strong>`;
-            detailsList.appendChild(li);
-        });
-    } else {
-        detailsPanel.style.display = 'none';
     }
 }
 
@@ -7680,7 +8512,22 @@ function renderPortMap(data) {
             const tdPort = document.createElement('td');
             tdPort.className = 'mono';
             tdPort.style.cssText = 'color: var(--archie-green); font-weight: bold;';
-            tdPort.textContent = p.port;
+            // Make port clickable if it's open
+            if (p.open) {
+                const portLink = document.createElement('a');
+                portLink.href = `http://${hostIp}:${p.port}/`;
+                portLink.target = '_blank';
+                portLink.style.cssText = 'color: var(--archie-green); text-decoration: none; display: inline-flex; align-items: center; gap: 4px;';
+                portLink.textContent = p.port;
+                const icon = document.createElement('i');
+                icon.setAttribute('data-lucide', 'external-link');
+                icon.style.cssText = 'width: 12px; height: 12px; opacity: 0.6;';
+                portLink.appendChild(icon);
+                portLink.title = `Open http://${hostIp}:${p.port}/`;
+                tdPort.appendChild(portLink);
+            } else {
+                tdPort.textContent = p.port;
+            }
             tr.appendChild(tdPort);
 
             const tdSvc = document.createElement('td');
@@ -7768,7 +8615,18 @@ function renderPortMap(data) {
             const tdPort = document.createElement('td');
             tdPort.className = 'mono';
             tdPort.style.fontWeight = 'bold';
-            tdPort.textContent = p.port;
+            // Make port clickable
+            const portLink = document.createElement('a');
+            portLink.href = `http://${hostIp}:${p.port}/`;
+            portLink.target = '_blank';
+            portLink.style.cssText = 'color: var(--archie-green); text-decoration: none; display: inline-flex; align-items: center; gap: 4px;';
+            portLink.textContent = p.port;
+            const icon = document.createElement('i');
+            icon.setAttribute('data-lucide', 'external-link');
+            icon.style.cssText = 'width: 12px; height: 12px; opacity: 0.6;';
+            portLink.appendChild(icon);
+            portLink.title = `Open http://${hostIp}:${p.port}/`;
+            tdPort.appendChild(portLink);
             tr.appendChild(tdPort);
 
             const tdProc = document.createElement('td');
@@ -7952,18 +8810,30 @@ function renderTopology(netData, portData) {
 
 // ===== Bandwidth Monitor =====
 async function loadBandwidthData() {
+    // Show cached data immediately if available
+    if (window.cachedBandwidthData) {
+        renderBandwidthMonitor(window.cachedBandwidthData);
+    }
+
+    // Fetch fresh data
     try {
         const res = await fetch('/tools/system-operations/api/network/bandwidth');
         const json = await res.json();
         if (json.success) {
+            window.cachedBandwidthData = json;
+            saveToCache(CACHE_KEYS.bandwidth, json);
             renderBandwidthMonitor(json);
             bandwidthLoaded = true;
         } else {
-            document.getElementById('bandwidth-monitor-container').textContent = 'Error: ' + (json.error || 'Unknown');
+            if (!window.cachedBandwidthData) {
+                document.getElementById('bandwidth-monitor-container').textContent = 'Error: ' + (json.error || 'Unknown');
+            }
         }
     } catch (e) {
         console.error('Bandwidth error:', e);
-        document.getElementById('bandwidth-monitor-container').textContent = 'Failed to load bandwidth data';
+        if (!window.cachedBandwidthData) {
+            document.getElementById('bandwidth-monitor-container').textContent = 'Failed to load bandwidth data';
+        }
     }
 }
 
@@ -7974,6 +8844,20 @@ function formatRate(bps) {
     let idx = 0;
     while (val >= 1024 && idx < units.length - 1) { val /= 1024; idx++; }
     return val.toFixed(idx > 0 ? 1 : 0) + ' ' + units[idx];
+}
+
+// Alias for chart tooltip callback
+function formatBandwidthRate(bps) {
+    return formatRate(bps);
+}
+
+// Format packet count with K/M/B suffixes
+function formatPacketCount(count) {
+    if (count == null || count === 0) return '0';
+    if (count < 1000) return count.toString();
+    if (count < 1000000) return (count / 1000).toFixed(1) + 'K';
+    if (count < 1000000000) return (count / 1000000).toFixed(2) + 'M';
+    return (count / 1000000000).toFixed(2) + 'B';
 }
 
 function renderBandwidthMonitor(data) {
@@ -7993,6 +8877,72 @@ function renderBandwidthMonitor(data) {
 
     // Get latest rates from samples
     const latestRates = samples.length ? (samples[samples.length - 1].rates || {}) : {};
+
+    // Find the primary physical interface (eno1 typically)
+    const physicalIfaces = interfaces.filter(function(i) {
+        return !i.name.startsWith('br-') && !i.name.startsWith('docker') &&
+               !i.name.startsWith('veth') && i.name !== 'lo';
+    });
+    const primaryIface = physicalIfaces.length > 0 ? physicalIfaces[0].name : 'eno1';
+
+    // Update total traffic stats from cumulative counters
+    if (samples.length > 0) {
+        const latestSample = samples[samples.length - 1];
+        const counters = latestSample.counters || {};
+        const ifaceCounters = counters[primaryIface] || {};
+
+        // Total bytes
+        const totalRx = ifaceCounters.rx_bytes || 0;
+        const totalTx = ifaceCounters.tx_bytes || 0;
+        const totalRxPkts = ifaceCounters.rx_packets || 0;
+        const totalTxPkts = ifaceCounters.tx_packets || 0;
+
+        document.getElementById('total-rx-bytes').textContent = formatBytes(totalRx);
+        document.getElementById('total-rx-packets').textContent = formatPacketCount(totalRxPkts) + ' packets';
+        document.getElementById('total-tx-bytes').textContent = formatBytes(totalTx);
+        document.getElementById('total-tx-packets').textContent = formatPacketCount(totalTxPkts) + ' packets';
+        document.getElementById('total-traffic').textContent = formatBytes(totalRx + totalTx);
+
+        // Current combined rate
+        const sampleRates = latestSample.rates || {};
+        const currentRates = sampleRates[primaryIface] || {};
+        const combinedRate = (currentRates.rx_bps || 0) + (currentRates.tx_bps || 0);
+        document.getElementById('current-rate').textContent = formatRate(combinedRate);
+    }
+
+    // Update bandwidth history chart
+    if (bandwidthChart && samples.length > 1) {
+        // Extract RX and TX rates from samples for primary interface
+        const labels = [];
+        const rxData = [];
+        const txData = [];
+
+        samples.forEach(function(sample, idx) {
+            // Convert timestamp to time string
+            const ts = sample.timestamp;
+            const d = new Date(ts * 1000);
+            const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            labels.push(timeStr);
+
+            // Get rates for primary interface
+            const rates = sample.rates || {};
+            const ifaceRates = rates[primaryIface] || {};
+            rxData.push(ifaceRates.rx_bps || 0);
+            txData.push(ifaceRates.tx_bps || 0);
+        });
+
+        // Update chart
+        bandwidthChart.data.labels = labels;
+        bandwidthChart.data.datasets[0].data = rxData;
+        bandwidthChart.data.datasets[1].data = txData;
+        bandwidthChart.update('none');
+
+        // Update chart info
+        const chartInfo = document.getElementById('bandwidth-chart-info');
+        if (chartInfo) {
+            chartInfo.textContent = primaryIface + ' \u00B7 ' + samples.length + ' samples';
+        }
+    }
 
     // Age indicator
     if (dataAge != null) {
@@ -8333,7 +9283,6 @@ function closeLvmExtendModal() {
 let currentShrinkLv = null;
 
 function openLvmShrinkModal(lvDevice, lvName, vgName, currentSizeGb, usedGb, fstype, mountpoint) {
-    console.log('openLvmShrinkModal called:', { lvDevice, lvName, vgName, currentSizeGb, usedGb, fstype, mountpoint });
     closeAllModals();
     currentShrinkLv = { lvDevice, lvName, vgName, currentSizeGb, usedGb, fstype, mountpoint };
 
@@ -8373,7 +9322,6 @@ function openLvmShrinkModal(lvDevice, lvName, vgName, currentSizeGb, usedGb, fst
         `Valid range: ${minSafeGb.toFixed(1)} GB (minimum) to ${(currentSizeGb - 1).toFixed(1)} GB`;
 
     document.getElementById('lvmShrinkModal').classList.add('active');
-    console.log('Shrink modal should now be visible');
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
@@ -9032,7 +9980,6 @@ let currentPrepareDriveDevice = null;
 
 function openPrepareDriveModal(device, sizeGb, model) {
     closeAllModals();
-    console.log('openPrepareDriveModal called:', device, sizeGb, model);
     currentPrepareDriveDevice = device;
 
     document.getElementById('prepareDriveDevice').textContent = device;
@@ -9041,10 +9988,7 @@ function openPrepareDriveModal(device, sizeGb, model) {
     document.getElementById('prepareDriveFs').value = 'ext4';
     document.getElementById('prepareDriveLabel').value = '';
 
-    var modal = document.getElementById('prepareDriveModal');
-    console.log('Modal element:', modal);
-    modal.classList.add('active');
-    console.log('Modal classes after add:', modal.className);
+    document.getElementById('prepareDriveModal').classList.add('active');
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
@@ -9054,9 +9998,8 @@ function closePrepareDriveModal() {
 }
 
 function executePrepareDrive() {
-    console.log('executePrepareDrive called, currentPrepareDriveDevice:', currentPrepareDriveDevice);
     if (!currentPrepareDriveDevice) {
-        console.log('ERROR: currentPrepareDriveDevice is null!');
+        showToast('error', 'No drive selected');
         return;
     }
 
@@ -10200,19 +11143,51 @@ async function createStack() {
 // FIREWALL MANAGEMENT FUNCTIONS
 // ============================================================================
 
-async function loadFirewallData() {
-    // Load cached data immediately for instant display
-    loadCachedFirewallData();
+async function loadFirewallData(retryCount = 0) {
+    const maxRetries = 2;
+    const retryDelay = 3000; // 3 seconds between retries
+
+    // Load cached data immediately for instant display (only on first attempt)
+    const hasCached = retryCount === 0 ? loadCachedFirewallData() : false;
+
+    // If we have cached data, show "refreshing" indicator but don't block UI
+    if (hasCached && retryCount === 0) {
+        document.getElementById('firewall-status-label').textContent += ' (refreshing...)';
+    }
+
+    // Update UI to show retry status
+    if (retryCount > 0) {
+        document.getElementById('firewall-status-label').textContent = 'Retrying... (' + retryCount + '/' + maxRetries + ')';
+    }
+
+    // Set a timeout to show fallback if API takes too long
+    const fallbackTimeout = setTimeout(() => {
+        if (!hasCached && retryCount === 0) {
+            document.getElementById('firewall-status-value').textContent = 'Loading...';
+            document.getElementById('firewall-status-label').textContent = 'Waiting for host response (may take up to 30s)';
+        }
+    }, 2000);
 
     try {
-        // Fetch fresh data in background
+        // Fetch fresh data - use AbortController for timeout
+        const controller = new AbortController();
+        const fetchTimeout = setTimeout(() => controller.abort(), 35000); // 35s client timeout
+
         const [statusRes, rulesRes] = await Promise.all([
-            fetch('/tools/system-operations/api/firewall/status'),
-            fetch('/tools/system-operations/api/firewall/rules')
+            fetch('/tools/system-operations/api/firewall/status', { signal: controller.signal }),
+            fetch('/tools/system-operations/api/firewall/rules', { signal: controller.signal })
         ]);
+
+        clearTimeout(fetchTimeout);
+        clearTimeout(fallbackTimeout);
 
         const statusData = await statusRes.json();
         const rulesData = await rulesRes.json();
+
+        // Check if we got valid data or timeout error
+        if (!statusData.success && statusData.error && statusData.error.includes('timeout')) {
+            throw new Error('Server timeout');
+        }
 
         // Apply fresh data to UI
         applyFirewallStatus(statusData);
@@ -10224,11 +11199,35 @@ async function loadFirewallData() {
 
         lucide.createIcons();
     } catch (e) {
-        console.error('Firewall load error:', e);
-        // Don't show error toast if we have cached data displayed
+        clearTimeout(fallbackTimeout);
+        console.error('Firewall load error (attempt ' + (retryCount + 1) + '):', e);
+
+        // Retry if we haven't exceeded max retries and don't have cached data
+        if (retryCount < maxRetries && !hasCached) {
+            console.log('Retrying firewall load in ' + (retryDelay/1000) + 's...');
+            document.getElementById('firewall-status-value').textContent = 'Retrying...';
+            document.getElementById('firewall-status-value').style.color = 'var(--archie-yellow)';
+            document.getElementById('firewall-status-label').textContent = 'Attempt ' + (retryCount + 1) + ' failed, retrying...';
+
+            setTimeout(() => {
+                loadFirewallData(retryCount + 1);
+            }, retryDelay);
+            return;
+        }
+
+        // All retries exhausted or we have cached data
         const cached = localStorage.getItem('archie_firewall_cache');
         if (!cached) {
-            showToast('error', 'Failed to load firewall data: ' + e.message);
+            document.getElementById('firewall-status-value').textContent = 'Error';
+            document.getElementById('firewall-status-value').style.color = 'var(--archie-yellow)';
+            document.getElementById('firewall-status-label').textContent = 'Could not load - click Refresh to retry';
+            document.getElementById('firewall-rules-count').textContent = '--';
+            document.getElementById('firewall-rules-table').innerHTML = '';
+            document.getElementById('firewall-no-rules').style.display = 'block';
+        } else if (hasCached) {
+            // We have cached data showing, just remove the "refreshing" note
+            const label = document.getElementById('firewall-status-label');
+            label.textContent = label.textContent.replace(' (refreshing...)', '') + ' (cached)';
         }
     }
 }
@@ -10247,10 +11246,12 @@ function loadCachedFirewallData() {
                 renderFirewallRules(data.rules.rules || [], data.rules.from_config || false);
             }
             console.log('Loaded cached firewall data');
+            return true;
         }
     } catch (e) {
         console.log('No cached firewall data available');
     }
+    return false;
 }
 
 function saveFirewallCache(statusData, rulesData) {
@@ -10405,9 +11406,18 @@ function renderFirewallRules(rules, fromConfig) {
     });
 }
 
-async function enableFirewall() {
+async function enableFirewall(retryCount = 0) {
+    const maxRetries = 2;
+    const btn = document.getElementById('firewall-enable-btn');
+
     try {
-        showToast('info', 'Enabling firewall...');
+        btn.disabled = true;
+        btn.innerHTML = '<i data-lucide="loader" style="width: 14px; height: 14px; animation: spin 1s linear infinite;"></i> Enabling...';
+
+        if (retryCount === 0) {
+            showToast('info', 'Enabling firewall...');
+        }
+
         const res = await fetch('/tools/system-operations/api/firewall/enable', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
@@ -10415,17 +11425,42 @@ async function enableFirewall() {
         const data = await res.json();
 
         if (data.requires_reauth) {
-            openReauthModal(() => enableFirewall());
+            btn.disabled = false;
+            btn.innerHTML = '<i data-lucide="power" style="width: 14px; height: 14px;"></i> Enable';
+            lucide.createIcons();
+            requestReauth('Enable Firewall', () => enableFirewall());
             return;
         }
 
         if (data.success) {
             showToast('success', data.message || 'Firewall enabled');
-            loadFirewallData();
+            // Reset button and reload data
+            btn.disabled = false;
+            btn.innerHTML = '<i data-lucide="power" style="width: 14px; height: 14px;"></i> Enable';
+            lucide.createIcons();
+            loadFirewallData(0);
         } else {
+            // Check if it's a timeout and we can retry
+            if ((data.error && data.error.includes('timeout')) && retryCount < maxRetries) {
+                showToast('warning', 'Request timed out, retrying... (' + (retryCount + 1) + '/' + maxRetries + ')');
+                setTimeout(() => enableFirewall(retryCount + 1), 2000);
+                return;
+            }
+            btn.disabled = false;
+            btn.innerHTML = '<i data-lucide="power" style="width: 14px; height: 14px;"></i> Enable';
+            lucide.createIcons();
             showToast('error', data.error || 'Failed to enable firewall');
         }
     } catch (e) {
+        // Network error - retry
+        if (retryCount < maxRetries) {
+            showToast('warning', 'Connection error, retrying... (' + (retryCount + 1) + '/' + maxRetries + ')');
+            setTimeout(() => enableFirewall(retryCount + 1), 2000);
+            return;
+        }
+        btn.disabled = false;
+        btn.innerHTML = '<i data-lucide="power" style="width: 14px; height: 14px;"></i> Enable';
+        lucide.createIcons();
         showToast('error', 'Error enabling firewall: ' + e.message);
     }
 }
@@ -10438,10 +11473,19 @@ function closeFirewallDisableModal() {
     document.getElementById('firewallDisableModal').classList.remove('active');
 }
 
-async function disableFirewall() {
+async function disableFirewall(retryCount = 0) {
     closeFirewallDisableModal();
+    const maxRetries = 2;
+    const btn = document.getElementById('firewall-disable-btn');
+
     try {
-        showToast('info', 'Disabling firewall...');
+        btn.disabled = true;
+        btn.innerHTML = '<i data-lucide="loader" style="width: 14px; height: 14px; animation: spin 1s linear infinite;"></i> Disabling...';
+
+        if (retryCount === 0) {
+            showToast('info', 'Disabling firewall...');
+        }
+
         const res = await fetch('/tools/system-operations/api/firewall/disable', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
@@ -10449,17 +11493,41 @@ async function disableFirewall() {
         const data = await res.json();
 
         if (data.requires_reauth) {
-            openReauthModal(() => confirmDisableFirewall());
+            btn.disabled = false;
+            btn.innerHTML = '<i data-lucide="power-off" style="width: 14px; height: 14px;"></i> Disable';
+            lucide.createIcons();
+            requestReauth('Disable Firewall', () => disableFirewall());
             return;
         }
 
         if (data.success) {
             showToast('success', data.message || 'Firewall disabled');
-            loadFirewallData();
+            btn.disabled = false;
+            btn.innerHTML = '<i data-lucide="power-off" style="width: 14px; height: 14px;"></i> Disable';
+            lucide.createIcons();
+            loadFirewallData(0);
         } else {
+            // Check if it's a timeout and we can retry
+            if ((data.error && data.error.includes('timeout')) && retryCount < maxRetries) {
+                showToast('warning', 'Request timed out, retrying... (' + (retryCount + 1) + '/' + maxRetries + ')');
+                setTimeout(() => disableFirewall(retryCount + 1), 2000);
+                return;
+            }
+            btn.disabled = false;
+            btn.innerHTML = '<i data-lucide="power-off" style="width: 14px; height: 14px;"></i> Disable';
+            lucide.createIcons();
             showToast('error', data.error || 'Failed to disable firewall');
         }
     } catch (e) {
+        // Network error - retry
+        if (retryCount < maxRetries) {
+            showToast('warning', 'Connection error, retrying... (' + (retryCount + 1) + '/' + maxRetries + ')');
+            setTimeout(() => disableFirewall(retryCount + 1), 2000);
+            return;
+        }
+        btn.disabled = false;
+        btn.innerHTML = '<i data-lucide="power-off" style="width: 14px; height: 14px;"></i> Disable';
+        lucide.createIcons();
         showToast('error', 'Error disabling firewall: ' + e.message);
     }
 }
@@ -10619,7 +11687,7 @@ async function deleteFirewallRule() {
         const data = await res.json();
 
         if (data.requires_reauth) {
-            openReauthModal(() => {
+            requestReauth('Delete Firewall Rule', () => {
                 pendingDeleteRuleNumber = ruleNumber;
                 deleteFirewallRule();
             });

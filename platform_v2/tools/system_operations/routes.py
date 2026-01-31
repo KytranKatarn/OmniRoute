@@ -349,6 +349,335 @@ def api_memory_hardware():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@system_operations_bp.route("/api/hardware")
+@login_required
+@admin_required
+def api_hardware():
+    """Get comprehensive hardware info with upgrade potential for Hardware tab"""
+    try:
+        host_data, host_age = load_host_monitor_data()
+        if not host_data:
+            return (
+                jsonify(
+                    {"success": False, "error": "Host monitor data not available. Ensure host_monitor.py is running."}
+                ),
+                503,
+            )
+
+        # Gather hardware data from host monitor
+        cpu_hardware = host_data.get("cpu_hardware", {})
+        cpu_info = host_data.get("cpu", {})
+        motherboard = host_data.get("motherboard", {})
+        memory_hardware = host_data.get("memory_hardware", {})
+        gpu = host_data.get("gpu", [])
+        pci_slots = host_data.get("pci_slots", [])
+        sata_ports = host_data.get("sata_ports", {})
+
+        # Merge cpu_info model into cpu_hardware if available
+        if cpu_info.get("model") and not cpu_hardware.get("processors"):
+            cpu_hardware["model"] = cpu_info.get("model")
+        if cpu_info.get("physical_cores"):
+            cpu_hardware["physical_cores"] = cpu_info.get("physical_cores")
+        if cpu_info.get("logical_cores"):
+            cpu_hardware["logical_cores"] = cpu_info.get("logical_cores")
+
+        # Compute upgrade summary
+        upgrade_summary = _compute_upgrade_summary(cpu_hardware, memory_hardware, pci_slots, sata_ports)
+
+        # Add memory configuration analysis
+        memory_config = _analyze_memory_config(memory_hardware)
+
+        result = {
+            "cpu": cpu_hardware,
+            "motherboard": motherboard,
+            "memory": memory_hardware,
+            "memory_config": memory_config,
+            "gpu": gpu if gpu else [],
+            "pci_slots": pci_slots,
+            "sata_ports": sata_ports,
+            "upgrade_summary": upgrade_summary,
+        }
+
+        return jsonify(
+            {"success": True, "data": result, "source": "host", "data_age": int(host_age) if host_age else None}
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+def _compute_upgrade_summary(cpu, memory, pci_slots, sata_ports=None):
+    """Compute upgrade potential based on current hardware"""
+    summary = {
+        "memory": {
+            "current_gb": 0,
+            "max_gb": None,
+            "expandable_gb": None,
+            "empty_slots": 0,
+            "total_slots": 0,
+        },
+        "pci": {
+            "available_slots": 0,
+            "total_slots": 0,
+            "available_by_type": {},
+        },
+        "cpu": {
+            "socket_type": None,
+            "populated": 0,
+            "max_sockets": 0,
+            "can_add_cpu": False,
+        },
+        "sata": {
+            "total_ports": 0,
+            "used_ports": 0,
+            "available_ports": 0,
+        },
+    }
+
+    # Memory upgrade potential
+    if memory:
+        summary["memory"]["current_gb"] = memory.get("total_capacity_gb", 0)
+        summary["memory"]["max_gb"] = memory.get("max_capacity_gb")
+        summary["memory"]["total_slots"] = memory.get("total_slots", 0)
+        summary["memory"]["empty_slots"] = summary["memory"]["total_slots"] - memory.get("populated_slots", 0)
+        if summary["memory"]["max_gb"] and summary["memory"]["current_gb"]:
+            summary["memory"]["expandable_gb"] = summary["memory"]["max_gb"] - summary["memory"]["current_gb"]
+
+    # PCI slot availability
+    if pci_slots:
+        summary["pci"]["total_slots"] = len(pci_slots)
+        for slot in pci_slots:
+            usage = slot.get("current_usage", "").lower()
+            if usage == "available" or usage == "empty":
+                summary["pci"]["available_slots"] += 1
+                slot_type = slot.get("type", "Unknown")
+                # Simplify slot type for grouping
+                if "x16" in slot_type.lower():
+                    key = "PCIe x16"
+                elif "x8" in slot_type.lower():
+                    key = "PCIe x8"
+                elif "x4" in slot_type.lower():
+                    key = "PCIe x4"
+                elif "x1" in slot_type.lower():
+                    key = "PCIe x1"
+                elif "pci" in slot_type.lower() and "express" not in slot_type.lower():
+                    key = "PCI"
+                else:
+                    key = slot_type[:20] if slot_type else "Unknown"
+                summary["pci"]["available_by_type"][key] = summary["pci"]["available_by_type"].get(key, 0) + 1
+
+    # CPU socket info with upgrade recommendations
+    if cpu:
+        socket_type = cpu.get("socket_type", "")
+        summary["cpu"]["socket_type"] = socket_type
+        summary["cpu"]["populated"] = cpu.get("populated_sockets", 0)
+        summary["cpu"]["max_sockets"] = cpu.get("max_processors", 0)
+        summary["cpu"]["can_add_cpu"] = (
+            summary["cpu"]["max_sockets"] > summary["cpu"]["populated"] if summary["cpu"]["max_sockets"] else False
+        )
+
+        # Add CPU upgrade recommendations based on socket type
+        current_model = ""
+        if cpu.get("processors"):
+            current_model = cpu["processors"][0].get("model", "") if cpu["processors"] else ""
+
+        cpu_upgrades = _get_cpu_upgrade_info(socket_type, current_model)
+        summary["cpu"]["current_model"] = current_model
+        summary["cpu"]["max_supported"] = cpu_upgrades.get("max_cpu")
+        summary["cpu"]["upgrade_note"] = cpu_upgrades.get("note")
+        summary["cpu"]["max_tdp"] = cpu_upgrades.get("max_tdp")
+
+    # SATA port info
+    if sata_ports:
+        summary["sata"]["total_ports"] = sata_ports.get("total_ports", 0)
+        summary["sata"]["used_ports"] = sata_ports.get("used_ports", 0)
+        summary["sata"]["available_ports"] = sata_ports.get("available_ports", 0)
+
+    # Add GPU/PCIe slot upgrade info
+    summary["pci"]["gpu_slot_info"] = _get_gpu_slot_info(pci_slots)
+
+    return summary
+
+
+def _get_cpu_upgrade_info(socket_type, current_model):
+    """Get CPU upgrade recommendations based on socket type"""
+    info = {
+        "max_cpu": None,
+        "note": None,
+        "max_tdp": None,
+    }
+
+    socket_lower = (socket_type or "").lower()
+
+    # LGA2011 (Sandy Bridge-EP / Ivy Bridge-EP)
+    if "lga2011" in socket_lower and "v3" not in socket_lower:
+        info["max_tdp"] = 150
+        # Check if current CPU is v1 or v2
+        if "v2" in current_model.lower():
+            info["max_cpu"] = "Xeon E5-2697 v2 (12C/24T, 2.7GHz)"
+            info["note"] = "Ivy Bridge-EP. Top v2 Xeon for single-socket workstations."
+        else:
+            info["max_cpu"] = "Xeon E5-2690 (8C/16T, 2.9GHz) or upgrade to v2 series"
+            info["note"] = "Sandy Bridge-EP. Consider v2 CPUs for more cores."
+
+    # LGA2011-3 (Haswell-EP / Broadwell-EP)
+    elif "lga2011-3" in socket_lower or "lga2011 v3" in socket_lower:
+        info["max_tdp"] = 145
+        if "v4" in current_model.lower():
+            info["max_cpu"] = "Xeon E5-2699 v4 (22C/44T, 2.2GHz)"
+            info["note"] = "Broadwell-EP. Maximum cores available."
+        else:
+            info["max_cpu"] = "Xeon E5-2699 v3 (18C/36T, 2.3GHz) or v4 series"
+            info["note"] = "Haswell-EP. Consider v4 for more cores."
+
+    # LGA1151 (Coffee Lake / etc)
+    elif "lga1151" in socket_lower:
+        info["max_tdp"] = 95
+        info["max_cpu"] = "Core i9-9900K (8C/16T, 3.6GHz)"
+        info["note"] = "Consumer socket. Limited to 8 cores max."
+
+    # LGA1200 (10th/11th gen)
+    elif "lga1200" in socket_lower:
+        info["max_tdp"] = 125
+        info["max_cpu"] = "Core i9-11900K (8C/16T, 3.5GHz)"
+        info["note"] = "11th gen max. Consider LGA1700 for newer CPUs."
+
+    # LGA1700 (12th/13th/14th gen)
+    elif "lga1700" in socket_lower:
+        info["max_tdp"] = 253
+        info["max_cpu"] = "Core i9-14900K (24C/32T, 3.2GHz)"
+        info["note"] = "Latest Intel consumer socket."
+
+    # AM4 (Ryzen)
+    elif "am4" in socket_lower:
+        info["max_tdp"] = 142
+        info["max_cpu"] = "Ryzen 9 5950X (16C/32T, 3.4GHz)"
+        info["note"] = "Check motherboard BIOS for Zen 3 support."
+
+    # AM5 (Ryzen 7000+)
+    elif "am5" in socket_lower:
+        info["max_tdp"] = 170
+        info["max_cpu"] = "Ryzen 9 9950X (16C/32T, 4.3GHz)"
+        info["note"] = "Latest AMD consumer socket."
+
+    return info
+
+
+def _get_gpu_slot_info(pci_slots):
+    """Get GPU slot upgrade information"""
+    info = {
+        "primary_slot": None,
+        "max_length": 'Full-length (10.5")',
+        "pcie_version": None,
+        "lanes": None,
+        "power_note": "Check PSU for GPU power connectors",
+    }
+
+    if not pci_slots:
+        return info
+
+    # Find the primary GPU slot (first x16 PCIe slot, preferably PCIe 3.0+)
+    for slot in pci_slots:
+        slot_type = slot.get("type", "").lower()
+        if "x16" in slot_type and "pci express" in slot_type:
+            info["primary_slot"] = slot.get("designation")
+            info["lanes"] = 16
+
+            # Extract PCIe version
+            if "3" in slot_type:
+                info["pcie_version"] = "3.0"
+                info["bandwidth"] = "~16 GB/s"
+            elif "4" in slot_type:
+                info["pcie_version"] = "4.0"
+                info["bandwidth"] = "~32 GB/s"
+            elif "5" in slot_type:
+                info["pcie_version"] = "5.0"
+                info["bandwidth"] = "~64 GB/s"
+            else:
+                info["pcie_version"] = "2.0"
+                info["bandwidth"] = "~8 GB/s"
+
+            # Check if slot is in use
+            if slot.get("current_usage", "").lower() == "in use":
+                info["current_device"] = slot.get("device")
+            break
+
+    return info
+
+
+def _analyze_memory_config(memory):
+    """Analyze memory configuration for optimal setup recommendations"""
+    config = {
+        "current": {
+            "populated": 0,
+            "total_slots": 0,
+            "capacity_gb": 0,
+            "description": "",
+        },
+        "optimal": {
+            "description": "",
+            "recommendation": "",
+        },
+        "channel_mode": "Unknown",
+    }
+
+    if not memory:
+        return config
+
+    total_slots = memory.get("total_slots", 0)
+    populated = memory.get("populated_slots", 0)
+    capacity = memory.get("total_capacity_gb", 0)
+    channels = memory.get("channels", "")
+
+    config["current"]["populated"] = populated
+    config["current"]["total_slots"] = total_slots
+    config["current"]["capacity_gb"] = capacity
+    config["current"]["description"] = f"{populated} of {total_slots} slots populated ({capacity} GB)"
+    config["channel_mode"] = channels
+
+    # Determine optimal configuration based on slot count
+    # For quad-channel (8 slots): optimal is 4 or 8 DIMMs
+    # For dual-channel (4 slots): optimal is 2 or 4 DIMMs
+    if total_slots == 8:
+        # Quad-channel system
+        if populated == 8:
+            config["optimal"]["description"] = "8 of 8 (Quad Channel - Maximum)"
+            config["optimal"]["recommendation"] = "Fully populated - optimal for quad-channel"
+        elif populated == 4:
+            config["optimal"]["description"] = "4 of 8 (Quad Channel)"
+            config["optimal"]["recommendation"] = "Good for quad-channel. Add 4 more DIMMs for maximum capacity."
+        elif populated < 4:
+            config["optimal"]["description"] = "4 of 8 or 8 of 8 recommended"
+            config["optimal"][
+                "recommendation"
+            ] = f"Add {4 - populated} DIMMs for quad-channel, or {8 - populated} for maximum."
+        else:
+            config["optimal"]["description"] = "8 of 8 recommended"
+            config["optimal"]["recommendation"] = f"Add {8 - populated} DIMMs for balanced quad-channel."
+    elif total_slots == 4:
+        # Dual-channel system
+        if populated == 4:
+            config["optimal"]["description"] = "4 of 4 (Dual Channel - Maximum)"
+            config["optimal"]["recommendation"] = "Fully populated - optimal configuration"
+        elif populated == 2:
+            config["optimal"]["description"] = "2 of 4 (Dual Channel)"
+            config["optimal"]["recommendation"] = "Good for dual-channel. Add 2 more DIMMs for maximum capacity."
+        else:
+            config["optimal"]["description"] = "2 of 4 or 4 of 4 recommended"
+            config["optimal"]["recommendation"] = "Install DIMMs in pairs for dual-channel mode."
+    elif total_slots == 2:
+        if populated == 2:
+            config["optimal"]["description"] = "2 of 2 (Dual Channel - Maximum)"
+            config["optimal"]["recommendation"] = "Fully populated - optimal configuration"
+        else:
+            config["optimal"]["description"] = "2 of 2 recommended"
+            config["optimal"]["recommendation"] = "Add 1 DIMM for dual-channel mode."
+    else:
+        config["optimal"]["description"] = f"{total_slots} of {total_slots}"
+        config["optimal"]["recommendation"] = "Check motherboard manual for optimal configuration."
+
+    return config
+
+
 @system_operations_bp.route("/api/disks")
 @login_required
 @admin_required

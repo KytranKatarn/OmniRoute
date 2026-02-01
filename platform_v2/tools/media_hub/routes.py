@@ -647,7 +647,7 @@ def api_media_details(media_type, media_id):
 
 @media_hub_bp.route("/api/requests")
 def api_requests():
-    """Get media requests from Overseerr/Jellyseerr, enriched with TMDB data"""
+    """Get media requests from Overseerr/Jellyseerr, enriched with TMDB data and deduplicated"""
     status = request.args.get("status")  # 'pending', 'approved', 'available', etc.
 
     overseerr_config = get_service_config("overseerr") or get_service_config("jellyseerr")
@@ -667,27 +667,57 @@ def api_requests():
         requests_list = overseerr.get_requests(status)
         requests_dict = [r.to_dict() for r in requests_list]
 
-        # Enrich requests with TMDB data if title is Unknown
+        # Deduplicate by tmdb_id, keeping the most recent request
+        seen_tmdb_ids = {}
+        deduplicated = []
+        for req in requests_dict:
+            tmdb_id = req.get("tmdb_id")
+            if tmdb_id:
+                if tmdb_id not in seen_tmdb_ids:
+                    seen_tmdb_ids[tmdb_id] = req
+                    deduplicated.append(req)
+                else:
+                    # Keep the one with better status or more recent
+                    existing = seen_tmdb_ids[tmdb_id]
+                    status_priority = {"available": 4, "processing": 3, "approved": 2, "pending": 1, "declined": 0}
+                    if status_priority.get(req.get("status"), 0) > status_priority.get(existing.get("status"), 0):
+                        deduplicated.remove(existing)
+                        seen_tmdb_ids[tmdb_id] = req
+                        deduplicated.append(req)
+            else:
+                deduplicated.append(req)
+
+        # Enrich requests with TMDB data
         tmdb = TMDBClient()
         if tmdb.is_configured():
-            for req in requests_dict:
-                if req.get("title") == "Unknown" and req.get("tmdb_id"):
+            for req in deduplicated:
+                tmdb_id = req.get("tmdb_id")
+                if tmdb_id:
                     try:
-                        tmdb_id = req["tmdb_id"]
                         if req["media_type"] == "movie":
                             details = tmdb.get_movie_details(tmdb_id)
                         else:
                             details = tmdb.get_tv_details(tmdb_id)
 
                         if details:
-                            req["title"] = details.get("title", "Unknown")
-                            req["year"] = details.get("year")
-                            req["poster_url"] = details.get("poster_url")
-                            req["overview"] = details.get("overview", "")[:200]
+                            if req.get("title") == "Unknown":
+                                req["title"] = details.get("title", "Unknown")
+                            if not req.get("year"):
+                                req["year"] = details.get("year")
+                            if not req.get("poster_url"):
+                                req["poster_url"] = details.get("poster_url")
+                            if not req.get("backdrop_url"):
+                                req["backdrop_url"] = details.get("backdrop_url")
+                            # Always update these for richer display
+                            req["overview"] = details.get("overview", "")
+                            req["rating"] = details.get("rating")
+                            req["runtime"] = details.get("runtime")
+                            req["genres"] = details.get("genres", [])
+                            req["tagline"] = details.get("tagline", "")
                     except Exception as e:
                         logger.debug(f"TMDB enrichment failed for request {req.get('id')}: {e}")
 
-        return jsonify({"success": True, "requests": requests_dict})
+        return jsonify({"success": True, "requests": deduplicated})
     except Exception as e:
         logger.error(f"Error getting requests: {e}")
         return jsonify({"success": False, "error": str(e), "requests": []})

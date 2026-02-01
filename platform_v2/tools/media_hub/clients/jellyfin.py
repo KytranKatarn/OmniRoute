@@ -154,6 +154,7 @@ class JellyfinClient(MediaServerInterface):
             metadata={
                 "studios": [s.get("Name", "") for s in item.get("Studios", [])],
                 "officialRating": item.get("OfficialRating", ""),
+                "show_title": item.get("SeriesName"),  # For episodes
             },
         )
 
@@ -324,7 +325,52 @@ class JellyfinClient(MediaServerInterface):
 
         if result and "Items" in result:
             for item in result["Items"]:
-                items.append(self._parse_media_item(item))
+                media_item = self._parse_media_item(item)
+                # Add watch progress from user data
+                user_data = item.get("UserData", {})
+                if user_data:
+                    ticks = user_data.get("PlaybackPositionTicks", 0)
+                    run_ticks = item.get("RunTimeTicks", 0)
+                    if run_ticks > 0:
+                        media_item.metadata["watch_progress"] = round((ticks / run_ticks) * 100)
+                        media_item.metadata["view_offset_ms"] = ticks // 10000
+                items.append(media_item)
+
+        return items
+
+    def get_on_deck(self, limit: int = 10) -> List[MediaItem]:
+        """Alias for get_continue_watching (compatibility with Plex API naming)"""
+        return self.get_continue_watching(limit)
+
+    def get_watch_history(self, limit: int = 50) -> List[MediaItem]:
+        """Get recently watched/played items"""
+        user_id = self._get_user_id()
+        if not user_id:
+            return []
+
+        # Get played items sorted by last played date
+        result = self._request(
+            f"/Users/{user_id}/Items",
+            {
+                "Limit": limit,
+                "Recursive": True,
+                "IsPlayed": True,
+                "SortBy": "DatePlayed",
+                "SortOrder": "Descending",
+                "IncludeItemTypes": "Movie,Episode",
+                "Fields": "Overview,Genres,ProviderIds,DateLastMediaAdded",
+            },
+        )
+        items = []
+
+        if result and "Items" in result:
+            for item in result["Items"]:
+                media_item = self._parse_media_item(item)
+                # Add last viewed timestamp
+                user_data = item.get("UserData", {})
+                if user_data and user_data.get("LastPlayedDate"):
+                    media_item.metadata["last_viewed"] = user_data.get("LastPlayedDate")
+                items.append(media_item)
 
         return items
 
@@ -390,6 +436,10 @@ class JellyfinClient(MediaServerInterface):
                                 quality = "SD"
                             break
 
+                # Get played status from user data
+                user_data = item.get("UserData", {})
+                played = user_data.get("Played", False)
+
                 episodes.append(
                     {
                         "id": item.get("Id"),
@@ -402,6 +452,7 @@ class JellyfinClient(MediaServerInterface):
                         "poster_url": self._get_image_url(item.get("Id"), "Primary"),
                         "air_date": item.get("PremiereDate"),
                         "has_file": len(media_sources) > 0,
+                        "played": played,
                     }
                 )
         return episodes

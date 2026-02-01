@@ -326,6 +326,101 @@ class PlexClient(MediaServerInterface):
 
         return items
 
+    def get_seasons(self, series_id: str) -> List[Dict]:
+        """Get seasons for a TV series"""
+        result = self._request(f"/library/metadata/{series_id}/children")
+        seasons = []
+
+        if result and "MediaContainer" in result:
+            metadata = result["MediaContainer"].get("Metadata", [])
+            for item in metadata:
+                if item.get("type") == "season":
+                    thumb = item.get("thumb", "")
+                    seasons.append(
+                        {
+                            "id": str(item.get("ratingKey", "")),
+                            "name": item.get("title", f"Season {item.get('index', 0)}"),
+                            "season_number": item.get("index", 0),
+                            "episode_count": item.get("leafCount", 0),
+                            "poster_url": f"{self.base_url}{thumb}?X-Plex-Token={self.token}" if thumb else None,
+                            "overview": item.get("summary", ""),
+                            "year": item.get("year"),
+                        }
+                    )
+
+        # Sort by season number
+        seasons.sort(key=lambda x: x.get("season_number", 0))
+        return seasons
+
+    def get_episodes(self, series_id: str, season_number: int = None) -> List[Dict]:
+        """Get episodes for a TV series, optionally filtered by season"""
+        episodes = []
+
+        # First get seasons to find the right season ID
+        if season_number is not None:
+            seasons = self.get_seasons(series_id)
+            season_id = None
+            for s in seasons:
+                if s.get("season_number") == season_number:
+                    season_id = s.get("id")
+                    break
+            if season_id:
+                result = self._request(f"/library/metadata/{season_id}/children")
+            else:
+                return []
+        else:
+            # Get all episodes using allLeaves
+            result = self._request(f"/library/metadata/{series_id}/allLeaves")
+
+        if result and "MediaContainer" in result:
+            metadata = result["MediaContainer"].get("Metadata", [])
+            for item in metadata:
+                thumb = item.get("thumb", "")
+
+                # Get quality info
+                quality = None
+                media_list = item.get("Media", [])
+                if media_list:
+                    media = media_list[0]
+                    resolution = media.get("videoResolution", "")
+                    if resolution in ("4k", "2160"):
+                        quality = "4K"
+                    elif resolution == "1080":
+                        quality = "1080p"
+                    elif resolution == "720":
+                        quality = "720p"
+                    else:
+                        quality = "SD"
+
+                # Get watched status
+                view_count = item.get("viewCount", 0)
+                played = view_count > 0
+
+                # Get runtime in minutes
+                duration = item.get("duration", 0)
+                runtime_minutes = duration // 60000 if duration else None
+
+                episodes.append(
+                    {
+                        "id": str(item.get("ratingKey", "")),
+                        "title": item.get("title", ""),
+                        "season_number": item.get("parentIndex", 0),
+                        "episode_number": item.get("index", 0),
+                        "overview": item.get("summary", ""),
+                        "runtime_minutes": runtime_minutes,
+                        "quality": quality,
+                        "poster_url": f"{self.base_url}{thumb}?X-Plex-Token={self.token}" if thumb else None,
+                        "air_date": item.get("originallyAvailableAt"),
+                        "has_file": len(media_list) > 0,
+                        "played": played,
+                        "view_count": view_count,
+                    }
+                )
+
+        # Sort by season and episode number
+        episodes.sort(key=lambda x: (x.get("season_number", 0), x.get("episode_number", 0)))
+        return episodes
+
     def get_on_deck(self, limit: int = 10) -> List[MediaItem]:
         """Get on deck (continue watching) items"""
         result = self._request("/library/onDeck")

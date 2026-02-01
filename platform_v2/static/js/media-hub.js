@@ -245,7 +245,16 @@ function switchTab(tabId) {
 
     currentTab = tabId;
 
+    // Stop download refresh when leaving dashboard
+    if (tabId !== 'dashboard') {
+        stopDownloadRefresh();
+    }
+
     switch(tabId) {
+        case 'dashboard':
+            // Refresh downloads when returning to dashboard
+            loadDownloads();
+            break;
         case 'movies':
             if (document.getElementById('moviesGrid')?.querySelector('.grid-loading')) {
                 loadMovies();
@@ -255,9 +264,6 @@ function switchTab(tabId) {
             if (document.getElementById('showsGrid')?.querySelector('.grid-loading')) {
                 loadShows();
             }
-            break;
-        case 'collections':
-            loadCollections();
             break;
         case 'requests':
             loadRequests();
@@ -447,6 +453,7 @@ async function loadDashboard() {
     loadStatus();
     loadStats();
     loadContinueWatching();
+    loadWatchHistory();
     loadRecentAdditions();
     loadDownloads();
     loadAiringToday();
@@ -638,6 +645,107 @@ function createContinueWatchingCard(item) {
     return card;
 }
 
+async function loadWatchHistory() {
+    const container = document.getElementById('watchHistory');
+    const section = document.getElementById('watchHistorySection');
+    if (!container) return;
+
+    const renderItems = (items) => {
+        container.textContent = '';
+        if (items && items.length > 0) {
+            items.forEach(item => {
+                container.appendChild(createWatchHistoryCard(item));
+            });
+            lucide.createIcons();
+            if (section) section.style.display = 'block';
+        } else {
+            if (section) section.style.display = 'none';
+        }
+    };
+
+    // Load from cache first
+    const cached = cacheGet('watch-history');
+    if (cached && cached.data) {
+        renderItems(cached.data);
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/library/history?limit=12`);
+        const data = await response.json();
+
+        if (data.success && data.items && data.items.length > 0) {
+            renderItems(data.items);
+            cacheSet('watch-history', data.items);
+        } else if (!cached) {
+            if (section) section.style.display = 'none';
+        }
+    } catch (error) {
+        if (!cached && section) {
+            section.style.display = 'none';
+        }
+    }
+}
+
+function createWatchHistoryCard(item) {
+    const card = document.createElement('div');
+    card.className = 'poster-card';
+    card.onclick = () => openMediaDetails(item);
+
+    // Image container
+    const imgContainer = document.createElement('div');
+    imgContainer.className = 'poster-image';
+
+    // Lazy-loaded image
+    const img = document.createElement('img');
+    img.className = 'lazy-image';
+    img.alt = item.title || '';
+    img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 450"%3E%3Crect fill="%231a1a2e" width="300" height="450"/%3E%3C/svg%3E';
+    img.dataset.src = item.poster_url || '/static/img/no-poster.png';
+    img.onerror = function() { this.src = '/static/img/no-poster.png'; };
+    lazyLoadImage(img);
+    imgContainer.appendChild(img);
+
+    // In-library badge (green checkmark)
+    const badge = document.createElement('span');
+    badge.className = 'poster-badge badge-in-library';
+    badge.innerHTML = '<i data-lucide="check-circle"></i>';
+    imgContainer.appendChild(badge);
+
+    // Watched badge (blue eye - bottom right)
+    const watchedBadge = document.createElement('span');
+    watchedBadge.className = 'poster-badge badge-watched';
+    watchedBadge.innerHTML = '<i data-lucide="eye"></i>';
+    watchedBadge.style.cssText = 'top: auto; bottom: 8px; right: 8px; left: auto;';
+    imgContainer.appendChild(watchedBadge);
+
+    const info = document.createElement('div');
+    info.className = 'poster-info';
+
+    const title = document.createElement('div');
+    title.className = 'poster-title';
+    if (item.media_type === 'episode') {
+        title.textContent = item.metadata?.show_title || item.title;
+    } else {
+        title.textContent = item.title;
+    }
+
+    const meta = document.createElement('div');
+    meta.className = 'poster-meta';
+    if (item.media_type === 'episode' && item.season_number && item.episode_number) {
+        meta.textContent = `S${item.season_number}E${item.episode_number}`;
+    } else if (item.year) {
+        meta.textContent = item.year;
+    }
+
+    info.appendChild(title);
+    info.appendChild(meta);
+
+    card.appendChild(imgContainer);
+    card.appendChild(info);
+
+    return card;
+}
+
 async function loadRecentAdditions() {
     const container = document.getElementById('recentAdditions');
     if (!container) return;
@@ -817,6 +925,22 @@ function createPosterCard(item, showRequestButton = false) {
 // DOWNLOADS WITH CONTROLS
 // ─────────────────────────────────────────────────────────────────────────────
 
+let downloadRefreshInterval = null;
+const DOWNLOAD_REFRESH_RATE = 5000; // Refresh every 5 seconds
+
+function startDownloadRefresh() {
+    if (!downloadRefreshInterval) {
+        downloadRefreshInterval = setInterval(loadDownloads, DOWNLOAD_REFRESH_RATE);
+    }
+}
+
+function stopDownloadRefresh() {
+    if (downloadRefreshInterval) {
+        clearInterval(downloadRefreshInterval);
+        downloadRefreshInterval = null;
+    }
+}
+
 async function loadDownloads() {
     const container = document.getElementById('downloadsPanel');
     if (!container) return;
@@ -855,11 +979,15 @@ async function loadDownloads() {
             data.queue.forEach(item => {
                 container.appendChild(createDownloadItem(item));
             });
+            // Start auto-refresh when downloads are active
+            startDownloadRefresh();
         } else {
             const empty = document.createElement('div');
             empty.className = 'download-empty';
             empty.textContent = 'No active downloads';
             container.appendChild(empty);
+            // Stop auto-refresh when no downloads
+            stopDownloadRefresh();
         }
         lucide.createIcons();
     } catch (error) {
@@ -1351,7 +1479,13 @@ async function loadRequests() {
         container.textContent = '';
 
         if (data.success && data.requests && data.requests.length > 0) {
-            data.requests.forEach(req => {
+            // Group by status for better organization
+            const statusOrder = ['processing', 'pending', 'approved', 'available', 'declined'];
+            const sorted = data.requests.sort((a, b) => {
+                return statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status);
+            });
+
+            sorted.forEach(req => {
                 container.appendChild(createRequestCard(req));
             });
         } else {
@@ -1368,11 +1502,14 @@ async function loadRequests() {
 function createRequestCard(req) {
     const card = document.createElement('div');
     card.className = 'request-card';
+    card.style.cursor = 'pointer';
+    card.onclick = () => showRequestDetail(req);
 
     const poster = document.createElement('img');
     poster.className = 'request-poster';
     poster.src = req.poster_url || '/static/img/no-poster.png';
     poster.alt = '';
+    poster.loading = 'lazy';
 
     const info = document.createElement('div');
     info.className = 'request-info';
@@ -1383,11 +1520,37 @@ function createRequestCard(req) {
 
     const meta = document.createElement('div');
     meta.className = 'request-meta';
-    meta.textContent = `${req.media_type === 'movie' ? 'Movie' : 'TV Show'} • ${req.year || 'N/A'}`;
+    const typeIcon = req.media_type === 'movie' ? 'film' : 'tv';
+    const runtime = req.runtime_minutes ? ` • ${req.runtime_minutes} min` : '';
+    const rating = req.rating ? ` • ⭐ ${req.rating.toFixed(1)}` : '';
+    meta.innerHTML = `<i data-lucide="${typeIcon}" style="width:14px;height:14px;display:inline;vertical-align:middle;margin-right:4px;"></i>${req.year || 'N/A'}${runtime}${rating}`;
 
+    // Status badge with icon
     const status = document.createElement('div');
     status.className = `request-status status-${req.status}`;
-    status.textContent = req.status_label || req.status;
+    const statusIcons = {
+        'pending': 'clock',
+        'approved': 'check',
+        'processing': 'download',
+        'available': 'check-circle',
+        'declined': 'x-circle'
+    };
+    const statusLabels = {
+        'pending': 'Pending',
+        'approved': 'Approved',
+        'processing': 'Downloading',
+        'available': 'Available',
+        'declined': 'Declined'
+    };
+    status.innerHTML = `<i data-lucide="${statusIcons[req.status] || 'circle'}" style="width:12px;height:12px;"></i> ${statusLabels[req.status] || req.status}`;
+
+    // Overview preview
+    if (req.overview) {
+        const overview = document.createElement('div');
+        overview.className = 'request-overview';
+        overview.textContent = req.overview.substring(0, 100) + (req.overview.length > 100 ? '...' : '');
+        info.appendChild(overview);
+    }
 
     info.appendChild(title);
     info.appendChild(meta);
@@ -1397,6 +1560,138 @@ function createRequestCard(req) {
     card.appendChild(info);
 
     return card;
+}
+
+function showRequestDetail(req) {
+    // Create modal overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'request-modal-overlay';
+    overlay.onclick = (e) => {
+        if (e.target === overlay) overlay.remove();
+    };
+
+    const modal = document.createElement('div');
+    modal.className = 'request-modal';
+
+    // Backdrop
+    if (req.backdrop_url) {
+        const backdrop = document.createElement('div');
+        backdrop.className = 'request-modal-backdrop';
+        backdrop.style.backgroundImage = `url(${req.backdrop_url})`;
+        modal.appendChild(backdrop);
+    }
+
+    // Content
+    const content = document.createElement('div');
+    content.className = 'request-modal-content';
+
+    // Header with poster and info
+    const header = document.createElement('div');
+    header.className = 'request-modal-header';
+
+    const poster = document.createElement('img');
+    poster.className = 'request-modal-poster';
+    poster.src = req.poster_url || '/static/img/no-poster.png';
+
+    const headerInfo = document.createElement('div');
+    headerInfo.className = 'request-modal-header-info';
+
+    // Title
+    const title = document.createElement('h2');
+    title.className = 'request-modal-title';
+    title.textContent = req.title;
+
+    // Tagline
+    if (req.tagline) {
+        const tagline = document.createElement('div');
+        tagline.className = 'request-modal-tagline';
+        tagline.textContent = `"${req.tagline}"`;
+        headerInfo.appendChild(tagline);
+    }
+
+    // Meta info row
+    const metaRow = document.createElement('div');
+    metaRow.className = 'request-modal-meta';
+
+    const badges = [];
+    badges.push(`<span class="meta-badge">${req.media_type === 'movie' ? '🎬 Movie' : '📺 TV Show'}</span>`);
+    if (req.year) badges.push(`<span class="meta-badge">📅 ${req.year}</span>`);
+    if (req.runtime_minutes) badges.push(`<span class="meta-badge">⏱️ ${req.runtime_minutes} min</span>`);
+    if (req.rating) badges.push(`<span class="meta-badge">⭐ ${req.rating.toFixed(1)}</span>`);
+    metaRow.innerHTML = badges.join('');
+
+    // Genres
+    if (req.genres && req.genres.length > 0) {
+        const genres = document.createElement('div');
+        genres.className = 'request-modal-genres';
+        genres.innerHTML = req.genres.map(g => `<span class="genre-tag">${g}</span>`).join('');
+        headerInfo.appendChild(genres);
+    }
+
+    // Status badge
+    const status = document.createElement('div');
+    status.className = `request-modal-status status-${req.status}`;
+    const statusLabels = {
+        'pending': '⏳ Pending Approval',
+        'approved': '✓ Approved',
+        'processing': '⬇️ Downloading',
+        'available': '✅ Available',
+        'declined': '❌ Declined'
+    };
+    status.textContent = statusLabels[req.status] || req.status;
+
+    headerInfo.appendChild(title);
+    headerInfo.appendChild(metaRow);
+    headerInfo.appendChild(status);
+    header.appendChild(poster);
+    header.appendChild(headerInfo);
+
+    // Overview
+    const overviewSection = document.createElement('div');
+    overviewSection.className = 'request-modal-overview';
+    overviewSection.innerHTML = `<h3>Overview</h3><p>${req.overview || 'No overview available.'}</p>`;
+
+    // Request details
+    const detailsSection = document.createElement('div');
+    detailsSection.className = 'request-modal-details';
+    detailsSection.innerHTML = `
+        <h3>Request Details</h3>
+        <div class="detail-row"><span>Requested by:</span> <strong>${req.requested_by || 'Unknown'}</strong></div>
+        <div class="detail-row"><span>Requested:</span> <strong>${formatDate(req.requested_at)}</strong></div>
+        ${req.seasons_requested && req.seasons_requested.length > 0 ?
+            `<div class="detail-row"><span>Seasons:</span> <strong>${req.seasons_requested.filter(s => s > 0).join(', ') || 'All'}</strong></div>` : ''}
+    `;
+
+    // Close button
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'request-modal-close';
+    closeBtn.innerHTML = '<i data-lucide="x"></i>';
+    closeBtn.onclick = () => overlay.remove();
+
+    content.appendChild(header);
+    content.appendChild(overviewSection);
+    content.appendChild(detailsSection);
+    modal.appendChild(closeBtn);
+    modal.appendChild(content);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    lucide.createIcons();
+
+    // Close on escape
+    const escHandler = (e) => {
+        if (e.key === 'Escape') {
+            overlay.remove();
+            document.removeEventListener('keydown', escHandler);
+        }
+    };
+    document.addEventListener('keydown', escHandler);
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return 'N/A';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 async function requestMedia(item) {
@@ -2021,12 +2316,20 @@ async function loadEpisodesForSeason(seriesId, seasonNumber, episodeList) {
 
             data.episodes.forEach(ep => {
                 const episodeCard = document.createElement('div');
-                episodeCard.className = 'episode-card' + (ep.has_file ? '' : ' unavailable');
+                episodeCard.className = 'episode-card' + (ep.has_file ? '' : ' unavailable') + (ep.played ? ' watched' : '');
 
                 // Episode number badge
                 const epNum = document.createElement('div');
                 epNum.className = 'episode-number';
                 epNum.textContent = ep.episode_number;
+
+                // Watched indicator (small eye icon)
+                if (ep.played) {
+                    const watchedIcon = document.createElement('i');
+                    watchedIcon.setAttribute('data-lucide', 'eye');
+                    watchedIcon.className = 'episode-watched-icon';
+                    epNum.appendChild(watchedIcon);
+                }
                 episodeCard.appendChild(epNum);
 
                 // Episode info

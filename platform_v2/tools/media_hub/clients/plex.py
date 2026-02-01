@@ -392,12 +392,16 @@ class PlexClient(MediaServerInterface):
                     else:
                         quality = "SD"
 
-                # Get watched status
+                # Get watched status and progress
                 view_count = item.get("viewCount", 0)
                 played = view_count > 0
+                view_offset = item.get("viewOffset", 0)  # Playback position in ms
+                duration = item.get("duration", 0)  # Total duration in ms
+                watch_progress = 0
+                if duration > 0 and view_offset > 0:
+                    watch_progress = round((view_offset / duration) * 100)
 
                 # Get runtime in minutes
-                duration = item.get("duration", 0)
                 runtime_minutes = duration // 60000 if duration else None
 
                 episodes.append(
@@ -414,6 +418,7 @@ class PlexClient(MediaServerInterface):
                         "has_file": len(media_list) > 0,
                         "played": played,
                         "view_count": view_count,
+                        "watch_progress": watch_progress,
                     }
                 )
 

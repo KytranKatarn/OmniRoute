@@ -436,9 +436,14 @@ class JellyfinClient(MediaServerInterface):
                                 quality = "SD"
                             break
 
-                # Get played status from user data
+                # Get played status and progress from user data
                 user_data = item.get("UserData", {})
                 played = user_data.get("Played", False)
+                playback_ticks = user_data.get("PlaybackPositionTicks", 0)
+                runtime_ticks = item.get("RunTimeTicks", 0)
+                watch_progress = 0
+                if runtime_ticks > 0 and playback_ticks > 0:
+                    watch_progress = round((playback_ticks / runtime_ticks) * 100)
 
                 episodes.append(
                     {
@@ -453,6 +458,7 @@ class JellyfinClient(MediaServerInterface):
                         "air_date": item.get("PremiereDate"),
                         "has_file": len(media_sources) > 0,
                         "played": played,
+                        "watch_progress": watch_progress,
                     }
                 )
         return episodes
@@ -492,6 +498,12 @@ class JellyfinClient(MediaServerInterface):
         user_id = self._get_user_id()
         if not user_id:
             return None
+
+        # Get item details for resume position
+        item_info = self._request(f"/Users/{user_id}/Items/{media_id}")
+        resume_position_ticks = 0
+        if item_info and "UserData" in item_info:
+            resume_position_ticks = item_info["UserData"].get("PlaybackPositionTicks", 0)
 
         # Get playback info first
         playback_info = self._request(f"/Items/{media_id}/PlaybackInfo", {"UserId": user_id}, method="POST")
@@ -581,6 +593,8 @@ class JellyfinClient(MediaServerInterface):
             "duration_seconds": (
                 media_source.get("RunTimeTicks", 0) // 10000000 if media_source.get("RunTimeTicks") else 0
             ),
+            "resume_position_ticks": resume_position_ticks,
+            "resume_position_seconds": resume_position_ticks // 10000000 if resume_position_ticks else 0,
             "subtitles": subtitles,
             "media_source_id": media_source_id,
             "supports_direct": media_source.get("SupportsDirectStream", False),

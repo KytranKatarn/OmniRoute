@@ -2373,58 +2373,80 @@ async function loadEpisodesForSeason(seriesId, seasonNumber, episodeList) {
             episodeList.innerHTML = '';
 
             data.episodes.forEach(ep => {
+                // Create Continue Watching-style card
                 const episodeCard = document.createElement('div');
-                episodeCard.className = 'episode-card' + (ep.has_file ? '' : ' unavailable') + (ep.played ? ' watched' : '');
-                episodeCard.style.cursor = 'pointer';
+                episodeCard.className = 'episode-tile' + (ep.has_file ? '' : ' unavailable') + (ep.played ? ' watched' : '');
 
                 // Click to open episode detail modal
                 episodeCard.onclick = () => {
                     openEpisodeDetailModal(ep, seasonNumber);
                 };
 
-                // Episode number badge
-                const epNum = document.createElement('div');
-                epNum.className = 'episode-number';
-                epNum.textContent = ep.episode_number;
-
-                // Watched indicator (checkmark for watched)
-                if (ep.played) {
-                    const watchedIcon = document.createElement('i');
-                    watchedIcon.setAttribute('data-lucide', 'check');
-                    watchedIcon.className = 'episode-watched-icon';
-                    epNum.appendChild(watchedIcon);
+                // Thumbnail container
+                const thumb = document.createElement('div');
+                thumb.className = 'episode-tile-thumb';
+                if (ep.poster_url) {
+                    thumb.style.backgroundImage = `url(${ep.poster_url})`;
                 }
-                episodeCard.appendChild(epNum);
 
-                // Episode info
-                const epInfo = document.createElement('div');
-                epInfo.className = 'episode-info';
+                // Episode number badge (top-left)
+                const epBadge = document.createElement('div');
+                epBadge.className = 'episode-tile-badge';
+                epBadge.textContent = ep.episode_number;
+                thumb.appendChild(epBadge);
+
+                // Watched indicator (top-right)
+                if (ep.played) {
+                    const watchedBadge = document.createElement('div');
+                    watchedBadge.className = 'episode-tile-watched';
+                    const eyeIcon = document.createElement('i');
+                    eyeIcon.setAttribute('data-lucide', 'eye');
+                    watchedBadge.appendChild(eyeIcon);
+                    thumb.appendChild(watchedBadge);
+                }
+
+                // Play icon overlay (center)
+                if (ep.has_file) {
+                    const playIcon = document.createElement('div');
+                    playIcon.className = 'episode-tile-play';
+                    const icon = document.createElement('i');
+                    icon.setAttribute('data-lucide', 'play');
+                    playIcon.appendChild(icon);
+                    thumb.appendChild(playIcon);
+                }
+
+                // Progress bar (if partially watched)
+                if (ep.watch_progress && ep.watch_progress > 0 && ep.watch_progress < 100) {
+                    const progressBar = document.createElement('div');
+                    progressBar.className = 'episode-tile-progress';
+                    const progressFill = document.createElement('div');
+                    progressFill.className = 'episode-tile-progress-fill';
+                    progressFill.style.width = `${ep.watch_progress}%`;
+                    progressBar.appendChild(progressFill);
+                    thumb.appendChild(progressBar);
+                }
+
+                episodeCard.appendChild(thumb);
+
+                // Info section
+                const info = document.createElement('div');
+                info.className = 'episode-tile-info';
 
                 const epTitle = document.createElement('div');
-                epTitle.className = 'episode-title';
+                epTitle.className = 'episode-tile-title';
                 epTitle.textContent = ep.title || `Episode ${ep.episode_number}`;
-                epInfo.appendChild(epTitle);
+                info.appendChild(epTitle);
 
                 const epMeta = document.createElement('div');
-                epMeta.className = 'episode-meta';
+                epMeta.className = 'episode-tile-meta';
                 const metaParts = [];
                 if (ep.runtime_minutes) metaParts.push(`${ep.runtime_minutes}m`);
                 if (ep.quality) metaParts.push(ep.quality);
                 if (!ep.has_file) metaParts.push('Not downloaded');
                 epMeta.textContent = metaParts.join(' • ');
-                epInfo.appendChild(epMeta);
+                info.appendChild(epMeta);
 
-                episodeCard.appendChild(epInfo);
-
-                // Watched status indicator
-                const statusIcon = document.createElement('div');
-                statusIcon.className = 'episode-status-indicator';
-                const icon = document.createElement('i');
-                icon.setAttribute('data-lucide', ep.played ? 'eye' : 'eye-off');
-                icon.title = ep.played ? 'Watched' : 'Unwatched';
-                statusIcon.appendChild(icon);
-                episodeCard.appendChild(statusIcon);
-
+                episodeCard.appendChild(info);
                 episodeList.appendChild(episodeCard);
             });
 
@@ -2682,6 +2704,9 @@ async function openVideoPlayer(item) {
 
         currentStreamInfo = data.stream;
 
+        // Resume position (in seconds)
+        const resumePosition = data.stream.resume_position_seconds || 0;
+
         // Check if HLS (transcoded) stream
         if (data.stream.container === 'm3u8') {
             // Use HLS.js if available, otherwise native HLS (Safari)
@@ -2690,6 +2715,11 @@ async function openVideoPlayer(item) {
                 hls.loadSource(data.stream.stream_url);
                 hls.attachMedia(video);
                 hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                    // Seek to resume position if available
+                    if (resumePosition > 0) {
+                        video.currentTime = resumePosition;
+                        showToast(`Resuming from ${formatDuration(resumePosition)}`, 'info');
+                    }
                     video.play();
                     loading.classList.add('hidden');
                 });
@@ -2705,6 +2735,10 @@ async function openVideoPlayer(item) {
                 // Native HLS support (Safari)
                 video.src = data.stream.stream_url;
                 video.addEventListener('loadedmetadata', () => {
+                    if (resumePosition > 0) {
+                        video.currentTime = resumePosition;
+                        showToast(`Resuming from ${formatDuration(resumePosition)}`, 'info');
+                    }
                     video.play();
                     loading.classList.add('hidden');
                 }, { once: true });
@@ -2715,6 +2749,10 @@ async function openVideoPlayer(item) {
             // Direct stream - standard video source
             video.src = data.stream.stream_url;
             video.addEventListener('loadedmetadata', () => {
+                if (resumePosition > 0) {
+                    video.currentTime = resumePosition;
+                    showToast(`Resuming from ${formatDuration(resumePosition)}`, 'info');
+                }
                 video.play();
                 loading.classList.add('hidden');
             }, { once: true });

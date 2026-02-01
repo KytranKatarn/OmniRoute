@@ -4038,6 +4038,133 @@ body.light-mode .stat-value { color: #1a1a1a; }
     color: #000;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   EPISODE TILE (Continue Watching Style)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.episode-tile {
+    display: flex;
+    flex-direction: column;
+    background: var(--archie-bg-secondary);
+    border-radius: 10px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-bottom: 10px;
+}
+
+.episode-tile:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.episode-tile.unavailable { opacity: 0.5; }
+
+.episode-tile-thumb {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: var(--archie-bg-tertiary);
+    background-size: cover;
+    background-position: center;
+}
+
+.episode-tile-badge {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.7);
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #fff;
+}
+
+.episode-tile-watched {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--archie-blue, #3B82F6);
+    border-radius: 50%;
+    color: #fff;
+}
+
+.episode-tile-watched i { width: 14px; height: 14px; }
+
+.episode-tile-play {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 50%;
+    color: #fff;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.episode-tile:hover .episode-tile-play { opacity: 1; }
+.episode-tile-play i { width: 24px; height: 24px; margin-left: 3px; }
+
+.episode-tile-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.episode-tile-progress-fill {
+    height: 100%;
+    background: var(--mh-accent);
+    transition: width 0.3s ease;
+}
+
+.episode-tile-info {
+    padding: 10px 12px;
+}
+
+.episode-tile-title {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--archie-text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 4px;
+}
+
+.episode-tile-meta {
+    font-size: 0.75rem;
+    color: var(--archie-text-muted);
+}
+
+/* Episode list as grid for tiles */
+.episode-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 12px;
+}
+
 /* Episode browser responsive */
 @media (max-width: 640px) {
     .episode-browser-header { padding: 10px 12px; }

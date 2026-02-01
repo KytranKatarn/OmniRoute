@@ -469,15 +469,14 @@ class JellyfinClient(MediaServerInterface):
         if not user_id:
             return False
 
+        headers = {"X-MediaBrowser-Token": self.api_key, "Accept": "application/json"}
+
         try:
+            url = f"{self.base_url}/Users/{user_id}/PlayedItems/{media_id}"
             if watched:
-                # Jellyfin uses /Users/{userId}/PlayedItems/{itemId} to mark as watched
-                url = f"{self.base_url}/Users/{user_id}/PlayedItems/{media_id}"
-                response = requests.post(url, headers=self.headers, timeout=10)
+                response = requests.post(url, headers=headers, timeout=10)
             else:
-                # DELETE to mark as unwatched
-                url = f"{self.base_url}/Users/{user_id}/PlayedItems/{media_id}"
-                response = requests.delete(url, headers=self.headers, timeout=10)
+                response = requests.delete(url, headers=headers, timeout=10)
 
             return response.status_code in [200, 204]
         except Exception as e:

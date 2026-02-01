@@ -138,6 +138,7 @@ class OverseerrClient(RequestServiceInterface):
                 media = item.get("media", {})
 
                 # Determine status
+                # Request status: 1=pending, 2=approved, 3=declined, 4=failed
                 req_status = "pending"
                 if item.get("status") == 1:
                     req_status = "pending"
@@ -145,9 +146,12 @@ class OverseerrClient(RequestServiceInterface):
                     req_status = "approved"
                 elif item.get("status") == 3:
                     req_status = "declined"
+                elif item.get("status") == 4:
+                    req_status = "failed"
 
+                # Media status overrides request status for available/processing
                 media_status = media.get("status", 0)
-                if media_status == 4:
+                if media_status in (4, 5):  # 4=PARTIALLY_AVAILABLE, 5=AVAILABLE
                     req_status = "available"
                 elif media_status == 3:
                     req_status = "processing"

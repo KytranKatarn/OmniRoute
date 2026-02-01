@@ -1476,6 +1476,11 @@ async function loadShows(append = false) {
 // REQUESTS
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Requests state
+let allRequests = [];
+let currentRequestsFilter = 'active';
+let currentRequestsLimit = 10;
+
 async function loadRequests() {
     const container = document.getElementById('requestsList');
     if (!container) return;
@@ -1489,18 +1494,11 @@ async function loadRequests() {
 
         container.textContent = '';
 
-        if (data.success && data.requests && data.requests.length > 0) {
-            // Group by status for better organization
-            const statusOrder = ['processing', 'pending', 'approved', 'available', 'declined'];
-            const sorted = data.requests.sort((a, b) => {
-                return statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status);
-            });
-
-            sorted.forEach(req => {
-                container.appendChild(createRequestCard(req));
-            });
+        if (data.success && data.requests) {
+            allRequests = data.requests;
+            renderFilteredRequests();
         } else {
-            container.appendChild(createEmptyState('inbox', 'No pending requests'));
+            container.appendChild(createEmptyState('inbox', 'No media requests'));
         }
         lucide.createIcons();
     } catch (error) {
@@ -1508,6 +1506,78 @@ async function loadRequests() {
         container.appendChild(createEmptyState('alert-circle', 'Failed to load requests'));
         lucide.createIcons();
     }
+}
+
+function filterRequests(status) {
+    currentRequestsFilter = status;
+    // Update active button
+    document.querySelectorAll('#requestsFilterGroup .filter-chip').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.status === status);
+    });
+    renderFilteredRequests();
+}
+
+function setRequestsLimit(limit) {
+    currentRequestsLimit = limit;
+    // Update active button
+    document.querySelectorAll('.limit-btn').forEach(btn => {
+        btn.classList.toggle('active', parseInt(btn.textContent) === limit);
+    });
+    renderFilteredRequests();
+}
+
+function renderFilteredRequests() {
+    const container = document.getElementById('requestsList');
+    const summary = document.getElementById('requestsSummary');
+    if (!container) return;
+
+    container.textContent = '';
+
+    // Filter based on status
+    let filtered = allRequests;
+    if (currentRequestsFilter === 'active') {
+        // Active = pending, approved, processing (not completed/available)
+        filtered = allRequests.filter(r => ['pending', 'approved', 'processing'].includes(r.status));
+    } else if (currentRequestsFilter !== 'all') {
+        filtered = allRequests.filter(r => r.status === currentRequestsFilter);
+    }
+
+    // Update summary
+    if (summary) {
+        const counts = {
+            pending: allRequests.filter(r => r.status === 'pending').length,
+            approved: allRequests.filter(r => r.status === 'approved').length,
+            processing: allRequests.filter(r => r.status === 'processing').length,
+            available: allRequests.filter(r => r.status === 'available').length
+        };
+        summary.innerHTML = `
+            <span class="summary-item"><span class="dot pending"></span>${counts.pending} pending</span>
+            <span class="summary-item"><span class="dot approved"></span>${counts.approved} approved</span>
+            <span class="summary-item"><span class="dot processing"></span>${counts.processing} downloading</span>
+            <span class="summary-item"><span class="dot available"></span>${counts.available} completed</span>
+        `;
+    }
+
+    // Sort and limit
+    const statusOrder = ['processing', 'pending', 'approved', 'available', 'declined'];
+    const sorted = filtered.sort((a, b) => statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status));
+    const limited = sorted.slice(0, currentRequestsLimit);
+
+    if (limited.length > 0) {
+        limited.forEach(req => {
+            container.appendChild(createRequestCard(req));
+        });
+        // Show "showing X of Y" if limited
+        if (filtered.length > currentRequestsLimit) {
+            const more = document.createElement('div');
+            more.className = 'requests-more';
+            more.textContent = `Showing ${currentRequestsLimit} of ${filtered.length} requests`;
+            container.appendChild(more);
+        }
+    } else {
+        container.appendChild(createEmptyState('inbox', 'No requests match this filter'));
+    }
+    lucide.createIcons();
 }
 
 function createRequestCard(req) {
@@ -1669,9 +1739,115 @@ function showRequestDetail(req) {
         <h3>Request Details</h3>
         <div class="detail-row"><span>Requested by:</span> <strong>${req.requested_by || 'Unknown'}</strong></div>
         <div class="detail-row"><span>Requested:</span> <strong>${formatDate(req.requested_at)}</strong></div>
+        <div class="detail-row"><span>TMDB ID:</span> <strong>${req.tmdb_id || 'N/A'}</strong></div>
         ${req.seasons_requested && req.seasons_requested.length > 0 ?
             `<div class="detail-row"><span>Seasons:</span> <strong>${req.seasons_requested.filter(s => s > 0).join(', ') || 'All'}</strong></div>` : ''}
     `;
+
+    // Library status check section (for non-available items)
+    const librarySection = document.createElement('div');
+    librarySection.className = 'request-library-status';
+    librarySection.innerHTML = '<span class="checking"><i data-lucide="loader" class="spin"></i> Checking library...</span>';
+
+    // Check if item is in library
+    if (req.status !== 'available') {
+        checkLibraryStatus(req, librarySection);
+    }
+
+    // Action buttons
+    const actionsSection = document.createElement('div');
+    actionsSection.className = 'request-modal-actions';
+
+    // Check Library / Mark Available button (for approved/processing items)
+    if (['approved', 'processing', 'pending'].includes(req.status)) {
+        const checkBtn = document.createElement('button');
+        checkBtn.className = 'btn btn-primary';
+        checkBtn.innerHTML = '<i data-lucide="library"></i> Check & Sync Status';
+        checkBtn.onclick = async () => {
+            checkBtn.disabled = true;
+            checkBtn.innerHTML = '<i data-lucide="loader"></i> Checking...';
+            try {
+                const resp = await fetch(`${API_BASE}/requests/${req.id}/check-library`, { method: 'POST' });
+                const result = await resp.json();
+                if (result.success) {
+                    if (result.in_library) {
+                        showToast(`"${req.title}" found in library! Status updated.`, 'success');
+                        overlay.remove();
+                        loadRequests();
+                    } else {
+                        showToast(`"${req.title}" not found in library yet`, 'info');
+                        checkBtn.disabled = false;
+                        checkBtn.innerHTML = '<i data-lucide="library"></i> Check & Sync Status';
+                    }
+                } else {
+                    showToast(result.error || 'Check failed', 'error');
+                    checkBtn.disabled = false;
+                    checkBtn.innerHTML = '<i data-lucide="library"></i> Check & Sync Status';
+                }
+            } catch (e) {
+                showToast('Failed to check library', 'error');
+                checkBtn.disabled = false;
+                checkBtn.innerHTML = '<i data-lucide="library"></i> Check & Sync Status';
+            }
+            lucide.createIcons();
+        };
+        actionsSection.appendChild(checkBtn);
+    }
+
+    // Retry search button (for approved/processing items)
+    if (['approved', 'processing'].includes(req.status)) {
+        const retryBtn = document.createElement('button');
+        retryBtn.className = 'btn btn-secondary';
+        retryBtn.innerHTML = '<i data-lucide="refresh-cw"></i> Retry Search';
+        retryBtn.onclick = async () => {
+            retryBtn.disabled = true;
+            retryBtn.innerHTML = '<i data-lucide="loader"></i> Searching...';
+            try {
+                const resp = await fetch(`${API_BASE}/requests/${req.id}/retry`, { method: 'POST' });
+                const result = await resp.json();
+                if (result.success) {
+                    showToast('Search triggered successfully', 'success');
+                } else {
+                    showToast(result.error || 'Retry failed', 'error');
+                }
+            } catch (e) {
+                showToast('Failed to trigger search', 'error');
+            }
+            retryBtn.disabled = false;
+            retryBtn.innerHTML = '<i data-lucide="refresh-cw"></i> Retry Search';
+            lucide.createIcons();
+        };
+        actionsSection.appendChild(retryBtn);
+    }
+
+    // Delete button
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'btn btn-danger';
+    deleteBtn.innerHTML = '<i data-lucide="trash-2"></i> Delete Request';
+    deleteBtn.onclick = async () => {
+        if (!confirm(`Delete request for "${req.title}"?`)) return;
+        deleteBtn.disabled = true;
+        deleteBtn.innerHTML = '<i data-lucide="loader"></i> Deleting...';
+        try {
+            const resp = await fetch(`${API_BASE}/requests/${req.id}`, { method: 'DELETE' });
+            const result = await resp.json();
+            if (result.success) {
+                showToast('Request deleted', 'success');
+                overlay.remove();
+                loadRequests(); // Refresh list
+            } else {
+                showToast(result.error || 'Delete failed', 'error');
+                deleteBtn.disabled = false;
+                deleteBtn.innerHTML = '<i data-lucide="trash-2"></i> Delete Request';
+            }
+        } catch (e) {
+            showToast('Failed to delete request', 'error');
+            deleteBtn.disabled = false;
+            deleteBtn.innerHTML = '<i data-lucide="trash-2"></i> Delete Request';
+        }
+        lucide.createIcons();
+    };
+    actionsSection.appendChild(deleteBtn);
 
     // Close button
     const closeBtn = document.createElement('button');
@@ -1682,6 +1858,10 @@ function showRequestDetail(req) {
     content.appendChild(header);
     content.appendChild(overviewSection);
     content.appendChild(detailsSection);
+    if (req.status !== 'available') {
+        content.appendChild(librarySection);
+    }
+    content.appendChild(actionsSection);
     modal.appendChild(closeBtn);
     modal.appendChild(content);
     overlay.appendChild(modal);
@@ -1703,6 +1883,45 @@ function formatDate(dateStr) {
     if (!dateStr) return 'N/A';
     const date = new Date(dateStr);
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+async function checkLibraryStatus(req, container) {
+    try {
+        // Search library for this title
+        const searchType = req.media_type === 'movie' ? 'movies' : 'shows';
+        const response = await fetch(`${API_BASE}/library/${searchType}?limit=200`);
+        const data = await response.json();
+
+        if (data.success && data.items) {
+            // Check if item exists by title match or TMDB ID
+            const found = data.items.find(item => {
+                const titleMatch = item.title?.toLowerCase() === req.title?.toLowerCase();
+                const tmdbMatch = item.tmdb_id && req.tmdb_id && item.tmdb_id === req.tmdb_id;
+                return titleMatch || tmdbMatch;
+            });
+
+            if (found) {
+                container.innerHTML = `
+                    <div class="library-found">
+                        <i data-lucide="check-circle"></i>
+                        <span><strong>Already in library!</strong> Click "Check & Sync Status" to update Overseerr.</span>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = `
+                    <div class="library-not-found">
+                        <i data-lucide="clock"></i>
+                        <span>Not yet in library - waiting for download</span>
+                    </div>
+                `;
+            }
+        } else {
+            container.innerHTML = '';
+        }
+        lucide.createIcons();
+    } catch (e) {
+        container.innerHTML = '';
+    }
 }
 
 async function requestMedia(item) {
@@ -2694,8 +2913,21 @@ async function openVideoPlayer(item) {
     subtitleSelector.innerHTML = '';
 
     try {
-        // Get stream URL from API
-        const response = await fetch(`${API_BASE}/stream/${item.id}`);
+        // Get stream URL from API - pass title/year for fallback lookup (Plex IDs need Jellyfin lookup)
+        const params = new URLSearchParams();
+        if (item.title) params.set('title', item.title);
+        if (item.year) params.set('year', item.year);
+        if (item.media_type) params.set('type', item.media_type);
+        // Episode-specific params for show/season/episode lookup
+        if (item.media_type === 'episode') {
+            const showTitle = item.metadata?.show_title || item.show_title;
+            if (showTitle) params.set('show_title', showTitle);
+            if (item.season_number !== undefined) params.set('season', item.season_number);
+            if (item.episode_number !== undefined) params.set('episode', item.episode_number);
+        }
+        const queryString = params.toString();
+        const streamUrl = `${API_BASE}/stream/${item.id}${queryString ? '?' + queryString : ''}`;
+        const response = await fetch(streamUrl);
         const data = await response.json();
 
         if (!data.success || !data.stream) {
@@ -2820,19 +3052,26 @@ function closeVideoPlayer() {
     const modal = document.getElementById('videoPlayerModal');
     const video = document.getElementById('videoPlayer');
 
-    // Stop playback
-    video.pause();
-    video.src = '';
-
-    // Cleanup HLS instance if exists
+    // Cleanup HLS instance FIRST if exists (before touching video element)
     if (video.hlsInstance) {
         video.hlsInstance.destroy();
         video.hlsInstance = null;
     }
 
+    // Stop playback safely
+    try {
+        video.pause();
+    } catch (e) {
+        // Ignore pause errors
+    }
+
     // Remove subtitle tracks
     const tracks = video.querySelectorAll('track');
     tracks.forEach(t => t.remove());
+
+    // Clear source properly to avoid playback errors
+    video.removeAttribute('src');
+    video.load();
 
     modal.classList.remove('active');
     currentStreamInfo = null;

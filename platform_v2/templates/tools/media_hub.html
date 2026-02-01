@@ -307,13 +307,21 @@
         <!-- Requests Tab -->
         <section id="tab-requests" class="tab-panel">
             <div class="library-controls">
-                <div class="filter-group">
-                    <button class="filter-chip active" data-status="">All</button>
-                    <button class="filter-chip" data-status="pending">Pending</button>
-                    <button class="filter-chip" data-status="approved">Approved</button>
-                    <button class="filter-chip" data-status="available">Available</button>
+                <div class="filter-group" id="requestsFilterGroup">
+                    <button class="filter-chip active" data-status="active" onclick="filterRequests('active')">Active</button>
+                    <button class="filter-chip" data-status="pending" onclick="filterRequests('pending')">Pending</button>
+                    <button class="filter-chip" data-status="approved" onclick="filterRequests('approved')">Approved</button>
+                    <button class="filter-chip" data-status="available" onclick="filterRequests('available')">Completed</button>
+                    <button class="filter-chip" data-status="all" onclick="filterRequests('all')">All</button>
+                </div>
+                <div class="limit-group">
+                    <span class="limit-label">Show:</span>
+                    <button class="limit-btn active" onclick="setRequestsLimit(10)">10</button>
+                    <button class="limit-btn" onclick="setRequestsLimit(20)">20</button>
+                    <button class="limit-btn" onclick="setRequestsLimit(50)">50</button>
                 </div>
             </div>
+            <div class="requests-summary" id="requestsSummary"></div>
             <div class="requests-list" id="requestsList">
                 <div class="empty-state">
                     <i data-lucide="inbox"></i>
@@ -1762,10 +1770,144 @@ body.tv-mode .install-app-btn {
 .detail-row span { color: var(--archie-text-muted); }
 .detail-row strong { color: var(--archie-text-primary); }
 
+/* Request modal actions */
+.request-modal-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--archie-border-muted);
+}
+.request-modal-actions .btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.request-modal-actions .btn-secondary {
+    background: var(--archie-bg-tertiary);
+    border: 1px solid var(--archie-border-muted);
+    color: var(--archie-text-primary);
+}
+.request-modal-actions .btn-secondary:hover { background: var(--archie-bg-elevated); border-color: var(--mh-accent); }
+.request-modal-actions .btn-danger {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+}
+.request-modal-actions .btn-danger:hover { background: rgba(239, 68, 68, 0.25); }
+.request-modal-actions .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.request-modal-actions .btn-primary {
+    background: var(--mh-accent);
+    border: 1px solid var(--mh-accent);
+    color: white;
+}
+.request-modal-actions .btn-primary:hover { background: var(--mh-accent-hover); }
+
+/* Library status in request modal */
+.request-library-status {
+    margin-top: 16px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+}
+.request-library-status .checking {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--archie-text-muted);
+}
+.request-library-status .spin { animation: spin 1s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.library-found {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: 8px;
+    color: #10b981;
+}
+.library-found i { flex-shrink: 0; }
+.library-not-found {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    background: rgba(245, 158, 11, 0.15);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: 8px;
+    color: #f59e0b;
+}
+.library-not-found i { flex-shrink: 0; }
+
+/* Requests summary bar */
+.requests-summary {
+    display: flex;
+    gap: 16px;
+    padding: 12px 16px;
+    background: var(--archie-bg-tertiary);
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-size: 0.85rem;
+}
+.summary-item { display: flex; align-items: center; gap: 6px; color: var(--archie-text-muted); }
+.summary-item .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+.dot.pending { background: #f59e0b; }
+.dot.approved { background: #10b981; }
+.dot.processing { background: #3b82f6; }
+.dot.available { background: #8b5cf6; }
+
+/* Limit selector */
+.limit-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.limit-label { font-size: 0.85rem; color: var(--archie-text-muted); }
+.limit-btn {
+    padding: 6px 12px;
+    background: var(--archie-bg-tertiary);
+    border: 1px solid var(--archie-border-muted);
+    border-radius: 6px;
+    color: var(--archie-text-secondary);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.limit-btn:hover { border-color: var(--mh-accent); }
+.limit-btn.active {
+    background: var(--mh-accent);
+    border-color: var(--mh-accent);
+    color: white;
+}
+
+/* Requests more indicator */
+.requests-more {
+    text-align: center;
+    padding: 12px;
+    color: var(--archie-text-muted);
+    font-size: 0.85rem;
+    font-style: italic;
+}
+
 @media (max-width: 600px) {
     .request-modal-header { flex-direction: column; align-items: center; text-align: center; }
     .request-modal-poster { width: 100px; height: 150px; }
     .request-modal-header-info { align-items: center; }
+    .requests-summary { flex-wrap: wrap; gap: 8px; }
+    .request-modal-actions { flex-direction: column; }
 }
 
 /* Calendar */

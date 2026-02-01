@@ -805,6 +805,284 @@ def api_create_request():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@media_hub_bp.route("/api/requests/<int:request_id>", methods=["DELETE"])
+def api_delete_request(request_id):
+    """Delete a media request"""
+    overseerr_config = get_service_config("overseerr") or get_service_config("jellyseerr")
+    if not overseerr_config or not overseerr_config.get("api_key"):
+        return jsonify({"success": False, "error": "Overseerr not configured"}), 400
+
+    try:
+        from .clients.overseerr import OverseerrClient
+
+        overseerr = OverseerrClient(
+            host=overseerr_config["host"],
+            port=overseerr_config["port"],
+            api_key=overseerr_config["api_key"],
+            use_ssl=overseerr_config["use_ssl"],
+        )
+        if overseerr.delete_request(request_id):
+            return jsonify({"success": True})
+        else:
+            return jsonify({"success": False, "error": "Failed to delete request"}), 500
+    except Exception as e:
+        logger.error(f"Error deleting request: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@media_hub_bp.route("/api/requests/<int:request_id>/retry", methods=["POST"])
+def api_retry_request(request_id):
+    """Trigger a search retry for a request in Radarr/Sonarr"""
+    import requests as http_requests
+
+    overseerr_config = get_service_config("overseerr") or get_service_config("jellyseerr")
+    if not overseerr_config:
+        return jsonify({"success": False, "error": "Overseerr not configured"}), 400
+
+    try:
+        # Get request details from Overseerr to find media type and IDs
+        from .clients.overseerr import OverseerrClient
+
+        overseerr = OverseerrClient(
+            host=overseerr_config["host"],
+            port=overseerr_config["port"],
+            api_key=overseerr_config["api_key"],
+            use_ssl=overseerr_config["use_ssl"],
+        )
+
+        # Get all requests and find the one we need
+        all_requests = overseerr.get_requests()
+        target_req = None
+        for req in all_requests:
+            if str(req.id) == str(request_id):
+                target_req = req
+                break
+
+        if not target_req:
+            return jsonify({"success": False, "error": "Request not found"}), 404
+
+        # Trigger search in appropriate *arr service
+        if target_req.media_type == "movie":
+            radarr_config = get_service_config("radarr")
+            if not radarr_config:
+                return jsonify({"success": False, "error": "Radarr not configured"}), 400
+
+            # Find movie in Radarr by TMDB ID
+            base_url = f"http://{radarr_config['host']}:{radarr_config['port']}"
+            headers = {"X-Api-Key": radarr_config["api_key"]}
+
+            movies_resp = http_requests.get(f"{base_url}/api/v3/movie", headers=headers, timeout=10)
+            movies = movies_resp.json()
+
+            movie_id = None
+            for m in movies:
+                if m.get("tmdbId") == target_req.tmdb_id:
+                    movie_id = m.get("id")
+                    break
+
+            if not movie_id:
+                return jsonify({"success": False, "error": "Movie not found in Radarr"}), 404
+
+            # Trigger search
+            search_resp = http_requests.post(
+                f"{base_url}/api/v3/command",
+                headers=headers,
+                json={"name": "MoviesSearch", "movieIds": [movie_id]},
+                timeout=10,
+            )
+            if search_resp.status_code == 201:
+                return jsonify({"success": True, "message": "Search triggered"})
+            else:
+                return jsonify({"success": False, "error": "Failed to trigger search"}), 500
+        else:
+            # TV show - use Sonarr
+            sonarr_config = get_service_config("sonarr")
+            if not sonarr_config:
+                return jsonify({"success": False, "error": "Sonarr not configured"}), 400
+
+            base_url = f"http://{sonarr_config['host']}:{sonarr_config['port']}"
+            headers = {"X-Api-Key": sonarr_config["api_key"]}
+
+            # Find series by TVDB ID
+            series_resp = http_requests.get(f"{base_url}/api/v3/series", headers=headers, timeout=10)
+            series_list = series_resp.json()
+
+            series_id = None
+            for s in series_list:
+                if s.get("tvdbId") == target_req.tvdb_id or s.get("tmdbId") == target_req.tmdb_id:
+                    series_id = s.get("id")
+                    break
+
+            if not series_id:
+                return jsonify({"success": False, "error": "Series not found in Sonarr"}), 404
+
+            # Trigger search
+            search_resp = http_requests.post(
+                f"{base_url}/api/v3/command",
+                headers=headers,
+                json={"name": "SeriesSearch", "seriesId": series_id},
+                timeout=10,
+            )
+            if search_resp.status_code == 201:
+                return jsonify({"success": True, "message": "Search triggered"})
+            else:
+                return jsonify({"success": False, "error": "Failed to trigger search"}), 500
+
+    except Exception as e:
+        logger.error(f"Error retrying request: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@media_hub_bp.route("/api/requests/<int:request_id>/check-library", methods=["POST"])
+def api_check_library_status(request_id):
+    """Check if a requested item is in the library and update Overseerr status"""
+    import requests as http_requests
+
+    overseerr_config = get_service_config("overseerr") or get_service_config("jellyseerr")
+    if not overseerr_config:
+        return jsonify({"success": False, "error": "Overseerr not configured"}), 400
+
+    try:
+        base_url = f"http://{overseerr_config['host']}:{overseerr_config['port']}"
+        headers = {"X-Api-Key": overseerr_config["api_key"], "Content-Type": "application/json"}
+
+        # Get all requests and find the target (individual endpoint requires session auth)
+        resp = http_requests.get(f"{base_url}/api/v1/request", headers=headers, params={"take": 100}, timeout=10)
+        resp.raise_for_status()
+        all_requests = resp.json().get("results", [])
+
+        # Find the target request
+        req_data = None
+        for req in all_requests:
+            if req.get("id") == request_id:
+                req_data = req
+                break
+
+        if not req_data:
+            return jsonify({"success": False, "error": "Request not found"}), 404
+
+        media = req_data.get("media", {})
+        media_id = media.get("id")
+        media_type = req_data.get("type", "movie")
+        tmdb_id = media.get("tmdbId")
+        current_media_status = media.get("status", 0)
+
+        # Get title from TMDB since Overseerr doesn't include it in raw response
+        title = "Unknown"
+        if tmdb_id:
+            try:
+                from .clients.tmdb import TMDBClient
+
+                tmdb = TMDBClient()
+                if tmdb.is_configured():
+                    if media_type == "movie":
+                        details = tmdb.get_movie_details(tmdb_id)
+                    else:
+                        details = tmdb.get_tv_details(tmdb_id)
+                    if details:
+                        title = details.get("title") or details.get("name") or "Unknown"
+            except Exception as e:
+                logger.debug(f"TMDB title lookup failed: {e}")
+
+        if not media_id:
+            return jsonify({"success": False, "error": "No media ID found in request"}), 400
+
+        # Check if request has failed (status 4) - re-request it
+        request_status = req_data.get("status", 0)
+        if request_status == 4:  # FAILED
+            # Delete the failed request
+            delete_resp = http_requests.delete(f"{base_url}/api/v1/request/{request_id}", headers=headers, timeout=10)
+
+            if delete_resp.status_code == 200:
+                # Create a new request
+                new_req_resp = http_requests.post(
+                    f"{base_url}/api/v1/request",
+                    headers=headers,
+                    json={"mediaType": media_type, "mediaId": tmdb_id},
+                    timeout=10,
+                )
+
+                if new_req_resp.status_code in (200, 201):
+                    new_req = new_req_resp.json()
+                    return jsonify(
+                        {
+                            "success": True,
+                            "re_requested": True,
+                            "new_request_id": new_req.get("id"),
+                            "message": f"'{title}' was re-requested. New request created.",
+                        }
+                    )
+                else:
+                    return (
+                        jsonify({"success": False, "error": f"Failed to create new request: {new_req_resp.text}"}),
+                        500,
+                    )
+            else:
+                return jsonify({"success": False, "error": f"Failed to delete old request: {delete_resp.text}"}), 500
+
+        # If already available, no need to update
+        if current_media_status == 5:
+            return jsonify(
+                {
+                    "success": True,
+                    "in_library": True,
+                    "already_available": True,
+                    "message": f"'{title}' is already marked as available",
+                }
+            )
+
+        # Check library for this item
+        media_server, server_type = get_primary_media_server()
+        if not media_server:
+            return jsonify({"success": False, "error": "No media server configured"}), 400
+
+        found_in_library = False
+        search_type = "movie" if media_type == "movie" else "show"
+
+        results = media_server.search_library(title, media_type=search_type)
+        for item in results:
+            title_match = item.title.lower().strip() == title.lower().strip()
+            tmdb_match = item.tmdb_id and tmdb_id and str(item.tmdb_id) == str(tmdb_id)
+            if title_match or tmdb_match:
+                found_in_library = True
+                break
+
+        if found_in_library:
+            # Directly update media status to AVAILABLE (5) using POST /media/{mediaId}/status
+            status_resp = http_requests.post(
+                f"{base_url}/api/v1/media/{media_id}/status",
+                headers=headers,
+                json={"status": 5},  # 5 = AVAILABLE
+                timeout=10,
+            )
+
+            if status_resp.status_code == 200:
+                return jsonify(
+                    {
+                        "success": True,
+                        "in_library": True,
+                        "status_updated": True,
+                        "message": f"'{title}' found in library and marked as available!",
+                    }
+                )
+            else:
+                logger.warning(f"Failed to update media status: {status_resp.status_code} - {status_resp.text}")
+                return jsonify(
+                    {
+                        "success": True,
+                        "in_library": True,
+                        "status_updated": False,
+                        "message": f"'{title}' found in library but status update failed: {status_resp.text}",
+                    }
+                )
+        else:
+            return jsonify({"success": True, "in_library": False, "message": f"'{title}' not found in library yet"})
+
+    except Exception as e:
+        logger.error(f"Error checking library status: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 # =============================================================================
 # CALENDAR ENDPOINTS
 # =============================================================================
@@ -1166,19 +1444,81 @@ def api_set_primary_server(service_id):
 
 @media_hub_bp.route("/api/library/continue-watching")
 def api_continue_watching():
-    """Get on-deck / continue watching items"""
+    """Get on-deck / continue watching items from ALL media servers"""
+    from .clients.plex import PlexClient
+    from .clients.jellyfin import JellyfinClient
+
     limit = request.args.get("limit", 10, type=int)
 
-    media_server, server_type = get_primary_media_server()
-    if not media_server:
+    # Items to exclude from continue watching (user preference)
+    excluded_titles = {"the paper"}
+
+    def should_exclude(item_dict):
+        """Check if item should be excluded from continue watching"""
+        title = item_dict.get("title", "").lower()
+        show_title = item_dict.get("metadata", {}).get("show_title", "").lower()
+        return title in excluded_titles or show_title in excluded_titles
+
+    all_items = []
+    seen_titles = set()
+
+    # Get from Plex (priority source for continue watching)
+    plex_config = get_service_config("plex")
+    if plex_config and plex_config.get("api_key"):
+        try:
+            plex = PlexClient(
+                host=plex_config["host"],
+                port=plex_config["port"],
+                api_key=plex_config["api_key"],
+                use_ssl=plex_config.get("use_ssl", False),
+            )
+            plex_items = plex.get_on_deck(limit=limit * 2)  # Get extra for deduplication
+            for item in plex_items:
+                item_dict = item.to_dict()
+                item_dict["source"] = "plex"
+                # Skip excluded items
+                if should_exclude(item_dict):
+                    continue
+                # Dedup key based on title (normalized)
+                title_key = item.title.lower().strip()
+                if title_key not in seen_titles:
+                    seen_titles.add(title_key)
+                    all_items.append(item_dict)
+        except Exception as e:
+            logger.error(f"Error getting Plex continue watching: {e}")
+
+    # Get from Jellyfin (secondary source)
+    jelly_config = get_service_config("jellyfin")
+    if jelly_config and jelly_config.get("api_key"):
+        try:
+            jelly = JellyfinClient(
+                host=jelly_config["host"],
+                port=jelly_config["port"],
+                api_key=jelly_config["api_key"],
+                use_ssl=jelly_config.get("use_ssl", False),
+            )
+            jelly_items = jelly.get_on_deck(limit=limit)
+            for item in jelly_items:
+                item_dict = item.to_dict()
+                item_dict["source"] = "jellyfin"
+                # Skip excluded items
+                if should_exclude(item_dict):
+                    continue
+                # Dedup key based on title (normalized)
+                title_key = item.title.lower().strip()
+                if title_key not in seen_titles:
+                    seen_titles.add(title_key)
+                    all_items.append(item_dict)
+        except Exception as e:
+            logger.error(f"Error getting Jellyfin continue watching: {e}")
+
+    if not all_items:
         return jsonify({"success": False, "error": "No media server configured", "items": []})
 
-    try:
-        items = media_server.get_on_deck(limit)
-        return jsonify({"success": True, "items": [item.to_dict() for item in items], "source": server_type})
-    except Exception as e:
-        logger.error(f"Error getting continue watching: {e}")
-        return jsonify({"success": False, "error": str(e), "items": []})
+    # Sort by watch progress descending (higher progress = closer to finishing)
+    all_items.sort(key=lambda x: x.get("metadata", {}).get("watch_progress", 0), reverse=True)
+
+    return jsonify({"success": True, "items": all_items[:limit], "source": "combined"})
 
 
 # =============================================================================
@@ -1268,8 +1608,19 @@ def api_stream_info(media_id):
     """
     Get streaming URL for a media item.
     Returns direct stream URL for HTML5 video player.
+
+    Supports both Jellyfin IDs directly and Plex IDs with title fallback.
+    For movies: ?title=X&year=Y&type=movie
+    For episodes: ?show_title=X&season=N&episode=M&type=episode
     """
     direct = request.args.get("direct", "true").lower() == "true"
+    title = request.args.get("title")
+    year = request.args.get("year", type=int)
+    media_type = request.args.get("type", "movie")  # movie or episode
+    # Episode-specific params
+    show_title = request.args.get("show_title")
+    season_num = request.args.get("season", type=int)
+    episode_num = request.args.get("episode", type=int)
 
     # Get Jellyfin client specifically (streaming only supported for Jellyfin currently)
     jellyfin_config = get_service_config("jellyfin")
@@ -1286,7 +1637,46 @@ def api_stream_info(media_id):
             use_ssl=jellyfin_config["use_ssl"],
         )
 
+        # Try direct ID first
         stream_info = client.get_stream_url(media_id, direct=direct)
+
+        # If direct ID fails, try title-based lookup
+        if not stream_info and (title or show_title):
+            logger.info(f"Direct ID {media_id} failed, searching by title")
+
+            # Episode lookup: search show, then find episode by season/episode number
+            if media_type == "episode" and show_title and season_num is not None and episode_num is not None:
+                logger.info(f"Episode lookup: {show_title} S{season_num}E{episode_num}")
+                results = client.search_library(show_title, media_type="show")
+                for show in results:
+                    if show.title.lower().strip() == show_title.lower().strip():
+                        # Found matching show, now get the episode
+                        episodes = client.get_episodes(show.id, season_num)
+                        for ep in episodes:
+                            if ep.get("episode_number") == episode_num:
+                                logger.info(f"Found episode: {show.title} S{season_num}E{episode_num} -> {ep['id']}")
+                                stream_info = client.get_stream_url(ep["id"], direct=direct)
+                                break
+                        if stream_info:
+                            break
+            # Movie lookup: search by title and year
+            elif media_type == "movie" and title:
+                logger.info(f"Movie lookup: {title} ({year})")
+                results = client.search_library(title, media_type="movie")
+                for item in results:
+                    title_match = item.title.lower().strip() == title.lower().strip()
+                    if year:
+                        # Allow 1 year variance for movies
+                        year_match = item.year and abs(item.year - year) <= 1
+                        if title_match and year_match:
+                            logger.info(f"Found matching movie: {item.title} ({item.year}) -> {item.id}")
+                            stream_info = client.get_stream_url(item.id, direct=direct)
+                            break
+                    elif title_match:
+                        logger.info(f"Found matching movie: {item.title} -> {item.id}")
+                        stream_info = client.get_stream_url(item.id, direct=direct)
+                        break
+
         if stream_info:
             return jsonify({"success": True, "stream": stream_info})
         else:

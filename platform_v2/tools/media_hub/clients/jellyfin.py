@@ -382,7 +382,7 @@ class JellyfinClient(MediaServerInterface):
 
         result = self._request(
             f"/Shows/{series_id}/Seasons",
-            {"UserId": user_id, "Fields": "Overview,DateCreated"},
+            {"UserId": user_id, "Fields": "Overview,DateCreated,ChildCount"},
         )
 
         seasons = []

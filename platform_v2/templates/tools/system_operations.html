@@ -2353,6 +2353,20 @@
                 <div class="panel" id="raid-status">
                     <p style="color: var(--archie-text-muted);">Checking RAID configuration...</p>
                 </div>
+
+                <!-- Capacity Alerts Banner -->
+                <div id="capacity-alerts-banner" style="display: none; margin-bottom: 16px;"></div>
+
+                <!-- SMART Health Panel -->
+                <div class="section-title">
+                    <i data-lucide="activity" style="width: 18px; height: 18px;"></i>
+                    Drive Health (SMART)
+                </div>
+                <div class="panel" id="smart-health-panel">
+                    <div id="smart-health-content" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px;">
+                        <p style="color: var(--archie-text-muted);">Loading SMART data...</p>
+                    </div>
+                </div>
             </div>
 
             <!-- Action Panel removed - using modals instead -->
@@ -3997,15 +4011,90 @@
     </div>
 </div>
 
+<!-- Wipe Drive Modal -->
+<div class="modal-overlay" id="wipeModal">
+    <div class="modal" style="max-width: 500px;">
+        <div class="modal-header">
+            <h3 class="modal-title" style="color: var(--archie-red);">
+                <i data-lucide="trash-2" style="width:20px; height:20px; display:inline-block; vertical-align:middle; margin-right:8px;"></i>
+                Wipe Drive
+            </h3>
+            <button class="modal-close" onclick="closeWipeModal()">&times;</button>
+        </div>
+
+        <div class="modal-body">
+            <!-- Warning Banner -->
+            <div style="background: rgba(255,0,0,0.15); border: 1px solid var(--archie-red); padding: 12px; border-radius: 6px; margin-bottom: 16px;">
+                <i data-lucide="alert-octagon" style="width:16px; height:16px; display:inline-block; vertical-align:middle; color: var(--archie-red);"></i>
+                <strong style="color: var(--archie-red); margin-left: 6px;">WARNING: This will permanently delete ALL data!</strong>
+            </div>
+
+            <!-- Drive Info -->
+            <div style="background: var(--archie-bg-tertiary); padding: 12px; border-radius: 6px; margin-bottom: 16px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div>
+                        <span style="color: var(--archie-text-muted); font-size: 0.8rem;">Device</span>
+                        <div class="mono" id="wipeDevice" style="color: var(--archie-red); font-size: 1.1rem;">-</div>
+                    </div>
+                    <div>
+                        <span style="color: var(--archie-text-muted); font-size: 0.8rem;">Size</span>
+                        <div id="wipeSize" style="font-size: 1.1rem;">-</div>
+                    </div>
+                    <div style="grid-column: span 2;">
+                        <span style="color: var(--archie-text-muted); font-size: 0.8rem;">Info</span>
+                        <div id="wipeInfo" style="color: var(--archie-text-secondary);">-</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Wipe Options -->
+            <div style="margin-bottom: 16px;">
+                <label style="display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--archie-bg-secondary); border-radius: 6px; cursor: pointer; margin-bottom: 8px;">
+                    <input type="checkbox" id="wipeLvm" checked style="width: 18px; height: 18px;">
+                    <div>
+                        <strong style="color: var(--archie-text-primary);">Remove LVM structures</strong>
+                        <span style="display: block; font-size: 0.8rem; color: var(--archie-text-muted);">Remove LV, VG, and PV from this device</span>
+                    </div>
+                </label>
+                <label style="display: flex; align-items: center; gap: 10px; padding: 10px; background: var(--archie-bg-secondary); border-radius: 6px; cursor: pointer;">
+                    <input type="checkbox" id="wipePartitionTable" style="width: 18px; height: 18px;">
+                    <div>
+                        <strong style="color: var(--archie-text-primary);">Wipe partition table</strong>
+                        <span style="display: block; font-size: 0.8rem; color: var(--archie-text-muted);">Completely reset drive (whole drives only)</span>
+                    </div>
+                </label>
+            </div>
+
+            <!-- What happens -->
+            <div style="font-size: 0.85rem; color: var(--archie-text-secondary);">
+                <p style="margin: 0 0 4px 0;"><strong>This will:</strong></p>
+                <ul style="margin: 0; padding-left: 20px;">
+                    <li>Unmount any mounted filesystems</li>
+                    <li>Remove LVM structures (LV → VG → PV)</li>
+                    <li>Optionally zero the partition table</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeWipeModal()">Cancel</button>
+            <button class="btn btn-danger" onclick="executeWipe()">
+                <i data-lucide="trash-2" style="width:14px; height:14px; display:inline-block; vertical-align:middle; margin-right:4px;"></i>
+                Wipe (Requires Re-auth)
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- Prepare Drive Modal -->
-<div class="modal-overlay" id="prepareDriveModal">
+<div class="modal-overlay" id="prepareLvmModal">
     <div class="modal" style="max-width: 520px;">
         <div class="modal-header">
-            <h3 class="modal-title" style="color: var(--archie-orange);">
-                <i data-lucide="hard-drive" style="width:20px; height:20px; display:inline-block; vertical-align:middle; margin-right:8px;"></i>
-                Prepare Drive for Linux
+            <h3 class="modal-title" style="color: var(--archie-purple);">
+                <i data-lucide="layers" style="width:20px; height:20px; display:inline-block; vertical-align:middle; margin-right:8px;"></i>
+                Prepare Drive as LVM
             </h3>
-            <button class="modal-close" onclick="closePrepareDriveModal()">&times;</button>
+            <button class="modal-close" onclick="closePrepareLvmModal()">&times;</button>
         </div>
 
         <div class="modal-body">
@@ -4020,15 +4109,15 @@
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
                     <div>
                         <span style="color: var(--archie-text-muted); font-size: 0.8rem;">Drive</span>
-                        <div class="mono" id="prepareDriveDevice" style="color: var(--archie-cyan); font-size: 1.1rem;">-</div>
+                        <div class="mono" id="prepareLvmDevice" style="color: var(--archie-cyan); font-size: 1.1rem;">-</div>
                     </div>
                     <div>
                         <span style="color: var(--archie-text-muted); font-size: 0.8rem;">Size</span>
-                        <div id="prepareDriveSize" style="font-size: 1.1rem;">-</div>
+                        <div id="prepareLvmSize" style="font-size: 1.1rem;">-</div>
                     </div>
                     <div style="grid-column: span 2;">
                         <span style="color: var(--archie-text-muted); font-size: 0.8rem;">Model</span>
-                        <div id="prepareDriveModel" style="color: var(--archie-text-secondary);">-</div>
+                        <div id="prepareLvmModel" style="color: var(--archie-text-secondary);">-</div>
                     </div>
                 </div>
             </div>
@@ -4037,38 +4126,54 @@
             <div style="margin-bottom: 16px; color: var(--archie-text-secondary); font-size: 0.9rem; line-height: 1.5;">
                 <p style="margin: 0 0 8px 0;">This operation will:</p>
                 <ol style="margin: 0; padding-left: 20px;">
-                    <li>Create a new GPT partition table</li>
-                    <li>Create a single partition using the entire drive</li>
-                    <li>Format with the selected filesystem</li>
+                    <li>Create GPT partition table and single partition</li>
+                    <li>Create LVM Physical Volume (PV)</li>
+                    <li>Create Volume Group (VG) and Logical Volume (LV)</li>
+                    <li>Format and optionally mount the LV</li>
                 </ol>
             </div>
 
+            <!-- VG Name -->
+            <div style="margin-bottom: 12px;">
+                <label style="color: var(--archie-text-secondary); font-size: 0.9rem; display: block; margin-bottom: 6px;">
+                    Volume Group Name:
+                </label>
+                <input type="text" id="prepareLvmVgName" placeholder="e.g., data-vg" style="width: 100%; padding: 10px; background: var(--archie-bg-tertiary); border: 1px solid var(--archie-border-default); border-radius: 4px; color: var(--archie-text-primary); font-size: 1rem; box-sizing: border-box;">
+            </div>
+
+            <!-- LV Name -->
+            <div style="margin-bottom: 12px;">
+                <label style="color: var(--archie-text-secondary); font-size: 0.9rem; display: block; margin-bottom: 6px;">
+                    Logical Volume Name:
+                </label>
+                <input type="text" id="prepareLvmLvName" placeholder="e.g., data-lv" style="width: 100%; padding: 10px; background: var(--archie-bg-tertiary); border: 1px solid var(--archie-border-default); border-radius: 4px; color: var(--archie-text-primary); font-size: 1rem; box-sizing: border-box;">
+            </div>
+
             <!-- Filesystem Choice -->
-            <div style="margin-bottom: 16px;">
-                <label style="color: var(--archie-text-secondary); font-size: 0.9rem; display: block; margin-bottom: 8px;">
+            <div style="margin-bottom: 12px;">
+                <label style="color: var(--archie-text-secondary); font-size: 0.9rem; display: block; margin-bottom: 6px;">
                     Filesystem:
                 </label>
-                <select id="prepareDriveFs" style="width: 100%; padding: 10px; background: var(--archie-bg-tertiary); border: 1px solid var(--archie-border-default); border-radius: 4px; color: var(--archie-text-primary); font-size: 1rem;">
-                    <option value="ext4">ext4 (Linux - recommended)</option>
-                    <option value="xfs">xfs (Linux - high performance)</option>
-                    <option value="btrfs">btrfs (Linux - advanced features)</option>
+                <select id="prepareLvmFs" style="width: 100%; padding: 10px; background: var(--archie-bg-tertiary); border: 1px solid var(--archie-border-default); border-radius: 4px; color: var(--archie-text-primary); font-size: 1rem;">
+                    <option value="ext4">ext4 (recommended)</option>
+                    <option value="xfs">xfs (high performance)</option>
                 </select>
             </div>
 
-            <!-- Label -->
+            <!-- Mount Point -->
             <div style="margin-bottom: 16px;">
-                <label style="color: var(--archie-text-secondary); font-size: 0.9rem; display: block; margin-bottom: 8px;">
-                    Volume Label (optional):
+                <label style="color: var(--archie-text-secondary); font-size: 0.9rem; display: block; margin-bottom: 6px;">
+                    Mount Point (optional):
                 </label>
-                <input type="text" id="prepareDriveLabel" placeholder="e.g., data, storage, backup" style="width: 100%; padding: 10px; background: var(--archie-bg-tertiary); border: 1px solid var(--archie-border-default); border-radius: 4px; color: var(--archie-text-primary); font-size: 1rem; box-sizing: border-box;">
+                <input type="text" id="prepareLvmMountpoint" placeholder="e.g., /mnt/data" style="width: 100%; padding: 10px; background: var(--archie-bg-tertiary); border: 1px solid var(--archie-border-default); border-radius: 4px; color: var(--archie-text-primary); font-size: 1rem; box-sizing: border-box;">
             </div>
         </div>
 
         <div class="modal-footer">
-            <button class="btn btn-ghost" onclick="closePrepareDriveModal()">Cancel</button>
-            <button class="btn btn-warning" onclick="executePrepareDrive()">
-                <i data-lucide="zap" style="width:14px; height:14px; display:inline-block; vertical-align:middle; margin-right:4px;"></i>
-                Prepare Drive
+            <button class="btn btn-ghost" onclick="closePrepareLvmModal()">Cancel</button>
+            <button class="btn btn-warning" onclick="executePrepareLvm()">
+                <i data-lucide="layers" style="width:14px; height:14px; display:inline-block; vertical-align:middle; margin-right:4px;"></i>
+                Prepare as LVM
             </button>
         </div>
     </div>
@@ -4187,6 +4292,103 @@
         <div class="modal-footer">
             <button class="btn btn-ghost" onclick="closeCreateLvModal()">Cancel</button>
             <button class="btn btn-primary" onclick="executeCreateLv()">Create LV</button>
+        </div>
+    </div>
+</div>
+
+<!-- Create VG Modal -->
+<div class="modal-overlay" id="createVgModal">
+    <div class="modal" style="max-width: 500px;">
+        <div class="modal-header">
+            <h3 class="modal-title" style="color: var(--archie-cyan);">
+                <i data-lucide="database" style="width:20px; height:20px; display:inline-block; vertical-align:middle; margin-right:8px;"></i>
+                Create Volume Group
+            </h3>
+            <button class="modal-close" onclick="closeCreateVgModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="background: rgba(255,170,0,0.15); border: 1px solid var(--archie-orange); padding: 12px; border-radius: 6px; margin-bottom: 16px;">
+                <div style="display: flex; align-items: center; gap: 8px; color: var(--archie-orange);">
+                    <i data-lucide="alert-triangle" style="width:18px; height:18px;"></i>
+                    <strong>DANGEROUS OPERATION</strong>
+                </div>
+                <p style="color: var(--archie-text-secondary); margin: 8px 0 0 0; font-size: 0.85rem;">
+                    This will convert the device to a physical volume and create a new volume group.
+                    Any existing data on the device will be lost.
+                </p>
+            </div>
+            <div style="background: var(--archie-bg-tertiary); padding: 12px; border-radius: 6px; margin-bottom: 16px;">
+                <span style="color: var(--archie-text-muted); font-size: 0.8rem;">Physical Volume Device</span>
+                <div class="mono" id="createVgPvDevice" style="color: var(--archie-cyan); font-size: 1.1rem;">-</div>
+            </div>
+            <div style="margin-bottom: 16px;">
+                <label style="color: var(--archie-text-secondary); font-size: 0.9rem; display: block; margin-bottom: 8px;">
+                    VG Name:
+                </label>
+                <input type="text" id="createVgName" placeholder="data-vg"
+                       style="width: 100%; padding: 10px; background: var(--archie-bg-tertiary); border: 1px solid var(--archie-border-default); border-radius: 4px; color: var(--archie-text-primary); font-size: 1rem; box-sizing: border-box;">
+                <span style="color: var(--archie-text-muted); font-size: 0.8rem; margin-top: 4px; display: block;">
+                    Letters, numbers, hyphens, and underscores only
+                </span>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeCreateVgModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="executeCreateVg()" style="background: var(--archie-orange);">Create VG</button>
+        </div>
+    </div>
+</div>
+
+<!-- LVM Snapshot Modal -->
+<div class="modal-overlay" id="snapshotModal">
+    <div class="modal" style="max-width: 500px;">
+        <div class="modal-header">
+            <h3 class="modal-title" style="color: var(--archie-purple);">
+                <i data-lucide="copy" style="width:20px; height:20px; display:inline-block; vertical-align:middle; margin-right:8px;"></i>
+                Create LVM Snapshot
+            </h3>
+            <button class="modal-close" onclick="closeSnapshotModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="background: var(--archie-bg-tertiary); padding: 12px; border-radius: 6px; margin-bottom: 16px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div>
+                        <span style="color: var(--archie-text-muted); font-size: 0.8rem;">Source LV</span>
+                        <div class="mono" id="snapshotSourceLv" style="color: var(--archie-cyan); font-size: 1rem;">-</div>
+                    </div>
+                    <div>
+                        <span style="color: var(--archie-text-muted); font-size: 0.8rem;">VG Free Space</span>
+                        <div id="snapshotVgFree" style="color: var(--archie-green); font-size: 1rem;">-</div>
+                    </div>
+                </div>
+            </div>
+            <div style="background: var(--archie-blue-alpha-10); border: 1px solid var(--archie-cyan); padding: 12px; border-radius: 6px; margin-bottom: 16px;">
+                <p style="color: var(--archie-text-secondary); margin: 0; font-size: 0.85rem;">
+                    <strong>LVM Snapshots</strong> are copy-on-write backups. The snapshot captures the state of the LV
+                    at creation time. Changes made after are tracked separately. Useful for backups.
+                </p>
+            </div>
+            <div style="margin-bottom: 16px;">
+                <label style="color: var(--archie-text-secondary); font-size: 0.9rem; display: block; margin-bottom: 8px;">
+                    Snapshot Name:
+                </label>
+                <input type="text" id="snapshotName" placeholder="backup-20260131"
+                       style="width: 100%; padding: 10px; background: var(--archie-bg-tertiary); border: 1px solid var(--archie-border-default); border-radius: 4px; color: var(--archie-text-primary); font-size: 1rem; box-sizing: border-box;">
+            </div>
+            <div style="margin-bottom: 16px;">
+                <label style="color: var(--archie-text-secondary); font-size: 0.9rem; display: block; margin-bottom: 8px;">
+                    Snapshot Size (GB):
+                </label>
+                <input type="number" id="snapshotSize" min="1" placeholder="10"
+                       style="width: 100%; padding: 10px; background: var(--archie-bg-tertiary); border: 1px solid var(--archie-border-default); border-radius: 4px; color: var(--archie-text-primary); font-size: 1rem; box-sizing: border-box;">
+                <span style="color: var(--archie-text-muted); font-size: 0.8rem; margin-top: 4px; display: block;">
+                    Size should be enough to hold expected changes while snapshot is active
+                </span>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="closeSnapshotModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="executeSnapshot()">Create Snapshot</button>
         </div>
     </div>
 </div>
@@ -6460,6 +6662,8 @@ async function loadStorageData() {
         renderStorageCharts(cached.disks || []);
         renderLVM(cached.lvm);
         renderRaid(cached.raid);
+        renderSmartHealth(cached.smart_details || {});
+        renderCapacityAlerts(cached.capacity_alerts || []);
     }
 
     // Fetch fresh data
@@ -6476,6 +6680,8 @@ async function loadStorageData() {
             renderStorageCharts(json.data.disks || []);
             renderLVM(json.data.lvm);
             renderRaid(json.data.raid);
+            renderSmartHealth(json.data.smart_details || {});
+            renderCapacityAlerts(json.data.capacity_alerts || []);
         }
     } catch (e) {
         console.error('Storage data error:', e);
@@ -6513,6 +6719,11 @@ function renderStorageOverview(disks, lvm) {
         let total = 0, used = 0, free = 0;
         diskList.forEach(disk => {
             total += disk.size_gb || 0;
+            // Check disk-level usage (for disks without partitions, formatted directly)
+            if (disk.usage && disk.mountpoint) {
+                used += disk.usage.used_gb || 0;
+                free += disk.usage.free_gb || 0;
+            }
             (disk.partitions || []).forEach(part => {
                 if (part.usage) {
                     used += part.usage.used_gb || 0;
@@ -6686,15 +6897,69 @@ function renderStorageTreemap(disks, lvm, vgFree, dockerMounts) {
         diskHtml += '<span class="treemap-drive-model">' + (disk.model || 'Unknown') + '</span>';
         diskHtml += '<span class="treemap-drive-health ' + healthClass + '">' + healthLabel + '</span>';
         diskHtml += '<span class="treemap-drive-size">' + formatSizeGB(disk.size_gb) + '</span>';
-        // Only show Prepare Drive for non-system drives
+        // Only show Prepare as LVM for non-system drives
         if (!isSystemDrive) {
-            diskHtml += '<button class="btn btn-sm btn-ghost" style="margin-left: auto; padding: 4px 10px; font-size: 0.7rem;" onclick="event.stopPropagation(); openPrepareDriveModal(\'' + disk.device + '\', ' + (disk.size_gb || 0) + ', \'' + (disk.model || 'Unknown').replace(/'/g, "\\'") + '\')"><i data-lucide="hard-drive" style="width:12px;height:12px;margin-right:4px;"></i>Prepare Drive</button>';
+            // Pass disk object as JSON for mounted partition detection
+            const diskJson = JSON.stringify({
+                device: disk.device,
+                stable_id: disk.stable_id,
+                size_gb: disk.size_gb,
+                model: disk.model,
+                name: disk.name,
+                partitions: (disk.partitions || []).map(p => ({
+                    device: p.device,
+                    mountpoint: p.mountpoint,
+                    stable_id: p.stable_id
+                }))
+            }).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            diskHtml += '<button class="btn btn-sm btn-ghost" style="margin-left: auto; padding: 4px 10px; font-size: 0.7rem;" onclick="event.stopPropagation(); openPrepareLvmModalSafe(\'' + diskJson + '\')"><i data-lucide="layers" style="width:12px;height:12px;margin-right:4px;"></i>Prepare as LVM</button>';
+            // Add Wipe button for drives with partitions (data on them)
+            if (disk.partitions && disk.partitions.length > 0) {
+                const hasLvm = disk.partitions.some(p => p.type === 'lvm' || p.fstype === 'LVM2_member' || p.vg_name);
+                if (hasLvm) {
+                    const wipeInfo = disk.model || 'Drive with LVM';
+                    diskHtml += '<button class="btn btn-sm btn-danger" style="padding: 4px 10px; font-size: 0.7rem;" onclick="event.stopPropagation(); openWipeModal(\'' + (disk.stable_id || disk.device || '').replace(/'/g, "\\'") + '\', ' + (disk.size_gb || 0) + ', \'' + wipeInfo.replace(/'/g, "\\'") + '\')"><i data-lucide="trash-2" style="width:12px;height:12px;margin-right:4px;"></i>Wipe</button>';
+                }
+            }
         }
         diskHtml += '</div>';
 
         diskHtml += '<div class="treemap-partitions">';
 
         const totalBytes = disk.size_bytes || (disk.size_gb * 1073741824);
+
+        // Handle disks mounted directly without partitions (formatted as whole disk)
+        if ((!disk.partitions || disk.partitions.length === 0) && disk.mountpoint) {
+            const usagePct = disk.usage ? disk.usage.percent : 0;
+            const diskDockerStacks = getStacksForPath(disk.mountpoint);
+            const diskMountLabel = getMountLabel(disk.mountpoint);
+
+            diskHtml += '<div class="treemap-partition mounted"';
+            diskHtml += ' style="flex: 100;"';
+            diskHtml += ' onclick="selectPartition(this, \'' + disk.name + '\', \'' + (disk.device || '').replace(/'/g, "\\'") + '\', \'disk\')"';
+            diskHtml += ' title="' + disk.device + ' (' + formatSizeGB(disk.size_gb) + ') → ' + disk.mountpoint + '">';
+            // Badge container
+            diskHtml += '<div class="treemap-partition-badges" style="position:absolute;top:2px;right:4px;display:flex;gap:2px;flex-wrap:wrap;justify-content:flex-end;max-width:80%;">';
+            if (diskMountLabel) {
+                diskHtml += '<span style="background:var(--archie-cyan);color:#000;padding:1px 4px;border-radius:3px;font-size:0.5rem;font-weight:600;">' + diskMountLabel + '</span>';
+            }
+            if (diskDockerStacks.length > 0) {
+                diskDockerStacks.forEach(stack => {
+                    const bgColor = stack.color || 'var(--archie-purple)';
+                    const textColor = getContrastColor(bgColor);
+                    diskHtml += '<span style="background:' + bgColor + ';color:' + textColor + ';padding:1px 4px;border-radius:3px;font-size:0.5rem;font-weight:600;">🐳 ' + (stack.display_name || stack.stack_name) + '</span>';
+                });
+            }
+            diskHtml += '</div>';
+            diskHtml += '<span class="treemap-partition-label">' + (disk.label || disk.name) + '</span>';
+            diskHtml += '<span class="treemap-partition-size">' + formatSizeGB(disk.size_gb) + '</span>';
+            if (disk.usage) {
+                diskHtml += '<div class="treemap-partition-usage">';
+                diskHtml += '<div class="treemap-partition-usage-bar" style="width: ' + usagePct + '%; background: ' + getUsageColor(usagePct) + ';"></div>';
+                diskHtml += '</div>';
+            }
+            diskHtml += '</div>';
+        }
 
         (disk.partitions || []).forEach(part => {
             // Check if this partition has LVM children
@@ -6909,15 +7174,23 @@ function renderStorageCharts(disks) {
             const unallocatedGb = disk.unallocated_gb || 0;
             const allocatedGb = totalGb - unallocatedGb;
             let usedGb = 0, freeGb = 0;
-            (disk.partitions || []).forEach(part => {
-                const items = (part.children && part.children.length) ? part.children : [part];
-                items.forEach(item => {
-                    if (item.usage) {
-                        usedGb += item.usage.used_gb || 0;
-                        freeGb += item.usage.free_gb || 0;
-                    }
+
+            // Check if disk is mounted directly (whole-disk mount, no partitions)
+            if (disk.usage && disk.mountpoint && (!disk.partitions || disk.partitions.length === 0)) {
+                usedGb = disk.usage.used_gb || 0;
+                freeGb = disk.usage.free_gb || 0;
+            } else {
+                // Iterate through partitions
+                (disk.partitions || []).forEach(part => {
+                    const items = (part.children && part.children.length) ? part.children : [part];
+                    items.forEach(item => {
+                        if (item.usage) {
+                            usedGb += item.usage.used_gb || 0;
+                            freeGb += item.usage.free_gb || 0;
+                        }
+                    });
                 });
-            });
+            }
             const usePct = totalGb > 0 ? (usedGb / totalGb * 100) : 0;
 
             // Progress bar
@@ -6952,7 +7225,86 @@ function renderStorageCharts(disks) {
 
             // Partition breakdown (matching Dashboard style)
             const parts = disk.partitions || [];
-            if (parts.length > 0) {
+
+            // Helper: get all Docker stacks for a disk (disk + partitions + LVM children)
+            function getAllStacksForDisk(d) {
+                const stackSet = new Map();
+                // Disk-level mount
+                if (d.mountpoint) {
+                    getStacksForPath(d.mountpoint).forEach(s => stackSet.set(s.stack_name, s));
+                }
+                // Partition mounts
+                (d.partitions || []).forEach(p => {
+                    if (p.mountpoint) {
+                        getStacksForPath(p.mountpoint).forEach(s => stackSet.set(s.stack_name, s));
+                    }
+                    // LVM children
+                    (p.children || []).forEach(c => {
+                        if (c.mountpoint) {
+                            getStacksForPath(c.mountpoint).forEach(s => stackSet.set(s.stack_name, s));
+                        }
+                    });
+                });
+                return Array.from(stackSet.values());
+            }
+
+            // Show aggregated Docker badges at disk level
+            const diskStacks = getAllStacksForDisk(disk);
+            if (diskStacks.length > 0) {
+                const stacksRow = document.createElement('div');
+                stacksRow.style.cssText = 'display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px;';
+                diskStacks.forEach(stack => {
+                    const badge = document.createElement('span');
+                    const color = stack.color || '#6366f1';
+                    badge.style.cssText = 'padding: 2px 6px; font-size: 0.68rem; border-radius: 3px; background: ' + color + '22; color: ' + color + '; border: 1px solid ' + color + '33;';
+                    badge.textContent = stack.display_name || stack.stack_name;
+                    badge.title = 'Docker stack using this drive';
+                    stacksRow.appendChild(badge);
+                });
+                driveDiv.appendChild(stacksRow);
+            }
+
+            // Handle whole-disk mount (disk formatted without partitions)
+            if (parts.length === 0 && disk.mountpoint && disk.usage) {
+                const partList = document.createElement('div');
+                partList.style.cssText = 'margin-top: 6px; padding-left: 8px; border-left: 2px solid var(--archie-border); font-size: 0.72rem;';
+
+                const row = document.createElement('div');
+                row.style.cssText = 'display: flex; justify-content: space-between; padding: 2px 0; color: var(--archie-text-secondary);';
+
+                const nameSpan = document.createElement('span');
+                nameSpan.style.fontWeight = '500';
+                nameSpan.textContent = disk.label || disk.name || '(whole disk)';
+
+                const infoSpan = document.createElement('span');
+                infoSpan.style.color = 'var(--archie-text-muted)';
+                let infoText = formatDiskSizeStorage(disk.size_gb || 0) + ' ' + (disk.fstype || '');
+                infoText += ' @ ' + disk.mountpoint;
+                infoText += ' (' + (disk.usage.percent || 0).toFixed(0) + '% used)';
+                infoSpan.textContent = infoText;
+
+                row.appendChild(nameSpan);
+                row.appendChild(infoSpan);
+                partList.appendChild(row);
+
+                // Show Docker stacks using this disk's mount
+                const diskMountStacks = getStacksForPath(disk.mountpoint);
+                if (diskMountStacks.length > 0) {
+                    const stackRow = document.createElement('div');
+                    stackRow.style.cssText = 'display: flex; gap: 4px; flex-wrap: wrap; padding: 2px 0 2px 12px;';
+                    diskMountStacks.forEach(stack => {
+                        const badge = document.createElement('span');
+                        const color = stack.color || '#6366f1';
+                        badge.style.cssText = 'padding: 1px 5px; font-size: 0.65rem; border-radius: 3px; background: ' + color + '33; color: ' + color + '; border: 1px solid ' + color + '44;';
+                        badge.textContent = stack.display_name || stack.stack_name;
+                        badge.title = 'Docker: ' + (stack.service || '') + ' → ' + (stack.container_path || '');
+                        stackRow.appendChild(badge);
+                    });
+                    partList.appendChild(stackRow);
+                }
+
+                driveDiv.appendChild(partList);
+            } else if (parts.length > 0) {
                 const partList = document.createElement('div');
                 partList.style.cssText = 'margin-top: 6px; padding-left: 8px; border-left: 2px solid var(--archie-border); font-size: 0.72rem;';
                 parts.forEach(part => {
@@ -7091,6 +7443,20 @@ function selectPartition(element, diskName, devicePath, partType) {
         openPartitionDetailsModal(disk, devicePath, 'lvm-free');
     } else if (partType === 'unallocated') {
         openPartitionDetailsModal(disk, null, 'unallocated');
+    } else if (partType === 'disk') {
+        // Disk formatted without partitions - treat disk itself as the partition
+        const diskAsPart = {
+            name: disk.label || disk.name,
+            device: disk.device,
+            size_gb: disk.size_gb,
+            size_bytes: disk.size_bytes,
+            fstype: disk.fstype,
+            mountpoint: disk.mountpoint,
+            uuid: disk.uuid,
+            usage: disk.usage,
+            is_whole_disk: true  // Flag to indicate this is a whole disk mount
+        };
+        openPartitionDetailsModal(disk, diskAsPart, 'partition');
     } else {
         // Find the partition or child
         let part = null;
@@ -7183,6 +7549,14 @@ function buildPartitionModalContent(disk, part) {
     if (part.label) {
         html += '<div style="grid-column: span 2;"><span style="color: var(--archie-text-muted); font-size: 0.8rem; display: block;">Label</span><span>' + part.label + '</span></div>';
     }
+    // Stable ID field - used for reliable device identification across reboots
+    if (part.stable_id) {
+        html += '<div style="grid-column: span 2;"><span style="color: var(--archie-text-muted); font-size: 0.8rem; display: block;">Stable ID</span><span class="mono" style="color: var(--archie-purple); font-size: 0.75rem; word-break: break-all;">' + part.stable_id + '</span></div>';
+    }
+    // Serial from parent disk
+    if (disk.serial) {
+        html += '<div style="grid-column: span 2;"><span style="color: var(--archie-text-muted); font-size: 0.8rem; display: block;">Serial</span><span class="mono" style="font-size: 0.75rem;">' + disk.serial + '</span></div>';
+    }
     html += '</div>';
 
     // Usage bar
@@ -7266,18 +7640,30 @@ function buildPartitionModalContent(disk, part) {
             if (part.fstype === 'ext4' || part.fstype === 'ext3' || part.fstype === 'ext2') {
                 html += '<button class="btn btn-ghost" style="justify-content: flex-start;" onclick="openChangeLabelModal(\'' + (part.device || '').replace(/'/g, "\\'") + '\', \'' + (part.label || '').replace(/'/g, "\\'") + '\', \'' + (part.fstype || '').replace(/'/g, "\\'") + '\')"><i data-lucide="tag" style="width:16px;height:16px;margin-right:8px;"></i> Change Label</button>';
             }
-            // Convert to LVM button
-            html += '<button class="btn btn-primary" style="justify-content: flex-start;" onclick="openConvertToLvmModal(\'' + (part.device || '').replace(/'/g, "\\'") + '\', ' + (part.size_gb || 0) + ', \'' + (part.fstype || '').replace(/'/g, "\\'") + '\', \'' + (part.mountpoint || '').replace(/'/g, "\\'") + '\')"><i data-lucide="layers" style="width:16px;height:16px;margin-right:8px;"></i> Convert to LVM</button>';
+            // Convert to LVM button - use stable_id if available
+            const convertId = (part.stable_id || part.device || '').replace(/'/g, "\\'");
+            html += '<button class="btn btn-primary" style="justify-content: flex-start;" onclick="openConvertToLvmModal(\'' + convertId + '\', ' + (part.size_gb || 0) + ', \'' + (part.fstype || '').replace(/'/g, "\\'") + '\', \'' + (part.mountpoint || '').replace(/'/g, "\\'") + '\')"><i data-lucide="layers" style="width:16px;height:16px;margin-right:8px;"></i> Convert to LVM</button>';
         }
         // Only show Unmount for non-system partitions
         if (isSystemPartition) {
             html += '<button class="btn btn-danger" style="justify-content: flex-start; opacity:0.5; cursor:not-allowed;" onclick="showToast(\'error\', \'Cannot unmount system partition - this would crash the server\')"><i data-lucide="shield-alert" style="width:16px;height:16px;margin-right:8px;"></i> Protected (System)</button>';
         } else {
-            html += '<button class="btn btn-danger" style="justify-content: flex-start;" onclick="promptAndUnmount(\'' + (part.device || '').replace(/'/g, "\\'") + '\')"><i data-lucide="hard-drive-download" style="width:16px;height:16px;margin-right:8px;"></i> Unmount</button>';
+            // Use stable_id if available for reliable device identification
+            const unmountId = (part.stable_id || part.device || '').replace(/'/g, "\\'");
+            html += '<button class="btn btn-danger" style="justify-content: flex-start;" onclick="promptAndUnmount(\'' + unmountId + '\')"><i data-lucide="hard-drive-download" style="width:16px;height:16px;margin-right:8px;"></i> Unmount</button>';
         }
     } else {
-        html += '<button class="btn btn-primary" style="justify-content: flex-start;" onclick="openMountModal(\'' + (part.device || '').replace(/'/g, "\\'") + '\')"><i data-lucide="arrow-down-to-line" style="width:16px;height:16px;margin-right:8px;"></i> Mount</button>';
-        html += '<button class="btn btn-danger" style="justify-content: flex-start;" onclick="openFormatModal(\'' + (part.device || '').replace(/'/g, "\\'") + '\', ' + (part.size_gb || 0) + ', \'' + (part.fstype || '').replace(/'/g, "\\'") + '\', \'' + (part.label || '').replace(/'/g, "\\'") + '\')"><i data-lucide="hard-drive" style="width:16px;height:16px;margin-right:8px;"></i> Format</button>';
+        // Use stable_id if available for reliable device identification
+        const mountId = (part.stable_id || part.device || '').replace(/'/g, "\\'");
+        const formatId = (part.stable_id || part.device || '').replace(/'/g, "\\'");
+        html += '<button class="btn btn-primary" style="justify-content: flex-start;" onclick="openMountModal(\'' + mountId + '\')"><i data-lucide="arrow-down-to-line" style="width:16px;height:16px;margin-right:8px;"></i> Mount</button>';
+        html += '<button class="btn btn-danger" style="justify-content: flex-start;" onclick="openFormatModal(\'' + formatId + '\', ' + (part.size_gb || 0) + ', \'' + (part.fstype || '').replace(/'/g, "\\'") + '\', \'' + (part.label || '').replace(/'/g, "\\'") + '\')"><i data-lucide="hard-drive" style="width:16px;height:16px;margin-right:8px;"></i> Format</button>';
+    }
+    // Add Wipe button for LVM partitions or drives with LVM structures
+    if (isLvm || part.vg_name || part.type === 'lvm' || part.fstype === 'LVM2_member') {
+        const wipeId = (part.stable_id || part.device || '').replace(/'/g, "\\'");
+        const wipeInfo = (part.vg_name ? 'VG: ' + part.vg_name : '') + (part.lv_name ? ', LV: ' + part.lv_name : '') || part.fstype || 'LVM';
+        html += '<button class="btn btn-danger" style="justify-content: flex-start;" onclick="openWipeModal(\'' + wipeId + '\', ' + (part.size_gb || 0) + ', \'' + wipeInfo.replace(/'/g, "\\'") + '\')"><i data-lucide="trash-2" style="width:16px;height:16px;margin-right:8px;"></i> Wipe LVM</button>';
     }
     html += '<button class="btn btn-ghost" style="justify-content: flex-start;" onclick="registerManagedMount(\'' + (part.device || '').replace(/'/g, "\\'") + '\', \'' + (part.mountpoint || '').replace(/'/g, "\\'") + '\', \'' + (part.fstype || '').replace(/'/g, "\\'") + '\', ' + (part.size_gb || 0) + ', \'' + (disk.model || '').replace(/'/g, "\\'") + '\')"><i data-lucide="bookmark" style="width:16px;height:16px;margin-right:8px;"></i> Register as Managed</button>';
     html += '</div>';
@@ -7546,6 +7932,216 @@ function renderRaid(raid) {
     `).join('');
 }
 
+function renderCapacityAlerts(alerts) {
+    const banner = document.getElementById('capacity-alerts-banner');
+    if (!banner) return;
+
+    if (!alerts || alerts.length === 0) {
+        banner.style.display = 'none';
+        return;
+    }
+
+    // Filter to show only warnings and critical alerts
+    const significantAlerts = alerts.filter(a => a.severity === 'critical' || a.severity === 'warning');
+
+    if (significantAlerts.length === 0) {
+        banner.style.display = 'none';
+        return;
+    }
+
+    banner.style.display = 'block';
+
+    const severityColors = {
+        'critical': { bg: 'var(--archie-red)', icon: 'alert-circle' },
+        'warning': { bg: 'var(--archie-orange)', icon: 'alert-triangle' },
+        'notice': { bg: 'var(--archie-yellow)', icon: 'info' }
+    };
+
+    // Build alerts using DOM methods for safety
+    while (banner.firstChild) banner.removeChild(banner.firstChild);
+
+    significantAlerts.forEach(alert => {
+        const colors = severityColors[alert.severity] || severityColors.notice;
+        const alertDiv = document.createElement('div');
+        alertDiv.style.cssText = 'display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: ' + colors.bg + '22; border: 1px solid ' + colors.bg + '44; border-radius: 6px; margin-bottom: 8px;';
+
+        const icon = document.createElement('i');
+        icon.setAttribute('data-lucide', colors.icon);
+        icon.style.cssText = 'width: 18px; height: 18px; color: ' + colors.bg + ';';
+        alertDiv.appendChild(icon);
+
+        const textDiv = document.createElement('div');
+        textDiv.style.flex = '1';
+
+        const sevSpan = document.createElement('span');
+        sevSpan.style.cssText = 'color: ' + colors.bg + '; font-weight: 600;';
+        sevSpan.textContent = alert.severity.toUpperCase();
+        textDiv.appendChild(sevSpan);
+
+        const msgSpan = document.createElement('span');
+        msgSpan.style.cssText = 'color: var(--archie-text-primary); margin-left: 8px;';
+        msgSpan.textContent = (alert.mount || alert.device) + ' is ' + alert.percent.toFixed(0) + '% full';
+        textDiv.appendChild(msgSpan);
+
+        alertDiv.appendChild(textDiv);
+        banner.appendChild(alertDiv);
+    });
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function renderSmartHealth(smartDetails) {
+    const container = document.getElementById('smart-health-content');
+    if (!container) return;
+
+    // Clear container
+    while (container.firstChild) container.removeChild(container.firstChild);
+
+    if (!smartDetails || Object.keys(smartDetails).length === 0) {
+        const msg = document.createElement('p');
+        msg.style.color = 'var(--archie-text-muted)';
+        msg.textContent = 'SMART data not available. Ensure smartctl is installed and host_monitor.py is running with sudo access.';
+        container.appendChild(msg);
+        return;
+    }
+
+    // Sort disks by name
+    const diskNames = Object.keys(smartDetails).sort();
+
+    diskNames.forEach(name => {
+        const d = smartDetails[name];
+
+        // Health status colors
+        const healthColors = {
+            'healthy': { color: 'var(--archie-green)', label: 'HEALTHY' },
+            'failing': { color: 'var(--archie-red)', label: 'FAILING' },
+            'unknown': { color: 'var(--archie-orange)', label: 'UNKNOWN' },
+            'unavailable': { color: 'var(--archie-text-muted)', label: 'N/A' }
+        };
+        const health = healthColors[d.health_status] || healthColors.unavailable;
+
+        // Create card
+        const card = document.createElement('div');
+        card.className = 'smart-card';
+        card.style.cssText = 'padding: 12px; background: var(--archie-bg-tertiary); border-radius: 8px; border: 1px solid var(--archie-border);';
+
+        // Header row
+        const headerRow = document.createElement('div');
+        headerRow.style.cssText = 'display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;';
+
+        const nameDiv = document.createElement('div');
+        const deviceName = document.createElement('div');
+        deviceName.style.cssText = 'font-weight: 600; color: var(--archie-cyan); font-size: 0.95rem;';
+        deviceName.textContent = '/dev/' + name;
+        nameDiv.appendChild(deviceName);
+
+        const modelDiv = document.createElement('div');
+        modelDiv.style.cssText = 'font-size: 0.75rem; color: var(--archie-text-muted); margin-top: 2px;';
+        modelDiv.textContent = d.model || 'Unknown Model';
+        nameDiv.appendChild(modelDiv);
+        headerRow.appendChild(nameDiv);
+
+        const healthBadge = document.createElement('span');
+        healthBadge.style.cssText = 'padding: 3px 8px; font-size: 0.7rem; border-radius: 4px; background: ' + health.color + '22; color: ' + health.color + '; font-weight: 600;';
+        healthBadge.textContent = health.label;
+        headerRow.appendChild(healthBadge);
+        card.appendChild(headerRow);
+
+        // Stats grid
+        const statsGrid = document.createElement('div');
+        statsGrid.style.cssText = 'display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font-size: 0.8rem;';
+
+        // Temperature
+        const tempDiv = document.createElement('div');
+        const tempLabel = document.createElement('div');
+        tempLabel.style.cssText = 'color: var(--archie-text-muted); font-size: 0.7rem;';
+        tempLabel.textContent = 'TEMP';
+        tempDiv.appendChild(tempLabel);
+        const tempValue = document.createElement('div');
+        if (d.temperature_celsius !== null && d.temperature_celsius !== undefined) {
+            const temp = d.temperature_celsius;
+            let tempColor = 'var(--archie-green)';
+            if (temp >= 60) tempColor = 'var(--archie-red)';
+            else if (temp >= 50) tempColor = 'var(--archie-orange)';
+            else if (temp >= 45) tempColor = 'var(--archie-yellow)';
+            tempValue.style.cssText = 'color: ' + tempColor + '; font-weight: 600;';
+            tempValue.textContent = temp + '°C';
+        } else {
+            tempValue.textContent = '--';
+        }
+        tempDiv.appendChild(tempValue);
+        statsGrid.appendChild(tempDiv);
+
+        // Power-on hours
+        const hoursDiv = document.createElement('div');
+        const hoursLabel = document.createElement('div');
+        hoursLabel.style.cssText = 'color: var(--archie-text-muted); font-size: 0.7rem;';
+        hoursLabel.textContent = 'POWER ON';
+        hoursDiv.appendChild(hoursLabel);
+        const hoursValue = document.createElement('div');
+        if (d.power_on_hours !== null && d.power_on_hours !== undefined) {
+            const hours = d.power_on_hours;
+            const days = Math.floor(hours / 24);
+            const years = (hours / 8760).toFixed(1);
+            hoursValue.title = hours.toLocaleString() + ' hours';
+            hoursValue.textContent = hours >= 8760 ? years + 'y' : days + 'd';
+        } else {
+            hoursValue.textContent = '--';
+        }
+        hoursDiv.appendChild(hoursValue);
+        statsGrid.appendChild(hoursDiv);
+
+        // Sector health
+        const sectorDiv = document.createElement('div');
+        const sectorInfo = [];
+        if (d.reallocated_sector_count !== null && d.reallocated_sector_count !== undefined) {
+            sectorInfo.push('Reallocated: ' + d.reallocated_sector_count);
+        }
+        if (d.current_pending_sector !== null && d.current_pending_sector !== undefined) {
+            sectorInfo.push('Pending: ' + d.current_pending_sector);
+        }
+        if (d.offline_uncorrectable !== null && d.offline_uncorrectable !== undefined) {
+            sectorInfo.push('Uncorrectable: ' + d.offline_uncorrectable);
+        }
+        sectorDiv.title = sectorInfo.join(' | ') || 'No sector issues';
+        const sectorLabel = document.createElement('div');
+        sectorLabel.style.cssText = 'color: var(--archie-text-muted); font-size: 0.7rem;';
+        sectorLabel.textContent = 'SECTORS';
+        sectorDiv.appendChild(sectorLabel);
+        const sectorValue = document.createElement('div');
+        const totalIssues = (d.reallocated_sector_count || 0) + (d.current_pending_sector || 0) + (d.offline_uncorrectable || 0);
+        sectorValue.style.color = totalIssues > 0 ? 'var(--archie-orange)' : 'var(--archie-green)';
+        sectorValue.textContent = totalIssues > 0 ? 'Issues' : 'OK';
+        sectorDiv.appendChild(sectorValue);
+        statsGrid.appendChild(sectorDiv);
+
+        card.appendChild(statsGrid);
+
+        // Warnings
+        if (d.warnings && d.warnings.length > 0) {
+            const warningsDiv = document.createElement('div');
+            warningsDiv.style.cssText = 'margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--archie-border);';
+            d.warnings.forEach(w => {
+                const warnLine = document.createElement('div');
+                warnLine.style.cssText = 'color: var(--archie-orange); font-size: 0.75rem; display: flex; align-items: center; gap: 4px;';
+                const warnIcon = document.createElement('i');
+                warnIcon.setAttribute('data-lucide', 'alert-triangle');
+                warnIcon.style.cssText = 'width: 12px; height: 12px;';
+                warnLine.appendChild(warnIcon);
+                const warnText = document.createElement('span');
+                warnText.textContent = w;
+                warnLine.appendChild(warnText);
+                warningsDiv.appendChild(warnLine);
+            });
+            card.appendChild(warningsDiv);
+        }
+
+        container.appendChild(card);
+    });
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
 // Current category filter
 let processCategoryFilter = 'all';
 
@@ -7775,21 +8371,25 @@ function renderHostLVM(lvm) {
         });
     }
 
-    // Volume Groups from host
+    // Volume Groups from host (with Create LV button when free space available)
     if (lvm.vgs?.length) {
-        vgsTbody.innerHTML = lvm.vgs.map(vg => `
+        vgsTbody.innerHTML = lvm.vgs.map(vg => {
+            const hasSpace = vg.vg_free_gb > 0;
+            return `
             <tr>
                 <td class="mono">${vg.vg_name} <span class="host-badge">HOST</span></td>
                 <td>${vg.vg_size_gb} GB</td>
-                <td style="color: ${vg.vg_free_gb > 0 ? 'var(--archie-green)' : 'var(--archie-text-muted)'}">
-                    ${vg.vg_free_gb > 0 ? vg.vg_free_gb + ' GB' : 'Fully allocated'}
-                    ${vg.vg_free_gb === 0 ? '<span style="font-size:0.7rem; margin-left:5px;" title="All VG space is used by logical volumes. This is normal.">(OK)</span>' : ''}
+                <td style="color: ${hasSpace ? 'var(--archie-green)' : 'var(--archie-text-muted)'}">
+                    ${hasSpace ? vg.vg_free_gb + ' GB' : 'Fully allocated'}
+                    ${!hasSpace ? '<span style="font-size:0.7rem; margin-left:5px;" title="All VG space is used by logical volumes. This is normal.">(OK)</span>' : ''}
+                    ${hasSpace ? `<button class="action-btn start" onclick="openCreateLvModal('${vg.vg_name}', ${vg.vg_free_gb})" title="Create new logical volume in this VG" style="padding:2px 8px; font-size:0.7rem; margin-left:8px;"><i data-lucide="plus" style="width:10px;height:10px;display:inline-block;vertical-align:middle;"></i> Create LV</button>` : ''}
                 </td>
             </tr>
-        `).join('');
+        `}).join('');
+        if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 
-    // Logical Volumes from host (with extend button)
+    // Logical Volumes from host (with extend and snapshot buttons)
     if (lvm.lvs?.length) {
         lvsTbody.innerHTML = lvm.lvs.map(lv => {
             const freeSpace = vgFreeSpace[lv.vg_name] || 0;
@@ -7799,13 +8399,14 @@ function renderHostLVM(lvm) {
                 <td class="mono">${lv.lv_name}</td>
                 <td>${lv.vg_name}</td>
                 <td>${lv.lv_size_gb} GB</td>
-                <td>
+                <td style="display: flex; gap: 4px; flex-wrap: wrap;">
                     <button class="action-btn ${hasSpace ? 'start' : ''}"
                             onclick="openLvmExtendModal('${lv.lv_name}', '${lv.vg_name}', ${lv.lv_size_gb}, ${freeSpace})"
                             title="${hasSpace ? 'Extend this logical volume' : 'No free space in VG - click for options'}">
                         <i data-lucide="${hasSpace ? 'plus' : 'info'}" style="width:12px; height:12px; display:inline-block; vertical-align:middle;"></i>
                         ${hasSpace ? 'Extend' : 'Manage'}
                     </button>
+                    ${hasSpace ? `<button class="action-btn" onclick="openSnapshotModal('${lv.vg_name}', '${lv.lv_name}', ${freeSpace})" title="Create snapshot of this LV"><i data-lucide="copy" style="width:12px; height:12px; display:inline-block; vertical-align:middle;"></i></button>` : ''}
                 </td>
             </tr>
         `}).join('');
@@ -9209,7 +9810,9 @@ function mountDisk(device) {
 // Modal & Toast
 function showConfirmModal(title, message, onConfirm) {
     document.getElementById('confirmTitle').textContent = title;
-    document.getElementById('confirmMessage').textContent = message;
+    const msgEl = document.getElementById('confirmMessage');
+    msgEl.textContent = message;
+    msgEl.style.whiteSpace = 'pre-line';  // Preserve newlines in text content
     document.getElementById('confirmModal').classList.add('active');
     pendingAction = onConfirm;
     document.getElementById('confirmBtn').onclick = async () => {
@@ -9374,15 +9977,25 @@ function executeLvmShrink() {
 // Convert to LVM Modal Functions
 let currentConvertDevice = null;
 
-function openConvertToLvmModal(device, sizeGb, fstype, mountpoint) {
+function openConvertToLvmModal(deviceOrStableId, sizeGb, fstype, mountpoint) {
     closeAllModals();
-    currentConvertDevice = { device, sizeGb, fstype, mountpoint };
+    currentConvertDevice = { device: deviceOrStableId, sizeGb, fstype, mountpoint };
 
-    document.getElementById('convertDevice').textContent = device;
+    // Show a friendly display - if it's a stable_id (doesn't start with /dev/), truncate for display
+    const displayText = deviceOrStableId.startsWith('/dev/') ? deviceOrStableId : deviceOrStableId.substring(0, 40) + (deviceOrStableId.length > 40 ? '...' : '');
+    document.getElementById('convertDevice').textContent = displayText;
+    document.getElementById('convertDevice').title = deviceOrStableId;  // Full ID on hover
     document.getElementById('convertSize').textContent = formatSizeGB(sizeGb);
 
     // Suggest names based on device (e.g., sdb1 -> data-vg, data-lv)
-    const baseName = device.replace('/dev/', '').replace(/[0-9]+$/, '');
+    // For stable_id, extract a simple base name from the model/serial
+    let baseName;
+    if (deviceOrStableId.startsWith('/dev/')) {
+        baseName = deviceOrStableId.replace('/dev/', '').replace(/[0-9]+$/, '');
+    } else {
+        // For stable_id like "ST3000DM008 2DM166_Z504K0DJ-part1", use "data" as a default
+        baseName = 'data';
+    }
     document.getElementById('convertVgName').value = baseName + '-vg';
     document.getElementById('convertLvName').value = baseName + '-lv';
     document.getElementById('convertFstype').value = 'ext4';
@@ -9761,7 +10374,8 @@ async function submitHostCommand(commandType, params, options) {
                 }
             }
         };
-        poll();
+        // Initial delay before first poll to let host_monitor pick up the command
+        setTimeout(poll, 1500);
     } catch (err) {
         if (showOverlay) {
             showCompletionMessage(false, 'Error', err.message);
@@ -9830,14 +10444,22 @@ function executeLvmExtendAll() {
     );
 }
 
+// Global partition data map for stable ID lookups
+// Maps partition key (stable_id or device path) to partition data with parent disk
+window.partitionDataMap = {};
+
 // Mount Modal state
 let currentMountDevice = null;
+let currentMountData = null;  // Stores partition data including stable_id
 
-function openMountModal(device) {
+function openMountModal(deviceOrStableId) {
     closeAllModals();
-    currentMountDevice = device;
+    currentMountDevice = deviceOrStableId;
 
-    document.getElementById('mountDevice').textContent = device;
+    // Show a friendly display - if it's a stable_id (doesn't start with /dev/), show it nicely
+    const displayText = deviceOrStableId.startsWith('/dev/') ? deviceOrStableId : deviceOrStableId.substring(0, 40) + (deviceOrStableId.length > 40 ? '...' : '');
+    document.getElementById('mountDevice').textContent = displayText;
+    document.getElementById('mountDevice').title = deviceOrStableId;  // Full ID on hover
     document.getElementById('mountMountpoint').value = '';
 
     document.getElementById('mountModal').classList.add('active');
@@ -9852,6 +10474,7 @@ function openMountModal(device) {
 function closeMountModal() {
     document.getElementById('mountModal').classList.remove('active');
     currentMountDevice = null;
+    currentMountData = null;
 }
 
 function executeMount() {
@@ -9886,17 +10509,20 @@ function executeMount() {
     );
 }
 
-function promptAndUnmount(device) {
+function promptAndUnmount(deviceOrStableId) {
     // Close partition details modal if open
     closePartitionDetailsModal();
 
+    // Show a friendly display - if it's a stable_id (doesn't start with /dev/), truncate for display
+    const displayText = deviceOrStableId.startsWith('/dev/') ? deviceOrStableId : deviceOrStableId.substring(0, 40) + (deviceOrStableId.length > 40 ? '...' : '');
+
     showConfirmModal('Unmount Device',
-        'Unmount ' + device + '? Make sure no processes are using this device.',
+        'Unmount ' + displayText + '? Make sure no processes are using this device.',
         function() {
             submitHostCommand('disk_unmount', {
-                device: device
+                device: deviceOrStableId  // Backend will resolve stable_id to device path
             }, {
-                label: 'Unmount ' + device,
+                label: 'Unmount ' + displayText,
                 successCallback: function() { loadStorageData(); }
             });
         }
@@ -9906,13 +10532,15 @@ function promptAndUnmount(device) {
 // Format Modal state
 let currentFormatDevice = null;
 
-function openFormatModal(device, sizeGb, currentFs, currentLabel) {
+function openFormatModal(deviceOrStableId, sizeGb, currentFs, currentLabel) {
     closeAllModals();
     closeActionPanel();
-    currentFormatDevice = device;
+    currentFormatDevice = deviceOrStableId;
 
-    // Populate modal
-    document.getElementById('formatDevice').textContent = device;
+    // Show a friendly display - if it's a stable_id (doesn't start with /dev/), truncate for display
+    const displayText = deviceOrStableId.startsWith('/dev/') ? deviceOrStableId : deviceOrStableId.substring(0, 40) + (deviceOrStableId.length > 40 ? '...' : '');
+    document.getElementById('formatDevice').textContent = displayText;
+    document.getElementById('formatDevice').title = deviceOrStableId;  // Full ID on hover
     document.getElementById('formatSize').textContent = formatSizeGB(sizeGb || 0);
     document.getElementById('formatCurrentFs').textContent = currentFs || 'Unknown';
     document.getElementById('formatCurrentLabel').textContent = currentLabel || 'None';
@@ -9975,62 +10603,254 @@ function executeFormat() {
     });
 }
 
-// Prepare Drive Modal state
-let currentPrepareDriveDevice = null;
+// Wipe Modal state
+let currentWipeDevice = null;
+let currentWipeInfo = {};
 
-function openPrepareDriveModal(device, sizeGb, model) {
+function openWipeModal(device, sizeGb, info) {
     closeAllModals();
-    currentPrepareDriveDevice = device;
+    closeActionPanel();
+    currentWipeDevice = device;
+    currentWipeInfo = { device, sizeGb, info };
 
-    document.getElementById('prepareDriveDevice').textContent = device;
-    document.getElementById('prepareDriveSize').textContent = formatSizeGB(sizeGb || 0);
-    document.getElementById('prepareDriveModel').textContent = model || 'Unknown';
-    document.getElementById('prepareDriveFs').value = 'ext4';
-    document.getElementById('prepareDriveLabel').value = '';
+    // Show a friendly display
+    const displayText = device.startsWith('/dev/') ? device : device.substring(0, 40) + (device.length > 40 ? '...' : '');
+    document.getElementById('wipeDevice').textContent = displayText;
+    document.getElementById('wipeDevice').title = device;
+    document.getElementById('wipeSize').textContent = formatSizeGB(sizeGb || 0);
+    document.getElementById('wipeInfo').textContent = info || 'Unknown';
 
-    document.getElementById('prepareDriveModal').classList.add('active');
+    // Reset checkboxes
+    document.getElementById('wipeLvm').checked = true;
+    document.getElementById('wipePartitionTable').checked = false;
+
+    document.getElementById('wipeModal').classList.add('active');
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
-function closePrepareDriveModal() {
-    document.getElementById('prepareDriveModal').classList.remove('active');
-    currentPrepareDriveDevice = null;
+function closeWipeModal() {
+    document.getElementById('wipeModal').classList.remove('active');
+    currentWipeDevice = null;
+    currentWipeInfo = {};
 }
 
-function executePrepareDrive() {
-    if (!currentPrepareDriveDevice) {
+function executeWipe() {
+    if (!currentWipeDevice) return;
+
+    var device = currentWipeDevice;
+    var wipeLvm = document.getElementById('wipeLvm').checked;
+    var wipePartitionTable = document.getElementById('wipePartitionTable').checked;
+
+    // Close wipe modal first
+    closeWipeModal();
+
+    // Request re-authentication then confirm
+    requestReauth('Wipe ' + device, function() {
+        var warningMsg = 'WARNING: This will PERMANENTLY DELETE ALL DATA on ' + device + '!\n\n';
+        if (wipeLvm) warningMsg += '• Remove all LVM structures\n';
+        if (wipePartitionTable) warningMsg += '• Wipe partition table\n';
+        warningMsg += '\nThis action CANNOT be undone!';
+
+        showConfirmModal('WIPE DEVICE', warningMsg, function() {
+            var params = { device: device };
+            if (wipeLvm) params.wipe_lvm = true;
+            if (wipePartitionTable) params.wipe_partition_table = true;
+
+            submitHostCommand('disk_wipe', params, {
+                label: 'Wipe ' + device,
+                successCallback: function() { loadStorageData(); }
+            });
+        });
+    });
+}
+
+// Prepare LVM Modal state
+let currentPrepareLvmDisk = null;
+
+// Safe wrapper that checks for mounted partitions before showing prepare LVM modal
+function openPrepareLvmModalSafe(diskJsonStr) {
+    try {
+        const disk = JSON.parse(diskJsonStr.replace(/&quot;/g, '"'));
+
+        // Check if any partitions are mounted
+        const mountedParts = (disk.partitions || []).filter(p => p.mountpoint);
+
+        if (mountedParts.length > 0) {
+            // Show warning modal with unmount option
+            const mountList = mountedParts.map(p => `• ${p.device} at ${p.mountpoint}`).join('\n');
+            closeAllModals();
+
+            showConfirmModal('Drive Has Mounted Partitions',
+                `Cannot prepare ${disk.device} because these partitions are mounted:\n\n${mountList}\n\nClick Confirm to unmount them and proceed.`,
+                function() {
+                    // Unmount all mounted partitions sequentially then open modal
+                    unmountPartitionsAndPrepareLvm(disk, mountedParts);
+                }
+            );
+        } else {
+            // No mounted partitions, proceed normally
+            openPrepareLvmModal(disk);
+        }
+    } catch (e) {
+        console.error('Failed to parse disk data:', e);
+        showToast('error', 'Failed to open prepare LVM modal');
+    }
+}
+
+// Unmount partitions then open prepare LVM modal
+async function unmountPartitionsAndPrepareLvm(disk, mountedParts) {
+    showLoadingOverlay('Unmounting partitions', 'Please wait...');
+
+    for (const part of mountedParts) {
+        const deviceToUnmount = part.device;
+        updateLoadingProgress(`Unmounting ${deviceToUnmount}...`);
+
+        try {
+            const res = await fetch('/tools/system-operations/api/host-command/submit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    command_type: 'disk_unmount',
+                    params: { device: deviceToUnmount },
+                    confirm: true
+                })
+            });
+
+            const json = await res.json();
+
+            if (json.requires_reauth) {
+                hideLoadingOverlay();
+                showToast('error', 'Re-authentication required. Please try again.');
+                return;
+            }
+
+            if (!json.success) {
+                hideLoadingOverlay();
+                showToast('error', `Failed to unmount ${deviceToUnmount}: ${json.error || 'Unknown error'}`);
+                return;
+            }
+
+            // Wait for command to complete
+            const cmdId = json.command_id;
+            let attempts = 0;
+            let completed = false;
+
+            while (attempts < 30 && !completed) {
+                await new Promise(r => setTimeout(r, 1000));
+                const resultRes = await fetch(`/tools/system-operations/api/host-command/${cmdId}/result`);
+
+                if (resultRes.status === 200) {
+                    const resultJson = await resultRes.json();
+                    const cmdResult = resultJson.data?.result || {};
+
+                    if (!cmdResult.success) {
+                        hideLoadingOverlay();
+                        showToast('error', `Unmount failed: ${cmdResult.error || 'Unknown error'}`);
+                        return;
+                    }
+                    completed = true;
+                } else if (resultRes.status !== 202) {
+                    hideLoadingOverlay();
+                    showToast('error', `Unexpected error checking unmount result`);
+                    return;
+                }
+                attempts++;
+            }
+
+            if (!completed) {
+                hideLoadingOverlay();
+                showToast('error', 'Unmount timed out');
+                return;
+            }
+        } catch (e) {
+            hideLoadingOverlay();
+            showToast('error', `Error unmounting ${part.device}: ${e.message}`);
+            return;
+        }
+    }
+
+    hideLoadingOverlay();
+    showToast('success', 'All partitions unmounted');
+
+    // Now open the prepare LVM modal
+    setTimeout(() => {
+        openPrepareLvmModal(disk);
+    }, 500);
+}
+
+function openPrepareLvmModal(disk) {
+    closeAllModals();
+    currentPrepareLvmDisk = disk;
+
+    // Populate modal
+    document.getElementById('prepareLvmDevice').textContent = disk.device;
+    document.getElementById('prepareLvmSize').textContent = formatSizeGB(disk.size_gb || 0);
+    document.getElementById('prepareLvmModel').textContent = disk.model || 'Unknown';
+
+    // Suggest default names based on disk name (e.g., sdb -> sdb-vg, sdb-lv)
+    const baseName = (disk.name || 'data').replace(/[^a-zA-Z0-9]/g, '');
+    document.getElementById('prepareLvmVgName').value = baseName + '-vg';
+    document.getElementById('prepareLvmLvName').value = baseName + '-lv';
+    document.getElementById('prepareLvmFs').value = 'ext4';
+    document.getElementById('prepareLvmMountpoint').value = '/mnt/' + baseName;
+
+    document.getElementById('prepareLvmModal').classList.add('active');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function closePrepareLvmModal() {
+    document.getElementById('prepareLvmModal').classList.remove('active');
+    currentPrepareLvmDisk = null;
+}
+
+function executePrepareLvm() {
+    if (!currentPrepareLvmDisk) {
         showToast('error', 'No drive selected');
         return;
     }
 
-    var device = currentPrepareDriveDevice;
-    var fstype = document.getElementById('prepareDriveFs').value;
-    var label = document.getElementById('prepareDriveLabel').value.trim();
-    console.log('Prepare params:', device, fstype, label);
+    const disk = currentPrepareLvmDisk;
+    const vgName = document.getElementById('prepareLvmVgName').value.trim();
+    const lvName = document.getElementById('prepareLvmLvName').value.trim();
+    const fstype = document.getElementById('prepareLvmFs').value;
+    const mountpoint = document.getElementById('prepareLvmMountpoint').value.trim();
 
-    closePrepareDriveModal();
+    // Validate
+    if (!vgName || !lvName) {
+        showToast('error', 'Please enter VG and LV names');
+        return;
+    }
+
+    if (!/^[a-zA-Z0-9_-]+$/.test(vgName) || !/^[a-zA-Z0-9_-]+$/.test(lvName)) {
+        showToast('error', 'Names can only contain letters, numbers, hyphens, and underscores');
+        return;
+    }
+
+    if (mountpoint && !/^\/[a-zA-Z0-9_\/.\-]+$/.test(mountpoint)) {
+        showToast('error', 'Invalid mount point. Must be an absolute path.');
+        return;
+    }
+
+    closePrepareLvmModal();
 
     // Request re-authentication then confirm
-    console.log('Calling requestReauth...');
-    requestReauth('Prepare Drive ' + device, function() {
-        console.log('Reauth callback fired, showing confirm modal...');
-        showConfirmModal('PREPARE DRIVE',
-            'WARNING: This will ERASE ALL DATA on ' + device + '!\n\nA new GPT partition table will be created, a single partition will span the entire drive, and it will be formatted as ' + fstype + '.',
+    requestReauth('Prepare ' + disk.device + ' as LVM', function() {
+        showConfirmModal('PREPARE AS LVM',
+            `WARNING: This will ERASE ALL DATA on ${disk.device}!\n\nThe drive will be set up as:\n• Volume Group: ${vgName}\n• Logical Volume: ${lvName}\n• Filesystem: ${fstype}` + (mountpoint ? `\n• Mount: ${mountpoint}` : ''),
             function() {
-                console.log('Confirm callback fired, submitting command...');
-                var params = {
-                    device: device,
-                    fstype: fstype,
-                    partition_table: 'gpt'
+                const params = {
+                    device: disk.device,
+                    vg_name: vgName,
+                    lv_name: lvName,
+                    fstype: fstype
                 };
-                if (label) params.label = label;
-                console.log('submitHostCommand params:', params);
+                if (mountpoint) params.mountpoint = mountpoint;
 
-                submitHostCommand('disk_prepare', params, {
-                    label: 'Prepare ' + device,
+                submitHostCommand('disk_prepare_lvm', params, {
+                    label: 'Prepare ' + disk.device + ' as LVM',
+                    timeout: 300000,  // 5 minutes for large drives
                     successCallback: function() {
-                        console.log('Success callback, reloading storage data...');
-                        setTimeout(function() { loadStorageData(); }, 2000);
+                        setTimeout(function() { loadStorageData(); }, 3000);
                     }
                 });
             }
@@ -10104,6 +10924,134 @@ function executeCreateLv() {
 
             submitHostCommand('lvm_create', params, {
                 label: 'Create LV ' + lvName,
+                successCallback: function() { loadStorageData(); }
+            });
+        }
+    );
+}
+
+// Create VG Modal state
+let currentCreateVgDevice = null;
+
+function openCreateVgModal(device) {
+    closeAllModals();
+    currentCreateVgDevice = device;
+
+    document.getElementById('createVgPvDevice').textContent = device;
+    document.getElementById('createVgName').value = '';
+
+    document.getElementById('createVgModal').classList.add('active');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+
+    setTimeout(function() {
+        document.getElementById('createVgName').focus();
+    }, 100);
+}
+
+function closeCreateVgModal() {
+    document.getElementById('createVgModal').classList.remove('active');
+    currentCreateVgDevice = null;
+}
+
+function executeCreateVg() {
+    if (!currentCreateVgDevice) return;
+
+    var device = currentCreateVgDevice;
+    var vgName = document.getElementById('createVgName').value.trim();
+
+    if (!vgName) {
+        showToast('error', 'Please enter a volume group name.');
+        return;
+    }
+
+    if (!/^[a-zA-Z0-9_\-]+$/.test(vgName)) {
+        showToast('error', 'Invalid VG name. Use only letters, numbers, hyphens, and underscores.');
+        return;
+    }
+
+    closeCreateVgModal();
+
+    // Request re-authentication then confirm
+    requestReauth('Create VG ' + vgName, function() {
+        showConfirmModal('CREATE VOLUME GROUP',
+            'WARNING: This will ERASE ALL DATA on ' + device + '!\n\nCreate volume group "' + vgName + '" using ' + device + ' as physical volume?',
+            function() {
+                submitHostCommand('vg_create', { vg_name: vgName, pv_device: device }, {
+                    label: 'Create VG ' + vgName,
+                    successCallback: function() { loadStorageData(); }
+                });
+            }
+        );
+    });
+}
+
+// Snapshot Modal state
+let currentSnapshotVg = null;
+let currentSnapshotLv = null;
+let currentSnapshotFreeGb = 0;
+
+function openSnapshotModal(vgName, lvName, freeGb) {
+    closeAllModals();
+    currentSnapshotVg = vgName;
+    currentSnapshotLv = lvName;
+    currentSnapshotFreeGb = freeGb;
+
+    document.getElementById('snapshotSourceLv').textContent = vgName + '/' + lvName;
+    document.getElementById('snapshotVgFree').textContent = formatSizeGB(freeGb);
+    document.getElementById('snapshotName').value = lvName + '-snap-' + new Date().toISOString().slice(0,10).replace(/-/g, '');
+    document.getElementById('snapshotSize').value = Math.min(10, Math.floor(freeGb));
+
+    document.getElementById('snapshotModal').classList.add('active');
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+
+    setTimeout(function() {
+        document.getElementById('snapshotName').focus();
+    }, 100);
+}
+
+function closeSnapshotModal() {
+    document.getElementById('snapshotModal').classList.remove('active');
+    currentSnapshotVg = null;
+    currentSnapshotLv = null;
+    currentSnapshotFreeGb = 0;
+}
+
+function executeSnapshot() {
+    if (!currentSnapshotVg || !currentSnapshotLv) return;
+
+    var vgName = currentSnapshotVg;
+    var lvName = currentSnapshotLv;
+    var freeGb = currentSnapshotFreeGb;
+    var snapName = document.getElementById('snapshotName').value.trim();
+    var sizeGb = parseFloat(document.getElementById('snapshotSize').value);
+
+    if (!snapName) {
+        showToast('error', 'Please enter a snapshot name.');
+        return;
+    }
+
+    if (!/^[a-zA-Z0-9_\-]+$/.test(snapName)) {
+        showToast('error', 'Invalid snapshot name. Use only letters, numbers, hyphens, and underscores.');
+        return;
+    }
+
+    if (isNaN(sizeGb) || sizeGb <= 0 || sizeGb > freeGb) {
+        showToast('error', 'Invalid size. Must be between 1 and ' + Math.floor(freeGb) + ' GB.');
+        return;
+    }
+
+    closeSnapshotModal();
+
+    showConfirmModal('Create Snapshot',
+        'Create snapshot "' + snapName + '" of LV ' + lvName + ' in VG ' + vgName + '? Size: ' + sizeGb + ' GB',
+        function() {
+            submitHostCommand('lvm_snapshot', {
+                vg_name: vgName,
+                lv_name: lvName,
+                snapshot_name: snapName,
+                size_gb: sizeGb
+            }, {
+                label: 'Snapshot ' + lvName,
                 successCallback: function() { loadStorageData(); }
             });
         }

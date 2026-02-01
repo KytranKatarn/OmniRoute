@@ -2530,6 +2530,8 @@ def api_mount_disk(device):
         params = {"device": f"/dev/{device}", "mountpoint": mountpoint}
         if data.get("fstype"):
             params["fstype"] = data["fstype"]
+        # Persist mount to fstab using UUID (prevents device letter shifting issues)
+        params["persist"] = data.get("persist", True)
 
         user_id = current_user.id if current_user.is_authenticated else None
         username = getattr(current_user, "username", "unknown")
@@ -2576,6 +2578,8 @@ def api_unmount_disk(device):
         params = {"device": f"/dev/{device}"}
         if data.get("force"):
             params["force"] = True
+        # Remove fstab entry when unmounting (prevents stale entries)
+        params["remove_persist"] = data.get("remove_persist", True)
 
         user_id = current_user.id if current_user.is_authenticated else None
         username = getattr(current_user, "username", "unknown")
@@ -2697,7 +2701,18 @@ def api_lvm_info():
 # ============================================================================
 
 # Commands that require re-authentication before submission
-DANGEROUS_COMMAND_TYPES = {"lvm_shrink", "disk_format", "partition_create", "pv_create_vg_extend"}
+DANGEROUS_COMMAND_TYPES = {
+    "lvm_shrink",
+    "disk_format",
+    "partition_create",
+    "pv_create_vg_extend",
+    "vg_create",
+    "convert_to_lvm",
+    "lvm_snapshot",
+    "disk_prepare",
+    "disk_prepare_lvm",
+    "disk_wipe",
+}
 
 
 @system_operations_bp.route("/api/host-command/status")
@@ -2841,6 +2856,10 @@ def api_storage_drives():
         except Exception:
             pass
 
+        # Get SMART details and capacity alerts
+        smart_details = host_data.get("smart_details", {})
+        capacity_alerts = host_data.get("capacity_alerts", [])
+
         return jsonify(
             {
                 "success": True,
@@ -2851,6 +2870,8 @@ def api_storage_drives():
                     "vg_free": vg_free,
                     "managed_mounts": managed,
                     "docker_mounts": docker_mounts,
+                    "smart_details": smart_details,
+                    "capacity_alerts": capacity_alerts,
                     "data_age": int(age) if age else None,
                 },
             }

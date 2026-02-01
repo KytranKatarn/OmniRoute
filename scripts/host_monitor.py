@@ -502,14 +502,22 @@ def get_disk_layout():
                         'size_bytes': int(device.get('size', 0)),
                         'size_gb': round(int(device.get('size', 0)) / (1024**3), 2),
                         'model': device.get('model', 'Unknown').strip() if device.get('model') else 'Unknown',
+                        'fstype': device.get('fstype'),  # Capture fstype for disks without partitions
+                        'mountpoint': device.get('mountpoint'),  # Capture mountpoint for disks without partitions
                         'partitions': []
                     }
 
                     # Get partitions
                     for child in device.get('children', []):
+                        # Determine device path based on type
+                        if child.get('type') == 'lvm':
+                            child_device = f"/dev/mapper/{child.get('name')}"
+                        else:
+                            child_device = f"/dev/{child.get('name')}"
+
                         part_info = {
                             'name': child.get('name'),
-                            'device': f"/dev/{child.get('name')}",
+                            'device': child_device,
                             'size_bytes': int(child.get('size', 0)),
                             'size_gb': round(int(child.get('size', 0)) / (1024**3), 2),
                             'type': child.get('type'),
@@ -517,6 +525,14 @@ def get_disk_layout():
                             'mountpoint': child.get('mountpoint'),
                             'children': []
                         }
+
+                        # Parse VG/LV names for direct LVM children (raw disk as PV)
+                        if child.get('type') == 'lvm':
+                            vg_name, lv_name = _parse_dm_name(child.get('name', ''))
+                            if vg_name:
+                                part_info['vg_name'] = vg_name
+                                part_info['lv_name'] = lv_name
+                                part_info['is_lvm'] = True
 
                         # Check for LVM or other children
                         for grandchild in child.get('children', []):
@@ -545,6 +561,11 @@ def get_disk_layout():
     # Check for unallocated space using fdisk
     for disk in disks:
         disk['unallocated_gb'] = 0
+        # If disk is formatted directly without partitions (has fstype and mountpoint),
+        # there's no unallocated space - the whole disk is the filesystem
+        if disk.get('fstype') and disk.get('mountpoint'):
+            disk['unallocated_gb'] = 0
+            continue
         fdisk_output = run_command(['fdisk', '-l', disk['device']])
         if fdisk_output:
             # Calculate total partition sizes
@@ -552,8 +573,11 @@ def get_disk_layout():
             if disk['size_bytes'] > total_partitioned:
                 disk['unallocated_gb'] = round((disk['size_bytes'] - total_partitioned) / (1024**3), 2)
 
-    # Add disk usage stats for mounted partitions
+    # Add disk usage stats for mounted partitions and disks
     for disk in disks:
+        # Check if disk itself is mounted (no partitions, formatted directly)
+        if disk.get('mountpoint'):
+            _add_usage_stats(disk)
         for part in disk['partitions']:
             _add_usage_stats(part)
             for child in part.get('children', []):
@@ -562,6 +586,11 @@ def get_disk_layout():
     # Enrich with blkid data (UUID, LABEL)
     blkid = get_blkid_info()
     for disk in disks:
+        # Check disk itself (for disks without partitions)
+        ddev = disk.get('device', '')
+        if ddev in blkid:
+            disk['uuid'] = blkid[ddev].get('uuid')
+            disk['label'] = blkid[ddev].get('label')
         for part in disk['partitions']:
             dev = part.get('device', '')
             if dev in blkid:
@@ -584,6 +613,22 @@ def get_disk_layout():
         if disk['name'] in io_stats:
             disk['io'] = io_stats[disk['name']]
 
+    # Enrich with stable identifiers from /dev/disk/by-id/
+    stable_ids = get_disk_stable_identifiers()
+    for disk in disks:
+        if disk['name'] in stable_ids:
+            info = stable_ids[disk['name']]
+            disk['serial'] = info.get('serial')
+            disk['by_id_path'] = info.get('by_id_path')
+            disk['stable_id'] = info.get('stable_id')
+
+            # Enrich partitions with stable identifiers
+            for part in disk.get('partitions', []):
+                if part['name'] in info.get('partitions', {}):
+                    part_info = info['partitions'][part['name']]
+                    part['by_id_path'] = part_info.get('by_id_path')
+                    part['stable_id'] = part_info.get('stable_id')
+
     return disks
 
 
@@ -605,6 +650,107 @@ def _add_usage_stats(partition):
         }
     except OSError:
         pass
+
+
+def get_disk_stable_identifiers():
+    """Get stable identifiers from /dev/disk/by-id/ symlinks.
+
+    Returns dict: {device_name: {serial, model, by_id_path, stable_id, partitions: {...}}}
+
+    These identifiers are stable across reboots and device letter changes because
+    they're based on hardware serial numbers.
+    """
+    identifiers = {}
+    partition_entries = []  # Store partition entries for second pass
+    by_id_dir = '/dev/disk/by-id'
+
+    if not os.path.exists(by_id_dir):
+        return identifiers
+
+    try:
+        entries = os.listdir(by_id_dir)
+    except OSError:
+        return identifiers
+
+    # First pass: collect all disk entries
+    for entry in entries:
+        # Skip dm-, lvm-, wwn-, md- entries - we want ata- or nvme- or scsi-
+        if entry.startswith(('dm-', 'lvm-', 'wwn-', 'md-')):
+            continue
+
+        full_path = os.path.join(by_id_dir, entry)
+
+        try:
+            # Resolve symlink to get current device name
+            target = os.readlink(full_path)
+            device_name = os.path.basename(target)
+        except OSError:
+            continue
+
+        # Check if this is a partition entry (ends with -partN)
+        is_partition = '-part' in entry
+
+        if is_partition:
+            # Store for second pass
+            partition_entries.append((entry, full_path, device_name))
+            continue
+
+        # Extract model and serial from entry name
+        model = None
+        serial = None
+
+        if entry.startswith(('ata-', 'nvme-', 'scsi-', 'usb-')):
+            name_part = entry.split('-', 1)[1] if '-' in entry else entry
+            parts = name_part.rsplit('_', 1)
+            if len(parts) == 2:
+                model = parts[0].replace('_', ' ')
+                serial = parts[1]
+            else:
+                serial = name_part
+
+        stable_id = f"{model}_{serial}" if model and serial else entry.split('-', 1)[1] if '-' in entry else entry
+
+        # Only add if not already present (prefer ata- over scsi- entries)
+        if device_name not in identifiers:
+            identifiers[device_name] = {
+                'serial': serial,
+                'model': model,
+                'by_id_path': full_path,
+                'stable_id': stable_id,
+                'partitions': {}
+            }
+
+    # Second pass: add partition entries to their parent disks
+    for entry, full_path, device_name in partition_entries:
+        match = re.match(r'(.+)-part(\d+)$', entry)
+        if not match:
+            continue
+
+        base_entry = match.group(1)
+        part_num = int(match.group(2))
+
+        # Extract model and serial from base entry
+        model = None
+        serial = None
+        if base_entry.startswith(('ata-', 'nvme-', 'scsi-', 'usb-')):
+            name_part = base_entry.split('-', 1)[1] if '-' in base_entry else base_entry
+            parts = name_part.rsplit('_', 1)
+            if len(parts) == 2:
+                model = parts[0].replace('_', ' ')
+                serial = parts[1]
+            else:
+                serial = name_part
+
+        # Find parent device (e.g., sda for sda1)
+        parent_name = re.sub(r'\d+$', '', device_name)
+
+        if parent_name in identifiers:
+            identifiers[parent_name]['partitions'][device_name] = {
+                'by_id_path': full_path,
+                'stable_id': f"{model}_{serial}-part{part_num}" if model and serial else entry
+            }
+
+    return identifiers
 
 
 def get_blkid_info():
@@ -675,6 +821,196 @@ def get_smart_health():
             else:
                 health[name] = 'unavailable'
     return health
+
+
+def get_smart_details():
+    """Get detailed SMART data for all disks.
+
+    Returns a dict keyed by disk name with detailed SMART attributes:
+    - model, serial, firmware
+    - temperature_celsius
+    - power_on_hours
+    - reallocated_sector_count
+    - current_pending_sector
+    - offline_uncorrectable
+    - health_status
+    - capacity_alerts (if usage data available)
+    """
+    details = {}
+    output = run_command(['lsblk', '-dn', '-o', 'NAME,TYPE'])
+    if not output:
+        return details
+
+    for line in output.split('\n'):
+        parts = line.split()
+        if len(parts) < 2 or parts[1] != 'disk':
+            continue
+        name = parts[0]
+        disk_details = {
+            'name': name,
+            'model': None,
+            'serial': None,
+            'firmware': None,
+            'temperature_celsius': None,
+            'power_on_hours': None,
+            'reallocated_sector_count': None,
+            'current_pending_sector': None,
+            'offline_uncorrectable': None,
+            'health_status': 'unavailable',
+            'smart_attributes': [],
+            'warnings': []
+        }
+
+        # Get SMART info including attributes
+        result = run_command_full(['sudo', '-n', 'smartctl', '-a', f'/dev/{name}'], timeout=15)
+        smart_out = result.get('stdout', '')
+
+        if not smart_out:
+            details[name] = disk_details
+            continue
+
+        # Parse health status
+        if 'PASSED' in smart_out:
+            disk_details['health_status'] = 'healthy'
+        elif 'FAILED' in smart_out:
+            disk_details['health_status'] = 'failing'
+        else:
+            disk_details['health_status'] = 'unknown'
+
+        # Parse device info section
+        for ln in smart_out.split('\n'):
+            ln = ln.strip()
+            if ln.startswith('Model Family:'):
+                disk_details['model_family'] = ln.split(':', 1)[1].strip()
+            elif ln.startswith('Device Model:') or ln.startswith('Model Number:'):
+                disk_details['model'] = ln.split(':', 1)[1].strip()
+            elif ln.startswith('Serial Number:'):
+                disk_details['serial'] = ln.split(':', 1)[1].strip()
+            elif ln.startswith('Firmware Version:'):
+                disk_details['firmware'] = ln.split(':', 1)[1].strip()
+
+        # Parse SMART attributes table
+        # Format: ID# ATTRIBUTE_NAME FLAGS VALUE WORST THRESH TYPE UPDATED WHEN_FAILED RAW_VALUE
+        in_attributes = False
+        for ln in smart_out.split('\n'):
+            if 'ID#' in ln and 'ATTRIBUTE_NAME' in ln:
+                in_attributes = True
+                continue
+            if in_attributes:
+                if ln.strip() == '' or not ln.strip()[0].isdigit():
+                    in_attributes = False
+                    continue
+                attr_parts = ln.split()
+                if len(attr_parts) >= 10:
+                    try:
+                        attr_id = int(attr_parts[0])
+                        attr_name = attr_parts[1]
+                        raw_value_str = attr_parts[9]
+
+                        # Parse raw value (may have format like "32 (Min/Max 28/45)")
+                        raw_value = raw_value_str.split()[0] if raw_value_str else '0'
+                        try:
+                            raw_int = int(raw_value)
+                        except ValueError:
+                            raw_int = 0
+
+                        # Store specific attributes
+                        if attr_id == 194 or attr_name == 'Temperature_Celsius':
+                            disk_details['temperature_celsius'] = raw_int
+                        elif attr_id == 9 or attr_name == 'Power_On_Hours':
+                            disk_details['power_on_hours'] = raw_int
+                        elif attr_id == 5 or attr_name == 'Reallocated_Sector_Ct':
+                            disk_details['reallocated_sector_count'] = raw_int
+                            if raw_int > 0:
+                                disk_details['warnings'].append(f'Reallocated sectors: {raw_int}')
+                        elif attr_id == 197 or attr_name == 'Current_Pending_Sector':
+                            disk_details['current_pending_sector'] = raw_int
+                            if raw_int > 0:
+                                disk_details['warnings'].append(f'Pending sectors: {raw_int}')
+                        elif attr_id == 198 or attr_name == 'Offline_Uncorrectable':
+                            disk_details['offline_uncorrectable'] = raw_int
+                            if raw_int > 0:
+                                disk_details['warnings'].append(f'Offline uncorrectable: {raw_int}')
+
+                        disk_details['smart_attributes'].append({
+                            'id': attr_id,
+                            'name': attr_name,
+                            'raw_value': raw_int
+                        })
+                    except (ValueError, IndexError):
+                        continue
+
+        # For NVMe drives, parse different format
+        if disk_details['temperature_celsius'] is None:
+            for ln in smart_out.split('\n'):
+                if 'Temperature:' in ln:
+                    try:
+                        temp_str = ln.split(':')[1].strip().split()[0]
+                        disk_details['temperature_celsius'] = int(temp_str)
+                    except (ValueError, IndexError):
+                        pass
+                elif 'Power On Hours:' in ln:
+                    try:
+                        hours_str = ln.split(':')[1].strip().replace(',', '')
+                        disk_details['power_on_hours'] = int(hours_str)
+                    except (ValueError, IndexError):
+                        pass
+
+        details[name] = disk_details
+
+    return details
+
+
+def check_capacity_alerts(disks):
+    """Check disk capacity and generate alerts.
+
+    Returns a list of alerts with severity levels:
+    - 95%+ = critical (red)
+    - 90%+ = warning (orange)
+    - 80%+ = notice (yellow)
+    """
+    alerts = []
+    for disk in disks:
+        # Check disk-level mount
+        if disk.get('usage'):
+            pct = disk['usage'].get('percent', 0)
+            mount = disk.get('mountpoint', disk.get('device', ''))
+            if pct >= 95:
+                alerts.append({'mount': mount, 'percent': pct, 'severity': 'critical', 'device': disk.get('device')})
+            elif pct >= 90:
+                alerts.append({'mount': mount, 'percent': pct, 'severity': 'warning', 'device': disk.get('device')})
+            elif pct >= 80:
+                alerts.append({'mount': mount, 'percent': pct, 'severity': 'notice', 'device': disk.get('device')})
+
+        # Check partitions
+        for part in disk.get('partitions', []):
+            if part.get('usage'):
+                pct = part['usage'].get('percent', 0)
+                mount = part.get('mountpoint', part.get('device', ''))
+                if pct >= 95:
+                    alerts.append({'mount': mount, 'percent': pct, 'severity': 'critical', 'device': part.get('device')})
+                elif pct >= 90:
+                    alerts.append({'mount': mount, 'percent': pct, 'severity': 'warning', 'device': part.get('device')})
+                elif pct >= 80:
+                    alerts.append({'mount': mount, 'percent': pct, 'severity': 'notice', 'device': part.get('device')})
+
+            # Check LVM children
+            for child in part.get('children', []):
+                if child.get('usage'):
+                    pct = child['usage'].get('percent', 0)
+                    mount = child.get('mountpoint', child.get('device', ''))
+                    if pct >= 95:
+                        alerts.append({'mount': mount, 'percent': pct, 'severity': 'critical', 'device': child.get('device')})
+                    elif pct >= 90:
+                        alerts.append({'mount': mount, 'percent': pct, 'severity': 'warning', 'device': child.get('device')})
+                    elif pct >= 80:
+                        alerts.append({'mount': mount, 'percent': pct, 'severity': 'notice', 'device': child.get('device')})
+
+    # Sort by severity (critical first, then warning, then notice)
+    severity_order = {'critical': 0, 'warning': 1, 'notice': 2}
+    alerts.sort(key=lambda x: (severity_order.get(x['severity'], 3), -x['percent']))
+
+    return alerts
 
 
 def get_gpu_info():
@@ -1804,6 +2140,23 @@ COMMAND_REGISTRY = {
             'mountpoint': {'required': False, 'regex': _MOUNT_PATH_RE},
         },
     },
+    'vg_create': {
+        'handler': 'handle_vg_create',
+        'dangerous': True,
+        'params': {
+            'vg_name': {'required': True, 'regex': _NAME_RE},
+            'pv_device': {'required': True, 'regex': _DEV_PATH_RE},
+        },
+    },
+    'lvm_snapshot': {
+        'handler': 'handle_lvm_snapshot',
+        'params': {
+            'vg_name': {'required': True, 'regex': _NAME_RE},
+            'lv_name': {'required': True, 'regex': _NAME_RE},
+            'snapshot_name': {'required': True, 'regex': _NAME_RE},
+            'size_gb': {'required': True, 'validator': lambda v: isinstance(v, (int, float)) and v > 0},
+        },
+    },
     'disk_mount': {
         'handler': 'handle_disk_mount',
         'params': {
@@ -1811,6 +2164,7 @@ COMMAND_REGISTRY = {
             'mountpoint': {'required': True, 'regex': _MOUNT_PATH_RE},
             'fstype': {'required': False, 'regex': _FSTYPE_RE},
             'options': {'required': False, 'regex': r'^[a-zA-Z0-9_,=]+$'},
+            'persist': {'required': False, 'validator': lambda v: isinstance(v, bool)},
         },
     },
     'disk_unmount': {
@@ -1818,6 +2172,7 @@ COMMAND_REGISTRY = {
         'params': {
             'device': {'required': True, 'regex': _DEV_PATH_RE},
             'force': {'required': False, 'validator': lambda v: isinstance(v, bool)},
+            'remove_persist': {'required': False, 'validator': lambda v: isinstance(v, bool)},
         },
     },
     'disk_format': {
@@ -1856,6 +2211,17 @@ COMMAND_REGISTRY = {
             'label': {'required': False, 'regex': r'^[a-zA-Z0-9_\-]{1,32}$'},
         },
     },
+    'disk_prepare_lvm': {
+        'handler': 'handle_disk_prepare_lvm',
+        'dangerous': True,
+        'params': {
+            'device': {'required': True, 'regex': _DEV_PATH_RE},
+            'vg_name': {'required': True, 'regex': _NAME_RE},
+            'lv_name': {'required': True, 'regex': _NAME_RE},
+            'fstype': {'required': False, 'regex': _FSTYPE_RE},
+            'mountpoint': {'required': False, 'regex': r'^/[a-zA-Z0-9_/\.\-]+$'},
+        },
+    },
     'disk_label': {
         'handler': 'handle_disk_label',
         'params': {
@@ -1872,6 +2238,15 @@ COMMAND_REGISTRY = {
             'vg_name': {'required': True, 'regex': _NAME_RE},
             'lv_name': {'required': True, 'regex': _NAME_RE},
             'fstype': {'required': True, 'regex': _FSTYPE_RE},
+        },
+    },
+    'disk_wipe': {
+        'handler': 'handle_disk_wipe',
+        'dangerous': True,
+        'params': {
+            'device': {'required': True, 'regex': _DEV_PATH_RE},
+            'wipe_lvm': {'required': False, 'validator': lambda v: isinstance(v, bool)},
+            'wipe_partition_table': {'required': False, 'validator': lambda v: isinstance(v, bool)},
         },
     },
     # -------------------------------------------------------------------------
@@ -2208,8 +2583,351 @@ def handle_lvm_create(params):
     return {'success': True, 'message': f'Created {lv_path} ({size_gb}GB, {fstype})', 'device': lv_path}
 
 
+def handle_vg_create(params):
+    """Create a new LVM volume group from a physical volume device.
+
+    Steps:
+    1. Verify device exists and is not mounted
+    2. Create physical volume (pvcreate)
+    3. Create volume group (vgcreate)
+    """
+    vg_name = params['vg_name']
+    pv_device = params['pv_device']
+
+    # Check device exists
+    if not os.path.exists(pv_device):
+        return {'success': False, 'error': f'Device {pv_device} does not exist'}
+
+    # Check if device is mounted
+    result = run_command_full(['findmnt', '-n', pv_device], timeout=10)
+    if result['returncode'] == 0 and result['stdout'].strip():
+        return {'success': False, 'error': f'Device {pv_device} is currently mounted. Unmount first.'}
+
+    # Check if VG name already exists
+    result = run_command_full(['sudo', '-n', 'vgdisplay', vg_name], timeout=10)
+    if result['returncode'] == 0:
+        return {'success': False, 'error': f'Volume group {vg_name} already exists'}
+
+    # Check if device is already a PV
+    result = run_command_full(['sudo', '-n', 'pvdisplay', pv_device], timeout=10)
+    if result['returncode'] == 0:
+        return {'success': False, 'error': f'Device {pv_device} is already a physical volume'}
+
+    # Create physical volume
+    result = run_command_full(['sudo', '-n', 'pvcreate', pv_device], timeout=60)
+    if result['returncode'] != 0:
+        return {'success': False, 'error': f'pvcreate failed: {result["stderr"]}'}
+
+    # Create volume group
+    result = run_command_full(['sudo', '-n', 'vgcreate', vg_name, pv_device], timeout=60)
+    if result['returncode'] != 0:
+        return {'success': False, 'error': f'vgcreate failed: {result["stderr"]}'}
+
+    return {
+        'success': True,
+        'message': f'Created volume group {vg_name} on {pv_device}',
+        'vg_name': vg_name,
+        'pv_device': pv_device
+    }
+
+
+def handle_lvm_snapshot(params):
+    """Create a snapshot of an LVM logical volume.
+
+    Snapshots are copy-on-write and useful for backups.
+    The snapshot needs its own space allocation.
+    """
+    vg_name = params['vg_name']
+    lv_name = params['lv_name']
+    snapshot_name = params['snapshot_name']
+    size_gb = params['size_gb']
+
+    source_lv = f'/dev/{vg_name}/{lv_name}'
+    snapshot_lv = f'/dev/{vg_name}/{snapshot_name}'
+
+    # Verify source LV exists
+    if not os.path.exists(source_lv):
+        return {'success': False, 'error': f'Source LV {source_lv} does not exist'}
+
+    # Check snapshot doesn't already exist
+    if os.path.exists(snapshot_lv):
+        return {'success': False, 'error': f'Snapshot {snapshot_name} already exists in VG {vg_name}'}
+
+    # Check VG has enough free space
+    result = run_command_full(['sudo', '-n', 'vgs', '--noheadings', '--units', 'g', '-o', 'vg_free', vg_name], timeout=10)
+    if result['returncode'] != 0:
+        return {'success': False, 'error': f'Cannot check VG free space: {result["stderr"]}'}
+
+    try:
+        free_gb = float(result['stdout'].strip().rstrip('gG'))
+        if free_gb < size_gb:
+            return {
+                'success': False,
+                'error': f'Insufficient VG free space. Need {size_gb}GB, have {free_gb:.1f}GB'
+            }
+    except (ValueError, AttributeError):
+        # Can't parse, let lvcreate fail with its own error
+        pass
+
+    # Create snapshot
+    result = run_command_full([
+        'sudo', '-n', 'lvcreate',
+        '--snapshot',
+        '--name', snapshot_name,
+        '--size', f'{size_gb}G',
+        source_lv
+    ], timeout=120)
+
+    if result['returncode'] != 0:
+        return {'success': False, 'error': f'Snapshot creation failed: {result["stderr"]}'}
+
+    return {
+        'success': True,
+        'message': f'Created snapshot {snapshot_name} ({size_gb}GB) of {lv_name}',
+        'snapshot_device': snapshot_lv,
+        'source_device': source_lv
+    }
+
+
+# ============================================================================
+# FSTAB MANAGEMENT HELPERS
+# ============================================================================
+
+def get_device_uuid(device):
+    """Get UUID for a device using blkid"""
+    result = run_command_full(['blkid', '-s', 'UUID', '-o', 'value', device], timeout=10)
+    if result['returncode'] == 0 and result['stdout'].strip():
+        return result['stdout'].strip()
+    return None
+
+
+def get_device_fstype(device):
+    """Get filesystem type for a device using blkid"""
+    result = run_command_full(['blkid', '-s', 'TYPE', '-o', 'value', device], timeout=10)
+    if result['returncode'] == 0 and result['stdout'].strip():
+        return result['stdout'].strip()
+    return None
+
+
+def resolve_stable_id_to_device(stable_id):
+    """Resolve stable_id to current /dev/sdX path.
+
+    Args:
+        stable_id: 'MODEL_SERIAL' (e.g., 'ST3000DM008 2DM166_Z504K0DJ') or '/dev/sdX' (passthrough)
+    Returns:
+        tuple: (device_path, error) - e.g., ('/dev/sda', None) or (None, 'error message')
+    """
+    if not stable_id:
+        return (None, 'No device identifier provided')
+
+    # If already a device path, validate and return
+    if stable_id.startswith('/dev/'):
+        if os.path.exists(stable_id):
+            return (stable_id, None)
+        return (None, f'Device {stable_id} not found')
+
+    # Search /dev/disk/by-id/ for matching entry
+    by_id_dir = '/dev/disk/by-id'
+    if not os.path.exists(by_id_dir):
+        return (None, '/dev/disk/by-id not available')
+
+    try:
+        for entry in os.listdir(by_id_dir):
+            # Skip dm-, lvm-, wwn-, md- entries
+            if entry.startswith(('dm-', 'lvm-', 'wwn-', 'md-')):
+                continue
+
+            # Check if the stable_id matches this entry
+            # stable_id format: 'MODEL SERIAL_SERIAL' or 'MODEL_SERIAL-partN'
+            # entry format: 'ata-MODEL_SERIAL' or 'ata-MODEL_SERIAL-partN'
+
+            # Try to match by comparing the name portion after the bus prefix
+            if '-' in entry:
+                entry_name = entry.split('-', 1)[1]  # Remove ata-, nvme-, etc.
+
+                # Normalize both for comparison
+                normalized_stable = stable_id.replace(' ', '_')
+                normalized_entry = entry_name
+
+                if normalized_stable == normalized_entry:
+                    full_path = os.path.join(by_id_dir, entry)
+                    try:
+                        target = os.readlink(full_path)
+                        device_path = os.path.join('/dev', os.path.basename(target))
+                        if os.path.exists(device_path):
+                            return (device_path, None)
+                    except OSError:
+                        continue
+    except OSError as e:
+        return (None, f'Failed to read /dev/disk/by-id: {e}')
+
+    return (None, f'No device found matching stable_id: {stable_id}')
+
+
+def resolve_device_param(params, key='device'):
+    """Resolve device parameter in-place. Returns error message or None on success.
+
+    If the device value is a stable_id (not starting with /dev/), it will be
+    resolved to the current device path and params[key] will be updated.
+    The original stable_id is preserved in params['resolved_from'].
+
+    Args:
+        params: dict containing device parameter to resolve
+        key: the key name for the device parameter (default: 'device')
+
+    Returns:
+        str or None: Error message if resolution failed, None on success
+    """
+    value = params.get(key)
+    if not value:
+        return f'Missing required parameter: {key}'
+
+    # If already a /dev/ path, just validate it exists
+    if value.startswith('/dev/'):
+        if os.path.exists(value):
+            return None
+        return f'Device not found: {value}'
+
+    # Resolve stable_id to device path
+    device_path, error = resolve_stable_id_to_device(value)
+    if error:
+        return error
+
+    # Update params with resolved path, preserve original
+    params['resolved_from'] = value
+    params[key] = device_path
+    return None
+
+
+def add_fstab_entry(device_uuid, mountpoint, fstype='ext4'):
+    """
+    Add a persistent mount entry to /etc/fstab using UUID.
+    Uses 'nofail' option so system boots even if drive is missing.
+
+    Returns:
+        dict: {'success': bool, 'message': str, 'error': str}
+    """
+    if not device_uuid:
+        return {'success': False, 'error': 'No UUID provided'}
+
+    fstab_path = '/etc/fstab'
+    fstab_entry = f'UUID={device_uuid} {mountpoint} {fstype} defaults,nofail 0 2'
+
+    try:
+        # Read current fstab
+        with open(fstab_path, 'r') as f:
+            fstab_content = f.read()
+
+        # Check if entry already exists (by UUID or mountpoint)
+        for line in fstab_content.split('\n'):
+            if line.strip().startswith('#') or not line.strip():
+                continue
+            if device_uuid in line or f' {mountpoint} ' in line:
+                return {'success': True, 'message': 'Entry already exists in fstab'}
+
+        # Add the entry
+        if not fstab_content.endswith('\n'):
+            fstab_content += '\n'
+        fstab_content += f'{fstab_entry}\n'
+
+        # Write back (need sudo)
+        result = run_command_full(
+            ['sudo', '-n', 'tee', fstab_path],
+            timeout=10
+        )
+        # Use a different approach - write to temp and move
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.fstab') as tmp:
+            tmp.write(fstab_content)
+            tmp_path = tmp.name
+
+        # Copy with sudo
+        result = run_command_full(['sudo', '-n', 'cp', tmp_path, fstab_path], timeout=10)
+        os.unlink(tmp_path)
+
+        if result['returncode'] != 0:
+            return {'success': False, 'error': f'Failed to write fstab: {result["stderr"]}'}
+
+        print(f"[fstab] Added entry: {fstab_entry}")
+        return {'success': True, 'message': f'Added fstab entry for UUID={device_uuid}'}
+
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+
+def remove_fstab_entry(device=None, mountpoint=None, device_uuid=None):
+    """
+    Remove a mount entry from /etc/fstab by device, mountpoint, or UUID.
+
+    Returns:
+        dict: {'success': bool, 'message': str, 'error': str}
+    """
+    if not any([device, mountpoint, device_uuid]):
+        return {'success': False, 'error': 'Must provide device, mountpoint, or UUID'}
+
+    # If device provided but no UUID, look it up
+    if device and not device_uuid:
+        device_uuid = get_device_uuid(device)
+
+    fstab_path = '/etc/fstab'
+
+    try:
+        with open(fstab_path, 'r') as f:
+            lines = f.readlines()
+
+        new_lines = []
+        removed = False
+
+        for line in lines:
+            stripped = line.strip()
+            # Skip comments and empty lines - keep them
+            if stripped.startswith('#') or not stripped:
+                new_lines.append(line)
+                continue
+
+            # Check if this line should be removed
+            should_remove = False
+            if device_uuid and f'UUID={device_uuid}' in line:
+                should_remove = True
+            elif mountpoint and f' {mountpoint} ' in line:
+                should_remove = True
+            elif device and line.startswith(device):
+                should_remove = True
+
+            if should_remove:
+                print(f"[fstab] Removing entry: {stripped}")
+                removed = True
+            else:
+                new_lines.append(line)
+
+        if not removed:
+            return {'success': True, 'message': 'No matching fstab entry found'}
+
+        # Write back
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.fstab') as tmp:
+            tmp.writelines(new_lines)
+            tmp_path = tmp.name
+
+        result = run_command_full(['sudo', '-n', 'cp', tmp_path, fstab_path], timeout=10)
+        os.unlink(tmp_path)
+
+        if result['returncode'] != 0:
+            return {'success': False, 'error': f'Failed to write fstab: {result["stderr"]}'}
+
+        return {'success': True, 'message': 'Removed fstab entry'}
+
+    except Exception as e:
+        return {'success': False, 'error': str(e)}
+
+
 def handle_disk_mount(params):
     """Mount a disk device"""
+    # Resolve stable_id to device path if needed
+    error = resolve_device_param(params, 'device')
+    if error:
+        return {'success': False, 'error': error}
+
     device = params['device']
     mountpoint = params['mountpoint']
     fstype = params.get('fstype')
@@ -2230,13 +2948,49 @@ def handle_disk_mount(params):
     if result['returncode'] != 0:
         return {'success': False, 'error': result['stderr'] or 'mount failed'}
 
-    return {'success': True, 'message': f'Mounted {device} at {mountpoint}'}
+    # Add fstab entry for persistence (using UUID to avoid device letter shifting)
+    persist = params.get('persist', True)  # Default to persisting mounts
+    fstab_message = ''
+    if persist:
+        device_uuid = get_device_uuid(device)
+        if device_uuid:
+            detected_fstype = fstype or get_device_fstype(device) or 'ext4'
+            fstab_result = add_fstab_entry(device_uuid, mountpoint, detected_fstype)
+            if fstab_result['success']:
+                fstab_message = f' (persisted to fstab with UUID={device_uuid})'
+            else:
+                fstab_message = f' (warning: fstab entry failed: {fstab_result.get("error", "unknown")})'
+        else:
+            fstab_message = ' (warning: could not get UUID for fstab persistence)'
+
+    return {'success': True, 'message': f'Mounted {device} at {mountpoint}{fstab_message}'}
 
 
 def handle_disk_unmount(params):
     """Unmount a disk device"""
+    # Resolve stable_id to device path if needed
+    error = resolve_device_param(params, 'device')
+    if error:
+        return {'success': False, 'error': error}
+
     device = params['device']
     force = params.get('force', False)
+    remove_persist = params.get('remove_persist', True)  # Default to removing fstab entry
+
+    # Get UUID before unmounting (needed for fstab removal)
+    device_uuid = get_device_uuid(device) if remove_persist else None
+
+    # Get mountpoint before unmounting (for fstab removal fallback)
+    mountpoint = None
+    try:
+        with open('/proc/mounts', 'r') as f:
+            for line in f:
+                parts = line.split()
+                if len(parts) >= 2 and parts[0] == device:
+                    mountpoint = parts[1]
+                    break
+    except Exception:
+        pass
 
     cmd = ['sudo', '-n', 'umount']
     if force:
@@ -2247,11 +3001,162 @@ def handle_disk_unmount(params):
     if result['returncode'] != 0:
         return {'success': False, 'error': result['stderr'] or 'umount failed'}
 
-    return {'success': True, 'message': f'Unmounted {device}'}
+    # Remove fstab entry
+    fstab_message = ''
+    if remove_persist:
+        fstab_result = remove_fstab_entry(device=device, mountpoint=mountpoint, device_uuid=device_uuid)
+        if fstab_result['success']:
+            if 'No matching' not in fstab_result.get('message', ''):
+                fstab_message = ' (removed from fstab)'
+        else:
+            fstab_message = f' (warning: fstab removal failed: {fstab_result.get("error", "unknown")})'
+
+    return {'success': True, 'message': f'Unmounted {device}{fstab_message}'}
+
+
+def restore_managed_mounts():
+    """
+    Restore managed mounts from storage_mounts database table on startup.
+
+    Queries the database for all managed mounts and attempts to remount
+    any that aren't currently mounted. This ensures drives persist across reboots.
+
+    Returns:
+        dict: Summary of mount restoration results
+    """
+    results = {
+        'attempted': 0,
+        'mounted': 0,
+        'already_mounted': 0,
+        'failed': 0,
+        'skipped': 0,
+        'details': []
+    }
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        # Get all managed mounts (excluding root filesystem)
+        cur.execute("""
+            SELECT device, mount_point, filesystem, label
+            FROM storage_mounts
+            WHERE is_managed = true AND mount_point != '/'
+            ORDER BY mount_point
+        """)
+
+        managed_mounts = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        if not managed_mounts:
+            print("[Mount Restore] No managed mounts found in database")
+            return results
+
+        print(f"[Mount Restore] Found {len(managed_mounts)} managed mount(s) to check")
+
+        # Get currently mounted filesystems
+        current_mounts = set()
+        try:
+            with open('/proc/mounts', 'r') as f:
+                for line in f:
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        current_mounts.add(parts[1])  # mount point
+        except Exception as e:
+            print(f"[Mount Restore] Warning: Could not read /proc/mounts: {e}")
+
+        for device, mount_point, filesystem, label in managed_mounts:
+            mount_info = {
+                'device': device,
+                'mount_point': mount_point,
+                'status': None,
+                'message': None
+            }
+
+            # Check if already mounted
+            if mount_point in current_mounts:
+                mount_info['status'] = 'already_mounted'
+                mount_info['message'] = 'Already mounted'
+                results['already_mounted'] += 1
+                results['details'].append(mount_info)
+                print(f"[Mount Restore] {device} -> {mount_point}: Already mounted")
+                continue
+
+            # Check if device exists
+            device_exists = False
+
+            # Handle LVM paths
+            if device.startswith('/dev/mapper/'):
+                device_exists = os.path.exists(device)
+            elif device.startswith('/dev/'):
+                device_exists = os.path.exists(device)
+                # Also check by UUID if we have blkid info
+                if not device_exists:
+                    # Try to find device by checking lsblk
+                    lsblk_out = run_command(['lsblk', '-o', 'NAME,PATH', '-n', '-l'])
+                    if lsblk_out:
+                        for line in lsblk_out.split('\n'):
+                            if device in line:
+                                device_exists = True
+                                break
+
+            if not device_exists:
+                mount_info['status'] = 'skipped'
+                mount_info['message'] = 'Device not found (may have been removed)'
+                results['skipped'] += 1
+                results['details'].append(mount_info)
+                print(f"[Mount Restore] {device} -> {mount_point}: Skipped (device not found)")
+                continue
+
+            # Attempt to mount
+            results['attempted'] += 1
+            print(f"[Mount Restore] Attempting to mount {device} -> {mount_point}")
+
+            try:
+                mount_result = handle_disk_mount({
+                    'device': device,
+                    'mountpoint': mount_point,
+                    'fstype': filesystem
+                })
+
+                if mount_result.get('success'):
+                    mount_info['status'] = 'mounted'
+                    mount_info['message'] = mount_result.get('message', 'Mounted successfully')
+                    results['mounted'] += 1
+                    print(f"[Mount Restore] {device} -> {mount_point}: SUCCESS")
+                else:
+                    mount_info['status'] = 'failed'
+                    mount_info['message'] = mount_result.get('error', 'Unknown error')
+                    results['failed'] += 1
+                    print(f"[Mount Restore] {device} -> {mount_point}: FAILED - {mount_info['message']}")
+            except Exception as e:
+                mount_info['status'] = 'failed'
+                mount_info['message'] = str(e)
+                results['failed'] += 1
+                print(f"[Mount Restore] {device} -> {mount_point}: ERROR - {e}")
+
+            results['details'].append(mount_info)
+
+        # Summary
+        print(f"[Mount Restore] Complete: {results['mounted']} mounted, {results['already_mounted']} already mounted, {results['failed']} failed, {results['skipped']} skipped")
+
+    except ImportError:
+        print("[Mount Restore] psycopg2 not available, skipping mount restoration")
+    except Exception as e:
+        print(f"[Mount Restore] Error restoring mounts: {e}")
+        results['error'] = str(e)
+
+    return results
 
 
 def handle_disk_format(params):
     """Format a disk device (DANGEROUS)"""
+    # Resolve stable_id to device path if needed
+    error = resolve_device_param(params, 'device')
+    if error:
+        return {'success': False, 'error': error}
+
     device = params['device']
     fstype = params['fstype']
     label = params.get('label')
@@ -2278,11 +3183,132 @@ def handle_disk_format(params):
     return {'success': True, 'message': f'Formatted {device} as {fstype}'}
 
 
+def handle_disk_wipe(params):
+    """Wipe a disk - remove LVM structures, unmount, and optionally wipe partition table (DANGEROUS)"""
+    # Resolve stable_id to device path if needed
+    error = resolve_device_param(params, 'device')
+    if error:
+        return {'success': False, 'error': error}
+
+    device = params['device']
+    wipe_lvm = params.get('wipe_lvm', True)
+    wipe_partition_table = params.get('wipe_partition_table', False)
+
+    # Protect boot drive
+    boot_device = run_command(['findmnt', '-n', '-o', 'SOURCE', '/'], timeout=10)
+    if boot_device:
+        boot_disk = boot_device.strip().replace('/dev/', '').rstrip('0123456789')
+        if boot_disk and boot_disk in device:
+            return {'success': False, 'error': f'Cannot wipe boot device {device}'}
+
+    messages = []
+
+    # Get device info
+    is_partition = any(c.isdigit() for c in device.split('/')[-1])
+    base_device = device.rstrip('0123456789') if is_partition else device
+
+    # Step 1: Find and unmount any mounts on this device or its children
+    lsblk_out = run_command(['lsblk', '-J', '-o', 'NAME,MOUNTPOINT,TYPE', device], timeout=30)
+    if lsblk_out:
+        try:
+            import json
+            lsblk_data = json.loads(lsblk_out)
+            def find_mounts(devices):
+                mounts = []
+                for dev in devices:
+                    if dev.get('mountpoint'):
+                        mounts.append(dev['mountpoint'])
+                    if 'children' in dev:
+                        mounts.extend(find_mounts(dev['children']))
+                return mounts
+            mounts = find_mounts(lsblk_data.get('blockdevices', []))
+            for mount in mounts:
+                umount_result = run_command_full(['sudo', '-n', 'umount', mount], timeout=30)
+                if umount_result['returncode'] == 0:
+                    messages.append(f'Unmounted {mount}')
+                else:
+                    # Try lazy unmount
+                    run_command_full(['sudo', '-n', 'umount', '-l', mount], timeout=30)
+                    messages.append(f'Lazy unmounted {mount}')
+        except Exception as e:
+            messages.append(f'Warning: Error parsing mounts: {e}')
+
+    # Step 2: Remove LVM structures if requested
+    if wipe_lvm:
+        # Find VGs that use this device as PV
+        pvs_out = run_command(['sudo', '-n', 'pvs', '--noheadings', '-o', 'pv_name,vg_name'], timeout=30)
+        if pvs_out:
+            for line in pvs_out.strip().split('\n'):
+                parts = line.split()
+                if len(parts) >= 2:
+                    pv_name, vg_name = parts[0], parts[1]
+                    # Check if this PV is on our device
+                    if device in pv_name or (is_partition and base_device in pv_name):
+                        # Get LVs in this VG
+                        lvs_out = run_command(['sudo', '-n', 'lvs', '--noheadings', '-o', 'lv_name', vg_name], timeout=30)
+                        if lvs_out:
+                            for lv_line in lvs_out.strip().split('\n'):
+                                lv_name = lv_line.strip()
+                                if lv_name:
+                                    lv_path = f'/dev/{vg_name}/{lv_name}'
+                                    # Deactivate LV
+                                    run_command_full(['sudo', '-n', 'lvchange', '-an', lv_path], timeout=30)
+                                    # Remove LV
+                                    result = run_command_full(['sudo', '-n', 'lvremove', '-f', lv_path], timeout=60)
+                                    if result['returncode'] == 0:
+                                        messages.append(f'Removed LV {lv_path}')
+
+                        # Remove VG
+                        result = run_command_full(['sudo', '-n', 'vgremove', '-f', vg_name], timeout=60)
+                        if result['returncode'] == 0:
+                            messages.append(f'Removed VG {vg_name}')
+
+                        # Remove PV
+                        result = run_command_full(['sudo', '-n', 'pvremove', '-f', pv_name], timeout=60)
+                        if result['returncode'] == 0:
+                            messages.append(f'Removed PV {pv_name}')
+
+    # Step 3: Wipe partition table if requested (for whole disks only)
+    if wipe_partition_table and not is_partition:
+        # Use wipefs to remove filesystem signatures
+        result = run_command_full(['sudo', '-n', 'wipefs', '-a', device], timeout=60)
+        if result['returncode'] == 0:
+            messages.append(f'Wiped filesystem signatures from {device}')
+
+        # Zero out partition table area
+        result = run_command_full(['sudo', '-n', 'dd', 'if=/dev/zero', f'of={device}', 'bs=512', 'count=2048'], timeout=60)
+        if result['returncode'] == 0:
+            messages.append(f'Zeroed partition table on {device}')
+
+        # Inform kernel of partition changes
+        run_command_full(['sudo', '-n', 'partprobe', device], timeout=30)
+
+    if not messages:
+        return {'success': True, 'message': f'No operations performed on {device}'}
+
+    return {'success': True, 'message': '\n'.join(messages)}
+
+
 def handle_partition_create(params):
     """Create a new partition on a device"""
+    # Resolve stable_id to device path if needed
+    error = resolve_device_param(params, 'device')
+    if error:
+        return {'success': False, 'error': error}
+
     device = params['device']
     size_gb = params['size_gb']
     part_type = params.get('part_type', 'primary')
+
+    # Check if device has a partition table
+    check_label = run_command_full(['sudo', '-n', 'parted', '-s', device, 'print'], timeout=30)
+    if 'unrecognised disk label' in check_label.get('stderr', ''):
+        # No partition table - create GPT by default
+        create_label = run_command_full([
+            'sudo', '-n', 'parted', '-s', device, 'mklabel', 'gpt'
+        ], timeout=30)
+        if create_label['returncode'] != 0:
+            return {'success': False, 'error': f'Failed to create partition table: {create_label["stderr"]}'}
 
     # Use parted to create partition
     result = run_command_full([
@@ -2298,6 +3324,11 @@ def handle_partition_create(params):
 
 def handle_pv_create_vg_extend(params):
     """Create PV and extend VG"""
+    # Resolve stable_id to device path if needed
+    error = resolve_device_param(params, 'device')
+    if error:
+        return {'success': False, 'error': error}
+
     device = params['device']
     vg_name = params['vg_name']
 
@@ -2316,6 +3347,11 @@ def handle_pv_create_vg_extend(params):
 
 def handle_disk_prepare(params):
     """Prepare an entire drive: create partition table, single partition, and format (DANGEROUS)"""
+    # Resolve stable_id to device path if needed
+    error = resolve_device_param(params, 'device')
+    if error:
+        return {'success': False, 'error': error}
+
     device = params['device']
     fstype = params['fstype']
     partition_table = params.get('partition_table', 'gpt')
@@ -2380,6 +3416,121 @@ def handle_disk_prepare(params):
     }
 
 
+def handle_disk_prepare_lvm(params):
+    """Prepare an entire drive as LVM: partition table, partition, PV, VG, LV, format, mount (DANGEROUS)"""
+    # Resolve stable_id to device path if needed
+    error = resolve_device_param(params, 'device')
+    if error:
+        return {'success': False, 'error': error}
+
+    device = params['device']
+    vg_name = params['vg_name']
+    lv_name = params['lv_name']
+    fstype = params.get('fstype', 'ext4')
+    mountpoint = params.get('mountpoint')
+
+    # Safety: must be a whole disk (e.g., /dev/sdb, not /dev/sdb1)
+    if re.search(r'\d+$', device):
+        return {'success': False, 'error': f'{device} appears to be a partition, not a whole disk'}
+
+    # Check if VG name already exists
+    vg_check = run_command_full(['sudo', '-n', 'vgs', vg_name], timeout=10)
+    if vg_check['returncode'] == 0:
+        return {'success': False, 'error': f'Volume group "{vg_name}" already exists. Choose a different name.'}
+
+    # Unmount any mounted partitions from this disk
+    mount_check = run_command_full(['lsblk', '-n', '-o', 'NAME,MOUNTPOINT', device], timeout=10)
+    if mount_check['returncode'] == 0:
+        for line in mount_check['stdout'].split('\n'):
+            parts = line.split()
+            if len(parts) >= 2 and parts[1]:
+                mp = parts[1]
+                part_name = parts[0].lstrip('└─├─')
+                part_device = f'/dev/{part_name}'
+                print(f"[prepare_lvm] Unmounting {part_device} from {mp}")
+                umount_result = run_command_full(['sudo', '-n', 'umount', part_device], timeout=30)
+                if umount_result['returncode'] != 0:
+                    return {'success': False, 'error': f'Failed to unmount {part_device}: {umount_result["stderr"]}'}
+
+    # Step 1: Wipe any existing signatures
+    wipefs = run_command_full(['sudo', '-n', 'wipefs', '-a', device], timeout=30)
+    # Ignore wipefs errors - drive might be empty
+
+    # Step 2: Create new GPT partition table
+    parted_label = run_command_full([
+        'sudo', '-n', 'parted', '-s', device, 'mklabel', 'gpt'
+    ], timeout=30)
+    if parted_label['returncode'] != 0:
+        return {'success': False, 'error': f'Failed to create partition table: {parted_label["stderr"]}'}
+
+    # Step 3: Create single partition using 100% of disk
+    parted_mkpart = run_command_full([
+        'sudo', '-n', 'parted', '-s', device, 'mkpart', 'primary', '0%', '100%'
+    ], timeout=30)
+    if parted_mkpart['returncode'] != 0:
+        return {'success': False, 'error': f'Failed to create partition: {parted_mkpart["stderr"]}'}
+
+    # Wait for partition to appear
+    time.sleep(1)
+    run_command_full(['sudo', '-n', 'partprobe', device], timeout=10)
+    time.sleep(1)
+
+    new_partition = f'{device}1'
+    if not os.path.exists(new_partition):
+        return {'success': False, 'error': f'Partition {new_partition} did not appear after creation'}
+
+    # Step 4: Create Physical Volume
+    pvcreate = run_command_full(['sudo', '-n', 'pvcreate', '-f', new_partition], timeout=60)
+    if pvcreate['returncode'] != 0:
+        return {'success': False, 'error': f'pvcreate failed: {pvcreate["stderr"]}'}
+
+    # Step 5: Create Volume Group
+    vgcreate = run_command_full(['sudo', '-n', 'vgcreate', vg_name, new_partition], timeout=60)
+    if vgcreate['returncode'] != 0:
+        run_command_full(['sudo', '-n', 'pvremove', '-f', new_partition], timeout=30)
+        return {'success': False, 'error': f'vgcreate failed: {vgcreate["stderr"]}'}
+
+    # Step 6: Create Logical Volume using 100% of space
+    lvcreate = run_command_full(['sudo', '-n', 'lvcreate', '-l', '100%FREE', '-n', lv_name, vg_name], timeout=60)
+    if lvcreate['returncode'] != 0:
+        run_command_full(['sudo', '-n', 'vgremove', '-f', vg_name], timeout=30)
+        run_command_full(['sudo', '-n', 'pvremove', '-f', new_partition], timeout=30)
+        return {'success': False, 'error': f'lvcreate failed: {lvcreate["stderr"]}'}
+
+    lv_path = f'/dev/{vg_name}/{lv_name}'
+
+    # Step 7: Format the LV
+    mkfs = run_command_full(['sudo', '-n', f'mkfs.{fstype}', lv_path], timeout=300)
+    if mkfs['returncode'] != 0:
+        return {
+            'success': False,
+            'error': f'LVM created but format failed: {mkfs["stderr"]}. LV exists at {lv_path}'
+        }
+
+    # Step 8: Mount if mountpoint provided
+    mounted = False
+    if mountpoint:
+        run_command_full(['sudo', '-n', 'mkdir', '-p', mountpoint], timeout=10)
+        mount_result = run_command_full(['sudo', '-n', 'mount', lv_path, mountpoint], timeout=30)
+        if mount_result['returncode'] == 0:
+            mounted = True
+            # Add to fstab
+            lv_uuid = get_device_uuid(lv_path)
+            if lv_uuid:
+                add_fstab_entry(lv_uuid, mountpoint, fstype)
+
+    return {
+        'success': True,
+        'message': f'Prepared {device} as LVM: VG={vg_name}, LV={lv_name}, formatted as {fstype}' + (f', mounted at {mountpoint}' if mounted else ''),
+        'lv_path': lv_path,
+        'vg_name': vg_name,
+        'lv_name': lv_name,
+        'partition': new_partition,
+        'mounted': mounted,
+        'mountpoint': mountpoint if mounted else None
+    }
+
+
 def handle_disk_label(params):
     """Change the label of a filesystem"""
     device = params['device']
@@ -2407,6 +3558,11 @@ def handle_disk_label(params):
 
 def handle_convert_to_lvm(params):
     """Convert a regular partition to LVM (DESTRUCTIVE - erases all data)"""
+    # Resolve stable_id to device path if needed
+    error = resolve_device_param(params, 'device')
+    if error:
+        return {'success': False, 'error': error}
+
     device = params['device']
     vg_name = params['vg_name']
     lv_name = params['lv_name']
@@ -2697,6 +3853,8 @@ _HANDLER_MAP = {
     'handle_lvm_shrink': handle_lvm_shrink,
     'handle_lvm_rename': handle_lvm_rename,
     'handle_lvm_create': handle_lvm_create,
+    'handle_vg_create': handle_vg_create,
+    'handle_lvm_snapshot': handle_lvm_snapshot,
     'handle_disk_mount': handle_disk_mount,
     'handle_disk_unmount': handle_disk_unmount,
     'handle_disk_format': handle_disk_format,
@@ -2705,6 +3863,8 @@ _HANDLER_MAP = {
     'handle_disk_prepare': handle_disk_prepare,
     'handle_disk_label': handle_disk_label,
     'handle_convert_to_lvm': handle_convert_to_lvm,
+    'handle_disk_prepare_lvm': handle_disk_prepare_lvm,
+    'handle_disk_wipe': handle_disk_wipe,
     # Firewall handlers
     'handle_firewall_status': handle_firewall_status,
     'handle_firewall_rules': handle_firewall_rules,
@@ -3482,6 +4642,9 @@ def collect_all_data():
     # Check command queue availability
     queue_available = os.path.isdir(PENDING_DIR) and os.path.isdir(COMPLETED_DIR)
 
+    # Get disk layout first so we can check capacity alerts
+    disks = get_disk_layout()
+
     return {
         'system': get_system_info(),
         'cpu': get_cpu_info(),
@@ -3493,7 +4656,9 @@ def collect_all_data():
         'sata_ports': get_sata_ports(),
         'lvm': get_lvm_info(),
         'raid': get_raid_status(),
-        'disks': get_disk_layout(),
+        'disks': disks,
+        'smart_details': get_smart_details(),
+        'capacity_alerts': check_capacity_alerts(disks),
         'services': get_systemd_services(),
         'processes': get_process_list(),
         'network': network,
@@ -3551,6 +4716,13 @@ def main():
     if args.daemon:
         print("Starting daemon mode... (Ctrl+C to stop)")
         print("Health alerting: ENABLED")
+
+        # Restore managed mounts from database on startup
+        try:
+            restore_managed_mounts()
+        except Exception as e:
+            print(f"[Mount Restore] Startup error: {e}")
+
         QUEUE_CHECK_INTERVAL = 3   # Check command queue every 3 seconds
         HEALTH_CHECK_INTERVAL = 60  # Check health every 60 seconds
         CLEANUP_INTERVAL = 3600    # Cleanup old metrics every hour

@@ -624,24 +624,53 @@ def api_show_episodes(series_id):
 
 @media_hub_bp.route("/api/episodes/<episode_id>/watched", methods=["POST"])
 def api_toggle_episode_watched(episode_id):
-    """Toggle watched status for an episode"""
+    """Toggle watched status for an episode - syncs to all configured servers"""
+    from .clients.plex import PlexClient
+    from .clients.jellyfin import JellyfinClient
+
     data = request.get_json() or {}
     watched = data.get("watched", True)
+    results = {"plex": None, "jellyfin": None}
 
-    media_server, server_type = get_primary_media_server()
-    if not media_server:
-        return jsonify({"success": False, "error": "No media server configured"})
+    # Try to update Plex
+    plex_config = get_service_config("plex")
+    if plex_config and plex_config.get("api_key"):
+        try:
+            plex_client = PlexClient(
+                host=plex_config["host"],
+                port=plex_config["port"],
+                api_key=plex_config["api_key"],
+                use_ssl=plex_config.get("use_ssl", False),
+            )
+            results["plex"] = plex_client.mark_watched(episode_id, watched)
+        except Exception as e:
+            logger.warning(f"Failed to sync watched to Plex: {e}")
+            results["plex"] = False
 
-    try:
-        # Check if the client has mark_watched method
-        if hasattr(media_server, "mark_watched"):
-            result = media_server.mark_watched(episode_id, watched)
-            return jsonify({"success": result, "watched": watched, "source": server_type})
-        else:
-            return jsonify({"success": False, "error": "Watch status not supported for this server"})
-    except Exception as e:
-        logger.error(f"Error toggling watched status: {e}")
-        return jsonify({"success": False, "error": str(e)})
+    # Try to update Jellyfin
+    jellyfin_config = get_service_config("jellyfin")
+    if jellyfin_config and jellyfin_config.get("api_key"):
+        try:
+            jellyfin_client = JellyfinClient(
+                host=jellyfin_config["host"],
+                port=jellyfin_config["port"],
+                api_key=jellyfin_config["api_key"],
+                use_ssl=jellyfin_config.get("use_ssl", False),
+            )
+            results["jellyfin"] = jellyfin_client.mark_watched(episode_id, watched)
+        except Exception as e:
+            logger.warning(f"Failed to sync watched to Jellyfin: {e}")
+            results["jellyfin"] = False
+
+    # Success if at least one server was updated
+    success = any(r is True for r in results.values())
+    return jsonify(
+        {
+            "success": success,
+            "watched": watched,
+            "sync_results": results,
+        }
+    )
 
 
 @media_hub_bp.route("/api/media/<media_type>/<media_id>")

@@ -421,6 +421,20 @@ class PlexClient(MediaServerInterface):
         episodes.sort(key=lambda x: (x.get("season_number", 0), x.get("episode_number", 0)))
         return episodes
 
+    def mark_watched(self, media_id: str, watched: bool = True) -> bool:
+        """Mark a media item as watched or unwatched"""
+        try:
+            endpoint = "/:/scrobble" if watched else "/:/unscrobble"
+            url = (
+                f"{self.base_url}{endpoint}?key={media_id}"
+                f"&identifier=com.plexapp.plugins.library&X-Plex-Token={self.token}"
+            )
+            response = requests.get(url, timeout=10)
+            return response.status_code == 200
+        except Exception as e:
+            logger.error(f"Error marking watched status: {e}")
+            return False
+
     def get_on_deck(self, limit: int = 10) -> List[MediaItem]:
         """Get on deck (continue watching) items"""
         result = self._request("/library/onDeck")

@@ -622,6 +622,28 @@ def api_show_episodes(series_id):
         return jsonify({"success": False, "error": str(e), "episodes": []})
 
 
+@media_hub_bp.route("/api/episodes/<episode_id>/watched", methods=["POST"])
+def api_toggle_episode_watched(episode_id):
+    """Toggle watched status for an episode"""
+    data = request.get_json() or {}
+    watched = data.get("watched", True)
+
+    media_server, server_type = get_primary_media_server()
+    if not media_server:
+        return jsonify({"success": False, "error": "No media server configured"})
+
+    try:
+        # Check if the client has mark_watched method
+        if hasattr(media_server, "mark_watched"):
+            result = media_server.mark_watched(episode_id, watched)
+            return jsonify({"success": result, "watched": watched, "source": server_type})
+        else:
+            return jsonify({"success": False, "error": "Watch status not supported for this server"})
+    except Exception as e:
+        logger.error(f"Error toggling watched status: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+
 @media_hub_bp.route("/api/media/<media_type>/<media_id>")
 def api_media_details(media_type, media_id):
     """Get detailed information about a specific media item"""

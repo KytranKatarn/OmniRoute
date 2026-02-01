@@ -457,6 +457,27 @@ class JellyfinClient(MediaServerInterface):
                 )
         return episodes
 
+    def mark_watched(self, media_id: str, watched: bool = True) -> bool:
+        """Mark a media item as watched or unwatched"""
+        user_id = self._get_user_id()
+        if not user_id:
+            return False
+
+        try:
+            if watched:
+                # Jellyfin uses /Users/{userId}/PlayedItems/{itemId} to mark as watched
+                url = f"{self.base_url}/Users/{user_id}/PlayedItems/{media_id}"
+                response = requests.post(url, headers=self.headers, timeout=10)
+            else:
+                # DELETE to mark as unwatched
+                url = f"{self.base_url}/Users/{user_id}/PlayedItems/{media_id}"
+                response = requests.delete(url, headers=self.headers, timeout=10)
+
+            return response.status_code in [200, 204]
+        except Exception as e:
+            logger.error(f"Error marking watched status: {e}")
+            return False
+
     def get_stream_url(self, media_id: str, direct: bool = True) -> Optional[Dict]:
         """
         Get streaming URL for a media item.

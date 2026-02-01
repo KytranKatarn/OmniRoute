@@ -2139,29 +2139,38 @@ function renderMediaDetails(item) {
         browserHeader.className = 'episode-browser-header';
 
         const browserTitle = document.createElement('h4');
-        browserTitle.innerHTML = '<i data-lucide="list"></i> Episodes';
+        const titleIcon = document.createElement('i');
+        titleIcon.setAttribute('data-lucide', 'list');
+        browserTitle.appendChild(titleIcon);
+        browserTitle.appendChild(document.createTextNode(' Episodes'));
         browserHeader.appendChild(browserTitle);
 
-        // Season selector
-        const seasonSelector = document.createElement('select');
-        seasonSelector.className = 'season-selector';
-        seasonSelector.id = 'seasonSelector';
-        seasonSelector.innerHTML = '<option value="">Loading seasons...</option>';
-        browserHeader.appendChild(seasonSelector);
-
         episodeBrowser.appendChild(browserHeader);
+
+        // Season tabs container (horizontal scrolling)
+        const seasonTabs = document.createElement('div');
+        seasonTabs.className = 'season-tabs';
+        seasonTabs.id = 'seasonTabs';
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'season-tabs-loading';
+        loadingDiv.textContent = 'Loading seasons...';
+        seasonTabs.appendChild(loadingDiv);
+        episodeBrowser.appendChild(seasonTabs);
 
         // Episode list container
         const episodeList = document.createElement('div');
         episodeList.className = 'episode-list';
         episodeList.id = 'episodeList';
-        episodeList.innerHTML = '<div class="episode-loading">Loading episodes...</div>';
+        const selectDiv = document.createElement('div');
+        selectDiv.className = 'episode-loading';
+        selectDiv.textContent = 'Select a season';
+        episodeList.appendChild(selectDiv);
         episodeBrowser.appendChild(episodeList);
 
         info.appendChild(episodeBrowser);
 
-        // Load seasons
-        loadSeasonsForShow(item.id, seasonSelector, episodeList);
+        // Load seasons as tabs
+        loadSeasonsAsTabs(item.id, item.title, seasonTabs, episodeList);
     }
 
     // Action buttons
@@ -2271,41 +2280,79 @@ function closeMediaPanel() {
 // EPISODE BROWSER
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function loadSeasonsForShow(seriesId, seasonSelector, episodeList) {
+// Store current show context for episode detail modal
+let currentShowContext = { seriesId: null, showTitle: '' };
+
+async function loadSeasonsAsTabs(seriesId, showTitle, seasonTabs, episodeList) {
+    currentShowContext = { seriesId, showTitle };
+
     try {
         const response = await fetch(`${API_BASE}/shows/${seriesId}/seasons`);
         const data = await response.json();
 
         if (data.success && data.seasons && data.seasons.length > 0) {
-            seasonSelector.innerHTML = '';
+            seasonTabs.innerHTML = '';
+
             data.seasons.forEach((season, index) => {
-                const option = document.createElement('option');
-                option.value = season.season_number;
-                option.textContent = season.name;
-                if (index === 0) option.selected = true;
-                seasonSelector.appendChild(option);
+                const tab = document.createElement('button');
+                tab.className = 'season-tab' + (index === 0 ? ' active' : '');
+                tab.dataset.seasonNumber = season.season_number;
+                tab.textContent = season.name;
+
+                // Episode count badge
+                if (season.episode_count) {
+                    const badge = document.createElement('span');
+                    badge.className = 'season-tab-badge';
+                    badge.textContent = season.episode_count;
+                    tab.appendChild(badge);
+                }
+
+                tab.onclick = () => {
+                    // Update active state
+                    seasonTabs.querySelectorAll('.season-tab').forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    // Load episodes
+                    loadEpisodesForSeason(seriesId, season.season_number, episodeList);
+                };
+
+                seasonTabs.appendChild(tab);
             });
 
             // Load first season's episodes
             loadEpisodesForSeason(seriesId, data.seasons[0].season_number, episodeList);
-
-            // Add change listener
-            seasonSelector.addEventListener('change', () => {
-                loadEpisodesForSeason(seriesId, parseInt(seasonSelector.value), episodeList);
-            });
         } else {
-            seasonSelector.innerHTML = '<option value="">No seasons found</option>';
-            episodeList.innerHTML = '<div class="episode-empty">No episodes available</div>';
+            const noSeasons = document.createElement('div');
+            noSeasons.className = 'season-tabs-empty';
+            noSeasons.textContent = 'No seasons found';
+            seasonTabs.innerHTML = '';
+            seasonTabs.appendChild(noSeasons);
+
+            const noEpisodes = document.createElement('div');
+            noEpisodes.className = 'episode-empty';
+            noEpisodes.textContent = 'No episodes available';
+            episodeList.innerHTML = '';
+            episodeList.appendChild(noEpisodes);
         }
     } catch (error) {
         console.error('[Episode Browser] Error loading seasons:', error);
-        seasonSelector.innerHTML = '<option value="">Error loading seasons</option>';
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'season-tabs-error';
+        errorDiv.textContent = 'Error loading seasons';
+        seasonTabs.innerHTML = '';
+        seasonTabs.appendChild(errorDiv);
     }
     lucide.createIcons();
 }
 
 async function loadEpisodesForSeason(seriesId, seasonNumber, episodeList) {
-    episodeList.innerHTML = '<div class="episode-loading"><div class="spinner"></div> Loading episodes...</div>';
+    episodeList.innerHTML = '';
+    const loadingDiv = document.createElement('div');
+    loadingDiv.className = 'episode-loading';
+    const spinner = document.createElement('div');
+    spinner.className = 'spinner';
+    loadingDiv.appendChild(spinner);
+    loadingDiv.appendChild(document.createTextNode(' Loading episodes...'));
+    episodeList.appendChild(loadingDiv);
 
     try {
         const response = await fetch(`${API_BASE}/shows/${seriesId}/episodes?season=${seasonNumber}`);
@@ -2317,16 +2364,22 @@ async function loadEpisodesForSeason(seriesId, seasonNumber, episodeList) {
             data.episodes.forEach(ep => {
                 const episodeCard = document.createElement('div');
                 episodeCard.className = 'episode-card' + (ep.has_file ? '' : ' unavailable') + (ep.played ? ' watched' : '');
+                episodeCard.style.cursor = 'pointer';
+
+                // Click to open episode detail modal
+                episodeCard.onclick = () => {
+                    openEpisodeDetailModal(ep, seasonNumber);
+                };
 
                 // Episode number badge
                 const epNum = document.createElement('div');
                 epNum.className = 'episode-number';
                 epNum.textContent = ep.episode_number;
 
-                // Watched indicator (small eye icon)
+                // Watched indicator (checkmark for watched)
                 if (ep.played) {
                     const watchedIcon = document.createElement('i');
-                    watchedIcon.setAttribute('data-lucide', 'eye');
+                    watchedIcon.setAttribute('data-lucide', 'check');
                     watchedIcon.className = 'episode-watched-icon';
                     epNum.appendChild(watchedIcon);
                 }
@@ -2352,50 +2405,238 @@ async function loadEpisodesForSeason(seriesId, seasonNumber, episodeList) {
 
                 episodeCard.appendChild(epInfo);
 
-                // Action buttons
-                const epActions = document.createElement('div');
-                epActions.className = 'episode-actions';
+                // Watched status indicator
+                const statusIcon = document.createElement('div');
+                statusIcon.className = 'episode-status-indicator';
+                const icon = document.createElement('i');
+                icon.setAttribute('data-lucide', ep.played ? 'eye' : 'eye-off');
+                icon.title = ep.played ? 'Watched' : 'Unwatched';
+                statusIcon.appendChild(icon);
+                episodeCard.appendChild(statusIcon);
 
-                if (ep.has_file) {
-                    // Stream button
-                    const streamBtn = document.createElement('button');
-                    streamBtn.className = 'btn-icon btn-stream-small';
-                    streamBtn.title = 'Stream Now';
-                    streamBtn.innerHTML = '<i data-lucide="play"></i>';
-                    streamBtn.onclick = (e) => {
-                        e.stopPropagation();
-                        closeMediaPanel();
-                        openVideoPlayer({
-                            id: ep.id,
-                            title: `${ep.title || 'Episode ' + ep.episode_number}`,
-                            media_type: 'episode'
-                        });
-                    };
-                    epActions.appendChild(streamBtn);
-
-                    // Jellyfin link
-                    const jellyfinBtn = document.createElement('a');
-                    jellyfinBtn.className = 'btn-icon';
-                    jellyfinBtn.title = 'Open in Jellyfin';
-                    jellyfinBtn.href = `http://192.168.1.200:8096/web/index.html#!/details?id=${ep.id}`;
-                    jellyfinBtn.target = '_blank';
-                    jellyfinBtn.innerHTML = '<i data-lucide="external-link"></i>';
-                    jellyfinBtn.onclick = (e) => e.stopPropagation();
-                    epActions.appendChild(jellyfinBtn);
-                }
-
-                episodeCard.appendChild(epActions);
                 episodeList.appendChild(episodeCard);
             });
 
             lucide.createIcons();
         } else {
-            episodeList.innerHTML = '<div class="episode-empty">No episodes in this season</div>';
+            const emptyDiv = document.createElement('div');
+            emptyDiv.className = 'episode-empty';
+            emptyDiv.textContent = 'No episodes in this season';
+            episodeList.innerHTML = '';
+            episodeList.appendChild(emptyDiv);
         }
     } catch (error) {
         console.error('[Episode Browser] Error loading episodes:', error);
-        episodeList.innerHTML = '<div class="episode-error">Error loading episodes</div>';
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'episode-error';
+        errorDiv.textContent = 'Error loading episodes';
+        episodeList.innerHTML = '';
+        episodeList.appendChild(errorDiv);
     }
+}
+
+// Episode Detail Modal
+function openEpisodeDetailModal(episode, seasonNumber) {
+    // Remove existing modal if any
+    document.getElementById('episodeDetailModal')?.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'episodeDetailModal';
+    modal.className = 'episode-detail-modal';
+
+    const overlay = document.createElement('div');
+    overlay.className = 'episode-detail-overlay';
+    overlay.onclick = closeEpisodeDetailModal;
+    modal.appendChild(overlay);
+
+    const content = document.createElement('div');
+    content.className = 'episode-detail-content';
+
+    // Header with close button
+    const header = document.createElement('div');
+    header.className = 'episode-detail-header';
+
+    const title = document.createElement('h3');
+    title.textContent = `S${seasonNumber}E${episode.episode_number}: ${episode.title || 'Episode ' + episode.episode_number}`;
+    header.appendChild(title);
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'episode-detail-close';
+    const closeIcon = document.createElement('i');
+    closeIcon.setAttribute('data-lucide', 'x');
+    closeBtn.appendChild(closeIcon);
+    closeBtn.onclick = closeEpisodeDetailModal;
+    header.appendChild(closeBtn);
+
+    content.appendChild(header);
+
+    // Show title
+    const showInfo = document.createElement('div');
+    showInfo.className = 'episode-detail-show';
+    showInfo.textContent = currentShowContext.showTitle;
+    content.appendChild(showInfo);
+
+    // Episode details
+    const details = document.createElement('div');
+    details.className = 'episode-detail-info';
+
+    // Meta info row
+    const metaRow = document.createElement('div');
+    metaRow.className = 'episode-detail-meta';
+    const metaParts = [];
+    if (episode.runtime_minutes) metaParts.push(`${episode.runtime_minutes} min`);
+    if (episode.quality) metaParts.push(episode.quality);
+    if (episode.air_date) metaParts.push(episode.air_date);
+    metaRow.textContent = metaParts.join(' • ');
+    details.appendChild(metaRow);
+
+    // Watch status
+    const statusRow = document.createElement('div');
+    statusRow.className = 'episode-detail-status';
+    const statusBadge = document.createElement('span');
+    statusBadge.className = 'status-badge ' + (episode.played ? 'watched' : 'unwatched');
+    const statusIcon = document.createElement('i');
+    statusIcon.setAttribute('data-lucide', episode.played ? 'eye' : 'eye-off');
+    statusBadge.appendChild(statusIcon);
+    statusBadge.appendChild(document.createTextNode(episode.played ? ' Watched' : ' Unwatched'));
+    if (episode.view_count && episode.view_count > 1) {
+        statusBadge.appendChild(document.createTextNode(` (${episode.view_count}x)`));
+    }
+    statusRow.appendChild(statusBadge);
+    details.appendChild(statusRow);
+
+    // Overview if available
+    if (episode.overview) {
+        const overview = document.createElement('div');
+        overview.className = 'episode-detail-overview';
+        overview.textContent = episode.overview;
+        details.appendChild(overview);
+    }
+
+    content.appendChild(details);
+
+    // Action buttons
+    const actions = document.createElement('div');
+    actions.className = 'episode-detail-actions';
+
+    if (episode.has_file) {
+        // Watch Now button
+        const watchBtn = document.createElement('button');
+        watchBtn.className = 'btn btn-stream episode-action-btn';
+        const playIcon = document.createElement('i');
+        playIcon.setAttribute('data-lucide', 'play');
+        watchBtn.appendChild(playIcon);
+        watchBtn.appendChild(document.createTextNode(' Watch Now'));
+        watchBtn.onclick = () => {
+            closeEpisodeDetailModal();
+            closeMediaPanel();
+            openVideoPlayer({
+                id: episode.id,
+                title: `${episode.title || 'Episode ' + episode.episode_number}`,
+                media_type: 'episode'
+            });
+        };
+        actions.appendChild(watchBtn);
+
+        // Toggle watched button
+        const toggleBtn = document.createElement('button');
+        toggleBtn.className = 'btn btn-secondary episode-action-btn';
+        toggleBtn.id = 'toggleWatchedBtn';
+        const toggleIcon = document.createElement('i');
+        toggleIcon.setAttribute('data-lucide', episode.played ? 'eye-off' : 'eye');
+        toggleBtn.appendChild(toggleIcon);
+        toggleBtn.appendChild(document.createTextNode(episode.played ? ' Mark Unwatched' : ' Mark Watched'));
+        toggleBtn.onclick = () => toggleEpisodeWatched(episode, seasonNumber, toggleBtn, statusBadge);
+        actions.appendChild(toggleBtn);
+
+        // Open in Plex button
+        const plexBtn = document.createElement('a');
+        plexBtn.className = 'btn btn-secondary episode-action-btn';
+        plexBtn.href = `http://192.168.1.200:32400/web/index.html#!/server/search?query=${encodeURIComponent(currentShowContext.showTitle)}`;
+        plexBtn.target = '_blank';
+        const plexIcon = document.createElement('i');
+        plexIcon.setAttribute('data-lucide', 'external-link');
+        plexBtn.appendChild(plexIcon);
+        plexBtn.appendChild(document.createTextNode(' Open in Plex'));
+        actions.appendChild(plexBtn);
+    } else {
+        // Not available message
+        const unavailable = document.createElement('div');
+        unavailable.className = 'episode-unavailable-msg';
+        unavailable.textContent = 'This episode is not downloaded yet';
+        actions.appendChild(unavailable);
+    }
+
+    content.appendChild(actions);
+    modal.appendChild(content);
+    document.body.appendChild(modal);
+
+    // Trigger animation
+    requestAnimationFrame(() => modal.classList.add('active'));
+    lucide.createIcons();
+}
+
+function closeEpisodeDetailModal() {
+    const modal = document.getElementById('episodeDetailModal');
+    if (modal) {
+        modal.classList.remove('active');
+        setTimeout(() => modal.remove(), 200);
+    }
+}
+
+async function toggleEpisodeWatched(episode, seasonNumber, toggleBtn, statusBadge) {
+    const newWatchedState = !episode.played;
+
+    // Optimistic UI update
+    toggleBtn.disabled = true;
+    const originalText = toggleBtn.textContent;
+    toggleBtn.textContent = newWatchedState ? ' Marking watched...' : ' Marking unwatched...';
+
+    try {
+        const response = await fetch(`${API_BASE}/episodes/${episode.id}/watched`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ watched: newWatchedState })
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            // Update episode state
+            episode.played = newWatchedState;
+
+            // Update button
+            toggleBtn.innerHTML = '';
+            const icon = document.createElement('i');
+            icon.setAttribute('data-lucide', newWatchedState ? 'eye-off' : 'eye');
+            toggleBtn.appendChild(icon);
+            toggleBtn.appendChild(document.createTextNode(newWatchedState ? ' Mark Unwatched' : ' Mark Watched'));
+
+            // Update status badge
+            statusBadge.className = 'status-badge ' + (newWatchedState ? 'watched' : 'unwatched');
+            statusBadge.innerHTML = '';
+            const statusIcon = document.createElement('i');
+            statusIcon.setAttribute('data-lucide', newWatchedState ? 'eye' : 'eye-off');
+            statusBadge.appendChild(statusIcon);
+            statusBadge.appendChild(document.createTextNode(newWatchedState ? ' Watched' : ' Unwatched'));
+
+            // Refresh episode list in background
+            const episodeList = document.getElementById('episodeList');
+            if (episodeList) {
+                loadEpisodesForSeason(currentShowContext.seriesId, seasonNumber, episodeList);
+            }
+
+            lucide.createIcons();
+            showToast(newWatchedState ? 'Marked as watched' : 'Marked as unwatched', 'success');
+        } else {
+            throw new Error(data.error || 'Failed to update');
+        }
+    } catch (error) {
+        console.error('[Episode Detail] Error toggling watched:', error);
+        showToast('Failed to update watch status', 'error');
+        toggleBtn.textContent = originalText;
+    }
+
+    toggleBtn.disabled = false;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -705,18 +705,21 @@ function createWatchHistoryCard(item) {
     lazyLoadImage(img);
     imgContainer.appendChild(img);
 
-    // In-library badge (green checkmark)
-    const badge = document.createElement('span');
-    badge.className = 'poster-badge badge-in-library';
-    badge.innerHTML = '<i data-lucide="check-circle"></i>';
-    imgContainer.appendChild(badge);
-
-    // Watched badge (blue eye - bottom right)
+    // Watched badge (blue eye - top left) - always show for watch history
     const watchedBadge = document.createElement('span');
     watchedBadge.className = 'poster-badge badge-watched';
-    watchedBadge.innerHTML = '<i data-lucide="eye"></i>';
-    watchedBadge.style.cssText = 'top: auto; bottom: 8px; right: 8px; left: auto;';
+    const eyeIcon = document.createElement('i');
+    eyeIcon.setAttribute('data-lucide', 'eye');
+    watchedBadge.appendChild(eyeIcon);
     imgContainer.appendChild(watchedBadge);
+
+    // Series name overlay for episodes
+    if (item.media_type === 'episode' && item.metadata?.show_title) {
+        const seriesOverlay = document.createElement('div');
+        seriesOverlay.className = 'poster-series-overlay';
+        seriesOverlay.textContent = item.metadata.show_title;
+        imgContainer.appendChild(seriesOverlay);
+    }
 
     const info = document.createElement('div');
     info.className = 'poster-info';
@@ -724,7 +727,7 @@ function createWatchHistoryCard(item) {
     const title = document.createElement('div');
     title.className = 'poster-title';
     if (item.media_type === 'episode') {
-        title.textContent = item.metadata?.show_title || item.title;
+        title.textContent = item.title || `S${item.season_number}E${item.episode_number}`;
     } else {
         title.textContent = item.title;
     }
@@ -876,14 +879,22 @@ function createPosterCard(item, showRequestButton = false) {
         imgContainer.appendChild(badgeContainer);
     }
 
-    // In library badge
-    if (item.in_library) {
-        const libraryBadge = document.createElement('div');
-        libraryBadge.className = 'library-badge';
-        const checkIcon = document.createElement('i');
-        checkIcon.setAttribute('data-lucide', 'check');
-        libraryBadge.appendChild(checkIcon);
-        imgContainer.appendChild(libraryBadge);
+    // Watched badge (blue eye - top left) - only if played
+    if (item.played || item.metadata?.played) {
+        const watchedBadge = document.createElement('div');
+        watchedBadge.className = 'library-badge badge-watched';
+        const eyeIcon = document.createElement('i');
+        eyeIcon.setAttribute('data-lucide', 'eye');
+        watchedBadge.appendChild(eyeIcon);
+        imgContainer.appendChild(watchedBadge);
+    }
+
+    // Series name overlay for episodes/shows in recently added
+    if ((item.media_type === 'episode' || item.media_type === 'show') && item.metadata?.show_title) {
+        const seriesOverlay = document.createElement('div');
+        seriesOverlay.className = 'poster-series-overlay';
+        seriesOverlay.textContent = item.metadata.show_title;
+        imgContainer.appendChild(seriesOverlay);
     }
 
     // Request button for items not in library

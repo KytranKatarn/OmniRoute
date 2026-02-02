@@ -1373,9 +1373,50 @@ function createEpisodeCard(ep) {
     return card;
 }
 
-function changeCalendarWeek(direction) {
-    calendarWeekOffset += direction;
-    updateCalendarRange();
+// Calendar view state
+let calendarViewMode = 'week'; // 'week' or 'month'
+let calendarMonthOffset = 0;   // For month navigation
+
+function setCalendarView(mode) {
+    calendarViewMode = mode;
+
+    // Update toggle buttons
+    document.querySelectorAll('.calendar-view-toggle .view-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.view === mode);
+    });
+
+    // Show/hide views
+    const weekView = document.getElementById('calendarWeekView');
+    const monthView = document.getElementById('calendarMonthView');
+
+    if (weekView && monthView) {
+        weekView.classList.toggle('hidden', mode !== 'week');
+        monthView.classList.toggle('hidden', mode !== 'month');
+    }
+
+    // Reset offsets when switching
+    if (mode === 'week') {
+        calendarWeekOffset = 0;
+    } else {
+        calendarMonthOffset = 0;
+    }
+
+    loadCalendar();
+    lucide.createIcons();
+}
+
+function changeCalendarPeriod(direction) {
+    if (calendarViewMode === 'week') {
+        calendarWeekOffset += direction;
+    } else {
+        calendarMonthOffset += direction;
+    }
+    loadCalendar();
+}
+
+function goToToday() {
+    calendarWeekOffset = 0;
+    calendarMonthOffset = 0;
     loadCalendar();
 }
 
@@ -1383,26 +1424,43 @@ function updateCalendarRange() {
     const rangeEl = document.getElementById('calendarRange');
     if (!rangeEl) return;
 
-    const today = new Date();
-    const startDate = new Date(today);
-    startDate.setDate(startDate.getDate() + (calendarWeekOffset * 7));
+    if (calendarViewMode === 'week') {
+        const today = new Date();
+        const startDate = new Date(today);
+        startDate.setDate(startDate.getDate() + (calendarWeekOffset * 7));
 
-    const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + 13);
+        const endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate() + 6);
 
-    if (calendarWeekOffset === 0) {
-        rangeEl.textContent = 'This Week';
-    } else if (calendarWeekOffset === 1) {
-        rangeEl.textContent = 'Next Week';
-    } else if (calendarWeekOffset === -1) {
-        rangeEl.textContent = 'Last Week';
+        if (calendarWeekOffset === 0) {
+            rangeEl.textContent = 'This Week';
+        } else if (calendarWeekOffset === 1) {
+            rangeEl.textContent = 'Next Week';
+        } else if (calendarWeekOffset === -1) {
+            rangeEl.textContent = 'Last Week';
+        } else {
+            const options = { month: 'short', day: 'numeric' };
+            rangeEl.textContent = `${startDate.toLocaleDateString('en-US', options)} - ${endDate.toLocaleDateString('en-US', options)}`;
+        }
     } else {
-        const options = { month: 'short', day: 'numeric' };
-        rangeEl.textContent = `${startDate.toLocaleDateString('en-US', options)} - ${endDate.toLocaleDateString('en-US', options)}`;
+        // Month view
+        const today = new Date();
+        const targetMonth = new Date(today.getFullYear(), today.getMonth() + calendarMonthOffset, 1);
+        rangeEl.textContent = targetMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     }
 }
 
 async function loadCalendar() {
+    updateCalendarRange();
+
+    if (calendarViewMode === 'week') {
+        await loadWeekView();
+    } else {
+        await loadMonthView();
+    }
+}
+
+async function loadWeekView() {
     const container = document.getElementById('calendarGrid');
     if (!container) return;
 
@@ -1413,11 +1471,10 @@ async function loadCalendar() {
 
     const startStr = startDate.toISOString().split('T')[0];
 
-    // Update range display
-    updateCalendarRange();
+    container.innerHTML = '<div class="calendar-loading"><div class="loading-pulse"></div><span>Loading calendar...</span></div>';
 
     try {
-        const response = await fetch(`${API_BASE}/calendar/upcoming?days=14&start=${startStr}`);
+        const response = await fetch(`${API_BASE}/calendar/upcoming?days=7&start=${startStr}`);
         const data = await response.json();
 
         container.textContent = '';
@@ -1431,30 +1488,67 @@ async function loadCalendar() {
                 grouped[date].push(ep);
             });
 
-            // Sort dates
-            const sortedDates = Object.keys(grouped).sort();
+            // Create 7-day grid
+            const todayStr = today.toISOString().split('T')[0];
+            for (let i = 0; i < 7; i++) {
+                const cellDate = new Date(startDate);
+                cellDate.setDate(cellDate.getDate() + i);
+                const dateStr = cellDate.toISOString().split('T')[0];
+                const episodes = grouped[dateStr] || [];
 
-            sortedDates.forEach(date => {
-                const episodes = grouped[date];
                 const daySection = document.createElement('div');
-                daySection.className = 'calendar-day';
+                daySection.className = 'calendar-day' + (dateStr === todayStr ? ' today' : '');
 
-                const dateHeader = document.createElement('div');
-                dateHeader.className = 'calendar-date';
-                dateHeader.textContent = formatDate(date);
-                daySection.appendChild(dateHeader);
+                const dayHeader = document.createElement('div');
+                dayHeader.className = 'calendar-day-header';
+                dayHeader.innerHTML = `<div>${cellDate.toLocaleDateString('en-US', { weekday: 'short' })}</div>
+                                       <div>${cellDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>`;
+                daySection.appendChild(dayHeader);
 
-                const episodesList = document.createElement('div');
-                episodesList.className = 'calendar-episodes';
-                episodes.forEach(ep => {
-                    episodesList.appendChild(createEpisodeCard(ep));
-                });
-                daySection.appendChild(episodesList);
+                const dayContent = document.createElement('div');
+                dayContent.className = 'calendar-day-content';
 
+                if (episodes.length > 0) {
+                    episodes.forEach(ep => {
+                        dayContent.appendChild(createCalendarEpisode(ep));
+                    });
+                } else {
+                    const empty = document.createElement('div');
+                    empty.className = 'calendar-empty';
+                    empty.textContent = 'No episodes';
+                    dayContent.appendChild(empty);
+                }
+
+                daySection.appendChild(dayContent);
                 container.appendChild(daySection);
-            });
+            }
         } else {
-            container.appendChild(createEmptyState('calendar', 'No upcoming episodes in this period'));
+            // Still show 7-day grid even if empty
+            const todayStr = today.toISOString().split('T')[0];
+            for (let i = 0; i < 7; i++) {
+                const cellDate = new Date(startDate);
+                cellDate.setDate(cellDate.getDate() + i);
+                const dateStr = cellDate.toISOString().split('T')[0];
+
+                const daySection = document.createElement('div');
+                daySection.className = 'calendar-day' + (dateStr === todayStr ? ' today' : '');
+
+                const dayHeader = document.createElement('div');
+                dayHeader.className = 'calendar-day-header';
+                dayHeader.innerHTML = `<div>${cellDate.toLocaleDateString('en-US', { weekday: 'short' })}</div>
+                                       <div>${cellDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>`;
+                daySection.appendChild(dayHeader);
+
+                const dayContent = document.createElement('div');
+                dayContent.className = 'calendar-day-content';
+                const empty = document.createElement('div');
+                empty.className = 'calendar-empty';
+                empty.textContent = 'No episodes';
+                dayContent.appendChild(empty);
+
+                daySection.appendChild(dayContent);
+                container.appendChild(daySection);
+            }
         }
         lucide.createIcons();
     } catch (error) {
@@ -1462,6 +1556,219 @@ async function loadCalendar() {
         container.appendChild(createEmptyState('alert-circle', 'Failed to load calendar'));
         lucide.createIcons();
     }
+}
+
+async function loadMonthView() {
+    const container = document.getElementById('monthGrid');
+    if (!container) return;
+
+    const today = new Date();
+    const targetMonth = new Date(today.getFullYear(), today.getMonth() + calendarMonthOffset, 1);
+    const year = targetMonth.getFullYear();
+    const month = targetMonth.getMonth();
+
+    // Calculate first day of month grid (include previous month days to fill week)
+    const firstDayOfMonth = new Date(year, month, 1);
+    const lastDayOfMonth = new Date(year, month + 1, 0);
+    const startOfGrid = new Date(firstDayOfMonth);
+    startOfGrid.setDate(startOfGrid.getDate() - firstDayOfMonth.getDay());
+
+    // Calculate days needed (6 weeks max)
+    const endOfGrid = new Date(lastDayOfMonth);
+    const daysToEnd = 6 - lastDayOfMonth.getDay();
+    endOfGrid.setDate(endOfGrid.getDate() + daysToEnd);
+
+    const totalDays = Math.ceil((endOfGrid - startOfGrid) / (1000 * 60 * 60 * 24)) + 1;
+
+    container.innerHTML = '<div class="calendar-loading" style="grid-column: 1/-1;"><div class="loading-pulse"></div><span>Loading calendar...</span></div>';
+
+    try {
+        // Fetch episodes for the entire grid period
+        const startStr = startOfGrid.toISOString().split('T')[0];
+        const response = await fetch(`${API_BASE}/calendar/upcoming?days=${totalDays}&start=${startStr}`);
+        const data = await response.json();
+
+        // Group episodes by date
+        const episodesByDate = {};
+        if (data.success && data.episodes) {
+            data.episodes.forEach(ep => {
+                const date = ep.air_date || '';
+                if (date) {
+                    if (!episodesByDate[date]) episodesByDate[date] = [];
+                    episodesByDate[date].push(ep);
+                }
+            });
+        }
+
+        container.textContent = '';
+
+        const todayStr = today.toISOString().split('T')[0];
+
+        // Build month grid
+        for (let i = 0; i < totalDays; i++) {
+            const cellDate = new Date(startOfGrid);
+            cellDate.setDate(cellDate.getDate() + i);
+            const dateStr = cellDate.toISOString().split('T')[0];
+            const isOtherMonth = cellDate.getMonth() !== month;
+            const isToday = dateStr === todayStr;
+            const episodes = episodesByDate[dateStr] || [];
+
+            const cell = document.createElement('div');
+            cell.className = 'month-cell';
+            if (isOtherMonth) cell.classList.add('other-month');
+            if (isToday) cell.classList.add('today');
+            if (episodes.length > 0) cell.classList.add('has-episodes');
+
+            // Date number
+            const dateNum = document.createElement('div');
+            dateNum.className = 'month-cell-date';
+            dateNum.textContent = cellDate.getDate();
+            cell.appendChild(dateNum);
+
+            // Episodes list
+            if (episodes.length > 0) {
+                const epList = document.createElement('div');
+                epList.className = 'month-cell-episodes';
+
+                // Show up to 3 episodes, then "more"
+                const maxShow = 3;
+                episodes.slice(0, maxShow).forEach(ep => {
+                    const epEl = document.createElement('div');
+                    epEl.className = 'month-episode ' + (ep.has_file ? 'has-file' : 'no-file');
+                    epEl.textContent = ep.series_title || 'Unknown';
+                    epEl.title = `${ep.series_title} S${ep.season_number}E${ep.episode_number}`;
+                    epEl.onclick = () => showDayDetail(dateStr, episodes);
+                    epList.appendChild(epEl);
+                });
+
+                if (episodes.length > maxShow) {
+                    const more = document.createElement('div');
+                    more.className = 'month-cell-more';
+                    more.textContent = `+${episodes.length - maxShow} more`;
+                    more.onclick = () => showDayDetail(dateStr, episodes);
+                    epList.appendChild(more);
+                }
+
+                cell.appendChild(epList);
+            }
+
+            // Click on empty cell to show day
+            cell.onclick = (e) => {
+                if (e.target === cell || e.target === dateNum) {
+                    if (episodes.length > 0) {
+                        showDayDetail(dateStr, episodes);
+                    }
+                }
+            };
+
+            container.appendChild(cell);
+        }
+
+        lucide.createIcons();
+    } catch (error) {
+        container.textContent = '';
+        const errorMsg = document.createElement('div');
+        errorMsg.style.cssText = 'grid-column: 1/-1; text-align: center; color: var(--archie-text-muted); padding: 40px;';
+        errorMsg.textContent = 'Failed to load calendar';
+        container.appendChild(errorMsg);
+    }
+}
+
+function createCalendarEpisode(ep) {
+    const div = document.createElement('div');
+    div.className = 'calendar-episode';
+    div.onclick = () => openMediaDetails({
+        id: ep.series_id,
+        title: ep.series_title,
+        media_type: 'show',
+        poster_url: ep.poster_url
+    });
+
+    const poster = document.createElement('img');
+    poster.className = 'calendar-ep-poster';
+    poster.src = ep.poster_url || '/static/img/no-poster.png';
+    poster.alt = '';
+    poster.onerror = function() { this.style.display = 'none'; };
+
+    const info = document.createElement('div');
+    info.className = 'calendar-ep-info';
+
+    const title = document.createElement('div');
+    title.className = 'calendar-ep-title';
+    title.textContent = ep.series_title;
+
+    const meta = document.createElement('div');
+    meta.className = 'calendar-ep-meta';
+    meta.textContent = `S${String(ep.season_number).padStart(2, '0')}E${String(ep.episode_number).padStart(2, '0')}`;
+
+    info.appendChild(title);
+    info.appendChild(meta);
+
+    const status = document.createElement('div');
+    status.className = 'calendar-ep-status ' + (ep.has_file ? 'available' : 'pending');
+    const icon = document.createElement('i');
+    icon.setAttribute('data-lucide', ep.has_file ? 'check-circle' : 'clock');
+    status.appendChild(icon);
+
+    div.appendChild(poster);
+    div.appendChild(info);
+    div.appendChild(status);
+
+    return div;
+}
+
+function showDayDetail(dateStr, episodes) {
+    // Remove existing modal
+    document.getElementById('dayDetailModal')?.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'dayDetailModal';
+    modal.className = 'day-detail-modal';
+
+    const overlay = document.createElement('div');
+    overlay.className = 'day-detail-overlay';
+    overlay.onclick = () => modal.remove();
+    modal.appendChild(overlay);
+
+    const content = document.createElement('div');
+    content.className = 'day-detail-content';
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'day-detail-header';
+
+    const dateDisplay = new Date(dateStr + 'T00:00:00');
+    const title = document.createElement('h3');
+    title.textContent = dateDisplay.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    header.appendChild(title);
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'day-detail-close';
+    closeBtn.innerHTML = '<i data-lucide="x"></i>';
+    closeBtn.onclick = () => modal.remove();
+    header.appendChild(closeBtn);
+
+    content.appendChild(header);
+
+    // Episodes list
+    const list = document.createElement('div');
+    list.className = 'day-detail-list';
+
+    episodes.forEach(ep => {
+        list.appendChild(createEpisodeCard(ep));
+    });
+
+    content.appendChild(list);
+    modal.appendChild(content);
+    document.body.appendChild(modal);
+
+    requestAnimationFrame(() => modal.classList.add('active'));
+    lucide.createIcons();
+}
+
+// Keep old function name for backward compatibility
+function changeCalendarWeek(direction) {
+    changeCalendarPeriod(direction);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

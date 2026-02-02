@@ -335,16 +335,47 @@
         <section id="tab-calendar" class="tab-panel">
             <div class="calendar-header">
                 <h2><i data-lucide="calendar-days"></i> Upcoming Episodes</h2>
-                <div class="calendar-nav">
-                    <button class="btn-icon" onclick="changeCalendarWeek(-1)"><i data-lucide="chevron-left"></i></button>
-                    <span id="calendarRange">This Week</span>
-                    <button class="btn-icon" onclick="changeCalendarWeek(1)"><i data-lucide="chevron-right"></i></button>
+                <div class="calendar-controls">
+                    <!-- View Toggle -->
+                    <div class="calendar-view-toggle">
+                        <button class="view-btn active" data-view="week" onclick="setCalendarView('week')">
+                            <i data-lucide="calendar-range"></i> Week
+                        </button>
+                        <button class="view-btn" data-view="month" onclick="setCalendarView('month')">
+                            <i data-lucide="calendar"></i> Month
+                        </button>
+                    </div>
+                    <!-- Navigation -->
+                    <div class="calendar-nav">
+                        <button class="btn-icon" onclick="changeCalendarPeriod(-1)"><i data-lucide="chevron-left"></i></button>
+                        <span id="calendarRange">This Week</span>
+                        <button class="btn-icon" onclick="changeCalendarPeriod(1)"><i data-lucide="chevron-right"></i></button>
+                        <button class="btn-ghost btn-sm" onclick="goToToday()">Today</button>
+                    </div>
                 </div>
             </div>
-            <div class="calendar-grid" id="calendarGrid">
-                <div class="calendar-loading">
-                    <div class="loading-pulse"></div>
-                    <span>Loading calendar...</span>
+            <div class="calendar-container" id="calendarContainer">
+                <!-- Week view -->
+                <div class="calendar-week-view" id="calendarWeekView">
+                    <div class="calendar-grid" id="calendarGrid">
+                        <div class="calendar-loading">
+                            <div class="loading-pulse"></div>
+                            <span>Loading calendar...</span>
+                        </div>
+                    </div>
+                </div>
+                <!-- Month view -->
+                <div class="calendar-month-view hidden" id="calendarMonthView">
+                    <div class="month-header">
+                        <div class="month-day-name">Sun</div>
+                        <div class="month-day-name">Mon</div>
+                        <div class="month-day-name">Tue</div>
+                        <div class="month-day-name">Wed</div>
+                        <div class="month-day-name">Thu</div>
+                        <div class="month-day-name">Fri</div>
+                        <div class="month-day-name">Sat</div>
+                    </div>
+                    <div class="month-grid" id="monthGrid"></div>
                 </div>
             </div>
         </section>
@@ -2106,6 +2137,8 @@ body.tv-mode .install-app-btn {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
     margin-bottom: 24px;
 }
 
@@ -2122,15 +2155,67 @@ body.tv-mode .install-app-btn {
 
 .calendar-header h2 i { width: 22px; height: 22px; color: var(--mh-accent); }
 
-.calendar-nav { display: flex; align-items: center; gap: 12px; }
+.calendar-controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+/* View Toggle */
+.calendar-view-toggle {
+    display: flex;
+    background: var(--archie-bg-tertiary);
+    border-radius: 8px;
+    padding: 3px;
+    gap: 2px;
+}
+
+.calendar-view-toggle .view-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--archie-text-muted);
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.calendar-view-toggle .view-btn i { width: 14px; height: 14px; }
+
+.calendar-view-toggle .view-btn:hover {
+    color: var(--archie-text-primary);
+    background: var(--archie-bg-elevated);
+}
+
+.calendar-view-toggle .view-btn.active {
+    color: var(--mh-accent);
+    background: var(--archie-bg-elevated);
+}
+
+.calendar-nav { display: flex; align-items: center; gap: 8px; }
+
+.calendar-nav .btn-sm {
+    padding: 4px 10px;
+    font-size: 0.75rem;
+}
 
 #calendarRange {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     color: var(--archie-text-tertiary);
-    min-width: 120px;
+    min-width: 140px;
     text-align: center;
 }
+
+/* Week View */
+.calendar-week-view.hidden,
+.calendar-month-view.hidden { display: none; }
 
 .calendar-grid {
     display: grid;
@@ -2176,6 +2261,237 @@ body.tv-mode .install-app-btn {
 }
 
 .calendar-episode:hover { background: var(--mh-accent-alpha-10); }
+
+/* Month View */
+.month-header {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1px;
+    margin-bottom: 8px;
+}
+
+.month-day-name {
+    text-align: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--archie-text-muted);
+    padding: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.month-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+}
+
+.month-cell {
+    min-height: 100px;
+    background: var(--archie-bg-elevated);
+    border: 1px solid var(--archie-border-muted);
+    border-radius: 8px;
+    padding: 6px;
+    overflow: hidden;
+    transition: border-color 0.2s ease;
+}
+
+.month-cell:hover { border-color: var(--archie-border-subtle); }
+
+.month-cell.other-month {
+    opacity: 0.4;
+    background: var(--archie-bg-secondary);
+}
+
+.month-cell.today {
+    border-color: var(--mh-accent);
+    background: var(--mh-accent-alpha-10);
+}
+
+.month-cell-date {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--archie-text-muted);
+    margin-bottom: 6px;
+}
+
+.month-cell.today .month-cell-date { color: var(--mh-accent); }
+
+.month-cell-episodes {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    max-height: 70px;
+    overflow-y: auto;
+}
+
+.month-episode {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 6px;
+    background: var(--archie-bg-tertiary);
+    border-radius: 4px;
+    font-size: 0.7rem;
+    color: var(--archie-text-secondary);
+    cursor: pointer;
+    transition: background 0.15s ease;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.month-episode:hover { background: var(--mh-accent-alpha-20); }
+
+.month-episode.has-file::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    background: var(--archie-green, #22c55e);
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.month-episode.no-file::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    background: var(--archie-amber, #f59e0b);
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.month-cell-more {
+    font-size: 0.65rem;
+    color: var(--mh-accent);
+    text-align: center;
+    padding: 2px;
+    cursor: pointer;
+}
+
+.month-cell-more:hover { text-decoration: underline; }
+
+@media (max-width: 1024px) {
+    .month-cell { min-height: 80px; }
+    .month-episode { font-size: 0.65rem; padding: 2px 4px; }
+}
+
+@media (max-width: 768px) {
+    .calendar-header { flex-direction: column; align-items: flex-start; }
+    .calendar-controls { width: 100%; justify-content: space-between; }
+    .month-grid { grid-template-columns: repeat(7, 1fr); gap: 2px; }
+    .month-cell { min-height: 60px; padding: 4px; }
+    .month-cell-date { font-size: 0.7rem; }
+    .month-episode { display: none; }
+    .month-cell-episodes { display: none; }
+    .month-cell.has-episodes::after {
+        content: '';
+        display: block;
+        width: 6px;
+        height: 6px;
+        background: var(--mh-accent);
+        border-radius: 50%;
+        margin: 4px auto 0;
+    }
+}
+
+/* Calendar Empty State */
+.calendar-empty {
+    font-size: 0.75rem;
+    color: var(--archie-text-muted);
+    text-align: center;
+    padding: 16px 8px;
+    font-style: italic;
+}
+
+/* Day Detail Modal (for month view click) */
+.day-detail-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+.day-detail-modal.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.day-detail-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+}
+
+.day-detail-content {
+    position: relative;
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-subtle);
+    border-radius: 16px;
+    width: 90%;
+    max-width: 500px;
+    max-height: 80vh;
+    overflow: hidden;
+    transform: scale(0.95) translateY(10px);
+    transition: transform 0.2s ease;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.day-detail-modal.active .day-detail-content {
+    transform: scale(1) translateY(0);
+}
+
+.day-detail-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--archie-border-subtle);
+    background: var(--archie-bg-tertiary);
+}
+
+.day-detail-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--archie-text-primary);
+}
+
+.day-detail-close {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    color: var(--archie-text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.day-detail-close:hover {
+    background: var(--archie-bg-elevated);
+    color: var(--archie-text-primary);
+}
+
+.day-detail-close i { width: 18px; height: 18px; }
+
+.day-detail-list {
+    padding: 16px;
+    max-height: calc(80vh - 80px);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
 
 .calendar-ep-poster {
     width: 28px;

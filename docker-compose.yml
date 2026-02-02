@@ -87,7 +87,7 @@ services:
       - ./host_commands:/mnt/archie_brain/host_commands:rw
       # Migration compose files for Docker stack management
       - ./migrations:/mnt/archie_brain/migrations:ro
-      # Mount Plex config directory for Media Hub service discovery
+      # Media stack configs for Media Hub service discovery (API keys, etc.)
       - /mnt/Plex/config:/mnt/Plex/config:ro
     ports:
       - "3000:3000"

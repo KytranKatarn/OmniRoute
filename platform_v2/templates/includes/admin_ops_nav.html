@@ -1,6 +1,6 @@
 <!-- ═══════════════════════════════════════════════════════════════════════════════
    Admin Operations Navigation Bar
-   Shared component for Blueprint, Bridge, Team Management, Consciousness
+   Shared component for Blueprint, Bridge, Team, Mind, HR, Pool, Goose, Projects
    Phase 30: UI Modernization
    ═══════════════════════════════════════════════════════════════════════════════ -->
 
@@ -69,6 +69,34 @@
            title="Consciousness">
             <i data-lucide="brain"></i>
             <span>Mind</span>
+        </a>
+        <a href="{{ url_for('hr_management.index') }}"
+           class="nav-module-btn {% if request.endpoint and 'hr_management' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="HR Management">
+            <i data-lucide="clipboard-list"></i>
+            <span>HR</span>
+        </a>
+        <a href="{{ url_for('pool_management.index') }}"
+           class="nav-module-btn {% if request.endpoint and 'pool_management' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="Pool Management">
+            <i data-lucide="sliders"></i>
+            <span>Pool</span>
+        </a>
+        <a href="{{ url_for('goose.index') }}"
+           class="nav-module-btn {% if request.endpoint and 'goose' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="Goose Orchestration">
+            <i data-lucide="bot"></i>
+            <span>Goose</span>
+        </a>
+        <a href="{{ url_for('project_manager.index') }}"
+           class="nav-module-btn {% if request.endpoint and 'project_manager' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="Project Manager">
+            <i data-lucide="folder-kanban"></i>
+            <span>Projects</span>
         </a>
     </div>
 </nav>

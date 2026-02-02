@@ -1,6 +1,6 @@
 <!-- ═══════════════════════════════════════════════════════════════════════════════
    Development Tools Navigation Bar
-   Shared component for Code Editor, CodeRabbit, Improvements Lab, Sandbox Manager
+   All Development Tools modules
    Phase 29.8: Category Navigation System
    ═══════════════════════════════════════════════════════════════════════════════ -->
 
@@ -62,6 +62,34 @@
            title="Sandbox Manager">
             <i data-lucide="test-tube-2"></i>
             <span>Sandbox</span>
+        </a>
+        <a href="{{ url_for('code_sentinel.index') }}"
+           class="nav-module-btn {% if request.endpoint and 'code_sentinel' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="Code Sentinel">
+            <i data-lucide="shield-check"></i>
+            <span>Sentinel</span>
+        </a>
+        <a href="{{ url_for('cursor_integration.index') }}"
+           class="nav-module-btn {% if request.endpoint and 'cursor_integration' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="IDE Integration">
+            <i data-lucide="mouse-pointer"></i>
+            <span>IDE</span>
+        </a>
+        <a href="{{ url_for('testing_suite.index') }}"
+           class="nav-module-btn {% if request.endpoint and 'testing_suite' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="Testing Suite">
+            <i data-lucide="vial"></i>
+            <span>Tests</span>
+        </a>
+        <a href="{{ url_for('fine_tuning.index') }}"
+           class="nav-module-btn {% if request.endpoint and 'fine_tuning' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="AI Fine-tuning">
+            <i data-lucide="brain"></i>
+            <span>Tuning</span>
         </a>
     </div>
 </nav>

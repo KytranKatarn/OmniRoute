@@ -1,6 +1,6 @@
 <!-- ═══════════════════════════════════════════════════════════════════════════════
    Business Tools Navigation Bar
-   Shared component for Social Media, Website Studio, Call Center, CRM, Email Manager
+   All Business Tools modules
    Phase 31: Business Tools UI Standardization
    ═══════════════════════════════════════════════════════════════════════════════ -->
 
@@ -76,6 +76,55 @@
            title="Email Manager">
             <i data-lucide="mail"></i>
             <span>Email</span>
+        </a>
+        <a href="{{ url_for('store_builder.index') }}"
+           class="nav-module-btn {% if request.endpoint and 'store_builder' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="Store Builder">
+            <i data-lucide="shopping-cart"></i>
+            <span>Store</span>
+        </a>
+        <a href="{{ url_for('invoicing.index') }}"
+           class="nav-module-btn {% if request.endpoint and 'invoicing' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="Invoicing">
+            <i data-lucide="receipt"></i>
+            <span>Invoice</span>
+        </a>
+        <a href="{{ url_for('scheduler.index') }}"
+           class="nav-module-btn {% if request.endpoint and 'scheduler' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="Scheduler">
+            <i data-lucide="calendar"></i>
+            <span>Schedule</span>
+        </a>
+        <a href="{{ url_for('automations.index') }}"
+           class="nav-module-btn {% if request.endpoint and 'automations' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="Automations">
+            <i data-lucide="settings"></i>
+            <span>Automate</span>
+        </a>
+        <a href="{{ url_for('google_workspace.index') }}"
+           class="nav-module-btn {% if request.endpoint and 'google_workspace' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="Google Workspace">
+            <i data-lucide="cloud"></i>
+            <span>Google</span>
+        </a>
+        <a href="{{ url_for('task_planner.index') }}"
+           class="nav-module-btn {% if request.endpoint and 'task_planner' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="Task Planner">
+            <i data-lucide="list-checks"></i>
+            <span>Tasks</span>
+        </a>
+        <a href="{{ url_for('site_manager.index') }}"
+           class="nav-module-btn {% if request.endpoint and 'site_manager' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="Site Manager">
+            <i data-lucide="globe-2"></i>
+            <span>Sites</span>
         </a>
     </div>
 </nav>

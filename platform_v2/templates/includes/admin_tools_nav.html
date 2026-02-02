@@ -1,6 +1,6 @@
 <!-- ═══════════════════════════════════════════════════════════════════════════════
    Admin Tools Navigation Bar
-   Shared component for Backup Manager, Security & Network, Account Center, Pool Management
+   Shared component for Account Center, System Operations, Backup Manager, Security & Network
    Phase 29.8: Category Navigation System
    ═══════════════════════════════════════════════════════════════════════════════ -->
 
@@ -62,6 +62,13 @@
            title="Backup Manager">
             <i data-lucide="hard-drive"></i>
             <span>Backups</span>
+        </a>
+        <a href="{{ url_for('security_network.index') }}"
+           class="nav-module-btn {% if request.endpoint and 'security_network' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="Security & Network">
+            <i data-lucide="shield"></i>
+            <span>Security</span>
         </a>
     </div>
 </nav>

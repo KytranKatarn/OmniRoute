@@ -10545,24 +10545,31 @@ function executeLvmShrink() {
     const shrinkInfo = { ...currentShrinkLv };
     closeLvmShrinkModal();
 
-    requestReauth('Shrink ' + shrinkInfo.lvName, function() {
-        showConfirmModal('SHRINK VOLUME',
-            'WARNING: This will shrink ' + shrinkInfo.lvName + ' to ' + targetSize + ' GB.\n\n' +
-            'The volume will be temporarily unmounted during this operation. ' +
-            'Ensure no applications are using the volume.',
-            function() {
-                submitHostCommand('lvm_shrink', {
-                    vg_name: shrinkInfo.vgName,
-                    lv_name: shrinkInfo.lvName,
-                    target_size_gb: targetSize
-                }, {
-                    label: 'Shrink ' + shrinkInfo.lvName,
-                    successCallback: function() {
-                        setTimeout(function() { loadStorageData(); }, 2000);
-                    }
-                });
-            }
-        );
+    // Construct device path for pre-flight
+    const device = shrinkInfo.lvDevice || '/dev/' + shrinkInfo.vgName + '/' + shrinkInfo.lvName;
+    const mountpoint = shrinkInfo.mountpoint || '';
+
+    // Run pre-flight check before proceeding
+    runPreflightCheck(device, mountpoint, 'shrink', function() {
+        requestReauth('Shrink ' + shrinkInfo.lvName, function() {
+            showConfirmModal('SHRINK VOLUME',
+                'WARNING: This will shrink ' + shrinkInfo.lvName + ' to ' + targetSize + ' GB.\n\n' +
+                'The volume will be temporarily unmounted during this operation. ' +
+                'Ensure no applications are using the volume.',
+                function() {
+                    submitHostCommand('lvm_shrink', {
+                        vg_name: shrinkInfo.vgName,
+                        lv_name: shrinkInfo.lvName,
+                        target_size_gb: targetSize
+                    }, {
+                        label: 'Shrink ' + shrinkInfo.lvName,
+                        successCallback: function() {
+                            setTimeout(function() { loadStorageData(); }, 2000);
+                        }
+                    });
+                }
+            );
+        });
     });
 }
 

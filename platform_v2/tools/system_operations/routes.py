@@ -4239,6 +4239,120 @@ def api_firewall_delete():
 
 
 # ============================================================================
+# SHARED STACK STATUS API (for cross-module use)
+# ============================================================================
+
+
+@system_operations_bp.route("/api/stacks/status")
+@login_required
+def api_stacks_status():
+    """
+    Lightweight stack status endpoint for cross-module use.
+    Returns essential status info without requiring admin privileges.
+    Used by Security & Network module to show stack status.
+
+    Query params:
+        names: comma-separated list of stack names to filter (optional)
+    """
+    try:
+        import subprocess
+
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Get optional filter
+        names_filter = request.args.get("names", "")
+        filter_names = [n.strip() for n in names_filter.split(",") if n.strip()] if names_filter else None
+
+        if filter_names:
+            cur.execute(
+                """
+                SELECT id, name, display_name, color, compose_directory
+                FROM docker_stacks
+                WHERE name = ANY(%s)
+                ORDER BY display_name ASC
+                """,
+                (filter_names,),
+            )
+        else:
+            cur.execute(
+                """
+                SELECT id, name, display_name, color, compose_directory
+                FROM docker_stacks
+                ORDER BY is_system DESC, display_name ASC
+                """
+            )
+        stacks = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        results = []
+        for stack in stacks:
+            compose_dir = stack.get("compose_directory", "")
+            compose_file = find_compose_file(compose_dir) if compose_dir else None
+
+            # Get live container status
+            containers_running = 0
+            containers_total = 0
+            status = "unknown"
+
+            if compose_file and os.path.exists(compose_file):
+                try:
+                    result = subprocess.run(
+                        [
+                            "docker",
+                            "compose",
+                            "-f",
+                            compose_file,
+                            "--project-directory",
+                            compose_dir,
+                            "ps",
+                            "--format",
+                            "json",
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                    )
+                    if result.returncode == 0 and result.stdout.strip():
+                        containers = []
+                        for line in result.stdout.strip().splitlines():
+                            line = line.strip()
+                            if line:
+                                try:
+                                    containers.append(json_lib.loads(line))
+                                except json_lib.JSONDecodeError:
+                                    pass
+                        containers_total = len(containers)
+                        containers_running = sum(1 for c in containers if c.get("State", "").lower() == "running")
+                        if containers_total > 0 and containers_running == containers_total:
+                            status = "running"
+                        elif containers_running > 0:
+                            status = "partial"
+                        else:
+                            status = "stopped"
+                    else:
+                        status = "stopped"
+                except (subprocess.TimeoutExpired, Exception):
+                    status = "unknown"
+
+            results.append(
+                {
+                    "name": stack["name"],
+                    "display_name": stack["display_name"],
+                    "color": stack["color"],
+                    "status": status,
+                    "containers_running": containers_running,
+                    "containers_total": containers_total,
+                }
+            )
+
+        return jsonify({"success": True, "stacks": results})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
 # HEALTH CHECK
 # ============================================================================
 

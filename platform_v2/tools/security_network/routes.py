@@ -195,9 +195,61 @@ def audit_log():
 # NETWORK & SECURITY ROUTES - Migrated from admin/routes.py
 # ============================================================================
 
-# Import network integration if available
+# Import stack integration (local containers)
+# Note: Stack management is now handled by System Operations module
 try:
-    from network_integration import get_network_overview, check_security_threats, auto_block_threats
+    from .stack_integration import (
+        check_external_tools_status,
+        adguard_api,
+        scanner_service,
+    )
+
+    STACK_AVAILABLE = True
+except ImportError:
+    STACK_AVAILABLE = False
+
+# Import security service (internal protection)
+try:
+    from .security_service import (
+        get_firewall_status,
+        get_active_connections,
+        analyze_failed_logins,
+        get_auto_block_settings,
+        update_auto_block_settings,
+        block_ip,
+        unblock_ip,
+        get_blocked_ips,
+        get_whitelisted_ips,
+        auto_block_threats,
+        get_security_events,
+        resolve_security_event,
+        check_ssl_certificate,
+        add_ssl_monitor,
+        get_ssl_monitors,
+        refresh_ssl_monitors,
+    )
+
+    SECURITY_SERVICE_AVAILABLE = True
+except ImportError:
+    SECURITY_SERVICE_AVAILABLE = False
+
+# Import report service
+try:
+    from .report_service import (
+        generate_scan_report,
+        generate_assessment_report,
+        export_vulnerabilities,
+        list_reports,
+        REPORTS_DIR,
+    )
+
+    REPORT_SERVICE_AVAILABLE = True
+except ImportError:
+    REPORT_SERVICE_AVAILABLE = False
+
+# Legacy network integration (fallback)
+try:
+    from network_integration import get_network_overview, check_security_threats
 
     NETWORK_AVAILABLE = True
 except ImportError:
@@ -389,7 +441,7 @@ def docker_security():
 
 
 # ============================================================================
-# EXTERNAL TOOLS STATUS API
+# EXTERNAL TOOLS STATUS API (Updated for local stacks)
 # ============================================================================
 
 
@@ -397,18 +449,60 @@ def docker_security():
 @login_required
 @admin_required
 def external_tools_status():
-    """Check connectivity to external network tools"""
+    """Check connectivity to local stack tools"""
+    if STACK_AVAILABLE:
+        try:
+            status = check_external_tools_status()
+            # Format for UI compatibility
+            tools = {
+                "adguard": {
+                    "online": status.get("adguard", {}).get("online", False),
+                    "host": "localhost",
+                    "port": 8053,
+                    "type": "dns_filter",
+                },
+                "ntopng": {
+                    "online": status.get("ntopng", {}).get("online", False),
+                    "host": "localhost",
+                    "port": 3001,
+                    "type": "traffic_analysis",
+                },
+                "zap": {
+                    "online": status.get("zap", {}).get("online", False),
+                    "host": "localhost",
+                    "port": 8090,
+                    "type": "web_scanner",
+                },
+                "nagios": {
+                    "online": False,  # Will check via stack status
+                    "host": "localhost",
+                    "port": 8082,
+                    "type": "monitoring",
+                },
+            }
+
+            # Update nagios from stack status
+            stacks = status.get("stacks", {})
+            monitoring = stacks.get("monitoring", {})
+            if monitoring.get("status") == "running":
+                tools["nagios"]["online"] = True
+
+            return jsonify({"success": True, "tools": tools, "stacks": stacks})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    # Fallback to socket-based check for legacy setup
     import socket
 
     tools = {
-        "adguard": {"host": "192.168.1.250", "port": 5354},
-        "ntopng": {"host": "192.168.1.250", "port": 3001},
-        "nagios": {"host": "192.168.1.250", "port": 8082},
-        "nginx": {"host": "192.168.1.250", "port": 81},
+        "adguard": {"host": "localhost", "port": 8053},
+        "ntopng": {"host": "localhost", "port": 3001},
+        "nagios": {"host": "localhost", "port": 8082},
+        "zap": {"host": "localhost", "port": 8090},
     }
 
     results = {}
-    timeout = 2  # 2 second timeout
+    timeout = 2
 
     for tool_name, config in tools.items():
         try:
@@ -424,6 +518,29 @@ def external_tools_status():
 
 
 # ============================================================================
+# STACK STATUS API (Deprecated - use System Operations)
+# ============================================================================
+
+
+@security_network_bp.route("/api/stacks/status")
+@login_required
+def stacks_status():
+    """
+    Get status of security-related stacks.
+    NOTE: Stack management has moved to System Operations module.
+    This endpoint proxies to /tools/system-operations/api/stacks/status
+    """
+    # Redirect clients to use System Operations API directly
+    return jsonify(
+        {
+            "success": True,
+            "message": "Stack management moved to System Operations",
+            "redirect": "/tools/system-operations/api/stacks/status?names=monitoring,network-tools,security-scanner",
+        }
+    )
+
+
+# ============================================================================
 # HEALTH CHECK
 # ============================================================================
 
@@ -431,4 +548,716 @@ def external_tools_status():
 @security_network_bp.route("/health")
 def health_check():
     """Health check endpoint"""
-    return jsonify({"healthy": True, "module": "security_network", "network_available": NETWORK_AVAILABLE})
+    return jsonify(
+        {
+            "healthy": True,
+            "module": "security_network",
+            "network_available": NETWORK_AVAILABLE,
+            "stack_available": STACK_AVAILABLE,
+        }
+    )
+
+
+# ============================================================================
+# SCANNER API ENDPOINTS
+# ============================================================================
+
+
+@security_network_bp.route("/api/scanner/nmap", methods=["POST"])
+@login_required
+@admin_required
+def run_nmap_scan():
+    """Run nmap scan on target"""
+    if not STACK_AVAILABLE:
+        return jsonify({"success": False, "error": "Scanner not available"}), 503
+
+    data = request.get_json() or {}
+    target = data.get("target", "")
+    scan_type = data.get("scan_type", "quick")
+
+    if not target:
+        return jsonify({"success": False, "error": "Target is required"}), 400
+
+    # Safety check - don't scan internal without explicit flag
+    internal_prefixes = ["127.", "localhost", "192.168.", "10.", "172."]
+    if any(target.startswith(p) for p in internal_prefixes):
+        if not data.get("confirm_internal", False):
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Internal target detected. Set confirm_internal=true to proceed.",
+                        "requires_confirmation": True,
+                    }
+                ),
+                400,
+            )
+
+    try:
+        result = scanner_service.run_nmap_scan(target, scan_type)
+
+        # Log the scan
+        try:
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute(
+                """INSERT INTO audit_log (action, user_id, details)
+                   VALUES ('security_scan', %s, %s)""",
+                (current_user.id, {"type": "nmap", "target": target, "scan_type": scan_type}),
+            )
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
+
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/scanner/nikto", methods=["POST"])
+@login_required
+@admin_required
+def run_nikto_scan():
+    """Run nikto web vulnerability scan"""
+    if not STACK_AVAILABLE:
+        return jsonify({"success": False, "error": "Scanner not available"}), 503
+
+    data = request.get_json() or {}
+    target = data.get("target", "")
+
+    if not target:
+        return jsonify({"success": False, "error": "Target is required"}), 400
+
+    try:
+        result = scanner_service.run_nikto_scan(target)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/scanner/nuclei", methods=["POST"])
+@login_required
+@admin_required
+def run_nuclei_scan():
+    """Run nuclei vulnerability scan"""
+    if not STACK_AVAILABLE:
+        return jsonify({"success": False, "error": "Scanner not available"}), 503
+
+    data = request.get_json() or {}
+    target = data.get("target", "")
+    templates = data.get("templates", "cves")
+
+    if not target:
+        return jsonify({"success": False, "error": "Target is required"}), 400
+
+    try:
+        result = scanner_service.run_nuclei_scan(target, templates)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/scanner/ssl", methods=["POST"])
+@login_required
+@admin_required
+def run_ssl_scan():
+    """Run SSL/TLS analysis"""
+    if not STACK_AVAILABLE:
+        return jsonify({"success": False, "error": "Scanner not available"}), 503
+
+    data = request.get_json() or {}
+    domain = data.get("domain", "")
+
+    if not domain:
+        return jsonify({"success": False, "error": "Domain is required"}), 400
+
+    try:
+        result = scanner_service.run_ssl_scan(domain)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/scanner/zap", methods=["POST"])
+@login_required
+@admin_required
+def run_zap_scan():
+    """Start ZAP web application scan"""
+    if not STACK_AVAILABLE:
+        return jsonify({"success": False, "error": "Scanner not available"}), 503
+
+    data = request.get_json() or {}
+    target = data.get("target", "")
+    scan_type = data.get("scan_type", "spider")
+
+    if not target:
+        return jsonify({"success": False, "error": "Target is required"}), 400
+
+    try:
+        result = scanner_service.start_zap_scan(target, scan_type)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/scanner/status")
+@login_required
+@admin_required
+def scanner_status():
+    """Get scanner service status"""
+    if not STACK_AVAILABLE:
+        return jsonify({"success": False, "error": "Scanner not available"}), 503
+
+    try:
+        zap_status = scanner_service.get_zap_status()
+        return jsonify(
+            {
+                "success": True,
+                "zap": {
+                    "online": zap_status is not None,
+                    "version": zap_status.get("version") if zap_status else None,
+                },
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# SCAN RESULTS API
+# ============================================================================
+
+
+@security_network_bp.route("/api/scans")
+@login_required
+@admin_required
+def list_scans():
+    """List all scan results"""
+    import os
+    import glob
+
+    scans_dir = "/mnt/archie_brain/security_scans"
+    scans = []
+
+    try:
+        for pattern in ["*.xml", "*.json"]:
+            for filepath in glob.glob(os.path.join(scans_dir, pattern)):
+                filename = os.path.basename(filepath)
+                stat = os.stat(filepath)
+
+                # Parse scan type from filename
+                scan_type = "unknown"
+                if filename.startswith("nmap_"):
+                    scan_type = "nmap"
+                elif filename.startswith("nikto_"):
+                    scan_type = "nikto"
+                elif filename.startswith("nuclei_"):
+                    scan_type = "nuclei"
+                elif filename.startswith("ssl_"):
+                    scan_type = "ssl"
+                elif filename.startswith("zap_"):
+                    scan_type = "zap"
+
+                scans.append(
+                    {
+                        "filename": filename,
+                        "scan_type": scan_type,
+                        "size": stat.st_size,
+                        "created_at": stat.st_mtime,
+                    }
+                )
+
+        # Sort by creation time, newest first
+        scans.sort(key=lambda x: x["created_at"], reverse=True)
+
+        return jsonify({"success": True, "scans": scans[:50]})  # Limit to 50
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/scans/<filename>")
+@login_required
+@admin_required
+def get_scan_result(filename):
+    """Get scan result contents"""
+    import os
+
+    scans_dir = "/mnt/archie_brain/security_scans"
+
+    # Security: validate filename
+    if ".." in filename or "/" in filename or "\\" in filename:
+        return jsonify({"success": False, "error": "Invalid filename"}), 400
+
+    filepath = os.path.join(scans_dir, filename)
+
+    if not os.path.exists(filepath):
+        return jsonify({"success": False, "error": "Scan not found"}), 404
+
+    try:
+        with open(filepath, "r") as f:
+            content = f.read()
+
+        # Try to parse as JSON if it's a JSON file
+        if filename.endswith(".json"):
+            import json
+
+            try:
+                content = json.loads(content)
+            except json.JSONDecodeError:
+                pass
+
+        return jsonify({"success": True, "filename": filename, "content": content})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# ADGUARD INTEGRATION
+# ============================================================================
+
+
+@security_network_bp.route("/api/adguard/stats")
+@login_required
+@admin_required
+def adguard_stats():
+    """Get AdGuard statistics"""
+    if not STACK_AVAILABLE:
+        return jsonify({"success": False, "error": "Stack not available"}), 503
+
+    try:
+        stats = adguard_api.get_stats()
+        if stats:
+            return jsonify({"success": True, "stats": stats})
+        return jsonify({"success": False, "error": "Could not connect to AdGuard"}), 503
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/adguard/block", methods=["POST"])
+@login_required
+@admin_required
+def adguard_block_domain():
+    """Block a domain in AdGuard"""
+    if not STACK_AVAILABLE:
+        return jsonify({"success": False, "error": "Stack not available"}), 503
+
+    data = request.get_json() or {}
+    domain = data.get("domain", "")
+
+    if not domain:
+        return jsonify({"success": False, "error": "Domain is required"}), 400
+
+    try:
+        success = adguard_api.block_domain(domain)
+        if success:
+            return jsonify({"success": True, "message": f"Domain {domain} blocked"})
+        return jsonify({"success": False, "error": "Failed to block domain"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# INTERNAL SECURITY - FIREWALL & CONNECTIONS
+# ============================================================================
+
+
+@security_network_bp.route("/api/firewall/status")
+@login_required
+@admin_required
+def api_firewall_status():
+    """Get firewall status"""
+    if not SECURITY_SERVICE_AVAILABLE:
+        return jsonify({"success": False, "error": "Security service not available"}), 503
+
+    try:
+        status = get_firewall_status()
+        return jsonify({"success": True, "firewall": status})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/connections/active")
+@login_required
+@admin_required
+def api_active_connections():
+    """Get active network connections"""
+    if not SECURITY_SERVICE_AVAILABLE:
+        return jsonify({"success": False, "error": "Security service not available"}), 503
+
+    try:
+        connections = get_active_connections()
+        return jsonify({"success": True, "connections": connections})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# IP ACCESS CONTROL
+# ============================================================================
+
+
+@security_network_bp.route("/api/ip-access")
+@login_required
+@admin_required
+def api_ip_access_list():
+    """Get blocked and whitelisted IPs"""
+    if not SECURITY_SERVICE_AVAILABLE:
+        return jsonify({"success": False, "error": "Security service not available"}), 503
+
+    try:
+        blocked = get_blocked_ips()
+        whitelisted = get_whitelisted_ips()
+        return jsonify({"success": True, "blocked": blocked, "whitelisted": whitelisted})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/ip-access/block", methods=["POST"])
+@login_required
+@admin_required
+def api_block_ip():
+    """Block an IP address"""
+    if not SECURITY_SERVICE_AVAILABLE:
+        return jsonify({"success": False, "error": "Security service not available"}), 503
+
+    data = request.get_json() or {}
+    ip_address = data.get("ip_address", "")
+    reason = data.get("reason", "Manually blocked")
+    duration = data.get("duration_hours")
+
+    if not ip_address:
+        return jsonify({"success": False, "error": "IP address is required"}), 400
+
+    try:
+        result = block_ip(ip_address, reason, current_user.id, duration)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/ip-access/unblock", methods=["POST"])
+@login_required
+@admin_required
+def api_unblock_ip():
+    """Unblock an IP address"""
+    if not SECURITY_SERVICE_AVAILABLE:
+        return jsonify({"success": False, "error": "Security service not available"}), 503
+
+    data = request.get_json() or {}
+    ip_address = data.get("ip_address", "")
+
+    if not ip_address:
+        return jsonify({"success": False, "error": "IP address is required"}), 400
+
+    try:
+        result = unblock_ip(ip_address, current_user.id)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# AUTO-BLOCK SETTINGS
+# ============================================================================
+
+
+@security_network_bp.route("/api/auto-block/settings")
+@login_required
+@admin_required
+def api_auto_block_settings():
+    """Get auto-block settings"""
+    if not SECURITY_SERVICE_AVAILABLE:
+        return jsonify({"success": False, "error": "Security service not available"}), 503
+
+    try:
+        settings = get_auto_block_settings()
+        return jsonify({"success": True, "settings": settings})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/auto-block/settings", methods=["POST"])
+@login_required
+@admin_required
+def api_update_auto_block_settings():
+    """Update auto-block settings"""
+    if not SECURITY_SERVICE_AVAILABLE:
+        return jsonify({"success": False, "error": "Security service not available"}), 503
+
+    data = request.get_json() or {}
+
+    try:
+        success = update_auto_block_settings(data, current_user.id)
+        if success:
+            return jsonify({"success": True, "message": "Settings updated"})
+        return jsonify({"success": False, "error": "Failed to update settings"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/auto-block/analyze")
+@login_required
+@admin_required
+def api_analyze_threats():
+    """Analyze failed logins for threats"""
+    if not SECURITY_SERVICE_AVAILABLE:
+        return jsonify({"success": False, "error": "Security service not available"}), 503
+
+    hours = request.args.get("hours", 24, type=int)
+
+    try:
+        analysis = analyze_failed_logins(hours)
+        return jsonify({"success": True, "analysis": analysis})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/auto-block/execute", methods=["POST"])
+@login_required
+@admin_required
+def api_execute_auto_block():
+    """Execute auto-block on detected threats"""
+    if not SECURITY_SERVICE_AVAILABLE:
+        return jsonify({"success": False, "error": "Security service not available"}), 503
+
+    try:
+        result = auto_block_threats(current_user.id)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# SECURITY EVENTS
+# ============================================================================
+
+
+@security_network_bp.route("/api/events")
+@login_required
+@admin_required
+def api_security_events():
+    """Get security events"""
+    if not SECURITY_SERVICE_AVAILABLE:
+        return jsonify({"success": False, "error": "Security service not available"}), 503
+
+    status = request.args.get("status")
+    severity = request.args.get("severity")
+    event_type = request.args.get("type")
+    limit = request.args.get("limit", 50, type=int)
+
+    try:
+        events = get_security_events(status, severity, event_type, limit)
+        return jsonify({"success": True, "events": events})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/events/<int:event_id>/resolve", methods=["POST"])
+@login_required
+@admin_required
+def api_resolve_event(event_id):
+    """Resolve a security event"""
+    if not SECURITY_SERVICE_AVAILABLE:
+        return jsonify({"success": False, "error": "Security service not available"}), 503
+
+    data = request.get_json() or {}
+    notes = data.get("notes", "")
+
+    try:
+        result = resolve_security_event(event_id, current_user.id, notes)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# SSL CERTIFICATE MONITORING
+# ============================================================================
+
+
+@security_network_bp.route("/api/ssl/check", methods=["POST"])
+@login_required
+@admin_required
+def api_check_ssl():
+    """Check SSL certificate for a domain"""
+    if not SECURITY_SERVICE_AVAILABLE:
+        return jsonify({"success": False, "error": "Security service not available"}), 503
+
+    data = request.get_json() or {}
+    domain = data.get("domain", "")
+    port = data.get("port", 443)
+
+    if not domain:
+        return jsonify({"success": False, "error": "Domain is required"}), 400
+
+    try:
+        result = check_ssl_certificate(domain, port)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/ssl/monitors")
+@login_required
+@admin_required
+def api_ssl_monitors():
+    """Get SSL monitors"""
+    if not SECURITY_SERVICE_AVAILABLE:
+        return jsonify({"success": False, "error": "Security service not available"}), 503
+
+    try:
+        monitors = get_ssl_monitors()
+        return jsonify({"success": True, "monitors": monitors})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/ssl/monitors", methods=["POST"])
+@login_required
+@admin_required
+def api_add_ssl_monitor():
+    """Add SSL monitor for a domain"""
+    if not SECURITY_SERVICE_AVAILABLE:
+        return jsonify({"success": False, "error": "Security service not available"}), 503
+
+    data = request.get_json() or {}
+    domain = data.get("domain", "")
+    alert_days = data.get("alert_days", 30)
+
+    if not domain:
+        return jsonify({"success": False, "error": "Domain is required"}), 400
+
+    try:
+        result = add_ssl_monitor(domain, current_user.id, alert_days)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/ssl/refresh", methods=["POST"])
+@login_required
+@admin_required
+def api_refresh_ssl_monitors():
+    """Refresh all SSL monitors"""
+    if not SECURITY_SERVICE_AVAILABLE:
+        return jsonify({"success": False, "error": "Security service not available"}), 503
+
+    try:
+        result = refresh_ssl_monitors()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# REPORT GENERATION
+# ============================================================================
+
+
+@security_network_bp.route("/api/reports")
+@login_required
+@admin_required
+def api_list_reports():
+    """List all generated reports"""
+    if not REPORT_SERVICE_AVAILABLE:
+        return jsonify({"success": False, "error": "Report service not available"}), 503
+
+    try:
+        reports = list_reports()
+        return jsonify({"success": True, "reports": reports})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/reports/scan/<filename>", methods=["POST"])
+@login_required
+@admin_required
+def api_generate_scan_report(filename):
+    """Generate report for a single scan"""
+    if not REPORT_SERVICE_AVAILABLE:
+        return jsonify({"success": False, "error": "Report service not available"}), 503
+
+    try:
+        result = generate_scan_report(filename)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/reports/assessment", methods=["POST"])
+@login_required
+@admin_required
+def api_generate_assessment_report():
+    """Generate combined assessment report"""
+    if not REPORT_SERVICE_AVAILABLE:
+        return jsonify({"success": False, "error": "Report service not available"}), 503
+
+    data = request.get_json() or {}
+    scan_files = data.get("scans", [])
+    client_name = data.get("client", "Assessment")
+    assessment_name = data.get("name", "Security Assessment")
+
+    if not scan_files:
+        return jsonify({"success": False, "error": "No scan files specified"}), 400
+
+    try:
+        result = generate_assessment_report(scan_files, client_name, assessment_name)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/reports/export/<filename>")
+@login_required
+@admin_required
+def api_export_vulnerabilities(filename):
+    """Export vulnerabilities from a scan"""
+    if not REPORT_SERVICE_AVAILABLE:
+        return jsonify({"success": False, "error": "Report service not available"}), 503
+
+    format = request.args.get("format", "json")
+
+    try:
+        result = export_vulnerabilities(filename, format)
+
+        if result.get("success") and format == "csv":
+            from flask import Response
+
+            return Response(
+                result["csv"],
+                mimetype="text/csv",
+                headers={"Content-Disposition": f"attachment; filename={filename.rsplit('.', 1)[0]}_vulns.csv"},
+            )
+
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@security_network_bp.route("/api/reports/download/<filename>")
+@login_required
+@admin_required
+def api_download_report(filename):
+    """Download a generated report"""
+    if not REPORT_SERVICE_AVAILABLE:
+        return jsonify({"success": False, "error": "Report service not available"}), 503
+
+    import os
+
+    # Security: validate filename
+    if ".." in filename or "/" in filename or "\\" in filename:
+        return jsonify({"success": False, "error": "Invalid filename"}), 400
+
+    filepath = os.path.join(REPORTS_DIR, filename)
+
+    if not os.path.exists(filepath):
+        return jsonify({"success": False, "error": "Report not found"}), 404
+
+    try:
+        from flask import send_file
+
+        return send_file(filepath, as_attachment=True)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500

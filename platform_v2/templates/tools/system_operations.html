@@ -4123,8 +4123,8 @@
     </div>
 </div>
 
-<!-- Confirmation Modal -->
-<div class="modal-overlay" id="confirmModal">
+<!-- Confirmation Modal - higher z-index to appear above other modals -->
+<div class="modal-overlay" id="confirmModal" style="z-index: 10001;">
     <div class="modal modal-sm">
         <div class="modal-header">
             <h3 class="modal-title" id="confirmTitle">Confirm Action</h3>
@@ -5540,6 +5540,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (typeof lucide !== 'undefined') lucide.createIcons();
     initTabs();
     initEventListeners();
+
+    // Handle URL parameters for deep linking from other modules
+    const urlParams = new URLSearchParams(window.location.search);
+    const tabParam = urlParams.get('tab');
+    const stackParam = urlParams.get('stack');
+
+    if (tabParam) {
+        // Find and click the matching tab button
+        const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabParam}"]`);
+        if (tabBtn) {
+            tabBtn.click();
+            console.log(`Switched to tab: ${tabParam}`);
+        }
+    }
+
+    // If a stack was specified, open it after Docker tab loads
+    if (stackParam && tabParam === 'docker') {
+        // Wait for Docker tab to load, then open stack detail
+        setTimeout(() => {
+            if (typeof openStackDetail === 'function') {
+                openStackDetail(stackParam);
+                console.log(`Opened stack detail: ${stackParam}`);
+            }
+        }, 500);
+    }
 
     // Initialize charts (Chart.js should be loaded by now)
     initCharts();
@@ -7999,9 +8024,14 @@ function renderStorageTreemap(disks, lvm, vgFree, dockerMounts) {
                 const stateClass = isMounted ? 'mounted' : 'unmounted';
                 const label = part.name || part.device;
                 const sizeLabel = formatSizeGB(part.size_gb);
-                // Check if this is a system partition (boot, EFI, or BIOS boot)
-                const isSystemPartition = part.mountpoint === '/boot' || part.mountpoint === '/boot/efi' ||
-                                         part.fstype === 'Unknown' && part.size_gb < 0.1; // BIOS boot partition
+                // Check if this is a system partition (root, boot, EFI, system dirs, BIOS boot, system LVM)
+                const systemMountsVisual = ['/', '/boot', '/boot/efi', '/var', '/usr', '/etc', '/home', '/tmp'];
+                const isBiosBoot = !part.mountpoint && part.size_gb < 0.01; // BIOS boot is typically 1MB
+                const isSystemLvm = part.fstype === 'LVM2_member' && (
+                    (part.vg_name && (part.vg_name.includes('ubuntu') || part.vg_name.includes('system'))) ||
+                    (disk.name === 'sdd') // Boot drive's LVM partition
+                );
+                const isSystemPartition = systemMountsVisual.includes(part.mountpoint) || isBiosBoot || isSystemLvm;
                 // Check for Docker stacks using this mount
                 const partDockerStacks = getStacksForPath(part.mountpoint);
                 const partMountLabel = getMountLabel(part.mountpoint);
@@ -8558,7 +8588,14 @@ function buildPartitionModalContent(disk, part) {
     }
 
     // Check if this is a protected system partition
-    const isSystemPartition = part.mountpoint === '/' || part.mountpoint === '/boot' || part.mountpoint === '/boot/efi';
+    // Protected: root, boot, efi, system dirs, BIOS boot (small no-mount), LVM containing system VG
+    const systemMounts = ['/', '/boot', '/boot/efi', '/var', '/usr', '/etc', '/home', '/tmp'];
+    const isBiosBootPartition = !part.mountpoint && part.size_gb < 0.01; // BIOS boot is typically 1MB
+    const isSystemLvmMember = part.fstype === 'LVM2_member' && (
+        (part.vg_name && (part.vg_name.includes('ubuntu') || part.vg_name.includes('system'))) ||
+        (disk.name === 'sdd') // Boot drive's LVM partition
+    );
+    const isSystemPartition = systemMounts.includes(part.mountpoint) || isBiosBootPartition || isSystemLvmMember;
 
     // Action buttons
     html += '<div style="display: flex; flex-direction: column; gap: 8px;">';
@@ -8579,24 +8616,37 @@ function buildPartitionModalContent(disk, part) {
                 const vgEntry = window.hostLvmData.vgs.find(v => v.vg_name === extVgName);
                 if (vgEntry) extFreeGb = vgEntry.vg_free_gb || 0;
             }
-            html += '<button class="btn btn-primary" style="justify-content: flex-start;" onclick="openLvmExtendModal(\'' + extLvName.replace(/'/g, "\\'") + '\', \'' + extVgName.replace(/'/g, "\\'") + '\', ' + (part.size_gb || 0) + ', ' + extFreeGb + ', \'' + (part.mountpoint || '').replace(/'/g, "\\'") + '\')"><i data-lucide="expand" style="width:16px;height:16px;margin-right:8px;"></i> Extend Volume</button>';
-            // Shrink button (only for ext4, not root)
+            // Extend Volume - safe for system (can grow online), but show warning modal
+            if (isSystemPartition) {
+                html += '<button class="btn btn-primary" style="justify-content: flex-start;" onclick="confirmSystemExtend(\'' + extLvName.replace(/'/g, "\\'") + '\', \'' + extVgName.replace(/'/g, "\\'") + '\', ' + (part.size_gb || 0) + ', ' + extFreeGb + ', \'' + (part.mountpoint || '').replace(/'/g, "\\'") + '\')"><i data-lucide="shield-alert" style="width:16px;height:16px;margin-right:8px;color:var(--archie-orange);"></i> Extend Volume (System)</button>';
+            } else {
+                html += '<button class="btn btn-primary" style="justify-content: flex-start;" onclick="openLvmExtendModal(\'' + extLvName.replace(/'/g, "\\'") + '\', \'' + extVgName.replace(/'/g, "\\'") + '\', ' + (part.size_gb || 0) + ', ' + extFreeGb + ', \'' + (part.mountpoint || '').replace(/'/g, "\\'") + '\')"><i data-lucide="expand" style="width:16px;height:16px;margin-right:8px;"></i> Extend Volume</button>';
+            }
+            // Shrink button - BLOCKED for system partitions (requires unmount)
             const usedGb = part.usage ? (part.usage.used_gb || 0) : 0;
-            const canShrink = (part.fstype === 'ext4' || part.fstype === 'ext3') && part.mountpoint !== '/';
-            if (canShrink) {
+            const canShrinkFs = (part.fstype === 'ext4' || part.fstype === 'ext3');
+            if (isSystemPartition) {
+                html += '<button class="btn btn-warning" style="justify-content: flex-start; opacity:0.5; cursor:not-allowed;" onclick="showToast(\'error\', \'Cannot shrink system volume - requires unmount which would crash the server\')"><i data-lucide="shield-alert" style="width:16px;height:16px;margin-right:8px;"></i> Shrink Volume (Protected)</button>';
+            } else if (canShrinkFs) {
                 html += '<button class="btn btn-warning" style="justify-content: flex-start;" onclick="openLvmShrinkModal(\'' + (part.device || '').replace(/'/g, "\\'") + '\', \'' + extLvName.replace(/'/g, "\\'") + '\', \'' + extVgName.replace(/'/g, "\\'") + '\', ' + (part.size_gb || 0) + ', ' + usedGb + ', \'' + (part.fstype || '').replace(/'/g, "\\'") + '\', \'' + (part.mountpoint || '').replace(/'/g, "\\'") + '\')"><i data-lucide="minimize-2" style="width:16px;height:16px;margin-right:8px;"></i> Shrink Volume</button>';
             } else {
-                html += '<button class="btn btn-warning" style="justify-content: flex-start; opacity:0.5; cursor:not-allowed;" onclick="showToast(\'error\', \'' + (part.mountpoint === '/' ? 'Cannot shrink root filesystem' : 'Only ext4 filesystems can be shrunk') + '\')"><i data-lucide="minimize-2" style="width:16px;height:16px;margin-right:8px;"></i> Shrink Volume</button>';
+                html += '<button class="btn btn-warning" style="justify-content: flex-start; opacity:0.5; cursor:not-allowed;" onclick="showToast(\'error\', \'Only ext4 filesystems can be shrunk\')"><i data-lucide="minimize-2" style="width:16px;height:16px;margin-right:8px;"></i> Shrink Volume</button>';
             }
-            // Resize Filesystem button - useful when LV was extended but FS resize failed
+            // Resize Filesystem button - safe for system (can grow online), but show warning
             const fsSupportedForResize = ['ext4', 'ext3', 'ext2', 'xfs', 'btrfs'].includes(part.fstype);
             const fsSizeMismatch = part.usage && part.size_gb && (part.size_gb - part.usage.total_gb) > 1;
             if (fsSupportedForResize) {
                 const resizeDevice = (part.device || '').replace(/'/g, "\\'");
                 const resizeMountpoint = (part.mountpoint || '').replace(/'/g, "\\'");
-                const btnStyle = fsSizeMismatch ? 'btn btn-warning' : 'btn btn-ghost';
-                const hint = fsSizeMismatch ? ' (Size mismatch detected!)' : '';
-                html += '<button class="' + btnStyle + '" style="justify-content: flex-start;" onclick="resizeFilesystem(\'' + resizeDevice + '\', \'' + (part.fstype || '').replace(/'/g, "\\'") + '\', \'' + resizeMountpoint + '\')"><i data-lucide="maximize-2" style="width:16px;height:16px;margin-right:8px;"></i> Resize Filesystem' + hint + '</button>';
+                if (isSystemPartition) {
+                    const btnStyle = fsSizeMismatch ? 'btn btn-warning' : 'btn btn-ghost';
+                    const hint = fsSizeMismatch ? ' (Size mismatch!)' : '';
+                    html += '<button class="' + btnStyle + '" style="justify-content: flex-start;" onclick="confirmSystemResize(\'' + resizeDevice + '\', \'' + (part.fstype || '').replace(/'/g, "\\'") + '\', \'' + resizeMountpoint + '\')"><i data-lucide="shield-alert" style="width:16px;height:16px;margin-right:8px;color:var(--archie-orange);"></i> Resize FS (System)' + hint + '</button>';
+                } else {
+                    const btnStyle = fsSizeMismatch ? 'btn btn-warning' : 'btn btn-ghost';
+                    const hint = fsSizeMismatch ? ' (Size mismatch detected!)' : '';
+                    html += '<button class="' + btnStyle + '" style="justify-content: flex-start;" onclick="resizeFilesystem(\'' + resizeDevice + '\', \'' + (part.fstype || '').replace(/'/g, "\\'") + '\', \'' + resizeMountpoint + '\')"><i data-lucide="maximize-2" style="width:16px;height:16px;margin-right:8px;"></i> Resize Filesystem' + hint + '</button>';
+                }
             }
             // Rename button (not for system VG/LV)
             if (isSystemPartition) {
@@ -8610,9 +8660,13 @@ function buildPartitionModalContent(disk, part) {
             if (part.fstype === 'ext4' || part.fstype === 'ext3' || part.fstype === 'ext2') {
                 html += '<button class="btn btn-ghost" style="justify-content: flex-start;" onclick="openChangeLabelModal(\'' + (part.device || '').replace(/'/g, "\\'") + '\', \'' + (part.label || '').replace(/'/g, "\\'") + '\', \'' + (part.fstype || '').replace(/'/g, "\\'") + '\')"><i data-lucide="tag" style="width:16px;height:16px;margin-right:8px;"></i> Change Label</button>';
             }
-            // Convert to LVM button - use stable_id if available
-            const convertId = (part.stable_id || part.device || '').replace(/'/g, "\\'");
-            html += '<button class="btn btn-primary" style="justify-content: flex-start;" onclick="openConvertToLvmModal(\'' + convertId + '\', ' + (part.size_gb || 0) + ', \'' + (part.fstype || '').replace(/'/g, "\\'") + '\', \'' + (part.mountpoint || '').replace(/'/g, "\\'") + '\')"><i data-lucide="layers" style="width:16px;height:16px;margin-right:8px;"></i> Convert to LVM</button>';
+            // Convert to LVM button - protected for system partitions
+            if (isSystemPartition) {
+                html += '<button class="btn btn-primary" style="justify-content: flex-start; opacity:0.5; cursor:not-allowed;" onclick="showToast(\'error\', \'Cannot convert system partition to LVM - this would destroy the boot drive\')"><i data-lucide="shield-alert" style="width:16px;height:16px;margin-right:8px;"></i> Convert to LVM (Protected)</button>';
+            } else {
+                const convertId = (part.stable_id || part.device || '').replace(/'/g, "\\'");
+                html += '<button class="btn btn-primary" style="justify-content: flex-start;" onclick="openConvertToLvmModal(\'' + convertId + '\', ' + (part.size_gb || 0) + ', \'' + (part.fstype || '').replace(/'/g, "\\'") + '\', \'' + (part.mountpoint || '').replace(/'/g, "\\'") + '\')"><i data-lucide="layers" style="width:16px;height:16px;margin-right:8px;"></i> Convert to LVM</button>';
+            }
         }
         // Only show Unmount for non-system partitions
         if (isSystemPartition) {
@@ -8629,11 +8683,15 @@ function buildPartitionModalContent(disk, part) {
         html += '<button class="btn btn-primary" style="justify-content: flex-start;" onclick="openMountModal(\'' + mountId + '\')"><i data-lucide="arrow-down-to-line" style="width:16px;height:16px;margin-right:8px;"></i> Mount</button>';
         html += '<button class="btn btn-danger" style="justify-content: flex-start;" onclick="openFormatModal(\'' + formatId + '\', ' + (part.size_gb || 0) + ', \'' + (part.fstype || '').replace(/'/g, "\\'") + '\', \'' + (part.label || '').replace(/'/g, "\\'") + '\')"><i data-lucide="hard-drive" style="width:16px;height:16px;margin-right:8px;"></i> Format</button>';
     }
-    // Add Wipe button for LVM partitions or drives with LVM structures
+    // Add Wipe button for LVM partitions or drives with LVM structures (protected for system partitions)
     if (isLvm || part.vg_name || part.type === 'lvm' || part.fstype === 'LVM2_member') {
-        const wipeId = (part.stable_id || part.device || '').replace(/'/g, "\\'");
-        const wipeInfo = (part.vg_name ? 'VG: ' + part.vg_name : '') + (part.lv_name ? ', LV: ' + part.lv_name : '') || part.fstype || 'LVM';
-        html += '<button class="btn btn-danger" style="justify-content: flex-start;" onclick="openWipeModal(\'' + wipeId + '\', ' + (part.size_gb || 0) + ', \'' + wipeInfo.replace(/'/g, "\\'") + '\')"><i data-lucide="trash-2" style="width:16px;height:16px;margin-right:8px;"></i> Wipe LVM</button>';
+        if (isSystemPartition) {
+            html += '<button class="btn btn-danger" style="justify-content: flex-start; opacity:0.5; cursor:not-allowed;" onclick="showToast(\'error\', \'Cannot wipe system LVM - this would destroy the operating system\')"><i data-lucide="shield-alert" style="width:16px;height:16px;margin-right:8px;"></i> Wipe LVM (Protected)</button>';
+        } else {
+            const wipeId = (part.stable_id || part.device || '').replace(/'/g, "\\'");
+            const wipeInfo = (part.vg_name ? 'VG: ' + part.vg_name : '') + (part.lv_name ? ', LV: ' + part.lv_name : '') || part.fstype || 'LVM';
+            html += '<button class="btn btn-danger" style="justify-content: flex-start;" onclick="openWipeModal(\'' + wipeId + '\', ' + (part.size_gb || 0) + ', \'' + wipeInfo.replace(/'/g, "\\'") + '\')"><i data-lucide="trash-2" style="width:16px;height:16px;margin-right:8px;"></i> Wipe LVM</button>';
+        }
     }
     html += '<button class="btn btn-ghost" style="justify-content: flex-start;" onclick="registerManagedMount(\'' + (part.device || '').replace(/'/g, "\\'") + '\', \'' + (part.mountpoint || '').replace(/'/g, "\\'") + '\', \'' + (part.fstype || '').replace(/'/g, "\\'") + '\', ' + (part.size_gb || 0) + ', \'' + (disk.model || '').replace(/'/g, "\\'") + '\')"><i data-lucide="bookmark" style="width:16px;height:16px;margin-right:8px;"></i> Register as Managed</button>';
     html += '</div>';
@@ -10852,6 +10910,31 @@ function findMountpointForLv(vgName, lvName) {
         }
     }
     return '';
+}
+
+// System partition confirmation helpers - use themed modal instead of native confirm()
+function confirmSystemExtend(lvName, vgName, lvSize, vgFree, mountpoint) {
+    showConfirmModal(
+        '⚠️ System Volume Warning',
+        'This is a SYSTEM volume mounted at "' + (mountpoint || '/') + '".\n\n' +
+        'Extending is generally safe (can grow online), but proceed with caution.\n\n' +
+        'Do you want to continue?',
+        function() {
+            openLvmExtendModal(lvName, vgName, lvSize, vgFree, mountpoint);
+        }
+    );
+}
+
+function confirmSystemResize(device, fstype, mountpoint) {
+    showConfirmModal(
+        '⚠️ System Filesystem Warning',
+        'This is a SYSTEM filesystem mounted at "' + (mountpoint || '/') + '".\n\n' +
+        'Growing the filesystem is generally safe, but proceed with caution.\n\n' +
+        'Do you want to continue?',
+        function() {
+            resizeFilesystem(device, fstype, mountpoint);
+        }
+    );
 }
 
 function openLvmExtendModal(lvName, vgName, lvSize, vgFree, mountpoint) {

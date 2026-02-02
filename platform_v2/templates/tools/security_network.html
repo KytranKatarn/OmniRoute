@@ -226,6 +226,127 @@
         color: var(--archie-orange);
     }
 
+    /* Security Stack Cards */
+    .stack-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: var(--archie-space-5);
+        margin-bottom: var(--archie-space-6);
+    }
+
+    @media (max-width: 900px) {
+        .stack-grid { grid-template-columns: 1fr; }
+    }
+
+    .stack-card {
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
+        border-radius: var(--archie-radius-lg);
+        padding: var(--archie-space-5);
+        transition: all var(--archie-transition-normal);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .stack-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: var(--stack-color, var(--archie-cyan));
+    }
+
+    .stack-card:hover {
+        border-color: var(--stack-color, var(--archie-cyan));
+        box-shadow: 0 0 20px color-mix(in srgb, var(--stack-color, var(--archie-cyan)) 20%, transparent);
+        transform: translateY(-2px);
+    }
+
+    .stack-card-header {
+        display: flex;
+        align-items: center;
+        gap: var(--archie-space-3);
+        margin-bottom: var(--archie-space-3);
+    }
+
+    .stack-card-header .stack-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: var(--archie-radius-md);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: color-mix(in srgb, var(--stack-color, var(--archie-cyan)) 15%, transparent);
+        color: var(--stack-color, var(--archie-cyan));
+    }
+
+    .stack-card-header h3 {
+        color: var(--archie-text-primary);
+        font-size: var(--archie-text-base);
+        font-weight: var(--archie-font-semibold);
+        margin: 0;
+    }
+
+    .stack-card-header .stack-status {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: var(--archie-space-2);
+        font-size: var(--archie-text-xs);
+        padding: var(--archie-space-1) var(--archie-space-3);
+        border-radius: var(--archie-radius-full);
+        font-weight: var(--archie-font-medium);
+    }
+
+    .stack-status.running {
+        background: var(--archie-green-alpha-10);
+        border: 1px solid var(--archie-green);
+        color: var(--archie-green);
+    }
+
+    .stack-status.partial {
+        background: var(--archie-orange-alpha-10);
+        border: 1px solid var(--archie-orange);
+        color: var(--archie-orange);
+    }
+
+    .stack-status.stopped {
+        background: var(--archie-red-alpha-10);
+        border: 1px solid var(--archie-red);
+        color: var(--archie-red);
+    }
+
+    .stack-status.unknown {
+        background: var(--archie-bg-tertiary);
+        border: 1px solid var(--archie-border-default);
+        color: var(--archie-text-muted);
+    }
+
+    .stack-card-body {
+        color: var(--archie-text-muted);
+        font-size: var(--archie-text-sm);
+        margin-bottom: var(--archie-space-4);
+    }
+
+    .stack-card-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .stack-container-count {
+        font-family: var(--archie-font-mono);
+        font-size: var(--archie-text-sm);
+        color: var(--archie-text-tertiary);
+    }
+
+    .stack-container-count span {
+        color: var(--archie-text-primary);
+        font-weight: var(--archie-font-semibold);
+    }
+
     /* Audit Panel */
     .audit-panel {
         background: var(--archie-bg-secondary);
@@ -428,6 +549,157 @@
             grid-template-columns: 1fr;
         }
     }
+
+    /* Tab Navigation */
+    .tab-nav {
+        display: flex;
+        gap: var(--archie-space-2);
+        border-bottom: 1px solid var(--archie-border-default);
+        margin-bottom: var(--archie-space-6);
+        overflow-x: auto;
+        padding-bottom: var(--archie-space-1);
+    }
+
+    .tab-btn {
+        background: none;
+        border: none;
+        padding: var(--archie-space-3) var(--archie-space-4);
+        color: var(--archie-text-muted);
+        cursor: pointer;
+        font-size: var(--archie-text-sm);
+        border-radius: var(--archie-radius-md) var(--archie-radius-md) 0 0;
+        transition: all var(--archie-transition-fast);
+        white-space: nowrap;
+        display: flex;
+        align-items: center;
+        gap: var(--archie-space-2);
+    }
+
+    .tab-btn:hover {
+        color: var(--archie-text-primary);
+        background: var(--archie-bg-tertiary);
+    }
+
+    .tab-btn.active {
+        color: var(--archie-accent);
+        border-bottom: 2px solid var(--archie-accent);
+        background: var(--archie-bg-secondary);
+    }
+
+    .tab-content {
+        display: none;
+    }
+
+    .tab-content.active {
+        display: block;
+    }
+
+    /* IP Table */
+    .ip-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .ip-table th, .ip-table td {
+        padding: var(--archie-space-3);
+        text-align: left;
+        border-bottom: 1px solid var(--archie-border-subtle);
+    }
+
+    .ip-table th {
+        background: var(--archie-bg-tertiary);
+        color: var(--archie-text-secondary);
+        font-size: var(--archie-text-xs);
+        text-transform: uppercase;
+    }
+
+    .ip-table tr:hover {
+        background: var(--archie-bg-tertiary);
+    }
+
+    /* Form Styles */
+    .form-row {
+        display: flex;
+        gap: var(--archie-space-3);
+        margin-bottom: var(--archie-space-4);
+    }
+
+    .form-group {
+        flex: 1;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: var(--archie-space-2);
+        color: var(--archie-text-secondary);
+        font-size: var(--archie-text-sm);
+    }
+
+    .form-group input, .form-group select {
+        width: 100%;
+        padding: var(--archie-space-3);
+        background: var(--archie-bg-tertiary);
+        border: 1px solid var(--archie-border-default);
+        border-radius: var(--archie-radius-md);
+        color: var(--archie-text-primary);
+        font-size: var(--archie-text-sm);
+    }
+
+    .form-group input:focus, .form-group select:focus {
+        outline: none;
+        border-color: var(--archie-accent);
+    }
+
+    /* SSL Card */
+    .ssl-card {
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
+        border-radius: var(--archie-radius-lg);
+        padding: var(--archie-space-4);
+        margin-bottom: var(--archie-space-4);
+    }
+
+    .ssl-card.grade-a { border-left: 4px solid var(--archie-green); }
+    .ssl-card.grade-b { border-left: 4px solid var(--archie-cyan); }
+    .ssl-card.grade-c { border-left: 4px solid var(--archie-orange); }
+    .ssl-card.grade-d, .ssl-card.grade-f { border-left: 4px solid var(--archie-red); }
+
+    .ssl-grade {
+        font-size: var(--archie-text-2xl);
+        font-weight: bold;
+        font-family: var(--archie-font-mono);
+    }
+
+    /* Scan Card */
+    .scan-card {
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
+        border-radius: var(--archie-radius-lg);
+        padding: var(--archie-space-4);
+        margin-bottom: var(--archie-space-3);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .scan-card:hover {
+        border-color: var(--archie-accent);
+    }
+
+    /* Severity Badge */
+    .severity-badge {
+        display: inline-block;
+        padding: var(--archie-space-1) var(--archie-space-2);
+        border-radius: var(--archie-radius-sm);
+        font-size: var(--archie-text-xs);
+        font-weight: var(--archie-font-medium);
+    }
+
+    .severity-critical { background: var(--archie-red-alpha-20); color: var(--archie-red); }
+    .severity-high { background: rgba(255, 107, 107, 0.2); color: #ff6b6b; }
+    .severity-medium { background: var(--archie-orange-alpha-20); color: var(--archie-orange); }
+    .severity-low { background: var(--archie-green-alpha-20); color: var(--archie-green); }
+    .severity-info { background: var(--archie-cyan-alpha-20); color: var(--archie-cyan); }
 </style>
 {% endblock %}
 
@@ -448,6 +720,33 @@
     </div>
 
     <div class="container" style="max-width: 1600px; margin: 0 auto; padding: var(--archie-space-6);">
+        <!-- Tab Navigation -->
+        <nav class="tab-nav">
+            <button class="tab-btn active" data-tab="overview" onclick="switchTab('overview')">
+                <i data-lucide="layout-dashboard" style="width: 16px; height: 16px;"></i> Overview
+            </button>
+            <button class="tab-btn" data-tab="firewall" onclick="switchTab('firewall')">
+                <i data-lucide="shield" style="width: 16px; height: 16px;"></i> Firewall
+            </button>
+            <button class="tab-btn" data-tab="threats" onclick="switchTab('threats')">
+                <i data-lucide="alert-triangle" style="width: 16px; height: 16px;"></i> Threats
+            </button>
+            <button class="tab-btn" data-tab="scanning" onclick="switchTab('scanning')">
+                <i data-lucide="radar" style="width: 16px; height: 16px;"></i> Scanning
+            </button>
+            <button class="tab-btn" data-tab="vulnerabilities" onclick="switchTab('vulnerabilities')">
+                <i data-lucide="bug" style="width: 16px; height: 16px;"></i> Vulnerabilities
+            </button>
+            <button class="tab-btn" data-tab="ssl" onclick="switchTab('ssl')">
+                <i data-lucide="lock" style="width: 16px; height: 16px;"></i> SSL Monitor
+            </button>
+            <button class="tab-btn" data-tab="reports" onclick="switchTab('reports')">
+                <i data-lucide="file-text" style="width: 16px; height: 16px;"></i> Reports
+            </button>
+        </nav>
+
+        <!-- Tab: Overview -->
+        <div id="tab-overview" class="tab-content active">
         <!-- Security Monitoring -->
         <div class="section-header">
             <i data-lucide="shield-check" style="width: 20px; height: 20px;"></i>
@@ -569,53 +868,78 @@
         </div>
         {% endif %}
 
-        <!-- Network Tools -->
-        <div class="section-header">
-            <i data-lucide="network" style="width: 20px; height: 20px;"></i>
-            Network Tools
+        <!-- Security Stacks -->
+        <div class="section-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="display: flex; align-items: center; gap: var(--archie-space-2);">
+                <i data-lucide="layers" style="width: 20px; height: 20px;"></i>
+                Security Stacks
+            </span>
+            <a href="/tools/system-operations?tab=docker" class="btn btn-sm btn-ghost">
+                <i data-lucide="settings" style="width: 14px; height: 14px;"></i>
+                Manage All Stacks
+            </a>
         </div>
-        <div class="section-subtitle">Quick access to network management tools</div>
+        <div class="section-subtitle">Docker stacks for security and network monitoring</div>
 
-        <div class="network-grid" id="network-tools-grid">
-            <div class="network-card" data-tool="adguard">
-                <h3>
-                    <i data-lucide="shield" style="width: 18px; height: 18px;"></i>
-                    AdGuard DNS
-                </h3>
-                <p>DNS filtering and ad blocking</p>
-                <span class="status checking" id="status-adguard">Checking...</span>
-                <br><br>
-                <a href="http://192.168.1.250:5354" target="_blank" class="btn btn-sm">Open AdGuard</a>
+        <div class="stack-grid" id="security-stacks-grid">
+            <div class="stack-card" id="stack-monitoring" style="--stack-color: #E5A00D;">
+                <div class="stack-card-header">
+                    <div class="stack-icon">
+                        <i data-lucide="activity" style="width: 20px; height: 20px;"></i>
+                    </div>
+                    <h3>Monitoring</h3>
+                    <span class="stack-status unknown" id="stack-status-monitoring">Loading...</span>
+                </div>
+                <div class="stack-card-body">
+                    Nagios, Grafana, and system monitoring tools
+                </div>
+                <div class="stack-card-footer">
+                    <span class="stack-container-count"><span id="stack-containers-monitoring">-</span> containers</span>
+                    <a href="/tools/system-operations?tab=docker&stack=monitoring" class="btn btn-sm">
+                        <i data-lucide="external-link" style="width: 14px; height: 14px;"></i>
+                        Manage
+                    </a>
+                </div>
             </div>
-            <div class="network-card" data-tool="ntopng">
-                <h3>
-                    <i data-lucide="bar-chart-3" style="width: 18px; height: 18px;"></i>
-                    ntopng
-                </h3>
-                <p>Network traffic monitoring</p>
-                <span class="status checking" id="status-ntopng">Checking...</span>
-                <br><br>
-                <a href="http://192.168.1.250:3001" target="_blank" class="btn btn-sm">Open ntopng</a>
+
+            <div class="stack-card" id="stack-network-tools" style="--stack-color: #4ECDC4;">
+                <div class="stack-card-header">
+                    <div class="stack-icon">
+                        <i data-lucide="network" style="width: 20px; height: 20px;"></i>
+                    </div>
+                    <h3>Network Tools</h3>
+                    <span class="stack-status unknown" id="stack-status-network-tools">Loading...</span>
+                </div>
+                <div class="stack-card-body">
+                    AdGuard DNS, ntopng traffic analysis
+                </div>
+                <div class="stack-card-footer">
+                    <span class="stack-container-count"><span id="stack-containers-network-tools">-</span> containers</span>
+                    <a href="/tools/system-operations?tab=docker&stack=network-tools" class="btn btn-sm">
+                        <i data-lucide="external-link" style="width: 14px; height: 14px;"></i>
+                        Manage
+                    </a>
+                </div>
             </div>
-            <div class="network-card" data-tool="nagios">
-                <h3>
-                    <i data-lucide="alert-circle" style="width: 18px; height: 18px;"></i>
-                    Nagios
-                </h3>
-                <p>Server and service monitoring</p>
-                <span class="status checking" id="status-nagios">Checking...</span>
-                <br><br>
-                <a href="http://192.168.1.250:8082" target="_blank" class="btn btn-sm">Open Nagios</a>
-            </div>
-            <div class="network-card" data-tool="nginx">
-                <h3>
-                    <i data-lucide="globe" style="width: 18px; height: 18px;"></i>
-                    Nginx Proxy
-                </h3>
-                <p>Reverse proxy manager</p>
-                <span class="status checking" id="status-nginx">Checking...</span>
-                <br><br>
-                <a href="http://192.168.1.250:81" target="_blank" class="btn btn-sm">Open Nginx</a>
+
+            <div class="stack-card" id="stack-security-scanner" style="--stack-color: #FF6B6B;">
+                <div class="stack-card-header">
+                    <div class="stack-icon">
+                        <i data-lucide="scan" style="width: 20px; height: 20px;"></i>
+                    </div>
+                    <h3>Security Scanner</h3>
+                    <span class="stack-status unknown" id="stack-status-security-scanner">Loading...</span>
+                </div>
+                <div class="stack-card-body">
+                    Nmap, Nikto, Nuclei, ZAP vulnerability scanners
+                </div>
+                <div class="stack-card-footer">
+                    <span class="stack-container-count"><span id="stack-containers-security-scanner">-</span> containers</span>
+                    <a href="/tools/system-operations?tab=docker&stack=security-scanner" class="btn btn-sm">
+                        <i data-lucide="external-link" style="width: 14px; height: 14px;"></i>
+                        Manage
+                    </a>
+                </div>
             </div>
         </div>
 
@@ -641,6 +965,188 @@
                 </div>
             </div>
         </div>
+        </div><!-- /tab-overview -->
+
+        <!-- Tab: Firewall -->
+        <div id="tab-firewall" class="tab-content">
+            <div class="section-header">
+                <i data-lucide="shield" style="width: 20px; height: 20px;"></i>
+                IP Access Control
+            </div>
+            <div class="section-subtitle">Manage blocked and whitelisted IP addresses</div>
+
+            <div class="action-bar">
+                <button class="btn btn-danger" onclick="showBlockIPModal()">
+                    <i data-lucide="ban" style="width: 16px; height: 16px;"></i>
+                    Block IP
+                </button>
+                <button class="btn" onclick="loadIPAccessList()">
+                    <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i>
+                    Refresh
+                </button>
+            </div>
+
+            <div class="panel" style="margin-bottom: var(--archie-space-6);">
+                <h4 style="color: var(--archie-red); margin-bottom: var(--archie-space-4);">Blocked IPs</h4>
+                <div id="blocked-ips-list">
+                    <div class="loading">Loading...</div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h4 style="color: var(--archie-green); margin-bottom: var(--archie-space-4);">Whitelisted IPs</h4>
+                <div id="whitelisted-ips-list">
+                    <div class="loading">Loading...</div>
+                </div>
+            </div>
+        </div><!-- /tab-firewall -->
+
+        <!-- Tab: Threats -->
+        <div id="tab-threats" class="tab-content">
+            <div class="section-header">
+                <i data-lucide="alert-triangle" style="width: 20px; height: 20px;"></i>
+                Security Events
+            </div>
+            <div class="section-subtitle">Detected threats and security incidents</div>
+
+            <div class="action-bar">
+                <button class="btn btn-danger" onclick="executeAutoBlock()">
+                    <i data-lucide="shield-alert" style="width: 16px; height: 16px;"></i>
+                    Auto-Block Threats
+                </button>
+                <button class="btn" onclick="loadSecurityEvents()">
+                    <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i>
+                    Refresh
+                </button>
+            </div>
+
+            <div class="panel" id="security-events-panel">
+                <div class="loading">Loading security events...</div>
+            </div>
+        </div><!-- /tab-threats -->
+
+        <!-- Tab: Scanning -->
+        <div id="tab-scanning" class="tab-content">
+            <div class="section-header">
+                <i data-lucide="radar" style="width: 20px; height: 20px;"></i>
+                Security Scanning
+            </div>
+            <div class="section-subtitle">Launch security scans on targets</div>
+
+            <div class="stats-grid" style="grid-template-columns: repeat(5, 1fr);">
+                <div class="stat-card" onclick="showScanModal('nmap')" style="cursor: pointer;">
+                    <div class="stat-label">Network Scan</div>
+                    <div class="stat-value" style="font-size: var(--archie-text-xl); color: var(--archie-cyan);">NMAP</div>
+                    <div class="stat-subtitle">Port & service discovery</div>
+                </div>
+                <div class="stat-card" onclick="showScanModal('nikto')" style="cursor: pointer;">
+                    <div class="stat-label">Web Scan</div>
+                    <div class="stat-value" style="font-size: var(--archie-text-xl); color: var(--archie-orange);">NIKTO</div>
+                    <div class="stat-subtitle">Web vulnerabilities</div>
+                </div>
+                <div class="stat-card" onclick="showScanModal('zap')" style="cursor: pointer;">
+                    <div class="stat-label">App Scan</div>
+                    <div class="stat-value" style="font-size: var(--archie-text-xl); color: var(--archie-red);">ZAP</div>
+                    <div class="stat-subtitle">OWASP testing</div>
+                </div>
+                <div class="stat-card" onclick="showScanModal('nuclei')" style="cursor: pointer;">
+                    <div class="stat-label">CVE Scan</div>
+                    <div class="stat-value" style="font-size: var(--archie-text-xl); color: var(--archie-purple);">NUCLEI</div>
+                    <div class="stat-subtitle">Template-based</div>
+                </div>
+                <div class="stat-card" onclick="showScanModal('ssl')" style="cursor: pointer;">
+                    <div class="stat-label">SSL/TLS</div>
+                    <div class="stat-value" style="font-size: var(--archie-text-xl); color: var(--archie-green);">TESTSSL</div>
+                    <div class="stat-subtitle">Certificate analysis</div>
+                </div>
+            </div>
+
+            <div class="section-header" style="margin-top: var(--archie-space-8);">
+                <i data-lucide="history" style="width: 20px; height: 20px;"></i>
+                Recent Scans
+            </div>
+
+            <div class="panel" id="recent-scans-panel">
+                <div class="loading">Loading recent scans...</div>
+            </div>
+        </div><!-- /tab-scanning -->
+
+        <!-- Tab: Vulnerabilities -->
+        <div id="tab-vulnerabilities" class="tab-content">
+            <div class="section-header">
+                <i data-lucide="bug" style="width: 20px; height: 20px;"></i>
+                Vulnerabilities
+            </div>
+            <div class="section-subtitle">Findings from security scans</div>
+
+            <div class="action-bar">
+                <select id="vuln-scan-filter" onchange="loadVulnerabilities()" class="btn" style="background: var(--archie-bg-tertiary);">
+                    <option value="">All Scans</option>
+                </select>
+                <select id="vuln-severity-filter" onchange="loadVulnerabilities()" class="btn" style="background: var(--archie-bg-tertiary);">
+                    <option value="">All Severities</option>
+                    <option value="critical">Critical</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                </select>
+            </div>
+
+            <div class="panel" id="vulnerabilities-panel">
+                <div class="empty-state">
+                    <div class="icon"><i data-lucide="check-circle" style="width: 32px; height: 32px;"></i></div>
+                    <p>Run a scan to discover vulnerabilities</p>
+                </div>
+            </div>
+        </div><!-- /tab-vulnerabilities -->
+
+        <!-- Tab: SSL Monitor -->
+        <div id="tab-ssl" class="tab-content">
+            <div class="section-header">
+                <i data-lucide="lock" style="width: 20px; height: 20px;"></i>
+                SSL Certificate Monitor
+            </div>
+            <div class="section-subtitle">Track certificate expiry and SSL health</div>
+
+            <div class="action-bar">
+                <button class="btn" onclick="showAddSSLMonitorModal()">
+                    <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+                    Add Domain
+                </button>
+                <button class="btn" onclick="refreshSSLMonitors()">
+                    <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i>
+                    Refresh All
+                </button>
+            </div>
+
+            <div id="ssl-monitors-panel">
+                <div class="loading">Loading SSL monitors...</div>
+            </div>
+        </div><!-- /tab-ssl -->
+
+        <!-- Tab: Reports -->
+        <div id="tab-reports" class="tab-content">
+            <div class="section-header">
+                <i data-lucide="file-text" style="width: 20px; height: 20px;"></i>
+                Security Reports
+            </div>
+            <div class="section-subtitle">Generate and download assessment reports</div>
+
+            <div class="action-bar">
+                <button class="btn" onclick="showGenerateReportModal()">
+                    <i data-lucide="file-plus" style="width: 16px; height: 16px;"></i>
+                    Generate Report
+                </button>
+                <button class="btn" onclick="loadReports()">
+                    <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i>
+                    Refresh
+                </button>
+            </div>
+
+            <div class="panel" id="reports-panel">
+                <div class="loading">Loading reports...</div>
+            </div>
+        </div><!-- /tab-reports -->
     </div>
 
     <!-- Failed Logins Modal -->
@@ -686,6 +1192,26 @@
 
     <script>
     let pendingConfirmAction = null;
+
+    // Tab switching
+    function switchTab(tabName) {
+        // Hide all tabs
+        document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+
+        // Show selected tab
+        document.getElementById('tab-' + tabName).classList.add('active');
+        document.querySelector('[data-tab="' + tabName + '"]').classList.add('active');
+
+        // Load data for the tab
+        if (tabName === 'firewall') loadIPAccessList();
+        if (tabName === 'threats') loadSecurityEvents();
+        if (tabName === 'scanning') loadRecentScans();
+        if (tabName === 'ssl') loadSSLMonitors();
+        if (tabName === 'reports') loadReports();
+
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
 
     // Helper to escape HTML
     function escapeHtml(text) {
@@ -970,30 +1496,535 @@
         }
     }
 
-    // Load external tools status
-    async function loadExternalToolsStatus() {
+    // Load security stacks status from System Operations
+    async function loadSecurityStacks() {
+        const stackNames = ['monitoring', 'network-tools', 'security-scanner'];
+
         try {
-            const response = await fetch('/tools/security-network/api/external-tools/status');
+            const response = await fetch('/tools/system-operations/api/stacks/status?names=' + stackNames.join(','));
             const data = await response.json();
-            if (data.success) {
-                Object.entries(data.tools).forEach(([tool, status]) => {
-                    const el = document.getElementById('status-' + tool);
-                    if (el) {
-                        el.className = 'status ' + (status.online ? 'online' : 'offline');
-                        el.textContent = status.online ? 'Online' : 'Offline';
+
+            if (data.success && data.stacks) {
+                data.stacks.forEach(stack => {
+                    const statusEl = document.getElementById('stack-status-' + stack.name);
+                    const containersEl = document.getElementById('stack-containers-' + stack.name);
+                    const cardEl = document.getElementById('stack-' + stack.name);
+
+                    if (statusEl) {
+                        statusEl.className = 'stack-status ' + stack.status;
+                        const statusText = stack.status === 'running' ? 'Running' :
+                                          stack.status === 'partial' ? 'Partial' :
+                                          stack.status === 'stopped' ? 'Stopped' : 'Unknown';
+                        statusEl.textContent = statusText;
+                    }
+
+                    if (containersEl) {
+                        containersEl.textContent = stack.containers_running + '/' + stack.containers_total;
+                    }
+
+                    // Update card color from stack data
+                    if (cardEl && stack.color) {
+                        cardEl.style.setProperty('--stack-color', stack.color);
                     }
                 });
             }
         } catch (error) {
-            console.error('Error loading external tools status:', error);
-            ['adguard', 'ntopng', 'nagios', 'nginx'].forEach(tool => {
-                const el = document.getElementById('status-' + tool);
-                if (el) {
-                    el.className = 'status offline';
-                    el.textContent = 'Unknown';
+            console.error('Error loading security stacks:', error);
+            stackNames.forEach(name => {
+                const statusEl = document.getElementById('stack-status-' + name);
+                if (statusEl) {
+                    statusEl.className = 'stack-status unknown';
+                    statusEl.textContent = 'Error';
                 }
             });
         }
+    }
+
+    // ========== IP ACCESS CONTROL ==========
+    async function loadIPAccessList() {
+        try {
+            const response = await fetch('/tools/security-network/api/ip-access');
+            const data = await response.json();
+
+            // Blocked IPs
+            const blockedList = document.getElementById('blocked-ips-list');
+            blockedList.textContent = '';
+            if (data.blocked?.length) {
+                const table = document.createElement('table');
+                table.className = 'ip-table';
+                const headerRow = document.createElement('tr');
+                ['IP Address', 'Reason', 'Expires', 'Actions'].forEach(h => {
+                    const th = document.createElement('th');
+                    th.textContent = h;
+                    headerRow.appendChild(th);
+                });
+                table.appendChild(headerRow);
+
+                data.blocked.forEach(ip => {
+                    const row = document.createElement('tr');
+                    const ipCell = document.createElement('td');
+                    ipCell.style.fontFamily = 'var(--archie-font-mono)';
+                    ipCell.textContent = ip.ip_address;
+                    const reasonCell = document.createElement('td');
+                    reasonCell.textContent = ip.reason || 'N/A';
+                    const expiresCell = document.createElement('td');
+                    expiresCell.textContent = ip.expires_at ? new Date(ip.expires_at).toLocaleString() : 'Never';
+                    const actionsCell = document.createElement('td');
+                    const unblockBtn = document.createElement('button');
+                    unblockBtn.className = 'btn btn-sm btn-ghost';
+                    unblockBtn.textContent = 'Unblock';
+                    unblockBtn.onclick = () => unblockIP(ip.ip_address);
+                    actionsCell.appendChild(unblockBtn);
+                    row.appendChild(ipCell);
+                    row.appendChild(reasonCell);
+                    row.appendChild(expiresCell);
+                    row.appendChild(actionsCell);
+                    table.appendChild(row);
+                });
+                blockedList.appendChild(table);
+                document.getElementById('stat-blocked-ips').textContent = data.blocked.length;
+            } else {
+                const empty = document.createElement('div');
+                empty.className = 'empty-state';
+                empty.textContent = 'No blocked IPs';
+                blockedList.appendChild(empty);
+                document.getElementById('stat-blocked-ips').textContent = '0';
+            }
+
+            // Whitelisted IPs
+            const whiteList = document.getElementById('whitelisted-ips-list');
+            whiteList.textContent = '';
+            if (data.whitelisted?.length) {
+                const table = document.createElement('table');
+                table.className = 'ip-table';
+                const headerRow = document.createElement('tr');
+                ['IP Address', 'Reason', 'Added'].forEach(h => {
+                    const th = document.createElement('th');
+                    th.textContent = h;
+                    headerRow.appendChild(th);
+                });
+                table.appendChild(headerRow);
+
+                data.whitelisted.forEach(ip => {
+                    const row = document.createElement('tr');
+                    const ipCell = document.createElement('td');
+                    ipCell.style.fontFamily = 'var(--archie-font-mono)';
+                    ipCell.textContent = ip.ip_address;
+                    const reasonCell = document.createElement('td');
+                    reasonCell.textContent = ip.reason || 'N/A';
+                    const addedCell = document.createElement('td');
+                    addedCell.textContent = new Date(ip.created_at).toLocaleString();
+                    row.appendChild(ipCell);
+                    row.appendChild(reasonCell);
+                    row.appendChild(addedCell);
+                    table.appendChild(row);
+                });
+                whiteList.appendChild(table);
+            } else {
+                const empty = document.createElement('div');
+                empty.className = 'empty-state';
+                empty.textContent = 'No whitelisted IPs';
+                whiteList.appendChild(empty);
+            }
+        } catch (error) {
+            console.error('Error loading IP access list:', error);
+        }
+    }
+
+    function showBlockIPModal() {
+        const ip = prompt('Enter IP address to block:');
+        if (!ip) return;
+        const reason = prompt('Reason for blocking (optional):') || 'Manually blocked';
+        blockIP(ip, reason);
+    }
+
+    async function blockIP(ip, reason) {
+        try {
+            const response = await fetch('/tools/security-network/api/ip-access/block', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ip_address: ip, reason: reason })
+            });
+            const data = await response.json();
+            if (data.success) {
+                showToast('success', 'IP blocked successfully');
+                loadIPAccessList();
+            } else {
+                showToast('error', 'Error: ' + data.error);
+            }
+        } catch (error) {
+            showToast('error', 'Error: ' + error.message);
+        }
+    }
+
+    async function unblockIP(ip) {
+        if (!confirm('Unblock ' + ip + '?')) return;
+        try {
+            const response = await fetch('/tools/security-network/api/ip-access/unblock', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ip_address: ip })
+            });
+            const data = await response.json();
+            if (data.success) {
+                showToast('success', 'IP unblocked');
+                loadIPAccessList();
+            } else {
+                showToast('error', 'Error: ' + data.error);
+            }
+        } catch (error) {
+            showToast('error', 'Error: ' + error.message);
+        }
+    }
+
+    // ========== SECURITY EVENTS ==========
+    async function loadSecurityEvents() {
+        const panel = document.getElementById('security-events-panel');
+        try {
+            const response = await fetch('/tools/security-network/api/events?limit=50');
+            const data = await response.json();
+            panel.textContent = '';
+
+            if (!data.events?.length) {
+                const empty = document.createElement('div');
+                empty.className = 'empty-state';
+                empty.textContent = 'No security events';
+                panel.appendChild(empty);
+                return;
+            }
+
+            data.events.forEach(event => {
+                const card = document.createElement('div');
+                card.className = 'scan-card';
+
+                const infoDiv = document.createElement('div');
+                const badge = document.createElement('span');
+                badge.className = 'severity-badge severity-' + event.severity;
+                badge.textContent = event.severity.toUpperCase();
+                const typeSpan = document.createElement('strong');
+                typeSpan.style.marginLeft = '10px';
+                typeSpan.textContent = event.event_type;
+                const descP = document.createElement('p');
+                descP.style.cssText = 'margin: 5px 0; color: var(--archie-text-muted);';
+                descP.textContent = event.description || '';
+                const timeSmall = document.createElement('small');
+                timeSmall.style.color = 'var(--archie-text-tertiary)';
+                timeSmall.textContent = new Date(event.created_at).toLocaleString();
+
+                infoDiv.appendChild(badge);
+                infoDiv.appendChild(typeSpan);
+                infoDiv.appendChild(descP);
+                infoDiv.appendChild(timeSmall);
+
+                const statusSpan = document.createElement('span');
+                statusSpan.className = 'status ' + (event.status === 'resolved' ? 'online' : 'offline');
+                statusSpan.textContent = event.status;
+
+                card.appendChild(infoDiv);
+                card.appendChild(statusSpan);
+                panel.appendChild(card);
+            });
+        } catch (error) {
+            panel.textContent = '';
+            const empty = document.createElement('div');
+            empty.className = 'empty-state';
+            empty.textContent = 'Error loading events';
+            panel.appendChild(empty);
+        }
+    }
+
+    async function executeAutoBlock() {
+        if (!confirm('This will automatically block IPs with suspicious activity. Continue?')) return;
+        try {
+            const response = await fetch('/tools/security-network/api/auto-block/execute', { method: 'POST' });
+            const data = await response.json();
+            if (data.success) {
+                showToast('success', 'Blocked ' + data.blocked + ' IP(s)');
+                loadIPAccessList();
+                loadSecurityEvents();
+            } else {
+                showToast('error', 'Error: ' + data.error);
+            }
+        } catch (error) {
+            showToast('error', 'Error: ' + error.message);
+        }
+    }
+
+    // ========== SCANNING ==========
+    async function loadRecentScans() {
+        const panel = document.getElementById('recent-scans-panel');
+        try {
+            const response = await fetch('/tools/security-network/api/scans');
+            const data = await response.json();
+            panel.textContent = '';
+
+            if (!data.scans?.length) {
+                const empty = document.createElement('div');
+                empty.className = 'empty-state';
+                empty.textContent = 'No scans found. Launch a scan above.';
+                panel.appendChild(empty);
+                return;
+            }
+
+            data.scans.slice(0, 20).forEach(scan => {
+                const card = document.createElement('div');
+                card.className = 'scan-card';
+
+                const infoDiv = document.createElement('div');
+                const typeStrong = document.createElement('strong');
+                typeStrong.textContent = scan.scan_type.toUpperCase();
+                const fileSpan = document.createElement('span');
+                fileSpan.style.cssText = 'margin-left: 10px; color: var(--archie-text-muted);';
+                fileSpan.textContent = scan.filename;
+                const timeBr = document.createElement('br');
+                const timeSmall = document.createElement('small');
+                timeSmall.style.color = 'var(--archie-text-tertiary)';
+                timeSmall.textContent = new Date(scan.created_at * 1000).toLocaleString();
+                infoDiv.appendChild(typeStrong);
+                infoDiv.appendChild(fileSpan);
+                infoDiv.appendChild(timeBr);
+                infoDiv.appendChild(timeSmall);
+
+                const actionsDiv = document.createElement('div');
+                const viewBtn = document.createElement('button');
+                viewBtn.className = 'btn btn-sm';
+                viewBtn.textContent = 'View';
+                viewBtn.onclick = () => viewScanResult(scan.filename);
+                const reportBtn = document.createElement('button');
+                reportBtn.className = 'btn btn-sm btn-ghost';
+                reportBtn.textContent = 'Report';
+                reportBtn.onclick = () => generateScanReport(scan.filename);
+                actionsDiv.appendChild(viewBtn);
+                actionsDiv.appendChild(reportBtn);
+
+                card.appendChild(infoDiv);
+                card.appendChild(actionsDiv);
+                panel.appendChild(card);
+            });
+        } catch (error) {
+            panel.textContent = '';
+            const empty = document.createElement('div');
+            empty.className = 'empty-state';
+            empty.textContent = 'Error loading scans';
+            panel.appendChild(empty);
+        }
+    }
+
+    function showScanModal(scanType) {
+        const target = prompt('Enter target (hostname/IP/URL):');
+        if (!target) return;
+
+        let endpoint = '/tools/security-network/api/scanner/' + scanType;
+        let body = { target: target };
+
+        if (scanType === 'ssl') {
+            body = { domain: target };
+        }
+
+        showToast('info', 'Starting ' + scanType + ' scan...');
+
+        fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                showToast('success', 'Scan completed: ' + (data.scan_id || 'OK'));
+                loadRecentScans();
+            } else {
+                showToast('error', 'Scan error: ' + data.error);
+            }
+        })
+        .catch(err => showToast('error', 'Error: ' + err.message));
+    }
+
+    async function viewScanResult(filename) {
+        try {
+            const response = await fetch('/tools/security-network/api/scans/' + encodeURIComponent(filename));
+            const data = await response.json();
+            if (data.success) {
+                alert('Scan content loaded. Check console for details.');
+                console.log('Scan result:', data.content);
+            } else {
+                showToast('error', data.error);
+            }
+        } catch (error) {
+            showToast('error', 'Error: ' + error.message);
+        }
+    }
+
+    async function generateScanReport(filename) {
+        showToast('info', 'Generating report...');
+        try {
+            const response = await fetch('/tools/security-network/api/reports/scan/' + encodeURIComponent(filename), { method: 'POST' });
+            const data = await response.json();
+            if (data.success) {
+                showToast('success', 'Report generated: ' + data.report_file);
+                loadReports();
+            } else {
+                showToast('error', data.error);
+            }
+        } catch (error) {
+            showToast('error', 'Error: ' + error.message);
+        }
+    }
+
+    // ========== SSL MONITORS ==========
+    async function loadSSLMonitors() {
+        const panel = document.getElementById('ssl-monitors-panel');
+        try {
+            const response = await fetch('/tools/security-network/api/ssl/monitors');
+            const data = await response.json();
+            panel.textContent = '';
+
+            if (!data.monitors?.length) {
+                const empty = document.createElement('div');
+                empty.className = 'empty-state';
+                empty.textContent = 'No SSL monitors configured. Add a domain above.';
+                panel.appendChild(empty);
+                return;
+            }
+
+            data.monitors.forEach(mon => {
+                const gradeClass = mon.grade?.toLowerCase() || 'f';
+                const card = document.createElement('div');
+                card.className = 'ssl-card grade-' + gradeClass;
+
+                const wrapper = document.createElement('div');
+                wrapper.style.cssText = 'display: flex; justify-content: space-between; align-items: center;';
+
+                const infoDiv = document.createElement('div');
+                const domainStrong = document.createElement('strong');
+                domainStrong.style.fontSize = 'var(--archie-text-lg)';
+                domainStrong.textContent = mon.domain;
+                const issuerP = document.createElement('p');
+                issuerP.style.cssText = 'margin: 5px 0; color: var(--archie-text-muted);';
+                issuerP.textContent = 'Issuer: ' + (mon.issuer || 'Unknown');
+                const expiryP = document.createElement('p');
+                expiryP.style.cssText = 'margin: 0; color: ' + (mon.days_until_expiry < 30 ? 'var(--archie-red)' : 'var(--archie-text-tertiary)') + ';';
+                expiryP.textContent = 'Expires: ' + (mon.valid_until ? new Date(mon.valid_until).toLocaleDateString() : 'Unknown') + ' (' + (mon.days_until_expiry || '?') + ' days)';
+                infoDiv.appendChild(domainStrong);
+                infoDiv.appendChild(issuerP);
+                infoDiv.appendChild(expiryP);
+
+                const gradeDiv = document.createElement('div');
+                gradeDiv.className = 'ssl-grade';
+                gradeDiv.style.color = gradeClass === 'a' ? 'var(--archie-green)' : gradeClass === 'b' ? 'var(--archie-cyan)' : gradeClass === 'c' ? 'var(--archie-orange)' : 'var(--archie-red)';
+                gradeDiv.textContent = mon.grade || '?';
+
+                wrapper.appendChild(infoDiv);
+                wrapper.appendChild(gradeDiv);
+                card.appendChild(wrapper);
+                panel.appendChild(card);
+            });
+        } catch (error) {
+            panel.textContent = '';
+            const empty = document.createElement('div');
+            empty.className = 'empty-state';
+            empty.textContent = 'Error loading SSL monitors';
+            panel.appendChild(empty);
+        }
+    }
+
+    function showAddSSLMonitorModal() {
+        const domain = prompt('Enter domain to monitor (e.g., example.com):');
+        if (!domain) return;
+
+        fetch('/tools/security-network/api/ssl/monitors', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ domain: domain })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                showToast('success', 'SSL monitor added');
+                loadSSLMonitors();
+            } else {
+                showToast('error', data.error);
+            }
+        })
+        .catch(err => showToast('error', 'Error: ' + err.message));
+    }
+
+    async function refreshSSLMonitors() {
+        showToast('info', 'Refreshing SSL monitors...');
+        try {
+            const response = await fetch('/tools/security-network/api/ssl/refresh', { method: 'POST' });
+            const data = await response.json();
+            if (data.success) {
+                showToast('success', 'Refreshed ' + data.updated + ' monitors');
+                loadSSLMonitors();
+            } else {
+                showToast('error', data.error);
+            }
+        } catch (error) {
+            showToast('error', 'Error: ' + error.message);
+        }
+    }
+
+    // ========== REPORTS ==========
+    async function loadReports() {
+        const panel = document.getElementById('reports-panel');
+        try {
+            const response = await fetch('/tools/security-network/api/reports');
+            const data = await response.json();
+            panel.textContent = '';
+
+            if (!data.reports?.length) {
+                const empty = document.createElement('div');
+                empty.className = 'empty-state';
+                empty.textContent = 'No reports generated yet.';
+                panel.appendChild(empty);
+                return;
+            }
+
+            data.reports.forEach(report => {
+                const card = document.createElement('div');
+                card.className = 'scan-card';
+
+                const infoDiv = document.createElement('div');
+                const nameStrong = document.createElement('strong');
+                nameStrong.textContent = report.filename;
+                const timeBr = document.createElement('br');
+                const timeSmall = document.createElement('small');
+                timeSmall.style.color = 'var(--archie-text-tertiary)';
+                timeSmall.textContent = new Date(report.created_at * 1000).toLocaleString();
+                infoDiv.appendChild(nameStrong);
+                infoDiv.appendChild(timeBr);
+                infoDiv.appendChild(timeSmall);
+
+                const downloadLink = document.createElement('a');
+                downloadLink.href = '/tools/security-network/api/reports/download/' + encodeURIComponent(report.filename);
+                downloadLink.className = 'btn btn-sm';
+                downloadLink.textContent = 'Download';
+
+                card.appendChild(infoDiv);
+                card.appendChild(downloadLink);
+                panel.appendChild(card);
+            });
+        } catch (error) {
+            panel.textContent = '';
+            const empty = document.createElement('div');
+            empty.className = 'empty-state';
+            empty.textContent = 'Error loading reports';
+            panel.appendChild(empty);
+        }
+    }
+
+    function showGenerateReportModal() {
+        alert('To generate a report, go to the Scanning tab and click "Report" on a completed scan.');
+    }
+
+    function loadVulnerabilities() {
+        const panel = document.getElementById('vulnerabilities-panel');
+        panel.textContent = '';
+        const empty = document.createElement('div');
+        empty.className = 'empty-state';
+        empty.textContent = 'View vulnerabilities in scan results on the Scanning tab.';
+        panel.appendChild(empty);
     }
 
     // Escape key handler
@@ -1008,13 +2039,14 @@
     document.addEventListener('DOMContentLoaded', () => {
         if (typeof lucide !== 'undefined') lucide.createIcons();
         loadDockerSecurity();
-        loadExternalToolsStatus();
+        loadSecurityStacks();
+        loadIPAccessList();
     });
 
     // Auto refresh
     setInterval(refreshStats, 30000);
     setInterval(loadDockerSecurity, 60000);
-    setInterval(loadExternalToolsStatus, 60000);
+    setInterval(loadSecurityStacks, 60000);
     </script>
 
     </div><!-- /category-content -->

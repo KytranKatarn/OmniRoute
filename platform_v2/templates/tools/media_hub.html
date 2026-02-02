@@ -266,6 +266,10 @@
                     <button class="view-btn" data-view="list"><i data-lucide="list"></i></button>
                 </div>
             </div>
+            <div class="genre-filters" id="movieGenreFilters">
+                <button class="filter-chip active" data-genre="all">All</button>
+                <!-- Genre chips populated by JS -->
+            </div>
             <div class="media-grid" id="moviesGrid">
                 <div class="grid-loading">
                     <div class="loading-pulse"></div>
@@ -292,6 +296,10 @@
                     <button class="view-btn active" data-view="grid"><i data-lucide="grid-3x3"></i></button>
                     <button class="view-btn" data-view="list"><i data-lucide="list"></i></button>
                 </div>
+            </div>
+            <div class="genre-filters" id="showGenreFilters">
+                <button class="filter-chip active" data-genre="all">All</button>
+                <!-- Genre chips populated by JS -->
             </div>
             <div class="media-grid" id="showsGrid">
                 <div class="grid-loading">
@@ -1441,6 +1449,21 @@ body.tv-mode .install-app-btn {
 }
 
 .filter-group { display: flex; gap: 12px; flex-wrap: wrap; }
+
+/* Genre Filters */
+.genre-filters {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--archie-border-muted);
+}
+
+.genre-filters .filter-chip {
+    padding: 6px 14px;
+    font-size: 0.75rem;
+}
 
 .control-select {
     padding: 10px 36px 10px 14px;

@@ -71,6 +71,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initFilterChips();
     initSortDropdowns();
     initViewToggles();
+    initGenreFilters();
     initKeyboardNavigation();
     initLazyLoading();
     initTrendingTabs();
@@ -87,6 +88,12 @@ let currentShowSort = 'added';
 // View mode state (grid or list)
 let currentMovieView = 'grid';
 let currentShowView = 'grid';
+
+// Genre filter state
+let currentMovieGenre = 'all';
+let currentShowGenre = 'all';
+let allMoviesCache = [];
+let allShowsCache = [];
 
 function initSortDropdowns() {
     const movieSort = document.getElementById('movieSort');
@@ -145,6 +152,107 @@ function initViewToggles() {
             loadShows();
         });
     });
+}
+
+function initGenreFilters() {
+    // Movie genre filter clicks
+    const movieFilters = document.getElementById('movieGenreFilters');
+    if (movieFilters) {
+        movieFilters.addEventListener('click', (e) => {
+            const chip = e.target.closest('.filter-chip');
+            if (!chip) return;
+
+            const genre = chip.dataset.genre;
+            if (genre === currentMovieGenre) return;
+
+            currentMovieGenre = genre;
+            movieFilters.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+            chip.classList.add('active');
+            renderFilteredMovies();
+        });
+    }
+
+    // Show genre filter clicks
+    const showFilters = document.getElementById('showGenreFilters');
+    if (showFilters) {
+        showFilters.addEventListener('click', (e) => {
+            const chip = e.target.closest('.filter-chip');
+            if (!chip) return;
+
+            const genre = chip.dataset.genre;
+            if (genre === currentShowGenre) return;
+
+            currentShowGenre = genre;
+            showFilters.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+            chip.classList.add('active');
+            renderFilteredShows();
+        });
+    }
+}
+
+function populateGenreFilters(items, containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    // Extract unique genres
+    const genreSet = new Set();
+    items.forEach(item => {
+        (item.genres || []).forEach(g => genreSet.add(g));
+    });
+
+    // Sort genres alphabetically
+    const genres = Array.from(genreSet).sort();
+
+    // Keep the "All" button, add genre buttons
+    container.innerHTML = '<button class="filter-chip active" data-genre="all">All</button>';
+
+    genres.forEach(genre => {
+        const chip = document.createElement('button');
+        chip.className = 'filter-chip';
+        chip.dataset.genre = genre;
+        chip.textContent = genre;
+        container.appendChild(chip);
+    });
+}
+
+function renderFilteredMovies() {
+    const grid = document.getElementById('moviesGrid');
+    if (!grid || allMoviesCache.length === 0) return;
+
+    grid.textContent = '';
+    grid.className = currentMovieView === 'list' ? 'media-list' : 'media-grid';
+
+    const filtered = currentMovieGenre === 'all'
+        ? allMoviesCache
+        : allMoviesCache.filter(m => (m.genres || []).includes(currentMovieGenre));
+
+    if (filtered.length === 0) {
+        grid.appendChild(createEmptyState('film', `No ${currentMovieGenre} movies found`));
+    } else {
+        const createCard = currentMovieView === 'list' ? createListCard : createPosterCard;
+        filtered.forEach(item => grid.appendChild(createCard(item)));
+    }
+    lucide.createIcons();
+}
+
+function renderFilteredShows() {
+    const grid = document.getElementById('showsGrid');
+    if (!grid || allShowsCache.length === 0) return;
+
+    grid.textContent = '';
+    grid.className = currentShowView === 'list' ? 'media-list' : 'media-grid';
+
+    const filtered = currentShowGenre === 'all'
+        ? allShowsCache
+        : allShowsCache.filter(s => (s.genres || []).includes(currentShowGenre));
+
+    if (filtered.length === 0) {
+        grid.appendChild(createEmptyState('tv', `No ${currentShowGenre} shows found`));
+    } else {
+        const createCard = currentShowView === 'list' ? createListCard : createPosterCard;
+        filtered.forEach(item => grid.appendChild(createCard(item)));
+    }
+    lucide.createIcons();
 }
 
 async function loadPrimaryMediaServer() {
@@ -1896,6 +2004,7 @@ async function loadMovies(append = false) {
         grid.textContent = '';
         grid.className = currentMovieView === 'list' ? 'media-list' : 'media-grid';
         moviesOffset = 0;
+        currentMovieGenre = 'all'; // Reset genre filter
     }
 
     const loading = createLoadingElement('Loading movies...');
@@ -1903,20 +2012,32 @@ async function loadMovies(append = false) {
 
     try {
         const sort = currentMovieSort || 'added';
-        const response = await fetch(`${API_BASE}/library/movies?limit=50&offset=${moviesOffset}&sort=${sort}`);
+        // Load more items for genre filtering
+        const response = await fetch(`${API_BASE}/library/movies?limit=200&offset=${moviesOffset}&sort=${sort}`);
         const data = await response.json();
 
         loading.remove();
 
         if (data.success && data.items) {
+            // Cache all movies for filtering
+            if (!append) {
+                allMoviesCache = data.items;
+            } else {
+                allMoviesCache = [...allMoviesCache, ...data.items];
+            }
+
+            // Populate genre filters
+            populateGenreFilters(allMoviesCache, 'movieGenreFilters');
+
+            // Render the movies
             const createCard = currentMovieView === 'list' ? createListCard : createPosterCard;
             data.items.forEach(item => {
                 grid.appendChild(createCard(item));
             });
             moviesOffset += data.items.length;
 
-            // Load more button
-            if (data.items.length === 50) {
+            // Load more button if there might be more
+            if (data.items.length === 200) {
                 const loadMore = document.createElement('button');
                 loadMore.className = 'load-more-btn';
                 loadMore.textContent = 'Load More';
@@ -1943,6 +2064,7 @@ async function loadShows(append = false) {
         grid.textContent = '';
         grid.className = currentShowView === 'list' ? 'media-list' : 'media-grid';
         showsOffset = 0;
+        currentShowGenre = 'all'; // Reset genre filter
     }
 
     const loading = createLoadingElement('Loading shows...');
@@ -1950,19 +2072,31 @@ async function loadShows(append = false) {
 
     try {
         const sort = currentShowSort || 'added';
-        const response = await fetch(`${API_BASE}/library/shows?limit=50&offset=${showsOffset}&sort=${sort}`);
+        // Load more items for genre filtering
+        const response = await fetch(`${API_BASE}/library/shows?limit=200&offset=${showsOffset}&sort=${sort}`);
         const data = await response.json();
 
         loading.remove();
 
         if (data.success && data.items) {
+            // Cache all shows for filtering
+            if (!append) {
+                allShowsCache = data.items;
+            } else {
+                allShowsCache = [...allShowsCache, ...data.items];
+            }
+
+            // Populate genre filters
+            populateGenreFilters(allShowsCache, 'showGenreFilters');
+
+            // Render the shows
             const createCard = currentShowView === 'list' ? createListCard : createPosterCard;
             data.items.forEach(item => {
                 grid.appendChild(createCard(item));
             });
             showsOffset += data.items.length;
 
-            if (data.items.length === 50) {
+            if (data.items.length === 200) {
                 const loadMore = document.createElement('button');
                 loadMore.className = 'load-more-btn';
                 loadMore.textContent = 'Load More';

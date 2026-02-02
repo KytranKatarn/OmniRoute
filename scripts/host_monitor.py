@@ -2684,14 +2684,25 @@ def handle_lvm_extend(params):
     mount_result = run_command_full(['findmnt', '-n', '-o', 'TARGET', lv_path], timeout=10)
     mountpoint = mount_result['stdout'].strip()
 
+    # Protected system paths - don't stop containers for these (too risky)
+    PROTECTED_PATHS = ['/', '/boot', '/var', '/usr', '/etc', '/home']
+
     # Track containers to restart
     containers_to_restart = []
     restart_result = None
+    skip_container_stop = False
 
-    # Stop containers using this mountpoint for safer resize
-    if mountpoint:
+    # Check if this is a protected system path
+    if mountpoint in PROTECTED_PATHS:
+        print(f"Mountpoint {mountpoint} is a protected system path - skipping container stop")
+        skip_container_stop = True
+
+    # Stop containers using this mountpoint for safer resize (unless protected)
+    if mountpoint and not skip_container_stop:
         try:
             containers = get_containers_using_path(mountpoint)
+            # Never stop archie_platform - it's running this operation!
+            containers = [c for c in containers if c != 'archie_platform']
             if containers:
                 print(f"Stopping {len(containers)} containers using {mountpoint} for extend operation")
                 stop_result = stop_containers(containers, timeout=120)
@@ -2793,9 +2804,10 @@ def handle_lvm_shrink(params):
     mount_check = run_command_full(['findmnt', '-n', '-o', 'TARGET', lv_path], timeout=10)
     mountpoint = mount_check['stdout'].strip()
 
-    # Don't allow shrinking root filesystem
-    if mountpoint == '/':
-        return {'success': False, 'error': 'Cannot shrink root filesystem while system is running'}
+    # Protected system paths - cannot shrink these while system is running
+    PROTECTED_PATHS = ['/', '/boot', '/var', '/usr', '/etc']
+    if mountpoint in PROTECTED_PATHS:
+        return {'success': False, 'error': f'Cannot shrink {mountpoint} filesystem while system is running'}
 
     # Track containers to restart
     containers_to_restart = []
@@ -2821,6 +2833,8 @@ def handle_lvm_shrink(params):
         # Stop containers using this mountpoint before unmount
         try:
             containers = get_containers_using_path(mountpoint)
+            # Never stop archie_platform - it's running this operation!
+            containers = [c for c in containers if c != 'archie_platform']
             if containers:
                 print(f"Stopping {len(containers)} containers using {mountpoint} for shrink operation")
                 stop_result = stop_containers(containers, timeout=120)

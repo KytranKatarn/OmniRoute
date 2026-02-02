@@ -2675,72 +2675,105 @@ def handle_filesystem_resize(params):
 
 
 def handle_lvm_extend(params):
-    """Extend an LVM logical volume"""
+    """Extend an LVM logical volume with Docker container handling"""
     vg_name = params['vg_name']
     lv_name = params['lv_name']
     lv_path = f'/dev/{vg_name}/{lv_name}'
 
-    # Build lvextend command
-    if params.get('extend_all'):
-        cmd = ['sudo', '-n', 'lvextend', '-l', '+100%FREE', lv_path]
-    elif params.get('size_gb'):
-        cmd = ['sudo', '-n', 'lvextend', '-L', f'+{params["size_gb"]}G', lv_path]
-    else:
-        return {'success': False, 'error': 'Must specify size_gb or extend_all'}
+    # Get mountpoint for container detection
+    mount_result = run_command_full(['findmnt', '-n', '-o', 'TARGET', lv_path], timeout=10)
+    mountpoint = mount_result['stdout'].strip()
 
-    result = run_command_full(cmd, timeout=60)
-    lv_extended = result['returncode'] == 0
-    lv_already_max = False
+    # Track containers to restart
+    containers_to_restart = []
+    restart_result = None
 
-    if result['returncode'] != 0:
-        stderr = result['stderr'].lower()
-        # Check if failure is because there's no space to extend (LV already at max)
-        # This is OK - we still want to try resizing the filesystem
-        if 'no space' in stderr or 'insufficient' in stderr or 'not enough' in stderr or 'matches existing size' in stderr:
-            lv_already_max = True
+    # Stop containers using this mountpoint for safer resize
+    if mountpoint:
+        try:
+            containers = get_containers_using_path(mountpoint)
+            if containers:
+                print(f"Stopping {len(containers)} containers using {mountpoint} for extend operation")
+                stop_result = stop_containers(containers, timeout=120)
+                containers_to_restart = stop_result.get('stopped', [])
+                time.sleep(2)  # Give containers time to fully stop
+        except Exception as e:
+            print(f"Container stop check failed: {e}")
+
+    try:
+        # Build lvextend command
+        if params.get('extend_all'):
+            cmd = ['sudo', '-n', 'lvextend', '-l', '+100%FREE', lv_path]
+        elif params.get('size_gb'):
+            cmd = ['sudo', '-n', 'lvextend', '-L', f'+{params["size_gb"]}G', lv_path]
         else:
-            return {'success': False, 'error': result['stderr'] or 'lvextend failed', 'stdout': result['stdout']}
+            return {'success': False, 'error': 'Must specify size_gb or extend_all', 'containers_stopped': containers_to_restart}
 
-    # Detect filesystem type and resize
-    fs_result = run_command_full(['sudo', '-n', 'blkid', '-o', 'value', '-s', 'TYPE', lv_path], timeout=10)
-    fs_type = fs_result['stdout'].strip()
+        result = run_command_full(cmd, timeout=60)
+        lv_extended = result['returncode'] == 0
+        lv_already_max = False
 
-    # Try both the symlink path and the device mapper path for resize
-    device_paths = [lv_path]
-    # Add device mapper path as fallback (handles dashes in names)
-    dm_name = f"{vg_name.replace('-', '--')}-{lv_name.replace('-', '--')}"
-    device_paths.append(f'/dev/mapper/{dm_name}')
+        if result['returncode'] != 0:
+            stderr = result['stderr'].lower()
+            # Check if failure is because there's no space to extend (LV already at max)
+            # This is OK - we still want to try resizing the filesystem
+            if 'no space' in stderr or 'insufficient' in stderr or 'not enough' in stderr or 'matches existing size' in stderr:
+                lv_already_max = True
+            else:
+                return {'success': False, 'error': result['stderr'] or 'lvextend failed', 'stdout': result['stdout'], 'containers_stopped': containers_to_restart}
 
-    resize_result = None
-    if fs_type in ('ext4', 'ext3', 'ext2'):
-        for dev_path in device_paths:
-            resize_result = run_command_full(['sudo', '-n', 'resize2fs', dev_path], timeout=120)
-            if resize_result['returncode'] == 0:
-                break
-            # If "busy", wait and retry once
-            if 'busy' in resize_result['stderr'].lower():
-                import time
-                time.sleep(2)
+        # Detect filesystem type and resize
+        fs_result = run_command_full(['sudo', '-n', 'blkid', '-o', 'value', '-s', 'TYPE', lv_path], timeout=10)
+        fs_type = fs_result['stdout'].strip()
+
+        # Try both the symlink path and the device mapper path for resize
+        device_paths = [lv_path]
+        # Add device mapper path as fallback (handles dashes in names)
+        dm_name = f"{vg_name.replace('-', '--')}-{lv_name.replace('-', '--')}"
+        device_paths.append(f'/dev/mapper/{dm_name}')
+
+        resize_result = None
+        if fs_type in ('ext4', 'ext3', 'ext2'):
+            for dev_path in device_paths:
                 resize_result = run_command_full(['sudo', '-n', 'resize2fs', dev_path], timeout=120)
                 if resize_result['returncode'] == 0:
                     break
-    elif fs_type == 'xfs':
-        # xfs_growfs requires the mount point, not device path
-        mount_result = run_command_full(['findmnt', '-n', '-o', 'TARGET', lv_path], timeout=10)
-        mountpoint = mount_result['stdout'].strip()
-        if not mountpoint:
-            return {'success': True, 'message': f'LV extended but XFS volume is not mounted (cannot resize)', 'filesystem': fs_type}
-        resize_result = run_command_full(['sudo', '-n', 'xfs_growfs', mountpoint], timeout=120)
-    else:
-        lv_status = 'LV extended' if lv_extended else ('LV already at max size' if lv_already_max else 'LV unchanged')
-        return {'success': True, 'message': f'{lv_status} but filesystem resize not supported for {fs_type}', 'filesystem': fs_type}
+                # If "busy", wait and retry once
+                if 'busy' in resize_result['stderr'].lower():
+                    time.sleep(2)
+                    resize_result = run_command_full(['sudo', '-n', 'resize2fs', dev_path], timeout=120)
+                    if resize_result['returncode'] == 0:
+                        break
+        elif fs_type == 'xfs':
+            # xfs_growfs requires the mount point, not device path
+            if not mountpoint:
+                return {'success': True, 'message': f'LV extended but XFS volume is not mounted (cannot resize)', 'filesystem': fs_type, 'containers_stopped': containers_to_restart}
+            resize_result = run_command_full(['sudo', '-n', 'xfs_growfs', mountpoint], timeout=120)
+        else:
+            lv_status = 'LV extended' if lv_extended else ('LV already at max size' if lv_already_max else 'LV unchanged')
+            return {'success': True, 'message': f'{lv_status} but filesystem resize not supported for {fs_type}', 'filesystem': fs_type, 'containers_stopped': containers_to_restart}
 
-    if resize_result is None or resize_result['returncode'] != 0:
-        lv_status = 'LV extended' if lv_extended else ('LV already at max size' if lv_already_max else 'LV unchanged')
-        return {'success': False, 'message': f'{lv_status} but filesystem resize failed', 'error': resize_result['stderr'] if resize_result else 'No resize attempted'}
+        if resize_result is None or resize_result['returncode'] != 0:
+            lv_status = 'LV extended' if lv_extended else ('LV already at max size' if lv_already_max else 'LV unchanged')
+            return {'success': False, 'message': f'{lv_status} but filesystem resize failed', 'error': resize_result['stderr'] if resize_result else 'No resize attempted', 'containers_stopped': containers_to_restart}
 
-    lv_status = 'Extended LV and' if lv_extended else ('LV already at max size,' if lv_already_max else '')
-    return {'success': True, 'message': f'{lv_status} resized {fs_type} filesystem on {lv_path}'.strip(), 'filesystem': fs_type}
+        lv_status = 'Extended LV and' if lv_extended else ('LV already at max size,' if lv_already_max else '')
+        final_result = {
+            'success': True,
+            'message': f'{lv_status} resized {fs_type} filesystem on {lv_path}'.strip(),
+            'filesystem': fs_type,
+            'containers_stopped': containers_to_restart,
+        }
+
+    finally:
+        # Always restart containers that were stopped
+        if containers_to_restart:
+            time.sleep(1)
+            restart_result = start_containers(containers_to_restart, timeout=60)
+
+    if restart_result:
+        final_result['containers_restarted'] = restart_result.get('started', [])
+    return final_result
 
 
 def handle_lvm_shrink(params):

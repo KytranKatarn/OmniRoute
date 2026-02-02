@@ -373,6 +373,17 @@
         margin-bottom: 25px;
     }
 
+    /* Stats Row - horizontal flex with responsive wrapping */
+    .stats-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+    }
+    .stats-row .stat-card {
+        flex: 1 1 200px;
+        min-width: 150px;
+    }
+
     .stat-card {
         background: var(--archie-bg-secondary);
         border: 1px solid var(--archie-border-default);
@@ -930,12 +941,24 @@
     .storage-overview-bar {
         display: flex;
         align-items: center;
-        gap: 24px;
+        flex-wrap: wrap;
+        gap: 16px;
         padding: 12px 16px;
         background: var(--archie-bg-secondary);
         border: 1px solid var(--archie-border-default);
         border-radius: 8px;
         margin-bottom: 16px;
+    }
+    .storage-section-group {
+        display: flex;
+        gap: 16px;
+        align-items: center;
+        padding-right: 16px;
+        border-right: 1px solid var(--archie-border);
+    }
+    .storage-section-label {
+        font-size: 0.7rem;
+        font-weight: 600;
     }
     .storage-overview-stat {
         display: flex;
@@ -953,6 +976,23 @@
         font-weight: 600;
         color: var(--archie-text-primary);
         font-family: var(--archie-font-mono);
+    }
+    .storage-queue-status {
+        margin-left: auto;
+        font-size: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .storage-refresh-btn {
+        padding: 6px 14px;
+    }
+    .storage-refresh-btn i {
+        width: 14px;
+        height: 14px;
+        display: inline-block;
+        vertical-align: middle;
+        margin-right: 4px;
     }
     .storage-main-layout {
         display: grid;
@@ -1241,6 +1281,320 @@
         }
         .docker-overview-grid {
             grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    /* ===== Storage Tab Mobile Responsive ===== */
+    @media (max-width: 768px) {
+        /* Storage overview bar - stack vertically on mobile */
+        .storage-overview-bar {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 0;
+            padding: 0;
+        }
+        .storage-section-group {
+            border-right: none;
+            border-bottom: 1px solid var(--archie-border);
+            padding: 12px;
+            padding-right: 12px;
+            flex-wrap: wrap;
+            justify-content: center;
+            text-align: center;
+            gap: 12px;
+        }
+        .storage-section-group:last-of-type {
+            border-bottom: 1px solid var(--archie-border);
+        }
+        .storage-health-stat {
+            padding: 12px;
+            justify-content: center;
+            align-items: center;
+            border-bottom: 1px solid var(--archie-border);
+            width: 100%;
+        }
+        .storage-overview-stat {
+            align-items: center;
+            min-width: 70px;
+        }
+        .storage-queue-status {
+            margin-left: 0;
+            justify-content: center;
+            width: 100%;
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--archie-border);
+        }
+        .storage-refresh-btn {
+            width: 100%;
+            justify-content: center;
+            margin: 0;
+            border-radius: 0 0 8px 8px;
+        }
+
+        /* Local drives header - stack on mobile */
+        .local-drives-header {
+            flex-direction: column !important;
+            align-items: center !important;
+            text-align: center;
+        }
+
+        /* Storage main layout */
+        .storage-main-layout {
+            grid-template-columns: 1fr !important;
+        }
+
+        /* Treemap drives - full width, better spacing */
+        .treemap-drive {
+            margin-bottom: 16px;
+        }
+        .treemap-drive-header {
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .treemap-partitions {
+            flex-wrap: wrap;
+        }
+        .treemap-partition {
+            min-width: 80px;
+            flex: 1 1 auto !important;
+        }
+
+        /* LVM tables - horizontal scroll on small screens */
+        .storage-section {
+            overflow-x: auto;
+        }
+        .storage-section table {
+            min-width: 400px;
+        }
+
+        /* Disk breakdown cards */
+        #storage-disk-breakdown > div {
+            padding: 12px;
+        }
+    }
+
+    /* Extra small screens (phones) */
+    @media (max-width: 480px) {
+        .storage-overview-bar {
+            padding: 0;
+        }
+        .storage-section-group {
+            gap: 8px;
+            padding: 10px;
+        }
+        .storage-overview-value {
+            font-size: 0.95rem;
+        }
+        .storage-overview-label {
+            font-size: 0.65rem;
+        }
+        .storage-section-label {
+            font-size: 0.65rem;
+            width: 100%;
+            text-align: center;
+            margin-bottom: 4px;
+        }
+
+        /* Stack treemap partition labels */
+        .treemap-partition {
+            min-height: 70px;
+            padding: 8px !important;
+        }
+        .treemap-partition-label {
+            font-size: 0.65rem !important;
+        }
+        .treemap-partition-size {
+            font-size: 0.7rem !important;
+        }
+
+        /* Disk map section header */
+        .storage-section h4 {
+            font-size: 0.85rem;
+        }
+    }
+
+    /* ===== Global Responsive: Filter Bars & Tables ===== */
+    @media (max-width: 768px) {
+        /* Filter bars - stack vertically on mobile */
+        .filter-bar {
+            flex-direction: column;
+            gap: 8px;
+        }
+        .filter-bar input,
+        .filter-bar select {
+            width: 100%;
+            min-width: 0;
+        }
+        .filter-bar > div {
+            width: 100%;
+            margin-left: 0 !important;
+            justify-content: space-between;
+        }
+
+        /* Data tables - horizontal scroll wrapper */
+        .panel {
+            overflow-x: auto;
+        }
+        .data-table {
+            min-width: 600px;
+        }
+        .data-table th,
+        .data-table td {
+            padding: 8px 6px;
+            font-size: 0.75rem;
+        }
+
+        /* Stats row - use grid for proper wrapping */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+        .stats-row .stat-card {
+            padding: 12px;
+        }
+        .stats-row .stat-value {
+            font-size: 1.1rem;
+        }
+        .stats-row .stat-label {
+            font-size: 0.65rem;
+        }
+
+        /* Info grids */
+        .info-grid {
+            grid-template-columns: 1fr !important;
+        }
+
+        /* Section titles */
+        .section-title {
+            font-size: 0.9rem;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        /* Panel headers */
+        .panel-header {
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        /* Single column stats on very small screens */
+        .stats-row {
+            grid-template-columns: 1fr;
+        }
+        .stats-grid {
+            grid-template-columns: 1fr !important;
+        }
+
+        /* Even smaller table text */
+        .data-table th,
+        .data-table td {
+            padding: 6px 4px;
+            font-size: 0.7rem;
+        }
+
+        /* Hide less important columns on phone */
+        .data-table .hide-mobile {
+            display: none;
+        }
+    }
+
+    /* ===== Processes Tab Responsive ===== */
+    @media (max-width: 920px) {
+        /* Process filter bar adjustments */
+        #tab-processes .filter-bar {
+            gap: 8px;
+        }
+        #tab-processes .filter-bar > div[style*="margin-left: auto"] {
+            margin-left: 0 !important;
+            width: 100%;
+        }
+    }
+
+    @media (max-width: 768px) {
+        /* Process table - allow scroll */
+        #tab-processes .panel {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        #tab-processes .data-table {
+            min-width: 700px;
+        }
+
+        /* Pagination - stack on mobile */
+        #process-pagination {
+            flex-direction: column;
+            gap: 12px;
+            align-items: stretch !important;
+        }
+        #process-pagination > span {
+            text-align: center;
+        }
+        #process-pagination > div {
+            justify-content: center;
+        }
+    }
+
+    /* ===== Memory Tab Responsive ===== */
+    @media (max-width: 768px) {
+        #tab-memory .stats-row {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+        #tab-memory .panel {
+            overflow-x: auto;
+        }
+        #tab-memory .data-table {
+            min-width: 550px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        #tab-memory .stats-row {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* ===== Hardware Tab Responsive ===== */
+    @media (max-width: 768px) {
+        #tab-hardware .info-grid {
+            grid-template-columns: 1fr !important;
+        }
+    }
+
+    /* ===== LVM Configuration Responsive ===== */
+    @media (max-width: 768px) {
+        .lvm-grid {
+            grid-template-columns: 1fr;
+        }
+        .lvm-section {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .lvm-section .data-table {
+            min-width: 280px;
+        }
+        .lvm-section .data-table th:first-child,
+        .lvm-section .data-table td:first-child {
+            max-width: 120px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .lvm-section .data-table th:first-child,
+        .lvm-section .data-table td:first-child {
+            max-width: 90px;
+        }
+        .lvm-section .data-table th,
+        .lvm-section .data-table td {
+            padding: 6px 4px;
+            font-size: 0.7rem;
         }
     }
 
@@ -2494,10 +2848,10 @@
     <!-- Tab: Storage -->
     <div id="tab-storage" class="tab-content">
         <!-- Storage Overview Bar -->
-        <div class="storage-overview-bar" style="flex-wrap: wrap; gap: 12px;">
+        <div class="storage-overview-bar">
             <!-- Local Storage Section -->
-            <div style="display: flex; gap: 16px; align-items: center; padding-right: 16px; border-right: 1px solid var(--archie-border);">
-                <span style="font-size: 0.7rem; color: var(--archie-cyan); font-weight: 600;">LOCAL</span>
+            <div class="storage-section-group storage-local-section">
+                <span class="storage-section-label" style="color: var(--archie-cyan);">LOCAL</span>
                 <div class="storage-overview-stat">
                     <span class="storage-overview-label">Capacity</span>
                     <span class="storage-overview-value" id="storage-local-total">--</span>
@@ -2516,8 +2870,8 @@
                 </div>
             </div>
             <!-- Attached Storage Section -->
-            <div style="display: flex; gap: 16px; align-items: center; padding-right: 16px; border-right: 1px solid var(--archie-border);">
-                <span style="font-size: 0.7rem; color: var(--archie-orange); font-weight: 600;">USB/ATTACHED</span>
+            <div class="storage-section-group storage-attached-section">
+                <span class="storage-section-label" style="color: var(--archie-orange);">USB/ATTACHED</span>
                 <div class="storage-overview-stat">
                     <span class="storage-overview-label">Capacity</span>
                     <span class="storage-overview-value" id="storage-attached-total">--</span>
@@ -2532,13 +2886,13 @@
                 </div>
             </div>
             <!-- Health -->
-            <div class="storage-overview-stat">
+            <div class="storage-overview-stat storage-health-stat">
                 <span class="storage-overview-label">Health</span>
                 <span class="storage-overview-value" id="storage-health">--</span>
             </div>
-            <span id="host-queue-status" style="margin-left: auto; font-size: 0.75rem; display: flex; align-items: center; gap: 6px;"></span>
-            <button class="action-btn" onclick="loadStorageData()" style="padding: 6px 14px;">
-                <i data-lucide="refresh-cw" style="width:14px; height:14px; display:inline-block; vertical-align:middle; margin-right:4px;"></i>
+            <span id="host-queue-status" class="storage-queue-status"></span>
+            <button class="action-btn storage-refresh-btn" onclick="loadStorageData(true)">
+                <i data-lucide="refresh-cw"></i>
                 Refresh
             </button>
         </div>
@@ -5050,6 +5404,7 @@ let processCurrentPage = 1;    // Current page for process table
 let filteredProcesses = [];    // Filtered processes for pagination
 let hostStorageLoaded = false;  // Flag: host monitor provided storage data
 let storageData = null;        // Cached storage drive data
+let lastStorageRefresh = null; // Timestamp of last storage data refresh
 let selectedPartition = null;  // Currently selected treemap partition element
 // storageOverallChart removed - replaced with DOM-based disk breakdown display
 // Per-drive donut charts removed - Disk Usage breakdown provides all needed info
@@ -7217,9 +7572,12 @@ async function loadNetwork() {
 
 // ===== Storage Tab Functions =====
 
-async function loadStorageData() {
-    // Show cached data immediately if available
-    if (window.cachedStorageData || storageData) {
+// Flag to skip cache after storage operations
+let skipStorageCache = false;
+
+async function loadStorageData(forceRefresh = false) {
+    // Show cached data immediately if available (unless forced refresh after operation)
+    if (!forceRefresh && !skipStorageCache && (window.cachedStorageData || storageData)) {
         const cached = window.cachedStorageData || storageData;
         renderStorageOverview(cached.disks || [], cached.lvm);
         renderStorageTreemap(cached.disks || [], cached.lvm, cached.vg_free || {}, cached.docker_mounts || {});
@@ -7230,13 +7588,18 @@ async function loadStorageData() {
         renderCapacityAlerts(cached.capacity_alerts || []);
     }
 
-    // Fetch fresh data
+    // Fetch fresh data with cache-busting timestamp
     try {
-        const res = await fetch('/tools/system-operations/api/storage/drives');
+        const cacheBuster = forceRefresh || skipStorageCache ? '?t=' + Date.now() : '';
+        console.log('loadStorageData: fetching with forceRefresh=' + forceRefresh + ', cacheBuster=' + cacheBuster);
+        const res = await fetch('/tools/system-operations/api/storage/drives' + cacheBuster);
         const json = await res.json();
+        console.log('loadStorageData: response success=' + json.success);
         if (json.success && json.data) {
             storageData = json.data;
             window.cachedStorageData = json.data;
+            lastStorageRefresh = new Date();  // Track when data was refreshed
+            console.log('loadStorageData: set lastStorageRefresh to', lastStorageRefresh);
             saveToCache(CACHE_KEYS.storage, json.data);
             console.log('Docker mounts received:', json.data.docker_mounts);
             renderStorageOverview(json.data.disks || [], json.data.lvm);
@@ -7246,12 +7609,35 @@ async function loadStorageData() {
             renderRaid(json.data.raid);
             renderSmartHealth(json.data.smart_details || {});
             renderCapacityAlerts(json.data.capacity_alerts || []);
+            // Update refresh timestamp display and icons
+            updateStorageRefreshTime();
+            lucide.createIcons();
         }
     } catch (e) {
         console.error('Storage data error:', e);
     }
     // Check host command queue status
     checkHostCommandQueue();
+}
+
+// Update the storage refresh timestamp display
+function updateStorageRefreshTime() {
+    const el = document.getElementById('storageRefreshTime');
+    if (el && lastStorageRefresh) {
+        // Format as "Last refresh: 10:22 PM" - uses browser's local timezone
+        const timeStr = lastStorageRefresh.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'});
+        el.textContent = 'Last refresh: ' + timeStr;
+
+        // Add brief flash animation to indicate refresh happened
+        el.style.transition = 'none';
+        el.style.color = 'var(--archie-cyan)';
+        el.style.fontWeight = '600';
+        setTimeout(() => {
+            el.style.transition = 'color 1s ease, font-weight 1s ease';
+            el.style.color = 'var(--archie-text-muted)';
+            el.style.fontWeight = 'normal';
+        }, 50);
+    }
 }
 
 function formatSizeGB(gb) {
@@ -7673,9 +8059,19 @@ function renderStorageTreemap(disks, lvm, vgFree, dockerMounts) {
 
     // Render Local Drives section
     if (localDisks.length > 0) {
-        html += '<div style="margin-bottom: 8px; padding: 6px 12px; background: var(--archie-bg-tertiary); border-radius: 6px; display: flex; align-items: center; gap: 8px;">';
+        // Format as "Last refresh: 10:22 PM" - uses browser's local timezone
+        const refreshTime = lastStorageRefresh
+            ? 'Last refresh: ' + lastStorageRefresh.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'})
+            : 'Last refresh: --';
+        html += '<div class="local-drives-header" style="margin-bottom: 8px; padding: 6px 12px; background: var(--archie-bg-tertiary); border-radius: 6px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">';
+        html += '<div style="display: flex; align-items: center; gap: 8px;">';
         html += '<span style="font-size: 0.75rem; font-weight: 600; color: var(--archie-cyan);">LOCAL DRIVES</span>';
         html += '<span style="font-size: 0.7rem; color: var(--archie-text-muted);">(' + localDisks.length + ' drive' + (localDisks.length > 1 ? 's' : '') + ')</span>';
+        html += '</div>';
+        html += '<div style="display: flex; align-items: center; gap: 6px; font-size: 0.7rem; color: var(--archie-text-muted);">';
+        html += '<i data-lucide="refresh-cw" style="width: 12px; height: 12px;"></i>';
+        html += '<span id="storageRefreshTime">' + refreshTime + '</span>';
+        html += '</div>';
         html += '</div>';
         localDisks.forEach(disk => { html += renderDisk(disk); });
     }
@@ -11918,10 +12314,70 @@ function cancelLoadingOverlay() {
 function showCompletionMessage(success, title, message, meta) {
     hideLoadingOverlay();
 
-    // Force immediate refresh of storage data when operation completes
+    // Show "Verifying changes..." in activity bar while data refreshes
+    const activityBar = document.getElementById('activityStatusBar');
+    const activityText = document.getElementById('activityText');
+    const activityTimer = document.getElementById('activityTimer');
+    const activityStage = document.getElementById('activityStage');
+
+    if (success && activityBar) {
+        activityBar.classList.add('visible');
+        if (activityText) activityText.textContent = 'Verifying changes...';
+        if (activityTimer) activityTimer.textContent = '';
+        if (activityStage) activityStage.textContent = '(Refreshing storage data)';
+    }
+
+    // Update global notification to show verifying state
+    if (success && typeof broadcastAdminNotification === 'function') {
+        broadcastAdminNotification({
+            id: 'verify-' + Date.now(),
+            type: 'info',
+            title: 'Verifying Changes',
+            text: 'Refreshing storage data...',
+            showTimer: false
+        });
+    }
+
+    // Skip cache for post-operation refreshes
+    skipStorageCache = true;
+    console.log('showCompletionMessage: starting refresh sequence, skipStorageCache=true');
+
+    // host_monitor already refreshes data after commands complete
+    // First refresh immediately (data should already be available)
     setTimeout(() => {
-        loadStorageData();
+        console.log('showCompletionMessage: first refresh starting');
+        if (activityStage) activityStage.textContent = '(Refreshing...)';
+        loadStorageData(true);  // Force refresh, skip cache
         loadOverview();
+
+        // Second refresh after 2 seconds as backup
+        setTimeout(() => {
+            console.log('showCompletionMessage: second refresh starting');
+            if (activityStage) activityStage.textContent = '(Verifying...)';
+            loadStorageData(true);  // Force refresh again
+            loadOverview();
+
+            // Reset cache skip flag
+            skipStorageCache = false;
+
+            // Hide activity bar after verification complete
+            setTimeout(() => {
+                if (activityBar) {
+                    activityBar.classList.remove('visible');
+                }
+            }, 500);
+
+            // Update global notification to show complete
+            if (success && typeof broadcastAdminNotification === 'function') {
+                broadcastAdminNotification({
+                    id: 'complete-' + Date.now(),
+                    type: 'success',
+                    title: 'Operation Complete',
+                    text: message,
+                    showTimer: false
+                });
+            }
+        }, 2000);
     }, 500);
 
     // Show a persistent completion toast that requires manual dismiss

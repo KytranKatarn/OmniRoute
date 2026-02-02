@@ -78,8 +78,191 @@
 
     {% block extra_head %}{% endblock %}
     {% block extra_css %}{% endblock %}
+
+    <!-- Global Admin Notification System -->
+    <style>
+        /* Admin Notification Bar - Bottom of screen */
+        .admin-notification-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 10001;
+            transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .admin-notification-bar.visible {
+            transform: translateY(0);
+        }
+
+        .admin-notification-content {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 20px;
+            background: linear-gradient(135deg, rgba(13, 17, 23, 0.98) 0%, rgba(22, 27, 34, 0.98) 100%);
+            border-top: 2px solid var(--archie-cyan, #00ffff);
+            box-shadow: 0 -4px 20px rgba(0, 255, 255, 0.15), 0 -2px 8px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+        }
+
+        .admin-notification-bar.type-success .admin-notification-content {
+            border-top-color: var(--archie-green, #00ff41);
+            box-shadow: 0 -4px 20px rgba(0, 255, 65, 0.15), 0 -2px 8px rgba(0, 0, 0, 0.5);
+        }
+
+        .admin-notification-bar.type-warning .admin-notification-content {
+            border-top-color: var(--archie-orange, #ffaa00);
+            box-shadow: 0 -4px 20px rgba(255, 170, 0, 0.15), 0 -2px 8px rgba(0, 0, 0, 0.5);
+        }
+
+        .admin-notification-bar.type-error .admin-notification-content {
+            border-top-color: var(--archie-red, #ff6b6b);
+            box-shadow: 0 -4px 20px rgba(255, 107, 107, 0.15), 0 -2px 8px rgba(0, 0, 0, 0.5);
+        }
+
+        .admin-notification-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--archie-cyan-alpha-20, rgba(0, 255, 255, 0.2));
+            color: var(--archie-cyan, #00ffff);
+            flex-shrink: 0;
+        }
+
+        .admin-notification-bar.type-success .admin-notification-icon {
+            background: var(--archie-green-alpha-20, rgba(0, 255, 65, 0.2));
+            color: var(--archie-green, #00ff41);
+        }
+
+        .admin-notification-bar.type-warning .admin-notification-icon {
+            background: var(--archie-orange-alpha-20, rgba(255, 170, 0, 0.2));
+            color: var(--archie-orange, #ffaa00);
+        }
+
+        .admin-notification-bar.type-error .admin-notification-icon {
+            background: var(--archie-red-alpha-20, rgba(255, 107, 107, 0.2));
+            color: var(--archie-red, #ff6b6b);
+        }
+
+        .admin-notification-icon svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .admin-notification-message {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .admin-notification-title {
+            font-family: var(--archie-font-display, 'Orbitron', monospace);
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--archie-cyan, #00ffff);
+        }
+
+        .admin-notification-bar.type-success .admin-notification-title {
+            color: var(--archie-green, #00ff41);
+        }
+
+        .admin-notification-bar.type-warning .admin-notification-title {
+            color: var(--archie-orange, #ffaa00);
+        }
+
+        .admin-notification-bar.type-error .admin-notification-title {
+            color: var(--archie-red, #ff6b6b);
+        }
+
+        .admin-notification-text {
+            font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+            font-size: 13px;
+            color: var(--archie-text-secondary, #c9d1d9);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .admin-notification-timer {
+            font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--archie-cyan, #00ffff);
+            padding: 4px 10px;
+            background: var(--archie-cyan-alpha-10, rgba(0, 255, 255, 0.1));
+            border-radius: 4px;
+            flex-shrink: 0;
+        }
+
+        .admin-notification-bar.type-success .admin-notification-timer {
+            color: var(--archie-green, #00ff41);
+            background: var(--archie-green-alpha-10, rgba(0, 255, 65, 0.1));
+        }
+
+        .admin-notification-close {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border: none;
+            background: transparent;
+            color: var(--archie-text-tertiary, #8b949e);
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+
+        .admin-notification-close:hover {
+            background: var(--archie-bg-hover, #21262d);
+            color: var(--archie-text-primary, #00ff41);
+        }
+
+        .admin-notification-close svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* Pulse animation for active operations */
+        .admin-notification-bar.is-active .admin-notification-icon {
+            animation: adminPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes adminPulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.05); }
+        }
+    </style>
 </head>
 <body data-module="{% block module_name %}default{% endblock %}">
+    <!-- Global Admin Notification Bar (Admin users only) -->
+    {% if current_user.is_authenticated and current_user.is_admin %}
+    <div id="adminNotificationBar" class="admin-notification-bar">
+        <div class="admin-notification-content">
+            <div class="admin-notification-icon">
+                <i data-lucide="activity"></i>
+            </div>
+            <div class="admin-notification-message">
+                <span class="admin-notification-title" id="adminNotifyTitle">System Alert</span>
+                <span class="admin-notification-text" id="adminNotifyText">Loading...</span>
+            </div>
+            <span class="admin-notification-timer" id="adminNotifyTimer" style="display: none;">0s</span>
+            <button class="admin-notification-close" onclick="dismissAdminNotification()" title="Dismiss">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Flash Messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
@@ -119,6 +302,235 @@
                 lucide.createIcons();
             }
         });
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // GLOBAL ADMIN NOTIFICATION SYSTEM
+        // Cross-tab, cross-module notification bar for admin alerts
+        // ═══════════════════════════════════════════════════════════════════════
+
+        {% if current_user.is_authenticated and current_user.is_admin %}
+        (function() {
+            'use strict';
+
+            // BroadcastChannel for cross-tab communication
+            const adminNotifyChannel = new BroadcastChannel('archie_admin_notifications');
+            const STORAGE_KEY = 'archie_admin_notification';
+            let activeNotification = null;
+            let notificationTimer = null;
+            let notificationStartTime = null;
+
+            // Icon mapping for notification types
+            const iconMap = {
+                operation: 'activity',
+                success: 'check-circle',
+                warning: 'alert-triangle',
+                error: 'x-circle',
+                info: 'info'
+            };
+
+            // Save notification to localStorage for persistence across navigation
+            function saveToStorage(notification) {
+                if (notification && notification.showTimer) {
+                    // Only persist active operations (not completion messages)
+                    try {
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(notification));
+                    } catch (e) { /* ignore storage errors */ }
+                }
+            }
+
+            // Clear notification from localStorage
+            function clearFromStorage() {
+                try {
+                    localStorage.removeItem(STORAGE_KEY);
+                } catch (e) { /* ignore */ }
+            }
+
+            // Restore notification from localStorage on page load
+            function restoreFromStorage() {
+                try {
+                    const stored = localStorage.getItem(STORAGE_KEY);
+                    if (stored) {
+                        const notification = JSON.parse(stored);
+                        // Check if notification is still valid (not too old - max 10 min)
+                        if (notification.startTime && (Date.now() - notification.startTime) < 600000) {
+                            showAdminNotification(notification);
+                        } else {
+                            clearFromStorage();
+                        }
+                    }
+                } catch (e) { /* ignore */ }
+            }
+
+            // Show admin notification
+            window.showAdminNotification = function(notification) {
+                const bar = document.getElementById('adminNotificationBar');
+                if (!bar) return;
+
+                const titleEl = document.getElementById('adminNotifyTitle');
+                const textEl = document.getElementById('adminNotifyText');
+                const timerEl = document.getElementById('adminNotifyTimer');
+                const iconEl = bar.querySelector('.admin-notification-icon i');
+
+                // Set content
+                titleEl.textContent = notification.title || 'System Alert';
+                textEl.textContent = notification.text || '';
+
+                // Set icon
+                const iconName = iconMap[notification.type] || 'bell';
+                if (iconEl) {
+                    iconEl.setAttribute('data-lucide', iconName);
+                }
+
+                // Set type class
+                bar.className = 'admin-notification-bar';
+                if (notification.type) {
+                    bar.classList.add('type-' + notification.type);
+                }
+
+                // Handle timer for operations
+                if (notification.showTimer) {
+                    bar.classList.add('is-active');
+                    timerEl.style.display = 'block';
+                    notificationStartTime = notification.startTime || Date.now();
+                    // Ensure startTime is on the notification for storage
+                    notification.startTime = notificationStartTime;
+                    startNotificationTimer();
+                    // Persist to localStorage for page navigation
+                    saveToStorage(notification);
+                } else {
+                    bar.classList.remove('is-active');
+                    timerEl.style.display = 'none';
+                    stopNotificationTimer();
+                    // Clear storage for completion messages
+                    clearFromStorage();
+                }
+
+                // Show the bar
+                bar.classList.add('visible');
+                activeNotification = notification;
+
+                // Re-initialize Lucide icons
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+
+                // Auto-dismiss success/info after delay if specified
+                if (notification.autoDismiss && notification.autoDismiss > 0) {
+                    setTimeout(() => {
+                        if (activeNotification && activeNotification.id === notification.id) {
+                            dismissAdminNotification();
+                        }
+                    }, notification.autoDismiss);
+                }
+            };
+
+            // Update existing notification (for stage changes)
+            window.updateAdminNotification = function(update) {
+                if (!activeNotification) return;
+
+                const textEl = document.getElementById('adminNotifyText');
+                if (update.text && textEl) {
+                    textEl.textContent = update.text;
+                }
+
+                // Broadcast update to other tabs
+                if (update.broadcast !== false) {
+                    adminNotifyChannel.postMessage({
+                        action: 'update',
+                        update: update
+                    });
+                }
+            };
+
+            // Dismiss notification
+            window.dismissAdminNotification = function(broadcast = true) {
+                const bar = document.getElementById('adminNotificationBar');
+                if (bar) {
+                    bar.classList.remove('visible');
+                }
+                stopNotificationTimer();
+                activeNotification = null;
+                clearFromStorage();
+
+                // Broadcast dismiss to other tabs
+                if (broadcast) {
+                    adminNotifyChannel.postMessage({ action: 'dismiss' });
+                }
+            };
+
+            // Broadcast notification to all tabs
+            window.broadcastAdminNotification = function(notification) {
+                // Add unique ID for tracking
+                notification.id = notification.id || 'notify_' + Date.now();
+
+                // Show locally
+                showAdminNotification(notification);
+
+                // Broadcast to other tabs
+                adminNotifyChannel.postMessage({
+                    action: 'show',
+                    notification: notification
+                });
+            };
+
+            // Timer management
+            function startNotificationTimer() {
+                stopNotificationTimer();
+                updateTimerDisplay();
+                notificationTimer = setInterval(updateTimerDisplay, 1000);
+            }
+
+            function stopNotificationTimer() {
+                if (notificationTimer) {
+                    clearInterval(notificationTimer);
+                    notificationTimer = null;
+                }
+            }
+
+            function updateTimerDisplay() {
+                const timerEl = document.getElementById('adminNotifyTimer');
+                if (!timerEl || !notificationStartTime) return;
+
+                const elapsed = Math.floor((Date.now() - notificationStartTime) / 1000);
+                if (elapsed < 120) {
+                    timerEl.textContent = elapsed + 's';
+                } else {
+                    const mins = Math.floor(elapsed / 60);
+                    const secs = elapsed % 60;
+                    timerEl.textContent = mins + 'm ' + secs + 's';
+                }
+            }
+
+            // Listen for messages from other tabs
+            adminNotifyChannel.onmessage = function(event) {
+                const data = event.data;
+                if (!data) return;
+
+                switch (data.action) {
+                    case 'show':
+                        showAdminNotification(data.notification);
+                        break;
+                    case 'update':
+                        if (data.update) {
+                            data.update.broadcast = false;
+                            updateAdminNotification(data.update);
+                        }
+                        break;
+                    case 'dismiss':
+                        dismissAdminNotification(false);
+                        break;
+                }
+            };
+
+            // Expose channel for direct use by modules
+            window.adminNotifyChannel = adminNotifyChannel;
+
+            // Restore any active notification on page load
+            document.addEventListener('DOMContentLoaded', function() {
+                restoreFromStorage();
+            });
+        })();
+        {% endif %}
     </script>
 </body>
 </html>

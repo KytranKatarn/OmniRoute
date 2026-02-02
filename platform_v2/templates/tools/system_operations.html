@@ -4778,14 +4778,27 @@ const activeOperations = new Map();
 let activityTimerInterval = null;
 
 function trackOperation(commandId, label) {
+    const startTime = Date.now();
     activeOperations.set(commandId, {
         label: label,
-        startTime: Date.now(),
+        startTime: startTime,
         stage: 'Queued...',
         commandId: commandId
     });
     updateActivityStatusBar();
     startActivityTimer();
+
+    // Broadcast to global admin notification system (cross-tab, cross-module)
+    if (typeof broadcastAdminNotification === 'function') {
+        broadcastAdminNotification({
+            id: commandId,
+            type: 'operation',
+            title: 'Storage Operation',
+            text: label + ' - Queued...',
+            showTimer: true,
+            startTime: startTime
+        });
+    }
 }
 
 function updateOperationStage(commandId, stage) {
@@ -4793,14 +4806,34 @@ function updateOperationStage(commandId, stage) {
     if (op) {
         op.stage = stage;
         updateActivityStatusBar();
+
+        // Update global admin notification
+        if (typeof updateAdminNotification === 'function') {
+            updateAdminNotification({
+                text: op.label + ' - ' + stage
+            });
+        }
     }
 }
 
-function completeOperation(commandId) {
+function completeOperation(commandId, success = true, message = '') {
+    const op = activeOperations.get(commandId);
     activeOperations.delete(commandId);
     updateActivityStatusBar();
     if (activeOperations.size === 0) {
         stopActivityTimer();
+    }
+
+    // Show completion in global admin notification
+    if (typeof broadcastAdminNotification === 'function' && op) {
+        broadcastAdminNotification({
+            id: commandId + '_complete',
+            type: success ? 'success' : 'error',
+            title: success ? 'Operation Complete' : 'Operation Failed',
+            text: message || (op.label + (success ? ' completed successfully' : ' failed')),
+            showTimer: false,
+            autoDismiss: 8000  // Auto-dismiss after 8 seconds for completions
+        });
     }
 }
 
@@ -10916,7 +10949,7 @@ async function submitHostCommand(commandType, params, options) {
         var poll = async function() {
             pollCount++;
             if (Date.now() > deadline) {
-                completeOperation(commandId);
+                completeOperation(commandId, false, label + ' timed out');
                 if (showOverlay) {
                     showCompletionMessage(false, 'Operation Timed Out', 'The host may still be processing. Check the Storage tab for updates.');
                 } else {
@@ -10963,9 +10996,6 @@ async function submitHostCommand(commandType, params, options) {
                     await loadStorageData();
                     await loadOverview();
 
-                    // Complete tracking
-                    completeOperation(commandId);
-
                     // Calculate duration
                     var durationSec = Math.round((Date.now() - startTime) / 1000);
                     var durationStr = durationSec < 120 ? durationSec + 's' : Math.floor(durationSec / 60) + 'm ' + (durationSec % 60) + 's';
@@ -10977,6 +11007,11 @@ async function submitHostCommand(commandType, params, options) {
                         containers_restarted: cmdResult.containers_restarted || [],
                         fstab_updated: cmdResult.fstab_updated || false
                     };
+
+                    // Complete tracking with success/failure info
+                    var successMsg = cmdResult.message || (label + ' completed in ' + durationStr);
+                    var failMsg = cmdResult.error || (label + ' failed');
+                    completeOperation(commandId, cmdResult.success, cmdResult.success ? successMsg : failMsg);
 
                     // Now show completion message
                     if (cmdResult.success) {
@@ -10997,7 +11032,7 @@ async function submitHostCommand(commandType, params, options) {
                 } else if (resultRes.status === 202) {
                     setTimeout(poll, pollInterval);
                 } else {
-                    completeOperation(commandId);
+                    completeOperation(commandId, false, label + ': unexpected status ' + resultRes.status);
                     if (showOverlay) {
                         showCompletionMessage(false, 'Unexpected Error', 'Status ' + resultRes.status);
                     } else {
@@ -11005,7 +11040,7 @@ async function submitHostCommand(commandType, params, options) {
                     }
                 }
             } catch (pollErr) {
-                completeOperation(commandId);
+                completeOperation(commandId, false, label + ': ' + pollErr.message);
                 if (showOverlay) {
                     showCompletionMessage(false, 'Connection Error', pollErr.message);
                 } else {
@@ -11016,7 +11051,7 @@ async function submitHostCommand(commandType, params, options) {
         // Initial delay before first poll to let host_monitor pick up the command
         setTimeout(poll, 1500);
     } catch (err) {
-        if (commandId) completeOperation(commandId);
+        if (commandId) completeOperation(commandId, false, label + ': ' + err.message);
         if (showOverlay) {
             showCompletionMessage(false, 'Error', err.message);
         } else {

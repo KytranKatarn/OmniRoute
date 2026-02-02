@@ -4740,6 +4740,10 @@
         <div class="loading-title" id="loadingTitle">Processing...</div>
         <div class="loading-message" id="loadingMessage">Please wait while the operation completes</div>
         <div class="loading-progress" id="loadingProgress"></div>
+        <button class="btn btn-ghost" id="loadingCancelBtn" onclick="cancelLoadingOverlay()" style="margin-top: 20px; display: none;">
+            <i data-lucide="x" style="width:14px; height:14px; display:inline-block; vertical-align:middle; margin-right:4px;"></i>
+            Cancel / Close
+        </button>
     </div>
 </div>
 
@@ -11858,17 +11862,32 @@ function showToast(type, message) {
 }
 
 // Loading Overlay Functions
+let loadingCancelTimeout = null;
+
 function showLoadingOverlay(title, message) {
     const overlay = document.getElementById('loadingOverlay');
     const titleEl = document.getElementById('loadingTitle');
     const messageEl = document.getElementById('loadingMessage');
     const progressEl = document.getElementById('loadingProgress');
+    const cancelBtn = document.getElementById('loadingCancelBtn');
 
     titleEl.textContent = title || 'Processing...';
     messageEl.textContent = message || 'Please wait while the operation completes';
     progressEl.textContent = '';
 
+    // Hide cancel button initially
+    if (cancelBtn) cancelBtn.style.display = 'none';
+
     overlay.classList.add('active');
+
+    // Show cancel button after 15 seconds in case operation gets stuck
+    if (loadingCancelTimeout) clearTimeout(loadingCancelTimeout);
+    loadingCancelTimeout = setTimeout(() => {
+        if (cancelBtn && overlay.classList.contains('active')) {
+            cancelBtn.style.display = 'inline-flex';
+            lucide.createIcons();
+        }
+    }, 15000);
 }
 
 function updateLoadingProgress(text) {
@@ -11878,11 +11897,32 @@ function updateLoadingProgress(text) {
 
 function hideLoadingOverlay() {
     const overlay = document.getElementById('loadingOverlay');
+    const cancelBtn = document.getElementById('loadingCancelBtn');
+
     overlay.classList.remove('active');
+    if (cancelBtn) cancelBtn.style.display = 'none';
+    if (loadingCancelTimeout) {
+        clearTimeout(loadingCancelTimeout);
+        loadingCancelTimeout = null;
+    }
+}
+
+function cancelLoadingOverlay() {
+    hideLoadingOverlay();
+    showToast('warning', 'Operation cancelled. Check Storage tab for current status.');
+    // Refresh data to show current state
+    loadStorageData();
+    loadOverview();
 }
 
 function showCompletionMessage(success, title, message, meta) {
     hideLoadingOverlay();
+
+    // Force immediate refresh of storage data when operation completes
+    setTimeout(() => {
+        loadStorageData();
+        loadOverview();
+    }, 500);
 
     // Show a persistent completion toast that requires manual dismiss
     const container = document.getElementById('toastContainer');
@@ -11895,7 +11935,11 @@ function showCompletionMessage(success, title, message, meta) {
     closeBtn.className = 'toast-close';
     closeBtn.title = 'Dismiss';
     closeBtn.textContent = '×';
-    closeBtn.onclick = () => toast.remove();
+    closeBtn.onclick = () => {
+        toast.remove();
+        // Also refresh on dismiss in case data was stale
+        loadStorageData();
+    };
 
     const content = document.createElement('div');
     content.className = 'toast-content';

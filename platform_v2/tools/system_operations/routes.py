@@ -2683,6 +2683,60 @@ def api_extend_lvm(vg_name, lv_name):
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@system_operations_bp.route("/api/filesystem/resize", methods=["POST"])
+@login_required
+@admin_required
+def api_filesystem_resize():
+    """Resize a filesystem to fill its container (partition/LV).
+
+    Useful when lvextend succeeded but resize2fs failed (e.g., device was busy).
+    """
+    try:
+        from .host_command_client import (
+            submit_and_wait,
+            is_queue_available,
+            HostCommandTimeout,
+            HostCommandQueueUnavailable,
+        )
+
+        data = request.get_json() or {}
+        device = data.get("device")
+
+        if not device:
+            return jsonify({"success": False, "error": "Device path required"}), 400
+
+        # Validate device path format
+        import re
+
+        if not re.match(r"^/dev/[a-zA-Z0-9_/\-]+$", device):
+            return jsonify({"success": False, "error": "Invalid device path"}), 400
+
+        if not is_queue_available():
+            return jsonify({"success": False, "error": "Host command queue not available"}), 503
+
+        result_data = submit_and_wait("filesystem_resize", {"device": device}, timeout=120)
+        result = result_data.get("result", {"success": False, "error": "No result from host"})
+
+        audit_log(
+            action_type="filesystem_resize",
+            target=device,
+            details={"device": device},
+            success=result.get("success", False),
+            error_message=result.get("error"),
+        )
+
+        return jsonify(result)
+
+    except HostCommandTimeout as e:
+        audit_log("filesystem_resize", device, success=False, error_message=str(e))
+        return jsonify({"success": False, "error": str(e)}), 504
+    except HostCommandQueueUnavailable:
+        return jsonify({"success": False, "error": "Host command queue not available"}), 503
+    except Exception as e:
+        audit_log("filesystem_resize", data.get("device", "unknown"), success=False, error_message=str(e))
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @system_operations_bp.route("/api/lvm")
 @login_required
 @admin_required
@@ -3127,6 +3181,157 @@ def api_storage_docker_mounts():
         # Group by mount point (find which partition each path belongs to)
         # This will be matched on the frontend with partition mountpoints
         return jsonify({"success": True, "data": {"path_mappings": path_to_stacks, "stack_count": len(stacks)}})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@system_operations_bp.route("/api/storage/preflight", methods=["POST"])
+@login_required
+@admin_required
+def api_storage_preflight():
+    """Pre-flight check before storage operations to detect potential issues"""
+    try:
+        import subprocess
+
+        data = request.get_json() or {}
+        device = data.get("device", "")
+        mountpoint = data.get("mountpoint", "")
+        operation = data.get("operation", "")  # extend, shrink, resize, unmount
+
+        warnings = []
+
+        # Check 1: Find containers using the mount path
+        if mountpoint:
+            try:
+                # Get list of running containers
+                result = subprocess.run(["docker", "ps", "-q"], capture_output=True, text=True, timeout=10)
+                container_ids = result.stdout.strip().split("\n") if result.stdout.strip() else []
+
+                containers_using_mount = []
+                for cid in container_ids:
+                    if not cid:
+                        continue
+                    # Inspect container mounts
+                    inspect = subprocess.run(
+                        ["docker", "inspect", "--format", "{{json .Mounts}}", cid],
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                    )
+                    if inspect.returncode == 0 and mountpoint in inspect.stdout:
+                        # Get container name
+                        name_result = subprocess.run(
+                            ["docker", "inspect", "--format", "{{.Name}}", cid],
+                            capture_output=True,
+                            text=True,
+                            timeout=5,
+                        )
+                        container_name = name_result.stdout.strip().lstrip("/") if name_result.returncode == 0 else cid
+                        containers_using_mount.append(container_name)
+
+                if containers_using_mount:
+                    warnings.append(
+                        {
+                            "type": "containers",
+                            "severity": "info",
+                            "message": f"{len(containers_using_mount)} container(s) will be temporarily stopped",
+                            "details": containers_using_mount,
+                        }
+                    )
+            except Exception:
+                # Don't fail preflight if container check fails
+                pass
+
+        # Check 2: Stale mount detection (device path doesn't exist but mount is active)
+        if device and mountpoint:
+            try:
+                # Check if device path exists
+                device_exists = os.path.exists(device)
+
+                # Check if mountpoint is mounted
+                result = subprocess.run(
+                    ["findmnt", "-n", "-o", "SOURCE", mountpoint], capture_output=True, text=True, timeout=5
+                )
+                is_mounted = result.returncode == 0 and result.stdout.strip()
+                mounted_device = result.stdout.strip() if is_mounted else None
+
+                if is_mounted and not device_exists:
+                    warnings.append(
+                        {
+                            "type": "stale_mount",
+                            "severity": "high",
+                            "message": "Stale mount detected - device path may have changed after rename",
+                            "details": f"Mount shows {mounted_device} but {device} does not exist",
+                        }
+                    )
+                elif is_mounted and mounted_device and mounted_device != device:
+                    warnings.append(
+                        {
+                            "type": "device_mismatch",
+                            "severity": "warning",
+                            "message": "Mount device differs from expected",
+                            "details": f"Expected {device}, found {mounted_device}",
+                        }
+                    )
+            except Exception:
+                pass
+
+        # Check 3: Device busy check
+        if device:
+            try:
+                # Use lsof to check if device is in use
+                result = subprocess.run(["lsof", device], capture_output=True, text=True, timeout=10)
+                if result.returncode == 0 and result.stdout.strip():
+                    lines = result.stdout.strip().split("\n")
+                    process_count = len(lines) - 1  # Subtract header
+                    if process_count > 0:
+                        warnings.append(
+                            {
+                                "type": "busy",
+                                "severity": "info",
+                                "message": f"Device has {process_count} open file handle(s)",
+                                "details": "These will be released when containers stop",
+                            }
+                        )
+            except FileNotFoundError:
+                pass  # lsof not installed
+            except Exception:
+                pass
+
+        # Check 4: For shrink operations, verify used space
+        if operation == "shrink" and mountpoint:
+            try:
+                result = subprocess.run(
+                    ["df", "-BG", "--output=used", mountpoint], capture_output=True, text=True, timeout=5
+                )
+                if result.returncode == 0:
+                    lines = result.stdout.strip().split("\n")
+                    if len(lines) > 1:
+                        used_str = lines[1].strip().rstrip("G")
+                        try:
+                            used_gb = int(used_str)
+                            if used_gb > 0:
+                                warnings.append(
+                                    {
+                                        "type": "shrink_info",
+                                        "severity": "info",
+                                        "message": f"Minimum size: {used_gb} GB (current usage)",
+                                        "details": "Cannot shrink below used space",
+                                    }
+                                )
+                        except ValueError:
+                            pass
+            except Exception:
+                pass
+
+        # Determine if operation can proceed
+        high_severity = [w for w in warnings if w.get("severity") == "high"]
+        can_proceed = len(high_severity) == 0
+
+        return jsonify(
+            {"success": True, "warnings": warnings, "can_proceed": can_proceed, "warning_count": len(warnings)}
+        )
+
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 

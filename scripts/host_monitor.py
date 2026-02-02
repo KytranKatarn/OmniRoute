@@ -2094,6 +2094,89 @@ def run_command_full(cmd, timeout=120):
 
 
 # ============================================================================
+# DOCKER CONTAINER MANAGEMENT FOR STORAGE OPERATIONS
+# ============================================================================
+
+def get_mount_point_for_device(device):
+    """Get the mount point for a device path."""
+    result = run_command_full(['findmnt', '-n', '-o', 'TARGET', device], timeout=10)
+    if result['returncode'] == 0:
+        return result['stdout'].strip()
+    return None
+
+
+def get_containers_using_path(path):
+    """Get list of running Docker containers that have volumes mounted from the given path.
+
+    Returns list of container names that should be stopped before storage operations.
+    """
+    if not path:
+        return []
+
+    containers = []
+    try:
+        # Get all running containers
+        result = run_command_full(['docker', 'ps', '-q'], timeout=30)
+        if result['returncode'] != 0 or not result['stdout'].strip():
+            return []
+
+        container_ids = result['stdout'].strip().split('\n')
+
+        for cid in container_ids:
+            if not cid:
+                continue
+            # Get container name and mounts
+            inspect = run_command_full(
+                ['docker', 'inspect', '--format', '{{.Name}} {{range .Mounts}}{{.Source}} {{end}}', cid],
+                timeout=10
+            )
+            if inspect['returncode'] == 0:
+                parts = inspect['stdout'].strip().split()
+                if len(parts) > 0:
+                    name = parts[0].lstrip('/')
+                    mounts = parts[1:] if len(parts) > 1 else []
+                    # Check if any mount is under the target path
+                    for mount in mounts:
+                        if mount.startswith(path) or path.startswith(mount):
+                            containers.append(name)
+                            break
+    except Exception:
+        pass
+
+    return containers
+
+
+def stop_containers(containers, timeout=60):
+    """Stop a list of containers. Returns dict with results."""
+    stopped = []
+    failed = []
+
+    for name in containers:
+        result = run_command_full(['docker', 'stop', '-t', '30', name], timeout=timeout)
+        if result['returncode'] == 0:
+            stopped.append(name)
+        else:
+            failed.append({'name': name, 'error': result['stderr']})
+
+    return {'stopped': stopped, 'failed': failed}
+
+
+def start_containers(containers, timeout=30):
+    """Start a list of containers. Returns dict with results."""
+    started = []
+    failed = []
+
+    for name in containers:
+        result = run_command_full(['docker', 'start', name], timeout=timeout)
+        if result['returncode'] == 0:
+            started.append(name)
+        else:
+            failed.append({'name': name, 'error': result['stderr']})
+
+    return {'started': started, 'failed': failed}
+
+
+# ============================================================================
 # COMMAND REGISTRY — whitelist of allowed command types
 # ============================================================================
 
@@ -2104,6 +2187,23 @@ _NAME_RE = r'^[a-zA-Z0-9_\-]+$'
 _FSTYPE_RE = r'^(ext4|ext3|ext2|xfs|btrfs|vfat|ntfs|swap)$'
 
 COMMAND_REGISTRY = {
+    'service_control': {
+        'handler': 'handle_service_control',
+        'params': {
+            'service': {'required': True, 'regex': _NAME_RE},
+            'action': {'required': True, 'regex': r'^(restart|start|stop|status)$'},
+        },
+    },
+    'discover_media_services': {
+        'handler': 'handle_discover_media_services',
+        'params': {},
+    },
+    'filesystem_resize': {
+        'handler': 'handle_filesystem_resize',
+        'params': {
+            'device': {'required': True, 'regex': _DEV_PATH_RE},
+        },
+    },
     'lvm_extend': {
         'handler': 'handle_lvm_extend',
         'params': {
@@ -2173,6 +2273,13 @@ COMMAND_REGISTRY = {
             'device': {'required': True, 'regex': _DEV_PATH_RE},
             'force': {'required': False, 'validator': lambda v: isinstance(v, bool)},
             'remove_persist': {'required': False, 'validator': lambda v: isinstance(v, bool)},
+        },
+    },
+    'fix_stale_mount': {
+        'handler': 'handle_fix_stale_mount',
+        'params': {
+            'mountpoint': {'required': True, 'regex': _MOUNT_PATH_RE},
+            'new_device': {'required': True, 'regex': _DEV_PATH_RE},
         },
     },
     'disk_format': {
@@ -2363,6 +2470,210 @@ def validate_command(cmd_data):
 # ============================================================================
 
 
+def handle_service_control(params):
+    """Control a systemd service (start, stop, restart, status)."""
+    service = params['service']
+    action = params['action']
+
+    # Whitelist of services that can be controlled
+    allowed_services = ['host_monitor', 'docker', 'ssh', 'cron', 'ufw']
+    if service not in allowed_services:
+        return {'success': False, 'error': f'Service {service} not in allowed list: {allowed_services}'}
+
+    if action == 'status':
+        result = run_command_full(['systemctl', 'is-active', f'{service}.service'], timeout=10)
+        status = result['stdout'].strip() if result['returncode'] == 0 else 'unknown'
+        return {'success': True, 'service': service, 'status': status}
+
+    # For restart/start/stop, use sudo
+    result = run_command_full(['sudo', '-n', 'systemctl', action, f'{service}.service'], timeout=30)
+    if result['returncode'] == 0:
+        return {'success': True, 'message': f'Service {service} {action} successful'}
+    else:
+        return {'success': False, 'error': result['stderr'] or f'{action} failed'}
+
+
+def handle_discover_media_services(params):
+    """Discover API keys from media service config files on the host.
+
+    This allows archie_platform to get API keys without needing mounts to config directories.
+    Returns discovered API keys for Plex, Sonarr, Radarr, Prowlarr, Overseerr, SABnzbd.
+    """
+    import configparser
+    from xml.etree import ElementTree as ET
+
+    CONFIG_PATHS = {
+        "plex": "/mnt/Plex/config/plex/Library/Application Support/Plex Media Server/Preferences.xml",
+        "sonarr": "/mnt/Plex/config/sonarr/config.xml",
+        "radarr": "/mnt/Plex/config/radarr/config.xml",
+        "prowlarr": "/mnt/Plex/config/prowlarr/config.xml",
+        "overseerr": "/mnt/Plex/config/overseerr/settings.json",
+        "jellyseerr": "/mnt/Plex/config/jellyseerr/settings.json",
+        "sabnzbd": "/mnt/Plex/config/sabnzbd/sabnzbd.ini",
+    }
+
+    results = {}
+
+    # Plex - get token from Preferences.xml
+    try:
+        path = CONFIG_PATHS["plex"]
+        if os.path.exists(path):
+            tree = ET.parse(path)
+            root = tree.getroot()
+            token = root.get("PlexOnlineToken") or root.get("PlexOnlineHome")
+            results["plex"] = {"found": bool(token), "api_key": token, "port": 32400}
+        else:
+            results["plex"] = {"found": False, "api_key": None, "port": 32400, "error": "Config not found"}
+    except Exception as e:
+        results["plex"] = {"found": False, "api_key": None, "port": 32400, "error": str(e)}
+
+    # Arr services (Sonarr, Radarr, Prowlarr) - get API key from config.xml
+    for service, port in [("sonarr", 8989), ("radarr", 7878), ("prowlarr", 9696)]:
+        try:
+            path = CONFIG_PATHS[service]
+            if os.path.exists(path):
+                tree = ET.parse(path)
+                root = tree.getroot()
+                api_key_elem = root.find(".//ApiKey")
+                api_key = api_key_elem.text if api_key_elem is not None else None
+                results[service] = {"found": bool(api_key), "api_key": api_key, "port": port}
+            else:
+                results[service] = {"found": False, "api_key": None, "port": port, "error": "Config not found"}
+        except Exception as e:
+            results[service] = {"found": False, "api_key": None, "port": port, "error": str(e)}
+
+    # Overseerr/Jellyseerr - get API key from settings.json
+    for service, port in [("overseerr", 5055), ("jellyseerr", 5055)]:
+        try:
+            path = CONFIG_PATHS.get(service)
+            if path and os.path.exists(path):
+                with open(path, "r") as f:
+                    settings = json.load(f)
+                main = settings.get("main", {})
+                api_key = main.get("apiKey")
+                results[service] = {"found": bool(api_key), "api_key": api_key, "port": port}
+            else:
+                results[service] = {"found": False, "api_key": None, "port": port, "error": "Config not found"}
+        except Exception as e:
+            results[service] = {"found": False, "api_key": None, "port": port, "error": str(e)}
+
+    # SABnzbd - get API key from sabnzbd.ini
+    try:
+        path = CONFIG_PATHS["sabnzbd"]
+        if os.path.exists(path):
+            config = configparser.ConfigParser()
+            config.read(path)
+            api_key = config.get("misc", "api_key", fallback=None)
+            results["sabnzbd"] = {"found": bool(api_key), "api_key": api_key, "port": 8083}
+        else:
+            results["sabnzbd"] = {"found": False, "api_key": None, "port": 8083, "error": "Config not found"}
+    except Exception as e:
+        results["sabnzbd"] = {"found": False, "api_key": None, "port": 8083, "error": str(e)}
+
+    found_count = sum(1 for r in results.values() if r.get("found"))
+    return {
+        "success": True,
+        "message": f"Discovered {found_count}/{len(results)} services",
+        "services": results
+    }
+
+
+def handle_filesystem_resize(params):
+    """Resize a filesystem to fill its container (partition/LV).
+
+    This is useful when the underlying device was extended but the
+    filesystem wasn't resized to use the new space.
+
+    Automatically stops Docker containers using the mount point and restarts them after.
+    """
+    import time
+
+    device = params['device']
+    stop_containers_flag = params.get('stop_containers', True)  # Default to True
+
+    # Detect filesystem type
+    fs_result = run_command_full(['sudo', '-n', 'blkid', '-o', 'value', '-s', 'TYPE', device], timeout=10)
+    if fs_result['returncode'] != 0:
+        return {'success': False, 'error': f'Could not detect filesystem type: {fs_result["stderr"]}'}
+
+    fs_type = fs_result['stdout'].strip()
+    if not fs_type:
+        return {'success': False, 'error': 'No filesystem detected on device'}
+
+    # Get mount point and containers using it
+    mountpoint = get_mount_point_for_device(device)
+    containers_to_restart = []
+    restart_result = None
+
+    if stop_containers_flag and mountpoint:
+        containers = get_containers_using_path(mountpoint)
+        if containers:
+            # Stop containers before resize
+            stop_result = stop_containers(containers, timeout=60)
+            containers_to_restart = stop_result['stopped']
+            # Give containers time to fully stop
+            time.sleep(2)
+
+    # Sync filesystem before resize
+    run_command_full(['sudo', '-n', 'sync'], timeout=30)
+    time.sleep(1)
+
+    resize_result = None
+    try:
+        if fs_type in ('ext4', 'ext3', 'ext2'):
+            # Try up to 3 times with delays if device is busy
+            for attempt in range(3):
+                resize_result = run_command_full(['sudo', '-n', 'resize2fs', device], timeout=300)
+                if resize_result['returncode'] == 0:
+                    break
+                if 'busy' in resize_result['stderr'].lower():
+                    time.sleep(3)  # Wait and retry
+                else:
+                    break  # Non-busy error, don't retry
+        elif fs_type == 'xfs':
+            # xfs_growfs requires the mount point, not device path
+            if mountpoint:
+                resize_result = run_command_full(['sudo', '-n', 'xfs_growfs', mountpoint], timeout=300)
+            else:
+                resize_result = {'returncode': -1, 'stdout': '', 'stderr': 'XFS volume is not mounted (cannot resize)'}
+        elif fs_type == 'btrfs':
+            if mountpoint:
+                resize_result = run_command_full(['sudo', '-n', 'btrfs', 'filesystem', 'resize', 'max', mountpoint], timeout=300)
+            else:
+                resize_result = {'returncode': -1, 'stdout': '', 'stderr': 'Btrfs volume is not mounted (cannot resize)'}
+        else:
+            resize_result = {'returncode': -1, 'stdout': '', 'stderr': f'Filesystem resize not supported for {fs_type}'}
+
+    finally:
+        # Always restart containers that were stopped
+        if containers_to_restart:
+            time.sleep(1)
+            restart_result = start_containers(containers_to_restart, timeout=30)
+
+    # Build result
+    if resize_result is None or resize_result['returncode'] != 0:
+        error_msg = resize_result['stderr'] if resize_result else 'No resize attempted'
+        result = {
+            'success': False,
+            'error': f'Filesystem resize failed: {error_msg}',
+            'containers_stopped': containers_to_restart,
+        }
+        if restart_result:
+            result['containers_restarted'] = restart_result.get('started', [])
+        return result
+
+    result = {
+        'success': True,
+        'message': f'Successfully resized {fs_type} filesystem on {device}',
+        'filesystem': fs_type,
+        'output': resize_result.get('stdout', ''),
+        'containers_stopped': containers_to_restart,
+    }
+    if restart_result:
+        result['containers_restarted'] = restart_result.get('started', [])
+    return result
+
+
 def handle_lvm_extend(params):
     """Extend an LVM logical volume"""
     vg_name = params['vg_name']
@@ -2378,15 +2689,41 @@ def handle_lvm_extend(params):
         return {'success': False, 'error': 'Must specify size_gb or extend_all'}
 
     result = run_command_full(cmd, timeout=60)
+    lv_extended = result['returncode'] == 0
+    lv_already_max = False
+
     if result['returncode'] != 0:
-        return {'success': False, 'error': result['stderr'] or 'lvextend failed', 'stdout': result['stdout']}
+        stderr = result['stderr'].lower()
+        # Check if failure is because there's no space to extend (LV already at max)
+        # This is OK - we still want to try resizing the filesystem
+        if 'no space' in stderr or 'insufficient' in stderr or 'not enough' in stderr or 'matches existing size' in stderr:
+            lv_already_max = True
+        else:
+            return {'success': False, 'error': result['stderr'] or 'lvextend failed', 'stdout': result['stdout']}
 
     # Detect filesystem type and resize
     fs_result = run_command_full(['sudo', '-n', 'blkid', '-o', 'value', '-s', 'TYPE', lv_path], timeout=10)
     fs_type = fs_result['stdout'].strip()
 
+    # Try both the symlink path and the device mapper path for resize
+    device_paths = [lv_path]
+    # Add device mapper path as fallback (handles dashes in names)
+    dm_name = f"{vg_name.replace('-', '--')}-{lv_name.replace('-', '--')}"
+    device_paths.append(f'/dev/mapper/{dm_name}')
+
+    resize_result = None
     if fs_type in ('ext4', 'ext3', 'ext2'):
-        resize_result = run_command_full(['sudo', '-n', 'resize2fs', lv_path], timeout=120)
+        for dev_path in device_paths:
+            resize_result = run_command_full(['sudo', '-n', 'resize2fs', dev_path], timeout=120)
+            if resize_result['returncode'] == 0:
+                break
+            # If "busy", wait and retry once
+            if 'busy' in resize_result['stderr'].lower():
+                import time
+                time.sleep(2)
+                resize_result = run_command_full(['sudo', '-n', 'resize2fs', dev_path], timeout=120)
+                if resize_result['returncode'] == 0:
+                    break
     elif fs_type == 'xfs':
         # xfs_growfs requires the mount point, not device path
         mount_result = run_command_full(['findmnt', '-n', '-o', 'TARGET', lv_path], timeout=10)
@@ -2395,12 +2732,15 @@ def handle_lvm_extend(params):
             return {'success': True, 'message': f'LV extended but XFS volume is not mounted (cannot resize)', 'filesystem': fs_type}
         resize_result = run_command_full(['sudo', '-n', 'xfs_growfs', mountpoint], timeout=120)
     else:
-        return {'success': True, 'message': f'LV extended but filesystem resize not supported for {fs_type}', 'filesystem': fs_type}
+        lv_status = 'LV extended' if lv_extended else ('LV already at max size' if lv_already_max else 'LV unchanged')
+        return {'success': True, 'message': f'{lv_status} but filesystem resize not supported for {fs_type}', 'filesystem': fs_type}
 
-    if resize_result['returncode'] != 0:
-        return {'success': True, 'message': 'LV extended but filesystem resize failed', 'error': resize_result['stderr']}
+    if resize_result is None or resize_result['returncode'] != 0:
+        lv_status = 'LV extended' if lv_extended else ('LV already at max size' if lv_already_max else 'LV unchanged')
+        return {'success': False, 'message': f'{lv_status} but filesystem resize failed', 'error': resize_result['stderr'] if resize_result else 'No resize attempted'}
 
-    return {'success': True, 'message': f'Successfully extended {lv_path} and resized {fs_type} filesystem', 'filesystem': fs_type}
+    lv_status = 'Extended LV and' if lv_extended else ('LV already at max size,' if lv_already_max else '')
+    return {'success': True, 'message': f'{lv_status} resized {fs_type} filesystem on {lv_path}'.strip(), 'filesystem': fs_type}
 
 
 def handle_lvm_shrink(params):
@@ -2480,15 +2820,16 @@ def handle_lvm_shrink(params):
 
 
 def handle_lvm_rename(params):
-    """Rename an LVM logical volume and update /etc/fstab if needed"""
+    """Rename an LVM logical volume, update /etc/fstab, and remount if needed"""
     vg_name = params['vg_name']
     old_lv_name = params['old_lv_name']
     new_lv_name = params['new_lv_name']
 
     old_path = f'/dev/{vg_name}/{old_lv_name}'
     new_path = f'/dev/{vg_name}/{new_lv_name}'
-    old_mapper = f'/dev/mapper/{vg_name}-{old_lv_name}'
-    new_mapper = f'/dev/mapper/{vg_name}-{new_lv_name}'
+    # Mapper paths use double-dash to escape dashes in names
+    old_mapper = f'/dev/mapper/{vg_name.replace("-", "--")}-{old_lv_name.replace("-", "--")}'
+    new_mapper = f'/dev/mapper/{vg_name.replace("-", "--")}-{new_lv_name.replace("-", "--")}'
 
     # Check if old LV exists
     check = run_command_full(['sudo', '-n', 'lvs', old_path], timeout=10)
@@ -2500,18 +2841,40 @@ def handle_lvm_rename(params):
     if check_new['returncode'] == 0:
         return {'success': False, 'error': f'A logical volume named {new_lv_name} already exists in {vg_name}'}
 
-    # Get current mountpoint (if any) before rename
-    mount_check = run_command_full(['findmnt', '-n', '-o', 'TARGET', old_path], timeout=10)
-    mountpoint = mount_check['stdout'].strip() if mount_check['returncode'] == 0 else None
+    # Get current mountpoint (if any) before rename - check multiple path formats
+    mountpoint = None
+    mount_source = None
+    for check_path in [old_path, old_mapper]:
+        mount_check = run_command_full(['findmnt', '-n', '-o', 'TARGET', check_path], timeout=10)
+        if mount_check['returncode'] == 0 and mount_check['stdout'].strip():
+            mountpoint = mount_check['stdout'].strip()
+            mount_source = check_path
+            break
 
-    # Also check mapper path
-    if not mountpoint:
-        mount_check = run_command_full(['findmnt', '-n', '-o', 'TARGET', old_mapper], timeout=10)
-        mountpoint = mount_check['stdout'].strip() if mount_check['returncode'] == 0 else None
+    # If mounted, we need to unmount before rename
+    was_mounted = False
+    if mountpoint:
+        was_mounted = True
+        # Get mount options to preserve them
+        opts_check = run_command_full(['findmnt', '-n', '-o', 'OPTIONS', mountpoint], timeout=10)
+        mount_options = opts_check['stdout'].strip() if opts_check['returncode'] == 0 else 'defaults'
+
+        # Unmount the filesystem
+        print(f"Unmounting {mountpoint} before LV rename")
+        unmount_result = run_command_full(['sudo', '-n', 'umount', mountpoint], timeout=60)
+        if unmount_result['returncode'] != 0:
+            # Try lazy unmount if regular unmount fails
+            print(f"Regular unmount failed, trying lazy unmount: {unmount_result['stderr']}")
+            unmount_result = run_command_full(['sudo', '-n', 'umount', '-l', mountpoint], timeout=30)
+            if unmount_result['returncode'] != 0:
+                return {'success': False, 'error': f'Cannot unmount {mountpoint} for rename: {unmount_result["stderr"]}'}
 
     # Rename the LV
     rename_result = run_command_full(['sudo', '-n', 'lvrename', vg_name, old_lv_name, new_lv_name], timeout=30)
     if rename_result['returncode'] != 0:
+        # If rename fails and we unmounted, try to remount with old path
+        if was_mounted:
+            run_command_full(['sudo', '-n', 'mount', old_path, mountpoint], timeout=30)
         return {'success': False, 'error': f'lvrename failed: {rename_result["stderr"]}'}
 
     # Update /etc/fstab if needed
@@ -2521,7 +2884,7 @@ def handle_lvm_rename(params):
             fstab_content = f.read()
 
         # Check for various path formats in fstab
-        old_patterns = [old_path, old_mapper, f'/dev/mapper/{vg_name.replace("-", "--")}-{old_lv_name.replace("-", "--")}']
+        old_patterns = [old_path, old_mapper, f'/dev/mapper/{vg_name}-{old_lv_name}']
         new_replacement = new_path
 
         new_fstab = fstab_content
@@ -2538,18 +2901,38 @@ def handle_lvm_rename(params):
                 f.write(new_fstab)
             run_command_full(['sudo', '-n', 'cp', '/tmp/fstab.new', '/etc/fstab'], timeout=10)
     except Exception as e:
-        # Rename succeeded but fstab update failed - warn but don't fail
-        return {
-            'success': True,
-            'message': f'Renamed {old_lv_name} to {new_lv_name}, but fstab update failed: {str(e)}. Manual update may be needed.',
-            'fstab_updated': False
-        }
+        print(f"fstab update failed: {e}")
+        # Continue - we'll try to remount anyway
+
+    # Remount with new path if it was previously mounted
+    remount_success = False
+    if was_mounted:
+        print(f"Remounting {mountpoint} with new path {new_path}")
+        # Ensure mount point exists
+        run_command_full(['sudo', '-n', 'mkdir', '-p', mountpoint], timeout=10)
+        mount_result = run_command_full(['sudo', '-n', 'mount', new_path, mountpoint], timeout=60)
+        if mount_result['returncode'] != 0:
+            # Try mapper path
+            mount_result = run_command_full(['sudo', '-n', 'mount', new_mapper, mountpoint], timeout=60)
+
+        remount_success = mount_result['returncode'] == 0
+        if not remount_success:
+            print(f"Remount failed: {mount_result['stderr']}")
+            return {
+                'success': True,
+                'warning': f'LV renamed but remount failed: {mount_result["stderr"]}. Run: sudo mount {new_path} {mountpoint}',
+                'fstab_updated': fstab_updated,
+                'new_path': new_path,
+                'remounted': False
+            }
 
     msg = f'Renamed {old_lv_name} to {new_lv_name}'
     if fstab_updated:
         msg += ' (fstab updated)'
+    if was_mounted and remount_success:
+        msg += f' (remounted at {mountpoint})'
 
-    return {'success': True, 'message': msg, 'fstab_updated': fstab_updated, 'new_path': new_path}
+    return {'success': True, 'message': msg, 'fstab_updated': fstab_updated, 'new_path': new_path, 'remounted': remount_success if was_mounted else None}
 
 
 def handle_lvm_create(params):
@@ -3012,6 +3395,103 @@ def handle_disk_unmount(params):
             fstab_message = f' (warning: fstab removal failed: {fstab_result.get("error", "unknown")})'
 
     return {'success': True, 'message': f'Unmounted {device}{fstab_message}'}
+
+
+def handle_fix_stale_mount(params):
+    """Fix a stale mount by lazy-unmounting and remounting with the correct device.
+
+    This is used when a device path changes (e.g., after LV rename) but the mount
+    is still pointing to the old path that no longer exists.
+    """
+    mountpoint = params['mountpoint']
+    new_device = params['new_device']
+
+    # Check if mountpoint is currently mounted
+    mount_check = run_command_full(['findmnt', '-n', '-o', 'SOURCE', mountpoint], timeout=10)
+    if mount_check['returncode'] != 0:
+        return {'success': False, 'error': f'{mountpoint} is not mounted'}
+
+    old_source = mount_check['stdout'].strip()
+    print(f"Fixing stale mount at {mountpoint}: {old_source} -> {new_device}")
+
+    # Get current mount options
+    opts_check = run_command_full(['findmnt', '-n', '-o', 'OPTIONS', mountpoint], timeout=10)
+    mount_options = opts_check['stdout'].strip() if opts_check['returncode'] == 0 else 'defaults'
+
+    # Get filesystem type
+    fstype_check = run_command_full(['findmnt', '-n', '-o', 'FSTYPE', mountpoint], timeout=10)
+    fstype = fstype_check['stdout'].strip() if fstype_check['returncode'] == 0 else 'auto'
+
+    # Verify the new device exists
+    if not os.path.exists(new_device):
+        return {'success': False, 'error': f'New device {new_device} does not exist'}
+
+    # Stop any containers using this mountpoint
+    containers_stopped = []
+    try:
+        containers = get_containers_using_path(mountpoint)
+        if containers:
+            print(f"Stopping {len(containers)} containers using {mountpoint}")
+            stop_result = stop_containers(containers, timeout=120)
+            containers_stopped = stop_result.get('stopped', [])
+    except Exception as e:
+        print(f"Container stop check failed: {e}")
+
+    # Lazy unmount the stale mount
+    unmount_result = run_command_full(['sudo', '-n', 'umount', '-l', mountpoint], timeout=30)
+    if unmount_result['returncode'] != 0:
+        # Try force unmount
+        unmount_result = run_command_full(['sudo', '-n', 'umount', '-f', mountpoint], timeout=30)
+        if unmount_result['returncode'] != 0:
+            return {'success': False, 'error': f'Cannot unmount {mountpoint}: {unmount_result["stderr"]}'}
+
+    # Ensure mount point exists
+    run_command_full(['sudo', '-n', 'mkdir', '-p', mountpoint], timeout=10)
+
+    # Mount with new device
+    mount_cmd = ['sudo', '-n', 'mount', '-t', fstype, '-o', mount_options, new_device, mountpoint]
+    mount_result = run_command_full(mount_cmd, timeout=60)
+
+    if mount_result['returncode'] != 0:
+        return {
+            'success': False,
+            'error': f'Unmounted but remount failed: {mount_result["stderr"]}',
+            'containers_stopped': containers_stopped
+        }
+
+    # Update fstab to use new device path
+    fstab_updated = False
+    try:
+        with open('/etc/fstab', 'r') as f:
+            fstab_content = f.read()
+
+        if old_source in fstab_content or mountpoint in fstab_content:
+            new_fstab = fstab_content.replace(old_source, new_device)
+            # Backup and write
+            run_command_full(['sudo', '-n', 'cp', '/etc/fstab', '/etc/fstab.bak'], timeout=10)
+            with open('/tmp/fstab.new', 'w') as f:
+                f.write(new_fstab)
+            run_command_full(['sudo', '-n', 'cp', '/tmp/fstab.new', '/etc/fstab'], timeout=10)
+            fstab_updated = True
+    except Exception as e:
+        print(f"fstab update failed: {e}")
+
+    # Restart containers that were stopped
+    containers_restarted = []
+    if containers_stopped:
+        try:
+            start_result = start_containers(containers_stopped, timeout=60)
+            containers_restarted = start_result.get('started', [])
+        except Exception as e:
+            print(f"Container restart failed: {e}")
+
+    return {
+        'success': True,
+        'message': f'Fixed mount {mountpoint}: {old_source} -> {new_device}',
+        'fstab_updated': fstab_updated,
+        'containers_stopped': containers_stopped,
+        'containers_restarted': containers_restarted
+    }
 
 
 def restore_managed_mounts():
@@ -3849,6 +4329,9 @@ def handle_firewall_update(params):
 
 # Handler dispatch table
 _HANDLER_MAP = {
+    'handle_service_control': handle_service_control,
+    'handle_discover_media_services': handle_discover_media_services,
+    'handle_filesystem_resize': handle_filesystem_resize,
     'handle_lvm_extend': handle_lvm_extend,
     'handle_lvm_shrink': handle_lvm_shrink,
     'handle_lvm_rename': handle_lvm_rename,
@@ -3857,6 +4340,7 @@ _HANDLER_MAP = {
     'handle_lvm_snapshot': handle_lvm_snapshot,
     'handle_disk_mount': handle_disk_mount,
     'handle_disk_unmount': handle_disk_unmount,
+    'handle_fix_stale_mount': handle_fix_stale_mount,
     'handle_disk_format': handle_disk_format,
     'handle_partition_create': handle_partition_create,
     'handle_pv_create_vg_extend': handle_pv_create_vg_extend,

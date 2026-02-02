@@ -91,7 +91,7 @@
             <i data-lucide="bot"></i>
             <span>Goose</span>
         </a>
-        <a href="{{ url_for('project_manager.index') }}"
+        <a href="{{ url_for('project_manager.dashboard') }}"
            class="nav-module-btn {% if request.endpoint and 'project_manager' in request.endpoint %}active{% endif %}"
            onclick="showTransition(event, this.href)"
            title="Project Manager">

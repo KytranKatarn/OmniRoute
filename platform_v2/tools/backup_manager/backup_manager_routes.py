@@ -99,16 +99,69 @@ from flask_login import current_user
 import os
 import subprocess
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 import shutil
 import tarfile
 import tempfile
 import psycopg2
+from psycopg2 import sql
+from psycopg2.extras import RealDictCursor
 import gzip
 import time
 import hashlib
 import hmac
 import requests
+from contextlib import contextmanager
+
+# Rate limiting storage (in-memory, resets on restart)
+_rate_limit_store = {}
+
+
+def rate_limit(max_requests, window_seconds, key_func=None):
+    """
+    Rate limiting decorator for backup operations.
+
+    Args:
+        max_requests: Maximum number of requests allowed in the window
+        window_seconds: Time window in seconds
+        key_func: Optional function to extract rate limit key (default: IP address)
+    """
+
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if key_func:
+                key = key_func()
+            else:
+                key = request.remote_addr
+
+            now = datetime.now()
+            window_key = f"{f.__name__}:{key}"
+
+            if window_key in _rate_limit_store:
+                requests_list = _rate_limit_store[window_key]
+                # Remove old requests outside window
+                cutoff = now - timedelta(seconds=window_seconds)
+                requests_list = [t for t in requests_list if t > cutoff]
+                _rate_limit_store[window_key] = requests_list
+
+                if len(requests_list) >= max_requests:
+                    error_msg = f"Rate limit exceeded. " f"Max {max_requests} requests per {window_seconds} seconds."
+                    return (
+                        jsonify({"success": False, "error": error_msg}),
+                        429,
+                    )
+
+                requests_list.append(now)
+            else:
+                _rate_limit_store[window_key] = [now]
+
+            return f(*args, **kwargs)
+
+        return decorated_function
+
+    return decorator
+
 
 backup_manager_bp = Blueprint("backup_manager", __name__, url_prefix="/tools/backup-manager")
 
@@ -880,7 +933,7 @@ def verify_backup_integrity(backup_name):
 
 
 def get_db_connection():
-    """Get database connection using app config"""
+    """Get database connection using app config (DEPRECATED - use get_backup_db_cursor)"""
     db_host = os.environ.get("DB_HOST", "archie_db")
     db_name = os.environ.get("DB_NAME", "archie")
     db_user = os.environ.get("DB_USER", "archie")
@@ -888,6 +941,56 @@ def get_db_connection():
     db_port = os.environ.get("DB_PORT", "5432")
 
     return psycopg2.connect(host=db_host, database=db_name, user=db_user, password=db_pass, port=db_port)
+
+
+@contextmanager
+def get_backup_db_cursor(commit=True, cursor_factory=None):
+    """
+    Context manager for safe database operations with automatic cleanup.
+
+    Usage:
+        with get_backup_db_cursor() as (conn, cur):
+            cur.execute("SELECT ...")
+            # Auto-commits on success, rollback on error, always closes
+
+        # With RealDictCursor:
+        from psycopg2.extras import RealDictCursor
+        with get_backup_db_cursor(cursor_factory=RealDictCursor) as (conn, cur):
+            cur.execute("SELECT ...")
+
+    Args:
+        commit: Whether to auto-commit on success (default: True)
+        cursor_factory: Optional cursor factory (e.g., RealDictCursor)
+
+    Yields:
+        Tuple of (connection, cursor)
+    """
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=cursor_factory) if cursor_factory else conn.cursor()
+        yield conn, cur
+        if commit:
+            conn.commit()
+    except Exception:
+        if conn is not None:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+        raise
+    finally:
+        if cur is not None:
+            try:
+                cur.close()
+            except Exception:
+                pass
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 # =============================================================================
@@ -902,7 +1005,8 @@ def is_external_storage_available():
     # Check if it's a mount point
     try:
         return os.path.ismount(EXTERNAL_BACKUP_DIR) and os.access(EXTERNAL_BACKUP_DIR, os.W_OK)
-    except Exception:
+    except Exception as e:
+        current_app.logger.debug(f"External storage check failed: {e}")
         return False
 
 
@@ -1014,8 +1118,8 @@ def release_backup_lock():
     if os.path.exists(LOCK_FILE):
         try:
             os.remove(LOCK_FILE)
-        except Exception:
-            pass
+        except Exception as e:
+            current_app.logger.warning(f"Failed to release backup lock file: {e}")
 
 
 def check_backup_in_progress():
@@ -1048,7 +1152,8 @@ def execute_hooks(hook_dir, backup_name, metadata=None):
 
     try:
         scripts = sorted(os.listdir(hook_dir))
-    except Exception:
+    except Exception as e:
+        current_app.logger.warning(f"Failed to list hook scripts in {hook_dir}: {e}")
         return results
 
     for script in scripts:
@@ -1106,20 +1211,18 @@ def execute_post_hooks(backup_name, metadata):
 def get_webhooks(event_type):
     """Get active webhooks for event type"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute(
-            """
-            SELECT id, url, secret_key FROM backup_webhooks
-            WHERE active = TRUE AND %s = ANY(event_types)
-        """,
-            (event_type,),
-        )
-        webhooks = cur.fetchall()
-        cur.close()
-        conn.close()
-        return [{"id": w[0], "url": w[1], "secret_key": w[2]} for w in webhooks]
-    except Exception:
+        with get_backup_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """
+                SELECT id, url, secret_key FROM backup_webhooks
+                WHERE active = TRUE AND %s = ANY(event_types)
+            """,
+                (event_type,),
+            )
+            webhooks = cur.fetchall()
+            return [{"id": w[0], "url": w[1], "secret_key": w[2]} for w in webhooks]
+    except Exception as e:
+        current_app.logger.error(f"Failed to fetch webhooks for event {event_type}: {e}")
         return []
 
 
@@ -1151,17 +1254,13 @@ def trigger_webhooks(event_type, payload):
 
             # Update webhook last triggered
             try:
-                conn = get_db_connection()
-                cur = conn.cursor()
-                cur.execute(
-                    "UPDATE backup_webhooks SET last_triggered = NOW(), last_status = %s WHERE id = %s",
-                    (response.status_code, webhook["id"]),
-                )
-                conn.commit()
-                cur.close()
-                conn.close()
-            except Exception:
-                pass
+                with get_backup_db_cursor() as (conn, cur):
+                    cur.execute(
+                        "UPDATE backup_webhooks SET last_triggered = NOW(), last_status = %s WHERE id = %s",
+                        (response.status_code, webhook["id"]),
+                    )
+            except Exception as e:
+                current_app.logger.error(f"Failed to update webhook {webhook['id']} status: {e}")
 
         except Exception as e:
             results.append({"url": webhook["url"], "error": str(e), "success": False})
@@ -1316,15 +1415,12 @@ def restore_database_from_backup(db_file_path):
                 sql_content = f.read()
 
         # Execute SQL
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute(sql_content)
-        conn.commit()
-        cur.close()
-        conn.close()
+        with get_backup_db_cursor() as (conn, cur):
+            cur.execute(sql_content)
 
         return {"success": True}
     except Exception as e:
+        current_app.logger.error(f"Database restore failed: {e}")
         return {"success": False, "error": str(e)}
 
 
@@ -1494,103 +1590,101 @@ def backup_database_python(output_file, compress=True):
         str: Actual output file path (with .gz if compressed)
     """
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        # Generate SQL content
         sql_lines = []
-        sql_lines.append("-- A.R.C.H.I.E. Platform Database Backup\n")
-        sql_lines.append(f"-- Generated: {datetime.now().isoformat()}\n")
-        sql_lines.append(f"-- Compression: {'gzip' if compress else 'none'}\n\n")
 
-        # Get all tables
-        cursor.execute(
-            """
-            SELECT tablename FROM pg_tables
-            WHERE schemaname = 'public'
-            ORDER BY tablename;
-        """
-        )
-        tables = cursor.fetchall()
+        with get_backup_db_cursor(commit=False) as (conn, cursor):
+            # Generate SQL content
+            sql_lines.append("-- A.R.C.H.I.E. Platform Database Backup\n")
+            sql_lines.append(f"-- Generated: {datetime.now().isoformat()}\n")
+            sql_lines.append(f"-- Compression: {'gzip' if compress else 'none'}\n\n")
 
-        for (table_name,) in tables:
-            sql_lines.append(f"\n-- Table: {table_name}\n")
-            sql_lines.append(f"DROP TABLE IF EXISTS {table_name} CASCADE;\n")
-
-            # Get CREATE TABLE statement
+            # Get all tables
             cursor.execute(
-                f"""
-                SELECT
-                    'CREATE TABLE ' || quote_ident(table_name) || ' (' ||
-                    string_agg(
-                        quote_ident(column_name) || ' ' ||
-                        data_type ||
-                        CASE
-                            WHEN character_maximum_length IS NOT NULL
-                            THEN '(' || character_maximum_length || ')'
-                            ELSE ''
-                        END ||
-                        CASE
-                            WHEN is_nullable = 'NO' THEN ' NOT NULL'
-                            ELSE ''
-                        END,
-                        ', '
-                    ) || ');'
-                FROM information_schema.columns
-                WHERE table_schema = 'public'
-                AND table_name = '{table_name}'
-                GROUP BY table_name;
+                """
+                SELECT tablename FROM pg_tables
+                WHERE schemaname = 'public'
+                ORDER BY tablename;
             """
             )
+            tables = cursor.fetchall()
 
-            create_stmt = cursor.fetchone()
-            if create_stmt:
-                sql_lines.append(create_stmt[0] + "\n\n")
+            for (table_name,) in tables:
+                sql_lines.append(f"\n-- Table: {table_name}\n")
+                sql_lines.append(f"DROP TABLE IF EXISTS {table_name} CASCADE;\n")
 
-            # Get data
-            cursor.execute(f"SELECT * FROM {table_name};")
-            rows = cursor.fetchall()
-
-            if rows:
-                # Get column names
+                # Get CREATE TABLE statement
                 cursor.execute(
-                    f"""
-                    SELECT column_name
+                    """
+                    SELECT
+                        'CREATE TABLE ' || quote_ident(table_name) || ' (' ||
+                        string_agg(
+                            quote_ident(column_name) || ' ' ||
+                            data_type ||
+                            CASE
+                                WHEN character_maximum_length IS NOT NULL
+                                THEN '(' || character_maximum_length || ')'
+                                ELSE ''
+                            END ||
+                            CASE
+                                WHEN is_nullable = 'NO' THEN ' NOT NULL'
+                                ELSE ''
+                            END,
+                            ', '
+                        ) || ');'
                     FROM information_schema.columns
-                    WHERE table_schema = 'public' AND table_name = '{table_name}'
-                    ORDER BY ordinal_position;
-                """
+                    WHERE table_schema = 'public'
+                    AND table_name = %s
+                    GROUP BY table_name;
+                """,
+                    (table_name,),
                 )
-                columns = [col[0] for col in cursor.fetchall()]
 
-                sql_lines.append(f"INSERT INTO {table_name} ({', '.join(columns)}) VALUES\n")
+                create_stmt = cursor.fetchone()
+                if create_stmt:
+                    sql_lines.append(create_stmt[0] + "\n\n")
 
-                for i, row in enumerate(rows):
-                    # Format values
-                    values = []
-                    for val in row:
-                        if val is None:
-                            values.append("NULL")
-                        elif isinstance(val, str):
-                            # Escape single quotes
-                            escaped = val.replace("'", "''")
-                            values.append(f"'{escaped}'")
-                        elif isinstance(val, (int, float)):
-                            values.append(str(val))
-                        elif isinstance(val, datetime):
-                            values.append(f"'{val.isoformat()}'")
+                # Get data - use sql.Identifier for safe table name in FROM clause
+                cursor.execute(sql.SQL("SELECT * FROM {}").format(sql.Identifier(table_name)))
+                rows = cursor.fetchall()
+
+                if rows:
+                    # Get column names
+                    cursor.execute(
+                        """
+                        SELECT column_name
+                        FROM information_schema.columns
+                        WHERE table_schema = 'public' AND table_name = %s
+                        ORDER BY ordinal_position;
+                    """,
+                        (table_name,),
+                    )
+                    columns = [col[0] for col in cursor.fetchall()]
+
+                    sql_lines.append(f"INSERT INTO {table_name} ({', '.join(columns)}) VALUES\n")
+
+                    for i, row in enumerate(rows):
+                        # Format values
+                        values = []
+                        for val in row:
+                            if val is None:
+                                values.append("NULL")
+                            elif isinstance(val, str):
+                                # Escape single quotes
+                                escaped = val.replace("'", "''")
+                                values.append(f"'{escaped}'")
+                            elif isinstance(val, (int, float)):
+                                values.append(str(val))
+                            elif isinstance(val, datetime):
+                                values.append(f"'{val.isoformat()}'")
+                            else:
+                                values.append(f"'{str(val)}'")
+
+                        if i < len(rows) - 1:
+                            sql_lines.append(f"  ({', '.join(values)}),\n")
                         else:
-                            values.append(f"'{str(val)}'")
+                            sql_lines.append(f"  ({', '.join(values)});\n")
 
-                    if i < len(rows) - 1:
-                        sql_lines.append(f"  ({', '.join(values)}),\n")
-                    else:
-                        sql_lines.append(f"  ({', '.join(values)});\n")
-
-                sql_lines.append("\n")
-
-        cursor.close()
-        conn.close()
+                    sql_lines.append("\n")
 
         # Write to file (compressed or uncompressed)
         sql_content = "".join(sql_lines)
@@ -2373,23 +2467,19 @@ def deploy_backup_to_sandbox():
             return jsonify({"success": False, "error": f"Backup {backup_name} not found"}), 404
 
         # Get sandbox details
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute(
-            """
-            SELECT id, proposal_id, sandbox_type, schema_name, container_id, status
-            FROM sandbox_instances
-            WHERE id = %s
-            AND destroyed_at IS NULL
-        """,
-            (sandbox_id,),
-        )
-
-        sandbox = cur.fetchone()
+        with get_backup_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """
+                SELECT id, proposal_id, sandbox_type, schema_name, container_id, status
+                FROM sandbox_instances
+                WHERE id = %s
+                AND destroyed_at IS NULL
+            """,
+                (sandbox_id,),
+            )
+            sandbox = cur.fetchone()
 
         if not sandbox:
-            cur.close()
-            conn.close()
             return jsonify({"success": False, "error": f"Sandbox #{sandbox_id} not found or destroyed"}), 404
 
         sandbox_type = sandbox[2]
@@ -2910,42 +3000,36 @@ def get_deployment_backups():
     Get all deployment backups from improvement_deployments table.
     Shows backups automatically created before deploying proposals.
     """
-    from psycopg2.extras import RealDictCursor
-
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        cur.execute(
+        with get_backup_db_cursor(commit=False, cursor_factory=RealDictCursor) as (conn, cur):
+            cur.execute(
+                """
+                SELECT
+                    id.id,
+                    id.proposal_id,
+                    id.module_id,
+                    id.deployed_by,
+                    id.deployed_at,
+                    id.backup_name,
+                    id.deployment_type,
+                    id.status,
+                    id.health_check_passed,
+                    id.health_check_details,
+                    id.deployment_duration_ms,
+                    ip.title as proposal_title
+                FROM improvement_deployments id
+                LEFT JOIN improvement_proposals ip ON id.proposal_id = ip.id
+                WHERE id.backup_name IS NOT NULL
+                ORDER BY id.deployed_at DESC
+                LIMIT 100
             """
-            SELECT
-                id.id,
-                id.proposal_id,
-                id.module_id,
-                id.deployed_by,
-                id.deployed_at,
-                id.backup_name,
-                id.deployment_type,
-                id.status,
-                id.health_check_passed,
-                id.health_check_details,
-                id.deployment_duration_ms,
-                ip.title as proposal_title
-            FROM improvement_deployments id
-            LEFT JOIN improvement_proposals ip ON id.proposal_id = ip.id
-            WHERE id.backup_name IS NOT NULL
-            ORDER BY id.deployed_at DESC
-            LIMIT 100
-        """
-        )
-        deployments = cur.fetchall()
-
-        cur.close()
-        conn.close()
+            )
+            deployments = cur.fetchall()
 
         return jsonify({"success": True, "deployments": [dict(d) for d in deployments]})
 
     except Exception as e:
+        current_app.logger.error(f"Failed to load deployment backups: {e}")
         return jsonify({"success": True, "deployments": [], "note": f"Error loading deployment backups: {str(e)}"})
 
 
@@ -3202,42 +3286,36 @@ echo ""
 @admin_required
 def list_deployment_packages():
     """List all deployment packages"""
-    from psycopg2.extras import RealDictCursor
-
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        cur.execute(
+        with get_backup_db_cursor(commit=False, cursor_factory=RealDictCursor) as (conn, cur):
+            cur.execute(
+                """
+                SELECT
+                    dp.id,
+                    dp.package_name,
+                    dp.version_tag,
+                    dp.description,
+                    dp.backup_source,
+                    dp.file_path,
+                    dp.file_size,
+                    dp.checksum,
+                    dp.components,
+                    dp.target_platform,
+                    dp.download_count,
+                    dp.created_at,
+                    dp.last_downloaded_at,
+                    u.username as created_by
+                FROM deployment_packages dp
+                LEFT JOIN users u ON dp.created_by = u.id
+                ORDER BY dp.created_at DESC
             """
-            SELECT
-                dp.id,
-                dp.package_name,
-                dp.version_tag,
-                dp.description,
-                dp.backup_source,
-                dp.file_path,
-                dp.file_size,
-                dp.checksum,
-                dp.components,
-                dp.target_platform,
-                dp.download_count,
-                dp.created_at,
-                dp.last_downloaded_at,
-                u.username as created_by
-            FROM deployment_packages dp
-            LEFT JOIN users u ON dp.created_by = u.id
-            ORDER BY dp.created_at DESC
-        """
-        )
-        packages = cur.fetchall()
-
-        cur.close()
-        conn.close()
+            )
+            packages = cur.fetchall()
 
         return jsonify({"success": True, "packages": [dict(p) for p in packages]})
 
     except Exception as e:
+        current_app.logger.error(f"Failed to list deployment packages: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3456,35 +3534,29 @@ If the automated script fails, you can:
         shutil.rmtree(package_dir)
 
         # Save to database
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        cur.execute(
-            """
-            INSERT INTO deployment_packages
-            (package_name, version_tag, description, backup_source, file_path,
-             file_size, checksum, components, target_platform, created_by)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            RETURNING id, package_name, version_tag, file_size, created_at
-        """,
-            (
-                package_name,
-                version_tag,
-                description,
-                from_backup,
-                archive_path,
-                archive_size,
-                archive_checksum,
-                json.dumps(components_included),
-                target_platform,
-                current_user.id if current_user.is_authenticated else None,
-            ),
-        )
-
-        package = cur.fetchone()
-        conn.commit()
-        cur.close()
-        conn.close()
+        with get_backup_db_cursor(cursor_factory=RealDictCursor) as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO deployment_packages
+                (package_name, version_tag, description, backup_source, file_path,
+                 file_size, checksum, components, target_platform, created_by)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id, package_name, version_tag, file_size, created_at
+            """,
+                (
+                    package_name,
+                    version_tag,
+                    description,
+                    from_backup,
+                    archive_path,
+                    archive_size,
+                    archive_checksum,
+                    json.dumps(components_included),
+                    target_platform,
+                    current_user.id if current_user.is_authenticated else None,
+                ),
+            )
+            package = cur.fetchone()
 
         current_app.logger.info(f"Deployment package created: {package_name} ({archive_size / 1024 / 1024:.1f} MB)")
 
@@ -3515,43 +3587,33 @@ If the automated script fails, you can:
 @admin_required
 def download_deployment_package(package_name):
     """Download a deployment package"""
-    from psycopg2.extras import RealDictCursor
-
     try:
-        # Find package in database
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        # Find package and update download count in database
+        with get_backup_db_cursor(cursor_factory=RealDictCursor) as (conn, cur):
+            cur.execute(
+                """
+                SELECT file_path FROM deployment_packages
+                WHERE package_name = %s
+            """,
+                (package_name,),
+            )
+            package = cur.fetchone()
 
-        cur.execute(
-            """
-            SELECT file_path FROM deployment_packages
-            WHERE package_name = %s
-        """,
-            (package_name,),
-        )
+            if not package:
+                return jsonify({"success": False, "error": "Package not found"}), 404
 
-        package = cur.fetchone()
+            file_path = package["file_path"]
 
-        if not package:
-            cur.close()
-            conn.close()
-            return jsonify({"success": False, "error": "Package not found"}), 404
-
-        file_path = package["file_path"]
-
-        # Update download count
-        cur.execute(
-            """
-            UPDATE deployment_packages
-            SET download_count = download_count + 1,
-                last_downloaded_at = NOW()
-            WHERE package_name = %s
-        """,
-            (package_name,),
-        )
-        conn.commit()
-        cur.close()
-        conn.close()
+            # Update download count
+            cur.execute(
+                """
+                UPDATE deployment_packages
+                SET download_count = download_count + 1,
+                    last_downloaded_at = NOW()
+                WHERE package_name = %s
+            """,
+                (package_name,),
+            )
 
         if not os.path.exists(file_path):
             return jsonify({"success": False, "error": "Package file not found"}), 404
@@ -3561,6 +3623,7 @@ def download_deployment_package(package_name):
         )
 
     except Exception as e:
+        current_app.logger.error(f"Failed to download deployment package {package_name}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3568,48 +3631,38 @@ def download_deployment_package(package_name):
 @admin_required
 def delete_deployment_package(package_name):
     """Delete a deployment package"""
-    from psycopg2.extras import RealDictCursor
-
     try:
-        conn = get_db_connection()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_backup_db_cursor(cursor_factory=RealDictCursor) as (conn, cur):
+            # Get file path
+            cur.execute(
+                """
+                SELECT file_path FROM deployment_packages
+                WHERE package_name = %s
+            """,
+                (package_name,),
+            )
+            package = cur.fetchone()
 
-        # Get file path
-        cur.execute(
-            """
-            SELECT file_path FROM deployment_packages
-            WHERE package_name = %s
-        """,
-            (package_name,),
-        )
+            if not package:
+                return jsonify({"success": False, "error": "Package not found"}), 404
 
-        package = cur.fetchone()
+            # Delete file
+            if package["file_path"] and os.path.exists(package["file_path"]):
+                os.remove(package["file_path"])
 
-        if not package:
-            cur.close()
-            conn.close()
-            return jsonify({"success": False, "error": "Package not found"}), 404
-
-        # Delete file
-        if package["file_path"] and os.path.exists(package["file_path"]):
-            os.remove(package["file_path"])
-
-        # Delete from database
-        cur.execute(
-            """
-            DELETE FROM deployment_packages
-            WHERE package_name = %s
-        """,
-            (package_name,),
-        )
-
-        conn.commit()
-        cur.close()
-        conn.close()
+            # Delete from database
+            cur.execute(
+                """
+                DELETE FROM deployment_packages
+                WHERE package_name = %s
+            """,
+                (package_name,),
+            )
 
         return jsonify({"success": True, "message": f"Package {package_name} deleted"})
 
     except Exception as e:
+        current_app.logger.error(f"Failed to delete deployment package {package_name}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3626,6 +3679,7 @@ def external_storage_status():
         stats = get_external_storage_stats()
         return jsonify({"success": True, **stats})
     except Exception as e:
+        current_app.logger.error(f"Failed to get external storage status: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3773,18 +3827,15 @@ def api_compare_backups(backup1, backup2):
 def list_webhooks():
     """List all configured webhooks"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute(
+        with get_backup_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """
+                SELECT id, url, event_types, active, created_at, last_triggered, last_status
+                FROM backup_webhooks
+                ORDER BY created_at DESC
             """
-            SELECT id, url, event_types, active, created_at, last_triggered, last_status
-            FROM backup_webhooks
-            ORDER BY created_at DESC
-        """
-        )
-        webhooks = cur.fetchall()
-        cur.close()
-        conn.close()
+            )
+            webhooks = cur.fetchall()
 
         return jsonify(
             {
@@ -3805,6 +3856,7 @@ def list_webhooks():
         )
     except Exception as e:
         # Table might not exist yet
+        current_app.logger.warning(f"Failed to list webhooks (table may not exist): {e}")
         return jsonify({"success": True, "webhooks": [], "note": str(e)})
 
 
@@ -3821,24 +3873,21 @@ def create_webhook():
         if not url:
             return jsonify({"success": False, "error": "URL is required"}), 400
 
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute(
-            """
-            INSERT INTO backup_webhooks (url, event_types, secret_key, active)
-            VALUES (%s, %s, %s, TRUE)
-            RETURNING id
-        """,
-            (url, event_types, secret_key),
-        )
-        webhook_id = cur.fetchone()[0]
-        conn.commit()
-        cur.close()
-        conn.close()
+        with get_backup_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO backup_webhooks (url, event_types, secret_key, active)
+                VALUES (%s, %s, %s, TRUE)
+                RETURNING id
+            """,
+                (url, event_types, secret_key),
+            )
+            webhook_id = cur.fetchone()[0]
 
         return jsonify({"success": True, "webhook_id": webhook_id})
 
     except Exception as e:
+        current_app.logger.error(f"Failed to create webhook: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3847,16 +3896,13 @@ def create_webhook():
 def delete_webhook(webhook_id):
     """Delete a webhook"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("DELETE FROM backup_webhooks WHERE id = %s", (webhook_id,))
-        conn.commit()
-        cur.close()
-        conn.close()
+        with get_backup_db_cursor() as (conn, cur):
+            cur.execute("DELETE FROM backup_webhooks WHERE id = %s", (webhook_id,))
 
         return jsonify({"success": True, "message": f"Webhook {webhook_id} deleted"})
 
     except Exception as e:
+        current_app.logger.error(f"Failed to delete webhook {webhook_id}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -3865,12 +3911,9 @@ def delete_webhook(webhook_id):
 def test_webhook(webhook_id):
     """Send a test webhook"""
     try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("SELECT url, secret_key FROM backup_webhooks WHERE id = %s", (webhook_id,))
-        webhook = cur.fetchone()
-        cur.close()
-        conn.close()
+        with get_backup_db_cursor(commit=False) as (conn, cur):
+            cur.execute("SELECT url, secret_key FROM backup_webhooks WHERE id = %s", (webhook_id,))
+            webhook = cur.fetchone()
 
         if not webhook:
             return jsonify({"success": False, "error": "Webhook not found"}), 404
@@ -3903,6 +3946,7 @@ def test_webhook(webhook_id):
         )
 
     except Exception as e:
+        current_app.logger.error(f"Failed to test webhook {webhook_id}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 

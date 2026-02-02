@@ -530,6 +530,49 @@
         .deployment-stats { flex-wrap: wrap; justify-content: center; }
     }
 
+    @media (max-width: 480px) {
+        .container {
+            padding: var(--archie-space-3) var(--archie-space-3);
+        }
+        .backup-manager-header {
+            padding: var(--archie-space-3) var(--archie-space-4);
+        }
+        .backup-manager-header h1 {
+            font-size: var(--archie-text-xl);
+        }
+        .stats-grid {
+            grid-template-columns: 1fr;
+            gap: var(--archie-space-2);
+        }
+        .stat-card {
+            padding: var(--archie-space-3);
+        }
+        .stat-card .value {
+            font-size: var(--archie-text-xl);
+        }
+        .tab-btn {
+            font-size: var(--archie-text-xs);
+            padding: var(--archie-space-2) var(--archie-space-3);
+        }
+        .backup-item {
+            padding: var(--archie-space-3);
+        }
+        .backup-title .name {
+            font-size: var(--archie-text-sm);
+        }
+        .btn {
+            font-size: var(--archie-text-xs);
+            padding: var(--archie-space-1) var(--archie-space-2);
+        }
+        .modal {
+            margin: var(--archie-space-2);
+            max-width: calc(100vw - 16px);
+        }
+        .modal-body {
+            padding: var(--archie-space-3);
+        }
+    }
+
     /* Light Mode Overrides */
     body.light-mode .backup-manager-container {
         background: var(--archie-bg-deep);
@@ -2438,10 +2481,23 @@
     }
 
     function showConfirmRestoreDialog(backupName, components) {
-        document.getElementById('confirm-restore-message').innerHTML = `
-            You are about to restore <strong>${components.length}</strong> component(s) from:<br>
-            <code style="color: #f97316;">${backupName}</code>
-        `;
+        const messageEl = document.getElementById('confirm-restore-message');
+        messageEl.textContent = '';
+
+        const text1 = document.createTextNode('You are about to restore ');
+        const strong = document.createElement('strong');
+        strong.textContent = components.length;
+        const text2 = document.createTextNode(' component(s) from:');
+        const br = document.createElement('br');
+        const code = document.createElement('code');
+        code.style.color = '#f97316';
+        code.textContent = backupName;
+
+        messageEl.appendChild(text1);
+        messageEl.appendChild(strong);
+        messageEl.appendChild(text2);
+        messageEl.appendChild(br);
+        messageEl.appendChild(code);
         document.getElementById('confirm-restore-btn').onclick = function() {
             closeConfirmRestoreModal();
             executeRestore(backupName, components);

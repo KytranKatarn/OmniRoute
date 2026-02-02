@@ -2787,13 +2787,6 @@ function renderTopRated(topRatedData) {
     });
 }
 
-    card.appendChild(iconEl);
-    card.appendChild(valueEl);
-    card.appendChild(labelEl);
-
-    return card;
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // MEDIA DETAILS PANEL
 // ─────────────────────────────────────────────────────────────────────────────

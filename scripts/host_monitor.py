@@ -2764,6 +2764,10 @@ def handle_lvm_shrink(params):
     if mountpoint == '/':
         return {'success': False, 'error': 'Cannot shrink root filesystem while system is running'}
 
+    # Track containers to restart
+    containers_to_restart = []
+    restart_result = None
+
     # Get current usage to enforce 10% safety buffer
     if mountpoint:
         df_result = run_command_full(['df', '-B1', lv_path], timeout=10)
@@ -2781,42 +2785,75 @@ def handle_lvm_shrink(params):
                             'error': f'Target size {target_size_gb:.1f}GB is too small. Minimum safe size is {min_safe_gb:.1f}GB (used: {used_gb:.1f}GB + 10% buffer)'
                         }
 
+        # Stop containers using this mountpoint before unmount
+        try:
+            containers = get_containers_using_path(mountpoint)
+            if containers:
+                print(f"Stopping {len(containers)} containers using {mountpoint} for shrink operation")
+                stop_result = stop_containers(containers, timeout=120)
+                containers_to_restart = stop_result.get('stopped', [])
+                time.sleep(2)  # Give containers time to fully stop
+        except Exception as e:
+            print(f"Container stop check failed: {e}")
+
         # Unmount first
         umount = run_command_full(['sudo', '-n', 'umount', lv_path], timeout=30)
         if umount['returncode'] != 0:
+            # Restart containers if we stopped them
+            if containers_to_restart:
+                start_containers(containers_to_restart, timeout=60)
             return {'success': False, 'error': f'Failed to unmount {mountpoint}: {umount["stderr"]}. Close any applications using this volume.'}
 
-    # e2fsck first (required before shrinking)
-    fsck = run_command_full(['sudo', '-n', 'e2fsck', '-f', '-y', lv_path], timeout=300)
-    if fsck['returncode'] not in (0, 1):  # 1 = errors corrected
-        # Try to remount if we unmounted
+    try:
+        # e2fsck first (required before shrinking)
+        fsck = run_command_full(['sudo', '-n', 'e2fsck', '-f', '-y', lv_path], timeout=300)
+        if fsck['returncode'] not in (0, 1):  # 1 = errors corrected
+            # Try to remount if we unmounted
+            if mountpoint:
+                run_command_full(['sudo', '-n', 'mount', lv_path, mountpoint], timeout=30)
+            return {'success': False, 'error': f'e2fsck failed: {fsck["stderr"]}', 'containers_stopped': containers_to_restart}
+
+        # Shrink filesystem first (must be done before LV shrink)
+        resize = run_command_full(['sudo', '-n', 'resize2fs', lv_path, f'{target_size_gb}G'], timeout=300)
+        if resize['returncode'] != 0:
+            # Try to remount if we unmounted
+            if mountpoint:
+                run_command_full(['sudo', '-n', 'mount', lv_path, mountpoint], timeout=30)
+            return {'success': False, 'error': f'resize2fs shrink failed: {resize["stderr"]}', 'containers_stopped': containers_to_restart}
+
+        # Shrink LV
+        lv_shrink = run_command_full(['sudo', '-n', 'lvreduce', '-f', '-L', f'{target_size_gb}G', lv_path], timeout=60)
+        if lv_shrink['returncode'] != 0:
+            # Filesystem is already shrunk, this is problematic but try to remount
+            if mountpoint:
+                run_command_full(['sudo', '-n', 'mount', lv_path, mountpoint], timeout=30)
+            return {'success': False, 'error': f'lvreduce failed: {lv_shrink["stderr"]}', 'containers_stopped': containers_to_restart}
+
+        # Remount if it was mounted
         if mountpoint:
-            run_command_full(['sudo', '-n', 'mount', lv_path, mountpoint], timeout=30)
-        return {'success': False, 'error': f'e2fsck failed: {fsck["stderr"]}'}
+            remount = run_command_full(['sudo', '-n', 'mount', lv_path, mountpoint], timeout=30)
+            if remount['returncode'] != 0:
+                return {
+                    'success': True,
+                    'message': f'Shrunk {lv_path} to {target_size_gb}GB but failed to remount at {mountpoint}',
+                    'containers_stopped': containers_to_restart
+                }
 
-    # Shrink filesystem first (must be done before LV shrink)
-    resize = run_command_full(['sudo', '-n', 'resize2fs', lv_path, f'{target_size_gb}G'], timeout=300)
-    if resize['returncode'] != 0:
-        # Try to remount if we unmounted
-        if mountpoint:
-            run_command_full(['sudo', '-n', 'mount', lv_path, mountpoint], timeout=30)
-        return {'success': False, 'error': f'resize2fs shrink failed: {resize["stderr"]}'}
+    finally:
+        # Always restart containers that were stopped
+        if containers_to_restart:
+            time.sleep(1)
+            restart_result = start_containers(containers_to_restart, timeout=60)
 
-    # Shrink LV
-    lv_shrink = run_command_full(['sudo', '-n', 'lvreduce', '-f', '-L', f'{target_size_gb}G', lv_path], timeout=60)
-    if lv_shrink['returncode'] != 0:
-        # Filesystem is already shrunk, this is problematic but try to remount
-        if mountpoint:
-            run_command_full(['sudo', '-n', 'mount', lv_path, mountpoint], timeout=30)
-        return {'success': False, 'error': f'lvreduce failed: {lv_shrink["stderr"]}'}
-
-    # Remount if it was mounted
-    if mountpoint:
-        remount = run_command_full(['sudo', '-n', 'mount', lv_path, mountpoint], timeout=30)
-        if remount['returncode'] != 0:
-            return {'success': True, 'message': f'Shrunk {lv_path} to {target_size_gb}GB but failed to remount at {mountpoint}'}
-
-    return {'success': True, 'message': f'Shrunk {lv_path} to {target_size_gb}GB', 'filesystem': fs_type}
+    result = {
+        'success': True,
+        'message': f'Shrunk {lv_path} to {target_size_gb}GB',
+        'filesystem': fs_type,
+        'containers_stopped': containers_to_restart,
+    }
+    if restart_result:
+        result['containers_restarted'] = restart_result.get('started', [])
+    return result
 
 
 def handle_lvm_rename(params):

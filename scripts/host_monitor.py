@@ -2685,7 +2685,7 @@ def handle_lvm_extend(params):
     mountpoint = mount_result['stdout'].strip()
 
     # Protected system paths - don't stop containers for these (too risky)
-    PROTECTED_PATHS = ['/', '/boot', '/var', '/usr', '/etc', '/home']
+    PROTECTED_PATHS = ['/', '/boot', '/boot/efi', '/var', '/usr', '/etc', '/home', '/tmp']
 
     # Track containers to restart
     containers_to_restart = []
@@ -2805,7 +2805,7 @@ def handle_lvm_shrink(params):
     mountpoint = mount_check['stdout'].strip()
 
     # Protected system paths - cannot shrink these while system is running
-    PROTECTED_PATHS = ['/', '/boot', '/var', '/usr', '/etc']
+    PROTECTED_PATHS = ['/', '/boot', '/boot/efi', '/var', '/usr', '/etc', '/home', '/tmp']
     if mountpoint in PROTECTED_PATHS:
         return {'success': False, 'error': f'Cannot shrink {mountpoint} filesystem while system is running'}
 

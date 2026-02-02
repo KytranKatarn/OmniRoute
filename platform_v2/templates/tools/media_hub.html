@@ -384,65 +384,89 @@
         <section id="tab-stats" class="tab-panel">
             <div class="section-header">
                 <h2><i data-lucide="bar-chart-3"></i> Library Statistics</h2>
-                <button class="btn-ghost" onclick="loadStatistics()">
+                <button class="btn-ghost" onclick="loadStatistics(true)">
                     <i data-lucide="refresh-cw"></i>
                 </button>
             </div>
             <div class="stats-content" id="statsContent">
-                <div class="stats-overview">
-                    <div class="stats-summary">
-                        <div class="summary-card">
-                            <div class="summary-icon"><i data-lucide="hard-drive"></i></div>
-                            <div class="summary-info">
-                                <span class="summary-value" id="totalStorage">--</span>
-                                <span class="summary-label">Total Storage</span>
-                            </div>
+                <!-- Overview Cards -->
+                <div class="stats-overview-grid">
+                    <div class="stats-overview-card">
+                        <div class="overview-icon movies"><i data-lucide="film"></i></div>
+                        <div class="overview-details">
+                            <span class="overview-value" id="statsTotalMovies">--</span>
+                            <span class="overview-label">Movies</span>
                         </div>
-                        <div class="summary-card">
-                            <div class="summary-icon"><i data-lucide="film"></i></div>
-                            <div class="summary-info">
-                                <span class="summary-value" id="totalMovies">--</span>
-                                <span class="summary-label">Movies</span>
-                            </div>
+                    </div>
+                    <div class="stats-overview-card">
+                        <div class="overview-icon shows"><i data-lucide="tv"></i></div>
+                        <div class="overview-details">
+                            <span class="overview-value" id="statsTotalShows">--</span>
+                            <span class="overview-label">TV Shows</span>
                         </div>
-                        <div class="summary-card">
-                            <div class="summary-icon"><i data-lucide="tv"></i></div>
-                            <div class="summary-info">
-                                <span class="summary-value" id="totalShows">--</span>
-                                <span class="summary-label">TV Shows</span>
-                            </div>
+                    </div>
+                    <div class="stats-overview-card">
+                        <div class="overview-icon episodes"><i data-lucide="play-circle"></i></div>
+                        <div class="overview-details">
+                            <span class="overview-value" id="statsTotalEpisodes">--</span>
+                            <span class="overview-label">Episodes</span>
                         </div>
-                        <div class="summary-card">
-                            <div class="summary-icon"><i data-lucide="play-circle"></i></div>
-                            <div class="summary-info">
-                                <span class="summary-value" id="totalEpisodes">--</span>
-                                <span class="summary-label">Episodes</span>
-                            </div>
+                    </div>
+                    <div class="stats-overview-card">
+                        <div class="overview-icon storage"><i data-lucide="hard-drive"></i></div>
+                        <div class="overview-details">
+                            <span class="overview-value" id="statsTotalStorage">--</span>
+                            <span class="overview-label">Total Storage</span>
                         </div>
                     </div>
                 </div>
 
+                <!-- Charts Grid -->
                 <div class="stats-charts-grid">
                     <!-- Quality Breakdown -->
                     <div class="stats-chart-card">
-                        <h3><i data-lucide="monitor"></i> Quality Breakdown</h3>
+                        <h3><i data-lucide="monitor"></i> Video Quality</h3>
                         <div class="quality-breakdown" id="qualityBreakdown">
                             <div class="breakdown-placeholder">Loading...</div>
                         </div>
                     </div>
 
-                    <!-- Size by Type -->
+                    <!-- Audio/Video Features -->
                     <div class="stats-chart-card">
-                        <h3><i data-lucide="database"></i> Storage by Type</h3>
-                        <div class="size-breakdown" id="sizeBreakdown">
+                        <h3><i data-lucide="sparkles"></i> Premium Features</h3>
+                        <div class="features-grid" id="featuresGrid">
                             <div class="breakdown-placeholder">Loading...</div>
                         </div>
                     </div>
 
-                    <!-- Recent Activity -->
+                    <!-- Storage by Type -->
+                    <div class="stats-chart-card">
+                        <h3><i data-lucide="pie-chart"></i> Storage Breakdown</h3>
+                        <div class="storage-breakdown" id="storageBreakdown">
+                            <div class="breakdown-placeholder">Loading...</div>
+                        </div>
+                    </div>
+
+                    <!-- Genre Distribution -->
+                    <div class="stats-chart-card">
+                        <h3><i data-lucide="tags"></i> Top Genres</h3>
+                        <div class="genres-breakdown" id="genresBreakdown">
+                            <div class="breakdown-placeholder">Loading...</div>
+                        </div>
+                    </div>
+
+                    <!-- Recently Added -->
                     <div class="stats-chart-card full-width">
-                        <h3><i data-lucide="activity"></i> Recent Additions</h3>
-                        <div class="activity-chart" id="activityChart">
+                        <h3><i data-lucide="calendar-plus"></i> Recently Added (Last 7 Days)</h3>
+                        <div class="recent-additions" id="recentAdditions">
+                            <div class="breakdown-placeholder">Loading...</div>
+                        </div>
+                    </div>
+
+                    <!-- Top Rated -->
+                    <div class="stats-chart-card full-width">
+                        <h3><i data-lucide="star"></i> Highest Rated in Library</h3>
+                        <div class="top-rated-grid" id="topRatedGrid">
                             <div class="breakdown-placeholder">Loading...</div>
                         </div>
                     </div>
@@ -3611,15 +3635,17 @@ body.light-mode .stat-value { color: #1a1a1a; }
    ───────────────────────────────────────────────────────────────────────────── */
 .stats-content { display: flex; flex-direction: column; gap: 24px; }
 
-.stats-summary {
+/* Overview Cards Grid */
+.stats-overview-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 16px;
 }
 
-@media (max-width: 1024px) { .stats-summary { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 1024px) { .stats-overview-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 480px) { .stats-overview-grid { grid-template-columns: 1fr; } }
 
-.summary-card {
+.stats-overview-card {
     display: flex;
     align-items: center;
     gap: 16px;
@@ -3627,37 +3653,49 @@ body.light-mode .stat-value { color: #1a1a1a; }
     background: var(--archie-bg-elevated);
     border: 1px solid var(--archie-border-muted);
     border-radius: 12px;
+    transition: border-color 0.2s ease, transform 0.2s ease;
 }
 
-.summary-icon {
-    width: 48px;
-    height: 48px;
-    background: var(--mh-accent-alpha-10);
+.stats-overview-card:hover {
+    border-color: var(--archie-border-subtle);
+    transform: translateY(-2px);
+}
+
+.overview-icon {
+    width: 52px;
+    height: 52px;
     border-radius: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--mh-accent);
+    flex-shrink: 0;
 }
 
-.summary-icon i { width: 24px; height: 24px; }
+.overview-icon i { width: 26px; height: 26px; }
 
-.summary-info { display: flex; flex-direction: column; }
+.overview-icon.movies { background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(139, 92, 246, 0.1)); color: #A78BFA; }
+.overview-icon.shows { background: linear-gradient(135deg, rgba(14, 165, 233, 0.2), rgba(14, 165, 233, 0.1)); color: #38BDF8; }
+.overview-icon.episodes { background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(34, 197, 94, 0.1)); color: #4ADE80; }
+.overview-icon.storage { background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(245, 158, 11, 0.1)); color: #FBBF24; }
 
-.summary-value {
+.overview-details { display: flex; flex-direction: column; }
+
+.overview-value {
     font-family: 'Orbitron', sans-serif;
-    font-size: 1.5rem;
+    font-size: 1.6rem;
     font-weight: 700;
-    color: var(--archie-text-secondary);
+    color: var(--archie-text-primary);
+    line-height: 1.2;
 }
 
-.summary-label {
+.overview-label {
     font-size: 0.8rem;
     color: var(--archie-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
 
+/* Charts Grid */
 .stats-charts-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -3692,6 +3730,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
     padding: 32px;
     text-align: center;
     color: var(--archie-text-muted);
+    font-size: 0.85rem;
 }
 
 /* Quality Breakdown Bars */
@@ -3712,66 +3751,229 @@ body.light-mode .stat-value { color: #1a1a1a; }
 
 .quality-bar-container {
     flex: 1;
-    height: 24px;
+    height: 28px;
     background: var(--archie-bg-tertiary);
-    border-radius: 12px;
+    border-radius: 14px;
     overflow: hidden;
 }
 
 .quality-bar-fill {
     height: 100%;
-    border-radius: 12px;
+    border-radius: 14px;
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    padding-right: 10px;
-    font-size: 0.7rem;
+    padding-right: 12px;
+    font-size: 0.75rem;
     font-weight: 600;
     color: #000;
-    transition: width 0.5s ease;
+    transition: width 0.6s ease;
+    min-width: fit-content;
 }
 
 .quality-bar-fill.quality-4k { background: linear-gradient(90deg, #FFD700, #FFA500); }
 .quality-bar-fill.quality-1080p { background: linear-gradient(90deg, #8B5CF6, #A78BFA); color: #fff; }
 .quality-bar-fill.quality-720p { background: linear-gradient(90deg, #0EA5E9, #38BDF8); }
-.quality-bar-fill.quality-sd { background: linear-gradient(90deg, #64748B, #94A3B8); }
+.quality-bar-fill.quality-sd { background: linear-gradient(90deg, #64748B, #94A3B8); color: #fff; }
 
 .quality-bar-count {
     width: 50px;
     text-align: right;
     font-size: 0.85rem;
+    font-weight: 500;
     color: var(--archie-text-muted);
 }
 
-/* Size Breakdown */
-.size-breakdown { display: flex; flex-direction: column; gap: 16px; }
-
-.size-breakdown-chart {
-    display: flex;
-    height: 32px;
-    border-radius: 8px;
-    overflow: hidden;
+/* Premium Features Grid */
+.features-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
 }
 
-.size-segment {
+.feature-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    background: var(--archie-bg-tertiary);
+    border-radius: 10px;
+    border: 1px solid transparent;
+    transition: border-color 0.2s ease;
+}
+
+.feature-card:hover { border-color: var(--archie-border-subtle); }
+
+.feature-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 0.7rem;
-    font-weight: 600;
-    transition: flex 0.5s ease;
-    cursor: default;
+    font-weight: 700;
+    flex-shrink: 0;
 }
 
-.size-segment.movies { background: var(--mh-accent); color: #000; }
-.size-segment.shows { background: var(--archie-cyan); color: #000; }
+.feature-icon.hdr { background: linear-gradient(135deg, #FFD700, #FF8C00); color: #000; }
+.feature-icon.atmos { background: linear-gradient(135deg, #3B82F6, #1D4ED8); color: #fff; }
+.feature-icon.dv { background: linear-gradient(135deg, #000, #333); color: #fff; border: 1px solid #555; }
+.feature-icon.hd { background: linear-gradient(135deg, #8B5CF6, #6D28D9); color: #fff; }
 
-.size-legend {
+.feature-info { display: flex; flex-direction: column; }
+
+.feature-value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--archie-text-primary);
+}
+
+.feature-label {
+    font-size: 0.75rem;
+    color: var(--archie-text-muted);
+}
+
+/* Storage Breakdown */
+.storage-breakdown { display: flex; flex-direction: column; gap: 16px; }
+
+.storage-bar {
     display: flex;
-    gap: 24px;
+    height: 36px;
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--archie-bg-tertiary);
 }
 
-.size-legend-item {
+.storage-segment {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+    transition: flex 0.6s ease;
+    cursor: default;
+    min-width: 60px;
+}
+
+.storage-segment.movies { background: linear-gradient(90deg, #8B5CF6, #A78BFA); color: #fff; }
+.storage-segment.shows { background: linear-gradient(90deg, #0EA5E9, #38BDF8); color: #fff; }
+
+.storage-legend {
+    display: flex;
+    justify-content: center;
+    gap: 32px;
+}
+
+.storage-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.85rem;
+    color: var(--archie-text-secondary);
+}
+
+.storage-legend-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 4px;
+}
+
+.storage-legend-dot.movies { background: #8B5CF6; }
+.storage-legend-dot.shows { background: #0EA5E9; }
+
+/* Genres Breakdown */
+.genres-breakdown { display: flex; flex-direction: column; gap: 10px; }
+
+.genre-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.genre-label {
+    width: 80px;
+    font-size: 0.8rem;
+    color: var(--archie-text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.genre-bar-container {
+    flex: 1;
+    height: 20px;
+    background: var(--archie-bg-tertiary);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.genre-bar-fill {
+    height: 100%;
+    background: var(--mh-accent);
+    border-radius: 10px;
+    transition: width 0.5s ease;
+}
+
+.genre-count {
+    width: 40px;
+    text-align: right;
+    font-size: 0.8rem;
+    color: var(--archie-text-muted);
+}
+
+/* Recent Additions */
+.recent-additions { display: flex; flex-direction: column; gap: 16px; }
+
+.recent-additions-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    height: 100px;
+    padding: 0 4px;
+}
+
+.recent-day {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.recent-day-bar {
+    width: 100%;
+    background: var(--mh-accent);
+    border-radius: 4px 4px 0 0;
+    min-height: 4px;
+    transition: height 0.5s ease;
+    cursor: pointer;
+}
+
+.recent-day-bar:hover { opacity: 0.8; }
+
+.recent-day-label {
+    font-size: 0.65rem;
+    color: var(--archie-text-muted);
+    text-transform: uppercase;
+}
+
+.recent-day-count {
+    font-size: 0.7rem;
+    color: var(--archie-text-tertiary);
+    font-weight: 500;
+}
+
+.recent-summary {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    padding-top: 8px;
+    border-top: 1px solid var(--archie-border-muted);
+}
+
+.recent-summary-item {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -3779,53 +3981,73 @@ body.light-mode .stat-value { color: #1a1a1a; }
     color: var(--archie-text-secondary);
 }
 
-.size-legend-color {
-    width: 12px;
-    height: 12px;
-    border-radius: 3px;
+.recent-summary-item i { width: 16px; height: 16px; color: var(--mh-accent); }
+
+/* Top Rated Grid */
+.top-rated-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 16px;
 }
 
-.size-legend-color.movies { background: var(--mh-accent); }
-.size-legend-color.shows { background: var(--archie-cyan); }
-
-/* Activity Chart */
-.activity-chart { padding: 8px 0; }
-
-.activity-bars {
+.top-rated-card {
     display: flex;
-    align-items: flex-end;
-    gap: 8px;
-    height: 120px;
-    padding: 0 8px;
+    flex-direction: column;
+    background: var(--archie-bg-tertiary);
+    border-radius: 10px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.activity-bar {
-    flex: 1;
+.top-rated-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.top-rated-poster {
+    width: 100%;
+    aspect-ratio: 2/3;
+    object-fit: cover;
+    background: var(--archie-bg-secondary);
+}
+
+.top-rated-info {
+    padding: 10px;
+}
+
+.top-rated-title {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--archie-text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 4px;
+}
+
+.top-rated-rating {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.75rem;
+    color: var(--archie-amber, #F59E0B);
+}
+
+.top-rated-rating i { width: 12px; height: 12px; }
+
+/* Empty state for stats */
+.stats-empty {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
-}
-
-.activity-bar-fill {
-    width: 100%;
-    background: var(--mh-accent);
-    border-radius: 4px 4px 0 0;
-    min-height: 4px;
-    transition: height 0.5s ease;
-}
-
-.activity-bar-label {
-    font-size: 0.65rem;
+    justify-content: center;
+    padding: 40px 20px;
     color: var(--archie-text-muted);
-    text-transform: uppercase;
+    text-align: center;
 }
 
-.activity-bar-count {
-    font-size: 0.7rem;
-    color: var(--archie-text-tertiary);
-    font-weight: 500;
-}
+.stats-empty i { width: 48px; height: 48px; margin-bottom: 12px; opacity: 0.5; }
 
 /* ─────────────────────────────────────────────────────────────────────────────
    LAZY LOADING / IMAGE PLACEHOLDERS

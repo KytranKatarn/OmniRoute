@@ -2465,177 +2465,327 @@ async function requestMedia(item) {
 // STATISTICS
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function loadStatistics() {
-    const container = document.getElementById('statsContent');
-    if (!container) return;
+async function loadStatistics(forceRefresh = false) {
+    // Show loading state in individual sections
+    const sections = ['qualityBreakdown', 'featuresGrid', 'storageBreakdown', 'genresBreakdown', 'recentAdditions', 'topRatedGrid'];
+    sections.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = '<div class="breakdown-placeholder">Loading...</div>';
+    });
 
-    const renderStats = (data) => {
-        container.textContent = '';
-
-        if (data) {
-            // Quality breakdown chart
-            const qualitySection = document.createElement('div');
-            qualitySection.className = 'stats-section';
-
-            const qualityTitle = document.createElement('h3');
-            qualityTitle.textContent = 'Quality Breakdown';
-            qualitySection.appendChild(qualityTitle);
-
-            const qualityChart = createQualityChart(data.quality_breakdown);
-            qualitySection.appendChild(qualityChart);
-
-            // HDR/Atmos counts
-            const specialSection = document.createElement('div');
-            specialSection.className = 'stats-grid';
-
-            specialSection.appendChild(createStatCard('HDR Content', data.hdr_count, 'sun'));
-            specialSection.appendChild(createStatCard('Dolby Atmos', data.atmos_count, 'volume-2'));
-
-            // Size breakdown
-            const sizeSection = document.createElement('div');
-            sizeSection.className = 'stats-section';
-
-            const sizeTitle = document.createElement('h3');
-            sizeTitle.textContent = 'Storage Breakdown';
-            sizeSection.appendChild(sizeTitle);
-
-            const sizeChart = createSizeChart(data.size_breakdown);
-            sizeSection.appendChild(sizeChart);
-
-            container.appendChild(qualitySection);
-            container.appendChild(specialSection);
-            container.appendChild(sizeSection);
-            lucide.createIcons();
-        } else {
-            container.appendChild(createEmptyState('bar-chart', 'Statistics unavailable'));
-            lucide.createIcons();
-        }
-    };
-
-    // Load from cache first for instant display
-    const cached = cacheGet('statistics', 3600000); // 1 hour cache
+    // Load from cache first for instant display (unless force refresh)
+    const cached = !forceRefresh && cacheGet('statistics', 3600000); // 1 hour cache
     if (cached && cached.data) {
-        renderStats(cached.data);
+        renderStatistics(cached.data);
         console.log(`[Media Hub] Statistics loaded from cache`);
-    } else {
-        container.textContent = '';
-        container.appendChild(createLoadingElement('Loading statistics...'));
     }
 
     // Fetch fresh data
     try {
-        const response = await fetch(`${API_BASE}/stats`);
-        const data = await response.json();
+        const [statsResponse, recentResponse, topRatedResponse] = await Promise.all([
+            fetch(`${API_BASE}/stats`),
+            fetch(`${API_BASE}/library/recent-activity?days=7`),
+            fetch(`${API_BASE}/library/top-rated?limit=10`)
+        ]);
 
-        if (data.success) {
-            renderStats(data);
-            cacheSet('statistics', data);
+        const statsData = await statsResponse.json();
+        const recentData = await recentResponse.json();
+        const topRatedData = await topRatedResponse.json();
+
+        if (statsData.success) {
+            const fullData = {
+                ...statsData,
+                recent: recentData.success ? recentData : null,
+                topRated: topRatedData.success ? topRatedData : null
+            };
+            renderStatistics(fullData);
+            cacheSet('statistics', fullData);
         } else if (!cached) {
-            container.textContent = '';
-            container.appendChild(createEmptyState('bar-chart', 'Statistics unavailable'));
-            lucide.createIcons();
+            showStatsError('Statistics unavailable');
         }
     } catch (error) {
-        container.textContent = '';
-        container.appendChild(createEmptyState('alert-circle', 'Failed to load statistics'));
-        lucide.createIcons();
+        console.error('Failed to load statistics:', error);
+        if (!cached) {
+            showStatsError('Failed to load statistics');
+        }
     }
 }
 
-function createQualityChart(breakdown) {
-    const chart = document.createElement('div');
-    chart.className = 'quality-chart';
+function showStatsError(message) {
+    const sections = ['qualityBreakdown', 'featuresGrid', 'storageBreakdown', 'genresBreakdown', 'recentAdditions', 'topRatedGrid'];
+    sections.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = `<div class="breakdown-placeholder">${message}</div>`;
+    });
+}
+
+function renderStatistics(data) {
+    // Update overview cards
+    const stats = data.stats || {};
+    updateElement('statsTotalMovies', formatNumber(stats.movie_count || 0));
+    updateElement('statsTotalShows', formatNumber(stats.show_count || 0));
+    updateElement('statsTotalEpisodes', formatNumber(stats.episode_count || 0));
+    updateElement('statsTotalStorage', formatBytes(stats.total_size_bytes || 0));
+
+    // Quality breakdown
+    renderQualityBreakdown(data.quality_breakdown || {});
+
+    // Premium features
+    renderFeaturesGrid(data);
+
+    // Storage breakdown
+    renderStorageBreakdown(data.size_breakdown || {});
+
+    // Genre distribution
+    renderGenresBreakdown(data.genres || {});
+
+    // Recent additions
+    renderRecentAdditions(data.recent);
+
+    // Top rated
+    renderTopRated(data.topRated);
+
+    lucide.createIcons();
+}
+
+function updateElement(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+}
+
+function formatNumber(num) {
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+    return num.toString();
+}
+
+function renderQualityBreakdown(breakdown) {
+    const container = document.getElementById('qualityBreakdown');
+    if (!container) return;
 
     const total = Object.values(breakdown).reduce((a, b) => a + b, 0);
+    if (total === 0) {
+        container.innerHTML = '<div class="breakdown-placeholder">No quality data available</div>';
+        return;
+    }
 
-    Object.entries(breakdown).forEach(([quality, count]) => {
-        const bar = document.createElement('div');
-        bar.className = 'quality-bar';
+    const qualities = ['4K', '1080p', '720p', 'SD'];
+    container.innerHTML = '';
 
-        const label = document.createElement('span');
-        label.className = 'quality-label';
-        label.textContent = quality;
+    qualities.forEach(quality => {
+        const count = breakdown[quality] || 0;
+        const percent = total > 0 ? (count / total) * 100 : 0;
 
-        const track = document.createElement('div');
-        track.className = 'quality-track';
+        const row = document.createElement('div');
+        row.className = 'quality-bar-row';
 
-        const fill = document.createElement('div');
-        fill.className = `quality-fill quality-${quality.toLowerCase().replace('p', '')}`;
-        fill.style.width = total > 0 ? `${(count / total) * 100}%` : '0%';
-        track.appendChild(fill);
-
-        const value = document.createElement('span');
-        value.className = 'quality-value';
-        value.textContent = count;
-
-        bar.appendChild(label);
-        bar.appendChild(track);
-        bar.appendChild(value);
-        chart.appendChild(bar);
+        row.innerHTML = `
+            <span class="quality-bar-label">${quality}</span>
+            <div class="quality-bar-container">
+                <div class="quality-bar-fill quality-${quality.toLowerCase().replace('p', '')}" style="width: ${percent}%">
+                    ${percent > 15 ? Math.round(percent) + '%' : ''}
+                </div>
+            </div>
+            <span class="quality-bar-count">${count}</span>
+        `;
+        container.appendChild(row);
     });
-
-    return chart;
 }
 
-function createSizeChart(breakdown) {
-    const chart = document.createElement('div');
-    chart.className = 'size-chart';
+function renderFeaturesGrid(data) {
+    const container = document.getElementById('featuresGrid');
+    if (!container) return;
 
-    const total = (breakdown.movies || 0) + (breakdown.shows || 0);
-
-    const moviesPercent = total > 0 ? (breakdown.movies / total) * 100 : 50;
-    const showsPercent = total > 0 ? (breakdown.shows / total) * 100 : 50;
-
-    const bar = document.createElement('div');
-    bar.className = 'size-bar';
-
-    const moviesFill = document.createElement('div');
-    moviesFill.className = 'size-fill movies';
-    moviesFill.style.width = `${moviesPercent}%`;
-    moviesFill.title = `Movies: ${formatBytes(breakdown.movies || 0)}`;
-
-    const showsFill = document.createElement('div');
-    showsFill.className = 'size-fill shows';
-    showsFill.style.width = `${showsPercent}%`;
-    showsFill.title = `TV Shows: ${formatBytes(breakdown.shows || 0)}`;
-
-    bar.appendChild(moviesFill);
-    bar.appendChild(showsFill);
-
-    const legend = document.createElement('div');
-    legend.className = 'size-legend';
-
-    const moviesLegend = document.createElement('span');
-    moviesLegend.className = 'legend-item movies';
-    moviesLegend.textContent = `Movies: ${formatBytes(breakdown.movies || 0)}`;
-
-    const showsLegend = document.createElement('span');
-    showsLegend.className = 'legend-item shows';
-    showsLegend.textContent = `TV Shows: ${formatBytes(breakdown.shows || 0)}`;
-
-    legend.appendChild(moviesLegend);
-    legend.appendChild(showsLegend);
-
-    chart.appendChild(bar);
-    chart.appendChild(legend);
-
-    return chart;
+    container.innerHTML = `
+        <div class="feature-card">
+            <div class="feature-icon hdr">HDR</div>
+            <div class="feature-info">
+                <span class="feature-value">${data.hdr_count || 0}</span>
+                <span class="feature-label">HDR Content</span>
+            </div>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon atmos">DA</div>
+            <div class="feature-info">
+                <span class="feature-value">${data.atmos_count || 0}</span>
+                <span class="feature-label">Dolby Atmos</span>
+            </div>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon dv">DV</div>
+            <div class="feature-info">
+                <span class="feature-value">${data.dolby_vision_count || 0}</span>
+                <span class="feature-label">Dolby Vision</span>
+            </div>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon hd">HD+</div>
+            <div class="feature-info">
+                <span class="feature-value">${(data.quality_breakdown?.['4K'] || 0) + (data.quality_breakdown?.['1080p'] || 0)}</span>
+                <span class="feature-label">HD or Better</span>
+            </div>
+        </div>
+    `;
 }
 
-function createStatCard(label, value, icon) {
-    const card = document.createElement('div');
-    card.className = 'stat-card';
+function renderStorageBreakdown(breakdown) {
+    const container = document.getElementById('storageBreakdown');
+    if (!container) return;
 
-    const iconEl = document.createElement('i');
-    iconEl.setAttribute('data-lucide', icon);
+    const moviesSize = breakdown.movies || 0;
+    const showsSize = breakdown.shows || 0;
+    const total = moviesSize + showsSize;
 
-    const valueEl = document.createElement('div');
-    valueEl.className = 'stat-value';
-    valueEl.textContent = value || 0;
+    if (total === 0) {
+        container.innerHTML = '<div class="breakdown-placeholder">No storage data available</div>';
+        return;
+    }
 
-    const labelEl = document.createElement('div');
-    labelEl.className = 'stat-label';
-    labelEl.textContent = label;
+    const moviesPercent = (moviesSize / total) * 100;
+    const showsPercent = (showsSize / total) * 100;
+
+    container.innerHTML = `
+        <div class="storage-bar">
+            <div class="storage-segment movies" style="flex: ${moviesPercent}" title="Movies: ${formatBytes(moviesSize)}">
+                ${moviesPercent > 15 ? formatBytes(moviesSize) : ''}
+            </div>
+            <div class="storage-segment shows" style="flex: ${showsPercent}" title="TV Shows: ${formatBytes(showsSize)}">
+                ${showsPercent > 15 ? formatBytes(showsSize) : ''}
+            </div>
+        </div>
+        <div class="storage-legend">
+            <div class="storage-legend-item">
+                <span class="storage-legend-dot movies"></span>
+                <span>Movies: ${formatBytes(moviesSize)} (${Math.round(moviesPercent)}%)</span>
+            </div>
+            <div class="storage-legend-item">
+                <span class="storage-legend-dot shows"></span>
+                <span>TV Shows: ${formatBytes(showsSize)} (${Math.round(showsPercent)}%)</span>
+            </div>
+        </div>
+    `;
+}
+
+function renderGenresBreakdown(genres) {
+    const container = document.getElementById('genresBreakdown');
+    if (!container) return;
+
+    if (!genres || Object.keys(genres).length === 0) {
+        container.innerHTML = '<div class="breakdown-placeholder">No genre data available</div>';
+        return;
+    }
+
+    // Sort genres by count and take top 8
+    const sorted = Object.entries(genres)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8);
+
+    const maxCount = sorted[0]?.[1] || 1;
+    container.innerHTML = '';
+
+    sorted.forEach(([genre, count]) => {
+        const percent = (count / maxCount) * 100;
+        const row = document.createElement('div');
+        row.className = 'genre-bar-row';
+        row.innerHTML = `
+            <span class="genre-label" title="${genre}">${genre}</span>
+            <div class="genre-bar-container">
+                <div class="genre-bar-fill" style="width: ${percent}%"></div>
+            </div>
+            <span class="genre-count">${count}</span>
+        `;
+        container.appendChild(row);
+    });
+}
+
+function renderRecentAdditions(recentData) {
+    const container = document.getElementById('recentAdditions');
+    if (!container) return;
+
+    if (!recentData || !recentData.by_day) {
+        container.innerHTML = '<div class="breakdown-placeholder">No recent additions data</div>';
+        return;
+    }
+
+    const days = recentData.by_day || {};
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const today = new Date();
+
+    // Build last 7 days
+    const last7Days = [];
+    for (let i = 6; i >= 0; i--) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toISOString().split('T')[0];
+        last7Days.push({
+            date: dateStr,
+            dayName: dayNames[d.getDay()],
+            count: days[dateStr] || 0,
+            isToday: i === 0
+        });
+    }
+
+    const maxCount = Math.max(...last7Days.map(d => d.count), 1);
+    const totalMovies = recentData.movies_count || 0;
+    const totalEpisodes = recentData.episodes_count || 0;
+
+    let html = '<div class="recent-additions-chart">';
+    last7Days.forEach(day => {
+        const height = day.count > 0 ? Math.max((day.count / maxCount) * 80, 8) : 4;
+        html += `
+            <div class="recent-day">
+                <div class="recent-day-bar" style="height: ${height}px" title="${day.date}: ${day.count} items"></div>
+                <span class="recent-day-label">${day.isToday ? 'Today' : day.dayName}</span>
+                ${day.count > 0 ? `<span class="recent-day-count">${day.count}</span>` : ''}
+            </div>
+        `;
+    });
+    html += '</div>';
+
+    html += `
+        <div class="recent-summary">
+            <div class="recent-summary-item">
+                <i data-lucide="film"></i>
+                <span>${totalMovies} movies added</span>
+            </div>
+            <div class="recent-summary-item">
+                <i data-lucide="tv"></i>
+                <span>${totalEpisodes} episodes added</span>
+            </div>
+        </div>
+    `;
+
+    container.innerHTML = html;
+}
+
+function renderTopRated(topRatedData) {
+    const container = document.getElementById('topRatedGrid');
+    if (!container) return;
+
+    if (!topRatedData || !topRatedData.items || topRatedData.items.length === 0) {
+        container.innerHTML = '<div class="breakdown-placeholder">No top rated data available</div>';
+        return;
+    }
+
+    container.innerHTML = '';
+    topRatedData.items.slice(0, 10).forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'top-rated-card';
+        card.onclick = () => openMediaDetails(item);
+
+        card.innerHTML = `
+            <img class="top-rated-poster" src="${item.poster_url || '/static/img/no-poster.png'}" alt="${item.title}" loading="lazy" onerror="this.src='/static/img/no-poster.png'">
+            <div class="top-rated-info">
+                <div class="top-rated-title" title="${item.title}">${item.title}</div>
+                <div class="top-rated-rating">
+                    <i data-lucide="star"></i>
+                    <span>${item.rating ? item.rating.toFixed(1) : 'N/A'}</span>
+                </div>
+            </div>
+        `;
+        container.appendChild(card);
+    });
+}
 
     card.appendChild(iconEl);
     card.appendChild(valueEl);

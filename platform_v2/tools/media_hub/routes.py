@@ -1959,11 +1959,13 @@ def api_statistics():
         # Basic stats
         stats = media_server.get_library_stats()
 
-        # Get quality breakdown
+        # Get quality breakdown from movies
         movies = media_server.get_all_movies(500)
         quality_breakdown = {"4K": 0, "1080p": 0, "720p": 0, "SD": 0}
         hdr_count = 0
         atmos_count = 0
+        dolby_vision_count = 0
+        genres = {}
 
         for movie in movies:
             badges = movie.metadata.get("quality_badges", [])
@@ -1980,6 +1982,12 @@ def api_statistics():
                 hdr_count += 1
             if movie.metadata.get("is_atmos"):
                 atmos_count += 1
+            if movie.metadata.get("is_dolby_vision"):
+                dolby_vision_count += 1
+
+            # Count genres
+            for genre in movie.genres or []:
+                genres[genre] = genres.get(genre, 0) + 1
 
         # Size breakdown by library type
         size_breakdown = {"movies": 0, "shows": 0}
@@ -1989,7 +1997,7 @@ def api_statistics():
 
         # Note: TV size would need episode iteration which is expensive
         # For now we'll estimate based on total - movies
-        size_breakdown["shows"] = stats.total_size_bytes - size_breakdown["movies"]
+        size_breakdown["shows"] = max(0, stats.total_size_bytes - size_breakdown["movies"])
 
         return jsonify(
             {
@@ -1998,11 +2006,109 @@ def api_statistics():
                 "quality_breakdown": quality_breakdown,
                 "hdr_count": hdr_count,
                 "atmos_count": atmos_count,
+                "dolby_vision_count": dolby_vision_count,
                 "size_breakdown": size_breakdown,
+                "genres": genres,
                 "source": server_type,
             }
         )
     except Exception as e:
         logger.error(f"Error getting statistics: {e}")
         traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)})
+
+
+@media_hub_bp.route("/api/library/recent-activity")
+def api_library_recent_activity():
+    """Get recently added content grouped by day for stats"""
+    days = request.args.get("days", 7, type=int)
+    media_server, server_type = get_primary_media_server()
+
+    if not media_server:
+        return jsonify({"success": False, "error": "No media server configured"})
+
+    try:
+        from datetime import datetime, timedelta
+
+        # Get recent movies
+        movies = media_server.get_all_movies(limit=100, sort="added")
+        shows = media_server.get_all_shows(limit=100, sort="added")
+
+        cutoff = datetime.now() - timedelta(days=days)
+        by_day = {}
+        movies_count = 0
+        episodes_count = 0
+
+        for movie in movies:
+            if movie.added_at:
+                try:
+                    added = datetime.fromisoformat(movie.added_at.replace("Z", "+00:00"))
+                    if added.replace(tzinfo=None) >= cutoff:
+                        date_str = added.strftime("%Y-%m-%d")
+                        by_day[date_str] = by_day.get(date_str, 0) + 1
+                        movies_count += 1
+                except (ValueError, AttributeError):
+                    pass
+
+        for show in shows:
+            if show.added_at:
+                try:
+                    added = datetime.fromisoformat(show.added_at.replace("Z", "+00:00"))
+                    if added.replace(tzinfo=None) >= cutoff:
+                        date_str = added.strftime("%Y-%m-%d")
+                        by_day[date_str] = by_day.get(date_str, 0) + 1
+                        episodes_count += 1
+                except (ValueError, AttributeError):
+                    pass
+
+        return jsonify(
+            {
+                "success": True,
+                "by_day": by_day,
+                "movies_count": movies_count,
+                "episodes_count": episodes_count,
+                "source": server_type,
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error getting recent additions: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+
+@media_hub_bp.route("/api/library/top-rated")
+def api_library_top_rated():
+    """Get top rated content from library"""
+    limit = request.args.get("limit", 10, type=int)
+    media_server, server_type = get_primary_media_server()
+
+    if not media_server:
+        return jsonify({"success": False, "error": "No media server configured"})
+
+    try:
+        # Get movies sorted by rating
+        movies = media_server.get_all_movies(limit=100, sort="rating")
+        shows = media_server.get_all_shows(limit=50, sort="rating")
+
+        # Combine and sort by rating
+        all_items = []
+        for movie in movies:
+            if movie.rating and movie.rating > 0:
+                all_items.append(movie.to_dict())
+
+        for show in shows:
+            if show.rating and show.rating > 0:
+                all_items.append(show.to_dict())
+
+        # Sort by rating descending
+        all_items.sort(key=lambda x: x.get("rating", 0) or 0, reverse=True)
+
+        return jsonify(
+            {
+                "success": True,
+                "items": all_items[:limit],
+                "source": server_type,
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error getting top rated: {e}")
         return jsonify({"success": False, "error": str(e)})

@@ -9,17 +9,21 @@ from flask import render_template, jsonify, request, redirect, url_for, flash, R
 from flask_login import login_required, current_user
 from functools import wraps
 from werkzeug.security import generate_password_hash
-import psycopg2
-from psycopg2.extras import RealDictCursor
-import os
+from psycopg2.extras import Json as PgJson
 import secrets
 import hashlib
 import json
 import csv
 import io
+import re
 from datetime import datetime, timedelta
 
 from . import account_center_bp
+from database import get_db_cursor
+
+# Rate limiting storage (in-memory, resets on restart)
+# For production, use Redis-backed rate limiting
+_rate_limit_store = {}
 
 
 def admin_required(f):
@@ -37,43 +41,107 @@ def admin_required(f):
     return decorated_function
 
 
-def get_db():
-    """Get database connection"""
-    return psycopg2.connect(
-        host=os.getenv("DB_HOST", "archie_database"),
-        port=os.getenv("DB_PORT", "5432"),
-        database=os.getenv("DB_NAME", "archie"),
-        user=os.getenv("DB_USER", "archie"),
-        password=os.getenv("DB_PASSWORD", ""),
-    )
+def rate_limit(max_requests, window_seconds, key_func=None):
+    """
+    Simple rate limiting decorator.
+
+    Args:
+        max_requests: Maximum requests allowed in window
+        window_seconds: Time window in seconds
+        key_func: Optional function to generate rate limit key (default: IP + endpoint)
+    """
+
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            # Generate rate limit key
+            if key_func:
+                key = key_func()
+            else:
+                key = f"{request.remote_addr}:{request.endpoint}"
+
+            now = datetime.now()
+            window_start = now - timedelta(seconds=window_seconds)
+
+            # Clean old entries and count recent requests
+            if key in _rate_limit_store:
+                _rate_limit_store[key] = [t for t in _rate_limit_store[key] if t > window_start]
+            else:
+                _rate_limit_store[key] = []
+
+            if len(_rate_limit_store[key]) >= max_requests:
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": f"Rate limit exceeded. Max {max_requests} requests per {window_seconds} seconds.",
+                        }
+                    ),
+                    429,
+                )
+
+            _rate_limit_store[key].append(now)
+            return f(*args, **kwargs)
+
+        return decorated_function
+
+    return decorator
+
+
+def validate_password(password):
+    """
+    Validate password meets security requirements.
+
+    Requirements:
+    - At least 8 characters
+    - At least one uppercase letter
+    - At least one lowercase letter
+    - At least one digit
+    - At least one special character
+
+    Returns:
+        tuple: (is_valid: bool, error_message: str or None)
+    """
+    if not password or len(password) < 8:
+        return False, "Password must be at least 8 characters"
+
+    if not re.search(r"[A-Z]", password):
+        return False, "Password must contain at least one uppercase letter"
+
+    if not re.search(r"[a-z]", password):
+        return False, "Password must contain at least one lowercase letter"
+
+    if not re.search(r"\d", password):
+        return False, "Password must contain at least one digit"
+
+    if not re.search(r'[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\;\'`~]', password):
+        return False, "Password must contain at least one special character (!@#$%^&*...)"
+
+    return True, None
 
 
 def log_activity(user_id, action, module="account_center", details=None, resource_type=None, resource_id=None):
-    """Log user activity"""
+    """Log user activity with proper connection handling"""
     try:
-        conn = get_db()
-        cur = conn.cursor()
-        cur.execute(
-            """
-            INSERT INTO user_activity_log
-            (user_id, username, action, module, resource_type, resource_id, details, ip_address, user_agent)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """,
-            (
-                user_id,
-                current_user.username if current_user.is_authenticated else None,
-                action,
-                module,
-                resource_type,
-                resource_id,
-                psycopg2.extras.Json(details) if details else None,
-                request.remote_addr,
-                request.headers.get("User-Agent", "")[:500],
-            ),
-        )
-        conn.commit()
-        cur.close()
-        conn.close()
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO user_activity_log
+                (user_id, username, action, module, resource_type, resource_id, details, ip_address, user_agent)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+                (
+                    user_id,
+                    current_user.username if current_user.is_authenticated else None,
+                    action,
+                    module,
+                    resource_type,
+                    resource_id,
+                    PgJson(details) if details else None,
+                    request.remote_addr,
+                    request.headers.get("User-Agent", "")[:500],
+                ),
+            )
     except Exception as e:
         print(f"Error logging activity: {e}")
 
@@ -99,38 +167,37 @@ def index():
     }
 
     try:
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
+            # Get user counts
+            cur.execute("SELECT COUNT(*) as count FROM users WHERE is_active = true")
+            stats["total_users"] = cur.fetchone()["count"]
 
-        # Get user counts
-        cur.execute("SELECT COUNT(*) as count FROM users WHERE is_active = true")
-        stats["total_users"] = cur.fetchone()["count"]
+            cur.execute("SELECT COUNT(*) as count FROM users WHERE is_admin = true")
+            stats["admins"] = cur.fetchone()["count"]
 
-        cur.execute("SELECT COUNT(*) as count FROM users WHERE is_admin = true")
-        stats["admins"] = cur.fetchone()["count"]
+            cur.execute(
+                "SELECT COUNT(*) as count FROM users WHERE subscription_tier IN ('pro', 'business', 'enterprise')"
+            )
+            stats["premium"] = cur.fetchone()["count"]
 
-        cur.execute("SELECT COUNT(*) as count FROM users WHERE subscription_tier IN ('pro', 'business', 'enterprise')")
-        stats["premium"] = cur.fetchone()["count"]
+            cur.execute(
+                "SELECT COUNT(*) as count FROM users WHERE subscription_tier = 'free' OR subscription_tier IS NULL"
+            )
+            stats["free"] = cur.fetchone()["count"]
 
-        cur.execute("SELECT COUNT(*) as count FROM users WHERE subscription_tier = 'free' OR subscription_tier IS NULL")
-        stats["free"] = cur.fetchone()["count"]
-
-        cur.execute(
+            cur.execute(
+                """
+                SELECT COUNT(DISTINCT user_id) as count FROM user_activity_log
+                WHERE created_at > NOW() - INTERVAL '24 hours'
             """
-            SELECT COUNT(DISTINCT user_id) as count FROM user_activity_log
-            WHERE created_at > NOW() - INTERVAL '24 hours'
-        """
-        )
-        stats["active_today"] = cur.fetchone()["count"]
+            )
+            stats["active_today"] = cur.fetchone()["count"]
 
-        cur.execute("SELECT COUNT(*) as count FROM active_sessions")
-        stats["active_sessions"] = cur.fetchone()["count"]
+            cur.execute("SELECT COUNT(*) as count FROM active_sessions")
+            stats["active_sessions"] = cur.fetchone()["count"]
 
-        cur.execute("SELECT COUNT(*) as count FROM mcp_api_keys WHERE is_active = true")
-        stats["api_keys"] = cur.fetchone()["count"]
-
-        cur.close()
-        conn.close()
+            cur.execute("SELECT COUNT(*) as count FROM mcp_api_keys WHERE is_active = true")
+            stats["api_keys"] = cur.fetchone()["count"]
     except Exception as e:
         print(f"Error getting stats: {e}")
 
@@ -148,76 +215,71 @@ def index():
 def api_list_users():
     """List all users with optional filtering"""
     try:
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
+            # Get filter parameters
+            role_filter = request.args.get("role", "")
+            tier_filter = request.args.get("tier", "")
+            search = request.args.get("search", "")
+            limit = request.args.get("limit", 100, type=int)
+            offset = request.args.get("offset", 0, type=int)
 
-        # Get filter parameters
-        role_filter = request.args.get("role", "")
-        tier_filter = request.args.get("tier", "")
-        search = request.args.get("search", "")
-        limit = request.args.get("limit", 100, type=int)
-        offset = request.args.get("offset", 0, type=int)
+            # Build query with session and API key counts
+            query = """
+                SELECT u.id, u.username, u.email, u.role, u.subscription_tier, u.subscription_status,
+                       u.is_admin, u.is_active, u.created_at, u.last_login,
+                       COALESCE(s.session_count, 0) as session_count,
+                       COALESCE(k.api_key_count, 0) as api_key_count
+                FROM users u
+                LEFT JOIN (
+                    SELECT user_id, COUNT(*) as session_count
+                    FROM active_sessions GROUP BY user_id
+                ) s ON s.user_id = u.id
+                LEFT JOIN (
+                    SELECT user_id, COUNT(*) as api_key_count
+                    FROM mcp_api_keys WHERE is_active = true GROUP BY user_id
+                ) k ON k.user_id = u.id
+                WHERE 1=1
+            """
+            params = []
 
-        # Build query with session and API key counts
-        query = """
-            SELECT u.id, u.username, u.email, u.role, u.subscription_tier, u.subscription_status,
-                   u.is_admin, u.is_active, u.created_at, u.last_login,
-                   COALESCE(s.session_count, 0) as session_count,
-                   COALESCE(k.api_key_count, 0) as api_key_count
-            FROM users u
-            LEFT JOIN (
-                SELECT user_id, COUNT(*) as session_count
-                FROM active_sessions GROUP BY user_id
-            ) s ON s.user_id = u.id
-            LEFT JOIN (
-                SELECT user_id, COUNT(*) as api_key_count
-                FROM mcp_api_keys WHERE is_active = true GROUP BY user_id
-            ) k ON k.user_id = u.id
-            WHERE 1=1
-        """
-        params = []
+            if role_filter:
+                query += " AND u.role = %s"
+                params.append(role_filter)
 
-        if role_filter:
-            query += " AND u.role = %s"
-            params.append(role_filter)
+            if tier_filter:
+                query += " AND u.subscription_tier = %s"
+                params.append(tier_filter)
 
-        if tier_filter:
-            query += " AND u.subscription_tier = %s"
-            params.append(tier_filter)
+            if search:
+                query += " AND (u.username ILIKE %s OR u.email ILIKE %s)"
+                params.extend([f"%{search}%", f"%{search}%"])
 
-        if search:
-            query += " AND (u.username ILIKE %s OR u.email ILIKE %s)"
-            params.extend([f"%{search}%", f"%{search}%"])
+            query += " ORDER BY u.created_at DESC LIMIT %s OFFSET %s"
+            params.extend([limit, offset])
 
-        query += " ORDER BY u.created_at DESC LIMIT %s OFFSET %s"
-        params.extend([limit, offset])
+            cur.execute(query, params)
+            users = cur.fetchall()
 
-        cur.execute(query, params)
-        users = cur.fetchall()
+            # Get total count
+            count_query = "SELECT COUNT(*) as count FROM users WHERE 1=1"
+            count_params = []
 
-        # Get total count
-        count_query = "SELECT COUNT(*) as count FROM users WHERE 1=1"
-        count_params = []
+            if role_filter:
+                count_query += " AND role = %s"
+                count_params.append(role_filter)
+            if tier_filter:
+                count_query += " AND subscription_tier = %s"
+                count_params.append(tier_filter)
+            if search:
+                count_query += " AND (username ILIKE %s OR email ILIKE %s)"
+                count_params.extend([f"%{search}%", f"%{search}%"])
 
-        if role_filter:
-            count_query += " AND role = %s"
-            count_params.append(role_filter)
-        if tier_filter:
-            count_query += " AND subscription_tier = %s"
-            count_params.append(tier_filter)
-        if search:
-            count_query += " AND (username ILIKE %s OR email ILIKE %s)"
-            count_params.extend([f"%{search}%", f"%{search}%"])
+            cur.execute(count_query, count_params)
+            total = cur.fetchone()["count"]
 
-        cur.execute(count_query, count_params)
-        total = cur.fetchone()["count"]
-
-        cur.close()
-        conn.close()
-
-        return jsonify(
-            {"success": True, "users": [dict(u) for u in users], "total": total, "limit": limit, "offset": offset}
-        )
+            return jsonify(
+                {"success": True, "users": [dict(u) for u in users], "total": total, "limit": limit, "offset": offset}
+            )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -228,76 +290,71 @@ def api_list_users():
 def api_get_user(user_id):
     """Get single user details"""
     try:
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """
+                SELECT id, username, email, role, subscription_tier, subscription_status,
+                       is_admin, is_active, created_at, last_login, last_login_ip,
+                       preferences, metadata, totp_enabled, totp_verified_at,
+                       failed_login_count, locked_until
+                FROM users WHERE id = %s
+            """,
+                (user_id,),
+            )
+            user = cur.fetchone()
 
-        cur.execute(
-            """
-            SELECT id, username, email, role, subscription_tier, subscription_status,
-                   is_admin, is_active, created_at, last_login, last_login_ip,
-                   preferences, metadata, totp_enabled, totp_verified_at,
-                   failed_login_count, locked_until
-            FROM users WHERE id = %s
-        """,
-            (user_id,),
-        )
-        user = cur.fetchone()
+            if not user:
+                return jsonify({"success": False, "error": "User not found"}), 404
 
-        if not user:
-            return jsonify({"success": False, "error": "User not found"}), 404
+            # Get user stats including session/API key counts
+            cur.execute(
+                """
+                SELECT
+                    (SELECT COUNT(*) FROM conversations WHERE user_id = %s) as conversations,
+                    (SELECT COUNT(*) FROM app_builder_projects WHERE user_id = %s) as app_projects,
+                    (SELECT COUNT(*) FROM website_builder_projects WHERE user_id = %s) as website_projects,
+                    (SELECT COUNT(*) FROM active_sessions WHERE user_id = %s) as session_count,
+                    (SELECT COUNT(*) FROM mcp_api_keys WHERE user_id = %s AND is_active = true) as api_key_count
+            """,
+                (user_id, user_id, user_id, user_id, user_id),
+            )
+            stats = cur.fetchone()
 
-        # Get user stats including session/API key counts
-        cur.execute(
-            """
-            SELECT
-                (SELECT COUNT(*) FROM conversations WHERE user_id = %s) as conversations,
-                (SELECT COUNT(*) FROM app_builder_projects WHERE user_id = %s) as app_projects,
-                (SELECT COUNT(*) FROM website_builder_projects WHERE user_id = %s) as website_projects,
-                (SELECT COUNT(*) FROM active_sessions WHERE user_id = %s) as session_count,
-                (SELECT COUNT(*) FROM mcp_api_keys WHERE user_id = %s AND is_active = true) as api_key_count
-        """,
-            (user_id, user_id, user_id, user_id, user_id),
-        )
-        stats = cur.fetchone()
+            # Get recent activity
+            cur.execute(
+                """
+                SELECT action, module, created_at
+                FROM user_activity_log
+                WHERE user_id = %s
+                ORDER BY created_at DESC
+                LIMIT 10
+            """,
+                (user_id,),
+            )
+            recent_activity = cur.fetchall()
 
-        # Get recent activity
-        cur.execute(
-            """
-            SELECT action, module, created_at
-            FROM user_activity_log
-            WHERE user_id = %s
-            ORDER BY created_at DESC
-            LIMIT 10
-        """,
-            (user_id,),
-        )
-        recent_activity = cur.fetchall()
+            # Get recent failed login attempts for this user (by username)
+            cur.execute(
+                """
+                SELECT username, ip_address, reason, attempted_at
+                FROM failed_logins
+                WHERE LOWER(username) = LOWER(%s)
+                ORDER BY attempted_at DESC
+                LIMIT 10
+            """,
+                (user["username"],),
+            )
+            failed_logins = cur.fetchall()
 
-        # Get recent failed login attempts for this user (by username)
-        cur.execute(
-            """
-            SELECT username, ip_address, reason, attempted_at
-            FROM failed_logins
-            WHERE LOWER(username) = LOWER(%s)
-            ORDER BY attempted_at DESC
-            LIMIT 10
-        """,
-            (user["username"],),
-        )
-        failed_logins = cur.fetchall()
-
-        cur.close()
-        conn.close()
-
-        return jsonify(
-            {
-                "success": True,
-                "user": dict(user),
-                "stats": dict(stats) if stats else {},
-                "recent_activity": [dict(a) for a in recent_activity],
-                "failed_logins": [dict(f) for f in failed_logins],
-            }
-        )
+            return jsonify(
+                {
+                    "success": True,
+                    "user": dict(user),
+                    "stats": dict(stats) if stats else {},
+                    "recent_activity": [dict(a) for a in recent_activity],
+                    "failed_logins": [dict(f) for f in failed_logins],
+                }
+            )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -305,8 +362,9 @@ def api_get_user(user_id):
 @account_center_bp.route("/api/users", methods=["POST"])
 @login_required
 @admin_required
+@rate_limit(max_requests=10, window_seconds=60)  # Max 10 user creations per minute
 def api_create_user():
-    """Create a new user"""
+    """Create a new user with strong password validation"""
     try:
         data = request.get_json()
 
@@ -317,35 +375,34 @@ def api_create_user():
         subscription_tier = data.get("subscription_tier", "free")
         is_admin = data.get("is_admin", False)
 
-        if not username or not password:
-            return jsonify({"success": False, "error": "Username and password required"}), 400
+        if not username:
+            return jsonify({"success": False, "error": "Username required"}), 400
 
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        # Validate password strength
+        is_valid, error_msg = validate_password(password)
+        if not is_valid:
+            return jsonify({"success": False, "error": error_msg}), 400
 
-        # Check if username exists
-        cur.execute("SELECT id FROM users WHERE username = %s", (username,))
-        if cur.fetchone():
-            return jsonify({"success": False, "error": "Username already exists"}), 400
+        with get_db_cursor() as (conn, cur):
+            # Check if username exists
+            cur.execute("SELECT id FROM users WHERE username = %s", (username,))
+            if cur.fetchone():
+                return jsonify({"success": False, "error": "Username already exists"}), 400
 
-        # Create user
-        password_hash = generate_password_hash(password)
-        cur.execute(
-            """
-            INSERT INTO users (username, email, password_hash, role, subscription_tier, is_admin)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            RETURNING id
-        """,
-            (username, email, password_hash, role, subscription_tier, is_admin),
-        )
+            # Create user
+            password_hash = generate_password_hash(password)
+            cur.execute(
+                """
+                INSERT INTO users (username, email, password_hash, role, subscription_tier, is_admin)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """,
+                (username, email, password_hash, role, subscription_tier, is_admin),
+            )
 
-        new_id = cur.fetchone()["id"]
-        conn.commit()
+            new_id = cur.fetchone()["id"]
 
         log_activity(current_user.id, "user_created", details={"new_user_id": new_id, "username": username})
-
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "user_id": new_id})
     except Exception as e:
@@ -360,12 +417,12 @@ def api_update_user(user_id):
     try:
         data = request.get_json()
 
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
         # Build update query
         updates = []
         params = []
+
+        # Whitelist of allowed update fields (for reference/documentation)
+        # allowed: email, role, subscription_tier, is_admin, is_active, password
 
         if "email" in data:
             updates.append("email = %s")
@@ -390,20 +447,17 @@ def api_update_user(user_id):
             return jsonify({"success": False, "error": "No fields to update"}), 400
 
         params.append(user_id)
-        cur.execute(
-            f"""
-            UPDATE users SET {', '.join(updates)}
-            WHERE id = %s
-        """,
-            params,
-        )
 
-        conn.commit()
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                f"""
+                UPDATE users SET {', '.join(updates)}
+                WHERE id = %s
+            """,
+                params,
+            )
 
         log_activity(current_user.id, "user_updated", details={"target_user_id": user_id, "fields": list(data.keys())})
-
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True})
     except Exception as e:
@@ -420,16 +474,10 @@ def api_delete_user(user_id):
         if user_id == current_user.id:
             return jsonify({"success": False, "error": "Cannot delete your own account"}), 400
 
-        conn = get_db()
-        cur = conn.cursor()
-
-        cur.execute("UPDATE users SET is_active = false WHERE id = %s", (user_id,))
-        conn.commit()
+        with get_db_cursor() as (conn, cur):
+            cur.execute("UPDATE users SET is_active = false WHERE id = %s", (user_id,))
 
         log_activity(current_user.id, "user_deleted", details={"target_user_id": user_id})
-
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True})
     except Exception as e:
@@ -439,27 +487,23 @@ def api_delete_user(user_id):
 @account_center_bp.route("/api/users/<int:user_id>/password", methods=["POST"])
 @login_required
 @admin_required
+@rate_limit(max_requests=5, window_seconds=60)  # Max 5 password resets per minute
 def api_reset_password(user_id):
-    """Reset user password (migrated from admin routes)"""
+    """Reset user password with strong validation"""
     try:
         data = request.get_json()
         new_password = data.get("password") if data else None
 
-        if not new_password or len(new_password) < 8:
-            return jsonify({"success": False, "error": "Password must be at least 8 characters"}), 400
+        # Validate password strength
+        is_valid, error_msg = validate_password(new_password)
+        if not is_valid:
+            return jsonify({"success": False, "error": error_msg}), 400
 
-        conn = get_db()
-        cur = conn.cursor()
-
-        password_hash = generate_password_hash(new_password)
-        cur.execute("UPDATE users SET password_hash = %s WHERE id = %s", (password_hash, user_id))
-
-        conn.commit()
+        with get_db_cursor() as (conn, cur):
+            password_hash = generate_password_hash(new_password)
+            cur.execute("UPDATE users SET password_hash = %s WHERE id = %s", (password_hash, user_id))
 
         log_activity(current_user.id, "password_reset", details={"target_user_id": user_id})
-
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "message": "Password reset successfully"})
     except Exception as e:
@@ -661,22 +705,15 @@ def api_update_user_role(user_id):
         role = data.get("role", "user")
         is_admin = role in ["ADMIN", "SUPER_ADMIN"]
 
-        conn = get_db()
-        cur = conn.cursor()
-
-        cur.execute(
-            """
-            UPDATE users SET role = %s, is_admin = %s WHERE id = %s
-        """,
-            (role.lower(), is_admin, user_id),
-        )
-
-        conn.commit()
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                UPDATE users SET role = %s, is_admin = %s WHERE id = %s
+            """,
+                (role.lower(), is_admin, user_id),
+            )
 
         log_activity(current_user.id, "role_changed", details={"target_user_id": user_id, "new_role": role})
-
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True})
     except Exception as e:
@@ -697,31 +734,26 @@ def api_list_tiers():
         from rbac import Role, ROLE_PERMISSIONS
         from module_registry import get_enabled_modules
 
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        cur.execute(
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """
+                SELECT id, name, display_name, description, price_monthly, price_yearly,
+                       features, limits, role_level, color, enabled
+                FROM subscription_tiers
+                ORDER BY sort_order
             """
-            SELECT id, name, display_name, description, price_monthly, price_yearly,
-                   features, limits, role_level, color, enabled
-            FROM subscription_tiers
-            ORDER BY sort_order
-        """
-        )
-        tiers = cur.fetchall()
+            )
+            tiers = cur.fetchall()
 
-        # Get user counts per tier
-        cur.execute(
+            # Get user counts per tier
+            cur.execute(
+                """
+                SELECT COALESCE(subscription_tier, 'free') as tier, COUNT(*) as count
+                FROM users
+                GROUP BY COALESCE(subscription_tier, 'free')
             """
-            SELECT COALESCE(subscription_tier, 'free') as tier, COUNT(*) as count
-            FROM users
-            GROUP BY COALESCE(subscription_tier, 'free')
-        """
-        )
-        tier_counts = {row["tier"]: row["count"] for row in cur.fetchall()}
-
-        cur.close()
-        conn.close()
+            )
+            tier_counts = {row["tier"]: row["count"] for row in cur.fetchall()}
 
         # Map role_level to Role enum
         level_to_role = {r.value: r for r in Role}
@@ -772,84 +804,77 @@ def api_list_tiers():
 def api_get_subscription(user_id):
     """Get user subscription details, usage, and available tiers"""
     try:
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
+            # Get user + subscription tier + user_subscriptions data
+            cur.execute(
+                """
+                SELECT u.id, u.username, u.subscription_tier, u.subscription_status,
+                       t.id as tier_id, t.name as tier_name, t.display_name, t.color,
+                       t.price_monthly, t.features, t.limits, t.role_level,
+                       us.status as sub_status, us.started_at, us.expires_at, us.payment_method
+                FROM users u
+                LEFT JOIN subscription_tiers t ON t.name = u.subscription_tier
+                LEFT JOIN user_subscriptions us ON us.user_id = u.id
+                WHERE u.id = %s
+            """,
+                (user_id,),
+            )
+            row = cur.fetchone()
 
-        # Get user + subscription tier + user_subscriptions data
-        cur.execute(
+            if not row:
+                return jsonify({"success": False, "error": "User not found"}), 404
+
+            # Map role_level to role name
+            role_level = row.get("role_level") or 10
+            level_role_map = {0: "PUBLIC", 10: "USER", 20: "PREMIUM", 90: "ADMIN", 100: "SUPER_ADMIN"}
+            mapped_role = level_role_map.get(role_level, "USER")
+
+            subscription = {
+                "tier_id": row["tier_id"],
+                "tier_name": row["tier_name"] or row["subscription_tier"] or "free",
+                "display_name": row["display_name"] or "Free",
+                "color": row["color"] or "#6b7280",
+                "price": row["price_monthly"] or 0,
+                "features": row["features"] or [],
+                "limits": row["limits"] or {},
+                "role_level": role_level,
+                "mapped_role": mapped_role,
+                "status": row["sub_status"] or row["subscription_status"] or "active",
+                "started_at": row["started_at"],
+                "expires_at": row["expires_at"],
+                "payment_method": row["payment_method"],
+            }
+
+            # Get usage counts
+            cur.execute(
+                """
+                SELECT
+                    (SELECT COUNT(*)
+                        FROM app_builder_projects
+                        WHERE user_id = %s) as app_projects,
+                    (SELECT COUNT(*)
+                        FROM website_builder_projects
+                        WHERE user_id = %s) as website_projects,
+                    (SELECT COUNT(*)
+                        FROM token_usage_log
+                        WHERE user_id = %s
+                        AND created_at > NOW() - INTERVAL '1 day'
+                    ) as api_calls_today
+            """,
+                (user_id, user_id, user_id),
+            )
+            usage = dict(cur.fetchone()) if cur.rowcount else {}
+
+            # Get all enabled tiers
+            cur.execute(
+                """
+                SELECT id, name, display_name, color, price_monthly, features, limits, role_level
+                FROM subscription_tiers
+                WHERE enabled = true
+                ORDER BY sort_order
             """
-            SELECT u.id, u.username, u.subscription_tier, u.subscription_status,
-                   t.id as tier_id, t.name as tier_name, t.display_name, t.color,
-                   t.price_monthly, t.features, t.limits, t.role_level,
-                   us.status as sub_status, us.started_at, us.expires_at, us.payment_method
-            FROM users u
-            LEFT JOIN subscription_tiers t ON t.name = u.subscription_tier
-            LEFT JOIN user_subscriptions us ON us.user_id = u.id
-            WHERE u.id = %s
-        """,
-            (user_id,),
-        )
-        row = cur.fetchone()
-
-        if not row:
-            cur.close()
-            conn.close()
-            return jsonify({"success": False, "error": "User not found"}), 404
-
-        # Map role_level to role name
-        role_level = row.get("role_level") or 10
-        level_role_map = {0: "PUBLIC", 10: "USER", 20: "PREMIUM", 90: "ADMIN", 100: "SUPER_ADMIN"}
-        mapped_role = level_role_map.get(role_level, "USER")
-
-        subscription = {
-            "tier_id": row["tier_id"],
-            "tier_name": row["tier_name"] or row["subscription_tier"] or "free",
-            "display_name": row["display_name"] or "Free",
-            "color": row["color"] or "#6b7280",
-            "price": row["price_monthly"] or 0,
-            "features": row["features"] or [],
-            "limits": row["limits"] or {},
-            "role_level": role_level,
-            "mapped_role": mapped_role,
-            "status": row["sub_status"] or row["subscription_status"] or "active",
-            "started_at": row["started_at"],
-            "expires_at": row["expires_at"],
-            "payment_method": row["payment_method"],
-        }
-
-        # Get usage counts
-        cur.execute(
-            """
-            SELECT
-                (SELECT COUNT(*)
-                    FROM app_builder_projects
-                    WHERE user_id = %s) as app_projects,
-                (SELECT COUNT(*)
-                    FROM website_builder_projects
-                    WHERE user_id = %s) as website_projects,
-                (SELECT COUNT(*)
-                    FROM token_usage_log
-                    WHERE user_id = %s
-                    AND created_at > NOW() - INTERVAL '1 day'
-                ) as api_calls_today
-        """,
-            (user_id, user_id, user_id),
-        )
-        usage = dict(cur.fetchone()) if cur.rowcount else {}
-
-        # Get all enabled tiers
-        cur.execute(
-            """
-            SELECT id, name, display_name, color, price_monthly, features, limits, role_level
-            FROM subscription_tiers
-            WHERE enabled = true
-            ORDER BY sort_order
-        """
-        )
-        available_tiers = [dict(t) for t in cur.fetchall()]
-
-        cur.close()
-        conn.close()
+            )
+            available_tiers = [dict(t) for t in cur.fetchall()]
 
         return jsonify(
             {
@@ -874,46 +899,42 @@ def api_update_subscription(user_id):
         status = data.get("status", "active")
         expires_at = data.get("expires_at")  # ISO date string or null
 
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        # Update users table
-        cur.execute(
-            """
-            UPDATE users SET subscription_tier = %s, subscription_status = %s WHERE id = %s
-        """,
-            (tier, status, user_id),
-        )
-
-        # Upsert user_subscriptions table
-        # Look up tier_id from subscription_tiers
-        cur.execute("SELECT id FROM subscription_tiers WHERE name = %s", (tier,))
-        tier_row = cur.fetchone()
-        tier_id = tier_row["id"] if tier_row else None
-
-        if tier_id:
-            # Parse expires_at if provided
-            parsed_expires = None
-            if expires_at:
-                try:
-                    parsed_expires = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
-                except (ValueError, AttributeError):
-                    parsed_expires = None
-
+        with get_db_cursor() as (conn, cur):
+            # Update users table
             cur.execute(
                 """
-                INSERT INTO user_subscriptions (user_id, tier_id, status, expires_at)
-                VALUES (%s, %s, %s, %s)
-                ON CONFLICT (user_id) DO UPDATE
-                SET tier_id = EXCLUDED.tier_id,
-                    status = EXCLUDED.status,
-                    expires_at = EXCLUDED.expires_at,
-                    updated_at = NOW()
+                UPDATE users SET subscription_tier = %s, subscription_status = %s WHERE id = %s
             """,
-                (user_id, tier_id, status, parsed_expires),
+                (tier, status, user_id),
             )
 
-        conn.commit()
+            # Upsert user_subscriptions table
+            # Look up tier_id from subscription_tiers
+            cur.execute("SELECT id FROM subscription_tiers WHERE name = %s", (tier,))
+            tier_row = cur.fetchone()
+            tier_id = tier_row["id"] if tier_row else None
+
+            if tier_id:
+                # Parse expires_at if provided
+                parsed_expires = None
+                if expires_at:
+                    try:
+                        parsed_expires = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+                    except (ValueError, AttributeError):
+                        parsed_expires = None
+
+                cur.execute(
+                    """
+                    INSERT INTO user_subscriptions (user_id, tier_id, status, expires_at)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (user_id) DO UPDATE
+                    SET tier_id = EXCLUDED.tier_id,
+                        status = EXCLUDED.status,
+                        expires_at = EXCLUDED.expires_at,
+                        updated_at = NOW()
+                """,
+                    (user_id, tier_id, status, parsed_expires),
+                )
 
         log_activity(
             current_user.id,
@@ -926,9 +947,6 @@ def api_update_subscription(user_id):
             },
         )
 
-        cur.close()
-        conn.close()
-
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -940,46 +958,41 @@ def api_update_subscription(user_id):
 def api_get_usage(user_id):
     """Get user's usage statistics against limits"""
     try:
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
+            # Get user's tier and limits
+            cur.execute(
+                """
+                SELECT u.subscription_tier, t.limits
+                FROM users u
+                LEFT JOIN subscription_tiers t ON t.name = u.subscription_tier
+                WHERE u.id = %s
+            """,
+                (user_id,),
+            )
+            result = cur.fetchone()
 
-        # Get user's tier and limits
-        cur.execute(
-            """
-            SELECT u.subscription_tier, t.limits
-            FROM users u
-            LEFT JOIN subscription_tiers t ON t.name = u.subscription_tier
-            WHERE u.id = %s
-        """,
-            (user_id,),
-        )
-        result = cur.fetchone()
+            tier = result["subscription_tier"] if result else "free"
+            limits = result["limits"] if result and result["limits"] else {}
 
-        tier = result["subscription_tier"] if result else "free"
-        limits = result["limits"] if result and result["limits"] else {}
-
-        # Get actual usage
-        cur.execute(
-            """
-            SELECT
-                (SELECT COUNT(*)
-                    FROM app_builder_projects
-                    WHERE user_id = %s) as app_projects,
-                (SELECT COUNT(*)
-                    FROM website_builder_projects
-                    WHERE user_id = %s) as website_projects,
-                (SELECT COUNT(*)
-                    FROM token_usage_log
-                    WHERE user_id = %s
-                    AND created_at > NOW() - INTERVAL '1 day'
-                ) as api_calls_today
-        """,
-            (user_id, user_id, user_id),
-        )
-        usage = cur.fetchone()
-
-        cur.close()
-        conn.close()
+            # Get actual usage
+            cur.execute(
+                """
+                SELECT
+                    (SELECT COUNT(*)
+                        FROM app_builder_projects
+                        WHERE user_id = %s) as app_projects,
+                    (SELECT COUNT(*)
+                        FROM website_builder_projects
+                        WHERE user_id = %s) as website_projects,
+                    (SELECT COUNT(*)
+                        FROM token_usage_log
+                        WHERE user_id = %s
+                        AND created_at > NOW() - INTERVAL '1 day'
+                    ) as api_calls_today
+            """,
+                (user_id, user_id, user_id),
+            )
+            usage = cur.fetchone()
 
         return jsonify(
             {
@@ -1004,9 +1017,6 @@ def api_get_usage(user_id):
 def api_get_activity():
     """Get activity log"""
     try:
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
         # Get filter parameters
         user_id = request.args.get("user_id", type=int)
         module = request.args.get("module", "")
@@ -1014,45 +1024,43 @@ def api_get_activity():
         limit = request.args.get("limit", 50, type=int)
         offset = request.args.get("offset", 0, type=int)
 
-        query = """
-            SELECT a.*, u.username as user_name
-            FROM user_activity_log a
-            LEFT JOIN users u ON a.user_id = u.id
-            WHERE 1=1
-        """
-        params = []
+        with get_db_cursor(commit=False) as (conn, cur):
+            query = """
+                SELECT a.*, u.username as user_name
+                FROM user_activity_log a
+                LEFT JOIN users u ON a.user_id = u.id
+                WHERE 1=1
+            """
+            params = []
 
-        if user_id:
-            query += " AND a.user_id = %s"
-            params.append(user_id)
-        if module:
-            query += " AND a.module = %s"
-            params.append(module)
-        if action:
-            query += " AND a.action = %s"
-            params.append(action)
+            if user_id:
+                query += " AND a.user_id = %s"
+                params.append(user_id)
+            if module:
+                query += " AND a.module = %s"
+                params.append(module)
+            if action:
+                query += " AND a.action = %s"
+                params.append(action)
 
-        query += " ORDER BY a.created_at DESC LIMIT %s OFFSET %s"
-        params.extend([limit, offset])
+            query += " ORDER BY a.created_at DESC LIMIT %s OFFSET %s"
+            params.extend([limit, offset])
 
-        cur.execute(query, params)
-        activities = cur.fetchall()
+            cur.execute(query, params)
+            activities = cur.fetchall()
 
-        # Get total count
-        count_query = "SELECT COUNT(*) as count FROM user_activity_log WHERE 1=1"
-        count_params = []
-        if user_id:
-            count_query += " AND user_id = %s"
-            count_params.append(user_id)
-        if module:
-            count_query += " AND module = %s"
-            count_params.append(module)
+            # Get total count
+            count_query = "SELECT COUNT(*) as count FROM user_activity_log WHERE 1=1"
+            count_params = []
+            if user_id:
+                count_query += " AND user_id = %s"
+                count_params.append(user_id)
+            if module:
+                count_query += " AND module = %s"
+                count_params.append(module)
 
-        cur.execute(count_query, count_params)
-        total = cur.fetchone()["count"]
-
-        cur.close()
-        conn.close()
+            cur.execute(count_query, count_params)
+            total = cur.fetchone()["count"]
 
         return jsonify({"success": True, "activities": [dict(a) for a in activities], "total": total})
     except Exception as e:
@@ -1065,22 +1073,17 @@ def api_get_activity():
 def api_get_activity_modules():
     """Get list of modules with activity"""
     try:
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        cur.execute(
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """
+                SELECT module, COUNT(*) as count
+                FROM user_activity_log
+                WHERE module IS NOT NULL
+                GROUP BY module
+                ORDER BY count DESC
             """
-            SELECT module, COUNT(*) as count
-            FROM user_activity_log
-            WHERE module IS NOT NULL
-            GROUP BY module
-            ORDER BY count DESC
-        """
-        )
-        modules = cur.fetchall()
-
-        cur.close()
-        conn.close()
+            )
+            modules = cur.fetchall()
 
         return jsonify({"success": True, "modules": [dict(m) for m in modules]})
     except Exception as e:
@@ -1093,50 +1096,45 @@ def api_get_activity_modules():
 def api_activity_summary():
     """Get activity summary for dashboard"""
     try:
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        # Last 7 days activity by day
-        cur.execute(
+        with get_db_cursor(commit=False) as (conn, cur):
+            # Last 7 days activity by day
+            cur.execute(
+                """
+                SELECT DATE(created_at) as date, COUNT(*) as count
+                FROM user_activity_log
+                WHERE created_at > NOW() - INTERVAL '7 days'
+                GROUP BY DATE(created_at)
+                ORDER BY date
             """
-            SELECT DATE(created_at) as date, COUNT(*) as count
-            FROM user_activity_log
-            WHERE created_at > NOW() - INTERVAL '7 days'
-            GROUP BY DATE(created_at)
-            ORDER BY date
-        """
-        )
-        by_day = cur.fetchall()
+            )
+            by_day = cur.fetchall()
 
-        # Top actions
-        cur.execute(
+            # Top actions
+            cur.execute(
+                """
+                SELECT action, COUNT(*) as count
+                FROM user_activity_log
+                WHERE created_at > NOW() - INTERVAL '24 hours'
+                GROUP BY action
+                ORDER BY count DESC
+                LIMIT 10
             """
-            SELECT action, COUNT(*) as count
-            FROM user_activity_log
-            WHERE created_at > NOW() - INTERVAL '24 hours'
-            GROUP BY action
-            ORDER BY count DESC
-            LIMIT 10
-        """
-        )
-        top_actions = cur.fetchall()
+            )
+            top_actions = cur.fetchall()
 
-        # Most active users
-        cur.execute(
+            # Most active users
+            cur.execute(
+                """
+                SELECT u.username, COUNT(*) as count
+                FROM user_activity_log a
+                JOIN users u ON a.user_id = u.id
+                WHERE a.created_at > NOW() - INTERVAL '24 hours'
+                GROUP BY u.username
+                ORDER BY count DESC
+                LIMIT 5
             """
-            SELECT u.username, COUNT(*) as count
-            FROM user_activity_log a
-            JOIN users u ON a.user_id = u.id
-            WHERE a.created_at > NOW() - INTERVAL '24 hours'
-            GROUP BY u.username
-            ORDER BY count DESC
-            LIMIT 5
-        """
-        )
-        top_users = cur.fetchall()
-
-        cur.close()
-        conn.close()
+            )
+            top_users = cur.fetchall()
 
         return jsonify(
             {
@@ -1161,45 +1159,40 @@ def api_activity_summary():
 def api_list_sessions():
     """List all active sessions"""
     try:
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
         user_id = request.args.get("user_id", type=int)
         search = request.args.get("search", "")
 
-        query = """
-            SELECT s.*, u.username
-            FROM active_sessions s
-            LEFT JOIN users u ON s.user_id = u.id
-            WHERE 1=1
-        """
-        params = []
-
-        if user_id:
-            query += " AND s.user_id = %s"
-            params.append(user_id)
-        if search:
-            query += " AND s.ip_address ILIKE %s"
-            params.append(f"%{search}%")
-
-        query += " ORDER BY s.last_activity DESC LIMIT 100"
-
-        cur.execute(query, params)
-        sessions = cur.fetchall()
-
-        # Get users for filter dropdown
-        cur.execute(
+        with get_db_cursor(commit=False) as (conn, cur):
+            query = """
+                SELECT s.*, u.username
+                FROM active_sessions s
+                LEFT JOIN users u ON s.user_id = u.id
+                WHERE 1=1
             """
-            SELECT DISTINCT u.id, u.username
-            FROM active_sessions s
-            JOIN users u ON s.user_id = u.id
-            ORDER BY u.username
-        """
-        )
-        users = cur.fetchall()
+            params = []
 
-        cur.close()
-        conn.close()
+            if user_id:
+                query += " AND s.user_id = %s"
+                params.append(user_id)
+            if search:
+                query += " AND s.ip_address ILIKE %s"
+                params.append(f"%{search}%")
+
+            query += " ORDER BY s.last_activity DESC LIMIT 100"
+
+            cur.execute(query, params)
+            sessions = cur.fetchall()
+
+            # Get users for filter dropdown
+            cur.execute(
+                """
+                SELECT DISTINCT u.id, u.username
+                FROM active_sessions s
+                JOIN users u ON s.user_id = u.id
+                ORDER BY u.username
+            """
+            )
+            users = cur.fetchall()
 
         return jsonify({"success": True, "sessions": [dict(s) for s in sessions], "users": [dict(u) for u in users]})
     except Exception as e:
@@ -1212,16 +1205,10 @@ def api_list_sessions():
 def api_revoke_session(session_id):
     """Revoke a specific session"""
     try:
-        conn = get_db()
-        cur = conn.cursor()
-
-        cur.execute("DELETE FROM active_sessions WHERE id = %s", (session_id,))
-        conn.commit()
+        with get_db_cursor() as (conn, cur):
+            cur.execute("DELETE FROM active_sessions WHERE id = %s", (session_id,))
 
         log_activity(current_user.id, "session_revoked", details={"session_id": session_id})
-
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True})
     except Exception as e:
@@ -1234,24 +1221,18 @@ def api_revoke_session(session_id):
 def api_revoke_expired_sessions():
     """Revoke all expired sessions"""
     try:
-        conn = get_db()
-        cur = conn.cursor()
-
-        cur.execute(
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                DELETE FROM active_sessions
+                WHERE expires_at IS NOT NULL AND expires_at < NOW()
+                RETURNING id
             """
-            DELETE FROM active_sessions
-            WHERE expires_at IS NOT NULL AND expires_at < NOW()
-            RETURNING id
-        """
-        )
-        deleted = cur.fetchall()
-        count = len(deleted)
-        conn.commit()
+            )
+            deleted = cur.fetchall()
+            count = len(deleted)
 
         log_activity(current_user.id, "expired_sessions_revoked", details={"count": count})
-
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "count": count})
     except Exception as e:
@@ -1269,41 +1250,36 @@ def api_revoke_expired_sessions():
 def api_list_api_keys():
     """List all API keys"""
     try:
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
         user_id = request.args.get("user_id", type=int)
         status = request.args.get("status", "")
 
-        query = """
-            SELECT k.*, u.username
-            FROM mcp_api_keys k
-            LEFT JOIN users u ON k.user_id = u.id
-            WHERE 1=1
-        """
-        params = []
+        with get_db_cursor(commit=False) as (conn, cur):
+            query = """
+                SELECT k.*, u.username
+                FROM mcp_api_keys k
+                LEFT JOIN users u ON k.user_id = u.id
+                WHERE 1=1
+            """
+            params = []
 
-        if user_id:
-            query += " AND k.user_id = %s"
-            params.append(user_id)
-        if status == "active":
-            query += " AND k.is_active = true AND (k.expires_at IS NULL OR k.expires_at > NOW())"
-        elif status == "inactive":
-            query += " AND k.is_active = false"
-        elif status == "expired":
-            query += " AND k.expires_at IS NOT NULL AND k.expires_at <= NOW()"
+            if user_id:
+                query += " AND k.user_id = %s"
+                params.append(user_id)
+            if status == "active":
+                query += " AND k.is_active = true AND (k.expires_at IS NULL OR k.expires_at > NOW())"
+            elif status == "inactive":
+                query += " AND k.is_active = false"
+            elif status == "expired":
+                query += " AND k.expires_at IS NOT NULL AND k.expires_at <= NOW()"
 
-        query += " ORDER BY k.created_at DESC"
+            query += " ORDER BY k.created_at DESC"
 
-        cur.execute(query, params)
-        keys = cur.fetchall()
+            cur.execute(query, params)
+            keys = cur.fetchall()
 
-        # Get users for filter dropdown
-        cur.execute("SELECT id, username FROM users WHERE is_active = true ORDER BY username")
-        users = cur.fetchall()
-
-        cur.close()
-        conn.close()
+            # Get users for filter dropdown
+            cur.execute("SELECT id, username FROM users WHERE is_active = true ORDER BY username")
+            users = cur.fetchall()
 
         return jsonify({"success": True, "keys": [dict(k) for k in keys], "users": [dict(u) for u in users]})
     except Exception as e:
@@ -1313,6 +1289,7 @@ def api_list_api_keys():
 @account_center_bp.route("/api/api-keys", methods=["POST"])
 @login_required
 @admin_required
+@rate_limit(max_requests=10, window_seconds=60)  # Max 10 API keys per minute
 def api_create_api_key():
     """Generate a new API key"""
     try:
@@ -1323,7 +1300,7 @@ def api_create_api_key():
         description = data.get("description", "")
         permissions = data.get("permissions", ["read"])
         expires_in_days = data.get("expires_in_days")
-        rate_limit = data.get("rate_limit_per_hour", 1000)
+        rate_limit_val = data.get("rate_limit_per_hour", 1000)
 
         if not user_id or not name:
             return jsonify({"success": False, "error": "User and name are required"}), 400
@@ -1337,36 +1314,30 @@ def api_create_api_key():
         if expires_in_days:
             expires_at = datetime.now() + timedelta(days=int(expires_in_days))
 
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                INSERT INTO mcp_api_keys
+                (user_id, key_hash, key_prefix, name, description, permissions,
+                 rate_limit_per_hour, expires_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """,
+                (
+                    user_id,
+                    key_hash,
+                    key_prefix,
+                    name,
+                    description,
+                    PgJson(permissions),
+                    rate_limit_val,
+                    expires_at,
+                ),
+            )
 
-        cur.execute(
-            """
-            INSERT INTO mcp_api_keys
-            (user_id, key_hash, key_prefix, name, description, permissions,
-             rate_limit_per_hour, expires_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            RETURNING id
-        """,
-            (
-                user_id,
-                key_hash,
-                key_prefix,
-                name,
-                description,
-                psycopg2.extras.Json(permissions),
-                rate_limit,
-                expires_at,
-            ),
-        )
-
-        new_id = cur.fetchone()["id"]
-        conn.commit()
+            new_id = cur.fetchone()["id"]
 
         log_activity(current_user.id, "api_key_created", details={"key_id": new_id, "user_id": user_id, "name": name})
-
-        cur.close()
-        conn.close()
 
         # Return the full key only once - it won't be retrievable later
         full_key = f"arch_{raw_key}"
@@ -1384,18 +1355,11 @@ def api_update_api_key(key_id):
     try:
         data = request.get_json()
 
-        conn = get_db()
-        cur = conn.cursor()
-
-        if "is_active" in data:
-            cur.execute("UPDATE mcp_api_keys SET is_active = %s WHERE id = %s", (data["is_active"], key_id))
-
-        conn.commit()
+        with get_db_cursor() as (conn, cur):
+            if "is_active" in data:
+                cur.execute("UPDATE mcp_api_keys SET is_active = %s WHERE id = %s", (data["is_active"], key_id))
 
         log_activity(current_user.id, "api_key_updated", details={"key_id": key_id, "changes": list(data.keys())})
-
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True})
     except Exception as e:
@@ -1408,16 +1372,10 @@ def api_update_api_key(key_id):
 def api_delete_api_key(key_id):
     """Delete an API key"""
     try:
-        conn = get_db()
-        cur = conn.cursor()
-
-        cur.execute("DELETE FROM mcp_api_keys WHERE id = %s", (key_id,))
-        conn.commit()
+        with get_db_cursor() as (conn, cur):
+            cur.execute("DELETE FROM mcp_api_keys WHERE id = %s", (key_id,))
 
         log_activity(current_user.id, "api_key_deleted", details={"key_id": key_id})
-
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True})
     except Exception as e:
@@ -1438,30 +1396,25 @@ def api_bulk_export():
         format_type = request.args.get("format", "csv")
         scope = request.args.get("scope", "all")
 
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
+            query = """
+                SELECT id, username, email, role, subscription_tier, subscription_status,
+                       is_admin, is_active, created_at, last_login
+                FROM users
+                WHERE 1=1
+            """
 
-        query = """
-            SELECT id, username, email, role, subscription_tier, subscription_status,
-                   is_admin, is_active, created_at, last_login
-            FROM users
-            WHERE 1=1
-        """
+            if scope == "active":
+                query += " AND is_active = true"
+            elif scope == "admins":
+                query += " AND is_admin = true"
+            elif scope == "premium":
+                query += " AND subscription_tier IN ('pro', 'business', 'enterprise')"
 
-        if scope == "active":
-            query += " AND is_active = true"
-        elif scope == "admins":
-            query += " AND is_admin = true"
-        elif scope == "premium":
-            query += " AND subscription_tier IN ('pro', 'business', 'enterprise')"
+            query += " ORDER BY created_at DESC"
 
-        query += " ORDER BY created_at DESC"
-
-        cur.execute(query)
-        users = cur.fetchall()
-
-        cur.close()
-        conn.close()
+            cur.execute(query)
+            users = cur.fetchall()
 
         log_activity(
             current_user.id, "users_exported", details={"format": format_type, "scope": scope, "count": len(users)}
@@ -1523,20 +1476,18 @@ def api_bulk_preview():
         action = data.get("action", "upgrade")
         tier = data.get("tier", "pro")
 
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+        with get_db_cursor(commit=False) as (conn, cur):
+            # Build query based on target
+            query = "SELECT id, username, email, subscription_tier FROM users WHERE is_active = true"
 
-        # Build query based on target
-        query = "SELECT id, username, email, subscription_tier FROM users WHERE is_active = true"
+            if target == "free":
+                query += " AND (subscription_tier = 'free' OR subscription_tier IS NULL)"
+            elif target == "inactive":
+                query = "SELECT id, username, email, subscription_tier FROM users WHERE is_active = false"
+            # 'selected' would require client-side selected IDs
 
-        if target == "free":
-            query += " AND (subscription_tier = 'free' OR subscription_tier IS NULL)"
-        elif target == "inactive":
-            query = "SELECT id, username, email, subscription_tier FROM users WHERE is_active = false"
-        # 'selected' would require client-side selected IDs
-
-        cur.execute(query)
-        users = cur.fetchall()
+            cur.execute(query)
+            users = cur.fetchall()
 
         # Generate action description
         action_descriptions = {
@@ -1545,9 +1496,6 @@ def api_bulk_preview():
             "deactivate": "Deactivate accounts",
             "reactivate": "Reactivate accounts",
         }
-
-        cur.close()
-        conn.close()
 
         return jsonify(
             {
@@ -1564,62 +1512,87 @@ def api_bulk_preview():
 @account_center_bp.route("/api/bulk/update", methods=["POST"])
 @login_required
 @admin_required
+@rate_limit(max_requests=3, window_seconds=60)  # Max 3 bulk operations per minute
 def api_bulk_update():
-    """Execute bulk update operation"""
+    """Execute bulk update operation with confirmation for large operations"""
     try:
         data = request.get_json()
         target = data.get("target", "free")
         action = data.get("action", "upgrade")
         tier = data.get("tier", "pro")
+        confirmed = data.get("confirmed", False)
 
-        conn = get_db()
-        cur = conn.cursor()
-
-        # Build update based on action
-        if action in ["upgrade", "downgrade"]:
+        with get_db_cursor() as (conn, cur):
+            # First, count affected users
             if target == "free":
                 cur.execute(
-                    """
-                    UPDATE users SET subscription_tier = %s
-                    WHERE is_active = true AND (subscription_tier = 'free' OR subscription_tier IS NULL)
-                """,
-                    (tier,),
+                    """SELECT COUNT(*) as count FROM users
+                       WHERE is_active = true
+                       AND (subscription_tier = 'free' OR subscription_tier IS NULL)"""
                 )
             elif target == "inactive":
-                cur.execute(
-                    """
-                    UPDATE users SET subscription_tier = %s
-                    WHERE is_active = false
-                """,
-                    (tier,),
+                cur.execute("SELECT COUNT(*) as count FROM users WHERE is_active = false")
+            else:
+                cur.execute("SELECT COUNT(*) as count FROM users")
+
+            affected_count = cur.fetchone()["count"]
+
+            # Require confirmation for operations affecting more than 10 users
+            if affected_count > 10 and not confirmed:
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": "Confirmation required",
+                            "requires_confirmation": True,
+                            "affected_count": affected_count,
+                            "message": f"This operation will affect {affected_count} users. Please confirm to proceed.",
+                        }
+                    ),
+                    400,
                 )
 
-        elif action == "deactivate":
-            if target == "free":
-                cur.execute(
+            # Build update based on action
+            if action in ["upgrade", "downgrade"]:
+                if target == "free":
+                    cur.execute(
+                        """
+                        UPDATE users SET subscription_tier = %s
+                        WHERE is_active = true AND (subscription_tier = 'free' OR subscription_tier IS NULL)
+                    """,
+                        (tier,),
+                    )
+                elif target == "inactive":
+                    cur.execute(
+                        """
+                        UPDATE users SET subscription_tier = %s
+                        WHERE is_active = false
+                    """,
+                        (tier,),
+                    )
+
+            elif action == "deactivate":
+                if target == "free":
+                    cur.execute(
+                        """
+                        UPDATE users SET is_active = false
+                        WHERE is_active = true AND (subscription_tier = 'free' OR subscription_tier IS NULL)
                     """
-                    UPDATE users SET is_active = false
-                    WHERE is_active = true AND (subscription_tier = 'free' OR subscription_tier IS NULL)
-                """
-                )
-            elif target == "inactive":
-                pass  # Already inactive
+                    )
+                elif target == "inactive":
+                    pass  # Already inactive
 
-        elif action == "reactivate":
-            if target == "inactive":
-                cur.execute("UPDATE users SET is_active = true WHERE is_active = false")
+            elif action == "reactivate":
+                if target == "inactive":
+                    cur.execute("UPDATE users SET is_active = true WHERE is_active = false")
 
-        count = cur.rowcount
-        conn.commit()
+            count = cur.rowcount
 
         log_activity(
             current_user.id,
             "bulk_update_executed",
-            details={"target": target, "action": action, "tier": tier, "count": count},
+            details={"target": target, "action": action, "tier": tier, "count": count, "confirmed": confirmed},
         )
-
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "count": count})
     except Exception as e:
@@ -1641,47 +1614,40 @@ def api_bulk_import():
         if len(users_to_import) > 1000:
             return jsonify({"success": False, "error": "Maximum 1000 users per import"}), 400
 
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
         created = 0
         skipped = 0
 
-        for user_data in users_to_import:
-            username = user_data.get("username", "").strip()
-            email = user_data.get("email", "").strip()
-            password = user_data.get("password", "")
-            role = user_data.get("role", "user")
-            tier = user_data.get("subscription_tier", "free")
+        with get_db_cursor() as (conn, cur):
+            for user_data in users_to_import:
+                username = user_data.get("username", "").strip()
+                email = user_data.get("email", "").strip()
+                password = user_data.get("password", "")
+                role = user_data.get("role", "user")
+                tier = user_data.get("subscription_tier", "free")
 
-            if not username or not password:
-                skipped += 1
-                continue
+                if not username or not password:
+                    skipped += 1
+                    continue
 
-            # Check if username exists
-            cur.execute("SELECT id FROM users WHERE username = %s", (username,))
-            if cur.fetchone():
-                skipped += 1
-                continue
+                # Check if username exists
+                cur.execute("SELECT id FROM users WHERE username = %s", (username,))
+                if cur.fetchone():
+                    skipped += 1
+                    continue
 
-            password_hash = generate_password_hash(password)
-            is_admin = role.lower() in ["admin", "super_admin"]
+                password_hash = generate_password_hash(password)
+                is_admin = role.lower() in ["admin", "super_admin"]
 
-            cur.execute(
-                """
-                INSERT INTO users (username, email, password_hash, role, subscription_tier, is_admin)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """,
-                (username, email or None, password_hash, role.lower(), tier, is_admin),
-            )
-            created += 1
-
-        conn.commit()
+                cur.execute(
+                    """
+                    INSERT INTO users (username, email, password_hash, role, subscription_tier, is_admin)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """,
+                    (username, email or None, password_hash, role.lower(), tier, is_admin),
+                )
+                created += 1
 
         log_activity(current_user.id, "users_imported", details={"created": created, "skipped": skipped})
-
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True, "created": created, "skipped": skipped})
     except Exception as e:
@@ -1699,33 +1665,28 @@ def api_bulk_import():
 def api_security_overview():
     """Get security overview stats"""
     try:
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        # Failed logins in last 24 hours
-        cur.execute(
+        with get_db_cursor(commit=False) as (conn, cur):
+            # Failed logins in last 24 hours
+            cur.execute(
+                """
+                SELECT COUNT(*) as count FROM failed_logins
+                WHERE attempted_at > NOW() - INTERVAL '24 hours'
             """
-            SELECT COUNT(*) as count FROM failed_logins
-            WHERE attempted_at > NOW() - INTERVAL '24 hours'
-        """
-        )
-        failed_logins = cur.fetchone()["count"]
+            )
+            failed_logins = cur.fetchone()["count"]
 
-        # Locked accounts
-        cur.execute(
+            # Locked accounts
+            cur.execute(
+                """
+                SELECT COUNT(*) as count FROM users
+                WHERE locked_until IS NOT NULL AND locked_until > NOW()
             """
-            SELECT COUNT(*) as count FROM users
-            WHERE locked_until IS NOT NULL AND locked_until > NOW()
-        """
-        )
-        locked_accounts = cur.fetchone()["count"]
+            )
+            locked_accounts = cur.fetchone()["count"]
 
-        # 2FA enabled users
-        cur.execute("SELECT COUNT(*) as count FROM users WHERE totp_enabled = true")
-        totp_enabled = cur.fetchone()["count"]
-
-        cur.close()
-        conn.close()
+            # 2FA enabled users
+            cur.execute("SELECT COUNT(*) as count FROM users WHERE totp_enabled = true")
+            totp_enabled = cur.fetchone()["count"]
 
         return jsonify(
             {
@@ -1748,31 +1709,26 @@ def api_failed_logins():
         limit = request.args.get("limit", 100, type=int)
         offset = request.args.get("offset", 0, type=int)
 
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        cur.execute(
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """
+                SELECT COUNT(*) as count FROM failed_logins
+                WHERE attempted_at > NOW() - INTERVAL '24 hours'
             """
-            SELECT COUNT(*) as count FROM failed_logins
-            WHERE attempted_at > NOW() - INTERVAL '24 hours'
-        """
-        )
-        total = cur.fetchone()["count"]
+            )
+            total = cur.fetchone()["count"]
 
-        cur.execute(
-            """
-            SELECT username, ip_address, user_agent, attempted_at, reason
-            FROM failed_logins
-            WHERE attempted_at > NOW() - INTERVAL '24 hours'
-            ORDER BY attempted_at DESC
-            LIMIT %s OFFSET %s
-        """,
-            (limit, offset),
-        )
-        logins = cur.fetchall()
-
-        cur.close()
-        conn.close()
+            cur.execute(
+                """
+                SELECT username, ip_address, user_agent, attempted_at, reason
+                FROM failed_logins
+                WHERE attempted_at > NOW() - INTERVAL '24 hours'
+                ORDER BY attempted_at DESC
+                LIMIT %s OFFSET %s
+            """,
+                (limit, offset),
+            )
+            logins = cur.fetchall()
 
         return jsonify({"success": True, "logins": [dict(row) for row in logins], "total": total})
     except Exception as e:
@@ -1785,22 +1741,17 @@ def api_failed_logins():
 def api_list_2fa_users():
     """List users with 2FA status"""
     try:
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        cur.execute(
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """
+                SELECT id, username, email, totp_enabled, totp_verified_at,
+                       failed_login_count, locked_until
+                FROM users
+                WHERE is_active = true
+                ORDER BY totp_enabled DESC, username ASC
             """
-            SELECT id, username, email, totp_enabled, totp_verified_at,
-                   failed_login_count, locked_until
-            FROM users
-            WHERE is_active = true
-            ORDER BY totp_enabled DESC, username ASC
-        """
-        )
-        users = cur.fetchall()
-
-        cur.close()
-        conn.close()
+            )
+            users = cur.fetchall()
 
         return jsonify({"success": True, "users": [dict(u) for u in users]})
     except Exception as e:
@@ -1823,54 +1774,52 @@ def api_toggle_2fa(user_id):
         enabled = data.get("enabled", False)
         reset = data.get("reset", False)
 
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-
         totp_secret = None
         qr_code_data = None
+        username = None
 
-        if enabled and reset:
-            # Reset: generate new TOTP secret, keep enabled
-            totp_secret = pyotp.random_base32()
-            cur.execute(
-                """
-                UPDATE users SET totp_secret = %s, totp_enabled = true, totp_verified_at = NOW()
-                WHERE id = %s
-            """,
-                (totp_secret, user_id),
-            )
-            action = "2fa_reset"
-        elif enabled:
-            # Enable: generate TOTP secret
-            totp_secret = pyotp.random_base32()
-            cur.execute(
-                """
-                UPDATE users SET totp_secret = %s, totp_enabled = true, totp_verified_at = NOW()
-                WHERE id = %s
-            """,
-                (totp_secret, user_id),
-            )
-            action = "2fa_enabled"
-        else:
-            # Disable 2FA - clear secret and status
-            cur.execute(
-                """
-                UPDATE users SET totp_enabled = false, totp_secret = NULL, totp_verified_at = NULL
-                WHERE id = %s
-            """,
-                (user_id,),
-            )
-            action = "2fa_disabled"
+        with get_db_cursor() as (conn, cur):
+            if enabled and reset:
+                # Reset: generate new TOTP secret, keep enabled
+                totp_secret = pyotp.random_base32()
+                cur.execute(
+                    """
+                    UPDATE users SET totp_secret = %s, totp_enabled = true, totp_verified_at = NOW()
+                    WHERE id = %s
+                """,
+                    (totp_secret, user_id),
+                )
+                action = "2fa_reset"
+            elif enabled:
+                # Enable: generate TOTP secret
+                totp_secret = pyotp.random_base32()
+                cur.execute(
+                    """
+                    UPDATE users SET totp_secret = %s, totp_enabled = true, totp_verified_at = NOW()
+                    WHERE id = %s
+                """,
+                    (totp_secret, user_id),
+                )
+                action = "2fa_enabled"
+            else:
+                # Disable 2FA - clear secret and status
+                cur.execute(
+                    """
+                    UPDATE users SET totp_enabled = false, totp_secret = NULL, totp_verified_at = NULL
+                    WHERE id = %s
+                """,
+                    (user_id,),
+                )
+                action = "2fa_disabled"
 
-        conn.commit()
+            # Get username for provisioning URI if we have a new secret
+            if totp_secret:
+                cur.execute("SELECT username FROM users WHERE id = %s", (user_id,))
+                user_row = cur.fetchone()
+                username = user_row["username"] if user_row else f"user_{user_id}"
 
-        # Generate QR code if we have a new secret
+        # Generate QR code if we have a new secret (outside DB context)
         if totp_secret:
-            # Get username for provisioning URI
-            cur.execute("SELECT username FROM users WHERE id = %s", (user_id,))
-            user_row = cur.fetchone()
-            username = user_row["username"] if user_row else f"user_{user_id}"
-
             totp = pyotp.TOTP(totp_secret)
             provisioning_uri = totp.provisioning_uri(name=username, issuer_name="ARCHIE")
 
@@ -1892,9 +1841,6 @@ def api_toggle_2fa(user_id):
 
         log_activity(current_user.id, action, details={"target_user_id": user_id})
 
-        cur.close()
-        conn.close()
-
         result = {"success": True}
         if totp_secret:
             result["totp_secret"] = totp_secret
@@ -1910,23 +1856,16 @@ def api_toggle_2fa(user_id):
 def api_unlock_user(user_id):
     """Unlock a locked user account"""
     try:
-        conn = get_db()
-        cur = conn.cursor()
-
-        cur.execute(
-            """
-            UPDATE users SET locked_until = NULL, failed_login_count = 0
-            WHERE id = %s
-        """,
-            (user_id,),
-        )
-
-        conn.commit()
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                UPDATE users SET locked_until = NULL, failed_login_count = 0
+                WHERE id = %s
+            """,
+                (user_id,),
+            )
 
         log_activity(current_user.id, "user_unlocked", details={"target_user_id": user_id})
-
-        cur.close()
-        conn.close()
 
         return jsonify({"success": True})
     except Exception as e:

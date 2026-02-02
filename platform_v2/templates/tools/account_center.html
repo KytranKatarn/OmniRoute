@@ -1116,6 +1116,256 @@
     .sub-mgmt-user-table tr:hover {
         background: var(--archie-bg-hover);
     }
+
+    /* ===== Responsive Styles for Galaxy Fold 5 and Mobile ===== */
+
+    /* Tab navigation - horizontal scroll on narrow screens */
+    @media (max-width: 920px) {
+        .account-center-container .tab-nav {
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: thin;
+            padding-bottom: var(--archie-space-2);
+        }
+        .account-center-container .tab-nav::-webkit-scrollbar {
+            height: 4px;
+        }
+        .account-center-container .tab-nav::-webkit-scrollbar-track {
+            background: var(--archie-bg-tertiary);
+            border-radius: 2px;
+        }
+        .account-center-container .tab-nav::-webkit-scrollbar-thumb {
+            background: var(--archie-accent-alpha-30);
+            border-radius: 2px;
+        }
+        .account-center-container .tab-btn {
+            flex-shrink: 0;
+            padding: var(--archie-space-2) var(--archie-space-3);
+            font-size: var(--archie-text-xs);
+        }
+
+        /* Action bar - stack vertically */
+        .action-bar {
+            flex-direction: column;
+            align-items: stretch;
+            gap: var(--archie-space-3);
+        }
+
+        /* Filters - full width and wrap better */
+        .filters {
+            width: 100%;
+            gap: var(--archie-space-2);
+        }
+        .filters select,
+        .filters input {
+            flex: 1;
+            min-width: 0;
+        }
+        .filters .form-select {
+            min-width: 120px;
+        }
+
+        /* Search input - responsive width */
+        #search-users {
+            width: 100% !important;
+            min-width: 0;
+        }
+
+        /* Add user button - full width */
+        .action-bar > .btn {
+            width: 100%;
+            justify-content: center;
+        }
+
+        /* Profile two-column layout */
+        .profile-two-col {
+            grid-template-columns: 1fr;
+        }
+
+        /* Stats grid adjustments */
+        .stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        /* Security grid */
+        .security-grid {
+            grid-template-columns: 1fr;
+        }
+
+        /* Permission matrix controls */
+        .perm-matrix-controls {
+            flex-wrap: wrap;
+            gap: var(--archie-space-2);
+        }
+        .perm-search {
+            width: 100%;
+            max-width: none;
+            order: -1;
+        }
+
+        /* Pagination controls */
+        .pagination-controls {
+            flex-direction: column;
+            align-items: stretch;
+            gap: var(--archie-space-2);
+        }
+        .pagination-controls .page-size-selector {
+            justify-content: center;
+        }
+        .pagination-controls .page-nav {
+            justify-content: center;
+        }
+        .pagination-controls .page-info {
+            text-align: center;
+        }
+
+        /* Container padding reduction */
+        .account-center-container .container {
+            padding: var(--archie-space-4) !important;
+        }
+
+        /* Header adjustments */
+        .account-center-header {
+            padding: var(--archie-space-4);
+        }
+        .account-center-header h1 {
+            font-size: var(--archie-text-xl);
+        }
+    }
+
+    /* Data table responsive wrapper */
+    .table-responsive {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        margin: 0 calc(-1 * var(--archie-space-4));
+        padding: 0 var(--archie-space-4);
+    }
+
+    @media (max-width: 920px) {
+        .table-responsive {
+            margin: 0 calc(-1 * var(--archie-space-3));
+            padding: 0 var(--archie-space-3);
+        }
+
+        /* Data table mobile adjustments */
+        .data-table {
+            min-width: 600px;
+            font-size: var(--archie-text-xs);
+        }
+        .data-table th,
+        .data-table td {
+            padding: var(--archie-space-2);
+        }
+
+        /* Hide less important columns on Fold5 */
+        .data-table .hide-fold {
+            display: none;
+        }
+
+        /* Sub management table */
+        .sub-mgmt-user-table {
+            min-width: 500px;
+        }
+
+        /* Permission matrix table */
+        .perm-matrix-table {
+            font-size: var(--archie-text-xs);
+        }
+        .perm-matrix-table th,
+        .perm-matrix-table td {
+            padding: var(--archie-space-1) var(--archie-space-2);
+        }
+        .perm-matrix-table th:first-child {
+            min-width: 150px;
+        }
+    }
+
+    /* Mobile phone breakpoint */
+    @media (max-width: 600px) {
+        /* Stats grid - single column on small phones */
+        .stats-grid {
+            grid-template-columns: 1fr;
+        }
+
+        /* Filters stack completely */
+        .filters {
+            flex-direction: column;
+        }
+        .filters select,
+        .filters input {
+            width: 100%;
+        }
+
+        /* Tab buttons even smaller */
+        .account-center-container .tab-btn {
+            padding: var(--archie-space-1-5) var(--archie-space-2);
+            font-size: 10px;
+        }
+
+        /* Hide more columns on phone */
+        .data-table .hide-mobile {
+            display: none;
+        }
+
+        /* Tier cards */
+        .tier-stats-row {
+            flex-direction: column;
+            gap: var(--archie-space-2);
+        }
+
+        /* Activity items */
+        .activity-item {
+            flex-direction: column;
+            gap: var(--archie-space-2);
+        }
+        .activity-icon {
+            width: 32px;
+            height: 32px;
+            font-size: var(--archie-text-base);
+        }
+
+        /* Profile header */
+        .profile-header {
+            flex-direction: column;
+            text-align: center;
+        }
+
+        /* Inline fields */
+        .inline-field {
+            flex-direction: column;
+            align-items: stretch;
+            gap: var(--archie-space-1);
+        }
+        .inline-field-label {
+            min-width: auto;
+        }
+        .inline-field-actions {
+            margin-left: 0;
+            margin-top: var(--archie-space-1);
+            justify-content: flex-end;
+        }
+
+        /* Security cards */
+        .security-card {
+            padding: var(--archie-space-4);
+        }
+        .security-card-value {
+            font-size: var(--archie-text-2xl);
+        }
+
+        /* Role overview cards */
+        .role-overview-card {
+            padding: var(--archie-space-3);
+        }
+        .role-overview-card .role-icon {
+            width: 32px;
+            height: 32px;
+        }
+        .role-overview-card .role-perm-count {
+            font-size: var(--archie-text-xl);
+        }
+    }
 </style>
 {% endblock %}
 
@@ -1193,11 +1443,12 @@
                             <option value="kytran">Kytran Staff</option>
                             <option value="vip">VIP</option>
                         </select>
-                        <input type="text" id="search-users" class="form-input" placeholder="Search users..." style="width: 200px;">
+                        <input type="text" id="search-users" class="form-input" placeholder="Search users...">
                     </div>
                     <button class="btn btn-primary" onclick="showAddUserModal()">+ ADD USER</button>
                 </div>
 
+                <div class="table-responsive">
                 <table class="data-table">
                     <thead>
                         <tr>
@@ -1206,9 +1457,9 @@
                             <th>Role</th>
                             <th>Tier</th>
                             <th>Status</th>
-                            <th>Sessions</th>
-                            <th>Keys</th>
-                            <th>Last Login</th>
+                            <th class="hide-fold">Sessions</th>
+                            <th class="hide-fold">Keys</th>
+                            <th class="hide-mobile">Last Login</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -1221,6 +1472,7 @@
                         </tr>
                     </tbody>
                 </table>
+                </div>
 
                 <!-- Pagination -->
                 <div class="pagination-controls" id="users-pagination">
@@ -1419,12 +1671,13 @@
                 <div class="card" style="margin-bottom: var(--archie-space-6);">
                     <div class="card-header">Recent Failed Login Attempts</div>
                     <div class="card-body">
+                        <div class="table-responsive">
                         <table class="data-table">
                             <thead>
                                 <tr>
                                     <th>Username</th>
                                     <th>IP Address</th>
-                                    <th>Reason</th>
+                                    <th class="hide-mobile">Reason</th>
                                     <th>Time</th>
                                 </tr>
                             </thead>
@@ -1434,6 +1687,7 @@
                                 </tr>
                             </tbody>
                         </table>
+                        </div>
                         <div class="pagination-controls" id="failed-logins-pagination">
                             <div class="page-size-selector">
                                 <span>Show</span>
@@ -1465,13 +1719,14 @@
                                 <strong style="color: var(--archie-text-primary);">Reset</strong> clears a failed TOTP and generates a new secret.
                             </span>
                         </div>
+                        <div class="table-responsive">
                         <table class="data-table">
                             <thead>
                                 <tr>
                                     <th>Username</th>
-                                    <th>Email</th>
+                                    <th class="hide-fold">Email</th>
                                     <th>2FA Status</th>
-                                    <th>Enabled Since</th>
+                                    <th class="hide-mobile">Enabled Since</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
@@ -1481,6 +1736,7 @@
                                 </tr>
                             </tbody>
                         </table>
+                        </div>
                         <div class="pagination-controls" id="totp-pagination">
                             <div class="page-size-selector">
                                 <span>Show</span>
@@ -1508,7 +1764,7 @@
                         <select id="filter-session-user" class="form-select">
                             <option value="">All Users</option>
                         </select>
-                        <input type="text" id="search-sessions" class="form-input" placeholder="Search by IP..." style="width: 200px;">
+                        <input type="text" id="search-sessions" class="form-input" placeholder="Search by IP...">
                         <div id="sessions-refresh-indicator" class="sessions-refresh-indicator" style="display: none;">
                             <svg class="refresh-ring" viewBox="0 0 20 20" width="20" height="20">
                                 <circle class="refresh-ring-bg" cx="10" cy="10" r="8" />
@@ -1523,15 +1779,16 @@
                 <div class="card">
                     <div class="card-header">Active Sessions</div>
                     <div class="card-body">
+                        <div class="table-responsive">
                         <table class="data-table">
                             <thead>
                                 <tr>
                                     <th>User</th>
                                     <th>IP Address</th>
-                                    <th>Device</th>
-                                    <th>Created</th>
-                                    <th>Last Activity</th>
-                                    <th>Expires</th>
+                                    <th class="hide-fold">Device</th>
+                                    <th class="hide-mobile">Created</th>
+                                    <th class="hide-fold">Last Activity</th>
+                                    <th class="hide-mobile">Expires</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
@@ -1544,6 +1801,7 @@
                                 </tr>
                             </tbody>
                         </table>
+                        </div>
                         <div class="pagination-controls" id="sessions-pagination">
                             <div class="page-size-selector">
                                 <span>Show</span>
@@ -1584,15 +1842,16 @@
                 <div class="card">
                     <div class="card-header">API Keys</div>
                     <div class="card-body">
+                        <div class="table-responsive">
                         <table class="data-table">
                             <thead>
                                 <tr>
                                     <th>User</th>
                                     <th>Name</th>
-                                    <th>Key Prefix</th>
-                                    <th>Permissions</th>
-                                    <th>Last Used</th>
-                                    <th>Expires</th>
+                                    <th class="hide-fold">Key Prefix</th>
+                                    <th class="hide-mobile">Permissions</th>
+                                    <th class="hide-fold">Last Used</th>
+                                    <th class="hide-mobile">Expires</th>
                                     <th>Status</th>
                                     <th>Actions</th>
                                 </tr>
@@ -1606,6 +1865,7 @@
                                 </tr>
                             </tbody>
                         </table>
+                        </div>
                         <div class="pagination-controls" id="apikeys-pagination">
                             <div class="page-size-selector">
                                 <span>Show</span>
@@ -2168,14 +2428,17 @@ function renderUsersTable(userList) {
         tdStatus.appendChild(statusBadge);
 
         const tdSessions = document.createElement('td');
+        tdSessions.className = 'hide-fold';
         tdSessions.textContent = user.session_count || 0;
         tdSessions.style.textAlign = 'center';
 
         const tdKeys = document.createElement('td');
+        tdKeys.className = 'hide-fold';
         tdKeys.textContent = user.api_key_count || 0;
         tdKeys.style.textAlign = 'center';
 
         const tdLogin = document.createElement('td');
+        tdLogin.className = 'hide-mobile';
         tdLogin.textContent = user.last_login ? new Date(user.last_login).toLocaleDateString() : 'Never';
 
         const tdActions = document.createElement('td');
@@ -3022,7 +3285,11 @@ function renderRoleCards(roles) {
 
         const icon = document.createElement('div');
         icon.className = 'role-icon';
-        icon.innerHTML = '<i data-lucide="' + role.icon + '"></i>';
+        const iconEl = document.createElement('i');
+        // Sanitize icon name - only allow alphanumeric and hyphens
+        const safeIcon = (role.icon || 'user').replace(/[^a-zA-Z0-9-]/g, '');
+        iconEl.setAttribute('data-lucide', safeIcon);
+        icon.appendChild(iconEl);
 
         const name = document.createElement('div');
         name.className = 'role-card-name';
@@ -4404,16 +4671,20 @@ function renderSessionsTable(sessions) {
         tdIp.style.fontFamily = 'monospace';
 
         const tdDevice = document.createElement('td');
+        tdDevice.className = 'hide-fold';
         tdDevice.textContent = parseUserAgent(s.user_agent);
         tdDevice.style.fontSize = 'var(--archie-text-sm)';
 
         const tdCreated = document.createElement('td');
+        tdCreated.className = 'hide-mobile';
         tdCreated.textContent = s.created_at ? new Date(s.created_at).toLocaleString() : '-';
 
         const tdActivity = document.createElement('td');
+        tdActivity.className = 'hide-fold';
         tdActivity.textContent = s.last_activity ? new Date(s.last_activity).toLocaleString() : '-';
 
         const tdExpires = document.createElement('td');
+        tdExpires.className = 'hide-mobile';
         if (s.expires_at) {
             const expires = new Date(s.expires_at);
             const isExpired = expires < new Date();
@@ -4602,10 +4873,12 @@ function renderApiKeysTable(keys) {
         }
 
         const tdPrefix = document.createElement('td');
+        tdPrefix.className = 'hide-fold';
         tdPrefix.textContent = k.key_prefix + '...';
         tdPrefix.style.fontFamily = 'monospace';
 
         const tdPerms = document.createElement('td');
+        tdPerms.className = 'hide-mobile';
         const perms = k.permissions || ['read'];
         perms.forEach(p => {
             const badge = document.createElement('span');
@@ -4616,9 +4889,11 @@ function renderApiKeysTable(keys) {
         });
 
         const tdLastUsed = document.createElement('td');
+        tdLastUsed.className = 'hide-fold';
         tdLastUsed.textContent = k.last_used_at ? new Date(k.last_used_at).toLocaleDateString() : 'Never';
 
         const tdExpires = document.createElement('td');
+        tdExpires.className = 'hide-mobile';
         if (k.expires_at) {
             const expires = new Date(k.expires_at);
             const isExpired = expires < new Date();
@@ -4985,6 +5260,7 @@ async function loadFailedLogins() {
                 tdIp.style.fontFamily = 'monospace';
 
                 const tdReason = document.createElement('td');
+                tdReason.className = 'hide-mobile';
                 tdReason.textContent = l.reason || 'Invalid credentials';
 
                 const tdTime = document.createElement('td');
@@ -5065,6 +5341,7 @@ function renderTotpPage() {
         tdUser.appendChild(strong);
 
         const tdEmail = document.createElement('td');
+        tdEmail.className = 'hide-fold';
         tdEmail.textContent = u.email || '-';
 
         const tdStatus = document.createElement('td');
@@ -5074,6 +5351,7 @@ function renderTotpPage() {
         tdStatus.appendChild(badge);
 
         const tdSince = document.createElement('td');
+        tdSince.className = 'hide-mobile';
         tdSince.textContent = u.totp_verified_at ? new Date(u.totp_verified_at).toLocaleDateString() : '-';
 
         const tdActions = document.createElement('td');

@@ -7579,7 +7579,21 @@ async function loadDocker() {
                 healthJson.stacks.forEach(h => { healthMap[h.name] = h; });
 
                 stacksData.forEach(s => {
-                    const health = healthMap[s.name];
+                    // Try matching by stack name first
+                    let health = healthMap[s.name];
+
+                    // If no match, try compose directory basename (Docker uses dir name as project)
+                    if (!health && s.compose_directory) {
+                        const dirName = s.compose_directory.split('/').pop();
+                        health = healthMap[dirName];
+                    }
+
+                    // If still no match, try removing common suffixes like -stack
+                    if (!health) {
+                        const baseName = s.name.replace(/-stack$/, '');
+                        health = healthMap[baseName];
+                    }
+
                     if (health) {
                         s.health_summary = health.health_summary;
                         s.total_cpu = health.total_cpu;

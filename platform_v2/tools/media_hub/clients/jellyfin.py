@@ -262,17 +262,26 @@ class JellyfinClient(MediaServerInterface):
 
         return None
 
-    def get_all_movies(self, limit: int = 100, offset: int = 0) -> List[MediaItem]:
-        """Get all movies with pagination"""
+    def get_all_movies(self, limit: int = 100, offset: int = 0, sort: str = "added") -> List[MediaItem]:
+        """Get all movies with pagination and sorting"""
         user_id = self._get_user_id()
         if not user_id:
             return []
 
+        # Map sort options to Jellyfin SortBy values
+        sort_map = {
+            "added": ("DateCreated", "Descending"),
+            "title": ("SortName", "Ascending"),
+            "year": ("ProductionYear", "Descending"),
+            "rating": ("CommunityRating", "Descending"),
+        }
+        sort_by, sort_order = sort_map.get(sort, ("DateCreated", "Descending"))
+
         params = {
             "IncludeItemTypes": "Movie",
             "Recursive": True,
-            "SortBy": "SortName",
-            "SortOrder": "Ascending",
+            "SortBy": sort_by,
+            "SortOrder": sort_order,
             "Limit": limit,
             "StartIndex": offset,
             "Fields": "Overview,Genres,ProviderIds,MediaSources,DateCreated",
@@ -287,17 +296,26 @@ class JellyfinClient(MediaServerInterface):
 
         return items
 
-    def get_all_shows(self, limit: int = 100, offset: int = 0) -> List[MediaItem]:
-        """Get all TV shows with pagination"""
+    def get_all_shows(self, limit: int = 100, offset: int = 0, sort: str = "added") -> List[MediaItem]:
+        """Get all TV shows with pagination and sorting"""
         user_id = self._get_user_id()
         if not user_id:
             return []
 
+        # Map sort options to Jellyfin SortBy values
+        sort_map = {
+            "added": ("DateCreated", "Descending"),
+            "title": ("SortName", "Ascending"),
+            "year": ("ProductionYear", "Descending"),
+            "rating": ("CommunityRating", "Descending"),
+        }
+        sort_by, sort_order = sort_map.get(sort, ("DateCreated", "Descending"))
+
         params = {
             "IncludeItemTypes": "Series",
             "Recursive": True,
-            "SortBy": "SortName",
-            "SortOrder": "Ascending",
+            "SortBy": sort_by,
+            "SortOrder": sort_order,
             "Limit": limit,
             "StartIndex": offset,
             "Fields": "Overview,Genres,ProviderIds,DateCreated",

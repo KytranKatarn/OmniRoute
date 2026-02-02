@@ -532,23 +532,30 @@ def api_cache_status():
 
 @media_hub_bp.route("/api/library/movies")
 def api_library_movies():
-    """Get all movies with pagination"""
+    """Get all movies with pagination and sorting, enriched with TMDB data"""
     limit = request.args.get("limit", 50, type=int)
     offset = request.args.get("offset", 0, type=int)
+    sort = request.args.get("sort", "added")  # added, title, year, rating
 
     media_server, server_type = get_primary_media_server()
     if not media_server:
         return jsonify({"success": False, "error": "No media server configured", "items": []})
 
     try:
-        items = media_server.get_all_movies(limit, offset)
+        items = media_server.get_all_movies(limit, offset, sort)
+        items_data = [item.to_dict() for item in items]
+
+        # Enrich items missing poster/overview with TMDB data
+        items_data = enrich_items_with_tmdb(items_data)
+
         return jsonify(
             {
                 "success": True,
-                "items": [item.to_dict() for item in items],
+                "items": items_data,
                 "source": server_type,
                 "limit": limit,
                 "offset": offset,
+                "sort": sort,
             }
         )
     except Exception as e:
@@ -558,23 +565,30 @@ def api_library_movies():
 
 @media_hub_bp.route("/api/library/shows")
 def api_library_shows():
-    """Get all TV shows with pagination"""
+    """Get all TV shows with pagination and sorting, enriched with TMDB data"""
     limit = request.args.get("limit", 50, type=int)
     offset = request.args.get("offset", 0, type=int)
+    sort = request.args.get("sort", "added")  # added, title, year, rating
 
     media_server, server_type = get_primary_media_server()
     if not media_server:
         return jsonify({"success": False, "error": "No media server configured", "items": []})
 
     try:
-        items = media_server.get_all_shows(limit, offset)
+        items = media_server.get_all_shows(limit, offset, sort)
+        items_data = [item.to_dict() for item in items]
+
+        # Enrich items missing poster/overview with TMDB data
+        items_data = enrich_items_with_tmdb(items_data)
+
         return jsonify(
             {
                 "success": True,
-                "items": [item.to_dict() for item in items],
+                "items": items_data,
                 "source": server_type,
                 "limit": limit,
                 "offset": offset,
+                "sort": sort,
             }
         )
     except Exception as e:

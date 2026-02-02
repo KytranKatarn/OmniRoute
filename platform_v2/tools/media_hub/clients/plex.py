@@ -290,14 +290,27 @@ class PlexClient(MediaServerInterface):
 
         return None
 
-    def get_all_movies(self, limit: int = 100, offset: int = 0) -> List[MediaItem]:
-        """Get all movies with pagination"""
+    def get_all_movies(self, limit: int = 100, offset: int = 0, sort: str = "added") -> List[MediaItem]:
+        """Get all movies with pagination and sorting"""
         items = []
+
+        # Map sort options to Plex sort values
+        sort_map = {
+            "added": "addedAt:desc",
+            "title": "titleSort:asc",
+            "year": "year:desc",
+            "rating": "rating:desc",
+        }
+        plex_sort = sort_map.get(sort, "addedAt:desc")
 
         for library in self._get_libraries():
             if library.get("type") == "movie":
                 lib_key = library.get("key")
-                params = {"X-Plex-Container-Start": offset, "X-Plex-Container-Size": limit}
+                params = {
+                    "X-Plex-Container-Start": offset,
+                    "X-Plex-Container-Size": limit,
+                    "sort": plex_sort,
+                }
 
                 result = self._request(f"/library/sections/{lib_key}/all", params)
                 if result and "MediaContainer" in result:
@@ -308,14 +321,27 @@ class PlexClient(MediaServerInterface):
 
         return items
 
-    def get_all_shows(self, limit: int = 100, offset: int = 0) -> List[MediaItem]:
-        """Get all TV shows with pagination"""
+    def get_all_shows(self, limit: int = 100, offset: int = 0, sort: str = "added") -> List[MediaItem]:
+        """Get all TV shows with pagination and sorting"""
         items = []
+
+        # Map sort options to Plex sort values
+        sort_map = {
+            "added": "addedAt:desc",
+            "title": "titleSort:asc",
+            "year": "year:desc",
+            "rating": "rating:desc",
+        }
+        plex_sort = sort_map.get(sort, "addedAt:desc")
 
         for library in self._get_libraries():
             if library.get("type") == "show":
                 lib_key = library.get("key")
-                params = {"X-Plex-Container-Start": offset, "X-Plex-Container-Size": limit}
+                params = {
+                    "X-Plex-Container-Start": offset,
+                    "X-Plex-Container-Size": limit,
+                    "sort": plex_sort,
+                }
 
                 result = self._request(f"/library/sections/{lib_key}/all", params)
                 if result and "MediaContainer" in result:

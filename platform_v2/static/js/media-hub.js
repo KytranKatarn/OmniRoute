@@ -69,6 +69,8 @@ document.addEventListener('DOMContentLoaded', function() {
     initTabs();
     initSearch();
     initFilterChips();
+    initSortDropdowns();
+    initViewToggles();
     initKeyboardNavigation();
     initLazyLoading();
     initTrendingTabs();
@@ -77,6 +79,73 @@ document.addEventListener('DOMContentLoaded', function() {
     loadDashboard();
     loadSettings();
 });
+
+// Sort dropdown initialization
+let currentMovieSort = 'added';
+let currentShowSort = 'added';
+
+// View mode state (grid or list)
+let currentMovieView = 'grid';
+let currentShowView = 'grid';
+
+function initSortDropdowns() {
+    const movieSort = document.getElementById('movieSort');
+    const showSort = document.getElementById('showSort');
+
+    if (movieSort) {
+        movieSort.addEventListener('change', (e) => {
+            currentMovieSort = e.target.value;
+            loadMovies();
+        });
+    }
+
+    if (showSort) {
+        showSort.addEventListener('change', (e) => {
+            currentShowSort = e.target.value;
+            loadShows();
+        });
+    }
+}
+
+function initViewToggles() {
+    // Movies tab view toggle
+    const movieViewBtns = document.querySelectorAll('#tab-movies .view-btn');
+    movieViewBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const view = btn.dataset.view;
+            if (view === currentMovieView) return;
+
+            currentMovieView = view;
+            movieViewBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            const grid = document.getElementById('moviesGrid');
+            if (grid) {
+                grid.className = view === 'list' ? 'media-list' : 'media-grid';
+            }
+            loadMovies();
+        });
+    });
+
+    // TV Shows tab view toggle
+    const showViewBtns = document.querySelectorAll('#tab-shows .view-btn');
+    showViewBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const view = btn.dataset.view;
+            if (view === currentShowView) return;
+
+            currentShowView = view;
+            showViewBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            const grid = document.getElementById('showsGrid');
+            if (grid) {
+                grid.className = view === 'list' ? 'media-list' : 'media-grid';
+            }
+            loadShows();
+        });
+    });
+}
 
 async function loadPrimaryMediaServer() {
     try {
@@ -933,6 +1002,133 @@ function createPosterCard(item, showRequestButton = false) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// LIST CARDS (Detail View)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function createListCard(item) {
+    const card = document.createElement('div');
+    card.className = 'list-card';
+    card.onclick = () => openMediaDetails(item);
+
+    // Poster thumbnail
+    const posterContainer = document.createElement('div');
+    posterContainer.className = 'list-card-poster';
+
+    const img = document.createElement('img');
+    img.className = 'lazy-image';
+    img.alt = item.title || '';
+    img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 90"%3E%3Crect fill="%231a1a2e" width="60" height="90"/%3E%3C/svg%3E';
+    img.dataset.src = item.poster_url || '/static/img/no-poster.png';
+    img.onerror = function() { this.src = '/static/img/no-poster.png'; };
+    lazyLoadImage(img);
+    posterContainer.appendChild(img);
+
+    // Watched indicator
+    if (item.played || item.metadata?.played) {
+        const watchedDot = document.createElement('div');
+        watchedDot.className = 'list-card-watched';
+        const eyeIcon = document.createElement('i');
+        eyeIcon.setAttribute('data-lucide', 'eye');
+        watchedDot.appendChild(eyeIcon);
+        posterContainer.appendChild(watchedDot);
+    }
+
+    card.appendChild(posterContainer);
+
+    // Info section
+    const info = document.createElement('div');
+    info.className = 'list-card-info';
+
+    // Title row
+    const titleRow = document.createElement('div');
+    titleRow.className = 'list-card-title-row';
+
+    const title = document.createElement('h3');
+    title.className = 'list-card-title';
+    title.textContent = item.title || 'Unknown';
+    titleRow.appendChild(title);
+
+    // Quality badges inline with title
+    const badges = item.metadata?.quality_badges || [];
+    if (badges.length > 0) {
+        const badgeContainer = document.createElement('div');
+        badgeContainer.className = 'list-card-badges';
+        badges.slice(0, 3).forEach(badge => {
+            const badgeEl = document.createElement('span');
+            badgeEl.className = 'quality-badge';
+            if (badge === '4K') badgeEl.classList.add('badge-4k');
+            else if (badge === 'DV' || badge.includes('HDR')) badgeEl.classList.add('badge-hdr');
+            else if (badge === 'Atmos' || badge === 'DTS:X') badgeEl.classList.add('badge-audio');
+            badgeEl.textContent = badge;
+            badgeContainer.appendChild(badgeEl);
+        });
+        titleRow.appendChild(badgeContainer);
+    }
+
+    info.appendChild(titleRow);
+
+    // Meta row (year, type, rating, runtime)
+    const meta = document.createElement('div');
+    meta.className = 'list-card-meta';
+    const parts = [];
+    if (item.year) parts.push(item.year);
+    if (item.media_type) parts.push(item.media_type === 'movie' ? 'Movie' : 'TV Series');
+    if (item.runtime_minutes) parts.push(`${item.runtime_minutes} min`);
+    if (item.rating) parts.push(`★ ${Number(item.rating).toFixed(1)}`);
+    meta.textContent = parts.join(' • ');
+    info.appendChild(meta);
+
+    // Overview/description
+    if (item.overview) {
+        const overview = document.createElement('p');
+        overview.className = 'list-card-overview';
+        overview.textContent = item.overview.length > 200
+            ? item.overview.substring(0, 200) + '...'
+            : item.overview;
+        info.appendChild(overview);
+    }
+
+    // Genres
+    if (item.genres && item.genres.length > 0) {
+        const genres = document.createElement('div');
+        genres.className = 'list-card-genres';
+        item.genres.slice(0, 4).forEach(genre => {
+            const tag = document.createElement('span');
+            tag.className = 'genre-tag';
+            tag.textContent = genre;
+            genres.appendChild(tag);
+        });
+        info.appendChild(genres);
+    }
+
+    card.appendChild(info);
+
+    // Action buttons
+    const actions = document.createElement('div');
+    actions.className = 'list-card-actions';
+
+    // Play button
+    const playBtn = document.createElement('button');
+    playBtn.className = 'list-card-play';
+    playBtn.onclick = (e) => {
+        e.stopPropagation();
+        if (item.in_library && (item.media_type === 'movie' || item.media_type === 'episode')) {
+            openVideoPlayer(item);
+        } else {
+            openMediaDetails(item);
+        }
+    };
+    const playIcon = document.createElement('i');
+    playIcon.setAttribute('data-lucide', item.in_library ? 'play' : 'info');
+    playBtn.appendChild(playIcon);
+    actions.appendChild(playBtn);
+
+    card.appendChild(actions);
+
+    return card;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // DOWNLOADS WITH CONTROLS
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1391,6 +1587,7 @@ async function loadMovies(append = false) {
 
     if (!append) {
         grid.textContent = '';
+        grid.className = currentMovieView === 'list' ? 'media-list' : 'media-grid';
         moviesOffset = 0;
     }
 
@@ -1398,14 +1595,16 @@ async function loadMovies(append = false) {
     grid.appendChild(loading);
 
     try {
-        const response = await fetch(`${API_BASE}/library/movies?limit=50&offset=${moviesOffset}`);
+        const sort = currentMovieSort || 'added';
+        const response = await fetch(`${API_BASE}/library/movies?limit=50&offset=${moviesOffset}&sort=${sort}`);
         const data = await response.json();
 
         loading.remove();
 
         if (data.success && data.items) {
+            const createCard = currentMovieView === 'list' ? createListCard : createPosterCard;
             data.items.forEach(item => {
-                grid.appendChild(createPosterCard(item));
+                grid.appendChild(createCard(item));
             });
             moviesOffset += data.items.length;
 
@@ -1435,6 +1634,7 @@ async function loadShows(append = false) {
 
     if (!append) {
         grid.textContent = '';
+        grid.className = currentShowView === 'list' ? 'media-list' : 'media-grid';
         showsOffset = 0;
     }
 
@@ -1442,14 +1642,16 @@ async function loadShows(append = false) {
     grid.appendChild(loading);
 
     try {
-        const response = await fetch(`${API_BASE}/library/shows?limit=50&offset=${showsOffset}`);
+        const sort = currentShowSort || 'added';
+        const response = await fetch(`${API_BASE}/library/shows?limit=50&offset=${showsOffset}&sort=${sort}`);
         const data = await response.json();
 
         loading.remove();
 
         if (data.success && data.items) {
+            const createCard = currentShowView === 'list' ? createListCard : createPosterCard;
             data.items.forEach(item => {
-                grid.appendChild(createPosterCard(item));
+                grid.appendChild(createCard(item));
             });
             showsOffset += data.items.length;
 
@@ -2687,7 +2889,7 @@ async function loadEpisodesForSeason(seriesId, seasonNumber, episodeList) {
     }
 }
 
-// Episode Detail Modal
+// Episode Detail Modal - matches Continue Watching modal design
 function openEpisodeDetailModal(episode, seasonNumber) {
     // Remove existing modal if any
     document.getElementById('episodeDetailModal')?.remove();
@@ -2704,45 +2906,55 @@ function openEpisodeDetailModal(episode, seasonNumber) {
     const content = document.createElement('div');
     content.className = 'episode-detail-content';
 
-    // Header with close button
-    const header = document.createElement('div');
-    header.className = 'episode-detail-header';
+    // Backdrop/thumbnail image - matches Continue Watching modal
+    if (episode.poster_url) {
+        const backdrop = document.createElement('div');
+        backdrop.className = 'episode-detail-backdrop';
+        backdrop.style.backgroundImage = `url(${episode.poster_url})`;
+        content.appendChild(backdrop);
+    }
 
-    const title = document.createElement('h3');
-    title.textContent = `S${seasonNumber}E${episode.episode_number}: ${episode.title || 'Episode ' + episode.episode_number}`;
-    header.appendChild(title);
-
+    // Close button overlaid on backdrop
     const closeBtn = document.createElement('button');
     closeBtn.className = 'episode-detail-close';
     const closeIcon = document.createElement('i');
     closeIcon.setAttribute('data-lucide', 'x');
     closeBtn.appendChild(closeIcon);
     closeBtn.onclick = closeEpisodeDetailModal;
-    header.appendChild(closeBtn);
+    content.appendChild(closeBtn);
 
-    content.appendChild(header);
+    // Main content area
+    const main = document.createElement('div');
+    main.className = 'episode-detail-main';
 
-    // Show title
+    // Episode title
+    const title = document.createElement('h3');
+    title.className = 'episode-detail-title';
+    title.textContent = `S${seasonNumber}E${episode.episode_number}: ${episode.title || 'Episode ' + episode.episode_number}`;
+    main.appendChild(title);
+
+    // Show title (smaller, muted)
     const showInfo = document.createElement('div');
     showInfo.className = 'episode-detail-show';
     showInfo.textContent = currentShowContext.showTitle;
-    content.appendChild(showInfo);
+    main.appendChild(showInfo);
 
-    // Episode details
-    const details = document.createElement('div');
-    details.className = 'episode-detail-info';
-
-    // Meta info row
+    // Meta info row (runtime, quality, air date)
     const metaRow = document.createElement('div');
     metaRow.className = 'episode-detail-meta';
     const metaParts = [];
     if (episode.runtime_minutes) metaParts.push(`${episode.runtime_minutes} min`);
     if (episode.quality) metaParts.push(episode.quality);
-    if (episode.air_date) metaParts.push(episode.air_date);
+    if (episode.air_date) {
+        const airDate = new Date(episode.air_date);
+        if (!isNaN(airDate)) {
+            metaParts.push(airDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }));
+        }
+    }
     metaRow.textContent = metaParts.join(' • ');
-    details.appendChild(metaRow);
+    main.appendChild(metaRow);
 
-    // Watch status
+    // Watch status badge
     const statusRow = document.createElement('div');
     statusRow.className = 'episode-detail-status';
     const statusBadge = document.createElement('span');
@@ -2755,62 +2967,93 @@ function openEpisodeDetailModal(episode, seasonNumber) {
         statusBadge.appendChild(document.createTextNode(` (${episode.view_count}x)`));
     }
     statusRow.appendChild(statusBadge);
-    details.appendChild(statusRow);
+    main.appendChild(statusRow);
 
-    // Overview if available
+    // Overview/description
     if (episode.overview) {
-        const overview = document.createElement('div');
+        const overview = document.createElement('p');
         overview.className = 'episode-detail-overview';
         overview.textContent = episode.overview;
-        details.appendChild(overview);
+        main.appendChild(overview);
     }
 
-    content.appendChild(details);
+    content.appendChild(main);
 
-    // Action buttons
+    // Action buttons - match Continue Watching modal design
     const actions = document.createElement('div');
     actions.className = 'episode-detail-actions';
 
     if (episode.has_file) {
-        // Watch Now button
-        const watchBtn = document.createElement('button');
-        watchBtn.className = 'btn btn-stream episode-action-btn';
-        const playIcon = document.createElement('i');
-        playIcon.setAttribute('data-lucide', 'play');
-        watchBtn.appendChild(playIcon);
-        watchBtn.appendChild(document.createTextNode(' Watch Now'));
-        watchBtn.onclick = () => {
-            closeEpisodeDetailModal();
-            closeMediaPanel();
-            openVideoPlayer({
-                id: episode.id,
-                title: `${episode.title || 'Episode ' + episode.episode_number}`,
-                media_type: 'episode'
-            });
-        };
-        actions.appendChild(watchBtn);
+        // Stream Now button - matches Continue Watching modal
+        const hasJellyfin = availableMediaServers.some(s => s.type === 'jellyfin') ||
+                           availableMediaServers.length === 0;
+
+        if (hasJellyfin) {
+            const streamBtn = document.createElement('button');
+            streamBtn.className = 'btn btn-stream';
+            streamBtn.onclick = () => {
+                closeEpisodeDetailModal();
+                closeMediaPanel();
+                openVideoPlayer({
+                    id: episode.id,
+                    title: `${episode.title || 'Episode ' + episode.episode_number}`,
+                    media_type: 'episode'
+                });
+            };
+            const streamIcon = document.createElement('i');
+            streamIcon.setAttribute('data-lucide', 'monitor-play');
+            streamBtn.appendChild(streamIcon);
+            const streamText = document.createElement('span');
+            streamText.textContent = 'Stream Now';
+            streamBtn.appendChild(streamText);
+            actions.appendChild(streamBtn);
+        }
 
         // Toggle watched button
         const toggleBtn = document.createElement('button');
-        toggleBtn.className = 'btn btn-secondary episode-action-btn';
+        toggleBtn.className = 'btn btn-secondary';
         toggleBtn.id = 'toggleWatchedBtn';
         const toggleIcon = document.createElement('i');
         toggleIcon.setAttribute('data-lucide', episode.played ? 'eye-off' : 'eye');
         toggleBtn.appendChild(toggleIcon);
-        toggleBtn.appendChild(document.createTextNode(episode.played ? ' Mark Unwatched' : ' Mark Watched'));
+        const toggleText = document.createElement('span');
+        toggleText.textContent = episode.played ? 'Mark Unwatched' : 'Mark Watched';
+        toggleBtn.appendChild(toggleText);
         toggleBtn.onclick = () => toggleEpisodeWatched(episode, seasonNumber, toggleBtn, statusBadge);
         actions.appendChild(toggleBtn);
 
-        // Open in Plex button
-        const plexBtn = document.createElement('a');
-        plexBtn.className = 'btn btn-secondary episode-action-btn';
-        plexBtn.href = `http://192.168.1.200:32400/web/index.html#!/server/search?query=${encodeURIComponent(currentShowContext.showTitle)}`;
-        plexBtn.target = '_blank';
-        const plexIcon = document.createElement('i');
-        plexIcon.setAttribute('data-lucide', 'external-link');
-        plexBtn.appendChild(plexIcon);
-        plexBtn.appendChild(document.createTextNode(' Open in Plex'));
-        actions.appendChild(plexBtn);
+        // Server buttons for all available media servers (same as Continue Watching)
+        const servers = availableMediaServers.length > 0 ? availableMediaServers : [
+            { type: 'jellyfin', url: 'http://192.168.1.200:8096', name: 'Jellyfin' },
+            { type: 'plex', url: 'http://192.168.1.200:32400', name: 'Plex' }
+        ];
+
+        servers.forEach((server) => {
+            const serverBtn = document.createElement('a');
+            serverBtn.className = 'btn btn-secondary';
+
+            if (server.type === 'jellyfin') {
+                // Jellyfin deep link to episode
+                serverBtn.href = `${server.url}/web/index.html#!/details?id=${episode.id}`;
+            } else {
+                // Plex - search for the show
+                const showTitle = currentShowContext?.showTitle || '';
+                if (currentShowContext?.tvdb_id) {
+                    serverBtn.href = `${server.url}/web/index.html#!/provider/tv.plex.provider.metadata/details?key=/library/metadata/plex://show?guid=tvdb://${currentShowContext.tvdb_id}`;
+                } else {
+                    serverBtn.href = `${server.url}/web/index.html#!/search?query=${encodeURIComponent(showTitle)}`;
+                }
+            }
+
+            serverBtn.target = '_blank';
+            const serverIcon = document.createElement('i');
+            serverIcon.setAttribute('data-lucide', 'external-link');
+            serverBtn.appendChild(serverIcon);
+            const serverText = document.createElement('span');
+            serverText.textContent = server.name;
+            serverBtn.appendChild(serverText);
+            actions.appendChild(serverBtn);
+        });
     } else {
         // Not available message
         const unavailable = document.createElement('div');

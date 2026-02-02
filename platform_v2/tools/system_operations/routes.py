@@ -1668,6 +1668,7 @@ def api_list_stacks():
             containers_running = 0
             containers_total = 0
             status = "unknown"
+            container_list = []
 
             if compose_dir and compose_file and os.path.exists(compose_file):
                 try:
@@ -1704,6 +1705,16 @@ def api_list_stacks():
                             status = "partial"
                         else:
                             status = "stopped"
+
+                        # Build container list for display
+                        for c in containers:
+                            container_list.append(
+                                {
+                                    "name": c.get("Service") or c.get("Name", "unknown"),
+                                    "state": c.get("State", "unknown").lower(),
+                                    "status": c.get("Status", ""),
+                                }
+                            )
                     else:
                         status = "stopped"
                 except (subprocess.TimeoutExpired, Exception):
@@ -1712,6 +1723,7 @@ def api_list_stacks():
             stack_data["status"] = status
             stack_data["containers_running"] = containers_running
             stack_data["containers_total"] = containers_total
+            stack_data["containers"] = container_list
             results.append(stack_data)
 
         return jsonify({"success": True, "data": results})

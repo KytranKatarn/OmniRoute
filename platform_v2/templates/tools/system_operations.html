@@ -2230,6 +2230,34 @@
         color: var(--archie-text-secondary);
     }
 
+    .stack-container-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 12px;
+        padding: 8px;
+        background: var(--archie-bg-void);
+        border-radius: 6px;
+        border: 1px solid var(--archie-border-default);
+    }
+
+    .stack-container-item {
+        font-size: 0.75rem;
+        padding: 2px 8px;
+        border-radius: 4px;
+        background: var(--archie-bg-tertiary);
+        color: var(--archie-text-secondary);
+        white-space: nowrap;
+    }
+
+    .stack-container-item.running {
+        color: var(--archie-green);
+    }
+
+    .stack-container-item.stopped {
+        color: var(--archie-red);
+    }
+
     .stack-card-footer {
         display: flex;
         justify-content: space-between;
@@ -9631,6 +9659,18 @@ function renderStackOverview(stacks) {
                 restartWarning = `<span style="color: var(--archie-orange);" title="${s.restart_total} restart(s)"><i data-lucide="rotate-ccw" style="width: 12px; height: 12px;"></i> ${s.restart_total}</span>`;
             }
 
+            // Container list
+            let containerList = '';
+            if (s.containers && s.containers.length > 0) {
+                containerList = `<div class="stack-container-list">
+                    ${s.containers.map(c => {
+                        const stateClass = c.state === 'running' ? 'running' : 'stopped';
+                        const stateIcon = c.state === 'running' ? '●' : '○';
+                        return `<span class="stack-container-item ${stateClass}" title="${c.name}: ${c.status || c.state}">${stateIcon} ${c.name}</span>`;
+                    }).join('')}
+                </div>`;
+            }
+
             return `
             <div class="stack-card" style="--stack-color: ${s.color || '#00D4AA'}" onclick="openStackDetail('${s.name}')">
                 <div class="stack-card-header">
@@ -9647,6 +9687,7 @@ function renderStackOverview(stacks) {
                     ${resourceStats}
                     ${restartWarning}
                 </div>
+                ${containerList}
                 <div class="stack-card-footer">
                     <span style="font-size: 0.75rem; color: var(--archie-text-muted);">${s.name}</span>
                     <div style="display: flex; gap: 6px;">

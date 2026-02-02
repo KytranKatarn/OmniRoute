@@ -87,6 +87,8 @@ services:
       - ./host_commands:/mnt/archie_brain/host_commands:rw
       # Migration compose files for Docker stack management
       - ./migrations:/mnt/archie_brain/migrations:ro
+      # Docker stacks directory for System Operations stack management
+      - /mnt/stacks:/mnt/stacks:ro
       # Media stack configs for Media Hub service discovery (API keys, etc.)
       - /mnt/Plex/config:/mnt/Plex/config:ro
     ports:

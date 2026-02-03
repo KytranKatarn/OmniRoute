@@ -47,6 +47,9 @@ services:
       CODE_SERVER_URL: ${CODE_SERVER_URL}
       OLLAMA_HOST: ${OLLAMA_PRIMARY}
       HOST_IP: "192.168.1.200"  # Host machine IP for System Operations module
+      NPM_API_URL: http://192.168.1.200:81/api
+      NPM_ADMIN_EMAIL: ${NPM_ADMIN_EMAIL}
+      NPM_ADMIN_PASSWORD: ${NPM_ADMIN_PASSWORD}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

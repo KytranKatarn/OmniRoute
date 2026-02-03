@@ -11,21 +11,28 @@ Multi-tenant SaaS platform management:
 
 import json
 
-from flask import Blueprint, render_template, jsonify, request
-from flask_login import current_user
+import logging
+
+from flask import Blueprint, render_template, jsonify, request, redirect, url_for, flash
+from flask_login import login_required, current_user
 from functools import wraps
 from database import get_db_cursor
+
+logger = logging.getLogger(__name__)
 
 saas_manager_bp = Blueprint("saas_manager", __name__, url_prefix="/tools/saas-manager")
 
 
 def admin_required(f):
-    """Require admin access."""
+    """Require admin access. Redirects unauthenticated users to login."""
 
     @wraps(f)
     def decorated(*args, **kwargs):
-        if not current_user.is_authenticated or not getattr(current_user, "is_admin", False):
-            return jsonify({"error": "Admin access required"}), 403
+        if not current_user.is_authenticated:
+            return redirect(url_for("login"))
+        if not getattr(current_user, "is_admin", False):
+            flash("Admin access required", "error")
+            return redirect(url_for("dashboard"))
         return f(*args, **kwargs)
 
     return decorated
@@ -35,6 +42,7 @@ def admin_required(f):
 
 
 @saas_manager_bp.route("/")
+@login_required
 @admin_required
 def dashboard():
     """SaaS Manager main page."""
@@ -204,6 +212,24 @@ def update_org(org_id):
     return jsonify({"success": True, "org": _serialize(org)})
 
 
+@saas_manager_bp.route("/orgs/<int:org_id>", methods=["DELETE"])
+@admin_required
+def delete_org(org_id):
+    """Soft-delete (suspend) an organization."""
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """UPDATE organizations SET status = 'suspended', updated_at = NOW()
+               WHERE id = %s AND status != 'suspended'
+               RETURNING id, name, slug, status""",
+            (org_id,),
+        )
+        org = cur.fetchone()
+        if not org:
+            return jsonify({"success": False, "error": "Organization not found or already suspended"}), 404
+
+    return jsonify({"success": True, "org": _serialize(org)})
+
+
 # -- Module Management ----------------------------------------------------------
 
 
@@ -330,7 +356,41 @@ def add_org_domain(org_id):
         )
         dom = cur.fetchone()
 
-    return jsonify({"success": True, "domain": _serialize(dom)}), 201
+    # Trigger DNS + NPM setup asynchronously
+    setup_result = None
+    try:
+        from .domain_service import setup_domain
+        from .ip_monitor import get_public_ip
+
+        public_ip = get_public_ip()
+        setup_result = setup_domain(dom, public_ip)
+
+        # Update domain record with NPM proxy host ID and statuses
+        with get_db_cursor() as (conn, cur):
+            dns_status = "verified" if setup_result.get("dns", {}).get("success") else "pending"
+            ssl_status = "active" if setup_result.get("ssl", {}).get("success") else "pending"
+            npm_id = setup_result.get("proxy", {}).get("proxy_host_id")
+            cur.execute(
+                """UPDATE org_domains
+                   SET dns_status = %s, ssl_status = %s, npm_proxy_host_id = %s
+                   WHERE id = %s RETURNING *""",
+                (dns_status, ssl_status, npm_id, dom["id"]),
+            )
+            dom = cur.fetchone()
+    except Exception as e:
+        logger.error("Domain setup failed for %s: %s", domain, e)
+        setup_result = {"error": str(e)}
+
+    return (
+        jsonify(
+            {
+                "success": True,
+                "domain": _serialize(dom),
+                "setup": setup_result,
+            }
+        ),
+        201,
+    )
 
 
 @saas_manager_bp.route("/orgs/<int:org_id>/domains/<int:domain_id>", methods=["DELETE"])
@@ -339,13 +399,22 @@ def remove_org_domain(org_id, domain_id):
     """Remove a domain. Cleans up DNS + NPM."""
     with get_db_cursor() as (conn, cur):
         cur.execute(
-            "DELETE FROM org_domains WHERE id = %s AND org_id = %s RETURNING domain",
+            "DELETE FROM org_domains WHERE id = %s AND org_id = %s RETURNING domain, npm_proxy_host_id",
             (domain_id, org_id),
         )
         deleted = cur.fetchone()
 
     if not deleted:
         return jsonify({"success": False, "error": "Domain not found"}), 404
+
+    # Clean up NPM proxy host
+    try:
+        from .domain_service import cleanup_domain
+
+        cleanup_domain(deleted["domain"], deleted.get("npm_proxy_host_id"))
+    except Exception as e:
+        logger.warning("Domain cleanup for %s: %s", deleted["domain"], e)
+
     return jsonify({"success": True, "removed": deleted["domain"]})
 
 
@@ -354,7 +423,8 @@ def remove_org_domain(org_id, domain_id):
 def verify_domain(org_id, domain_id):
     """Check DNS propagation and SSL status for a domain."""
     import socket
-    import urllib.request
+
+    from .ip_monitor import get_public_ip as detect_public_ip
 
     with get_db_cursor() as (conn, cur):
         cur.execute(
@@ -369,7 +439,7 @@ def verify_domain(org_id, domain_id):
         resolved_ip = None
         try:
             resolved_ip = socket.gethostbyname(dom["domain"])
-            public_ip = urllib.request.urlopen("https://api.ipify.org").read().decode()
+            public_ip = detect_public_ip()
             dns_ok = resolved_ip == public_ip
         except Exception:
             pass
@@ -398,10 +468,10 @@ def verify_domain(org_id, domain_id):
 @admin_required
 def get_public_ip():
     """Get current public IP and change history."""
-    import urllib.request
+    from .ip_monitor import get_public_ip as detect_public_ip
 
     try:
-        current_ip = urllib.request.urlopen("https://api.ipify.org").read().decode()
+        current_ip = detect_public_ip()
     except Exception as e:
         return (
             jsonify({"success": False, "error": f"Could not detect public IP: {e}"}),
@@ -435,10 +505,12 @@ def check_ports():
     """Verify ports 80/443 are accessible from outside."""
     import urllib.request
 
+    from .ip_monitor import get_public_ip as detect_public_ip
+
     results = {}
     for port in [80, 443]:
         try:
-            public_ip = urllib.request.urlopen("https://api.ipify.org").read().decode()
+            public_ip = detect_public_ip()
             proto = "https" if port == 443 else "http"
             url = f"{proto}://{public_ip}:{port}/"
             req = urllib.request.Request(url, method="HEAD")

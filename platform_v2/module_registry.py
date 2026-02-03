@@ -747,7 +747,7 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="sandbox_manager",
         name="Sandbox Manager",
-        description="Per-module sandbox testing<br>Safe deployments • Test results • Visual access",
+        description="Sandbox testing & benchmarks<br>Test discovery • Regression tests • Performance",
         icon="test-tube-2",
         category=ModuleCategory.DEVELOPMENT,  # Moved from ADMIN to DEVELOPMENT
         route="/tools/sandbox-manager",
@@ -758,7 +758,7 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: default_health_check("sandbox_manager"),
         priority=6,  # After Improvements Lab in DEVELOPMENT
-        tags=["sandbox", "testing", "development", "deployment"],
+        tags=["sandbox", "testing", "development", "deployment", "regression", "benchmarks"],
     ),
     ModuleDefinition(
         id="cursor_integration",
@@ -776,22 +776,23 @@ MODULES: List[ModuleDefinition] = [
         priority=7,
         tags=["ide", "cursor", "vscode", "integration", "mcp", "development"],
     ),
-    ModuleDefinition(
-        id="testing_suite",
-        name="Testing Suite",
-        description="Automated testing<br>Regression tests • Benchmarks • Test discovery",
-        icon="vial",
-        category=ModuleCategory.DEVELOPMENT,
-        route="/tools/testing-suite",
-        blueprint_import="tools.testing_suite.routes:testing_suite_bp",
-        required_permissions=["admin:testing"],
-        minimum_role="ADMIN",
-        enabled=True,
-        coming_soon=False,
-        health_check=lambda: check_service_health("testing_suite", "/tools/testing-suite/api/status"),
-        priority=8,
-        tags=["testing", "regression", "benchmarks", "quality", "development"],
-    ),
+    # DEPRECATED 2026-02-03: Merged into sandbox_manager
+    # ModuleDefinition(
+    #     id="testing_suite",
+    #     name="Testing Suite",
+    #     description="Automated testing<br>Regression tests • Benchmarks • Test discovery",
+    #     icon="vial",
+    #     category=ModuleCategory.DEVELOPMENT,
+    #     route="/tools/testing-suite",
+    #     blueprint_import="tools.testing_suite.routes:testing_suite_bp",
+    #     required_permissions=["admin:testing"],
+    #     minimum_role="ADMIN",
+    #     enabled=True,
+    #     coming_soon=False,
+    #     health_check=lambda: check_service_health("testing_suite", "/tools/testing-suite/api/status"),
+    #     priority=8,
+    #     tags=["testing", "regression", "benchmarks", "quality", "development"],
+    # ),
     ModuleDefinition(
         id="fine_tuning",
         name="AI Fine-tuning",

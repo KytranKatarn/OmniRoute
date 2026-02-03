@@ -15,6 +15,6 @@ Version: 1.0.0
 
 from flask import Blueprint
 
-testing_suite_bp = Blueprint('testing_suite', __name__, url_prefix='/tools/testing-suite')
+testing_suite_bp = Blueprint("testing_suite", __name__, url_prefix="/tools/testing-suite")
 
-from . import routes
+from . import routes  # noqa: F401, E402

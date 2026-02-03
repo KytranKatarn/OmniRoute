@@ -12,6 +12,6 @@ Features (Planned):
 
 from flask import Blueprint
 
-coderabbit_bp = Blueprint('coderabbit', __name__, url_prefix='/tools/coderabbit')
+coderabbit_bp = Blueprint("coderabbit", __name__, url_prefix="/tools/coderabbit")
 
 from . import routes

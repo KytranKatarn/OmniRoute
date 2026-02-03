@@ -392,22 +392,23 @@ MODULES: List[ModuleDefinition] = [
     # See STANDALONE_APPS section for ModuleDefinition
     # NOTE: Code Editor removed 2026-01-20 - integrated into Website Designer
     # NOTE: Sandbox Manager moved to ADMIN category below
-    ModuleDefinition(
-        id="coderabbit",
-        name="CodeRabbit",
-        description="AI-powered code review<br>PR Reviews • Code Health • Security scans",
-        icon="rabbit",
-        category=ModuleCategory.DEVELOPMENT,
-        route="/tools/coderabbit",
-        blueprint_import="tools.coderabbit.routes:coderabbit_bp",
-        required_permissions=[],
-        minimum_role="ADMIN",
-        enabled=True,
-        coming_soon=False,
-        health_check=lambda: check_service_health("coderabbit", "/tools/coderabbit/api/status"),
-        priority=4,
-        tags=["code-review", "security", "ai", "development", "quality"],
-    ),
+    # DEPRECATED 2026-02-03: Using code_sentinel + Claude Code instead for code reviews
+    # ModuleDefinition(
+    #     id="coderabbit",
+    #     name="CodeRabbit",
+    #     description="AI-powered code review<br>PR Reviews • Code Health • Security scans",
+    #     icon="rabbit",
+    #     category=ModuleCategory.DEVELOPMENT,
+    #     route="/tools/coderabbit",
+    #     blueprint_import="tools.coderabbit.routes:coderabbit_bp",
+    #     required_permissions=[],
+    #     minimum_role="ADMIN",
+    #     enabled=True,
+    #     coming_soon=False,
+    #     health_check=lambda: check_service_health("coderabbit", "/tools/coderabbit/api/status"),
+    #     priority=4,
+    #     tags=["code-review", "security", "ai", "development", "quality"],
+    # ),
     ModuleDefinition(
         id="code_sentinel",
         name="Code Sentinel",

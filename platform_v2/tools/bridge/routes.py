@@ -113,7 +113,7 @@ STATIONS_FALLBACK = {
         "color": "#0EA5E9",
         "icon": "⚙️",
         "default_llm": "deepseek-coder-v2:16b",
-        "modules": ["project_builder", "website_designer", "code_editor"],
+        "modules": ["project_manager", "website_designer", "bridge"],
     },
     "CREATIVE": {
         "station_name": "Creative",

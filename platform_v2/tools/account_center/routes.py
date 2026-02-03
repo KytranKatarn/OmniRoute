@@ -164,6 +164,7 @@ def index():
         "active_today": 0,
         "active_sessions": 0,
         "api_keys": 0,
+        "organizations": 0,
     }
 
     try:
@@ -198,6 +199,12 @@ def index():
 
             cur.execute("SELECT COUNT(*) as count FROM mcp_api_keys WHERE is_active = true")
             stats["api_keys"] = cur.fetchone()["count"]
+
+            try:
+                cur.execute("SELECT COUNT(*) as count FROM organizations WHERE status = 'active'")
+                stats["organizations"] = cur.fetchone()["count"]
+            except Exception:
+                stats["organizations"] = 0
     except Exception as e:
         print(f"Error getting stats: {e}")
 

@@ -1214,6 +1214,8 @@ def get_modules():
     try:
         accessible = []
         for module in get_enabled_modules():
+            if not module.show_on_dashboard:
+                continue
             if can_access_module(module.id, current_user):
                 accessible.append(
                     {

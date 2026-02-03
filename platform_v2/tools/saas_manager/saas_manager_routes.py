@@ -13,7 +13,7 @@ import json
 
 import logging
 
-from flask import Blueprint, render_template, jsonify, request, redirect, url_for, flash
+from flask import Blueprint, jsonify, request, redirect, url_for, flash
 from flask_login import login_required, current_user
 from functools import wraps
 from database import get_db_cursor
@@ -45,8 +45,8 @@ def admin_required(f):
 @login_required
 @admin_required
 def dashboard():
-    """SaaS Manager main page."""
-    return render_template("tools/saas_manager.html")
+    """Redirect to Account Center ORGS tab."""
+    return redirect("/tools/account-center?tab=organizations")
 
 
 # -- Organizations --------------------------------------------------------------

@@ -1366,6 +1366,454 @@
             font-size: var(--archie-text-xl);
         }
     }
+
+    /* ==========================================================================
+       ORGS TAB - SaaS Manager Integration (scoped with saas- prefix)
+       ========================================================================== */
+
+    /* Sub-tab nav */
+    .saas-sub-nav {
+        display: flex;
+        gap: var(--archie-space-2);
+        flex-wrap: wrap;
+    }
+
+    .saas-sub-tab-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--archie-space-2);
+        padding: var(--archie-space-2) var(--archie-space-4);
+        background: transparent;
+        color: var(--archie-text-muted);
+        border: 1px solid var(--archie-border-default);
+        border-radius: var(--archie-radius-md);
+        cursor: pointer;
+        font-family: var(--archie-font-heading);
+        font-size: var(--archie-text-sm);
+        letter-spacing: var(--archie-tracking-wide);
+        transition: all var(--archie-transition-fast);
+    }
+
+    .saas-sub-tab-btn:hover {
+        border-color: var(--archie-accent-alpha-30);
+        color: var(--archie-text-secondary);
+    }
+
+    .saas-sub-tab-btn.active {
+        background: var(--archie-accent-alpha-10);
+        border-color: var(--archie-accent);
+        color: var(--archie-accent);
+    }
+
+    .saas-sub-content { display: none; }
+    .saas-sub-content.active { display: block; }
+
+    /* Org Cards Grid */
+    .saas-org-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: var(--archie-space-5);
+    }
+
+    .saas-org-card {
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
+        border-radius: var(--archie-radius-lg);
+        padding: var(--archie-space-5);
+        cursor: pointer;
+        transition: border-color var(--archie-transition-normal),
+                    box-shadow var(--archie-transition-normal),
+                    transform var(--archie-transition-normal);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .saas-org-card::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 2px;
+        background: linear-gradient(90deg, transparent, var(--archie-accent), transparent);
+        opacity: 0;
+        transition: opacity var(--archie-transition-normal);
+    }
+
+    .saas-org-card:hover {
+        border-color: var(--archie-accent-alpha-30);
+        box-shadow: 0 0 25px var(--archie-accent-alpha-10);
+        transform: translateY(-2px);
+    }
+
+    .saas-org-card:hover::before { opacity: 1; }
+
+    .saas-org-card-name {
+        font-family: var(--archie-font-heading);
+        font-size: var(--archie-text-lg);
+        color: var(--archie-text-primary);
+        margin-bottom: var(--archie-space-2);
+        display: flex;
+        align-items: center;
+        gap: var(--archie-space-2);
+    }
+
+    .saas-org-card-stats {
+        display: flex;
+        gap: var(--archie-space-4);
+        margin-top: var(--archie-space-3);
+    }
+
+    .saas-org-card-stat {
+        display: flex;
+        align-items: center;
+        gap: var(--archie-space-1);
+        font-size: var(--archie-text-sm);
+        color: var(--archie-text-muted);
+    }
+
+    .saas-org-card-stat span {
+        color: var(--archie-text-secondary);
+        font-weight: var(--archie-font-semibold);
+    }
+
+    /* Status badges */
+    #tab-organizations .badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 8px;
+        border-radius: var(--archie-radius-full);
+        font-size: var(--archie-text-xs);
+        font-weight: var(--archie-font-semibold);
+        text-transform: uppercase;
+        letter-spacing: var(--archie-tracking-wide);
+    }
+
+    #tab-organizations .badge-active {
+        background: rgba(0, 255, 65, 0.15);
+        color: var(--archie-success);
+        border: 1px solid rgba(0, 255, 65, 0.3);
+    }
+
+    #tab-organizations .badge-suspended {
+        background: rgba(255, 107, 107, 0.15);
+        color: var(--archie-danger);
+        border: 1px solid rgba(255, 107, 107, 0.3);
+    }
+
+    #tab-organizations .badge-pending {
+        background: rgba(255, 170, 0, 0.15);
+        color: var(--archie-warning);
+        border: 1px solid rgba(255, 170, 0, 0.3);
+    }
+
+    #tab-organizations .badge-verified, #tab-organizations .badge-issued {
+        background: rgba(0, 255, 65, 0.15);
+        color: var(--archie-success);
+        border: 1px solid rgba(0, 255, 65, 0.3);
+    }
+
+    #tab-organizations .badge-failed {
+        background: rgba(255, 107, 107, 0.15);
+        color: var(--archie-danger);
+        border: 1px solid rgba(255, 107, 107, 0.3);
+    }
+
+    #tab-organizations .badge-unknown {
+        background: rgba(128, 128, 128, 0.15);
+        color: var(--archie-text-muted);
+        border: 1px solid rgba(128, 128, 128, 0.3);
+    }
+
+    /* Detail Panel (slide-in) */
+    .saas-detail-panel-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.6);
+        z-index: 999;
+        backdrop-filter: blur(2px);
+    }
+
+    .saas-detail-panel-overlay.active { display: block; }
+
+    .saas-detail-panel {
+        position: fixed;
+        top: 0;
+        right: -600px;
+        width: 580px;
+        max-width: 90vw;
+        height: 100vh;
+        background: var(--archie-bg-secondary);
+        border-left: 2px solid var(--archie-accent);
+        box-shadow: -10px 0 40px rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .saas-detail-panel.open { right: 0; }
+
+    .saas-detail-panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: var(--archie-space-4) var(--archie-space-5);
+        border-bottom: 1px solid var(--archie-border-default);
+        background: var(--archie-accent-alpha-10);
+    }
+
+    .saas-detail-panel-header h2 {
+        font-family: var(--archie-font-heading);
+        font-size: var(--archie-text-lg);
+        color: var(--archie-accent);
+        margin: 0;
+    }
+
+    .saas-detail-panel-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: var(--archie-space-5);
+    }
+
+    .saas-detail-section {
+        margin-bottom: var(--archie-space-6);
+    }
+
+    .saas-detail-section-title {
+        font-family: var(--archie-font-heading);
+        font-size: var(--archie-text-sm);
+        color: var(--archie-accent);
+        text-transform: uppercase;
+        letter-spacing: var(--archie-tracking-widest);
+        margin-bottom: var(--archie-space-3);
+        display: flex;
+        align-items: center;
+        gap: var(--archie-space-2);
+    }
+
+    /* Module Checkbox List */
+    .saas-module-check-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: var(--archie-space-2);
+    }
+
+    .saas-module-check-item {
+        display: flex;
+        align-items: center;
+        gap: var(--archie-space-2);
+        padding: var(--archie-space-2) var(--archie-space-3);
+        border-radius: var(--archie-radius-md);
+        background: var(--archie-bg-tertiary);
+        font-size: var(--archie-text-sm);
+        color: var(--archie-text-secondary);
+        cursor: pointer;
+        transition: background var(--archie-transition-fast);
+    }
+
+    .saas-module-check-item:hover { background: var(--archie-accent-alpha-10); }
+    .saas-module-check-item input[type="checkbox"] { accent-color: var(--archie-accent); }
+
+    /* User list in detail */
+    .saas-user-list-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: var(--archie-space-3);
+        border-bottom: 1px solid var(--archie-border-default);
+    }
+
+    .saas-user-list-item:last-child { border-bottom: none; }
+
+    .saas-user-list-info { display: flex; flex-direction: column; }
+    .saas-user-list-name { color: var(--archie-text-primary); font-weight: var(--archie-font-medium); }
+    .saas-user-list-role { font-size: var(--archie-text-xs); color: var(--archie-text-muted); text-transform: uppercase; }
+
+    /* Domain list in detail */
+    .saas-domain-list-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: var(--archie-space-3);
+        border-bottom: 1px solid var(--archie-border-default);
+        gap: var(--archie-space-3);
+    }
+
+    .saas-domain-list-item:last-child { border-bottom: none; }
+
+    .saas-domain-name {
+        color: var(--archie-text-primary);
+        font-family: var(--archie-font-mono);
+        font-size: var(--archie-text-sm);
+    }
+
+    /* Network - large IP display */
+    .saas-ip-display {
+        text-align: center;
+        padding: var(--archie-space-6);
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
+        border-radius: var(--archie-radius-lg);
+        margin-bottom: var(--archie-space-5);
+    }
+
+    .saas-ip-display-label {
+        font-size: var(--archie-text-sm);
+        color: var(--archie-text-muted);
+        text-transform: uppercase;
+        letter-spacing: var(--archie-tracking-widest);
+        margin-bottom: var(--archie-space-2);
+    }
+
+    .saas-ip-display-value {
+        font-family: var(--archie-font-heading);
+        font-size: var(--archie-text-4xl);
+        color: var(--archie-accent);
+        text-shadow: var(--archie-text-glow-accent);
+        font-weight: var(--archie-font-bold);
+    }
+
+    .saas-ip-display-changed {
+        font-size: var(--archie-text-xs);
+        color: var(--archie-warning);
+        margin-top: var(--archie-space-2);
+    }
+
+    /* Port status cards */
+    .saas-port-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: var(--archie-space-4);
+        margin-bottom: var(--archie-space-5);
+    }
+
+    .saas-port-card {
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
+        border-radius: var(--archie-radius-lg);
+        padding: var(--archie-space-4);
+        text-align: center;
+    }
+
+    .saas-port-card-port {
+        font-family: var(--archie-font-heading);
+        font-size: var(--archie-text-xl);
+        color: var(--archie-text-primary);
+    }
+
+    .saas-port-card-status { font-size: var(--archie-text-sm); margin-top: var(--archie-space-2); }
+    .saas-port-open { color: var(--archie-success); }
+    .saas-port-closed { color: var(--archie-danger); }
+    .saas-port-unknown { color: var(--archie-text-muted); }
+
+    /* Server info grid */
+    .saas-server-info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: var(--archie-space-4);
+        margin-bottom: var(--archie-space-5);
+    }
+
+    .saas-server-info-item {
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
+        border-radius: var(--archie-radius-lg);
+        padding: var(--archie-space-4);
+    }
+
+    .saas-server-info-label {
+        font-size: var(--archie-text-xs);
+        color: var(--archie-text-muted);
+        text-transform: uppercase;
+        letter-spacing: var(--archie-tracking-widest);
+        margin-bottom: var(--archie-space-1);
+    }
+
+    .saas-server-info-value {
+        font-family: var(--archie-font-mono);
+        font-size: var(--archie-text-base);
+        color: var(--archie-text-primary);
+    }
+
+    /* Loading spinner */
+    .saas-loading-spinner {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: var(--archie-space-8);
+        color: var(--archie-text-muted);
+        gap: var(--archie-space-3);
+    }
+
+    .saas-spinner {
+        width: 20px;
+        height: 20px;
+        border: 2px solid var(--archie-border-default);
+        border-top-color: var(--archie-accent);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+
+    .saas-empty-state {
+        text-align: center;
+        padding: var(--archie-space-8);
+        color: var(--archie-text-muted);
+    }
+
+    .saas-empty-state i {
+        margin-bottom: var(--archie-space-3);
+        opacity: 0.5;
+    }
+
+    /* Responsive - 920px */
+    @media (max-width: 920px) {
+        .saas-org-grid { grid-template-columns: 1fr; }
+        .saas-detail-panel { width: 100vw; max-width: 100vw; }
+    }
+
+    /* Responsive - Galaxy Fold 5 (344px folded) */
+    @media (max-width: 400px) {
+        /* Tab buttons */
+        .tab-nav .tab-btn {
+            font-size: 9px;
+            padding: var(--archie-space-1) var(--archie-space-2);
+            letter-spacing: 0.02em;
+        }
+
+        /* SaaS sub-tab buttons */
+        .saas-sub-tab-btn {
+            font-size: 9px;
+            padding: var(--archie-space-1) var(--archie-space-2);
+        }
+
+        .saas-sub-tab-btn i { width: 12px; height: 12px; }
+
+        /* Detail panel full-width */
+        .saas-detail-panel { width: 100vw; max-width: 100vw; }
+
+        /* Module checkboxes single column */
+        .saas-module-check-list { grid-template-columns: 1fr; }
+
+        /* Domains table scroll */
+        #saas-domains-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+        /* Network - smaller IP font, stack */
+        .saas-ip-display-value { font-size: var(--archie-text-2xl); }
+        .saas-port-grid { grid-template-columns: 1fr; }
+        .saas-server-info-grid { grid-template-columns: 1fr; }
+
+        /* Stats - reduce padding */
+        .stats-grid { gap: var(--archie-space-2); }
+        .stat-card { padding: var(--archie-space-2); }
+        .stat-value { font-size: var(--archie-text-lg); }
+        .stat-label { font-size: 9px; }
+
+        /* Org cards grid */
+        .saas-org-grid { grid-template-columns: 1fr; gap: var(--archie-space-3); }
+        .saas-org-card { padding: var(--archie-space-3); }
+        .saas-org-card-stats { flex-wrap: wrap; gap: var(--archie-space-2); }
+    }
 </style>
 {% endblock %}
 
@@ -1409,6 +1857,10 @@
                     <div class="stat-label">API KEYS</div>
                     <div class="stat-value" id="stat-apikeys" style="color: var(--archie-purple);">{{ stats.api_keys }}</div>
                 </div>
+                <div class="stat-card">
+                    <div class="stat-label">ORGS</div>
+                    <div class="stat-value" id="stat-orgs" style="color: var(--archie-accent);">{{ stats.organizations }}</div>
+                </div>
             </div>
 
             <!-- Tabs -->
@@ -1421,6 +1873,7 @@
                 <button class="tab-btn" data-tab="api-keys">API KEYS</button>
                 <button class="tab-btn" data-tab="bulk">BULK OPS</button>
                 <button class="tab-btn" data-tab="activity">ACTIVITY</button>
+                <button class="tab-btn" data-tab="organizations">ORGS</button>
             </div>
 
             <!-- LIST Tab -->
@@ -2076,6 +2529,295 @@
                     </div>
                 </div>
             </div>
+
+            <!-- ORGANIZATIONS Tab (SaaS Manager) -->
+            <div class="tab-content" id="tab-organizations">
+                <!-- SaaS Sub-Stats -->
+                <div class="stats-grid" style="margin-bottom: var(--archie-space-5);">
+                    <div class="stat-card">
+                        <div class="stat-label">TOTAL ORGS</div>
+                        <div class="stat-value" id="saas-stat-orgs">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">DOMAINS</div>
+                        <div class="stat-value" id="saas-stat-domains" style="color: var(--archie-cyan);">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">MODULES</div>
+                        <div class="stat-value" id="saas-stat-modules" style="color: var(--archie-orange);">-</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">PUBLIC IP</div>
+                        <div class="stat-value" id="saas-stat-ip" style="color: var(--archie-green); font-size: var(--archie-text-lg);">-</div>
+                    </div>
+                </div>
+
+                <!-- SaaS Sub-Tabs -->
+                <div class="tab-nav saas-sub-nav" style="margin-bottom: var(--archie-space-5);">
+                    <button class="saas-sub-tab-btn active" data-saas-tab="saas-orgs" onclick="saasSwitchSubTab('saas-orgs')">
+                        <i data-lucide="building" style="width:14px;height:14px"></i>
+                        Organizations
+                    </button>
+                    <button class="saas-sub-tab-btn" data-saas-tab="saas-domains" onclick="saasSwitchSubTab('saas-domains')">
+                        <i data-lucide="globe" style="width:14px;height:14px"></i>
+                        Domains
+                    </button>
+                    <button class="saas-sub-tab-btn" data-saas-tab="saas-network" onclick="saasSwitchSubTab('saas-network')">
+                        <i data-lucide="network" style="width:14px;height:14px"></i>
+                        Network
+                    </button>
+                </div>
+
+                <!-- Sub: Organizations -->
+                <div class="saas-sub-content active" id="saas-orgs">
+                    <div class="action-bar">
+                        <div style="color: var(--archie-text-muted); font-size: var(--archie-text-sm);">
+                            <span id="saas-org-count">0</span> organizations
+                        </div>
+                        <button class="btn btn-primary" onclick="saasShowNewOrgModal()">
+                            <i data-lucide="plus" style="width:16px;height:16px"></i>
+                            New Organization
+                        </button>
+                    </div>
+                    <div id="saas-orgs-loading" class="saas-loading-spinner">
+                        <div class="saas-spinner"></div>
+                        Loading organizations...
+                    </div>
+                    <div id="saas-orgs-grid" class="saas-org-grid" style="display:none;"></div>
+                    <div id="saas-orgs-empty" class="saas-empty-state" style="display:none;">
+                        <i data-lucide="building-2" style="width:48px;height:48px"></i>
+                        <p>No organizations yet. Create your first one.</p>
+                    </div>
+                </div>
+
+                <!-- Sub: Domains -->
+                <div class="saas-sub-content" id="saas-domains">
+                    <div class="action-bar">
+                        <div style="color: var(--archie-text-muted); font-size: var(--archie-text-sm);">
+                            All domains across organizations
+                        </div>
+                        <button class="btn btn-primary" onclick="saasShowAddDomainModal()">
+                            <i data-lucide="plus" style="width:16px;height:16px"></i>
+                            Add Domain
+                        </button>
+                    </div>
+                    <div id="saas-domains-loading" class="saas-loading-spinner">
+                        <div class="saas-spinner"></div>
+                        Loading domains...
+                    </div>
+                    <div id="saas-domains-table-wrap" style="display:none; overflow-x: auto;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Domain</th>
+                                    <th>Organization</th>
+                                    <th>Target</th>
+                                    <th>DNS</th>
+                                    <th>SSL</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="saas-domains-tbody"></tbody>
+                        </table>
+                    </div>
+                    <div id="saas-domains-empty" class="saas-empty-state" style="display:none;">
+                        <i data-lucide="globe" style="width:48px;height:48px"></i>
+                        <p>No domains configured yet.</p>
+                    </div>
+                </div>
+
+                <!-- Sub: Network -->
+                <div class="saas-sub-content" id="saas-network">
+                    <div class="saas-ip-display" id="saas-ip-display">
+                        <div class="saas-ip-display-label">Current Public IP</div>
+                        <div class="saas-ip-display-value" id="saas-network-public-ip">Loading...</div>
+                        <div class="saas-ip-display-changed" id="saas-ip-changed-notice" style="display:none;">
+                            IP address has changed since last check
+                        </div>
+                    </div>
+                    <div class="saas-detail-section">
+                        <div class="saas-detail-section-title">
+                            <i data-lucide="shield" style="width:16px;height:16px"></i>
+                            PORT FORWARDING STATUS
+                            <button class="btn btn-ghost btn-sm" onclick="saasCheckPorts()" id="saas-btn-check-ports" style="margin-left: auto;">
+                                <i data-lucide="refresh-cw" style="width:14px;height:14px"></i>
+                                Check Ports
+                            </button>
+                        </div>
+                        <div class="saas-port-grid" id="saas-port-grid">
+                            <div class="saas-port-card">
+                                <div class="saas-port-card-port">Port 80</div>
+                                <div class="saas-port-card-status saas-port-unknown" id="saas-port-80-status">Not checked</div>
+                            </div>
+                            <div class="saas-port-card">
+                                <div class="saas-port-card-port">Port 443</div>
+                                <div class="saas-port-card-status saas-port-unknown" id="saas-port-443-status">Not checked</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="saas-detail-section">
+                        <div class="saas-detail-section-title">
+                            <i data-lucide="history" style="width:16px;height:16px"></i>
+                            IP CHANGE HISTORY
+                        </div>
+                        <div style="overflow-x: auto;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Timestamp</th>
+                                        <th>IP Address</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="saas-ip-history-tbody">
+                                    <tr><td colspan="2" style="text-align:center; color: var(--archie-text-muted);">Loading...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="saas-detail-section">
+                        <div class="saas-detail-section-title">
+                            <i data-lucide="server" style="width:16px;height:16px"></i>
+                            SERVER INFORMATION
+                        </div>
+                        <div class="saas-server-info-grid">
+                            <div class="saas-server-info-item">
+                                <div class="saas-server-info-label">LAN IP</div>
+                                <div class="saas-server-info-value">192.168.1.200</div>
+                            </div>
+                            <div class="saas-server-info-item">
+                                <div class="saas-server-info-label">Gateway</div>
+                                <div class="saas-server-info-value">192.168.1.254</div>
+                            </div>
+                            <div class="saas-server-info-item">
+                                <div class="saas-server-info-label">Platform Port</div>
+                                <div class="saas-server-info-value">3000</div>
+                            </div>
+                            <div class="saas-server-info-item">
+                                <div class="saas-server-info-label">Platform URL</div>
+                                <div class="saas-server-info-value">http://192.168.1.200:3000</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SaaS Detail Panel (Slide-in for org details) -->
+<div class="saas-detail-panel-overlay" id="saas-detail-overlay" onclick="saasCloseDetailPanel()"></div>
+<div class="saas-detail-panel" id="saas-detail-panel">
+    <div class="saas-detail-panel-header">
+        <h2 id="saas-detail-org-name">Organization</h2>
+        <button class="btn btn-ghost btn-sm" onclick="saasCloseDetailPanel()">
+            <i data-lucide="x" style="width:18px;height:18px"></i>
+        </button>
+    </div>
+    <div class="saas-detail-panel-body">
+        <div id="saas-detail-loading" class="saas-loading-spinner">
+            <div class="saas-spinner"></div>
+            Loading details...
+        </div>
+        <div id="saas-detail-content" style="display:none;">
+            <div class="saas-detail-section">
+                <div class="saas-detail-section-title">
+                    <i data-lucide="users" style="width:16px;height:16px"></i>
+                    USERS
+                </div>
+                <div id="saas-detail-users"></div>
+            </div>
+            <div class="saas-detail-section">
+                <div class="saas-detail-section-title">
+                    <i data-lucide="layout-grid" style="width:16px;height:16px"></i>
+                    ENABLED MODULES
+                </div>
+                <div id="saas-detail-modules" class="saas-module-check-list"></div>
+            </div>
+            <div class="saas-detail-section">
+                <div class="saas-detail-section-title">
+                    <i data-lucide="globe" style="width:16px;height:16px"></i>
+                    DOMAINS
+                </div>
+                <div id="saas-detail-domains"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SaaS New Organization Modal -->
+<div class="modal-overlay" id="saas-new-org-modal">
+    <div class="modal" style="max-width: 640px;">
+        <div class="modal-header">
+            <h3 class="modal-title">
+                <i data-lucide="building-2" style="width:18px;height:18px"></i>
+                New Organization
+            </h3>
+            <button class="modal-close" onclick="saasCloseNewOrgModal()">
+                <i data-lucide="x" style="width:18px;height:18px"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Organization Name</label>
+                <input type="text" class="form-input" id="saas-new-org-name" placeholder="e.g., Acme Corp">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Owner</label>
+                <select class="form-select" id="saas-new-org-owner">
+                    <option value="">Select owner...</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Initial Modules</label>
+                <div id="saas-new-org-modules" class="saas-module-check-list"></div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="saasCloseNewOrgModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saasCreateOrg()" id="saas-btn-create-org">
+                <i data-lucide="plus" style="width:16px;height:16px"></i>
+                Create Organization
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- SaaS Add Domain Modal -->
+<div class="modal-overlay" id="saas-add-domain-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 class="modal-title">
+                <i data-lucide="globe" style="width:18px;height:18px"></i>
+                Add Domain
+            </h3>
+            <button class="modal-close" onclick="saasCloseAddDomainModal()">
+                <i data-lucide="x" style="width:18px;height:18px"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Organization</label>
+                <select class="form-select" id="saas-domain-org-select">
+                    <option value="">Select organization...</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Domain</label>
+                <input type="text" class="form-input" id="saas-domain-name" placeholder="e.g., app.example.com">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Target Module</label>
+                <select class="form-select" id="saas-domain-target-module">
+                    <option value="">Select module...</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-ghost" onclick="saasCloseAddDomainModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saasAddDomain()" id="saas-btn-add-domain">
+                <i data-lucide="plus" style="width:16px;height:16px"></i>
+                Add Domain
+            </button>
         </div>
     </div>
 </div>
@@ -2317,10 +3059,19 @@ document.querySelectorAll('.tab-btn').forEach(tab => {
         if (tab.dataset.tab === 'sessions') { loadSessions(); startSessionsAutoRefresh(); }
         if (tab.dataset.tab === 'api-keys') loadApiKeys();
         if (tab.dataset.tab === 'activity') { loadActivity(); startActivityAutoRefresh(); }
+        if (tab.dataset.tab === 'organizations') saasLoadOrgs();
     });
 });
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Deep-link support: ?tab=organizations
+    const params = new URLSearchParams(window.location.search);
+    const startTab = params.get('tab');
+    if (startTab) {
+        const btn = document.querySelector('[data-tab="' + startTab + '"]');
+        if (btn) btn.click();
+    }
+
     loadUsers();
     document.getElementById('filter-role').addEventListener('change', loadUsers);
     document.getElementById('filter-tier').addEventListener('change', loadUsers);
@@ -5665,5 +6416,763 @@ async function executeImport() {
         alert('Error importing users');
     }
 }
+
+// ==========================================================================
+// ORGS TAB - SaaS Manager Integration
+// All functions prefixed with "saas" to avoid collisions
+// Uses innerHTML with saasEscapeHtml() sanitizer matching existing codebase patterns.
+// All data is from authenticated admin API endpoints.
+// ==========================================================================
+
+(function() {
+    'use strict';
+
+    var SAAS_API = '/tools/saas-manager';
+    var saasAllOrgs = [];
+    var saasAllModules = [];
+    var saasCurrentOrgId = null;
+    var saasInitialized = false;
+
+    // ── Sub-Tab Switching ───────────────────────────────────────────────────
+
+    window.saasSwitchSubTab = function(tabName) {
+        document.querySelectorAll('.saas-sub-tab-btn').forEach(function(btn) {
+            btn.classList.toggle('active', btn.dataset.saasTab === tabName);
+        });
+        document.querySelectorAll('.saas-sub-content').forEach(function(panel) {
+            panel.classList.toggle('active', panel.id === tabName);
+        });
+
+        if (tabName === 'saas-domains') saasLoadAllDomains();
+        if (tabName === 'saas-network') saasLoadNetworkInfo();
+    };
+
+    // ── Main Load (called when ORGS tab is activated) ───────────────────────
+
+    window.saasLoadOrgs = function() {
+        if (!saasInitialized) {
+            saasLoadAvailableModules();
+            saasLoadNetworkInfo();
+            saasInitialized = true;
+        }
+
+        var loading = document.getElementById('saas-orgs-loading');
+        var grid = document.getElementById('saas-orgs-grid');
+        var empty = document.getElementById('saas-orgs-empty');
+        if (loading) loading.style.display = 'flex';
+        if (grid) grid.style.display = 'none';
+        if (empty) empty.style.display = 'none';
+
+        fetch(SAAS_API + '/orgs')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (loading) loading.style.display = 'none';
+                if (!data.success) {
+                    saasShowToast('Failed to load organizations', 'error');
+                    return;
+                }
+                saasAllOrgs = data.orgs || [];
+                saasUpdateStats();
+                saasRenderOrgGrid();
+            })
+            .catch(function(err) {
+                if (loading) loading.style.display = 'none';
+                saasShowToast('Error loading organizations: ' + err.message, 'error');
+            });
+    };
+
+    function saasRenderOrgGrid() {
+        var grid = document.getElementById('saas-orgs-grid');
+        var empty = document.getElementById('saas-orgs-empty');
+
+        if (saasAllOrgs.length === 0) {
+            grid.style.display = 'none';
+            empty.style.display = 'block';
+            return;
+        }
+
+        grid.style.display = 'grid';
+        empty.style.display = 'none';
+
+        // Build DOM safely using document fragment
+        grid.textContent = '';
+        saasAllOrgs.forEach(function(org) {
+            var card = document.createElement('div');
+            card.className = 'saas-org-card';
+            card.setAttribute('onclick', 'saasOpenOrgDetail(' + org.id + ')');
+
+            var nameDiv = document.createElement('div');
+            nameDiv.className = 'saas-org-card-name';
+            nameDiv.innerHTML = '<i data-lucide="building" style="width:18px;height:18px;color:var(--archie-accent)"></i>';
+            var nameText = document.createTextNode(' ' + (org.name || ''));
+            nameDiv.appendChild(nameText);
+            var badge = document.createElement('span');
+            badge.className = 'badge badge-' + (org.status || 'active');
+            badge.textContent = org.status || 'active';
+            nameDiv.appendChild(badge);
+
+            var statsDiv = document.createElement('div');
+            statsDiv.className = 'saas-org-card-stats';
+            [{icon:'users', val:org.user_count||0, label:'users'},
+             {icon:'layout-grid', val:org.module_count||0, label:'modules'},
+             {icon:'globe', val:org.domain_count||0, label:'domains'}].forEach(function(s) {
+                var stat = document.createElement('div');
+                stat.className = 'saas-org-card-stat';
+                stat.innerHTML = '<i data-lucide="' + s.icon + '" style="width:14px;height:14px"></i>';
+                var span = document.createElement('span');
+                span.textContent = s.val;
+                stat.appendChild(span);
+                stat.appendChild(document.createTextNode(' ' + s.label));
+                statsDiv.appendChild(stat);
+            });
+
+            card.appendChild(nameDiv);
+            card.appendChild(statsDiv);
+            grid.appendChild(card);
+        });
+
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        document.getElementById('saas-org-count').textContent = saasAllOrgs.length;
+    }
+
+    function saasUpdateStats() {
+        document.getElementById('saas-stat-orgs').textContent = saasAllOrgs.length;
+        var headerStat = document.getElementById('stat-orgs');
+        if (headerStat) headerStat.textContent = saasAllOrgs.length;
+
+        var totalDomains = 0, totalModules = 0;
+        saasAllOrgs.forEach(function(o) {
+            totalDomains += (o.domain_count || 0);
+            totalModules += (o.module_count || 0);
+        });
+        document.getElementById('saas-stat-domains').textContent = totalDomains;
+        document.getElementById('saas-stat-modules').textContent = totalModules;
+    }
+
+    // ── Org Detail Panel ────────────────────────────────────────────────────
+
+    window.saasOpenOrgDetail = function(orgId) {
+        saasCurrentOrgId = orgId;
+        document.getElementById('saas-detail-overlay').classList.add('active');
+        document.getElementById('saas-detail-panel').classList.add('open');
+        document.getElementById('saas-detail-loading').style.display = 'flex';
+        document.getElementById('saas-detail-content').style.display = 'none';
+
+        fetch(SAAS_API + '/orgs/' + orgId)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                document.getElementById('saas-detail-loading').style.display = 'none';
+                if (!data.success) {
+                    saasShowToast('Failed to load org details', 'error');
+                    return;
+                }
+                document.getElementById('saas-detail-content').style.display = 'block';
+                document.getElementById('saas-detail-org-name').textContent = data.org.name;
+                saasRenderDetailUsers(data.users || []);
+                saasRenderDetailModules(data.modules || [], orgId);
+                saasRenderDetailDomains(data.domains || [], orgId);
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            })
+            .catch(function(err) {
+                document.getElementById('saas-detail-loading').style.display = 'none';
+                saasShowToast('Error: ' + err.message, 'error');
+            });
+    };
+
+    window.saasCloseDetailPanel = function() {
+        document.getElementById('saas-detail-overlay').classList.remove('active');
+        document.getElementById('saas-detail-panel').classList.remove('open');
+        saasCurrentOrgId = null;
+    };
+
+    function saasRenderDetailUsers(users) {
+        var container = document.getElementById('saas-detail-users');
+        container.textContent = '';
+        if (users.length === 0) {
+            var emptyDiv = document.createElement('div');
+            emptyDiv.className = 'saas-empty-state';
+            emptyDiv.style.padding = 'var(--archie-space-4)';
+            emptyDiv.textContent = 'No users assigned';
+            container.appendChild(emptyDiv);
+            return;
+        }
+        users.forEach(function(u) {
+            var item = document.createElement('div');
+            item.className = 'saas-user-list-item';
+
+            var info = document.createElement('div');
+            info.className = 'saas-user-list-info';
+            var nameSpan = document.createElement('span');
+            nameSpan.className = 'saas-user-list-name';
+            nameSpan.textContent = u.username || u.email || 'User #' + u.user_id;
+            var roleSpan = document.createElement('span');
+            roleSpan.className = 'saas-user-list-role';
+            roleSpan.textContent = u.role || 'member';
+            info.appendChild(nameSpan);
+            info.appendChild(roleSpan);
+            item.appendChild(info);
+
+            if (u.role !== 'archie') {
+                var btn = document.createElement('button');
+                btn.className = 'btn btn-ghost btn-sm';
+                btn.title = 'Remove user';
+                btn.setAttribute('onclick', 'saasRemoveOrgUser(' + saasCurrentOrgId + ', ' + u.user_id + ')');
+                btn.innerHTML = '<i data-lucide="user-minus" style="width:14px;height:14px;color:var(--archie-danger)"></i>';
+                item.appendChild(btn);
+            }
+            container.appendChild(item);
+        });
+    }
+
+    function saasRenderDetailModules(orgModules, orgId) {
+        var container = document.getElementById('saas-detail-modules');
+        container.textContent = '';
+        var enabledKeys = {};
+        orgModules.forEach(function(m) { if (m.enabled) enabledKeys[m.module_key] = true; });
+
+        if (saasAllModules.length === 0) {
+            container.textContent = 'Loading modules...';
+            return;
+        }
+
+        saasAllModules.forEach(function(mod) {
+            var label = document.createElement('label');
+            label.className = 'saas-module-check-item';
+            var cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = !!enabledKeys[mod.key];
+            cb.setAttribute('onchange', 'saasToggleModule(' + orgId + ', \'' + mod.key + '\', this.checked)');
+            label.appendChild(cb);
+            label.appendChild(document.createTextNode(' ' + mod.name));
+            container.appendChild(label);
+        });
+    }
+
+    function saasRenderDetailDomains(domains, orgId) {
+        var container = document.getElementById('saas-detail-domains');
+        container.textContent = '';
+        if (domains.length === 0) {
+            var emptyDiv = document.createElement('div');
+            emptyDiv.className = 'saas-empty-state';
+            emptyDiv.style.padding = 'var(--archie-space-4)';
+            emptyDiv.textContent = 'No domains configured';
+            container.appendChild(emptyDiv);
+            return;
+        }
+        domains.forEach(function(d) {
+            var item = document.createElement('div');
+            item.className = 'saas-domain-list-item';
+            var nameSpan = document.createElement('span');
+            nameSpan.className = 'saas-domain-name';
+            nameSpan.textContent = d.domain;
+            item.appendChild(nameSpan);
+
+            var actionsDiv = document.createElement('div');
+            actionsDiv.style.cssText = 'display:flex;align-items:center;gap:var(--archie-space-2);';
+            var badge = document.createElement('span');
+            badge.className = 'badge badge-' + saasGetBadgeClass(d.dns_status);
+            badge.textContent = d.dns_status || 'pending';
+            actionsDiv.appendChild(badge);
+            var btn = document.createElement('button');
+            btn.className = 'btn btn-ghost btn-sm';
+            btn.title = 'Remove domain';
+            btn.setAttribute('onclick', 'saasRemoveDomain(' + orgId + ', ' + d.id + ')');
+            btn.innerHTML = '<i data-lucide="trash-2" style="width:14px;height:14px;color:var(--archie-danger)"></i>';
+            actionsDiv.appendChild(btn);
+            item.appendChild(actionsDiv);
+            container.appendChild(item);
+        });
+    }
+
+    // ── Module Toggle ───────────────────────────────────────────────────────
+
+    window.saasToggleModule = function(orgId, moduleKey, enabled) {
+        fetch(SAAS_API + '/orgs/' + orgId + '/modules', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ module_key: moduleKey, enabled: enabled })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) {
+                saasShowToast('Failed to toggle module: ' + (data.error || ''), 'error');
+                return;
+            }
+            saasShowToast('Module ' + (enabled ? 'enabled' : 'disabled'), 'success');
+            saasLoadOrgs();
+        })
+        .catch(function(err) { saasShowToast('Error: ' + err.message, 'error'); });
+    };
+
+    // ── Remove User from Org ────────────────────────────────────────────────
+
+    window.saasRemoveOrgUser = function(orgId, userId) {
+        if (!confirm('Remove this user from the organization?')) return;
+        fetch(SAAS_API + '/orgs/' + orgId + '/users/' + userId, { method: 'DELETE' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success) {
+                    saasShowToast('Failed to remove user: ' + (data.error || ''), 'error');
+                    return;
+                }
+                saasShowToast('User removed', 'success');
+                saasOpenOrgDetail(orgId);
+                saasLoadOrgs();
+            })
+            .catch(function(err) { saasShowToast('Error: ' + err.message, 'error'); });
+    };
+
+    // ── Remove Domain ───────────────────────────────────────────────────────
+
+    window.saasRemoveDomain = function(orgId, domainId) {
+        if (!confirm('Remove this domain?')) return;
+        fetch(SAAS_API + '/orgs/' + orgId + '/domains/' + domainId, { method: 'DELETE' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success) {
+                    saasShowToast('Failed to remove domain: ' + (data.error || ''), 'error');
+                    return;
+                }
+                saasShowToast('Domain removed', 'success');
+                if (saasCurrentOrgId) saasOpenOrgDetail(saasCurrentOrgId);
+                saasLoadOrgs();
+            })
+            .catch(function(err) { saasShowToast('Error: ' + err.message, 'error'); });
+    };
+
+    // ── New Organization Modal ──────────────────────────────────────────────
+
+    window.saasShowNewOrgModal = function() {
+        document.getElementById('saas-new-org-modal').classList.add('active');
+        document.getElementById('saas-new-org-name').value = '';
+
+        var modulesDiv = document.getElementById('saas-new-org-modules');
+        modulesDiv.textContent = '';
+        saasAllModules.forEach(function(mod) {
+            var label = document.createElement('label');
+            label.className = 'saas-module-check-item';
+            var cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.value = mod.key;
+            label.appendChild(cb);
+            label.appendChild(document.createTextNode(' ' + mod.name));
+            modulesDiv.appendChild(label);
+        });
+
+        fetch('/tools/account-center/api/users?limit=100')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var select = document.getElementById('saas-new-org-owner');
+                select.textContent = '';
+                var defaultOpt = document.createElement('option');
+                defaultOpt.value = '';
+                defaultOpt.textContent = 'Select owner...';
+                select.appendChild(defaultOpt);
+                var users = data.users || [];
+                users.forEach(function(u) {
+                    var opt = document.createElement('option');
+                    opt.value = u.id;
+                    opt.textContent = u.username || u.email;
+                    select.appendChild(opt);
+                });
+            })
+            .catch(function() {});
+
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    };
+
+    window.saasCloseNewOrgModal = function() {
+        document.getElementById('saas-new-org-modal').classList.remove('active');
+    };
+
+    window.saasCreateOrg = function() {
+        var name = document.getElementById('saas-new-org-name').value.trim();
+        if (!name) {
+            saasShowToast('Organization name is required', 'error');
+            return;
+        }
+
+        var ownerId = document.getElementById('saas-new-org-owner').value;
+        var selectedModules = [];
+        document.querySelectorAll('#saas-new-org-modules input[type="checkbox"]:checked').forEach(function(cb) {
+            selectedModules.push(cb.value);
+        });
+
+        var btn = document.getElementById('saas-btn-create-org');
+        btn.disabled = true;
+        btn.textContent = 'Creating...';
+
+        fetch(SAAS_API + '/orgs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: name,
+                owner_user_id: ownerId ? parseInt(ownerId) : null,
+                settings: {},
+                ai_config: {}
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            btn.disabled = false;
+            btn.textContent = 'Create Organization';
+
+            if (!data.success) {
+                saasShowToast('Failed: ' + (data.error || 'Unknown error'), 'error');
+                return;
+            }
+
+            var orgId = data.org.id;
+            var modulePromises = selectedModules.map(function(key) {
+                return fetch(SAAS_API + '/orgs/' + orgId + '/modules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ module_key: key, enabled: true })
+                });
+            });
+
+            Promise.all(modulePromises).then(function() {
+                saasShowToast('Organization "' + name + '" created', 'success');
+                saasCloseNewOrgModal();
+                saasLoadOrgs();
+            });
+        })
+        .catch(function(err) {
+            btn.disabled = false;
+            btn.textContent = 'Create Organization';
+            saasShowToast('Error: ' + err.message, 'error');
+        });
+    };
+
+    // ── Domains Sub-Tab ─────────────────────────────────────────────────────
+
+    function saasLoadAllDomains() {
+        document.getElementById('saas-domains-loading').style.display = 'flex';
+        document.getElementById('saas-domains-table-wrap').style.display = 'none';
+        document.getElementById('saas-domains-empty').style.display = 'none';
+
+        fetch(SAAS_API + '/orgs')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success) return;
+                var orgs = data.orgs || [];
+                var domainPromises = orgs.map(function(o) {
+                    return fetch(SAAS_API + '/orgs/' + o.id)
+                        .then(function(r) { return r.json(); })
+                        .then(function(detail) {
+                            return { org: o, domains: detail.domains || [] };
+                        });
+                });
+                return Promise.all(domainPromises);
+            })
+            .then(function(results) {
+                document.getElementById('saas-domains-loading').style.display = 'none';
+                if (!results) return;
+
+                var allDomains = [];
+                results.forEach(function(r) {
+                    r.domains.forEach(function(d) {
+                        d._orgName = r.org.name;
+                        d._orgId = r.org.id;
+                        allDomains.push(d);
+                    });
+                });
+
+                if (allDomains.length === 0) {
+                    document.getElementById('saas-domains-empty').style.display = 'block';
+                    return;
+                }
+
+                document.getElementById('saas-domains-table-wrap').style.display = 'block';
+                var tbody = document.getElementById('saas-domains-tbody');
+                tbody.textContent = '';
+
+                allDomains.forEach(function(d) {
+                    var tr = document.createElement('tr');
+
+                    var td1 = document.createElement('td');
+                    var domSpan = document.createElement('span');
+                    domSpan.className = 'saas-domain-name';
+                    domSpan.textContent = d.domain;
+                    td1.appendChild(domSpan);
+
+                    var td2 = document.createElement('td');
+                    td2.textContent = d._orgName;
+
+                    var td3 = document.createElement('td');
+                    td3.textContent = d.target_module || '-';
+
+                    var td4 = document.createElement('td');
+                    var dnsBadge = document.createElement('span');
+                    dnsBadge.className = 'badge badge-' + saasGetBadgeClass(d.dns_status);
+                    dnsBadge.textContent = d.dns_status || 'pending';
+                    td4.appendChild(dnsBadge);
+
+                    var td5 = document.createElement('td');
+                    var sslBadge = document.createElement('span');
+                    sslBadge.className = 'badge badge-' + saasGetBadgeClass(d.ssl_status);
+                    sslBadge.textContent = d.ssl_status || 'pending';
+                    td5.appendChild(sslBadge);
+
+                    var td6 = document.createElement('td');
+                    var btnDiv = document.createElement('div');
+                    btnDiv.style.cssText = 'display:flex;gap:var(--archie-space-2);';
+                    var verifyBtn = document.createElement('button');
+                    verifyBtn.className = 'btn btn-ghost btn-sm';
+                    verifyBtn.title = 'Verify DNS';
+                    verifyBtn.setAttribute('onclick', 'saasVerifyDns(' + d._orgId + ', ' + d.id + ')');
+                    verifyBtn.innerHTML = '<i data-lucide="search-check" style="width:14px;height:14px"></i> Verify';
+                    var removeBtn = document.createElement('button');
+                    removeBtn.className = 'btn btn-ghost btn-sm';
+                    removeBtn.title = 'Remove';
+                    removeBtn.setAttribute('onclick', 'saasRemoveDomain(' + d._orgId + ', ' + d.id + ')');
+                    removeBtn.innerHTML = '<i data-lucide="trash-2" style="width:14px;height:14px;color:var(--archie-danger)"></i>';
+                    btnDiv.appendChild(verifyBtn);
+                    btnDiv.appendChild(removeBtn);
+                    td6.appendChild(btnDiv);
+
+                    tr.appendChild(td1);
+                    tr.appendChild(td2);
+                    tr.appendChild(td3);
+                    tr.appendChild(td4);
+                    tr.appendChild(td5);
+                    tr.appendChild(td6);
+                    tbody.appendChild(tr);
+                });
+
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            })
+            .catch(function(err) {
+                document.getElementById('saas-domains-loading').style.display = 'none';
+                saasShowToast('Error loading domains: ' + err.message, 'error');
+            });
+    }
+
+    window.saasVerifyDns = function(orgId, domainId) {
+        fetch(SAAS_API + '/orgs/' + orgId + '/domains/' + domainId + '/verify', { method: 'POST' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    saasShowToast('DNS: ' + (data.dns_status || 'checked'), 'success');
+                    saasLoadAllDomains();
+                } else {
+                    saasShowToast('Verification failed: ' + (data.error || ''), 'error');
+                }
+            })
+            .catch(function(err) { saasShowToast('Error: ' + err.message, 'error'); });
+    };
+
+    // ── Add Domain Modal ────────────────────────────────────────────────────
+
+    window.saasShowAddDomainModal = function() {
+        document.getElementById('saas-add-domain-modal').classList.add('active');
+        document.getElementById('saas-domain-name').value = '';
+
+        var orgSelect = document.getElementById('saas-domain-org-select');
+        orgSelect.textContent = '';
+        var defaultOpt = document.createElement('option');
+        defaultOpt.value = '';
+        defaultOpt.textContent = 'Select organization...';
+        orgSelect.appendChild(defaultOpt);
+        saasAllOrgs.forEach(function(o) {
+            var opt = document.createElement('option');
+            opt.value = o.id;
+            opt.textContent = o.name;
+            orgSelect.appendChild(opt);
+        });
+
+        var modSelect = document.getElementById('saas-domain-target-module');
+        modSelect.textContent = '';
+        var modDefault = document.createElement('option');
+        modDefault.value = '';
+        modDefault.textContent = 'Select module...';
+        modSelect.appendChild(modDefault);
+        saasAllModules.forEach(function(m) {
+            var opt = document.createElement('option');
+            opt.value = m.key;
+            opt.textContent = m.name;
+            modSelect.appendChild(opt);
+        });
+    };
+
+    window.saasCloseAddDomainModal = function() {
+        document.getElementById('saas-add-domain-modal').classList.remove('active');
+    };
+
+    window.saasAddDomain = function() {
+        var orgId = document.getElementById('saas-domain-org-select').value;
+        var domain = document.getElementById('saas-domain-name').value.trim();
+        var targetModule = document.getElementById('saas-domain-target-module').value;
+
+        if (!orgId || !domain) {
+            saasShowToast('Organization and domain name are required', 'error');
+            return;
+        }
+
+        var btn = document.getElementById('saas-btn-add-domain');
+        btn.disabled = true;
+        btn.textContent = 'Adding...';
+
+        fetch(SAAS_API + '/orgs/' + orgId + '/domains', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ domain: domain, target_module: targetModule || null })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            btn.disabled = false;
+            btn.textContent = 'Add Domain';
+
+            if (!data.success) {
+                saasShowToast('Failed: ' + (data.error || 'Unknown error'), 'error');
+                return;
+            }
+            saasShowToast('Domain "' + domain + '" added', 'success');
+            saasCloseAddDomainModal();
+            saasLoadAllDomains();
+            saasLoadOrgs();
+        })
+        .catch(function(err) {
+            btn.disabled = false;
+            btn.textContent = 'Add Domain';
+            saasShowToast('Error: ' + err.message, 'error');
+        });
+    };
+
+    // ── Available Modules ───────────────────────────────────────────────────
+
+    function saasLoadAvailableModules() {
+        fetch(SAAS_API + '/available-modules')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) saasAllModules = data.modules || [];
+            })
+            .catch(function() {});
+    }
+
+    // ── Network Sub-Tab ─────────────────────────────────────────────────────
+
+    function saasLoadNetworkInfo() {
+        fetch(SAAS_API + '/network/public-ip')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success) {
+                    document.getElementById('saas-network-public-ip').textContent = 'Error';
+                    return;
+                }
+
+                document.getElementById('saas-network-public-ip').textContent = data.current_ip;
+                document.getElementById('saas-stat-ip').textContent = data.current_ip;
+
+                if (data.changed) {
+                    document.getElementById('saas-ip-changed-notice').style.display = 'block';
+                } else {
+                    document.getElementById('saas-ip-changed-notice').style.display = 'none';
+                }
+
+                var tbody = document.getElementById('saas-ip-history-tbody');
+                var history = data.history || [];
+                tbody.textContent = '';
+                if (history.length === 0) {
+                    var tr = document.createElement('tr');
+                    var td = document.createElement('td');
+                    td.colSpan = 2;
+                    td.style.cssText = 'text-align:center;color:var(--archie-text-muted)';
+                    td.textContent = 'No history';
+                    tr.appendChild(td);
+                    tbody.appendChild(tr);
+                } else {
+                    history.forEach(function(h) {
+                        var tr = document.createElement('tr');
+                        var td1 = document.createElement('td');
+                        td1.textContent = saasFormatDate(h.detected_at);
+                        var td2 = document.createElement('td');
+                        var ipSpan = document.createElement('span');
+                        ipSpan.className = 'saas-domain-name';
+                        ipSpan.textContent = h.ip_address;
+                        td2.appendChild(ipSpan);
+                        tr.appendChild(td1);
+                        tr.appendChild(td2);
+                        tbody.appendChild(tr);
+                    });
+                }
+            })
+            .catch(function() {
+                document.getElementById('saas-network-public-ip').textContent = 'Unavailable';
+                document.getElementById('saas-stat-ip').textContent = '?';
+            });
+    }
+
+    window.saasCheckPorts = function() {
+        var btn = document.getElementById('saas-btn-check-ports');
+        btn.disabled = true;
+
+        document.getElementById('saas-port-80-status').textContent = 'Checking...';
+        document.getElementById('saas-port-80-status').className = 'saas-port-card-status saas-port-unknown';
+        document.getElementById('saas-port-443-status').textContent = 'Checking...';
+        document.getElementById('saas-port-443-status').className = 'saas-port-card-status saas-port-unknown';
+
+        fetch(SAAS_API + '/network/check-ports', { method: 'POST' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                btn.disabled = false;
+                if (!data.success) {
+                    saasShowToast('Port check failed', 'error');
+                    return;
+                }
+                var ports = data.ports || {};
+                [80, 443].forEach(function(port) {
+                    var el = document.getElementById('saas-port-' + port + '-status');
+                    var info = ports[port];
+                    if (info && info.open) {
+                        el.textContent = 'Open (HTTP ' + info.status + ')';
+                        el.className = 'saas-port-card-status saas-port-open';
+                    } else {
+                        el.textContent = 'Closed';
+                        el.className = 'saas-port-card-status saas-port-closed';
+                    }
+                });
+            })
+            .catch(function(err) {
+                btn.disabled = false;
+                saasShowToast('Error: ' + err.message, 'error');
+            });
+    };
+
+    // ── Helpers ─────────────────────────────────────────────────────────────
+
+    function saasGetBadgeClass(status) {
+        if (!status) return 'pending';
+        var s = status.toLowerCase();
+        if (s === 'verified' || s === 'active' || s === 'issued') return 'verified';
+        if (s === 'pending') return 'pending';
+        if (s === 'failed') return 'failed';
+        return 'unknown';
+    }
+
+    function saasFormatDate(isoStr) {
+        if (!isoStr) return '-';
+        try {
+            return new Date(isoStr).toLocaleString();
+        } catch (e) {
+            return isoStr;
+        }
+    }
+
+    function saasShowToast(message, type) {
+        var container = document.querySelector('.flash-messages');
+        if (!container) {
+            container = document.createElement('div');
+            container.className = 'flash-messages';
+            document.body.appendChild(container);
+        }
+        var flash = document.createElement('div');
+        flash.className = 'flash ' + (type || 'info');
+        flash.textContent = '> ' + message;
+        container.appendChild(flash);
+        setTimeout(function() { flash.remove(); }, 4000);
+    }
+
+})();
 </script>
 {% endblock %}

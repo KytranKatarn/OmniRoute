@@ -70,6 +70,7 @@ class ModuleDefinition:
     version: str = "1.0"
     tags: List[str] = field(default_factory=list)
     priority: int = 10  # Display priority (lower = higher priority)
+    show_on_dashboard: bool = True  # Show card on dashboard? (False = API-only module)
 
 
 def default_health_check(module_id: str) -> Dict:
@@ -393,6 +394,7 @@ MODULES: List[ModuleDefinition] = [
         required_permissions=["admin:saas"],
         minimum_role="ADMIN",
         enabled=True,
+        show_on_dashboard=False,  # Folded into Account Center ORGS tab
         health_check=lambda: default_health_check("saas_manager"),
         priority=0,
         tags=["saas", "organizations", "domains", "multi-tenant", "admin-operations"],

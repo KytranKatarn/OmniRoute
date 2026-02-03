@@ -5,8 +5,9 @@ Generates personalized dashboard based on user's permissions and subscription
 Author: A.R.C.H.I.E. Platform
 Date: 2026-01-08
 """
-from typing import List, Dict
-from module_registry import get_enabled_modules, ModuleCategory
+
+from typing import Dict
+from module_registry import get_enabled_modules
 from rbac import can_access_module, get_user_role
 
 
@@ -17,8 +18,8 @@ def get_user_dashboard_data(user) -> Dict:
     Returns:
         {
             'modules_by_category': {
-                'creation': [module1, module2],
-                'development': [module3],
+                'admin_operations': [module1, module2],
+                'ai_command': [module3],
                 ...
             },
             'accessible_count': 15,
@@ -47,131 +48,134 @@ def get_user_dashboard_data(user) -> Dict:
         category = module.category.value
         if category not in modules_by_category:
             modules_by_category[category] = []
-        modules_by_category[category].append({
-            'id': module.id,
-            'name': module.name,
-            'description': module.description,
-            'icon': module.icon,
-            'route': module.route,
-            'beta': module.beta,
-            'coming_soon': module.coming_soon,
-            'priority': module.priority,
-            'accessible': True
-        })
+        modules_by_category[category].append(
+            {
+                "id": module.id,
+                "name": module.name,
+                "description": module.description,
+                "icon": module.icon,
+                "route": module.route,
+                "beta": module.beta,
+                "coming_soon": module.coming_soon,
+                "priority": module.priority,
+                "accessible": True,
+            }
+        )
 
     # Sort modules within each category by priority
     for category in modules_by_category:
-        modules_by_category[category].sort(key=lambda m: m['priority'])
+        modules_by_category[category].sort(key=lambda m: m["priority"])
 
     # Get locked modules info (for upgrade prompts)
     locked_modules = []
     for module in locked:
-        locked_modules.append({
-            'id': module.id,
-            'name': module.name,
-            'description': module.description,
-            'icon': module.icon,
-            'minimum_role': module.minimum_role,
-            'category': module.category.value
-        })
+        locked_modules.append(
+            {
+                "id": module.id,
+                "name": module.name,
+                "description": module.description,
+                "icon": module.icon,
+                "minimum_role": module.minimum_role,
+                "category": module.category.value,
+            }
+        )
 
     # Get user role and subscription
     user_role = get_user_role(user)
 
     # Determine subscription tier - ADMIN users get "admin" tier display
-    if user_role.name == 'ADMIN' or user_role.name == 'SUPER_ADMIN':
-        subscription_tier = 'admin'
-    elif hasattr(user, 'subscription_tier') and user.subscription_tier:
+    if user_role.name == "ADMIN" or user_role.name == "SUPER_ADMIN":
+        subscription_tier = "admin"
+    elif hasattr(user, "subscription_tier") and user.subscription_tier:
         subscription_tier = user.subscription_tier.lower()
     else:
-        subscription_tier = 'free'
+        subscription_tier = "free"
 
     return {
-        'modules_by_category': modules_by_category,
-        'accessible_count': len(accessible),
-        'total_count': len(enabled_modules),
-        'user_role': user_role.name,
-        'subscription_tier': subscription_tier,
-        'coming_soon_count': len([m for m in enabled_modules if m.coming_soon]),
-        'locked_modules': locked_modules,
-        'categories': get_categories_info()
+        "modules_by_category": modules_by_category,
+        "accessible_count": len(accessible),
+        "total_count": len(enabled_modules),
+        "user_role": user_role.name,
+        "subscription_tier": subscription_tier,
+        "coming_soon_count": len([m for m in enabled_modules if m.coming_soon]),
+        "locked_modules": locked_modules,
+        "categories": get_categories_info(),
     }
 
 
 def get_categories_info() -> Dict[str, Dict]:
-    """Get information about each module category - Dashboard Redesign 2026-01-13
+    """Get information about each module category - Updated 2026-02-03
 
-    Icons use Lucide icon names - see https://lucide.dev/icons
+    Icons use Font Awesome icon names (fas fa-*).
+    Categories aligned with ModuleCategory enum in module_registry.py.
     """
-    # Define categories with priority (lower = displayed first)
-    # Order: Creation → Business → Standalone → (Locked Modules) → Admin → Development → Integrations
     categories = {
-        'creation': {
-            'name': 'Creation Tools',
-            'icon': 'sparkles',  # Lucide icon name
-            'description': 'Build apps, websites, games, and media with AI assistance',
-            'priority': 1
+        "admin_operations": {
+            "name": "Admin Operations",
+            "icon": "fas fa-shield-alt",
+            "description": "Platform management and system administration",
+            "admin_only": True,
+            "color": "#FF6B6B",
+            "priority": 1,
         },
-        'business_tools': {
-            'name': 'Business Tools',
-            'icon': 'briefcase',  # Lucide icon name
-            'description': 'Website, store, and phone system for your business',
-            'priority': 2
+        "ai_command": {
+            "name": "AI Command",
+            "icon": "fas fa-brain",
+            "description": "AI infrastructure, agents, and learning systems",
+            "admin_only": True,
+            "color": "#FF6B6B",
+            "priority": 2,
         },
-        'standalone_apps': {
-            'name': 'Stand Alone Apps',
-            'icon': 'smartphone',  # Lucide icon name
-            'description': 'Unique AI apps available on Android, iOS, and Web subscriptions',
-            'priority': 3
+        "development_tools": {
+            "name": "Development Tools",
+            "icon": "fas fa-code",
+            "description": "Code quality, testing, and improvements",
+            "admin_only": True,
+            "color": "#FF6B6B",
+            "priority": 3,
         },
-        'admin_ops': {
-            'name': 'Admin Operations',
-            'icon': 'activity',  # Lucide icon name
-            'description': 'Bridge command center, team management, and consciousness',
-            'admin_only': True,
-            'color': '#FF6B6B',  # Red color for admin-only sections
-            'priority': 3.5  # Between Standalone Apps and Admin Tools
+        "saas_services": {
+            "name": "SaaS Services",
+            "icon": "fas fa-cloud",
+            "description": "Customer-facing business services",
+            "priority": 4,
         },
-        'admin': {
-            'name': 'Admin Tools',
-            'icon': 'settings-2',  # Lucide icon name
-            'description': 'System management, backups, security, and accounts',
-            'admin_only': True,
-            'color': '#FF6B6B',  # Red color for admin tools
-            'priority': 7  # Last section on dashboard
+        "project_knowledge": {
+            "name": "Project & Knowledge",
+            "icon": "fas fa-book",
+            "description": "Project management and knowledge base",
+            "priority": 5,
         },
-        'development': {
-            'name': 'Development Tools',
-            'icon': 'code-2',  # Lucide icon name
-            'description': 'Platform development & testing',
-            'admin_only': True,  # Phase 22: All dev tools are admin only
-            'color': '#FF6B6B',  # Red color for admin dev tools
-            'priority': 5
+        "media_home": {
+            "name": "Media & Home",
+            "icon": "fas fa-film",
+            "description": "Media management and home automation",
+            "priority": 6,
         },
-        'integrations': {
-            'name': 'Integrations',
-            'icon': 'plug',  # Lucide icon name
-            'description': 'External services and automation',
-            'priority': 6
-        }
+        "placeholders_future": {
+            "name": "Coming Soon",
+            "icon": "fas fa-rocket",
+            "description": "Planned features for future development",
+            "priority": 7,
+        },
     }
     # Return sorted by priority
-    return dict(sorted(categories.items(), key=lambda x: x[1]['priority']))
+    return dict(sorted(categories.items(), key=lambda x: x[1]["priority"]))
 
 
 def render_module_card(module: Dict, user) -> str:
     """Render HTML for a single module card"""
-    beta_badge = '<span class="badge badge-beta">BETA</span>' if module.get('beta') else ''
-    coming_soon_badge = '<span class="badge badge-coming-soon">COMING SOON</span>' if module.get('coming_soon') else ''
-    locked_badge = '<span class="badge badge-locked">🔒 LOCKED</span>' if not module.get('accessible', True) else ''
+    beta_badge = '<span class="badge badge-beta">BETA</span>' if module.get("beta") else ""
+    coming_soon_badge = '<span class="badge badge-coming-soon">COMING SOON</span>' if module.get("coming_soon") else ""
+    locked_badge = '<span class="badge badge-locked">🔒 LOCKED</span>' if not module.get("accessible", True) else ""
 
-    card_class = 'tool-card'
-    if module.get('coming_soon'):
-        card_class += ' coming-soon'
-    if not module.get('accessible', True):
-        card_class += ' locked'
+    card_class = "tool-card"
+    if module.get("coming_soon"):
+        card_class += " coming-soon"
+    if not module.get("accessible", True):
+        card_class += " locked"
 
-    href = module['route'] if module.get('accessible', True) else '#'
+    href = module["route"] if module.get("accessible", True) else "#"
 
     return f"""
     <a href="{href}" class="{card_class}">
@@ -189,11 +193,11 @@ def render_module_card(module: Dict, user) -> str:
 
 def get_upgrade_prompt(user_role: str, locked_count: int) -> str:
     """Generate upgrade prompt based on user's current tier"""
-    if user_role == 'PUBLIC':
+    if user_role == "PUBLIC":
         return "Sign up for a free account to access all basic tools"
-    elif user_role == 'USER':
+    elif user_role == "USER":
         return f"Upgrade to Premium to unlock {locked_count} additional tools"
-    elif user_role == 'PREMIUM':
+    elif user_role == "PREMIUM":
         return "Enjoying A.R.C.H.I.E.? Consider upgrading to Business for team features"
     else:
         return ""

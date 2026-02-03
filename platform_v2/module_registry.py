@@ -580,22 +580,24 @@ MODULES: List[ModuleDefinition] = [
         priority=9,
         tags=["automation", "workflows", "n8n", "business"],
     ),
-    ModuleDefinition(
-        id="analytics_dashboard",
-        name="Analytics",
-        description="Track business performance<br>Revenue charts • Traffic sources • Custom reports",
-        icon="bar-chart-2",
-        category=ModuleCategory.BUSINESS_TOOLS,
-        route="/tools/analytics-dashboard",
-        blueprint_import="tools.analytics.routes:analytics_bp",
-        required_permissions=[],
-        minimum_role="USER",
-        enabled=True,
-        coming_soon=False,
-        health_check=lambda: default_health_check("analytics_dashboard"),
-        priority=10,
-        tags=["analytics", "metrics", "business"],
-    ),
+    # DEPRECATED 2026-02-03: Merged into crm
+    # Analytics features now available at /tools/crm/analytics and /tools/crm/api/analytics/*
+    # ModuleDefinition(
+    #     id="analytics_dashboard",
+    #     name="Analytics",
+    #     description="Track business performance<br>Revenue charts • Traffic sources • Custom reports",
+    #     icon="bar-chart-2",
+    #     category=ModuleCategory.BUSINESS_TOOLS,
+    #     route="/tools/analytics-dashboard",
+    #     blueprint_import="tools.analytics.routes:analytics_bp",
+    #     required_permissions=[],
+    #     minimum_role="USER",
+    #     enabled=True,
+    #     coming_soon=False,
+    #     health_check=lambda: default_health_check("analytics_dashboard"),
+    #     priority=10,
+    #     tags=["analytics", "metrics", "business"],
+    # ),
     # ========================================================================
     # ADMIN TOOLS - System management, consciousness (ADMIN ONLY)
     # ========================================================================

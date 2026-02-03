@@ -3,47 +3,113 @@ A.R.C.H.I.E. Platform - Google Drive Backup Service
 ====================================================
 
 Handles Google Drive API operations for cloud backup storage.
-Uses a service account for authentication (no OAuth flow needed).
+Uses OAuth 2.0 so files are owned by the user's Google account
+(service accounts have no storage quota on personal Google Drive).
 """
 
 import os
+
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
-from google.oauth2 import service_account
 
 SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 BACKUP_FOLDER_NAME = "ARCHIE-Backups"
+TOKEN_PATH = os.environ.get("GDRIVE_TOKEN_PATH", "/app/credentials/gdrive-oauth-token.json")
+CLIENT_SECRETS_PATH = os.environ.get("GDRIVE_CLIENT_SECRETS_PATH", "/app/credentials/gdrive-client-secrets.json")
+
+
+def _load_credentials():
+    """Load OAuth credentials from saved token, refreshing if expired."""
+    if not os.path.exists(TOKEN_PATH):
+        return None
+
+    creds = Credentials.from_authorized_user_file(TOKEN_PATH, SCOPES)
+
+    if creds and creds.expired and creds.refresh_token:
+        creds.refresh(Request())
+        # Save refreshed token
+        with open(TOKEN_PATH, "w") as f:
+            f.write(creds.to_json())
+
+    if creds and creds.valid:
+        return creds
+
+    return None
+
+
+def get_oauth_flow():
+    """
+    Create an OAuth flow for the initial authorization.
+
+    Returns:
+        google_auth_oauthlib.flow.Flow instance
+
+    Raises:
+        FileNotFoundError: If client secrets file is missing.
+    """
+    from google_auth_oauthlib.flow import Flow
+
+    if not os.path.exists(CLIENT_SECRETS_PATH):
+        raise FileNotFoundError(
+            f"OAuth client secrets not found at {CLIENT_SECRETS_PATH}. "
+            "Create OAuth credentials in Google Cloud Console → APIs & Services → Credentials, "
+            "download the JSON, and place it there."
+        )
+
+    flow = Flow.from_client_secrets_file(CLIENT_SECRETS_PATH, scopes=SCOPES)
+    return flow
+
+
+def save_oauth_token(creds):
+    """Save OAuth credentials to disk."""
+    os.makedirs(os.path.dirname(TOKEN_PATH), exist_ok=True)
+    with open(TOKEN_PATH, "w") as f:
+        f.write(creds.to_json())
+
+
+def is_oauth_configured() -> bool:
+    """Check if OAuth token exists and is usable."""
+    return _load_credentials() is not None
 
 
 def get_drive_service(service_account_path: str = None):
     """
     Build an authenticated Google Drive API v3 client.
 
-    Args:
-        service_account_path: Path to service account JSON key file.
-            Defaults to GDRIVE_SERVICE_ACCOUNT_PATH env var.
+    Prefers OAuth credentials (user-owned files with real storage quota).
+    Falls back to service account if OAuth is not configured.
 
     Returns:
         Google Drive API service resource
     """
+    # Prefer OAuth — files are owned by the user with real storage
+    creds = _load_credentials()
+    if creds:
+        return build("drive", "v3", credentials=creds)
+
+    # Fall back to service account (limited: can't own files on personal Drive)
     if not service_account_path:
         service_account_path = os.environ.get(
             "GDRIVE_SERVICE_ACCOUNT_PATH", "/app/credentials/gdrive-service-account.json"
         )
 
-    if not os.path.exists(service_account_path):
-        raise FileNotFoundError(
-            f"Service account key not found at {service_account_path}. "
-            "Place your Google service account JSON key file there."
-        )
+    if os.path.exists(service_account_path):
+        from google.oauth2 import service_account as sa
 
-    credentials = service_account.Credentials.from_service_account_file(service_account_path, scopes=SCOPES)
-    return build("drive", "v3", credentials=credentials)
+        credentials = sa.Credentials.from_service_account_file(service_account_path, scopes=SCOPES)
+        return build("drive", "v3", credentials=credentials)
+
+    raise RuntimeError(
+        "No Google Drive credentials configured. "
+        "Set up OAuth via Backup Manager → Cloud Backup → Connect Google Drive."
+    )
 
 
 def test_connection(service) -> dict:
     """
-    Test that the service account can access Drive.
+    Test that the account can access Drive.
 
     Returns:
         dict with success status and account info
@@ -54,6 +120,7 @@ def test_connection(service) -> dict:
             "success": True,
             "email": about.get("user", {}).get("emailAddress", "unknown"),
             "storage": about.get("storageQuota", {}),
+            "auth_type": "oauth" if is_oauth_configured() else "service_account",
         }
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -114,7 +181,10 @@ def ensure_backup_folder(service, folder_id: str = None) -> str:
         return files[0]["id"]
 
     # Create new folder
-    folder_metadata = {"name": BACKUP_FOLDER_NAME, "mimeType": "application/vnd.google-apps.folder"}
+    folder_metadata = {
+        "name": BACKUP_FOLDER_NAME,
+        "mimeType": "application/vnd.google-apps.folder",
+    }
     folder = service.files().create(body=folder_metadata, fields="id").execute()
     return folder["id"]
 

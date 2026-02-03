@@ -4043,6 +4043,20 @@ def delete_hook(hook_type, name):
 # In-memory progress tracking for cloud operations
 _cloud_progress = {}
 
+CLOUD_EXCLUDE_DIRS = {
+    "conversation_logs",
+    "persistence",
+    "docs",
+}
+
+
+def _cloud_tar_filter(tarinfo):
+    """Exclude non-essential dirs from cloud backup tar."""
+    parts = tarinfo.name.split("/")
+    if len(parts) >= 2 and parts[1] in CLOUD_EXCLUDE_DIRS:
+        return None
+    return tarinfo
+
 
 def _get_cloud_config():
     """Read Google Drive configuration from environment."""
@@ -4083,17 +4097,21 @@ def cloud_status():
     """Get Google Drive cloud backup status."""
     config = _get_cloud_config()
 
+    from tools.backup_manager.gdrive_service import is_oauth_configured
+
     result = {
         "enabled": config["enabled"],
         "has_service_account": os.path.exists(config["service_account_path"]),
+        "has_oauth": is_oauth_configured(),
         "has_folder_id": bool(config["folder_id"]),
         "has_passphrase": bool(config["passphrase_hash"]),
         "connected": False,
         "storage": None,
         "email": None,
+        "auth_type": None,
     }
 
-    if config["enabled"] and result["has_service_account"]:
+    if config["enabled"]:
         try:
             from tools.backup_manager.gdrive_service import get_drive_service, test_connection, get_storage_quota
 
@@ -4102,6 +4120,7 @@ def cloud_status():
             if conn["success"]:
                 result["connected"] = True
                 result["email"] = conn.get("email")
+                result["auth_type"] = conn.get("auth_type")
                 result["storage"] = get_storage_quota(svc)
         except Exception as e:
             result["connection_error"] = str(e)
@@ -4141,6 +4160,69 @@ def cloud_setup():
                 "email": conn.get("email"),
                 "folder_id": folder_id,
                 "message": "Google Drive connected and backup folder ready",
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@backup_manager_bp.route("/cloud/oauth/start", methods=["POST"])
+@admin_required
+def cloud_oauth_start():
+    """Start OAuth flow — returns the Google authorization URL."""
+    try:
+        from tools.backup_manager.gdrive_service import get_oauth_flow
+
+        flow = get_oauth_flow()
+        flow.redirect_uri = "http://localhost:8085"
+
+        auth_url, state = flow.authorization_url(
+            access_type="offline",
+            prompt="consent",
+        )
+
+        return jsonify({"success": True, "auth_url": auth_url})
+    except FileNotFoundError as e:
+        return jsonify({"success": False, "error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@backup_manager_bp.route("/cloud/oauth/exchange", methods=["POST"])
+@admin_required
+def cloud_oauth_exchange():
+    """Exchange an authorization code for OAuth tokens."""
+    try:
+        from tools.backup_manager.gdrive_service import get_oauth_flow, save_oauth_token
+
+        data = request.get_json() or {}
+        code = data.get("code", "").strip()
+        if not code:
+            return jsonify({"success": False, "error": "Authorization code required"}), 400
+
+        flow = get_oauth_flow()
+        flow.redirect_uri = "http://localhost:8085"
+        flow.fetch_token(code=code)
+        save_oauth_token(flow.credentials)
+
+        # Auto-setup: enable and create backup folder
+        from tools.backup_manager.gdrive_service import get_drive_service, ensure_backup_folder
+
+        svc = get_drive_service()
+        folder_id = ensure_backup_folder(svc)
+        _update_env_var("GDRIVE_BACKUP_FOLDER_ID", folder_id)
+        _update_env_var("GDRIVE_ENABLED", "true")
+
+        from tools.backup_manager.gdrive_service import test_connection
+
+        conn = test_connection(svc)
+
+        return jsonify(
+            {
+                "success": True,
+                "message": "Google Drive connected via OAuth",
+                "email": conn.get("email"),
+                "folder_id": folder_id,
             }
         )
     except Exception as e:
@@ -4219,13 +4301,13 @@ def cloud_upload(backup_name):
             from tools.backup_manager.gdrive_crypto import encrypt_file
             from tools.backup_manager.gdrive_service import get_drive_service, upload_file, ensure_backup_folder
 
-            _cloud_progress[op_id]["stage"] = "compressing"
+            _cloud_progress[op_id]["stage"] = "compressing (cloud-optimized)"
             _cloud_progress[op_id]["percent"] = 5
 
             # Create tar.gz of backup directory
             temp_tar = os.path.join(BACKUP_DIR, f".cloud_tmp_{backup_name}.tar.gz")
             with _tarfile.open(temp_tar, "w:gz") as tar:
-                tar.add(backup_path, arcname=backup_name)
+                tar.add(backup_path, arcname=backup_name, filter=_cloud_tar_filter)
 
             _cloud_progress[op_id]["stage"] = "encrypting"
             _cloud_progress[op_id]["percent"] = 15

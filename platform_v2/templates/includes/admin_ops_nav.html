@@ -79,13 +79,16 @@
             <i data-lucide="sliders"></i>
             <span>Pool</span>
         </a>
-        <a href="{{ url_for('goose.index') }}"
+        <!-- Goose module not yet registered as blueprint -->
+        <!--
+        <a href="/tools/goose"
            class="nav-module-btn {% if request.endpoint and 'goose' in request.endpoint %}active{% endif %}"
            onclick="showTransition(event, this.href)"
            title="Goose Orchestration">
             <i data-lucide="bot"></i>
             <span>Goose</span>
         </a>
+        -->
         <a href="{{ url_for('project_manager.dashboard') }}"
            class="nav-module-btn {% if request.endpoint and 'project_manager' in request.endpoint %}active{% endif %}"
            onclick="showTransition(event, this.href)"

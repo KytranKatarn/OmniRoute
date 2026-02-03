@@ -383,7 +383,7 @@ MODULES: List[ModuleDefinition] = [
         tags=["system", "monitoring", "admin", "docker", "processes", "network", "host", "admin-operations"],
     ),
     # ============================================
-    # AI COMMAND (5 modules)
+    # AI COMMAND (4 modules)
     # ============================================
     # blueprint, consciousness, team_management, bridge, archie_core
     ModuleDefinition(
@@ -451,15 +451,15 @@ MODULES: List[ModuleDefinition] = [
         name="A.R.C.H.I.E.",
         description="Your AI assistant<br>Text & voice chat • Image analysis • Long-term memory",
         icon="bot",
-        category=ModuleCategory.AI_COMMAND,
+        category=ModuleCategory.SAAS_SERVICES,
         route="/tools/archie-chat",
         blueprint_import="tools.archie_core.routes:archie_chat_bp",
         required_permissions=["archie:chat"],
         minimum_role="USER",
         enabled=True,
         health_check=archie_chat_health_check,
-        priority=5,
-        tags=["ai", "assistant", "chat", "voice", "vision", "ai-command"],
+        priority=1,
+        tags=["ai", "assistant", "chat", "voice", "vision", "saas"],
     ),
     # ============================================
     # DEVELOPMENT TOOLS (3 modules)
@@ -513,7 +513,7 @@ MODULES: List[ModuleDefinition] = [
         tags=["improvements", "ai", "workflow", "chat", "development-tools"],
     ),
     # ============================================
-    # SAAS SERVICES (9 modules)
+    # SAAS SERVICES (10 modules)
     # ============================================
     # crm, website_studio, store_builder, call_center, email_manager, automations, invoicing, scheduler, social_media
     ModuleDefinition(

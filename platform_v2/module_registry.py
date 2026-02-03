@@ -382,6 +382,22 @@ MODULES: List[ModuleDefinition] = [
         priority=4,
         tags=["system", "monitoring", "admin", "docker", "processes", "network", "host", "admin-operations"],
     ),
+    ModuleDefinition(
+        id="saas_manager",
+        name="SaaS Manager",
+        description="Multi-tenant platform management<br>Organizations • Domains • Modules",
+        icon="building-2",
+        category=ModuleCategory.ADMIN_OPERATIONS,
+        route="/tools/saas-manager",
+        blueprint_import="tools.saas_manager.saas_manager_routes:saas_manager_bp",
+        required_permissions=["admin:saas"],
+        minimum_role="ADMIN",
+        enabled=True,
+        health_check=lambda: default_health_check("saas_manager"),
+        priority=0,
+        tags=["saas", "organizations", "domains", "multi-tenant", "admin-operations"],
+        version="1.0",
+    ),
     # ============================================
     # AI COMMAND (4 modules)
     # ============================================

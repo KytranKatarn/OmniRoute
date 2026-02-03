@@ -122,6 +122,7 @@ class Permission(Enum):
     # Super Admin permissions
     ADMIN_MINING = "admin:mining"
     ADMIN_SYSTEM = "admin:system"
+    ADMIN_SAAS = "admin:saas"
     ADMIN_SECURITY = "admin:security"
     SUPER_ADMIN_ALL = "superadmin:all"
 
@@ -247,6 +248,7 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         Permission.ADMIN_TESTING,
         Permission.ADMIN_PROJECTS,  # Phase 65: Unified Project Management
         Permission.ADMIN_SYSTEM,  # Phase 78: System Operations access
+        Permission.ADMIN_SAAS,  # SaaS Manager access
         Permission.READ_ALL,
         Permission.WRITE_ALL,
         Permission.OBSIDIAN_DELETE,  # Delete notes

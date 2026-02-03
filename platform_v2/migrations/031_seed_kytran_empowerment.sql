@@ -35,7 +35,7 @@ SELECT o.id, m.key, m.config
 FROM organizations o,
 (VALUES
     ('store_builder', '{"printful_store": "store.kytranempowerment.com"}'::jsonb),
-    ('website_studio', '{"domain": "www.kytranempowerment.com"}'::jsonb),
+    ('website_designer', '{"domain": "www.kytranempowerment.com"}'::jsonb),
     ('media_hub', '{"domain": "media.kytranempowerment.com"}'::jsonb),
     ('crm', '{}'::jsonb),
     ('email_manager', '{}'::jsonb),
@@ -51,7 +51,7 @@ SELECT o.id, d.domain, d.sub, d.root, d.target, 'hostinger'
 FROM organizations o,
 (VALUES
     ('dashboard.kytranempowerment.com', 'dashboard', 'kytranempowerment.com', 'dashboard'),
-    ('www.kytranempowerment.com', 'www', 'kytranempowerment.com', 'website_studio'),
+    ('www.kytranempowerment.com', 'www', 'kytranempowerment.com', 'website_designer'),
     ('store.kytranempowerment.com', 'store', 'kytranempowerment.com', 'store_builder'),
     ('media.kytranempowerment.com', 'media', 'kytranempowerment.com', 'media_hub')
 ) AS d(domain, sub, root, target)

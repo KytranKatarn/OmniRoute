@@ -11,6 +11,7 @@ Purpose:
 Author: A.R.C.H.I.E. Platform
 Date: 2026-01-07
 """
+
 from enum import Enum
 from typing import List, Optional, Set
 from functools import wraps
@@ -18,6 +19,7 @@ from functools import wraps
 try:
     from flask import abort, current_app
     from flask_login import current_user
+
     FLASK_AVAILABLE = True
 except ImportError:
     # Allow running without Flask for testing
@@ -30,15 +32,17 @@ except ImportError:
 
 class Role(Enum):
     """User roles with numeric hierarchy"""
-    PUBLIC = 0          # Not logged in
-    USER = 10           # Basic authenticated user
-    PREMIUM = 20        # Paid subscriber
-    ADMIN = 90          # Administrator
-    SUPER_ADMIN = 100   # System owner
+
+    PUBLIC = 0  # Not logged in
+    USER = 10  # Basic authenticated user
+    PREMIUM = 20  # Paid subscriber
+    ADMIN = 90  # Administrator
+    SUPER_ADMIN = 100  # System owner
 
 
 class Permission(Enum):
     """System permissions"""
+
     # Public (no login required)
     PUBLIC_VIEW = "public:view"
     DIRECTORY_VIEW = "directory:view"
@@ -66,7 +70,8 @@ class Permission(Enum):
     WEBSITE_BUILDER_DEPLOY = "website_builder:deploy"
     SOCIAL_MEDIA_CREATE = "social_media:create"
     SOCIAL_MEDIA_SCHEDULE = "social_media:schedule"
-    FIGMA_IMPORT = "figma:import"
+    # DEPRECATED 2026-02-03: Not needed
+    # FIGMA_IMPORT = "figma:import"
     ANALYTICS_VIEW = "analytics:view"
     STOCK_BOT_SCAN = "stock_bot:scan"
     STOCK_BOT_ALERTS = "stock_bot:alerts"
@@ -114,7 +119,6 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         Permission.PUBLIC_VIEW,
         Permission.DIRECTORY_VIEW,
     },
-
     Role.USER: {
         # Inherit PUBLIC
         Permission.PUBLIC_VIEW,
@@ -145,7 +149,6 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         Permission.STORE_CREATE,
         Permission.TELEPHONY_ACCESS,
     },
-
     Role.PREMIUM: {
         # Inherit USER
         Permission.PUBLIC_VIEW,
@@ -172,7 +175,8 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         Permission.WEBSITE_BUILDER_DEPLOY,
         Permission.SOCIAL_MEDIA_CREATE,
         Permission.SOCIAL_MEDIA_SCHEDULE,
-        Permission.FIGMA_IMPORT,
+        # DEPRECATED 2026-02-03: Not needed
+        # Permission.FIGMA_IMPORT,
         Permission.ANALYTICS_VIEW,
         Permission.STOCK_BOT_SCAN,
         Permission.STOCK_BOT_ALERTS,
@@ -183,7 +187,6 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         Permission.TELEPHONY_ACCESS,
         Permission.TELEPHONY_ADMIN,
     },
-
     Role.ADMIN: {
         # Inherit PREMIUM
         Permission.PUBLIC_VIEW,
@@ -201,7 +204,8 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         Permission.WEBSITE_BUILDER_DEPLOY,
         Permission.SOCIAL_MEDIA_CREATE,
         Permission.SOCIAL_MEDIA_SCHEDULE,
-        Permission.FIGMA_IMPORT,
+        # DEPRECATED 2026-02-03: Not needed
+        # Permission.FIGMA_IMPORT,
         Permission.ANALYTICS_VIEW,
         Permission.AUTOMATION_CREATE,
         Permission.AUTOMATION_MANAGE,
@@ -230,21 +234,21 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         Permission.READ_ALL,
         Permission.WRITE_ALL,
         Permission.OBSIDIAN_DELETE,  # Delete notes
-        Permission.OBSIDIAN_ADMIN,   # Re-indexing, migration
+        Permission.OBSIDIAN_ADMIN,  # Re-indexing, migration
         # Business Tools (all for admin)
         Permission.STORE_CREATE,
         Permission.STORE_MANAGE,
         Permission.TELEPHONY_ACCESS,
         Permission.TELEPHONY_ADMIN,
     },
-
-    Role.SUPER_ADMIN: set(Permission)  # All permissions
+    Role.SUPER_ADMIN: set(Permission),  # All permissions
 }
 
 
 # ============================================================================
 # PERMISSION CHECKING FUNCTIONS
 # ============================================================================
+
 
 def get_user_role(user=None) -> Role:
     """
@@ -263,14 +267,14 @@ def get_user_role(user=None) -> Role:
         return Role.PUBLIC
 
     # Check user role attribute
-    if hasattr(user, 'is_super_admin') and user.is_super_admin:
+    if hasattr(user, "is_super_admin") and user.is_super_admin:
         return Role.SUPER_ADMIN
-    elif hasattr(user, 'is_admin') and user.is_admin:
+    elif hasattr(user, "is_admin") and user.is_admin:
         return Role.ADMIN
-    elif hasattr(user, 'subscription_tier'):
+    elif hasattr(user, "subscription_tier"):
         # Map subscription tiers to roles
-        tier = user.subscription_tier.lower() if user.subscription_tier else 'free'
-        if tier in ['pro', 'business', 'enterprise', 'premium']:
+        tier = user.subscription_tier.lower() if user.subscription_tier else "free"
+        if tier in ["pro", "business", "enterprise", "premium"]:
             return Role.PREMIUM
         else:
             return Role.USER
@@ -325,6 +329,7 @@ def get_user_permissions(user=None) -> Set[Permission]:
 # ROUTE DECORATORS
 # ============================================================================
 
+
 def require_permission(permission: Permission, status_code: int = 403):
     """
     Decorator to require a specific permission for a route
@@ -339,13 +344,16 @@ def require_permission(permission: Permission, status_code: int = 403):
         permission: Required permission
         status_code: HTTP status code to return if forbidden (default 403)
     """
+
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
             if not has_permission(permission):
                 abort(status_code)
             return f(*args, **kwargs)
+
         return decorated_function
+
     return decorator
 
 
@@ -358,13 +366,16 @@ def require_any_permission(*permissions: Permission, status_code: int = 403):
         def view_data():
             return "Data"
     """
+
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
             if not has_any_permission(list(permissions)):
                 abort(status_code)
             return f(*args, **kwargs)
+
         return decorated_function
+
     return decorator
 
 
@@ -377,13 +388,16 @@ def require_all_permissions(*permissions: Permission, status_code: int = 403):
         def modify_system():
             return "Modified"
     """
+
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
             if not has_all_permissions(list(permissions)):
                 abort(status_code)
             return f(*args, **kwargs)
+
         return decorated_function
+
     return decorator
 
 
@@ -396,19 +410,23 @@ def require_role(role: Role, status_code: int = 403):
         def admin_panel():
             return "Admin Panel"
     """
+
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
             if not has_role(role):
                 abort(status_code)
             return f(*args, **kwargs)
+
         return decorated_function
+
     return decorator
 
 
 # ============================================================================
 # PERMISSION HELPERS
 # ============================================================================
+
 
 def can_access_module(module_id: str, user=None) -> bool:
     """
@@ -466,6 +484,7 @@ def get_accessible_modules(user=None) -> List[str]:
 # AUDIT LOGGING
 # ============================================================================
 
+
 def log_permission_check(permission: Permission, granted: bool, user=None):
     """
     Log permission checks for audit purposes
@@ -482,8 +501,8 @@ def log_permission_check(permission: Permission, granted: bool, user=None):
         from tools.database import db
         from datetime import datetime
 
-        user_id = user.id if user and hasattr(user, 'id') else None
-        username = user.username if user and hasattr(user, 'username') else 'Anonymous'
+        user_id = user.id if user and hasattr(user, "id") else None
+        username = user.username if user and hasattr(user, "username") else "Anonymous"
 
         # Log to audit_log table if it exists
         query = """
@@ -494,10 +513,7 @@ def log_permission_check(permission: Permission, granted: bool, user=None):
         details = f"Permission check: {permission.value} - {'GRANTED' if granted else 'DENIED'}"
 
         with db.engine.connect() as conn:
-            conn.execute(
-                db.text(query),
-                (user_id, username, 'PERMISSION_CHECK', details, datetime.now())
-            )
+            conn.execute(db.text(query), (user_id, username, "PERMISSION_CHECK", details, datetime.now()))
             conn.commit()
 
     except Exception as e:
@@ -509,22 +525,23 @@ def log_permission_check(permission: Permission, granted: bool, user=None):
 # TESTING & DEBUGGING
 # ============================================================================
 
+
 def get_rbac_summary(user=None) -> dict:
     """Get summary of user's RBAC status"""
     role = get_user_role(user)
     permissions = get_user_permissions(user)
 
     return {
-        'role': role.name,
-        'role_level': role.value,
-        'permission_count': len(permissions),
-        'permissions': [p.value for p in sorted(permissions, key=lambda x: x.value)],
-        'can_access_admin': has_permission(Permission.ADMIN_ACCESS, user),
-        'is_premium': has_role(Role.PREMIUM, user),
+        "role": role.name,
+        "role_level": role.value,
+        "permission_count": len(permissions),
+        "permissions": [p.value for p in sorted(permissions, key=lambda x: x.value)],
+        "can_access_admin": has_permission(Permission.ADMIN_ACCESS, user),
+        "is_premium": has_role(Role.PREMIUM, user),
     }
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Test RBAC system
     print("=" * 80)
     print("RBAC SYSTEM TEST")

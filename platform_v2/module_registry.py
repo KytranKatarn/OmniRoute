@@ -993,22 +993,23 @@ MODULES: List[ModuleDefinition] = [
         tags=["system", "monitoring", "admin", "docker", "processes", "network", "host"],
     ),
     # ========== INTEGRATIONS ==========
-    ModuleDefinition(
-        id="figma",
-        name="Figma Integration",
-        description="Design-to-code pipeline<br>OAuth • Parser • AI mapper • React/Vue/HTML export",
-        icon="figma",
-        category=ModuleCategory.CREATION,
-        route="/tools/figma",
-        blueprint_import="tools.figma.routes:figma_bp",
-        required_permissions=[],
-        minimum_role="USER",
-        enabled=True,
-        coming_soon=False,
-        health_check=lambda: check_service_health("figma", "/tools/figma/api/status"),
-        priority=0,  # First in CREATION - Figma feeds data to Project Builder
-        tags=["figma", "design", "code-generation", "react", "vue", "html", "ai"],
-    ),
+    # DEPRECATED 2026-02-03: Not needed
+    # ModuleDefinition(
+    #     id="figma",
+    #     name="Figma Integration",
+    #     description="Design-to-code pipeline<br>OAuth • Parser • AI mapper • React/Vue/HTML export",
+    #     icon="figma",
+    #     category=ModuleCategory.CREATION,
+    #     route="/tools/figma",
+    #     blueprint_import="tools.figma.routes:figma_bp",
+    #     required_permissions=[],
+    #     minimum_role="USER",
+    #     enabled=True,
+    #     coming_soon=False,
+    #     health_check=lambda: check_service_health("figma", "/tools/figma/api/status"),
+    #     priority=0,  # First in CREATION - Figma feeds data to Project Builder
+    #     tags=["figma", "design", "code-generation", "react", "vue", "html", "ai"],
+    # ),
     # ========================================================================
     # ADDITIONAL MODULES - Registered 2026-01-20
     # NOTE: Removed disabled placeholders (book_builder, picture_generation,

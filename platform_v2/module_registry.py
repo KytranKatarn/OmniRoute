@@ -140,30 +140,31 @@ def content_studio_health_check() -> Dict:
         }
 
 
-def project_builder_health_check() -> Dict:
-    """Health check for Project Builder"""
-    try:
-        import os
-
-        paths_to_check = [
-            "/app/templates/tools/project_builder.html",
-            "/mnt/archie_brain/platform_v2/templates/tools/project_builder.html",
-        ]
-        exists = any(os.path.exists(p) for p in paths_to_check)
-
-        return {
-            "healthy": exists,
-            "module_id": "project_builder",
-            "message": "Project Builder operational" if exists else "Template not found",
-            "status": "healthy" if exists else "degraded",
-        }
-    except Exception as e:
-        return {
-            "healthy": False,
-            "module_id": "project_builder",
-            "message": f"Health check failed: {str(e)}",
-            "status": "unhealthy",
-        }
+# DEPRECATED 2026-02-03: Using project_manager instead
+# def project_builder_health_check() -> Dict:
+#     """Health check for Project Builder"""
+#     try:
+#         import os
+#
+#         paths_to_check = [
+#             "/app/templates/tools/project_builder.html",
+#             "/mnt/archie_brain/platform_v2/templates/tools/project_builder.html",
+#         ]
+#         exists = any(os.path.exists(p) for p in paths_to_check)
+#
+#         return {
+#             "healthy": exists,
+#             "module_id": "project_builder",
+#             "message": "Project Builder operational" if exists else "Template not found",
+#             "status": "healthy" if exists else "degraded",
+#         }
+#     except Exception as e:
+#         return {
+#             "healthy": False,
+#             "module_id": "project_builder",
+#             "message": f"Health check failed: {str(e)}",
+#             "status": "unhealthy",
+#         }
 
 
 def media_studio_health_check() -> Dict:
@@ -318,23 +319,24 @@ MODULES: List[ModuleDefinition] = [
     # CREATION TOOLS - Build projects, games, media, and content
     # Consolidated 2026-01-13: Merged overlapping builders
     # ========================================================================
-    ModuleDefinition(
-        id="project_builder",
-        name="Project Builder",
-        description="Build full-stack apps with AI<br>Describe your idea • AI generates code • Deploy instantly",
-        icon="building-2",
-        category=ModuleCategory.CREATION,
-        route="/tools/project-builder",
-        blueprint_import="tools.project_builder.routes:project_builder_bp",
-        required_permissions=[],
-        minimum_role="USER",
-        enabled=True,
-        beta=True,
-        coming_soon=False,
-        health_check=project_builder_health_check,
-        priority=1,
-        tags=["ai", "website", "app", "figma", "deployment", "flagship"],
-    ),
+    # DEPRECATED 2026-02-03: Using project_manager instead
+    # ModuleDefinition(
+    #     id="project_builder",
+    #     name="Project Builder",
+    #     description="Build full-stack apps with AI<br>Describe your idea • AI generates code • Deploy instantly",
+    #     icon="building-2",
+    #     category=ModuleCategory.CREATION,
+    #     route="/tools/project-builder",
+    #     blueprint_import="tools.project_builder.routes:project_builder_bp",
+    #     required_permissions=[],
+    #     minimum_role="USER",
+    #     enabled=True,
+    #     beta=True,
+    #     coming_soon=False,
+    #     health_check=project_builder_health_check,
+    #     priority=1,
+    #     tags=["ai", "website", "app", "figma", "deployment", "flagship"],
+    # ),
     ModuleDefinition(
         id="game_studio",
         name="Game Studio",

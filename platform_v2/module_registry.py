@@ -732,7 +732,7 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="bridge",
         name="Bridge Command",
-        description="Central command center for AI operations<br>Stations • LLM monitoring • Traffic control",
+        description="Central AI command center<br>Stations • LLM • IDE • Training",
         icon="monitor",
         category=ModuleCategory.ADMIN_OPS,
         route="/tools/bridge",
@@ -742,7 +742,7 @@ MODULES: List[ModuleDefinition] = [
         enabled=True,
         health_check=lambda: default_health_check("bridge"),
         priority=1,  # Second in Admin Ops (Blueprint=0, Bridge=1, Team=2, Consciousness=3)
-        tags=["bridge", "llm", "monitoring", "command", "stations", "admin-ops"],
+        tags=["bridge", "llm", "monitoring", "command", "stations", "ide", "training", "admin-ops"],
     ),
     ModuleDefinition(
         id="sandbox_manager",
@@ -760,22 +760,23 @@ MODULES: List[ModuleDefinition] = [
         priority=6,  # After Improvements Lab in DEVELOPMENT
         tags=["sandbox", "testing", "development", "deployment", "regression", "benchmarks"],
     ),
-    ModuleDefinition(
-        id="cursor_integration",
-        name="IDE Integration",
-        description="External IDE integration<br>Cursor AI • OpenCode • VS Code • MCP Protocol",
-        icon="mouse-pointer",
-        category=ModuleCategory.DEVELOPMENT,
-        route="/tools/cursor-integration",
-        blueprint_import="tools.cursor_integration.routes:cursor_integration_bp",
-        required_permissions=["admin:ide"],
-        minimum_role="ADMIN",
-        enabled=True,
-        coming_soon=False,
-        health_check=lambda: check_service_health("cursor_integration", "/tools/cursor-integration/api/status"),
-        priority=7,
-        tags=["ide", "cursor", "vscode", "integration", "mcp", "development"],
-    ),
+    # DEPRECATED 2026-02-03: Merged into bridge (IDE Integration section)
+    # ModuleDefinition(
+    #     id="cursor_integration",
+    #     name="IDE Integration",
+    #     description="External IDE integration<br>Cursor AI • OpenCode • VS Code • MCP Protocol",
+    #     icon="mouse-pointer",
+    #     category=ModuleCategory.DEVELOPMENT,
+    #     route="/tools/cursor-integration",
+    #     blueprint_import="tools.cursor_integration.routes:cursor_integration_bp",
+    #     required_permissions=["admin:ide"],
+    #     minimum_role="ADMIN",
+    #     enabled=True,
+    #     coming_soon=False,
+    #     health_check=lambda: check_service_health("cursor_integration", "/tools/cursor-integration/api/status"),
+    #     priority=7,
+    #     tags=["ide", "cursor", "vscode", "integration", "mcp", "development"],
+    # ),
     # DEPRECATED 2026-02-03: Merged into sandbox_manager
     # ModuleDefinition(
     #     id="testing_suite",
@@ -793,22 +794,23 @@ MODULES: List[ModuleDefinition] = [
     #     priority=8,
     #     tags=["testing", "regression", "benchmarks", "quality", "development"],
     # ),
-    ModuleDefinition(
-        id="fine_tuning",
-        name="AI Fine-tuning",
-        description="Custom model training<br>Datasets • LoRA • Training jobs • Deploy to Ollama",
-        icon="brain",
-        category=ModuleCategory.DEVELOPMENT,
-        route="/tools/fine-tuning",
-        blueprint_import="tools.fine_tuning.routes:fine_tuning_bp",
-        required_permissions=["admin:fine_tuning"],
-        minimum_role="ADMIN",
-        enabled=True,
-        coming_soon=False,
-        health_check=lambda: check_service_health("fine_tuning", "/tools/fine-tuning/api/status"),
-        priority=9,
-        tags=["ai", "fine-tuning", "training", "models", "ollama", "development"],
-    ),
+    # DEPRECATED 2026-02-03: Merged into bridge (Agent Training section)
+    # ModuleDefinition(
+    #     id="fine_tuning",
+    #     name="AI Fine-tuning",
+    #     description="Custom model training<br>Datasets • LoRA • Training jobs • Deploy to Ollama",
+    #     icon="brain",
+    #     category=ModuleCategory.DEVELOPMENT,
+    #     route="/tools/fine-tuning",
+    #     blueprint_import="tools.fine_tuning.routes:fine_tuning_bp",
+    #     required_permissions=["admin:fine_tuning"],
+    #     minimum_role="ADMIN",
+    #     enabled=True,
+    #     coming_soon=False,
+    #     health_check=lambda: check_service_health("fine_tuning", "/tools/fine-tuning/api/status"),
+    #     priority=9,
+    #     tags=["ai", "fine-tuning", "training", "models", "ollama", "development"],
+    # ),
     # ========================================================================
     # STAND ALONE APPS - Unique apps for Android + Web subscriptions
     # Character-based AI modules with specialized personas

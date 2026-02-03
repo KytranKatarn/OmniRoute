@@ -14,6 +14,6 @@ Version: 2.0.0
 
 from flask import Blueprint
 
-cursor_integration_bp = Blueprint('cursor_integration', __name__, url_prefix='/tools/cursor-integration')
+cursor_integration_bp = Blueprint("cursor_integration", __name__, url_prefix="/tools/cursor-integration")
 
 from . import routes

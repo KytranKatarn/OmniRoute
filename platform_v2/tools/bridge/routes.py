@@ -8,9 +8,12 @@ Author: A.R.C.H.I.E. Platform
 Date: 2026-01-16
 """
 
+import hashlib
 import os
+import sys
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
+from typing import Dict, List
 from flask import Blueprint, render_template, jsonify, request
 from flask_login import login_required, current_user
 import psycopg2
@@ -19,99 +22,175 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-bridge_bp = Blueprint('bridge', __name__, url_prefix='/tools/bridge')
+bridge_bp = Blueprint("bridge", __name__, url_prefix="/tools/bridge")
+
 
 # Database connection helper
 def get_db_connection():
     """Get database connection"""
     return psycopg2.connect(
-        host=os.getenv('DB_HOST', 'localhost'),
-        port=os.getenv('DB_PORT', '5432'),
-        database=os.getenv('DB_NAME', 'archie'),
-        user=os.getenv('DB_USER', 'archie'),
-        password=os.getenv('DB_PASSWORD', '')
+        host=os.getenv("DB_HOST", "localhost"),
+        port=os.getenv("DB_PORT", "5432"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", ""),
     )
+
 
 # ============================================================================
 # STATION DEFINITIONS (Database-driven - 10 stations)
 # ============================================================================
+
 
 def get_stations_from_db():
     """Get all stations from database"""
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT station_code, station_name, full_name, description,
                    color, icon, default_llm, modules, position_row, position_order
             FROM bridge_stations
             WHERE is_active = TRUE
             ORDER BY position_row, position_order
-        """)
+        """
+        )
         stations = cur.fetchall()
         cur.close()
         conn.close()
-        return {s['station_code']: dict(s) for s in stations}
+        return {s["station_code"]: dict(s) for s in stations}
     except Exception as e:
         logger.error(f"Error loading stations from DB: {e}")
         return {}
 
+
 # Fallback stations if DB unavailable
 STATIONS_FALLBACK = {
-    'COMMAND': {'station_name': 'Command', 'full_name': 'A.R.C.H.I.E. Command Center', 'color': '#00FFFF', 'icon': '🎯', 'default_llm': 'archie_core', 'modules': ['archie_core', 'archie_chat']},
-    'CONSCIOUSNESS': {'station_name': 'Consciousness', 'full_name': 'Warp Core', 'color': '#FF00FF', 'icon': '🧠', 'default_llm': 'deepseek-coder-v2:16b', 'modules': ['consciousness', 'knowledge_base']},
-    'HR': {'station_name': 'HR', 'full_name': 'Human Resources & Ethics', 'color': '#10B981', 'icon': '👥', 'default_llm': 'qwen2.5-coder:7b', 'modules': ['team_management', 'ethics_agent']},
-    'RND': {'station_name': 'R&D', 'full_name': 'Research & Development', 'color': '#8B5CF6', 'icon': '🔬', 'default_llm': 'claude-sonnet-4', 'modules': ['code_sentinel', 'improvements', 'sandbox_manager']},
-    'OPERATIONS': {'station_name': 'Operations', 'full_name': 'Business Operations', 'color': '#FFAA00', 'icon': '📊', 'default_llm': 'qwen2.5-coder:7b', 'modules': ['crm', 'invoicing', 'scheduler']},
-    'ENGINEERING': {'station_name': 'Engineering', 'full_name': 'Engineering & Development', 'color': '#0EA5E9', 'icon': '⚙️', 'default_llm': 'deepseek-coder-v2:16b', 'modules': ['project_builder', 'website_designer', 'code_editor']},
-    'CREATIVE': {'station_name': 'Creative', 'full_name': 'Creative & Media', 'color': '#F472B6', 'icon': '🎨', 'default_llm': 'gpt-4', 'modules': ['media_studio', 'content_studio', 'social_media']},
-    'SECURITY': {'station_name': 'Security', 'full_name': 'Security & Backup', 'color': '#EF4444', 'icon': '🛡️', 'default_llm': 'claude-opus-4', 'modules': ['backup_manager', 'security_network']},
-    'MEDICAL': {'station_name': 'Medical', 'full_name': 'Medical & Wellness', 'color': '#84CC16', 'icon': '🏥', 'default_llm': 'llama3.1:8b', 'modules': ['doc', 'therapy', 'fitness']},
-    'AWAY_TEAM': {'station_name': 'Away Team', 'full_name': 'External Operations', 'color': '#F59E0B', 'icon': '🚀', 'default_llm': 'grok-beta', 'modules': ['web_scraper', 'research_agent']}
+    "COMMAND": {
+        "station_name": "Command",
+        "full_name": "A.R.C.H.I.E. Command Center",
+        "color": "#00FFFF",
+        "icon": "🎯",
+        "default_llm": "archie_core",
+        "modules": ["archie_core", "archie_chat"],
+    },
+    "CONSCIOUSNESS": {
+        "station_name": "Consciousness",
+        "full_name": "Warp Core",
+        "color": "#FF00FF",
+        "icon": "🧠",
+        "default_llm": "deepseek-coder-v2:16b",
+        "modules": ["consciousness", "knowledge_base"],
+    },
+    "HR": {
+        "station_name": "HR",
+        "full_name": "Human Resources & Ethics",
+        "color": "#10B981",
+        "icon": "👥",
+        "default_llm": "qwen2.5-coder:7b",
+        "modules": ["team_management", "ethics_agent"],
+    },
+    "RND": {
+        "station_name": "R&D",
+        "full_name": "Research & Development",
+        "color": "#8B5CF6",
+        "icon": "🔬",
+        "default_llm": "claude-sonnet-4",
+        "modules": ["code_sentinel", "improvements", "sandbox_manager"],
+    },
+    "OPERATIONS": {
+        "station_name": "Operations",
+        "full_name": "Business Operations",
+        "color": "#FFAA00",
+        "icon": "📊",
+        "default_llm": "qwen2.5-coder:7b",
+        "modules": ["crm", "invoicing", "scheduler"],
+    },
+    "ENGINEERING": {
+        "station_name": "Engineering",
+        "full_name": "Engineering & Development",
+        "color": "#0EA5E9",
+        "icon": "⚙️",
+        "default_llm": "deepseek-coder-v2:16b",
+        "modules": ["project_builder", "website_designer", "code_editor"],
+    },
+    "CREATIVE": {
+        "station_name": "Creative",
+        "full_name": "Creative & Media",
+        "color": "#F472B6",
+        "icon": "🎨",
+        "default_llm": "gpt-4",
+        "modules": ["media_studio", "content_studio", "social_media"],
+    },
+    "SECURITY": {
+        "station_name": "Security",
+        "full_name": "Security & Backup",
+        "color": "#EF4444",
+        "icon": "🛡️",
+        "default_llm": "claude-opus-4",
+        "modules": ["backup_manager", "security_network"],
+    },
+    "MEDICAL": {
+        "station_name": "Medical",
+        "full_name": "Medical & Wellness",
+        "color": "#84CC16",
+        "icon": "🏥",
+        "default_llm": "llama3.1:8b",
+        "modules": ["doc", "therapy", "fitness"],
+    },
+    "AWAY_TEAM": {
+        "station_name": "Away Team",
+        "full_name": "External Operations",
+        "color": "#F59E0B",
+        "icon": "🚀",
+        "default_llm": "grok-beta",
+        "modules": ["web_scraper", "research_agent"],
+    },
 }
 
 # LLM Connection definitions
 LLM_CONNECTIONS = {
-    'ollama_local': {
-        'name': 'Ollama (Local)',
-        'type': 'local',
-        'host': '192.168.1.246',
-        'port': 11434,
-        'models': ['qwen2.5-coder:7b', 'deepseek-coder-v2:16b', 'llama3.1:8b'],
-        'cost': 'FREE'
+    "ollama_local": {
+        "name": "Ollama (Local)",
+        "type": "local",
+        "host": "192.168.1.246",
+        "port": 11434,
+        "models": ["qwen2.5-coder:7b", "deepseek-coder-v2:16b", "llama3.1:8b"],
+        "cost": "FREE",
     },
-    'claude_api': {
-        'name': 'Claude API',
-        'type': 'api',
-        'host': 'api.anthropic.com',
-        'port': 443,
-        'models': ['claude-sonnet-4', 'claude-opus-4'],
-        'cost': 'PAID'
+    "claude_api": {
+        "name": "Claude API",
+        "type": "api",
+        "host": "api.anthropic.com",
+        "port": 443,
+        "models": ["claude-sonnet-4", "claude-opus-4"],
+        "cost": "PAID",
     },
-    'openai_api': {
-        'name': 'OpenAI API',
-        'type': 'api',
-        'host': 'api.openai.com',
-        'port': 443,
-        'models': ['gpt-4', 'gpt-4-turbo', 'gpt-4o'],
-        'cost': 'PAID'
+    "openai_api": {
+        "name": "OpenAI API",
+        "type": "api",
+        "host": "api.openai.com",
+        "port": 443,
+        "models": ["gpt-4", "gpt-4-turbo", "gpt-4o"],
+        "cost": "PAID",
     },
-    'grok_api': {
-        'name': 'Grok API',
-        'type': 'api',
-        'host': 'api.x.ai',
-        'port': 443,
-        'models': ['grok-beta'],
-        'cost': 'PAID'
+    "grok_api": {
+        "name": "Grok API",
+        "type": "api",
+        "host": "api.x.ai",
+        "port": 443,
+        "models": ["grok-beta"],
+        "cost": "PAID",
     },
-    'gemini_api': {
-        'name': 'Gemini API',
-        'type': 'api',
-        'host': 'generativelanguage.googleapis.com',
-        'port': 443,
-        'models': ['gemini-2.0-flash'],
-        'cost': 'PAID'
-    }
+    "gemini_api": {
+        "name": "Gemini API",
+        "type": "api",
+        "host": "generativelanguage.googleapis.com",
+        "port": 443,
+        "models": ["gemini-2.0-flash"],
+        "cost": "PAID",
+    },
 }
 
 
@@ -119,17 +198,19 @@ LLM_CONNECTIONS = {
 # MAIN BRIDGE PAGE
 # ============================================================================
 
-@bridge_bp.route('/')
+
+@bridge_bp.route("/")
 def bridge_dashboard():
     """Render the main Bridge command center"""
-    return render_template('tools/bridge.html')
+    return render_template("tools/bridge.html")
 
 
 # ============================================================================
 # BRIDGE STATS API
 # ============================================================================
 
-@bridge_bp.route('/api/stats')
+
+@bridge_bp.route("/api/stats")
 def get_bridge_stats():
     """Get overall Bridge statistics"""
     try:
@@ -137,34 +218,40 @@ def get_bridge_stats():
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get active agents count
-        cur.execute("""
+        cur.execute(
+            """
             SELECT COUNT(*) as active_agents
             FROM agents
             WHERE status = 'active'
-        """)
+        """
+        )
         agent_stats = cur.fetchone()
 
         # Get recent token usage (last 24h)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 COALESCE(SUM(tokens_used), 0) as total_tokens,
                 COUNT(*) as total_requests
             FROM token_usage_log
             WHERE created_at > NOW() - INTERVAL '24 hours'
-        """)
+        """
+        )
         token_stats = cur.fetchone()
 
         # Get A.R.C.H.I.E.'s emotional state
-        cur.execute("""
+        cur.execute(
+            """
             SELECT current_mood, mood_intensity, relationship_strength
             FROM archie_emotional_state
             ORDER BY timestamp DESC
             LIMIT 1
-        """)
+        """
+        )
         emotional_state = cur.fetchone() or {
-            'current_mood': 'supportive',
-            'mood_intensity': 0.85,
-            'relationship_strength': 0.90
+            "current_mood": "supportive",
+            "mood_intensity": 0.85,
+            "relationship_strength": 0.90,
         }
 
         cur.close()
@@ -172,46 +259,46 @@ def get_bridge_stats():
 
         # Calculate system load (simulated for now)
         import random
+
         system_load = random.randint(25, 45)
 
-        return jsonify({
-            'success': True,
-            'stats': {
-                'llm_status': {
-                    'online': 5,
-                    'total': 6
+        return jsonify(
+            {
+                "success": True,
+                "stats": {
+                    "llm_status": {"online": 5, "total": 6},
+                    "active_requests": token_stats["total_requests"] if token_stats else 0,
+                    "system_load": system_load,
+                    "active_agents": agent_stats["active_agents"] if agent_stats else 0,
+                    "tokens_24h": token_stats["total_tokens"] if token_stats else 0,
                 },
-                'active_requests': token_stats['total_requests'] if token_stats else 0,
-                'system_load': system_load,
-                'active_agents': agent_stats['active_agents'] if agent_stats else 0,
-                'tokens_24h': token_stats['total_tokens'] if token_stats else 0
-            },
-            'archie': {
-                'mood': emotional_state['current_mood'],
-                'energy': float(emotional_state['mood_intensity']) if emotional_state.get('mood_intensity') else 0.85,
-                'relationship': float(emotional_state['relationship_strength']) if emotional_state.get('relationship_strength') else 0.90,
-                'status': 'Active'
-            },
-            'captain': {
-                'name': 'Kytran',
-                'role': 'Admin',
-                'status': 'On Duty'
+                "archie": {
+                    "mood": emotional_state["current_mood"],
+                    "energy": (
+                        float(emotional_state["mood_intensity"]) if emotional_state.get("mood_intensity") else 0.85
+                    ),
+                    "relationship": (
+                        float(emotional_state["relationship_strength"])
+                        if emotional_state.get("relationship_strength")
+                        else 0.90
+                    ),
+                    "status": "Active",
+                },
+                "captain": {"name": "Kytran", "role": "Admin", "status": "On Duty"},
             }
-        })
+        )
 
     except Exception as e:
         logger.error(f"Error getting bridge stats: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # STATIONS API
 # ============================================================================
 
-@bridge_bp.route('/api/stations')
+
+@bridge_bp.route("/api/stations")
 def get_stations():
     """Get all station configurations from database (10 stations)"""
     try:
@@ -219,69 +306,69 @@ def get_stations():
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get all stations from database
-        cur.execute("""
+        cur.execute(
+            """
             SELECT id, station_code, station_name, full_name, description,
                    color, icon, default_llm, modules, position_row, position_order
             FROM bridge_stations
             WHERE is_active = TRUE
             ORDER BY position_row, position_order
-        """)
+        """
+        )
         db_stations = cur.fetchall()
 
         stations_data = []
         for station in db_stations:
             # Get assigned agents for this station (include full name fields)
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT a.id, a.name, a.first_name, a.last_name, a.title,
                        a.avatar_url, a.model, sa.assignment_type
                 FROM station_assignments sa
                 JOIN agents a ON sa.agent_id = a.id
                 WHERE sa.station_id = %s AND sa.is_active = TRUE AND a.status = 'active'
                 ORDER BY sa.priority
-            """, (station['id'],))
+            """,
+                (station["id"],),
+            )
             assigned_agents = cur.fetchall()
 
             # Get agent count by type
-            primary_agents = [a for a in assigned_agents if a['assignment_type'] == 'primary']
-            backup_agents = [a for a in assigned_agents if a['assignment_type'] == 'backup']
+            primary_agents = [a for a in assigned_agents if a["assignment_type"] == "primary"]
+            backup_agents = [a for a in assigned_agents if a["assignment_type"] == "backup"]
 
-            stations_data.append({
-                'id': station['id'],
-                'code': station['station_code'],
-                'name': station['station_name'],
-                'full_name': station['full_name'],
-                'description': station['description'],
-                'color': station['color'],
-                'icon': station['icon'],
-                'default_llm': station['default_llm'],
-                'modules': station['modules'] or [],
-                'position_row': station['position_row'],
-                'position_order': station['position_order'],
-                'assigned_agents': assigned_agents,
-                'primary_count': len(primary_agents),
-                'backup_count': len(backup_agents),
-                'total_agents': len(assigned_agents),
-                'status': 'active'
-            })
+            stations_data.append(
+                {
+                    "id": station["id"],
+                    "code": station["station_code"],
+                    "name": station["station_name"],
+                    "full_name": station["full_name"],
+                    "description": station["description"],
+                    "color": station["color"],
+                    "icon": station["icon"],
+                    "default_llm": station["default_llm"],
+                    "modules": station["modules"] or [],
+                    "position_row": station["position_row"],
+                    "position_order": station["position_order"],
+                    "assigned_agents": assigned_agents,
+                    "primary_count": len(primary_agents),
+                    "backup_count": len(backup_agents),
+                    "total_agents": len(assigned_agents),
+                    "status": "active",
+                }
+            )
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'stations': stations_data,
-            'total_stations': len(stations_data)
-        })
+        return jsonify({"success": True, "stations": stations_data, "total_stations": len(stations_data)})
 
     except Exception as e:
         logger.error(f"Error getting stations: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/stations/<station_code>')
+@bridge_bp.route("/api/stations/<station_code>")
 def get_station_detail(station_code):
     """Get detailed info for a specific station"""
     station_code = station_code.upper()
@@ -291,24 +378,25 @@ def get_station_detail(station_code):
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get station from database
-        cur.execute("""
+        cur.execute(
+            """
             SELECT id, station_code, station_name, full_name, description,
                    color, icon, default_llm, modules, position_row, position_order
             FROM bridge_stations
             WHERE station_code = %s AND is_active = TRUE
-        """, (station_code,))
+        """,
+            (station_code,),
+        )
         station = cur.fetchone()
 
         if not station:
             cur.close()
             conn.close()
-            return jsonify({
-                'success': False,
-                'error': f'Station {station_code} not found'
-            }), 404
+            return jsonify({"success": False, "error": f"Station {station_code} not found"}), 404
 
         # Get assigned agents with full details
-        cur.execute("""
+        cur.execute(
+            """
             SELECT a.id, a.name, a.first_name, a.last_name, a.title, a.avatar_url,
                    a.model, a.department, a.tier, a.status, a.worker_type,
                    sa.assignment_type, sa.shift_preference, sa.priority
@@ -316,135 +404,136 @@ def get_station_detail(station_code):
             JOIN agents a ON sa.agent_id = a.id
             WHERE sa.station_id = %s AND sa.is_active = TRUE
             ORDER BY sa.priority
-        """, (station['id'],))
+        """,
+            (station["id"],),
+        )
         assigned_agents = cur.fetchall()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'station': {
-                'id': station['id'],
-                'code': station['station_code'],
-                'name': station['station_name'],
-                'full_name': station['full_name'],
-                'description': station['description'],
-                'color': station['color'],
-                'icon': station['icon'],
-                'default_llm': station['default_llm'],
-                'modules': station['modules'] or [],
-                'assigned_agents': assigned_agents,
-                'total_agents': len(assigned_agents)
+        return jsonify(
+            {
+                "success": True,
+                "station": {
+                    "id": station["id"],
+                    "code": station["station_code"],
+                    "name": station["station_name"],
+                    "full_name": station["full_name"],
+                    "description": station["description"],
+                    "color": station["color"],
+                    "icon": station["icon"],
+                    "default_llm": station["default_llm"],
+                    "modules": station["modules"] or [],
+                    "assigned_agents": assigned_agents,
+                    "total_agents": len(assigned_agents),
+                },
             }
-        })
+        )
 
     except Exception as e:
         logger.error(f"Error getting station detail: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # LLM CONNECTIONS API
 # ============================================================================
 
-@bridge_bp.route('/api/connections')
+
+@bridge_bp.route("/api/connections")
 def get_llm_connections():
     """Get all LLM connection statuses"""
     connections = []
 
     for conn_id, conn_info in LLM_CONNECTIONS.items():
         # Check if connection is available
-        status = 'unknown'
+        status = "unknown"
         latency = None
 
-        if conn_info['type'] == 'local':
+        if conn_info["type"] == "local":
             # Check Ollama
-            status, latency = check_ollama_status(conn_info['host'], conn_info['port'])
-        elif conn_info['type'] == 'api':
+            status, latency = check_ollama_status(conn_info["host"], conn_info["port"])
+        elif conn_info["type"] == "api":
             # Check if API key is configured
             status = check_api_key_status(conn_id)
 
-        connections.append({
-            'id': conn_id,
-            'name': conn_info['name'],
-            'type': conn_info['type'],
-            'host': conn_info['host'],
-            'port': conn_info['port'],
-            'models': conn_info['models'],
-            'cost': conn_info['cost'],
-            'status': status,
-            'latency_ms': latency
-        })
+        connections.append(
+            {
+                "id": conn_id,
+                "name": conn_info["name"],
+                "type": conn_info["type"],
+                "host": conn_info["host"],
+                "port": conn_info["port"],
+                "models": conn_info["models"],
+                "cost": conn_info["cost"],
+                "status": status,
+                "latency_ms": latency,
+            }
+        )
 
-    return jsonify({
-        'success': True,
-        'connections': connections
-    })
+    return jsonify({"success": True, "connections": connections})
 
 
-@bridge_bp.route('/api/connections/<connection_id>/health')
+@bridge_bp.route("/api/connections/<connection_id>/health")
 def check_connection_health(connection_id):
     """Check health of a specific LLM connection"""
     if connection_id not in LLM_CONNECTIONS:
-        return jsonify({
-            'success': False,
-            'error': f'Connection {connection_id} not found'
-        }), 404
+        return jsonify({"success": False, "error": f"Connection {connection_id} not found"}), 404
 
     conn_info = LLM_CONNECTIONS[connection_id]
 
-    if conn_info['type'] == 'local':
-        status, latency = check_ollama_status(conn_info['host'], conn_info['port'])
-        available_models = get_ollama_models(conn_info['host'], conn_info['port']) if status == 'online' else []
+    if conn_info["type"] == "local":
+        status, latency = check_ollama_status(conn_info["host"], conn_info["port"])
+        available_models = get_ollama_models(conn_info["host"], conn_info["port"]) if status == "online" else []
     else:
         status = check_api_key_status(connection_id)
         latency = None
-        available_models = conn_info['models'] if status == 'configured' else []
+        available_models = conn_info["models"] if status == "configured" else []
 
-    return jsonify({
-        'success': True,
-        'connection': {
-            'id': connection_id,
-            'name': conn_info['name'],
-            'status': status,
-            'latency_ms': latency,
-            'available_models': available_models
+    return jsonify(
+        {
+            "success": True,
+            "connection": {
+                "id": connection_id,
+                "name": conn_info["name"],
+                "status": status,
+                "latency_ms": latency,
+                "available_models": available_models,
+            },
         }
-    })
+    )
 
 
 def check_ollama_status(host, port):
     """Check if Ollama is running and responsive"""
     try:
         import time
+
         start = time.time()
-        response = requests.get(f'http://{host}:{port}/api/tags', timeout=5)
+        response = requests.get(f"http://{host}:{port}/api/tags", timeout=5)
         latency = int((time.time() - start) * 1000)
 
         if response.status_code == 200:
-            return 'online', latency
+            return "online", latency
         else:
-            return 'degraded', latency
+            return "degraded", latency
     except requests.exceptions.Timeout:
-        return 'timeout', None
+        return "timeout", None
     except requests.exceptions.ConnectionError:
-        return 'offline', None
+        return "offline", None
     except Exception as e:
         logger.error(f"Error checking Ollama: {e}")
-        return 'error', None
+        return "error", None
 
 
 def get_ollama_models(host, port):
     """Get list of available Ollama models"""
     try:
-        response = requests.get(f'http://{host}:{port}/api/tags', timeout=5)
+        response = requests.get(f"http://{host}:{port}/api/tags", timeout=5)
         if response.status_code == 200:
             data = response.json()
-            return [model['name'] for model in data.get('models', [])]
+            return [model["name"] for model in data.get("models", [])]
     except Exception as e:
         logger.error(f"Error getting Ollama models: {e}")
     return []
@@ -453,30 +542,32 @@ def get_ollama_models(host, port):
 def check_api_key_status(connection_id):
     """Check if API key is configured for a connection"""
     key_mapping = {
-        'claude_api': 'ANTHROPIC_API_KEY',
-        'openai_api': 'OPENAI_API_KEY',
-        'grok_api': 'GROK_API_KEY',
-        'gemini_api': 'GOOGLE_API_KEY'
+        "claude_api": "ANTHROPIC_API_KEY",
+        "openai_api": "OPENAI_API_KEY",
+        "grok_api": "GROK_API_KEY",
+        "gemini_api": "GOOGLE_API_KEY",
     }
 
     env_var = key_mapping.get(connection_id)
     if env_var and os.getenv(env_var):
-        return 'configured'
-    return 'not_configured'
+        return "configured"
+    return "not_configured"
 
 
 # ============================================================================
 # AGENTS API (for station assignment)
 # ============================================================================
 
-@bridge_bp.route('/api/agents')
+
+@bridge_bp.route("/api/agents")
 def get_bridge_agents():
     """Get agents available for station assignment"""
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 id, name, title, department, status,
                 avatar_url, model, system_prompt, tier,
@@ -484,37 +575,32 @@ def get_bridge_agents():
             FROM agents
             WHERE status IN ('active', 'idle', 'busy')
             ORDER BY name
-        """)
+        """
+        )
         agents = cur.fetchall()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'agents': agents
-        })
+        return jsonify({"success": True, "agents": agents})
 
     except Exception as e:
         logger.error(f"Error getting agents: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/agents/<int:agent_id>/assign-station', methods=['POST'])
+@bridge_bp.route("/api/agents/<int:agent_id>/assign-station", methods=["POST"])
 def assign_agent_to_station(agent_id):
     """Assign an agent to a station"""
     data = request.get_json() or {}
-    station_code = data.get('station_code')
-    assignment_type = data.get('assignment_type', 'primary')  # primary, backup, relief
-    shift_preference = data.get('shift_preference', 'any')  # alpha, beta, gamma, any
-    priority = data.get('priority', 10)
-    notes = data.get('notes', '')
+    station_code = data.get("station_code")
+    assignment_type = data.get("assignment_type", "primary")  # primary, backup, relief
+    shift_preference = data.get("shift_preference", "any")  # alpha, beta, gamma, any
+    priority = data.get("priority", 10)
+    notes = data.get("notes", "")
 
     if not station_code:
-        return jsonify({'success': False, 'error': 'station_code required'}), 400
+        return jsonify({"success": False, "error": "station_code required"}), 400
 
     try:
         conn = get_db_connection()
@@ -526,56 +612,67 @@ def assign_agent_to_station(agent_id):
         if not station:
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': f'Station {station_code} not found'}), 404
+            return jsonify({"success": False, "error": f"Station {station_code} not found"}), 404
 
-        station_id = station['id']
+        station_id = station["id"]
 
         # Check if assignment already exists
-        cur.execute("""
+        cur.execute(
+            """
             SELECT id FROM station_assignments
             WHERE station_id = %s AND agent_id = %s
-        """, (station_id, agent_id))
+        """,
+            (station_id, agent_id),
+        )
         existing = cur.fetchone()
 
         if existing:
             # Update existing assignment
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE station_assignments
                 SET assignment_type = %s, shift_preference = %s, priority = %s,
                     notes = %s, is_active = TRUE, assigned_at = NOW()
                 WHERE id = %s
                 RETURNING id
-            """, (assignment_type, shift_preference, priority, notes, existing['id']))
+            """,
+                (assignment_type, shift_preference, priority, notes, existing["id"]),
+            )
         else:
             # Create new assignment
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO station_assignments
                 (station_id, agent_id, assignment_type, shift_preference, priority, notes)
                 VALUES (%s, %s, %s, %s, %s, %s)
                 RETURNING id
-            """, (station_id, agent_id, assignment_type, shift_preference, priority, notes))
+            """,
+                (station_id, agent_id, assignment_type, shift_preference, priority, notes),
+            )
 
-        assignment_id = cur.fetchone()['id']
+        assignment_id = cur.fetchone()["id"]
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'assignment_id': assignment_id,
-            'message': f'Agent assigned to {station_code} as {assignment_type}'
-        })
+        return jsonify(
+            {
+                "success": True,
+                "assignment_id": assignment_id,
+                "message": f"Agent assigned to {station_code} as {assignment_type}",
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error assigning agent: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/agents/<int:agent_id>/unassign-station', methods=['POST'])
+@bridge_bp.route("/api/agents/<int:agent_id>/unassign-station", methods=["POST"])
 def unassign_agent_from_station(agent_id):
     """Remove an agent from a station"""
     data = request.get_json() or {}
-    station_code = data.get('station_code')
+    station_code = data.get("station_code")
 
     try:
         conn = get_db_connection()
@@ -583,50 +680,60 @@ def unassign_agent_from_station(agent_id):
 
         if station_code:
             # Unassign from specific station
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE station_assignments sa
                 SET is_active = FALSE
                 FROM bridge_stations bs
                 WHERE sa.station_id = bs.id
                   AND bs.station_code = %s
                   AND sa.agent_id = %s
-            """, (station_code.upper(), agent_id))
+            """,
+                (station_code.upper(), agent_id),
+            )
         else:
             # Unassign from all stations
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE station_assignments
                 SET is_active = FALSE
                 WHERE agent_id = %s
-            """, (agent_id,))
+            """,
+                (agent_id,),
+            )
 
         conn.commit()
         affected = cur.rowcount
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'message': f'Agent unassigned from {station_code if station_code else "all stations"}',
-            'affected': affected
-        })
+        return jsonify(
+            {
+                "success": True,
+                "message": f'Agent unassigned from {station_code if station_code else "all stations"}',
+                "affected": affected,
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error unassigning agent: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # STATION ASSIGNMENTS API (Phase 28)
 # ============================================================================
 
-@bridge_bp.route('/api/stations/assignments')
+
+@bridge_bp.route("/api/stations/assignments")
 def get_all_station_assignments():
     """Get all station assignments grouped by station"""
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 bs.id as station_id,
                 bs.station_code,
@@ -659,7 +766,8 @@ def get_all_station_assignments():
             WHERE bs.is_active = TRUE
             GROUP BY bs.id, bs.station_code, bs.station_name, bs.color, bs.icon, bs.position_row, bs.position_order
             ORDER BY bs.position_row, bs.position_order
-        """)
+        """
+        )
         stations = cur.fetchall()
 
         cur.close()
@@ -667,29 +775,31 @@ def get_all_station_assignments():
 
         # Convert datetime in nested JSON
         for station in stations:
-            if station['agents']:
-                for agent in station['agents']:
-                    if agent.get('assigned_at'):
-                        agent['assigned_at'] = agent['assigned_at'].isoformat() if hasattr(agent['assigned_at'], 'isoformat') else str(agent['assigned_at'])
+            if station["agents"]:
+                for agent in station["agents"]:
+                    if agent.get("assigned_at"):
+                        agent["assigned_at"] = (
+                            agent["assigned_at"].isoformat()
+                            if hasattr(agent["assigned_at"], "isoformat")
+                            else str(agent["assigned_at"])
+                        )
 
-        return jsonify({
-            'success': True,
-            'stations': stations
-        })
+        return jsonify({"success": True, "stations": stations})
 
     except Exception as e:
         logger.error(f"Error getting assignments: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/stations/unassigned-agents')
+@bridge_bp.route("/api/stations/unassigned-agents")
 def get_unassigned_agents():
     """Get agents not assigned to any station"""
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT a.id, a.name, a.title, a.department, a.status,
                    a.avatar_url, a.model, a.tier, a.capabilities
             FROM agents a
@@ -699,75 +809,81 @@ def get_unassigned_agents():
                   WHERE sa.agent_id = a.id AND sa.is_active = TRUE
               )
             ORDER BY a.name
-        """)
+        """
+        )
         agents = cur.fetchall()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'agents': agents,
-            'count': len(agents)
-        })
+        return jsonify({"success": True, "agents": agents, "count": len(agents)})
 
     except Exception as e:
         logger.error(f"Error getting unassigned agents: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/stations/<station_code>/config', methods=['GET'])
+@bridge_bp.route("/api/stations/<station_code>/config", methods=["GET"])
 def get_station_config(station_code):
     """Get station configuration"""
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT id, station_code, station_name, full_name, description,
                    color, icon, default_llm, modules, position_row, position_order,
                    is_active, created_at, updated_at
             FROM bridge_stations
             WHERE station_code = %s
-        """, (station_code.upper(),))
+        """,
+            (station_code.upper(),),
+        )
         station = cur.fetchone()
 
         if not station:
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Station not found'}), 404
+            return jsonify({"success": False, "error": "Station not found"}), 404
 
         cur.close()
         conn.close()
 
         # Convert datetime
-        for key in ['created_at', 'updated_at']:
+        for key in ["created_at", "updated_at"]:
             if station.get(key):
                 station[key] = station[key].isoformat()
 
-        return jsonify({
-            'success': True,
-            'station': station
-        })
+        return jsonify({"success": True, "station": station})
 
     except Exception as e:
         logger.error(f"Error getting station config: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/stations/<station_code>/config', methods=['PUT'])
+@bridge_bp.route("/api/stations/<station_code>/config", methods=["PUT"])
 def update_station_config(station_code):
     """Update station configuration"""
     data = request.get_json() or {}
 
-    allowed_fields = ['station_name', 'full_name', 'description', 'color',
-                      'icon', 'default_llm', 'modules', 'position_row',
-                      'position_order', 'is_active']
+    allowed_fields = [
+        "station_name",
+        "full_name",
+        "description",
+        "color",
+        "icon",
+        "default_llm",
+        "modules",
+        "position_row",
+        "position_order",
+        "is_active",
+    ]
 
     updates = {k: v for k, v in data.items() if k in allowed_fields}
 
     if not updates:
-        return jsonify({'success': False, 'error': 'No valid fields to update'}), 400
+        return jsonify({"success": False, "error": "No valid fields to update"}), 400
 
     try:
         conn = get_db_connection()
@@ -778,12 +894,15 @@ def update_station_config(station_code):
         values = list(updates.values())
         values.append(station_code.upper())
 
-        cur.execute(f"""
+        cur.execute(
+            f"""
             UPDATE bridge_stations
             SET {', '.join(set_clauses)}, updated_at = NOW()
             WHERE station_code = %s
             RETURNING id, station_code, station_name
-        """, values)
+        """,
+            values,
+        )
 
         updated = cur.fetchone()
         conn.commit()
@@ -791,63 +910,62 @@ def update_station_config(station_code):
         conn.close()
 
         if not updated:
-            return jsonify({'success': False, 'error': 'Station not found'}), 404
+            return jsonify({"success": False, "error": "Station not found"}), 404
 
-        return jsonify({
-            'success': True,
-            'station': updated,
-            'message': f'Station {station_code} updated'
-        })
+        return jsonify({"success": True, "station": updated, "message": f"Station {station_code} updated"})
 
     except Exception as e:
         logger.error(f"Error updating station: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/stations/reorder', methods=['POST'])
+@bridge_bp.route("/api/stations/reorder", methods=["POST"])
 def reorder_stations():
     """Reorder stations (drag-and-drop support)"""
     data = request.get_json() or {}
-    order = data.get('order', [])  # List of {station_code, position_row, position_order}
+    order = data.get("order", [])  # List of {station_code, position_row, position_order}
 
     if not order:
-        return jsonify({'success': False, 'error': 'order list required'}), 400
+        return jsonify({"success": False, "error": "order list required"}), 400
 
     try:
         conn = get_db_connection()
         cur = conn.cursor()
 
         for item in order:
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE bridge_stations
                 SET position_row = %s, position_order = %s, updated_at = NOW()
                 WHERE station_code = %s
-            """, (item.get('position_row', 0), item.get('position_order', 0), item['station_code'].upper()))
+            """,
+                (item.get("position_row", 0), item.get("position_order", 0), item["station_code"].upper()),
+            )
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'message': f'Reordered {len(order)} stations'
-        })
+        return jsonify({"success": True, "message": f"Reordered {len(order)} stations"})
 
     except Exception as e:
         logger.error(f"Error reordering stations: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/assignments/<int:assignment_id>', methods=['DELETE'])
+@bridge_bp.route("/api/assignments/<int:assignment_id>", methods=["DELETE"])
 def delete_assignment(assignment_id):
     """Delete a station assignment"""
     try:
         conn = get_db_connection()
         cur = conn.cursor()
 
-        cur.execute("""
+        cur.execute(
+            """
             DELETE FROM station_assignments WHERE id = %s RETURNING id
-        """, (assignment_id,))
+        """,
+            (assignment_id,),
+        )
 
         deleted = cur.fetchone()
         conn.commit()
@@ -855,28 +973,25 @@ def delete_assignment(assignment_id):
         conn.close()
 
         if not deleted:
-            return jsonify({'success': False, 'error': 'Assignment not found'}), 404
+            return jsonify({"success": False, "error": "Assignment not found"}), 404
 
-        return jsonify({
-            'success': True,
-            'message': 'Assignment deleted'
-        })
+        return jsonify({"success": True, "message": "Assignment deleted"})
 
     except Exception as e:
         logger.error(f"Error deleting assignment: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/assignments/<int:assignment_id>', methods=['PUT'])
+@bridge_bp.route("/api/assignments/<int:assignment_id>", methods=["PUT"])
 def update_assignment(assignment_id):
     """Update a station assignment"""
     data = request.get_json() or {}
 
-    allowed_fields = ['assignment_type', 'shift_preference', 'priority', 'notes', 'is_active']
+    allowed_fields = ["assignment_type", "shift_preference", "priority", "notes", "is_active"]
     updates = {k: v for k, v in data.items() if k in allowed_fields}
 
     if not updates:
-        return jsonify({'success': False, 'error': 'No valid fields to update'}), 400
+        return jsonify({"success": False, "error": "No valid fields to update"}), 400
 
     try:
         conn = get_db_connection()
@@ -886,12 +1001,15 @@ def update_assignment(assignment_id):
         values = list(updates.values())
         values.append(assignment_id)
 
-        cur.execute(f"""
+        cur.execute(
+            f"""
             UPDATE station_assignments
             SET {', '.join(set_clauses)}
             WHERE id = %s
             RETURNING id, station_id, agent_id, assignment_type
-        """, values)
+        """,
+            values,
+        )
 
         updated = cur.fetchone()
         conn.commit()
@@ -899,23 +1017,21 @@ def update_assignment(assignment_id):
         conn.close()
 
         if not updated:
-            return jsonify({'success': False, 'error': 'Assignment not found'}), 404
+            return jsonify({"success": False, "error": "Assignment not found"}), 404
 
-        return jsonify({
-            'success': True,
-            'assignment': updated
-        })
+        return jsonify({"success": True, "assignment": updated})
 
     except Exception as e:
         logger.error(f"Error updating assignment: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # ADDITIONAL SUPPORT REQUEST API
 # ============================================================================
 
-@bridge_bp.route('/api/stations/<station_code>/request-support', methods=['POST'])
+
+@bridge_bp.route("/api/stations/<station_code>/request-support", methods=["POST"])
 def request_station_support(station_code):
     """
     Handle additional support requests from modules.
@@ -934,9 +1050,9 @@ def request_station_support(station_code):
     Workload tracking ensures AI compliance standards (no overworking agents).
     """
     data = request.get_json() or {}
-    task_type = data.get('task_type', 'general')
-    capability_needed = data.get('capability_needed', 'general capability')
-    requesting_module = data.get('requesting_module', 'unknown')
+    task_type = data.get("task_type", "general")
+    capability_needed = data.get("capability_needed", "general capability")
+    requesting_module = data.get("requesting_module", "unknown")
 
     logger.info(f"Bridge: Support request from {requesting_module} - {task_type} needs {capability_needed}")
 
@@ -945,22 +1061,23 @@ def request_station_support(station_code):
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Step 1: Get station info
-        cur.execute("""
+        cur.execute(
+            """
             SELECT id, station_name FROM bridge_stations
             WHERE station_code = %s AND is_active = TRUE
-        """, (station_code.upper(),))
+        """,
+            (station_code.upper(),),
+        )
         station = cur.fetchone()
 
         if not station:
             cur.close()
             conn.close()
-            return jsonify({
-                'success': False,
-                'message': f'Station {station_code} not found'
-            }), 404
+            return jsonify({"success": False, "message": f"Station {station_code} not found"}), 404
 
         # Step 2: Check if additional_support slot is already filled
-        cur.execute("""
+        cur.execute(
+            """
             SELECT a.id, a.name, a.model, a.tier, a.title
             FROM station_assignments sa
             JOIN agents a ON sa.agent_id = a.id
@@ -968,7 +1085,9 @@ def request_station_support(station_code):
             AND sa.assignment_type = 'additional_support'
             AND sa.is_active = TRUE
             AND a.status = 'active'
-        """, (station['id'],))
+        """,
+            (station["id"],),
+        )
         existing_support = cur.fetchone()
 
         if existing_support:
@@ -976,12 +1095,14 @@ def request_station_support(station_code):
             cur.close()
             conn.close()
             logger.info(f"Bridge: Support slot already filled with {existing_support['name']}")
-            return jsonify({
-                'success': True,
-                'agent': dict(existing_support),
-                'message': 'Support agent already assigned',
-                'slot_status': 'occupied'
-            })
+            return jsonify(
+                {
+                    "success": True,
+                    "agent": dict(existing_support),
+                    "message": "Support agent already assigned",
+                    "slot_status": "occupied",
+                }
+            )
 
         # Step 3: Find a suitable agent for the requested capability
         # This is where Archie HR logic would go in the future
@@ -989,25 +1110,26 @@ def request_station_support(station_code):
 
         # Define capability keywords and their model mappings
         # Bridge interprets the capability_needed string to find appropriate agents
-        FAST_CODER_MODELS = ['qwen2.5-coder:7b', 'starcoder2:7b', 'deepseek-coder-v2:16b']
+        FAST_CODER_MODELS = ["qwen2.5-coder:7b", "starcoder2:7b", "deepseek-coder-v2:16b"]
 
         # Determine what kind of agent is needed based on capability description
-        capability_lower = capability_needed.lower() if capability_needed else ''
+        capability_lower = capability_needed.lower() if capability_needed else ""
         target_models = []
 
-        if 'fast' in capability_lower or 'speed' in capability_lower or 'batch' in capability_lower:
+        if "fast" in capability_lower or "speed" in capability_lower or "batch" in capability_lower:
             # Need a fast coder - prioritize 7b models (rank 1-2)
-            target_models = ['qwen2.5-coder:7b', 'starcoder2:7b']
+            target_models = ["qwen2.5-coder:7b", "starcoder2:7b"]
             logger.info(f"Bridge: Looking for fast coder models: {target_models}")
-        elif 'thorough' in capability_lower or 'security' in capability_lower or 'deep' in capability_lower:
+        elif "thorough" in capability_lower or "security" in capability_lower or "deep" in capability_lower:
             # Need a thorough/security agent - will use tier-based search
             target_models = []
             logger.info("Bridge: Looking for high-tier agent")
 
         # Find available agent with required capability
         if target_models:
-            model_placeholders = ','.join(['%s'] * len(target_models))
-            cur.execute(f"""
+            model_placeholders = ",".join(["%s"] * len(target_models))
+            cur.execute(
+                f"""
                 SELECT a.id, a.name, a.model, a.tier, a.title, a.avatar_url
                 FROM agents a
                 WHERE a.status = 'active'
@@ -1018,10 +1140,13 @@ def request_station_support(station_code):
                 )
                 ORDER BY a.tier DESC
                 LIMIT 1
-            """, (*target_models, station['id']))
+            """,
+                (*target_models, station["id"]),
+            )
         else:
             # For tier-based requirements, find high-tier agents
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT a.id, a.name, a.model, a.tier, a.title, a.avatar_url
                 FROM agents a
                 WHERE a.status = 'active'
@@ -1032,7 +1157,9 @@ def request_station_support(station_code):
                 )
                 ORDER BY a.tier DESC
                 LIMIT 1
-            """, (station['id'],))
+            """,
+                (station["id"],),
+            )
 
         candidate = cur.fetchone()
 
@@ -1040,38 +1167,48 @@ def request_station_support(station_code):
             cur.close()
             conn.close()
             logger.info(f"Bridge: No suitable agent available for {capability_needed}")
-            return jsonify({
-                'success': False,
-                'message': f'No agent available with {capability_needed}',
-                'slot_status': 'no_candidates'
-            })
+            return jsonify(
+                {
+                    "success": False,
+                    "message": f"No agent available with {capability_needed}",
+                    "slot_status": "no_candidates",
+                }
+            )
 
         # Step 4: Check workload compliance (simplified for now)
         # TODO: Full workload tracking for AI compliance
-        cur.execute("""
+        cur.execute(
+            """
             SELECT COUNT(*) as assignment_count
             FROM station_assignments
             WHERE agent_id = %s AND is_active = TRUE
-        """, (candidate['id'],))
+        """,
+            (candidate["id"],),
+        )
         workload = cur.fetchone()
 
-        if workload['assignment_count'] >= 3:
+        if workload["assignment_count"] >= 3:
             cur.close()
             conn.close()
             logger.info(f"Bridge: {candidate['name']} at workload limit ({workload['assignment_count']} assignments)")
-            return jsonify({
-                'success': False,
-                'message': f"{candidate['name']} is at workload capacity",
-                'slot_status': 'workload_limit'
-            })
+            return jsonify(
+                {
+                    "success": False,
+                    "message": f"{candidate['name']} is at workload capacity",
+                    "slot_status": "workload_limit",
+                }
+            )
 
         # Step 5: Assign to additional_support slot
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO station_assignments
             (station_id, agent_id, assignment_type, priority, notes, is_active)
             VALUES (%s, %s, 'additional_support', 99, %s, TRUE)
             RETURNING id
-        """, (station['id'], candidate['id'], f"Support for {requesting_module}: {task_type}"))
+        """,
+            (station["id"], candidate["id"], f"Support for {requesting_module}: {task_type}"),
+        )
 
         assignment = cur.fetchone()
         conn.commit()
@@ -1080,25 +1217,27 @@ def request_station_support(station_code):
 
         # Add assignment type to candidate for caller
         candidate_dict = dict(candidate)
-        candidate_dict['assignment_type'] = 'additional_support'
-        candidate_dict['assignment_id'] = assignment['id']
+        candidate_dict["assignment_type"] = "additional_support"
+        candidate_dict["assignment_id"] = assignment["id"]
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'agent': candidate_dict,
-            'message': f"{candidate['name']} assigned as additional support",
-            'slot_status': 'assigned'
-        })
+        return jsonify(
+            {
+                "success": True,
+                "agent": candidate_dict,
+                "message": f"{candidate['name']} assigned as additional support",
+                "slot_status": "assigned",
+            }
+        )
 
     except Exception as e:
         logger.error(f"Bridge: Error processing support request: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/stations/<station_code>/release-support', methods=['POST'])
+@bridge_bp.route("/api/stations/<station_code>/release-support", methods=["POST"])
 def release_station_support(station_code):
     """
     Release an agent from the additional_support slot.
@@ -1107,37 +1246,46 @@ def release_station_support(station_code):
     This frees the agent for other stations.
     """
     data = request.get_json() or {}
-    agent_id = data.get('agent_id')
+    agent_id = data.get("agent_id")
 
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get station
-        cur.execute("""
+        cur.execute(
+            """
             SELECT id FROM bridge_stations WHERE station_code = %s
-        """, (station_code.upper(),))
+        """,
+            (station_code.upper(),),
+        )
         station = cur.fetchone()
 
         if not station:
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Station not found'}), 404
+            return jsonify({"success": False, "error": "Station not found"}), 404
 
         # Remove from additional_support slot
         if agent_id:
-            cur.execute("""
+            cur.execute(
+                """
                 DELETE FROM station_assignments
                 WHERE station_id = %s AND agent_id = %s AND assignment_type = 'additional_support'
                 RETURNING id
-            """, (station['id'], agent_id))
+            """,
+                (station["id"], agent_id),
+            )
         else:
             # Release all support assignments for this station
-            cur.execute("""
+            cur.execute(
+                """
                 DELETE FROM station_assignments
                 WHERE station_id = %s AND assignment_type = 'additional_support'
                 RETURNING id
-            """, (station['id'],))
+            """,
+                (station["id"],),
+            )
 
         deleted = cur.fetchall()
         conn.commit()
@@ -1146,22 +1294,25 @@ def release_station_support(station_code):
 
         logger.info(f"Bridge: Released {len(deleted)} support assignment(s) from {station_code}")
 
-        return jsonify({
-            'success': True,
-            'released_count': len(deleted),
-            'message': f'Released {len(deleted)} support assignment(s)'
-        })
+        return jsonify(
+            {
+                "success": True,
+                "released_count": len(deleted),
+                "message": f"Released {len(deleted)} support assignment(s)",
+            }
+        )
 
     except Exception as e:
         logger.error(f"Bridge: Error releasing support: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # TRAINING ROOM API - Phase 39
 # ============================================================================
 
-@bridge_bp.route('/api/training')
+
+@bridge_bp.route("/api/training")
 @login_required
 def get_training_agents():
     """Get agents currently in training"""
@@ -1169,7 +1320,8 @@ def get_training_agents():
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 a.id as agent_id,
                 a.name as agent_name,
@@ -1189,23 +1341,21 @@ def get_training_agents():
             WHERE ta.status IN ('pending', 'in_progress')
             AND a.status = 'active'
             ORDER BY ta.started_at DESC
-        """)
+        """
+        )
         agents = cur.fetchall()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'agents': agents
-        })
+        return jsonify({"success": True, "agents": agents})
 
     except Exception as e:
         logger.error(f"Error loading training agents: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/training/skills')
+@bridge_bp.route("/api/training/skills")
 @login_required
 def get_training_skills():
     """Get available skills for training assignment"""
@@ -1213,39 +1363,38 @@ def get_training_skills():
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT DISTINCT skill_name as name, skill_category as category
             FROM agent_skills
             ORDER BY skill_category, skill_name
-        """)
+        """
+        )
         skills = cur.fetchall()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'skills': skills
-        })
+        return jsonify({"success": True, "skills": skills})
 
     except Exception as e:
         logger.error(f"Error loading skills: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/training/assign', methods=['POST'])
+@bridge_bp.route("/api/training/assign", methods=["POST"])
 @login_required
 def assign_training():
     """Assign an agent to skill training"""
     try:
         data = request.get_json()
-        agent_id = data.get('agent_id')
-        skill_name = data.get('skill_name')
-        target_proficiency = data.get('target_proficiency', 3)
-        notes = data.get('notes', '')
+        agent_id = data.get("agent_id")
+        skill_name = data.get("skill_name")
+        target_proficiency = data.get("target_proficiency", 3)
+        notes = data.get("notes", "")
 
         if not agent_id or not skill_name:
-            return jsonify({'success': False, 'error': 'Agent ID and skill name required'}), 400
+            return jsonify({"success": False, "error": "Agent ID and skill name required"}), 400
 
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -1253,98 +1402,118 @@ def assign_training():
         # Get skill category
         cur.execute("SELECT DISTINCT skill_category FROM agent_skills WHERE skill_name = %s LIMIT 1", (skill_name,))
         skill_row = cur.fetchone()
-        skill_category = skill_row['skill_category'] if skill_row else 'General'
+        skill_category = skill_row["skill_category"] if skill_row else "General"
 
         # Get current proficiency if exists
-        cur.execute("""
+        cur.execute(
+            """
             SELECT proficiency_level FROM agent_skills
             WHERE agent_id = %s AND skill_name = %s
-        """, (agent_id, skill_name))
+        """,
+            (agent_id, skill_name),
+        )
         existing = cur.fetchone()
-        current_proficiency = existing['proficiency_level'] if existing else 1
+        current_proficiency = existing["proficiency_level"] if existing else 1
 
         # Remove from station assignment if any
-        cur.execute("UPDATE station_assignments SET is_active = FALSE WHERE agent_id = %s AND is_active = TRUE", (agent_id,))
+        cur.execute(
+            "UPDATE station_assignments SET is_active = FALSE WHERE agent_id = %s AND is_active = TRUE", (agent_id,)
+        )
 
         # Insert training assignment
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO training_assignments
             (agent_id, skill_name, skill_category, target_proficiency, current_proficiency, status, notes, created_by)
             VALUES (%s, %s, %s, %s, %s, 'in_progress', %s, %s)
             RETURNING id
-        """, (agent_id, skill_name, skill_category, target_proficiency, current_proficiency, notes, current_user.id if current_user else None))
+        """,
+            (
+                agent_id,
+                skill_name,
+                skill_category,
+                target_proficiency,
+                current_proficiency,
+                notes,
+                current_user.id if current_user else None,
+            ),
+        )
 
-        training_id = cur.fetchone()['id']
+        training_id = cur.fetchone()["id"]
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'training_id': training_id,
-            'message': f'Agent assigned to {skill_name} training'
-        })
+        return jsonify(
+            {"success": True, "training_id": training_id, "message": f"Agent assigned to {skill_name} training"}
+        )
 
     except Exception as e:
         logger.error(f"Error assigning training: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/training/<int:training_id>/complete', methods=['POST'])
+@bridge_bp.route("/api/training/<int:training_id>/complete", methods=["POST"])
 @login_required
 def complete_training(training_id):
     """Complete or cancel a training assignment"""
     try:
         data = request.get_json()
-        status = data.get('status', 'completed')
+        status = data.get("status", "completed")
 
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get training details
-        cur.execute("SELECT agent_id, skill_name, target_proficiency FROM training_assignments WHERE id = %s", (training_id,))
+        cur.execute(
+            "SELECT agent_id, skill_name, target_proficiency FROM training_assignments WHERE id = %s", (training_id,)
+        )
         training = cur.fetchone()
 
         if not training:
-            return jsonify({'success': False, 'error': 'Training not found'}), 404
+            return jsonify({"success": False, "error": "Training not found"}), 404
 
         # Update training status
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE training_assignments
             SET status = %s, completed_at = NOW(), updated_at = NOW()
             WHERE id = %s
-        """, (status, training_id))
+        """,
+            (status, training_id),
+        )
 
         # If completed, update agent skill
-        if status == 'completed':
-            cur.execute("""
+        if status == "completed":
+            cur.execute(
+                """
                 INSERT INTO agent_skills (agent_id, skill_name, proficiency_level)
                 VALUES (%s, %s, %s)
                 ON CONFLICT (agent_id, skill_name) DO UPDATE
                 SET proficiency_level = GREATEST(agent_skills.proficiency_level, EXCLUDED.proficiency_level),
                     updated_at = NOW()
-            """, (training['agent_id'], training['skill_name'], training['target_proficiency']))
+            """,
+                (training["agent_id"], training["skill_name"], training["target_proficiency"]),
+            )
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'message': f'Training {status}'
-        })
+        return jsonify({"success": True, "message": f"Training {status}"})
 
     except Exception as e:
         logger.error(f"Error completing training: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # LOUNGE (REST AREA) API - Phase 39
 # ============================================================================
 
-@bridge_bp.route('/api/lounge')
+
+@bridge_bp.route("/api/lounge")
 @login_required
 def get_lounge_agents():
     """Get agents currently in lounge (resting)"""
@@ -1352,7 +1521,8 @@ def get_lounge_agents():
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 a.id as agent_id,
                 a.name as agent_name,
@@ -1369,65 +1539,67 @@ def get_lounge_agents():
             WHERE arc.ended_at IS NULL
             AND a.status = 'active'
             ORDER BY arc.started_at DESC
-        """)
+        """
+        )
         agents = cur.fetchall()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'agents': agents
-        })
+        return jsonify({"success": True, "agents": agents})
 
     except Exception as e:
         logger.error(f"Error loading lounge agents: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/agents/<int:agent_id>/send-to-lounge', methods=['POST'])
+@bridge_bp.route("/api/agents/<int:agent_id>/send-to-lounge", methods=["POST"])
 @login_required
 def send_agent_to_lounge(agent_id):
     """Send an agent to lounge (start rest cycle)"""
     try:
         data = request.get_json() or {}
-        rest_type = data.get('rest_type', 'voluntary')
-        reason = data.get('reason', 'Sent to lounge via Bridge')
+        rest_type = data.get("rest_type", "voluntary")
+        reason = data.get("reason", "Sent to lounge via Bridge")
 
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Remove from station assignment if any
-        cur.execute("UPDATE station_assignments SET is_active = FALSE WHERE agent_id = %s AND is_active = TRUE", (agent_id,))
+        cur.execute(
+            "UPDATE station_assignments SET is_active = FALSE WHERE agent_id = %s AND is_active = TRUE", (agent_id,)
+        )
 
         # Cancel any active training
-        cur.execute("UPDATE training_assignments SET status = 'cancelled' WHERE agent_id = %s AND status IN ('pending', 'in_progress')", (agent_id,))
+        cur.execute(
+            "UPDATE training_assignments SET status = 'cancelled' WHERE agent_id = %s AND status IN ('pending', 'in_progress')",
+            (agent_id,),
+        )
 
         # Start rest cycle
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO agent_rest_cycles (agent_id, rest_type, reason, started_at)
             VALUES (%s, %s, %s, NOW())
             RETURNING id
-        """, (agent_id, rest_type, reason))
+        """,
+            (agent_id, rest_type, reason),
+        )
 
-        rest_cycle_id = cur.fetchone()['id']
+        rest_cycle_id = cur.fetchone()["id"]
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'rest_cycle_id': rest_cycle_id,
-            'message': 'Agent sent to lounge'
-        })
+        return jsonify({"success": True, "rest_cycle_id": rest_cycle_id, "message": "Agent sent to lounge"})
 
     except Exception as e:
         logger.error(f"Error sending agent to lounge: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/agents/<int:agent_id>/return-from-lounge', methods=['POST'])
+@bridge_bp.route("/api/agents/<int:agent_id>/return-from-lounge", methods=["POST"])
 @login_required
 def return_agent_from_lounge(agent_id):
     """Return an agent from lounge (end rest cycle)"""
@@ -1436,44 +1608,48 @@ def return_agent_from_lounge(agent_id):
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Check if agent is in forced rest
-        cur.execute("""
+        cur.execute(
+            """
             SELECT id, rest_type FROM agent_rest_cycles
             WHERE agent_id = %s AND ended_at IS NULL
-        """, (agent_id,))
+        """,
+            (agent_id,),
+        )
         rest_cycle = cur.fetchone()
 
         if not rest_cycle:
-            return jsonify({'success': False, 'error': 'Agent is not in lounge'}), 400
+            return jsonify({"success": False, "error": "Agent is not in lounge"}), 400
 
-        if rest_cycle['rest_type'] == 'forced':
-            return jsonify({'success': False, 'error': 'Cannot return agent from forced rest'}), 403
+        if rest_cycle["rest_type"] == "forced":
+            return jsonify({"success": False, "error": "Cannot return agent from forced rest"}), 403
 
         # End rest cycle
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE agent_rest_cycles
             SET ended_at = NOW()
             WHERE id = %s
-        """, (rest_cycle['id'],))
+        """,
+            (rest_cycle["id"],),
+        )
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'message': 'Agent returned from lounge'
-        })
+        return jsonify({"success": True, "message": "Agent returned from lounge"})
 
     except Exception as e:
         logger.error(f"Error returning agent from lounge: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # IAAE COMPLIANCE CHECK API - Phase 39
 # ============================================================================
 
-@bridge_bp.route('/api/iaae/check-move/<int:agent_id>')
+
+@bridge_bp.route("/api/iaae/check-move/<int:agent_id>")
 @login_required
 def check_iaae_move_compliance(agent_id):
     """Check IAAE compliance before moving an agent"""
@@ -1486,28 +1662,34 @@ def check_iaae_move_compliance(agent_id):
         can_override = True
 
         # Get agent emotional state
-        cur.execute("""
+        cur.execute(
+            """
             SELECT stress_level, energy_level
             FROM agent_emotional_state
             WHERE agent_id = %s
-        """, (agent_id,))
+        """,
+            (agent_id,),
+        )
         emotional_state = cur.fetchone()
 
         if emotional_state:
-            if emotional_state['stress_level'] and emotional_state['stress_level'] > 0.7:
+            if emotional_state["stress_level"] and emotional_state["stress_level"] > 0.7:
                 warnings.append(f"High stress level ({round(emotional_state['stress_level'] * 100)}%)")
 
-            if emotional_state['energy_level'] and emotional_state['energy_level'] < 0.3:
+            if emotional_state["energy_level"] and emotional_state["energy_level"] < 0.3:
                 warnings.append(f"Low energy level ({round(emotional_state['energy_level'] * 100)}%)")
 
         # Check if in forced rest
-        cur.execute("""
+        cur.execute(
+            """
             SELECT rest_type FROM agent_rest_cycles
             WHERE agent_id = %s AND ended_at IS NULL
-        """, (agent_id,))
+        """,
+            (agent_id,),
+        )
         rest_cycle = cur.fetchone()
 
-        if rest_cycle and rest_cycle['rest_type'] == 'forced':
+        if rest_cycle and rest_cycle["rest_type"] == "forced":
             allowed = False
             can_override = False
             warnings.append("Agent is in forced rest - cannot be moved")
@@ -1515,23 +1697,19 @@ def check_iaae_move_compliance(agent_id):
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'allowed': allowed,
-            'can_override': can_override,
-            'warnings': warnings
-        })
+        return jsonify({"success": True, "allowed": allowed, "can_override": can_override, "warnings": warnings})
 
     except Exception as e:
         logger.error(f"Error checking IAAE compliance: {e}")
-        return jsonify({'success': True, 'allowed': True, 'warnings': []})  # Fail open
+        return jsonify({"success": True, "allowed": True, "warnings": []})  # Fail open
 
 
 # ============================================================================
 # TOKEN USAGE / TRAFFIC API
 # ============================================================================
 
-@bridge_bp.route('/api/traffic')
+
+@bridge_bp.route("/api/traffic")
 def get_traffic_stats():
     """Get recent traffic and token usage statistics"""
     try:
@@ -1539,7 +1717,8 @@ def get_traffic_stats():
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get hourly stats for last 24 hours
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 date_trunc('hour', created_at) as hour,
                 model_name,
@@ -1550,11 +1729,13 @@ def get_traffic_stats():
             WHERE created_at > NOW() - INTERVAL '24 hours'
             GROUP BY date_trunc('hour', created_at), model_name
             ORDER BY hour DESC
-        """)
+        """
+        )
         hourly_stats = cur.fetchall()
 
         # Get model breakdown
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 model_name,
                 COUNT(*) as request_count,
@@ -1563,31 +1744,26 @@ def get_traffic_stats():
             WHERE created_at > NOW() - INTERVAL '24 hours'
             GROUP BY model_name
             ORDER BY total_tokens DESC
-        """)
+        """
+        )
         model_stats = cur.fetchall()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'hourly': hourly_stats,
-            'by_model': model_stats
-        })
+        return jsonify({"success": True, "hourly": hourly_stats, "by_model": model_stats})
 
     except Exception as e:
         logger.error(f"Error getting traffic stats: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # ARCHIE STATUS API
 # ============================================================================
 
-@bridge_bp.route('/api/archie/status')
+
+@bridge_bp.route("/api/archie/status")
 def get_archie_status():
     """Get A.R.C.H.I.E.'s current status and emotional state"""
     try:
@@ -1595,63 +1771,66 @@ def get_archie_status():
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get core identity
-        cur.execute("""
+        cur.execute(
+            """
             SELECT name, role, personality_profile
             FROM archie_core_identity
             LIMIT 1
-        """)
+        """
+        )
         identity = cur.fetchone()
 
         # Get emotional state
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 current_mood, mood_intensity, relationship_strength, timestamp
             FROM archie_emotional_state
             ORDER BY timestamp DESC
             LIMIT 1
-        """)
+        """
+        )
         emotional = cur.fetchone()
 
         # Get personality traits
-        cur.execute("""
+        cur.execute(
+            """
             SELECT trait_name, trait_value, description
             FROM archie_personality
             ORDER BY updated_at DESC
             LIMIT 5
-        """)
+        """
+        )
         traits = cur.fetchall()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'archie': {
-                'identity': identity or {'name': 'A.R.C.H.I.E.', 'role': 'AI Co-founder'},
-                'emotional_state': emotional or {
-                    'current_mood': 'supportive',
-                    'mood_intensity': 0.85,
-                    'relationship_strength': 0.90
+        return jsonify(
+            {
+                "success": True,
+                "archie": {
+                    "identity": identity or {"name": "A.R.C.H.I.E.", "role": "AI Co-founder"},
+                    "emotional_state": emotional
+                    or {"current_mood": "supportive", "mood_intensity": 0.85, "relationship_strength": 0.90},
+                    "top_traits": traits or [],
+                    "station": "COMMS",
+                    "status": "Active",
                 },
-                'top_traits': traits or [],
-                'station': 'COMMS',
-                'status': 'Active'
             }
-        })
+        )
 
     except Exception as e:
         logger.error(f"Error getting ARCHIE status: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # MODULE NAVIGATION
 # ============================================================================
 
-@bridge_bp.route('/api/modules')
+
+@bridge_bp.route("/api/modules")
 def get_module_mapping():
     """Get mapping of modules to stations for navigation"""
     modules = []
@@ -1660,26 +1839,22 @@ def get_module_mapping():
     stations = get_stations_from_db() or STATIONS_FALLBACK
 
     for station_code, station_info in stations.items():
-        station_modules = station_info.get('modules', [])
+        station_modules = station_info.get("modules", [])
         if isinstance(station_modules, list):
             for module in station_modules:
-                modules.append({
-                    'module': module,
-                    'station': station_code,
-                    'station_color': station_info.get('color', '#00FFFF')
-                })
+                modules.append(
+                    {"module": module, "station": station_code, "station_color": station_info.get("color", "#00FFFF")}
+                )
 
-    return jsonify({
-        'success': True,
-        'modules': modules
-    })
+    return jsonify({"success": True, "modules": modules})
 
 
 # ============================================================================
 # LLM CONNECTIONS MONITOR (Phase 27)
 # ============================================================================
 
-@bridge_bp.route('/api/llm/status')
+
+@bridge_bp.route("/api/llm/status")
 def get_llm_status():
     """Get status of all LLM connections"""
     try:
@@ -1687,7 +1862,8 @@ def get_llm_status():
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get all connections
-        cur.execute("""
+        cur.execute(
+            """
             SELECT id, provider, model_name, display_name, status,
                    last_check, last_success, last_failure,
                    avg_latency_ms, p95_latency_ms, success_rate,
@@ -1695,7 +1871,8 @@ def get_llm_status():
                    capabilities, endpoint_url
             FROM llm_connections
             ORDER BY provider, model_name
-        """)
+        """
+        )
         connections = cur.fetchall()
 
         # Get summary by provider
@@ -1707,50 +1884,45 @@ def get_llm_status():
 
         # Convert datetime objects to strings
         for c in connections:
-            for key in ['last_check', 'last_success', 'last_failure']:
+            for key in ["last_check", "last_success", "last_failure"]:
                 if c.get(key):
                     c[key] = c[key].isoformat()
 
-        return jsonify({
-            'success': True,
-            'connections': connections,
-            'summary': summary,
-            'timestamp': datetime.now().isoformat()
-        })
+        return jsonify(
+            {"success": True, "connections": connections, "summary": summary, "timestamp": datetime.now().isoformat()}
+        )
 
     except Exception as e:
         logger.error(f"LLM status error: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/llm/check', methods=['POST'])
+@bridge_bp.route("/api/llm/check", methods=["POST"])
 def trigger_llm_check():
     """Trigger immediate health check of all LLM connections"""
     try:
         from llm_monitor import check_now
+
         results = check_now()
 
-        return jsonify({
-            'success': True,
-            'results': results,
-            'timestamp': datetime.now().isoformat()
-        })
+        return jsonify({"success": True, "results": results, "timestamp": datetime.now().isoformat()})
 
     except Exception as e:
         logger.error(f"LLM check error: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/llm/alerts')
+@bridge_bp.route("/api/llm/alerts")
 def get_llm_alerts():
     """Get recent LLM alerts"""
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        acknowledged = request.args.get('acknowledged', 'false').lower() == 'true'
+        acknowledged = request.args.get("acknowledged", "false").lower() == "true"
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT a.id, a.alert_type, a.severity, a.message, a.details,
                    a.acknowledged, a.created_at,
                    c.provider, c.model_name, c.display_name
@@ -1759,7 +1931,9 @@ def get_llm_alerts():
             WHERE a.acknowledged = %s
             ORDER BY a.created_at DESC
             LIMIT 50
-        """, (acknowledged,))
+        """,
+            (acknowledged,),
+        )
         alerts = cur.fetchall()
 
         cur.close()
@@ -1767,60 +1941,63 @@ def get_llm_alerts():
 
         # Convert datetime
         for a in alerts:
-            if a.get('created_at'):
-                a['created_at'] = a['created_at'].isoformat()
+            if a.get("created_at"):
+                a["created_at"] = a["created_at"].isoformat()
 
-        return jsonify({
-            'success': True,
-            'alerts': alerts
-        })
+        return jsonify({"success": True, "alerts": alerts})
 
     except Exception as e:
         logger.error(f"LLM alerts error: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/llm/alerts/<int:alert_id>/acknowledge', methods=['POST'])
+@bridge_bp.route("/api/llm/alerts/<int:alert_id>/acknowledge", methods=["POST"])
 def acknowledge_llm_alert(alert_id):
     """Acknowledge an LLM alert"""
     try:
         conn = get_db_connection()
         cur = conn.cursor()
 
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE llm_alerts
             SET acknowledged = TRUE, acknowledged_at = NOW()
             WHERE id = %s
-        """, (alert_id,))
+        """,
+            (alert_id,),
+        )
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({'success': True})
+        return jsonify({"success": True})
 
     except Exception as e:
         logger.error(f"Acknowledge alert error: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/llm/history/<int:connection_id>')
+@bridge_bp.route("/api/llm/history/<int:connection_id>")
 def get_llm_history(connection_id):
     """Get connection history for charts"""
     try:
-        hours = request.args.get('hours', 24, type=int)
+        hours = request.args.get("hours", 24, type=int)
 
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT check_time, status, latency_ms, error_message
             FROM llm_connection_history
             WHERE connection_id = %s
               AND check_time > NOW() - INTERVAL '%s hours'
             ORDER BY check_time DESC
             LIMIT 500
-        """, (connection_id, hours))
+        """,
+            (connection_id, hours),
+        )
         history = cur.fetchall()
 
         cur.close()
@@ -1828,17 +2005,14 @@ def get_llm_history(connection_id):
 
         # Convert datetime
         for h in history:
-            if h.get('check_time'):
-                h['check_time'] = h['check_time'].isoformat()
+            if h.get("check_time"):
+                h["check_time"] = h["check_time"].isoformat()
 
-        return jsonify({
-            'success': True,
-            'history': history
-        })
+        return jsonify({"success": True, "history": history})
 
     except Exception as e:
         logger.error(f"LLM history error: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
@@ -1848,29 +2022,32 @@ def get_llm_history(connection_id):
 import hashlib
 import secrets
 
+
 def generate_node_id():
     """Generate a unique node ID"""
     return f"node_{secrets.token_hex(8)}"
 
+
 def hash_api_key(api_key):
     """Hash an API key for storage"""
     return hashlib.sha256(api_key.encode()).hexdigest()
+
 
 def verify_api_key(api_key, stored_hash):
     """Verify an API key against stored hash"""
     return hash_api_key(api_key) == stored_hash
 
 
-@bridge_bp.route('/api/nodes')
+@bridge_bp.route("/api/nodes")
 def get_all_nodes():
     """Get all registered remote nodes"""
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        status_filter = request.args.get('status', 'all')
-        approval_filter = request.args.get('approval', 'all')
-        active_only = request.args.get('active', 'true').lower() == 'true'
+        status_filter = request.args.get("status", "all")
+        approval_filter = request.args.get("approval", "all")
+        active_only = request.args.get("active", "true").lower() == "true"
 
         query = """
             SELECT id, node_id, node_name, description, vpn_ip, hostname, port,
@@ -1890,11 +2067,11 @@ def get_all_nodes():
         if active_only:
             query += " AND is_active = TRUE"
 
-        if status_filter != 'all':
+        if status_filter != "all":
             query += " AND status = %s"
             params.append(status_filter)
 
-        if approval_filter != 'all':
+        if approval_filter != "all":
             query += " AND approval_status = %s"
             params.append(approval_filter)
 
@@ -1904,7 +2081,8 @@ def get_all_nodes():
         nodes = cur.fetchall()
 
         # Get summary stats including approval counts
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 COUNT(*) as total,
                 COUNT(*) FILTER (WHERE status = 'online' AND approval_status = 'approved') as online,
@@ -1917,7 +2095,8 @@ def get_all_nodes():
                 SUM(max_concurrent) FILTER (WHERE approval_status = 'approved') as total_capacity
             FROM remote_nodes
             WHERE is_active = TRUE
-        """)
+        """
+        )
         summary = cur.fetchone()
 
         cur.close()
@@ -1925,92 +2104,86 @@ def get_all_nodes():
 
         # Convert datetime
         for node in nodes:
-            for key in ['last_heartbeat', 'created_at', 'updated_at', 'approved_at']:
+            for key in ["last_heartbeat", "created_at", "updated_at", "approved_at"]:
                 if node.get(key):
                     node[key] = node[key].isoformat()
 
-        return jsonify({
-            'success': True,
-            'nodes': nodes,
-            'summary': summary
-        })
+        return jsonify({"success": True, "nodes": nodes, "summary": summary})
 
     except Exception as e:
         logger.error(f"Error getting nodes: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/nodes/install.sh', methods=['GET'])
+@bridge_bp.route("/api/nodes/install.sh", methods=["GET"])
 def get_node_install_script():
     """Serve the node installation script"""
     import os
-    script_path = '/mnt/archie_brain/node_client/install.sh'
+
+    script_path = "/mnt/archie_brain/node_client/install.sh"
 
     if os.path.exists(script_path):
-        with open(script_path, 'r') as f:
+        with open(script_path, "r") as f:
             script_content = f.read()
 
         # Replace placeholder URL with actual server URL
-        server_url = request.host_url.rstrip('/')
-        script_content = script_content.replace(
-            'http://192.168.1.200:3000',
-            server_url
+        server_url = request.host_url.rstrip("/")
+        script_content = script_content.replace("http://192.168.1.200:3000", server_url)
+
+        return (
+            script_content,
+            200,
+            {"Content-Type": "text/plain; charset=utf-8", "Content-Disposition": 'inline; filename="install.sh"'},
         )
-
-        return script_content, 200, {
-            'Content-Type': 'text/plain; charset=utf-8',
-            'Content-Disposition': 'inline; filename="install.sh"'
-        }
     else:
-        return 'Install script not found', 404
+        return "Install script not found", 404
 
 
-@bridge_bp.route('/api/nodes/install.ps1', methods=['GET'])
+@bridge_bp.route("/api/nodes/install.ps1", methods=["GET"])
 def get_node_install_script_windows():
     """Serve the Windows PowerShell installation script"""
     import os
-    script_path = '/mnt/archie_brain/node_client/install.ps1'
+
+    script_path = "/mnt/archie_brain/node_client/install.ps1"
 
     if os.path.exists(script_path):
-        with open(script_path, 'r') as f:
+        with open(script_path, "r") as f:
             script_content = f.read()
 
         # Replace placeholder URL with actual server URL
-        server_url = request.host_url.rstrip('/')
-        script_content = script_content.replace(
-            'http://192.168.1.200:3000',
-            server_url
+        server_url = request.host_url.rstrip("/")
+        script_content = script_content.replace("http://192.168.1.200:3000", server_url)
+
+        return (
+            script_content,
+            200,
+            {"Content-Type": "text/plain; charset=utf-8", "Content-Disposition": 'inline; filename="install.ps1"'},
         )
-
-        return script_content, 200, {
-            'Content-Type': 'text/plain; charset=utf-8',
-            'Content-Disposition': 'inline; filename="install.ps1"'
-        }
     else:
-        return 'Install script not found', 404
+        return "Install script not found", 404
 
 
-@bridge_bp.route('/api/nodes/client-package', methods=['GET'])
+@bridge_bp.route("/api/nodes/client-package", methods=["GET"])
 def get_node_client_package():
     """Serve the node client package as a tarball"""
     import os
     import tarfile
     import io
 
-    node_client_dir = '/mnt/archie_brain/node_client'
+    node_client_dir = "/mnt/archie_brain/node_client"
 
     if not os.path.exists(node_client_dir):
-        return jsonify({'success': False, 'error': 'Node client package not found'}), 404
+        return jsonify({"success": False, "error": "Node client package not found"}), 404
 
     try:
         # Create tarball in memory
         tar_buffer = io.BytesIO()
-        with tarfile.open(fileobj=tar_buffer, mode='w:gz') as tar:
+        with tarfile.open(fileobj=tar_buffer, mode="w:gz") as tar:
             for filename in os.listdir(node_client_dir):
                 # Skip certain files
-                if filename.startswith('.') and filename not in ['.env.example']:
+                if filename.startswith(".") and filename not in [".env.example"]:
                     continue
-                if filename == '__pycache__':
+                if filename == "__pycache__":
                     continue
 
                 filepath = os.path.join(node_client_dir, filename)
@@ -2019,14 +2192,18 @@ def get_node_client_package():
 
         tar_buffer.seek(0)
 
-        return tar_buffer.read(), 200, {
-            'Content-Type': 'application/gzip',
-            'Content-Disposition': 'attachment; filename="archie-node-client.tar.gz"'
-        }
+        return (
+            tar_buffer.read(),
+            200,
+            {
+                "Content-Type": "application/gzip",
+                "Content-Disposition": 'attachment; filename="archie-node-client.tar.gz"',
+            },
+        )
 
     except Exception as e:
         logger.error(f"Error creating client package: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 def calculate_max_concurrent(ram_gb: float, cpu_cores: int, gpu_vram_gb: float = 0) -> int:
@@ -2051,15 +2228,15 @@ def calculate_max_concurrent(ram_gb: float, cpu_cores: int, gpu_vram_gb: float =
     return max(2, min(20, total))  # Clamp between 2 and 20
 
 
-@bridge_bp.route('/api/nodes/register', methods=['POST'])
+@bridge_bp.route("/api/nodes/register", methods=["POST"])
 def register_node():
     """Register a new remote node"""
     data = request.get_json() or {}
 
-    required = ['node_name']
+    required = ["node_name"]
     for field in required:
         if not data.get(field):
-            return jsonify({'success': False, 'error': f'{field} is required'}), 400
+            return jsonify({"success": False, "error": f"{field} is required"}), 400
 
     try:
         conn = get_db_connection()
@@ -2070,7 +2247,8 @@ def register_node():
         api_key = secrets.token_urlsafe(32)
         api_key_hash = hash_api_key(api_key)
 
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO remote_nodes (
                 node_id, node_name, description, vpn_ip, hostname, port,
                 api_key_hash, client_version, gpu_available, gpu_model,
@@ -2084,47 +2262,48 @@ def register_node():
                 %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
             )
             RETURNING id, node_id, node_name, approval_status
-        """, (
-            node_id,
-            data.get('node_name'),
-            data.get('description'),
-            data.get('vpn_ip'),
-            data.get('hostname'),
-            data.get('port', 11434),
-            api_key_hash,
-            data.get('client_version', '1.0.0'),
-            data.get('gpu_available', False),
-            data.get('gpu_model'),
-            data.get('gpu_vram_gb'),
-            data.get('cpu_cores'),
-            data.get('cpu_model'),
-            data.get('ram_gb'),
-            data.get('disk_gb'),
-            data.get('os_info'),
-            data.get('ollama_available', False),
-            data.get('foocus_available', False),
-            data.get('comfyui_available', False),
-            data.get('auto1111_available', False),
-            data.get('docker_available', False),
-            data.get('docker_version'),
-            data.get('nvidia_docker', False),
-            data.get('wsl_available', False),
-            # AI Service ports for dynamic routing (Phase 72)
-            data.get('foocus_port', 7865),
-            data.get('comfyui_port', 8188),
-            data.get('auto1111_port', 7860),
-            data.get('iaae_compliant', True),
-            data.get('priority', 10),
-            data.get('weight', 100),
-            # Smart max_concurrent based on hardware (or use provided value)
-            data.get('max_concurrent') or calculate_max_concurrent(
-                data.get('ram_gb', 8),
-                data.get('cpu_cores', 4),
-                data.get('gpu_vram_gb', 0)
+        """,
+            (
+                node_id,
+                data.get("node_name"),
+                data.get("description"),
+                data.get("vpn_ip"),
+                data.get("hostname"),
+                data.get("port", 11434),
+                api_key_hash,
+                data.get("client_version", "1.0.0"),
+                data.get("gpu_available", False),
+                data.get("gpu_model"),
+                data.get("gpu_vram_gb"),
+                data.get("cpu_cores"),
+                data.get("cpu_model"),
+                data.get("ram_gb"),
+                data.get("disk_gb"),
+                data.get("os_info"),
+                data.get("ollama_available", False),
+                data.get("foocus_available", False),
+                data.get("comfyui_available", False),
+                data.get("auto1111_available", False),
+                data.get("docker_available", False),
+                data.get("docker_version"),
+                data.get("nvidia_docker", False),
+                data.get("wsl_available", False),
+                # AI Service ports for dynamic routing (Phase 72)
+                data.get("foocus_port", 7865),
+                data.get("comfyui_port", 8188),
+                data.get("auto1111_port", 7860),
+                data.get("iaae_compliant", True),
+                data.get("priority", 10),
+                data.get("weight", 100),
+                # Smart max_concurrent based on hardware (or use provided value)
+                data.get("max_concurrent")
+                or calculate_max_concurrent(
+                    data.get("ram_gb", 8), data.get("cpu_cores", 4), data.get("gpu_vram_gb", 0)
+                ),
+                data.get("tags", []),
+                "pending",  # New nodes start as pending
             ),
-            data.get('tags', []),
-            'pending'  # New nodes start as pending
-        ))
+        )
 
         node = cur.fetchone()
         conn.commit()
@@ -2132,74 +2311,82 @@ def register_node():
         conn.close()
 
         # Calculate the actual max_concurrent that was stored
-        calculated_max = data.get('max_concurrent') or calculate_max_concurrent(
-            data.get('ram_gb', 8),
-            data.get('cpu_cores', 4),
-            data.get('gpu_vram_gb', 0)
+        calculated_max = data.get("max_concurrent") or calculate_max_concurrent(
+            data.get("ram_gb", 8), data.get("cpu_cores", 4), data.get("gpu_vram_gb", 0)
         )
 
         # Return config settings for the node client
-        return jsonify({
-            'success': True,
-            'node_id': node['node_id'],
-            'api_key': api_key,  # Only returned once at registration!
-            'approval_status': node['approval_status'],
-            'config': {
-                'heartbeat_interval': 30,
-                'capability_interval': 300,
-                'max_concurrent': calculated_max,
-                'log_level': 'INFO'
-            },
-            'message': 'Node registered. Awaiting admin approval.' if node['approval_status'] == 'pending' else 'Node registered successfully.',
-            'hardware_recommendation': f'Based on {data.get("ram_gb", 8)}GB RAM, {data.get("cpu_cores", 4)} cores, recommended max_concurrent: {calculated_max}'
-        })
+        return jsonify(
+            {
+                "success": True,
+                "node_id": node["node_id"],
+                "api_key": api_key,  # Only returned once at registration!
+                "approval_status": node["approval_status"],
+                "config": {
+                    "heartbeat_interval": 30,
+                    "capability_interval": 300,
+                    "max_concurrent": calculated_max,
+                    "log_level": "INFO",
+                },
+                "message": (
+                    "Node registered. Awaiting admin approval."
+                    if node["approval_status"] == "pending"
+                    else "Node registered successfully."
+                ),
+                "hardware_recommendation": f'Based on {data.get("ram_gb", 8)}GB RAM, {data.get("cpu_cores", 4)} cores, recommended max_concurrent: {calculated_max}',
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error registering node: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/nodes/<node_id>/heartbeat', methods=['POST'])
+@bridge_bp.route("/api/nodes/<node_id>/heartbeat", methods=["POST"])
 def node_heartbeat(node_id):
     """Receive heartbeat from a remote node"""
     data = request.get_json() or {}
-    api_key = request.headers.get('X-Node-API-Key')
+    api_key = request.headers.get("X-Node-API-Key")
 
     if not api_key:
-        return jsonify({'success': False, 'error': 'API key required'}), 401
+        return jsonify({"success": False, "error": "API key required"}), 401
 
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Verify node and API key
-        cur.execute("""
+        cur.execute(
+            """
             SELECT id, api_key_hash, min_required_version
             FROM remote_nodes WHERE node_id = %s AND is_active = TRUE
-        """, (node_id,))
+        """,
+            (node_id,),
+        )
         node = cur.fetchone()
 
         if not node:
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Node not found'}), 404
+            return jsonify({"success": False, "error": "Node not found"}), 404
 
-        if not verify_api_key(api_key, node['api_key_hash']):
+        if not verify_api_key(api_key, node["api_key_hash"]):
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Invalid API key'}), 401
+            return jsonify({"success": False, "error": "Invalid API key"}), 401
 
         # Version check
-        client_version = data.get('client_version', '1.0.0')
+        client_version = data.get("client_version", "1.0.0")
         # Simple version comparison (could be more sophisticated)
 
         # Determine status
-        status = 'online'
-        if data.get('error'):
-            status = 'degraded'
+        status = "online"
+        if data.get("error"):
+            status = "degraded"
 
         # Update node status including AI service availability
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE remote_nodes
             SET status = %s,
                 last_heartbeat = NOW(),
@@ -2219,52 +2406,60 @@ def node_heartbeat(node_id):
                 last_error = %s,
                 error_count = CASE WHEN %s IS NOT NULL THEN error_count + 1 ELSE 0 END
             WHERE id = %s
-        """, (
-            status,
-            data.get('current_load', 0),
-            client_version,
-            data.get('cpu_cores'),
-            data.get('ram_gb'),
-            data.get('gpu_available'),
-            # AI Services
-            data.get('ollama_online'),
-            data.get('foocus_available'),
-            data.get('comfyui_available'),
-            data.get('auto1111_available'),
-            data.get('foocus_port'),
-            data.get('comfyui_port'),
-            data.get('auto1111_port'),
-            data.get('error'),
-            data.get('error'),
-            node['id']
-        ))
+        """,
+            (
+                status,
+                data.get("current_load", 0),
+                client_version,
+                data.get("cpu_cores"),
+                data.get("ram_gb"),
+                data.get("gpu_available"),
+                # AI Services
+                data.get("ollama_online"),
+                data.get("foocus_available"),
+                data.get("comfyui_available"),
+                data.get("auto1111_available"),
+                data.get("foocus_port"),
+                data.get("comfyui_port"),
+                data.get("auto1111_port"),
+                data.get("error"),
+                data.get("error"),
+                node["id"],
+            ),
+        )
 
         # Log heartbeat
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO node_heartbeats (
                 node_id, status, latency_ms, cpu_usage, memory_usage,
                 gpu_usage, current_load, details
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """, (
-            node['id'],
-            status,
-            data.get('latency_ms'),
-            data.get('cpu_usage'),
-            data.get('memory_usage'),
-            data.get('gpu_usage'),
-            data.get('current_load', 0),
-            psycopg2.extras.Json(data.get('details', {}))
-        ))
+        """,
+            (
+                node["id"],
+                status,
+                data.get("latency_ms"),
+                data.get("cpu_usage"),
+                data.get("memory_usage"),
+                data.get("gpu_usage"),
+                data.get("current_load", 0),
+                psycopg2.extras.Json(data.get("details", {})),
+            ),
+        )
 
         conn.commit()
 
         # Sync Ollama models if provided (Phase 70: Node Model Discovery)
         models_synced = 0
-        if data.get('ollama_models') and data.get('ollama_online'):
+        if data.get("ollama_models") and data.get("ollama_online"):
             try:
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT sync_node_models(%s, %s::jsonb)
-                """, (node_id, psycopg2.extras.Json(data['ollama_models'])))
+                """,
+                    (node_id, psycopg2.extras.Json(data["ollama_models"])),
+                )
                 result = cur.fetchone()
                 models_synced = result[0] if result else 0
                 conn.commit()
@@ -2275,95 +2470,106 @@ def node_heartbeat(node_id):
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'status': status,
-            'message': 'Heartbeat received',
-            'models_synced': models_synced
-        })
+        return jsonify(
+            {"success": True, "status": status, "message": "Heartbeat received", "models_synced": models_synced}
+        )
 
     except Exception as e:
         logger.error(f"Heartbeat error: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/nodes/<node_id>')
+@bridge_bp.route("/api/nodes/<node_id>")
 def get_node_detail(node_id):
     """Get detailed info about a specific node"""
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT * FROM remote_nodes WHERE node_id = %s
-        """, (node_id,))
+        """,
+            (node_id,),
+        )
         node = cur.fetchone()
 
         if not node:
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Node not found'}), 404
+            return jsonify({"success": False, "error": "Node not found"}), 404
 
         # Get capabilities
-        cur.execute("""
+        cur.execute(
+            """
             SELECT provider, model_name, is_available, avg_tokens_per_sec,
                    max_context_length, priority
             FROM node_capabilities
             WHERE node_id = %s
             ORDER BY provider, model_name
-        """, (node['id'],))
+        """,
+            (node["id"],),
+        )
         capabilities = cur.fetchall()
 
         # Get recent heartbeats
-        cur.execute("""
+        cur.execute(
+            """
             SELECT status, latency_ms, cpu_usage, memory_usage, gpu_usage,
                    current_load, created_at
             FROM node_heartbeats
             WHERE node_id = %s
             ORDER BY created_at DESC
             LIMIT 50
-        """, (node['id'],))
+        """,
+            (node["id"],),
+        )
         heartbeats = cur.fetchall()
 
         cur.close()
         conn.close()
 
         # Convert datetime
-        for key in ['last_heartbeat', 'created_at', 'updated_at']:
+        for key in ["last_heartbeat", "created_at", "updated_at"]:
             if node.get(key):
                 node[key] = node[key].isoformat()
 
         for hb in heartbeats:
-            if hb.get('created_at'):
-                hb['created_at'] = hb['created_at'].isoformat()
+            if hb.get("created_at"):
+                hb["created_at"] = hb["created_at"].isoformat()
 
         # Remove sensitive data
-        node.pop('api_key_hash', None)
+        node.pop("api_key_hash", None)
 
-        return jsonify({
-            'success': True,
-            'node': node,
-            'capabilities': capabilities,
-            'heartbeats': heartbeats
-        })
+        return jsonify({"success": True, "node": node, "capabilities": capabilities, "heartbeats": heartbeats})
 
     except Exception as e:
         logger.error(f"Error getting node: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/nodes/<node_id>', methods=['PUT'])
+@bridge_bp.route("/api/nodes/<node_id>", methods=["PUT"])
 def update_node(node_id):
     """Update a remote node configuration"""
     data = request.get_json() or {}
 
-    allowed_fields = ['node_name', 'description', 'vpn_ip', 'hostname', 'port',
-                      'priority', 'weight', 'max_concurrent', 'tags', 'is_active',
-                      'min_required_version']
+    allowed_fields = [
+        "node_name",
+        "description",
+        "vpn_ip",
+        "hostname",
+        "port",
+        "priority",
+        "weight",
+        "max_concurrent",
+        "tags",
+        "is_active",
+        "min_required_version",
+    ]
     updates = {k: v for k, v in data.items() if k in allowed_fields}
 
     if not updates:
-        return jsonify({'success': False, 'error': 'No valid fields to update'}), 400
+        return jsonify({"success": False, "error": "No valid fields to update"}), 400
 
     try:
         conn = get_db_connection()
@@ -2373,12 +2579,15 @@ def update_node(node_id):
         values = list(updates.values())
         values.append(node_id)
 
-        cur.execute(f"""
+        cur.execute(
+            f"""
             UPDATE remote_nodes
             SET {', '.join(set_clauses)}
             WHERE node_id = %s
             RETURNING id, node_id, node_name
-        """, values)
+        """,
+            values,
+        )
 
         updated = cur.fetchone()
         conn.commit()
@@ -2386,28 +2595,28 @@ def update_node(node_id):
         conn.close()
 
         if not updated:
-            return jsonify({'success': False, 'error': 'Node not found'}), 404
+            return jsonify({"success": False, "error": "Node not found"}), 404
 
-        return jsonify({
-            'success': True,
-            'node': updated
-        })
+        return jsonify({"success": True, "node": updated})
 
     except Exception as e:
         logger.error(f"Error updating node: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/nodes/<node_id>', methods=['DELETE'])
+@bridge_bp.route("/api/nodes/<node_id>", methods=["DELETE"])
 def delete_node(node_id):
     """Delete a remote node"""
     try:
         conn = get_db_connection()
         cur = conn.cursor()
 
-        cur.execute("""
+        cur.execute(
+            """
             DELETE FROM remote_nodes WHERE node_id = %s RETURNING id
-        """, (node_id,))
+        """,
+            (node_id,),
+        )
 
         deleted = cur.fetchone()
         conn.commit()
@@ -2415,90 +2624,91 @@ def delete_node(node_id):
         conn.close()
 
         if not deleted:
-            return jsonify({'success': False, 'error': 'Node not found'}), 404
+            return jsonify({"success": False, "error": "Node not found"}), 404
 
-        return jsonify({
-            'success': True,
-            'message': f'Node {node_id} deleted'
-        })
+        return jsonify({"success": True, "message": f"Node {node_id} deleted"})
 
     except Exception as e:
         logger.error(f"Error deleting node: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/nodes/<node_id>/capabilities', methods=['POST'])
+@bridge_bp.route("/api/nodes/<node_id>/capabilities", methods=["POST"])
 def update_node_capabilities(node_id):
     """Update capabilities for a node (called by node client)"""
     data = request.get_json() or {}
-    api_key = request.headers.get('X-Node-API-Key')
-    capabilities = data.get('capabilities', [])
+    api_key = request.headers.get("X-Node-API-Key")
+    capabilities = data.get("capabilities", [])
 
     if not api_key:
-        return jsonify({'success': False, 'error': 'API key required'}), 401
+        return jsonify({"success": False, "error": "API key required"}), 401
 
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Verify node
-        cur.execute("""
+        cur.execute(
+            """
             SELECT id, api_key_hash FROM remote_nodes
             WHERE node_id = %s AND is_active = TRUE
-        """, (node_id,))
+        """,
+            (node_id,),
+        )
         node = cur.fetchone()
 
-        if not node or not verify_api_key(api_key, node['api_key_hash']):
+        if not node or not verify_api_key(api_key, node["api_key_hash"]):
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+            return jsonify({"success": False, "error": "Unauthorized"}), 401
 
         # Clear old capabilities and insert new
-        cur.execute("DELETE FROM node_capabilities WHERE node_id = %s", (node['id'],))
+        cur.execute("DELETE FROM node_capabilities WHERE node_id = %s", (node["id"],))
 
         for cap in capabilities:
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO node_capabilities (
                     node_id, provider, model_name, is_available,
                     avg_tokens_per_sec, max_context_length, priority
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s)
-            """, (
-                node['id'],
-                cap.get('provider', 'ollama'),
-                cap.get('model_name'),
-                cap.get('is_available', True),
-                cap.get('avg_tokens_per_sec'),
-                cap.get('max_context_length'),
-                cap.get('priority', 10)
-            ))
+            """,
+                (
+                    node["id"],
+                    cap.get("provider", "ollama"),
+                    cap.get("model_name"),
+                    cap.get("is_available", True),
+                    cap.get("avg_tokens_per_sec"),
+                    cap.get("max_context_length"),
+                    cap.get("priority", 10),
+                ),
+            )
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'message': f'Updated {len(capabilities)} capabilities'
-        })
+        return jsonify({"success": True, "message": f"Updated {len(capabilities)} capabilities"})
 
     except Exception as e:
         logger.error(f"Error updating capabilities: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/nodes/select', methods=['POST'])
+@bridge_bp.route("/api/nodes/select", methods=["POST"])
 def select_node_for_request():
     """Select the best node for a request (load balancing)"""
     data = request.get_json() or {}
-    model_name = data.get('model')
-    provider = data.get('provider', 'ollama')
+    model_name = data.get("model")
+    provider = data.get("provider", "ollama")
 
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Find available nodes with the requested capability
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 rn.id, rn.node_id, rn.node_name, rn.vpn_ip, rn.hostname, rn.port,
                 rn.priority, rn.weight, rn.current_load, rn.max_concurrent,
@@ -2516,7 +2726,9 @@ def select_node_for_request():
                 (rn.current_load::float / NULLIF(rn.max_concurrent, 0)) ASC,
                 rn.weight DESC
             LIMIT 1
-        """, (provider, model_name))
+        """,
+            (provider, model_name),
+        )
 
         node = cur.fetchone()
 
@@ -2524,41 +2736,43 @@ def select_node_for_request():
             # Fallback: return local if no remote nodes available
             cur.close()
             conn.close()
-            return jsonify({
-                'success': True,
-                'node': None,
-                'use_local': True,
-                'message': 'No remote nodes available, use local'
-            })
+            return jsonify(
+                {"success": True, "node": None, "use_local": True, "message": "No remote nodes available, use local"}
+            )
 
         # Increment load counter
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE remote_nodes
             SET current_load = current_load + 1
             WHERE id = %s
-        """, (node['id'],))
+        """,
+            (node["id"],),
+        )
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'node': {
-                'node_id': node['node_id'],
-                'name': node['node_name'],
-                'host': node['vpn_ip'] or node['hostname'],
-                'port': node['port']
-            },
-            'use_local': False
-        })
+        return jsonify(
+            {
+                "success": True,
+                "node": {
+                    "node_id": node["node_id"],
+                    "name": node["node_name"],
+                    "host": node["vpn_ip"] or node["hostname"],
+                    "port": node["port"],
+                },
+                "use_local": False,
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error selecting node: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/nodes/<node_id>/request-complete', methods=['POST'])
+@bridge_bp.route("/api/nodes/<node_id>/request-complete", methods=["POST"])
 def node_request_complete(node_id):
     """Mark a request as complete (decrement load)"""
     data = request.get_json() or {}
@@ -2574,48 +2788,54 @@ def node_request_complete(node_id):
         if not node:
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Node not found'}), 404
+            return jsonify({"success": False, "error": "Node not found"}), 404
 
         # Decrement load and update stats
-        success = data.get('success', True)
-        cur.execute("""
+        success = data.get("success", True)
+        cur.execute(
+            """
             UPDATE remote_nodes
             SET current_load = GREATEST(0, current_load - 1),
                 total_requests = total_requests + 1,
                 successful_requests = successful_requests + %s,
                 failed_requests = failed_requests + %s
             WHERE id = %s
-        """, (1 if success else 0, 0 if success else 1, node['id']))
+        """,
+            (1 if success else 0, 0 if success else 1, node["id"]),
+        )
 
         # Log request
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO node_requests (
                 node_id, request_type, model_name, tokens_in, tokens_out,
                 latency_ms, status, error_message
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """, (
-            node['id'],
-            data.get('request_type', 'completion'),
-            data.get('model'),
-            data.get('tokens_in'),
-            data.get('tokens_out'),
-            data.get('latency_ms'),
-            'success' if success else 'failed',
-            data.get('error')
-        ))
+        """,
+            (
+                node["id"],
+                data.get("request_type", "completion"),
+                data.get("model"),
+                data.get("tokens_in"),
+                data.get("tokens_out"),
+                data.get("latency_ms"),
+                "success" if success else "failed",
+                data.get("error"),
+            ),
+        )
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({'success': True})
+        return jsonify({"success": True})
 
     except Exception as e:
         logger.error(f"Error completing request: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/nodes/stats')
+@bridge_bp.route("/api/nodes/stats")
 def get_node_stats():
     """Get aggregate stats across all nodes"""
     try:
@@ -2623,7 +2843,8 @@ def get_node_stats():
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Overall stats
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 COUNT(*) as total_nodes,
                 COUNT(*) FILTER (WHERE status = 'online') as online_nodes,
@@ -2634,11 +2855,13 @@ def get_node_stats():
                 AVG(avg_latency_ms) as avg_latency
             FROM remote_nodes
             WHERE is_active = TRUE
-        """)
+        """
+        )
         overall = cur.fetchone()
 
         # By provider
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 nc.provider,
                 COUNT(DISTINCT nc.node_id) as node_count,
@@ -2648,78 +2871,82 @@ def get_node_stats():
             JOIN remote_nodes rn ON nc.node_id = rn.id
             WHERE rn.is_active = TRUE
             GROUP BY nc.provider
-        """)
+        """
+        )
         by_provider = cur.fetchall()
 
         # Recent requests (last hour)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 COUNT(*) as total,
                 COUNT(*) FILTER (WHERE status = 'success') as successful,
                 AVG(latency_ms) as avg_latency
             FROM node_requests
             WHERE created_at > NOW() - INTERVAL '1 hour'
-        """)
+        """
+        )
         recent = cur.fetchone()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'overall': overall,
-            'by_provider': by_provider,
-            'recent_hour': recent
-        })
+        return jsonify({"success": True, "overall": overall, "by_provider": by_provider, "recent_hour": recent})
 
     except Exception as e:
         logger.error(f"Error getting stats: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # NODE APPROVAL & MANAGEMENT - Phase 29+ Enhancement
 # ============================================================================
 
-@bridge_bp.route('/api/nodes/<node_id>/status', methods=['GET'])
+
+@bridge_bp.route("/api/nodes/<node_id>/status", methods=["GET"])
 def get_node_status(node_id):
     """Get node approval status (for polling during install)"""
-    api_key = request.headers.get('X-Node-API-Key')
+    api_key = request.headers.get("X-Node-API-Key")
 
     if not api_key:
-        return jsonify({'error': 'API key required'}), 401
+        return jsonify({"error": "API key required"}), 401
 
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Verify API key matches node
-        cur.execute("""
+        cur.execute(
+            """
             SELECT node_id, node_name, approval_status, status
             FROM remote_nodes
             WHERE node_id = %s AND api_key_hash = %s
-        """, (node_id, hash_api_key(api_key)))
+        """,
+            (node_id, hash_api_key(api_key)),
+        )
 
         node = cur.fetchone()
         cur.close()
         conn.close()
 
         if not node:
-            return jsonify({'error': 'Invalid node or API key'}), 401
+            return jsonify({"error": "Invalid node or API key"}), 401
 
-        return jsonify({
-            'node_id': node['node_id'],
-            'node_name': node['node_name'],
-            'approval_status': node['approval_status'],
-            'status': node['status']
-        })
+        return jsonify(
+            {
+                "node_id": node["node_id"],
+                "node_name": node["node_name"],
+                "approval_status": node["approval_status"],
+                "status": node["status"],
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error getting node status: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
 
-@bridge_bp.route('/api/nodes/<node_id>/approve', methods=['POST'])
+@bridge_bp.route("/api/nodes/<node_id>/approve", methods=["POST"])
 def approve_node(node_id):
     """Approve a pending node registration"""
     try:
@@ -2728,17 +2955,20 @@ def approve_node(node_id):
 
         # Get current user ID (if available from session)
         user_id = None
-        if hasattr(request, 'user') and request.user:
-            user_id = request.user.get('id')
+        if hasattr(request, "user") and request.user:
+            user_id = request.user.get("id")
 
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE remote_nodes
             SET approval_status = 'approved',
                 approved_by = %s,
                 approved_at = NOW()
             WHERE node_id = %s AND approval_status = 'pending'
             RETURNING node_id, node_name, approval_status
-        """, (user_id, node_id))
+        """,
+            (user_id, node_id),
+        )
 
         node = cur.fetchone()
         conn.commit()
@@ -2746,26 +2976,28 @@ def approve_node(node_id):
         conn.close()
 
         if not node:
-            return jsonify({'success': False, 'error': 'Node not found or already processed'}), 404
+            return jsonify({"success": False, "error": "Node not found or already processed"}), 404
 
-        return jsonify({
-            'success': True,
-            'node_id': node['node_id'],
-            'node_name': node['node_name'],
-            'approval_status': node['approval_status'],
-            'message': f"Node '{node['node_name']}' approved successfully"
-        })
+        return jsonify(
+            {
+                "success": True,
+                "node_id": node["node_id"],
+                "node_name": node["node_name"],
+                "approval_status": node["approval_status"],
+                "message": f"Node '{node['node_name']}' approved successfully",
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error approving node: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/nodes/<node_id>/reject', methods=['POST'])
+@bridge_bp.route("/api/nodes/<node_id>/reject", methods=["POST"])
 def reject_node(node_id):
     """Reject a pending node registration"""
     data = request.get_json() or {}
-    reason = data.get('reason', 'No reason provided')
+    reason = data.get("reason", "No reason provided")
 
     try:
         conn = get_db_connection()
@@ -2773,10 +3005,11 @@ def reject_node(node_id):
 
         # Get current user ID
         user_id = None
-        if hasattr(request, 'user') and request.user:
-            user_id = request.user.get('id')
+        if hasattr(request, "user") and request.user:
+            user_id = request.user.get("id")
 
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE remote_nodes
             SET approval_status = 'rejected',
                 approved_by = %s,
@@ -2785,7 +3018,9 @@ def reject_node(node_id):
                 is_active = FALSE
             WHERE node_id = %s AND approval_status = 'pending'
             RETURNING node_id, node_name, approval_status
-        """, (user_id, f"Rejected: {reason}", node_id))
+        """,
+            (user_id, f"Rejected: {reason}", node_id),
+        )
 
         node = cur.fetchone()
         conn.commit()
@@ -2793,22 +3028,24 @@ def reject_node(node_id):
         conn.close()
 
         if not node:
-            return jsonify({'success': False, 'error': 'Node not found or already processed'}), 404
+            return jsonify({"success": False, "error": "Node not found or already processed"}), 404
 
-        return jsonify({
-            'success': True,
-            'node_id': node['node_id'],
-            'node_name': node['node_name'],
-            'approval_status': node['approval_status'],
-            'message': f"Node '{node['node_name']}' rejected"
-        })
+        return jsonify(
+            {
+                "success": True,
+                "node_id": node["node_id"],
+                "node_name": node["node_name"],
+                "approval_status": node["approval_status"],
+                "message": f"Node '{node['node_name']}' rejected",
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error rejecting node: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/nodes/<node_id>/test', methods=['POST'])
+@bridge_bp.route("/api/nodes/<node_id>/test", methods=["POST"])
 def test_node_connection(node_id):
     """Test connectivity to a remote node's Ollama instance"""
     import time
@@ -2817,78 +3054,90 @@ def test_node_connection(node_id):
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT node_id, node_name, vpn_ip, hostname, port
             FROM remote_nodes
             WHERE node_id = %s AND is_active = TRUE
-        """, (node_id,))
+        """,
+            (node_id,),
+        )
 
         node = cur.fetchone()
         cur.close()
         conn.close()
 
         if not node:
-            return jsonify({'success': False, 'error': 'Node not found'}), 404
+            return jsonify({"success": False, "error": "Node not found"}), 404
 
         # Build endpoint URL
-        host = node['vpn_ip'] or node['hostname']
-        port = node['port'] or 11434
+        host = node["vpn_ip"] or node["hostname"]
+        port = node["port"] or 11434
         url = f"http://{host}:{port}/api/tags"
 
         # Test connection with timing
         start_time = time.time()
         try:
             import requests as req
+
             resp = req.get(url, timeout=10)
             latency_ms = int((time.time() - start_time) * 1000)
 
             if resp.status_code == 200:
-                models = resp.json().get('models', [])
-                return jsonify({
-                    'success': True,
-                    'node_id': node_id,
-                    'node_name': node['node_name'],
-                    'reachable': True,
-                    'latency_ms': latency_ms,
-                    'ollama_status': 'online',
-                    'models_count': len(models),
-                    'models': [m.get('name') for m in models[:10]]  # First 10 models
-                })
+                models = resp.json().get("models", [])
+                return jsonify(
+                    {
+                        "success": True,
+                        "node_id": node_id,
+                        "node_name": node["node_name"],
+                        "reachable": True,
+                        "latency_ms": latency_ms,
+                        "ollama_status": "online",
+                        "models_count": len(models),
+                        "models": [m.get("name") for m in models[:10]],  # First 10 models
+                    }
+                )
             else:
-                return jsonify({
-                    'success': True,
-                    'node_id': node_id,
-                    'reachable': True,
-                    'latency_ms': latency_ms,
-                    'ollama_status': 'error',
-                    'error': f"Ollama returned status {resp.status_code}"
-                })
+                return jsonify(
+                    {
+                        "success": True,
+                        "node_id": node_id,
+                        "reachable": True,
+                        "latency_ms": latency_ms,
+                        "ollama_status": "error",
+                        "error": f"Ollama returned status {resp.status_code}",
+                    }
+                )
         except req.exceptions.Timeout:
-            return jsonify({
-                'success': True,
-                'node_id': node_id,
-                'reachable': False,
-                'latency_ms': 10000,
-                'error': 'Connection timed out'
-            })
+            return jsonify(
+                {
+                    "success": True,
+                    "node_id": node_id,
+                    "reachable": False,
+                    "latency_ms": 10000,
+                    "error": "Connection timed out",
+                }
+            )
         except req.exceptions.ConnectionError as e:
-            return jsonify({
-                'success': True,
-                'node_id': node_id,
-                'reachable': False,
-                'latency_ms': None,
-                'error': f"Connection failed: {str(e)}"
-            })
+            return jsonify(
+                {
+                    "success": True,
+                    "node_id": node_id,
+                    "reachable": False,
+                    "latency_ms": None,
+                    "error": f"Connection failed: {str(e)}",
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error testing node: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/nodes/<node_id>/health-history', methods=['GET'])
+@bridge_bp.route("/api/nodes/<node_id>/health-history", methods=["GET"])
 def get_node_health_history(node_id):
     """Get health history for a node (for charts)"""
-    hours = request.args.get('hours', 24, type=int)
+    hours = request.args.get("hours", 24, type=int)
 
     try:
         conn = get_db_connection()
@@ -2901,10 +3150,11 @@ def get_node_health_history(node_id):
         if not node:
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Node not found'}), 404
+            return jsonify({"success": False, "error": "Node not found"}), 404
 
         # Get heartbeat history
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 DATE_TRUNC('hour', created_at) as hour,
                 AVG(cpu_usage) as avg_cpu,
@@ -2918,30 +3168,29 @@ def get_node_health_history(node_id):
               AND created_at > NOW() - INTERVAL '%s hours'
             GROUP BY DATE_TRUNC('hour', created_at)
             ORDER BY hour
-        """, (node['id'], hours))
+        """,
+            (node["id"], hours),
+        )
 
         history = cur.fetchall()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'node_id': node_id,
-            'hours': hours,
-            'data_points': len(history),
-            'history': history
-        })
+        return jsonify(
+            {"success": True, "node_id": node_id, "hours": hours, "data_points": len(history), "history": history}
+        )
 
     except Exception as e:
         logger.error(f"Error getting health history: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # NODE STATION ASSIGNMENTS - Phase 31
 # ============================================================================
 
-@bridge_bp.route('/api/nodes/<node_id>/stations', methods=['GET'])
+
+@bridge_bp.route("/api/nodes/<node_id>/stations", methods=["GET"])
 def get_node_stations(node_id):
     """Get all station assignments for a node"""
     try:
@@ -2955,10 +3204,11 @@ def get_node_stations(node_id):
         if not node:
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Node not found'}), 404
+            return jsonify({"success": False, "error": "Node not found"}), 404
 
         # Get station assignments with station details
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 nsa.id AS assignment_id,
                 nsa.station_id,
@@ -2976,33 +3226,37 @@ def get_node_stations(node_id):
             JOIN bridge_stations bs ON nsa.station_id = bs.id
             WHERE nsa.node_id = %s
             ORDER BY nsa.priority ASC, bs.station_name ASC
-        """, (node['id'],))
+        """,
+            (node["id"],),
+        )
 
         assignments = cur.fetchall()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'node_id': node_id,
-            'node_name': node['node_name'],
-            'assignment_count': len(assignments),
-            'assignments': assignments
-        })
+        return jsonify(
+            {
+                "success": True,
+                "node_id": node_id,
+                "node_name": node["node_name"],
+                "assignment_count": len(assignments),
+                "assignments": assignments,
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error getting node stations: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/nodes/<node_id>/stations', methods=['POST'])
+@bridge_bp.route("/api/nodes/<node_id>/stations", methods=["POST"])
 @login_required
 def assign_node_to_station(node_id):
     """Assign a node to a station"""
     data = request.get_json() or {}
 
-    if not data.get('station_id'):
-        return jsonify({'success': False, 'error': 'station_id is required'}), 400
+    if not data.get("station_id"):
+        return jsonify({"success": False, "error": "station_id is required"}), 400
 
     try:
         conn = get_db_connection()
@@ -3015,72 +3269,80 @@ def assign_node_to_station(node_id):
         if not node:
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Node not found'}), 404
+            return jsonify({"success": False, "error": "Node not found"}), 404
 
         # Verify station exists
-        cur.execute("SELECT id, station_name FROM bridge_stations WHERE id = %s", (data['station_id'],))
+        cur.execute("SELECT id, station_name FROM bridge_stations WHERE id = %s", (data["station_id"],))
         station = cur.fetchone()
 
         if not station:
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Station not found'}), 404
+            return jsonify({"success": False, "error": "Station not found"}), 404
 
         # Check if assignment already exists
-        cur.execute("""
+        cur.execute(
+            """
             SELECT id FROM node_station_assignments
             WHERE node_id = %s AND station_id = %s
-        """, (node['id'], data['station_id']))
+        """,
+            (node["id"], data["station_id"]),
+        )
 
         if cur.fetchone():
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Node is already assigned to this station'}), 400
+            return jsonify({"success": False, "error": "Node is already assigned to this station"}), 400
 
         # Create assignment
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO node_station_assignments (
                 node_id, station_id, role, priority, shift_preference,
                 max_concurrent, notes, assigned_by
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id, role, priority, assigned_at
-        """, (
-            node['id'],
-            data['station_id'],
-            data.get('role', 'worker'),
-            data.get('priority', 10),
-            data.get('shift_preference', 'any'),
-            data.get('max_concurrent', 5),
-            data.get('notes'),
-            current_user.id if current_user.is_authenticated else None
-        ))
+        """,
+            (
+                node["id"],
+                data["station_id"],
+                data.get("role", "worker"),
+                data.get("priority", 10),
+                data.get("shift_preference", "any"),
+                data.get("max_concurrent", 5),
+                data.get("notes"),
+                current_user.id if current_user.is_authenticated else None,
+            ),
+        )
 
         assignment = cur.fetchone()
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'message': f"Node '{node['node_name']}' assigned to station '{station['station_name']}'",
-            'assignment': {
-                'id': assignment['id'],
-                'node_id': node_id,
-                'node_name': node['node_name'],
-                'station_id': data['station_id'],
-                'station_name': station['station_name'],
-                'role': assignment['role'],
-                'priority': assignment['priority'],
-                'assigned_at': assignment['assigned_at'].isoformat() if assignment['assigned_at'] else None
+        return jsonify(
+            {
+                "success": True,
+                "message": f"Node '{node['node_name']}' assigned to station '{station['station_name']}'",
+                "assignment": {
+                    "id": assignment["id"],
+                    "node_id": node_id,
+                    "node_name": node["node_name"],
+                    "station_id": data["station_id"],
+                    "station_name": station["station_name"],
+                    "role": assignment["role"],
+                    "priority": assignment["priority"],
+                    "assigned_at": assignment["assigned_at"].isoformat() if assignment["assigned_at"] else None,
+                },
             }
-        })
+        )
 
     except Exception as e:
         logger.error(f"Error assigning node to station: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/nodes/<node_id>/stations/<int:station_id>', methods=['PUT'])
+@bridge_bp.route("/api/nodes/<node_id>/stations/<int:station_id>", methods=["PUT"])
 @login_required
 def update_node_station_assignment(node_id, station_id):
     """Update a node's station assignment (role, priority, etc.)"""
@@ -3097,88 +3359,104 @@ def update_node_station_assignment(node_id, station_id):
         if not node:
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Node not found'}), 404
+            return jsonify({"success": False, "error": "Node not found"}), 404
 
         # Check if assignment exists
-        cur.execute("""
+        cur.execute(
+            """
             SELECT nsa.id, bs.station_name
             FROM node_station_assignments nsa
             JOIN bridge_stations bs ON nsa.station_id = bs.id
             WHERE nsa.node_id = %s AND nsa.station_id = %s
-        """, (node['id'], station_id))
+        """,
+            (node["id"], station_id),
+        )
         assignment = cur.fetchone()
 
         if not assignment:
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Assignment not found'}), 404
+            return jsonify({"success": False, "error": "Assignment not found"}), 404
 
         # Build update query dynamically
         update_fields = []
         update_values = []
 
-        if 'role' in data:
-            if data['role'] not in ['primary', 'backup', 'relief', 'worker']:
-                return jsonify({'success': False, 'error': 'Invalid role. Must be: primary, backup, relief, or worker'}), 400
+        if "role" in data:
+            if data["role"] not in ["primary", "backup", "relief", "worker"]:
+                return (
+                    jsonify({"success": False, "error": "Invalid role. Must be: primary, backup, relief, or worker"}),
+                    400,
+                )
             update_fields.append("role = %s")
-            update_values.append(data['role'])
+            update_values.append(data["role"])
 
-        if 'priority' in data:
+        if "priority" in data:
             update_fields.append("priority = %s")
-            update_values.append(data['priority'])
+            update_values.append(data["priority"])
 
-        if 'shift_preference' in data:
-            if data['shift_preference'] not in ['alpha', 'beta', 'gamma', 'any']:
-                return jsonify({'success': False, 'error': 'Invalid shift_preference. Must be: alpha, beta, gamma, or any'}), 400
+        if "shift_preference" in data:
+            if data["shift_preference"] not in ["alpha", "beta", "gamma", "any"]:
+                return (
+                    jsonify(
+                        {"success": False, "error": "Invalid shift_preference. Must be: alpha, beta, gamma, or any"}
+                    ),
+                    400,
+                )
             update_fields.append("shift_preference = %s")
-            update_values.append(data['shift_preference'])
+            update_values.append(data["shift_preference"])
 
-        if 'max_concurrent' in data:
+        if "max_concurrent" in data:
             update_fields.append("max_concurrent = %s")
-            update_values.append(data['max_concurrent'])
+            update_values.append(data["max_concurrent"])
 
-        if 'is_active' in data:
+        if "is_active" in data:
             update_fields.append("is_active = %s")
-            update_values.append(data['is_active'])
+            update_values.append(data["is_active"])
 
-        if 'notes' in data:
+        if "notes" in data:
             update_fields.append("notes = %s")
-            update_values.append(data['notes'])
+            update_values.append(data["notes"])
 
         if not update_fields:
-            return jsonify({'success': False, 'error': 'No fields to update'}), 400
+            return jsonify({"success": False, "error": "No fields to update"}), 400
 
         # Execute update
-        update_values.append(assignment['id'])
-        cur.execute(f"""
+        update_values.append(assignment["id"])
+        cur.execute(
+            f"""
             UPDATE node_station_assignments
             SET {', '.join(update_fields)}
             WHERE id = %s
             RETURNING id, role, priority, shift_preference, max_concurrent, is_active
-        """, tuple(update_values))
+        """,
+            tuple(update_values),
+        )
 
         updated = cur.fetchone()
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'message': f"Assignment updated for node '{node['node_name']}' at station '{assignment['station_name']}'",
-            'assignment': {
-                'node_id': node_id,
-                'station_id': station_id,
-                'station_name': assignment['station_name'],
-                **updated
+        return jsonify(
+            {
+                "success": True,
+                "message": f"Assignment updated for node '{node['node_name']}' at station '{assignment['station_name']}'",
+                "assignment": {
+                    "node_id": node_id,
+                    "station_id": station_id,
+                    "station_name": assignment["station_name"],
+                    **updated,
+                },
             }
-        })
+        )
 
     except Exception as e:
         logger.error(f"Error updating station assignment: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/nodes/<node_id>/stations/<int:station_id>', methods=['DELETE'])
+@bridge_bp.route("/api/nodes/<node_id>/stations/<int:station_id>", methods=["DELETE"])
 @login_required
 def remove_node_from_station(node_id, station_id):
     """Remove a node from a station"""
@@ -3193,41 +3471,46 @@ def remove_node_from_station(node_id, station_id):
         if not node:
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Node not found'}), 404
+            return jsonify({"success": False, "error": "Node not found"}), 404
 
         # Get station name for response
         cur.execute("SELECT station_name FROM bridge_stations WHERE id = %s", (station_id,))
         station = cur.fetchone()
 
         # Delete assignment
-        cur.execute("""
+        cur.execute(
+            """
             DELETE FROM node_station_assignments
             WHERE node_id = %s AND station_id = %s
             RETURNING id
-        """, (node['id'], station_id))
+        """,
+            (node["id"], station_id),
+        )
 
         deleted = cur.fetchone()
 
         if not deleted:
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Assignment not found'}), 404
+            return jsonify({"success": False, "error": "Assignment not found"}), 404
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'message': f"Node '{node['node_name']}' removed from station '{station['station_name'] if station else station_id}'"
-        })
+        return jsonify(
+            {
+                "success": True,
+                "message": f"Node '{node['node_name']}' removed from station '{station['station_name'] if station else station_id}'",
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error removing node from station: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/stations/<int:station_id>/nodes', methods=['GET'])
+@bridge_bp.route("/api/stations/<int:station_id>/nodes", methods=["GET"])
 def get_station_nodes(station_id):
     """Get all nodes assigned to a station"""
     try:
@@ -3241,10 +3524,11 @@ def get_station_nodes(station_id):
         if not station:
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Station not found'}), 404
+            return jsonify({"success": False, "error": "Station not found"}), 404
 
         # Get assigned nodes with details
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 rn.node_id,
                 rn.node_name,
@@ -3273,7 +3557,9 @@ def get_station_nodes(station_id):
                     ELSE 4
                 END,
                 nsa.priority ASC
-        """, (station_id,))
+        """,
+            (station_id,),
+        )
 
         nodes = cur.fetchall()
         cur.close()
@@ -3281,111 +3567,124 @@ def get_station_nodes(station_id):
 
         # Categorize by role
         by_role = {
-            'primary': [n for n in nodes if n['role'] == 'primary'],
-            'backup': [n for n in nodes if n['role'] == 'backup'],
-            'relief': [n for n in nodes if n['role'] == 'relief'],
-            'worker': [n for n in nodes if n['role'] == 'worker']
+            "primary": [n for n in nodes if n["role"] == "primary"],
+            "backup": [n for n in nodes if n["role"] == "backup"],
+            "relief": [n for n in nodes if n["role"] == "relief"],
+            "worker": [n for n in nodes if n["role"] == "worker"],
         }
 
-        return jsonify({
-            'success': True,
-            'station': station,
-            'node_count': len(nodes),
-            'by_role': {
-                'primary': len(by_role['primary']),
-                'backup': len(by_role['backup']),
-                'relief': len(by_role['relief']),
-                'worker': len(by_role['worker'])
-            },
-            'nodes': nodes
-        })
+        return jsonify(
+            {
+                "success": True,
+                "station": station,
+                "node_count": len(nodes),
+                "by_role": {
+                    "primary": len(by_role["primary"]),
+                    "backup": len(by_role["backup"]),
+                    "relief": len(by_role["relief"]),
+                    "worker": len(by_role["worker"]),
+                },
+                "nodes": nodes,
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error getting station nodes: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/stations/coverage', methods=['GET'])
+@bridge_bp.route("/api/stations/coverage", methods=["GET"])
 def get_all_station_coverage():
     """Get node coverage summary for all stations"""
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT * FROM v_station_node_coverage
-        """)
+        """
+        )
 
         coverage = cur.fetchall()
         cur.close()
         conn.close()
 
         # Calculate summary
-        total_assignments = sum(c['total_nodes'] for c in coverage)
-        stations_with_nodes = len([c for c in coverage if c['total_nodes'] > 0])
-        stations_without_primary = len([c for c in coverage if c['primary_nodes'] == 0])
+        total_assignments = sum(c["total_nodes"] for c in coverage)
+        stations_with_nodes = len([c for c in coverage if c["total_nodes"] > 0])
+        stations_without_primary = len([c for c in coverage if c["primary_nodes"] == 0])
 
-        return jsonify({
-            'success': True,
-            'summary': {
-                'total_stations': len(coverage),
-                'stations_with_nodes': stations_with_nodes,
-                'stations_without_primary': stations_without_primary,
-                'total_assignments': total_assignments
-            },
-            'coverage': coverage
-        })
+        return jsonify(
+            {
+                "success": True,
+                "summary": {
+                    "total_stations": len(coverage),
+                    "stations_with_nodes": stations_with_nodes,
+                    "stations_without_primary": stations_without_primary,
+                    "total_assignments": total_assignments,
+                },
+                "coverage": coverage,
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error getting station coverage: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/nodes/select-for-station', methods=['POST'])
+@bridge_bp.route("/api/nodes/select-for-station", methods=["POST"])
 def select_node_for_station_api():
     """Select the best available node for a station task"""
     data = request.get_json() or {}
 
-    if not data.get('station_id'):
-        return jsonify({'success': False, 'error': 'station_id is required'}), 400
+    if not data.get("station_id"):
+        return jsonify({"success": False, "error": "station_id is required"}), 400
 
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        urgency = data.get('urgency', 'normal')
+        urgency = data.get("urgency", "normal")
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT * FROM select_node_for_station(%s, %s)
-        """, (data['station_id'], urgency))
+        """,
+            (data["station_id"], urgency),
+        )
 
         nodes = cur.fetchall()
         cur.close()
         conn.close()
 
         if not nodes:
-            return jsonify({
-                'success': False,
-                'error': 'No available nodes for this station',
-                'suggestion': 'Assign nodes to this station or ensure assigned nodes are online'
-            }), 404
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "No available nodes for this station",
+                        "suggestion": "Assign nodes to this station or ensure assigned nodes are online",
+                    }
+                ),
+                404,
+            )
 
         # Return best node (first in sorted list)
         best_node = nodes[0]
 
-        return jsonify({
-            'success': True,
-            'selected_node': best_node,
-            'alternatives': nodes[1:] if len(nodes) > 1 else [],
-            'selection_criteria': {
-                'urgency': urgency,
-                'station_id': data['station_id']
+        return jsonify(
+            {
+                "success": True,
+                "selected_node": best_node,
+                "alternatives": nodes[1:] if len(nodes) > 1 else [],
+                "selection_criteria": {"urgency": urgency, "station_id": data["station_id"]},
             }
-        })
+        )
 
     except Exception as e:
         logger.error(f"Error selecting node for station: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
@@ -3394,75 +3693,81 @@ def select_node_for_station_api():
 # BRIDGE MODEL ROUTING - Phase 70
 # ============================================================================
 
-@bridge_bp.route('/api/nodes/<node_id>/bridge-sharing', methods=['PUT'])
+
+@bridge_bp.route("/api/nodes/<node_id>/bridge-sharing", methods=["PUT"])
 @login_required
 def toggle_bridge_sharing(node_id):
     """Enable or disable a node's model sharing with Bridge"""
     data = request.get_json() or {}
-    enabled = data.get('enabled', False)
-    priority = data.get('priority', 50)
+    enabled = data.get("enabled", False)
+    priority = data.get("priority", 50)
 
     try:
         conn = get_db_connection()
         cur = conn.cursor()
 
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE remote_nodes
             SET bridge_enabled = %s,
                 bridge_priority = %s,
                 updated_at = NOW()
             WHERE node_id = %s
             RETURNING node_name
-        """, (enabled, priority, node_id))
+        """,
+            (enabled, priority, node_id),
+        )
 
         result = cur.fetchone()
         if not result:
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Node not found'}), 404
+            return jsonify({"success": False, "error": "Node not found"}), 404
 
         # Log to governance audit
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO governance_audit_log (
                 event_type, event_category, agent_id, action, new_value, reason, outcome
             ) VALUES (
                 'node_bridge_sharing', 'autonomy', NULL, %s, %s, %s, 'success'
             )
-        """, (
-            'enable' if enabled else 'disable',
-            f'{{"node_id": "{node_id}", "priority": {priority}}}',
-            f"Bridge sharing {'enabled' if enabled else 'disabled'} for node {result[0]}"
-        ))
+        """,
+            (
+                "enable" if enabled else "disable",
+                f'{{"node_id": "{node_id}", "priority": {priority}}}',
+                f"Bridge sharing {'enabled' if enabled else 'disabled'} for node {result[0]}",
+            ),
+        )
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'bridge_enabled': enabled,
-            'bridge_priority': priority
-        })
+        return jsonify({"success": True, "bridge_enabled": enabled, "bridge_priority": priority})
 
     except Exception as e:
         logger.error(f"Toggle bridge sharing error: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/bridge/models')
+@bridge_bp.route("/api/bridge/models")
 def get_bridge_available_models():
     """Get all models available across bridge-enabled nodes"""
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT * FROM v_bridge_available_models
-        """)
+        """
+        )
         models = cur.fetchall()
 
         # Get summary stats
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 COUNT(DISTINCT m.model_name) as total_models,
                 COUNT(DISTINCT n.node_id) as total_nodes,
@@ -3470,24 +3775,21 @@ def get_bridge_available_models():
             FROM node_ollama_models m
             JOIN remote_nodes n ON m.node_id = n.node_id
             WHERE n.bridge_enabled = true AND n.status = 'online'
-        """)
+        """
+        )
         summary = cur.fetchone()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'models': models,
-            'summary': summary
-        })
+        return jsonify({"success": True, "models": models, "summary": summary})
 
     except Exception as e:
         logger.error(f"Get bridge models error: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/nodes/<node_id>/models')
+@bridge_bp.route("/api/nodes/<node_id>/models")
 def get_node_models(node_id):
     """Get Ollama models available on a specific node"""
     try:
@@ -3495,43 +3797,44 @@ def get_node_models(node_id):
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get node info
-        cur.execute("""
+        cur.execute(
+            """
             SELECT node_name, bridge_enabled, bridge_priority, last_model_sync, status
             FROM remote_nodes WHERE node_id = %s
-        """, (node_id,))
+        """,
+            (node_id,),
+        )
         node = cur.fetchone()
 
         if not node:
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Node not found'}), 404
+            return jsonify({"success": False, "error": "Node not found"}), 404
 
         # Get models
-        cur.execute("""
+        cur.execute(
+            """
             SELECT model_name, model_family, parameter_size, model_size_gb,
                    is_available, total_requests, avg_response_ms, updated_at
             FROM node_ollama_models
             WHERE node_id = %s
             ORDER BY model_name
-        """, (node_id,))
+        """,
+            (node_id,),
+        )
         models = cur.fetchall()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'node': node,
-            'models': models,
-            'model_count': len(models)
-        })
+        return jsonify({"success": True, "node": node, "models": models, "model_count": len(models)})
 
     except Exception as e:
         logger.error(f"Get node models error: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/nodes/<node_id>/models/sync', methods=['POST'])
+@bridge_bp.route("/api/nodes/<node_id>/models/sync", methods=["POST"])
 @login_required
 def sync_node_models_api(node_id):
     """Manually trigger model sync for a node (fetches from node's Ollama)"""
@@ -3540,39 +3843,46 @@ def sync_node_models_api(node_id):
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get node info
-        cur.execute("""
+        cur.execute(
+            """
             SELECT vpn_ip, port, ollama_available FROM remote_nodes WHERE node_id = %s
-        """, (node_id,))
+        """,
+            (node_id,),
+        )
         node = cur.fetchone()
 
         if not node:
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Node not found'}), 404
+            return jsonify({"success": False, "error": "Node not found"}), 404
 
-        if not node['ollama_available']:
+        if not node["ollama_available"]:
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Node does not have Ollama'}), 400
+            return jsonify({"success": False, "error": "Node does not have Ollama"}), 400
 
         # Fetch models from node's Ollama
         import requests as req
+
         ollama_url = f"http://{node['vpn_ip']}:{node.get('port', 11434)}/api/tags"
 
         try:
             resp = req.get(ollama_url, timeout=10)
             if resp.status_code != 200:
-                return jsonify({'success': False, 'error': f'Ollama returned {resp.status_code}'}), 502
+                return jsonify({"success": False, "error": f"Ollama returned {resp.status_code}"}), 502
 
-            models = resp.json().get('models', [])
+            models = resp.json().get("models", [])
 
         except req.exceptions.RequestException as e:
-            return jsonify({'success': False, 'error': f'Cannot reach node Ollama: {e}'}), 502
+            return jsonify({"success": False, "error": f"Cannot reach node Ollama: {e}"}), 502
 
         # Sync models using database function
-        cur.execute("""
+        cur.execute(
+            """
             SELECT sync_node_models(%s, %s::jsonb)
-        """, (node_id, psycopg2.extras.Json(models)))
+        """,
+            (node_id, psycopg2.extras.Json(models)),
+        )
         result = cur.fetchone()
         models_synced = result[0] if result else 0
 
@@ -3580,54 +3890,48 @@ def sync_node_models_api(node_id):
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'models_synced': models_synced,
-            'message': f'Synced {models_synced} models from node'
-        })
+        return jsonify(
+            {"success": True, "models_synced": models_synced, "message": f"Synced {models_synced} models from node"}
+        )
 
     except Exception as e:
         logger.error(f"Manual model sync error: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/bridge/select-node', methods=['POST'])
+@bridge_bp.route("/api/bridge/select-node", methods=["POST"])
 def select_node_for_model():
     """Select the best available node for a specific model"""
     data = request.get_json() or {}
-    model_name = data.get('model_name')
-    prefer_gpu = data.get('prefer_gpu', True)
+    model_name = data.get("model_name")
+    prefer_gpu = data.get("prefer_gpu", True)
 
     if not model_name:
-        return jsonify({'success': False, 'error': 'model_name required'}), 400
+        return jsonify({"success": False, "error": "model_name required"}), 400
 
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT * FROM select_node_for_model(%s, %s) LIMIT 1
-        """, (model_name, prefer_gpu))
+        """,
+            (model_name, prefer_gpu),
+        )
         node = cur.fetchone()
 
         cur.close()
         conn.close()
 
         if not node:
-            return jsonify({
-                'success': False,
-                'error': f'No bridge-enabled node has model {model_name}'
-            }), 404
+            return jsonify({"success": False, "error": f"No bridge-enabled node has model {model_name}"}), 404
 
-        return jsonify({
-            'success': True,
-            'node': node,
-            'ollama_url': f"http://{node['vpn_ip']}:{node['port']}"
-        })
+        return jsonify({"success": True, "node": node, "ollama_url": f"http://{node['vpn_ip']}:{node['port']}"})
 
     except Exception as e:
         logger.error(f"Select node for model error: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
@@ -3636,16 +3940,16 @@ def select_node_for_model():
 
 # Resource scheduler modes
 SCHEDULER_MODES = {
-    'ai_priority': {'ai_weight': 80, 'mining_weight': 20, 'description': 'Prioritize AI workloads'},
-    'mining_priority': {'ai_weight': 20, 'mining_weight': 80, 'description': 'Prioritize mining'},
-    'balanced': {'ai_weight': 50, 'mining_weight': 50, 'description': 'Equal resource split'},
-    'ai_only': {'ai_weight': 100, 'mining_weight': 0, 'description': 'AI workloads only'},
-    'mining_only': {'ai_weight': 0, 'mining_weight': 100, 'description': 'Mining only'},
-    'dynamic': {'ai_weight': -1, 'mining_weight': -1, 'description': 'Auto-adjust based on demand'}
+    "ai_priority": {"ai_weight": 80, "mining_weight": 20, "description": "Prioritize AI workloads"},
+    "mining_priority": {"ai_weight": 20, "mining_weight": 80, "description": "Prioritize mining"},
+    "balanced": {"ai_weight": 50, "mining_weight": 50, "description": "Equal resource split"},
+    "ai_only": {"ai_weight": 100, "mining_weight": 0, "description": "AI workloads only"},
+    "mining_only": {"ai_weight": 0, "mining_weight": 100, "description": "Mining only"},
+    "dynamic": {"ai_weight": -1, "mining_weight": -1, "description": "Auto-adjust based on demand"},
 }
 
 
-@bridge_bp.route('/api/mining/scheduler')
+@bridge_bp.route("/api/mining/scheduler")
 def get_scheduler_status():
     """Get current resource scheduler status"""
     try:
@@ -3653,21 +3957,25 @@ def get_scheduler_status():
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Check if scheduler config exists
-        cur.execute("""
+        cur.execute(
+            """
             SELECT * FROM resource_scheduler_config
             ORDER BY updated_at DESC LIMIT 1
-        """)
+        """
+        )
         config = cur.fetchone()
 
         # Get current resource usage
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 SUM(CASE WHEN task_type = 'ai' THEN 1 ELSE 0 END) as ai_tasks,
                 SUM(CASE WHEN task_type = 'mining' THEN 1 ELSE 0 END) as mining_tasks,
                 COUNT(*) as total_tasks
             FROM resource_allocation
             WHERE is_active = TRUE
-        """)
+        """
+        )
         usage = cur.fetchone()
 
         cur.close()
@@ -3675,60 +3983,65 @@ def get_scheduler_status():
 
         if not config:
             config = {
-                'mode': 'balanced',
-                'ai_weight': 50,
-                'mining_weight': 50,
-                'gpu_for_mining': True,
-                'cpu_for_ai': True
+                "mode": "balanced",
+                "ai_weight": 50,
+                "mining_weight": 50,
+                "gpu_for_mining": True,
+                "cpu_for_ai": True,
             }
 
-        return jsonify({
-            'success': True,
-            'config': config,
-            'usage': usage or {'ai_tasks': 0, 'mining_tasks': 0, 'total_tasks': 0},
-            'modes': SCHEDULER_MODES
-        })
+        return jsonify(
+            {
+                "success": True,
+                "config": config,
+                "usage": usage or {"ai_tasks": 0, "mining_tasks": 0, "total_tasks": 0},
+                "modes": SCHEDULER_MODES,
+            }
+        )
 
     except Exception as e:
         # Table might not exist yet - return defaults
-        return jsonify({
-            'success': True,
-            'config': {
-                'mode': 'balanced',
-                'ai_weight': 50,
-                'mining_weight': 50,
-                'gpu_for_mining': True,
-                'cpu_for_ai': True
-            },
-            'usage': {'ai_tasks': 0, 'mining_tasks': 0, 'total_tasks': 0},
-            'modes': SCHEDULER_MODES,
-            'note': 'Using defaults - scheduler tables not yet created'
-        })
+        return jsonify(
+            {
+                "success": True,
+                "config": {
+                    "mode": "balanced",
+                    "ai_weight": 50,
+                    "mining_weight": 50,
+                    "gpu_for_mining": True,
+                    "cpu_for_ai": True,
+                },
+                "usage": {"ai_tasks": 0, "mining_tasks": 0, "total_tasks": 0},
+                "modes": SCHEDULER_MODES,
+                "note": "Using defaults - scheduler tables not yet created",
+            }
+        )
 
 
-@bridge_bp.route('/api/mining/scheduler', methods=['PUT'])
+@bridge_bp.route("/api/mining/scheduler", methods=["PUT"])
 def update_scheduler_config():
     """Update resource scheduler configuration"""
     data = request.get_json() or {}
-    mode = data.get('mode', 'balanced')
+    mode = data.get("mode", "balanced")
 
-    if mode not in SCHEDULER_MODES and mode != 'custom':
-        return jsonify({'success': False, 'error': f'Invalid mode: {mode}'}), 400
+    if mode not in SCHEDULER_MODES and mode != "custom":
+        return jsonify({"success": False, "error": f"Invalid mode: {mode}"}), 400
 
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get weights from mode or custom values
-        if mode == 'custom':
-            ai_weight = data.get('ai_weight', 50)
-            mining_weight = data.get('mining_weight', 50)
+        if mode == "custom":
+            ai_weight = data.get("ai_weight", 50)
+            mining_weight = data.get("mining_weight", 50)
         else:
-            ai_weight = SCHEDULER_MODES[mode]['ai_weight']
-            mining_weight = SCHEDULER_MODES[mode]['mining_weight']
+            ai_weight = SCHEDULER_MODES[mode]["ai_weight"]
+            mining_weight = SCHEDULER_MODES[mode]["mining_weight"]
 
         # Upsert config
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO resource_scheduler_config (
                 id, mode, ai_weight, mining_weight, gpu_for_mining, cpu_for_ai, updated_at
             ) VALUES (1, %s, %s, %s, %s, %s, NOW())
@@ -3740,38 +4053,31 @@ def update_scheduler_config():
                 cpu_for_ai = EXCLUDED.cpu_for_ai,
                 updated_at = NOW()
             RETURNING *
-        """, (
-            mode,
-            ai_weight,
-            mining_weight,
-            data.get('gpu_for_mining', True),
-            data.get('cpu_for_ai', True)
-        ))
+        """,
+            (mode, ai_weight, mining_weight, data.get("gpu_for_mining", True), data.get("cpu_for_ai", True)),
+        )
 
         config = cur.fetchone()
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'config': config,
-            'message': f'Scheduler updated to {mode} mode'
-        })
+        return jsonify({"success": True, "config": config, "message": f"Scheduler updated to {mode} mode"})
 
     except Exception as e:
         logger.error(f"Error updating scheduler: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/mining/contributors')
+@bridge_bp.route("/api/mining/contributors")
 def get_contributors():
     """Get mining pool contributors and their rewards"""
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 c.id, c.wallet_address, c.display_name, c.contributor_type,
                 c.total_hashrate_contributed, c.total_blocks_found,
@@ -3782,11 +4088,13 @@ def get_contributors():
             WHERE c.is_active = TRUE
             ORDER BY c.total_rewards_earned DESC
             LIMIT 100
-        """)
+        """
+        )
         contributors = cur.fetchall()
 
         # Get summary
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 COUNT(*) as total_contributors,
                 SUM(total_hashrate_contributed) as total_hashrate,
@@ -3794,7 +4102,8 @@ def get_contributors():
                 SUM(pending_rewards) as total_pending
             FROM mining_contributors
             WHERE is_active = TRUE
-        """)
+        """
+        )
         summary = cur.fetchone()
 
         cur.close()
@@ -3802,44 +4111,38 @@ def get_contributors():
 
         # Convert datetime
         for c in contributors:
-            for key in ['last_contribution', 'created_at']:
+            for key in ["last_contribution", "created_at"]:
                 if c.get(key):
                     c[key] = c[key].isoformat()
 
-        return jsonify({
-            'success': True,
-            'contributors': contributors,
-            'summary': summary
-        })
+        return jsonify({"success": True, "contributors": contributors, "summary": summary})
 
     except Exception as e:
         # Tables might not exist
-        return jsonify({
-            'success': True,
-            'contributors': [],
-            'summary': {
-                'total_contributors': 0,
-                'total_hashrate': 0,
-                'total_paid': 0,
-                'total_pending': 0
-            },
-            'note': 'Contributor tables not yet created'
-        })
+        return jsonify(
+            {
+                "success": True,
+                "contributors": [],
+                "summary": {"total_contributors": 0, "total_hashrate": 0, "total_paid": 0, "total_pending": 0},
+                "note": "Contributor tables not yet created",
+            }
+        )
 
 
-@bridge_bp.route('/api/mining/contributors/register', methods=['POST'])
+@bridge_bp.route("/api/mining/contributors/register", methods=["POST"])
 def register_contributor():
     """Register a new mining contributor"""
     data = request.get_json() or {}
 
-    if not data.get('wallet_address'):
-        return jsonify({'success': False, 'error': 'wallet_address required'}), 400
+    if not data.get("wallet_address"):
+        return jsonify({"success": False, "error": "wallet_address required"}), 400
 
     try:
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO mining_contributors (
                 wallet_address, display_name, contributor_type
             ) VALUES (%s, %s, %s)
@@ -3847,29 +4150,23 @@ def register_contributor():
                 display_name = COALESCE(EXCLUDED.display_name, mining_contributors.display_name),
                 is_active = TRUE
             RETURNING id, wallet_address, display_name
-        """, (
-            data.get('wallet_address'),
-            data.get('display_name'),
-            data.get('contributor_type', 'miner')
-        ))
+        """,
+            (data.get("wallet_address"), data.get("display_name"), data.get("contributor_type", "miner")),
+        )
 
         contributor = cur.fetchone()
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'contributor': contributor,
-            'message': 'Contributor registered'
-        })
+        return jsonify({"success": True, "contributor": contributor, "message": "Contributor registered"})
 
     except Exception as e:
         logger.error(f"Error registering contributor: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/mining/rewards/<wallet>')
+@bridge_bp.route("/api/mining/rewards/<wallet>")
 def get_contributor_rewards(wallet):
     """Get reward history for a contributor"""
     try:
@@ -3877,18 +4174,22 @@ def get_contributor_rewards(wallet):
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get contributor
-        cur.execute("""
+        cur.execute(
+            """
             SELECT * FROM mining_contributors WHERE wallet_address = %s
-        """, (wallet,))
+        """,
+            (wallet,),
+        )
         contributor = cur.fetchone()
 
         if not contributor:
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Contributor not found'}), 404
+            return jsonify({"success": False, "error": "Contributor not found"}), 404
 
         # Get reward history
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 reward_type, amount, ai_credits, block_height,
                 txid, status, created_at
@@ -3896,42 +4197,40 @@ def get_contributor_rewards(wallet):
             WHERE contributor_id = %s
             ORDER BY created_at DESC
             LIMIT 50
-        """, (contributor['id'],))
+        """,
+            (contributor["id"],),
+        )
         rewards = cur.fetchall()
 
         cur.close()
         conn.close()
 
         # Convert datetime
-        for key in ['last_contribution', 'created_at']:
+        for key in ["last_contribution", "created_at"]:
             if contributor.get(key):
                 contributor[key] = contributor[key].isoformat()
 
         for r in rewards:
-            if r.get('created_at'):
-                r['created_at'] = r['created_at'].isoformat()
+            if r.get("created_at"):
+                r["created_at"] = r["created_at"].isoformat()
 
-        return jsonify({
-            'success': True,
-            'contributor': contributor,
-            'rewards': rewards
-        })
+        return jsonify({"success": True, "contributor": contributor, "rewards": rewards})
 
     except Exception as e:
         logger.error(f"Error getting rewards: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/mining/allocate', methods=['POST'])
+@bridge_bp.route("/api/mining/allocate", methods=["POST"])
 def allocate_resource():
     """Allocate a resource for AI or mining task"""
     data = request.get_json() or {}
-    task_type = data.get('task_type')  # 'ai' or 'mining'
-    resource_type = data.get('resource_type')  # 'gpu', 'cpu'
-    node_id = data.get('node_id')
+    task_type = data.get("task_type")  # 'ai' or 'mining'
+    resource_type = data.get("resource_type")  # 'gpu', 'cpu'
+    node_id = data.get("node_id")
 
-    if task_type not in ['ai', 'mining']:
-        return jsonify({'success': False, 'error': 'task_type must be ai or mining'}), 400
+    if task_type not in ["ai", "mining"]:
+        return jsonify({"success": False, "error": "task_type must be ai or mining"}), 400
 
     try:
         conn = get_db_connection()
@@ -3942,103 +4241,105 @@ def allocate_resource():
         config = cur.fetchone()
 
         if not config:
-            config = {'mode': 'balanced', 'ai_weight': 50, 'mining_weight': 50}
+            config = {"mode": "balanced", "ai_weight": 50, "mining_weight": 50}
 
         # Check current allocation
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 SUM(CASE WHEN task_type = 'ai' THEN 1 ELSE 0 END) as ai_count,
                 SUM(CASE WHEN task_type = 'mining' THEN 1 ELSE 0 END) as mining_count
             FROM resource_allocation
             WHERE is_active = TRUE
-        """)
-        current = cur.fetchone() or {'ai_count': 0, 'mining_count': 0}
+        """
+        )
+        current = cur.fetchone() or {"ai_count": 0, "mining_count": 0}
 
         # Dynamic mode: adjust based on demand
-        if config['mode'] == 'dynamic':
+        if config["mode"] == "dynamic":
             # Simple demand-based logic
-            total = (current['ai_count'] or 0) + (current['mining_count'] or 0) + 1
-            if task_type == 'ai':
+            total = (current["ai_count"] or 0) + (current["mining_count"] or 0) + 1
+            if task_type == "ai":
                 allowed = True  # AI always gets priority in dynamic mode
             else:
                 # Mining only if AI load is low
-                allowed = (current['ai_count'] or 0) < 5
+                allowed = (current["ai_count"] or 0) < 5
         else:
             # Weight-based allocation
-            total = (current['ai_count'] or 0) + (current['mining_count'] or 0)
+            total = (current["ai_count"] or 0) + (current["mining_count"] or 0)
             if total == 0:
                 allowed = True
             else:
-                current_ratio = ((current['ai_count'] or 0) / total) * 100 if total > 0 else 50
-                if task_type == 'ai':
-                    allowed = current_ratio <= config['ai_weight'] or config['ai_weight'] == 100
+                current_ratio = ((current["ai_count"] or 0) / total) * 100 if total > 0 else 50
+                if task_type == "ai":
+                    allowed = current_ratio <= config["ai_weight"] or config["ai_weight"] == 100
                 else:
-                    allowed = (100 - current_ratio) <= config['mining_weight'] or config['mining_weight'] == 100
+                    allowed = (100 - current_ratio) <= config["mining_weight"] or config["mining_weight"] == 100
 
         if not allowed:
             cur.close()
             conn.close()
-            return jsonify({
-                'success': False,
-                'error': f'Resource limit reached for {task_type} tasks',
-                'config': config
-            }), 429
+            return (
+                jsonify({"success": False, "error": f"Resource limit reached for {task_type} tasks", "config": config}),
+                429,
+            )
 
         # Create allocation
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO resource_allocation (
                 task_type, resource_type, node_id, allocated_at
             ) VALUES (%s, %s, %s, NOW())
             RETURNING id
-        """, (task_type, resource_type, node_id))
+        """,
+            (task_type, resource_type, node_id),
+        )
 
         allocation = cur.fetchone()
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'allocation_id': allocation['id'],
-            'message': f'Resource allocated for {task_type}'
-        })
+        return jsonify(
+            {"success": True, "allocation_id": allocation["id"], "message": f"Resource allocated for {task_type}"}
+        )
 
     except Exception as e:
         logger.error(f"Error allocating resource: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/mining/release/<int:allocation_id>', methods=['POST'])
+@bridge_bp.route("/api/mining/release/<int:allocation_id>", methods=["POST"])
 def release_resource(allocation_id):
     """Release an allocated resource"""
     try:
         conn = get_db_connection()
         cur = conn.cursor()
 
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE resource_allocation
             SET is_active = FALSE, released_at = NOW()
             WHERE id = %s
-        """, (allocation_id,))
+        """,
+            (allocation_id,),
+        )
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'message': 'Resource released'
-        })
+        return jsonify({"success": True, "message": "Resource released"})
 
     except Exception as e:
         logger.error(f"Error releasing resource: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@bridge_bp.route('/api/mining/pool-stats')
+@bridge_bp.route("/api/mining/pool-stats")
 def get_pool_integration_stats():
     """Get mining pool stats integrated with Bridge"""
-    pool_api_url = os.environ.get('POOL_API_URL', 'http://localhost:8080')
+    pool_api_url = os.environ.get("POOL_API_URL", "http://localhost:8080")
 
     try:
         # Try to get real pool stats
@@ -4055,29 +4356,1417 @@ def get_pool_integration_stats():
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 COUNT(*) as total_nodes,
                 COUNT(*) FILTER (WHERE status = 'online') as online_nodes,
                 COUNT(*) FILTER (WHERE gpu_available = TRUE) as gpu_nodes
             FROM remote_nodes
             WHERE is_active = TRUE
-        """)
+        """
+        )
         node_stats = cur.fetchone()
 
         cur.close()
         conn.close()
     except:
-        node_stats = {'total_nodes': 0, 'online_nodes': 0, 'gpu_nodes': 0}
+        node_stats = {"total_nodes": 0, "online_nodes": 0, "gpu_nodes": 0}
 
-    return jsonify({
-        'success': True,
-        'pool': pool_stats or {
-            'hashrate': 0,
-            'miners': 0,
-            'blocks_found': 0,
-            'connected': False
-        },
-        'bridge_nodes': node_stats,
-        'integration_status': 'active' if pool_stats else 'pool_offline'
-    })
+    return jsonify(
+        {
+            "success": True,
+            "pool": pool_stats or {"hashrate": 0, "miners": 0, "blocks_found": 0, "connected": False},
+            "bridge_nodes": node_stats,
+            "integration_status": "active" if pool_stats else "pool_offline",
+        }
+    )
+
+
+# ============================================================================
+# IDE INTEGRATION API (Merged from cursor_integration module)
+# Provides MCP Protocol support, IDE REST API, code completion for external IDEs
+# ============================================================================
+
+# Add paths for imports
+sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
+sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+
+try:
+    from archie_bridge import archie_bridge
+
+    AI_BRIDGE_AVAILABLE = True
+except ImportError:
+    AI_BRIDGE_AVAILABLE = False
+    logger.warning("AI Bridge not available for IDE integration")
+
+
+# In-memory session store for connected IDEs
+connected_ides = {}
+context_cache = {}
+
+
+class IDESession:
+    """Represents a connected IDE session"""
+
+    def __init__(self, session_id: str, ide_type: str, workspace_path: str):
+        self.session_id = session_id
+        self.ide_type = ide_type  # 'cursor', 'opencode', 'vscode'
+        self.workspace_path = workspace_path
+        self.connected_at = datetime.now()
+        self.last_activity = datetime.now()
+        self.open_files = []
+        self.cursor_position = {}  # {file: {line, column}}
+        self.context = {}
+
+    def to_dict(self):
+        return {
+            "session_id": self.session_id,
+            "ide_type": self.ide_type,
+            "workspace_path": self.workspace_path,
+            "connected_at": self.connected_at.isoformat(),
+            "last_activity": self.last_activity.isoformat(),
+            "open_files": self.open_files,
+            "cursor_position": self.cursor_position,
+            "active": (datetime.now() - self.last_activity).seconds < 300,
+        }
+
+
+@bridge_bp.route("/ide")
+@login_required
+def ide_dashboard():
+    """IDE Integration dashboard"""
+    return render_template("tools/ide_integration.html")
+
+
+@bridge_bp.route("/api/ide/status")
+def ide_status():
+    """API status endpoint for IDE integration health checks"""
+    active_sessions = sum(1 for s in connected_ides.values() if (datetime.now() - s.last_activity).seconds < 300)
+    return jsonify(
+        {
+            "module": "ide_integration",
+            "status": "operational",
+            "healthy": True,
+            "version": "2.0.0",
+            "features": {
+                "mcp_protocol": True,
+                "websocket_bridge": True,
+                "context_sharing": True,
+                "code_actions": True,
+                "ai_bridge": AI_BRIDGE_AVAILABLE,
+            },
+            "connections": {"total": len(connected_ides), "active": active_sessions},
+        }
+    )
+
+
+@bridge_bp.route("/api/ide/connect", methods=["POST"])
+def connect_ide():
+    """
+    Register a new IDE connection
+
+    Expected payload:
+    {
+        "ide_type": "cursor" | "opencode" | "vscode",
+        "workspace_path": "/path/to/project",
+        "client_id": "unique-client-id",
+        "capabilities": ["completion", "diagnostics", "hover"]
+    }
+    """
+    try:
+        data = request.get_json() or {}
+
+        ide_type = data.get("ide_type", "cursor")
+        workspace_path = data.get("workspace_path", "")
+        client_id = data.get("client_id", "")
+        capabilities = data.get("capabilities", [])
+
+        # Generate session ID
+        session_id = hashlib.sha256(f"{client_id}{workspace_path}{datetime.now().isoformat()}".encode()).hexdigest()[
+            :16
+        ]
+
+        # Create session
+        ide_session = IDESession(session_id, ide_type, workspace_path)
+        connected_ides[session_id] = ide_session
+
+        # Log connection
+        logger.info(f"IDE connected: {ide_type} at {workspace_path} (session: {session_id})")
+
+        # Store in database for persistence
+        _log_ide_connection(session_id, ide_type, workspace_path, capabilities)
+
+        return jsonify(
+            {
+                "success": True,
+                "session_id": session_id,
+                "message": f"{ide_type.upper()} connected successfully",
+                "endpoints": {
+                    "context": f"/tools/bridge/api/ide/context/{session_id}",
+                    "complete": f"/tools/bridge/api/ide/complete/{session_id}",
+                    "actions": f"/tools/bridge/api/ide/actions/{session_id}",
+                    "diagnostics": f"/tools/bridge/api/ide/diagnostics/{session_id}",
+                    "disconnect": f"/tools/bridge/api/ide/disconnect/{session_id}",
+                },
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"IDE connection error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/ide/disconnect/<session_id>", methods=["POST"])
+def disconnect_ide(session_id):
+    """Disconnect an IDE session"""
+    if session_id in connected_ides:
+        del connected_ides[session_id]
+        logger.info(f"IDE disconnected: {session_id}")
+        return jsonify({"success": True, "message": "Disconnected"})
+    return jsonify({"success": False, "error": "Session not found"}), 404
+
+
+@bridge_bp.route("/api/ide/sessions")
+@login_required
+def list_ide_sessions():
+    """List all connected IDE sessions"""
+    sessions = [s.to_dict() for s in connected_ides.values()]
+    return jsonify({"success": True, "sessions": sessions, "total": len(sessions)})
+
+
+@bridge_bp.route("/api/ide/context/<session_id>", methods=["GET", "POST"])
+def ide_context_api(session_id):
+    """Get or update context for an IDE session"""
+    if session_id not in connected_ides:
+        return jsonify({"success": False, "error": "Session not found"}), 404
+
+    ide_session = connected_ides[session_id]
+    ide_session.last_activity = datetime.now()
+
+    if request.method == "POST":
+        data = request.get_json() or {}
+
+        # Update session context
+        if "open_files" in data:
+            ide_session.open_files = data["open_files"]
+        if "active_file" in data:
+            ide_session.context["active_file"] = data["active_file"]
+        if "cursor_position" in data:
+            active_file = data.get("active_file", "")
+            ide_session.cursor_position[active_file] = data["cursor_position"]
+        if "selection" in data:
+            ide_session.context["selection"] = data["selection"]
+        if "visible_range" in data:
+            ide_session.context["visible_range"] = data["visible_range"]
+
+        return jsonify({"success": True, "message": "Context updated"})
+
+    else:  # GET
+        return jsonify({"success": True, "context": ide_session.to_dict()})
+
+
+@bridge_bp.route("/api/ide/complete/<session_id>", methods=["POST"])
+def ide_code_completion(session_id):
+    """Get AI-powered code completions"""
+    if session_id not in connected_ides:
+        return jsonify({"success": False, "error": "Session not found"}), 404
+
+    if not AI_BRIDGE_AVAILABLE:
+        return jsonify({"success": False, "error": "AI Bridge not available"}), 503
+
+    try:
+        data = request.get_json() or {}
+        file_path = data.get("file_path", "")
+        prefix = data.get("prefix", "")
+        suffix = data.get("suffix", "")
+
+        # Build completion prompt
+        language = _detect_language(file_path)
+
+        prompt = f"""Complete the following {language} code. Only provide the completion, no explanation.
+
+File: {file_path}
+
+Code before cursor:
+```{language}
+{prefix[-500:] if len(prefix) > 500 else prefix}
+```
+
+Code after cursor:
+```{language}
+{suffix[:200] if len(suffix) > 200 else suffix}
+```
+
+Provide the code completion (just the code, nothing else):"""
+
+        # Get completion from AI
+        result = archie_bridge(prompt=prompt, user_id=1, enable_memory=False, force_model="llama3.1:8b")
+
+        if result.get("success"):
+            completion = result["response"].strip()
+            # Clean up completion
+            if completion.startswith("```"):
+                completion = completion.split("\n", 1)[1] if "\n" in completion else completion
+            if completion.endswith("```"):
+                completion = completion.rsplit("```", 1)[0]
+
+            return jsonify(
+                {
+                    "success": True,
+                    "completions": [{"text": completion.strip(), "kind": "text", "detail": "A.R.C.H.I.E. suggestion"}],
+                }
+            )
+        else:
+            return jsonify({"success": False, "error": result.get("error", "Completion failed")})
+
+    except Exception as e:
+        logger.error(f"Completion error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/ide/actions/<session_id>", methods=["POST"])
+def ide_code_actions(session_id):
+    """Get available code actions for a selection"""
+    if session_id not in connected_ides:
+        return jsonify({"success": False, "error": "Session not found"}), 404
+
+    try:
+        data = request.get_json() or {}
+        file_path = data.get("file_path", "")
+        content = data.get("content", "")
+        selection = data.get("selection", {})
+        diagnostics = data.get("diagnostics", [])
+
+        actions = []
+
+        # Extract selected code
+        if selection and content:
+            lines = content.split("\n")
+            start_line = selection.get("start", {}).get("line", 0)
+            end_line = selection.get("end", {}).get("line", start_line)
+            selected_lines = lines[start_line : end_line + 1]
+            selected_code = "\n".join(selected_lines)
+
+            # Add context-aware actions
+            language = _detect_language(file_path)
+
+            actions.extend(
+                [
+                    {
+                        "title": "Explain this code",
+                        "kind": "archie.explain",
+                        "command": "archie.explain",
+                        "arguments": {"code": selected_code, "language": language},
+                    },
+                    {
+                        "title": "Refactor with A.R.C.H.I.E.",
+                        "kind": "archie.refactor",
+                        "command": "archie.refactor",
+                        "arguments": {"code": selected_code, "language": language},
+                    },
+                    {
+                        "title": "Add documentation",
+                        "kind": "archie.document",
+                        "command": "archie.document",
+                        "arguments": {"code": selected_code, "language": language},
+                    },
+                    {
+                        "title": "Generate tests",
+                        "kind": "archie.test",
+                        "command": "archie.test",
+                        "arguments": {"code": selected_code, "language": language},
+                    },
+                ]
+            )
+
+            # Add fix actions for diagnostics
+            for diag in diagnostics:
+                if diag.get("severity") in ["error", "warning"]:
+                    actions.append(
+                        {
+                            "title": f"Fix: {diag.get('message', 'Issue')[:50]}",
+                            "kind": "archie.fix",
+                            "command": "archie.fix",
+                            "arguments": {"code": selected_code, "diagnostic": diag, "language": language},
+                            "isPreferred": True,
+                        }
+                    )
+
+        return jsonify({"success": True, "actions": actions})
+
+    except Exception as e:
+        logger.error(f"Code actions error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/ide/actions/<session_id>/execute", methods=["POST"])
+def ide_execute_action(session_id):
+    """Execute a code action"""
+    if session_id not in connected_ides:
+        return jsonify({"success": False, "error": "Session not found"}), 404
+
+    if not AI_BRIDGE_AVAILABLE:
+        return jsonify({"success": False, "error": "AI Bridge not available"}), 503
+
+    try:
+        data = request.get_json() or {}
+        action = data.get("action", "")
+        args = data.get("arguments", {})
+        code = args.get("code", "")
+        language = args.get("language", "python")
+
+        # Build prompt based on action
+        if action == "archie.explain":
+            prompt = f"""Explain this {language} code clearly and concisely:
+
+```{language}
+{code}
+```
+
+Provide a brief explanation of what the code does, any important patterns used, and potential considerations."""
+
+        elif action == "archie.refactor":
+            prompt = f"""Refactor this {language} code to improve readability, performance, or maintainability:
+
+```{language}
+{code}
+```
+
+Provide the refactored code with brief comments explaining the improvements. Only output the improved code."""
+
+        elif action == "archie.document":
+            prompt = f"""Add comprehensive documentation to this {language} code:
+
+```{language}
+{code}
+```
+
+Add docstrings, type hints, and inline comments where appropriate. Output only the documented code."""
+
+        elif action == "archie.test":
+            prompt = f"""Generate unit tests for this {language} code:
+
+```{language}
+{code}
+```
+
+Create comprehensive test cases. Use pytest for Python, jest for JS."""
+
+        elif action == "archie.fix":
+            diagnostic = args.get("diagnostic", {})
+            prompt = f"""Fix this {language} code issue:
+
+Issue: {diagnostic.get('message', 'Unknown issue')}
+Severity: {diagnostic.get('severity', 'warning')}
+
+Code:
+```{language}
+{code}
+```
+
+Provide the corrected code only, no explanations."""
+
+        else:
+            return jsonify({"success": False, "error": f"Unknown action: {action}"}), 400
+
+        # Execute with AI
+        result = archie_bridge(prompt=prompt, user_id=1, enable_memory=True, force_model="llama3.1:8b")
+
+        if result.get("success"):
+            return jsonify({"success": True, "result": result["response"], "model": result.get("model", "unknown")})
+        else:
+            return jsonify({"success": False, "error": result.get("error", "Action failed")})
+
+    except Exception as e:
+        logger.error(f"Action execution error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/ide/diagnostics/<session_id>", methods=["POST"])
+def ide_get_diagnostics(session_id):
+    """Get AI-powered diagnostics for a file"""
+    if session_id not in connected_ides:
+        return jsonify({"success": False, "error": "Session not found"}), 404
+
+    try:
+        data = request.get_json() or {}
+        file_path = data.get("file_path", "")
+        content = data.get("content", "")
+
+        # Get static analysis diagnostics
+        diagnostics = _static_analysis(file_path, content)
+
+        return jsonify({"success": True, "diagnostics": diagnostics, "file_path": file_path})
+
+    except Exception as e:
+        logger.error(f"Diagnostics error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# MCP Protocol Endpoints
+
+
+@bridge_bp.route("/mcp/manifest")
+def mcp_manifest():
+    """MCP Protocol manifest for AI assistants"""
+    return jsonify(
+        {
+            "name": "A.R.C.H.I.E. IDE Integration",
+            "version": "2.0.0",
+            "description": "AI-powered code assistance from A.R.C.H.I.E.",
+            "tools": [
+                {
+                    "name": "archie_search",
+                    "description": "Search A.R.C.H.I.E. knowledge base for code patterns and solutions",
+                    "parameters": {"query": {"type": "string", "description": "Search query"}},
+                },
+                {
+                    "name": "archie_complete",
+                    "description": "Get code completion suggestions",
+                    "parameters": {
+                        "prefix": {"type": "string", "description": "Code before cursor"},
+                        "suffix": {"type": "string", "description": "Code after cursor"},
+                        "language": {"type": "string", "description": "Programming language"},
+                    },
+                },
+                {
+                    "name": "archie_explain",
+                    "description": "Explain code functionality",
+                    "parameters": {"code": {"type": "string", "description": "Code to explain"}},
+                },
+                {
+                    "name": "archie_fix",
+                    "description": "Fix code issues",
+                    "parameters": {
+                        "code": {"type": "string", "description": "Code to fix"},
+                        "issue": {"type": "string", "description": "Issue description"},
+                    },
+                },
+            ],
+            "resources": [
+                {
+                    "name": "knowledge_base",
+                    "description": "A.R.C.H.I.E. unified knowledge base",
+                    "uri": "/tools/bridge/mcp/knowledge",
+                }
+            ],
+        }
+    )
+
+
+@bridge_bp.route("/mcp/tools/<tool_name>", methods=["POST"])
+def mcp_tool(tool_name):
+    """Execute an MCP tool"""
+    try:
+        data = request.get_json() or {}
+
+        if tool_name == "archie_search":
+            query = data.get("query", "")
+            results = _search_knowledge_base(query)
+            return jsonify({"success": True, "results": results})
+
+        elif tool_name == "archie_complete":
+            prefix = data.get("prefix", "")
+            suffix = data.get("suffix", "")  # noqa: F841
+            language = data.get("language", "python")
+
+            if not AI_BRIDGE_AVAILABLE:
+                return jsonify({"success": False, "error": "AI not available"})
+
+            prompt = f"Complete this {language} code:\n\n{prefix[-300:]}"
+            result = archie_bridge(prompt=prompt, user_id=1, enable_memory=False)
+
+            if result.get("success"):
+                return jsonify({"success": True, "completion": result["response"]})
+            return jsonify({"success": False, "error": "Completion failed"})
+
+        elif tool_name == "archie_explain":
+            code = data.get("code", "")
+            if not AI_BRIDGE_AVAILABLE:
+                return jsonify({"success": False, "error": "AI not available"})
+
+            prompt = f"Explain this code concisely:\n\n```\n{code}\n```"
+            result = archie_bridge(prompt=prompt, user_id=1, enable_memory=False)
+
+            if result.get("success"):
+                return jsonify({"success": True, "explanation": result["response"]})
+            return jsonify({"success": False, "error": "Explanation failed"})
+
+        elif tool_name == "archie_fix":
+            code = data.get("code", "")
+            issue = data.get("issue", "")
+            if not AI_BRIDGE_AVAILABLE:
+                return jsonify({"success": False, "error": "AI not available"})
+
+            prompt = f"Fix this code issue:\n\nIssue: {issue}\n\n```\n{code}\n```\n\nProvide only the fixed code."
+            result = archie_bridge(prompt=prompt, user_id=1, enable_memory=False)
+
+            if result.get("success"):
+                return jsonify({"success": True, "fixed_code": result["response"]})
+            return jsonify({"success": False, "error": "Fix failed"})
+
+        else:
+            return jsonify({"success": False, "error": f"Unknown tool: {tool_name}"}), 404
+
+    except Exception as e:
+        logger.error(f"MCP tool error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/mcp/knowledge")
+def mcp_knowledge():
+    """Access knowledge base via MCP"""
+    query = request.args.get("query", "")
+    limit = request.args.get("limit", 10, type=int)
+
+    results = _search_knowledge_base(query, limit=limit)
+    return jsonify({"success": True, "results": results, "total": len(results)})
+
+
+# IDE Helper Functions
+
+
+def _detect_language(file_path: str) -> str:
+    """Detect programming language from file extension"""
+    ext = os.path.splitext(file_path)[1].lower()
+    lang_map = {
+        ".py": "python",
+        ".js": "javascript",
+        ".jsx": "javascript",
+        ".ts": "typescript",
+        ".tsx": "typescript",
+        ".html": "html",
+        ".css": "css",
+        ".sql": "sql",
+        ".go": "go",
+        ".rs": "rust",
+        ".java": "java",
+        ".c": "c",
+        ".cpp": "cpp",
+        ".rb": "ruby",
+        ".php": "php",
+    }
+    return lang_map.get(ext, "text")
+
+
+def _search_knowledge_base(query: str, limit: int = 10) -> List[Dict]:
+    """Search A.R.C.H.I.E.'s knowledge base"""
+    if not query:
+        return []
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            SELECT id, title, content, knowledge_type, importance_score,
+                   ts_rank(search_vector, plainto_tsquery('english', %s)) as rank
+            FROM knowledge_base
+            WHERE search_vector @@ plainto_tsquery('english', %s)
+            ORDER BY rank DESC, importance_score DESC
+            LIMIT %s
+        """,
+            (query, query, limit),
+        )
+
+        results = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        return [dict(r) for r in results]
+
+    except Exception as e:
+        logger.warning(f"Knowledge search error: {e}")
+        return []
+
+
+def _static_analysis(file_path: str, content: str) -> List[Dict]:
+    """Perform basic static analysis"""
+    import re
+
+    diagnostics = []
+    lines = content.split("\n")
+    language = _detect_language(file_path)
+
+    if language == "python":
+        for i, line in enumerate(lines):
+            # Bare except
+            if re.search(r"except\s*:", line):
+                diagnostics.append(
+                    {
+                        "line": i,
+                        "column": line.index("except"),
+                        "severity": "warning",
+                        "message": "Bare except clause catches all exceptions",
+                        "source": "archie-lint",
+                    }
+                )
+
+            # Print statements
+            if re.search(r"^\s*print\s*\(", line):
+                diagnostics.append(
+                    {
+                        "line": i,
+                        "column": line.index("print"),
+                        "severity": "info",
+                        "message": "Consider using logging instead of print",
+                        "source": "archie-lint",
+                    }
+                )
+
+            # TODO/FIXME
+            match = re.search(r"#\s*(TODO|FIXME|XXX)", line, re.IGNORECASE)
+            if match:
+                diagnostics.append(
+                    {
+                        "line": i,
+                        "column": match.start(),
+                        "severity": "info",
+                        "message": f"{match.group(1)} found",
+                        "source": "archie-lint",
+                    }
+                )
+
+    elif language in ("javascript", "typescript"):
+        for i, line in enumerate(lines):
+            # console.log
+            if "console.log" in line:
+                diagnostics.append(
+                    {
+                        "line": i,
+                        "column": line.index("console"),
+                        "severity": "info",
+                        "message": "Remove console.log before production",
+                        "source": "archie-lint",
+                    }
+                )
+
+            # var usage
+            if re.search(r"\bvar\s+", line):
+                diagnostics.append(
+                    {
+                        "line": i,
+                        "column": line.index("var"),
+                        "severity": "warning",
+                        "message": "Use const or let instead of var",
+                        "source": "archie-lint",
+                    }
+                )
+
+    return diagnostics
+
+
+def _log_ide_connection(session_id: str, ide_type: str, workspace_path: str, capabilities: List[str]):
+    """Log IDE connection to database"""
+    import json as json_module
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        # Ensure table exists
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ide_connections (
+                id SERIAL PRIMARY KEY,
+                session_id VARCHAR(50) UNIQUE,
+                ide_type VARCHAR(50),
+                workspace_path TEXT,
+                capabilities JSONB,
+                connected_at TIMESTAMP DEFAULT NOW(),
+                last_activity TIMESTAMP DEFAULT NOW(),
+                disconnected_at TIMESTAMP
+            )
+        """
+        )
+
+        cur.execute(
+            """
+            INSERT INTO ide_connections (session_id, ide_type, workspace_path, capabilities)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (session_id) DO UPDATE
+            SET last_activity = NOW()
+        """,
+            (session_id, ide_type, workspace_path, json_module.dumps(capabilities)),
+        )
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+    except Exception as e:
+        logger.warning(f"Failed to log IDE connection: {e}")
+
+
+# ============================================================================
+# AGENT TRAINING API (Merged from fine_tuning module)
+# Provides model training interface, datasets, training jobs, model deployment
+# ============================================================================
+
+
+@bridge_bp.route("/training")
+@login_required
+def training_dashboard():
+    """AI Model Training dashboard"""
+    return render_template("tools/fine_tuning.html")
+
+
+@bridge_bp.route("/api/training/status")
+@login_required
+def training_status():
+    """API endpoint for training module health check"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM ft_base_models WHERE is_available = TRUE")
+        model_count = cur.fetchone()[0]
+        cur.close()
+        conn.close()
+
+        return jsonify(
+            {
+                "module": "agent_training",
+                "status": "active",
+                "healthy": True,
+                "available_models": model_count,
+                "message": "AI Training module operational",
+            }
+        )
+    except Exception as e:
+        return jsonify({"module": "agent_training", "status": "error", "healthy": False, "message": str(e)})
+
+
+@bridge_bp.route("/api/training/stats")
+@login_required
+def get_training_stats():
+    """Get user's training statistics"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            SELECT * FROM v_ft_user_stats WHERE user_id = %s
+        """,
+            (current_user.id,),
+        )
+        stats = cur.fetchone()
+
+        # Get active jobs
+        cur.execute(
+            """
+            SELECT COUNT(*) FROM ft_training_jobs
+            WHERE user_id = %s AND status IN ('queued', 'preparing', 'training')
+        """,
+            (current_user.id,),
+        )
+        active_jobs = cur.fetchone()["count"]
+
+        cur.close()
+        conn.close()
+
+        return jsonify(
+            {
+                "success": True,
+                "stats": {
+                    "total_datasets": stats["total_datasets"] if stats else 0,
+                    "total_jobs": stats["total_jobs"] if stats else 0,
+                    "completed_jobs": stats["completed_jobs"] if stats else 0,
+                    "active_jobs": active_jobs,
+                    "total_models": stats["total_models"] if stats else 0,
+                    "deployed_models": stats["deployed_models"] if stats else 0,
+                },
+            }
+        )
+    except Exception as e:
+        logger.error(f"Failed to get training stats: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/training/base-models")
+@login_required
+def get_training_base_models():
+    """Get available base models for fine-tuning"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            SELECT * FROM ft_base_models
+            WHERE is_available = TRUE AND supports_fine_tuning = TRUE
+            ORDER BY provider, parameters
+        """
+        )
+        models = cur.fetchall()
+
+        cur.close()
+        conn.close()
+
+        return jsonify({"success": True, "models": models})
+    except Exception as e:
+        logger.error(f"Failed to get base models: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/training/datasets")
+@login_required
+def get_training_datasets():
+    """Get user's training datasets"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            SELECT id, name, description, dataset_type, source_type,
+                   total_samples, train_samples, validation_samples,
+                   status, size_bytes, created_at, updated_at
+            FROM ft_datasets
+            WHERE user_id = %s
+            ORDER BY created_at DESC
+        """,
+            (current_user.id,),
+        )
+        datasets = cur.fetchall()
+
+        cur.close()
+        conn.close()
+
+        return jsonify({"success": True, "datasets": datasets})
+    except Exception as e:
+        logger.error(f"Failed to get datasets: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/training/datasets", methods=["POST"])
+@login_required
+def create_training_dataset():
+    """Create a new training dataset"""
+    try:
+        data = request.get_json() or {}
+        name = data.get("name", "").strip()
+        description = data.get("description", "")
+        dataset_type = data.get("type", "conversation")
+
+        if not name:
+            return jsonify({"success": False, "error": "Dataset name is required"}), 400
+
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            INSERT INTO ft_datasets (user_id, name, description, dataset_type, status)
+            VALUES (%s, %s, %s, %s, 'pending')
+            RETURNING id, name, description, dataset_type, status, created_at
+        """,
+            (current_user.id, name, description, dataset_type),
+        )
+
+        dataset = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({"success": True, "dataset": dataset, "message": "Dataset created successfully"})
+    except psycopg2.errors.UniqueViolation:
+        return jsonify({"success": False, "error": "Dataset with this name already exists"}), 400
+    except Exception as e:
+        logger.error(f"Failed to create dataset: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/training/datasets/<int:dataset_id>")
+@login_required
+def get_training_dataset(dataset_id):
+    """Get dataset details"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            SELECT * FROM ft_datasets
+            WHERE id = %s AND user_id = %s
+        """,
+            (dataset_id, current_user.id),
+        )
+        dataset = cur.fetchone()
+
+        cur.close()
+        conn.close()
+
+        if not dataset:
+            return jsonify({"success": False, "error": "Dataset not found"}), 404
+
+        return jsonify({"success": True, "dataset": dataset})
+    except Exception as e:
+        logger.error(f"Failed to get dataset: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/training/datasets/<int:dataset_id>/upload", methods=["POST"])
+@login_required
+def upload_training_data(dataset_id):
+    """Upload data to a dataset (JSONL format)"""
+    try:
+        data = request.get_json() or {}
+        samples = data.get("samples", [])
+
+        if not samples:
+            return jsonify({"success": False, "error": "No samples provided"}), 400
+
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Verify ownership
+        cur.execute("SELECT id FROM ft_datasets WHERE id = %s AND user_id = %s", (dataset_id, current_user.id))
+        if not cur.fetchone():
+            cur.close()
+            conn.close()
+            return jsonify({"success": False, "error": "Dataset not found"}), 404
+
+        # Update dataset with samples
+        import json as json_module
+
+        total = len(samples)
+        train_count = int(total * 0.8)
+        val_count = int(total * 0.1)
+        test_count = total - train_count - val_count
+
+        cur.execute(
+            """
+            UPDATE ft_datasets
+            SET total_samples = %s, train_samples = %s, validation_samples = %s,
+                test_samples = %s, sample_data = %s, status = 'ready', updated_at = NOW()
+            WHERE id = %s
+            RETURNING id, total_samples, status
+        """,
+            (total, train_count, val_count, test_count, json_module.dumps(samples[:5]), dataset_id),
+        )
+
+        result = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({"success": True, "dataset": result, "message": f"Uploaded {total} samples successfully"})
+    except Exception as e:
+        logger.error(f"Failed to upload dataset data: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/training/datasets/<int:dataset_id>", methods=["DELETE"])
+@login_required
+def delete_training_dataset(dataset_id):
+    """Delete a training dataset"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        cur.execute(
+            """
+            DELETE FROM ft_datasets
+            WHERE id = %s AND user_id = %s
+            RETURNING id
+        """,
+            (dataset_id, current_user.id),
+        )
+
+        deleted = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        if not deleted:
+            return jsonify({"success": False, "error": "Dataset not found"}), 404
+
+        return jsonify({"success": True, "message": "Dataset deleted successfully"})
+    except Exception as e:
+        logger.error(f"Failed to delete dataset: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/training/jobs")
+@login_required
+def get_training_jobs():
+    """Get user's training jobs"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            SELECT j.*, m.model_name as base_model_name, d.name as dataset_name
+            FROM ft_training_jobs j
+            LEFT JOIN ft_base_models m ON j.base_model_id = m.id
+            LEFT JOIN ft_datasets d ON j.dataset_id = d.id
+            WHERE j.user_id = %s
+            ORDER BY j.created_at DESC
+        """,
+            (current_user.id,),
+        )
+        jobs = cur.fetchall()
+
+        cur.close()
+        conn.close()
+
+        return jsonify({"success": True, "jobs": jobs})
+    except Exception as e:
+        logger.error(f"Failed to get training jobs: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/training/jobs", methods=["POST"])
+@login_required
+def create_training_job():
+    """Create a new training job"""
+    try:
+        data = request.get_json() or {}
+
+        job_name = data.get("name", "").strip()
+        base_model_id = data.get("base_model_id")
+        dataset_id = data.get("dataset_id")
+        training_method = data.get("training_method", "lora")
+        epochs = data.get("epochs", 3)
+        batch_size = data.get("batch_size", 4)
+        learning_rate = data.get("learning_rate", 2e-5)
+
+        if not job_name:
+            return jsonify({"success": False, "error": "Job name is required"}), 400
+        if not base_model_id:
+            return jsonify({"success": False, "error": "Base model is required"}), 400
+        if not dataset_id:
+            return jsonify({"success": False, "error": "Dataset is required"}), 400
+
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Verify dataset ownership and readiness
+        cur.execute(
+            """
+            SELECT id, total_samples FROM ft_datasets
+            WHERE id = %s AND user_id = %s AND status = 'ready'
+        """,
+            (dataset_id, current_user.id),
+        )
+        dataset = cur.fetchone()
+        if not dataset:
+            cur.close()
+            conn.close()
+            return jsonify({"success": False, "error": "Dataset not found or not ready"}), 400
+
+        # Calculate total steps
+        total_steps = (dataset["total_samples"] // batch_size) * epochs
+
+        cur.execute(
+            """
+            INSERT INTO ft_training_jobs
+            (user_id, job_name, base_model_id, dataset_id, training_method,
+             epochs, batch_size, learning_rate, total_steps, status)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'queued')
+            RETURNING id, job_name, status, created_at
+        """,
+            (
+                current_user.id,
+                job_name,
+                base_model_id,
+                dataset_id,
+                training_method,
+                epochs,
+                batch_size,
+                learning_rate,
+                total_steps,
+            ),
+        )
+
+        job = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({"success": True, "job": job, "message": "Training job created and queued"})
+    except Exception as e:
+        logger.error(f"Failed to create training job: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/training/jobs/<int:job_id>")
+@login_required
+def get_training_job(job_id):
+    """Get training job details"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            SELECT j.*, m.model_name as base_model_name, m.model_id as base_model_id_str,
+                   d.name as dataset_name, d.total_samples
+            FROM ft_training_jobs j
+            LEFT JOIN ft_base_models m ON j.base_model_id = m.id
+            LEFT JOIN ft_datasets d ON j.dataset_id = d.id
+            WHERE j.id = %s AND j.user_id = %s
+        """,
+            (job_id, current_user.id),
+        )
+        job = cur.fetchone()
+
+        cur.close()
+        conn.close()
+
+        if not job:
+            return jsonify({"success": False, "error": "Job not found"}), 404
+
+        return jsonify({"success": True, "job": job})
+    except Exception as e:
+        logger.error(f"Failed to get training job: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/training/jobs/<int:job_id>/start", methods=["POST"])
+@login_required
+def start_training_job(job_id):
+    """Start a queued training job"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            UPDATE ft_training_jobs
+            SET status = 'preparing', started_at = NOW(), updated_at = NOW()
+            WHERE id = %s AND user_id = %s AND status = 'queued'
+            RETURNING id, status
+        """,
+            (job_id, current_user.id),
+        )
+
+        job = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        if not job:
+            return jsonify({"success": False, "error": "Job not found or already started"}), 404
+
+        return jsonify({"success": True, "job": job, "message": "Training job started"})
+    except Exception as e:
+        logger.error(f"Failed to start training job: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/training/jobs/<int:job_id>/cancel", methods=["POST"])
+@login_required
+def cancel_training_job(job_id):
+    """Cancel a running training job"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            UPDATE ft_training_jobs
+            SET status = 'cancelled', updated_at = NOW()
+            WHERE id = %s AND user_id = %s AND status IN ('queued', 'preparing', 'training')
+            RETURNING id, status
+        """,
+            (job_id, current_user.id),
+        )
+
+        job = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        if not job:
+            return jsonify({"success": False, "error": "Job not found or cannot be cancelled"}), 404
+
+        return jsonify({"success": True, "job": job, "message": "Training job cancelled"})
+    except Exception as e:
+        logger.error(f"Failed to cancel training job: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/training/models")
+@login_required
+def get_trained_models():
+    """Get user's fine-tuned models"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            SELECT m.*, b.model_name as base_model_name, j.job_name as training_job_name
+            FROM ft_models m
+            LEFT JOIN ft_base_models b ON m.base_model_id = b.id
+            LEFT JOIN ft_training_jobs j ON m.training_job_id = j.id
+            WHERE m.user_id = %s
+            ORDER BY m.created_at DESC
+        """,
+            (current_user.id,),
+        )
+        models = cur.fetchall()
+
+        cur.close()
+        conn.close()
+
+        return jsonify({"success": True, "models": models})
+    except Exception as e:
+        logger.error(f"Failed to get trained models: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/training/models/<int:model_id>")
+@login_required
+def get_trained_model(model_id):
+    """Get trained model details"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            SELECT m.*, b.model_name as base_model_name, j.job_name as training_job_name
+            FROM ft_models m
+            LEFT JOIN ft_base_models b ON m.base_model_id = b.id
+            LEFT JOIN ft_training_jobs j ON m.training_job_id = j.id
+            WHERE m.id = %s AND m.user_id = %s
+        """,
+            (model_id, current_user.id),
+        )
+        model = cur.fetchone()
+
+        cur.close()
+        conn.close()
+
+        if not model:
+            return jsonify({"success": False, "error": "Model not found"}), 404
+
+        return jsonify({"success": True, "model": model})
+    except Exception as e:
+        logger.error(f"Failed to get trained model: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/training/models/<int:model_id>/deploy", methods=["POST"])
+@login_required
+def deploy_trained_model(model_id):
+    """Deploy a fine-tuned model to Ollama"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            UPDATE ft_models
+            SET is_deployed = TRUE, status = 'deployed', updated_at = NOW()
+            WHERE id = %s AND user_id = %s AND status = 'ready'
+            RETURNING id, model_name, model_id as ollama_model_id
+        """,
+            (model_id, current_user.id),
+        )
+
+        model = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        if not model:
+            return jsonify({"success": False, "error": "Model not found or not ready"}), 404
+
+        return jsonify(
+            {"success": True, "model": model, "message": f"Model {model['model_name']} deployed successfully"}
+        )
+    except Exception as e:
+        logger.error(f"Failed to deploy model: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/training/models/<int:model_id>", methods=["DELETE"])
+@login_required
+def delete_trained_model(model_id):
+    """Delete a fine-tuned model"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        cur.execute(
+            """
+            DELETE FROM ft_models
+            WHERE id = %s AND user_id = %s
+            RETURNING id
+        """,
+            (model_id, current_user.id),
+        )
+
+        deleted = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        if not deleted:
+            return jsonify({"success": False, "error": "Model not found"}), 404
+
+        return jsonify({"success": True, "message": "Model deleted successfully"})
+    except Exception as e:
+        logger.error(f"Failed to delete model: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/training/models/<int:model_id>/test", methods=["POST"])
+@login_required
+def test_trained_model(model_id):
+    """Test a fine-tuned model with a prompt"""
+    try:
+        data = request.get_json() or {}
+        prompt = data.get("prompt", "").strip()
+
+        if not prompt:
+            return jsonify({"success": False, "error": "Prompt is required"}), 400
+
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            SELECT model_id, model_name, is_deployed
+            FROM ft_models
+            WHERE id = %s AND user_id = %s
+        """,
+            (model_id, current_user.id),
+        )
+        model = cur.fetchone()
+
+        cur.close()
+        conn.close()
+
+        if not model:
+            return jsonify({"success": False, "error": "Model not found"}), 404
+
+        # Use AI bridge if model is deployed
+        if model["is_deployed"] and AI_BRIDGE_AVAILABLE:
+            result = archie_bridge(
+                prompt=prompt, user_id=current_user.id, enable_memory=False, force_model=model["model_id"]
+            )
+            if result.get("success"):
+                return jsonify({"success": True, "response": result["response"], "model": model["model_name"]})
+
+        # Demo response for non-deployed models
+        demo_response = f"[Demo] Response from {model['model_name']} to: {prompt[:50]}..."
+
+        return jsonify(
+            {
+                "success": True,
+                "response": demo_response,
+                "model": model["model_name"],
+                "note": "Demo response - deploy model for real inference",
+            }
+        )
+    except Exception as e:
+        logger.error(f"Failed to test model: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500

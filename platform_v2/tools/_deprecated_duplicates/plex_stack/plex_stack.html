@@ -1,0 +1,1066 @@
+{% extends 'base.html' %}
+
+{% block title %}Plex Stack - Media Server Management{% endblock %}
+
+{% block module_name %}plex_stack{% endblock %}
+
+{% block content %}
+<!-- Include Standalone Apps Navigation -->
+{% include 'includes/standalone_apps_nav.html' %}
+
+<!-- Scanline Overlay -->
+<div class="scanline-overlay"></div>
+
+<!-- Main Container -->
+<div class="plex-container">
+    <!-- Page Header -->
+    <header class="plex-header">
+        <div class="plex-title-section">
+            <h1 class="plex-title">
+                <i data-lucide="clapperboard"></i>
+                PLEX STACK
+            </h1>
+            <p class="plex-subtitle">Unified Media Server Management</p>
+        </div>
+        <div class="plex-search-container">
+            <i data-lucide="search" class="search-icon"></i>
+            <input type="text" id="quickSearch" class="plex-search" placeholder="Search movies & TV shows..." />
+            <div id="searchResults" class="search-results"></div>
+        </div>
+        <div class="plex-status">
+            <span class="status-indicator" id="overallStatus"></span>
+            <span id="statusText">Checking...</span>
+        </div>
+    </header>
+
+    <!-- Service Cards -->
+    <section class="plex-services">
+        {% for service_id, config in services.items() %}
+        <div class="service-card" data-service="{{ service_id }}" style="--service-color: {{ config.color }}">
+            <div class="service-header">
+                <div class="service-icon">
+                    <i data-lucide="{{ config.icon }}"></i>
+                </div>
+                <div class="service-info">
+                    <span class="service-name">{{ config.name }}</span>
+                    <span class="service-status" id="status-{{ service_id }}">
+                        <span class="status-dot"></span>
+                        <span class="status-text">Checking...</span>
+                    </span>
+                </div>
+            </div>
+            <div class="service-actions">
+                <a href="http://{{ host }}:{{ config.port }}{{ config.path }}" target="_blank" class="service-btn service-btn-open" title="Open {{ config.name }}">
+                    <i data-lucide="external-link"></i>
+                </a>
+                <button class="service-btn service-btn-restart" onclick="serviceAction('{{ service_id }}', 'restart')" title="Restart">
+                    <i data-lucide="refresh-cw"></i>
+                </button>
+                <button class="service-btn service-btn-logs" onclick="showLogs('{{ service_id }}')" title="View Logs">
+                    <i data-lucide="file-text"></i>
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </section>
+
+    <!-- Activity and Logs Section -->
+    <section class="plex-panels">
+        <!-- Recent Activity -->
+        <div class="plex-panel activity-panel">
+            <div class="panel-header">
+                <h2><i data-lucide="download"></i> Recent Activity</h2>
+                <button class="panel-refresh" onclick="loadActivity()">
+                    <i data-lucide="refresh-cw"></i>
+                </button>
+            </div>
+            <div class="panel-content" id="activityContent">
+                <div class="loading-spinner">Loading...</div>
+            </div>
+        </div>
+
+        <!-- Logs Viewer -->
+        <div class="plex-panel logs-panel">
+            <div class="panel-header">
+                <h2><i data-lucide="terminal"></i> Logs</h2>
+                <select id="logServiceSelect" class="log-service-select" onchange="loadLogs(this.value)">
+                    {% for service_id, config in services.items() %}
+                    <option value="{{ service_id }}">{{ config.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="panel-content logs-content" id="logsContent">
+                <pre class="logs-output" id="logsOutput">Select a service to view logs...</pre>
+            </div>
+        </div>
+    </section>
+</div>
+
+<!-- Templates for dynamic content (safer than innerHTML) -->
+<template id="activityItemTemplate">
+    <div class="activity-item">
+        <div class="activity-icon">
+            <i data-lucide="download"></i>
+        </div>
+        <div class="activity-info">
+            <span class="activity-name"></span>
+            <span class="activity-details"></span>
+        </div>
+        <div class="activity-progress">
+            <div class="progress-bar">
+                <div class="progress-fill"></div>
+            </div>
+            <div class="progress-text"></div>
+        </div>
+    </div>
+</template>
+
+<template id="searchResultTemplate">
+    <div class="search-result-item">
+        <img class="search-result-poster" src="" alt="">
+        <div class="search-result-info">
+            <div class="search-result-title"></div>
+            <div class="search-result-year"></div>
+        </div>
+        <span class="search-result-type"></span>
+    </div>
+</template>
+
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════════
+   PLEX STACK MODULE STYLES
+   Theme: Red (Standalone Apps) + Orange Accent (Plex)
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+.plex-container {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 24px;
+    min-height: calc(100vh - 60px);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   HEADER
+   ───────────────────────────────────────────────────────────────────────────── */
+.plex-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 24px;
+    padding: 20px 24px;
+    background: var(--archie-bg-elevated);
+    border: 1px solid rgba(229, 160, 13, 0.2);
+    border-radius: 12px;
+}
+
+.plex-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #E5A00D;
+    margin: 0;
+    text-shadow: 0 0 20px rgba(229, 160, 13, 0.3);
+}
+
+.plex-title i {
+    width: 32px;
+    height: 32px;
+}
+
+.plex-subtitle {
+    margin: 4px 0 0 0;
+    color: var(--archie-text-tertiary);
+    font-size: 0.875rem;
+}
+
+.plex-search-container {
+    position: relative;
+    flex: 1;
+    max-width: 400px;
+}
+
+.search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 18px;
+    height: 18px;
+    color: var(--archie-text-muted);
+    pointer-events: none;
+}
+
+.plex-search {
+    width: 100%;
+    padding: 12px 16px 12px 42px;
+    background: var(--archie-bg-tertiary);
+    border: 1px solid rgba(229, 160, 13, 0.2);
+    border-radius: 8px;
+    color: var(--archie-text-secondary);
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+}
+
+.plex-search:focus {
+    outline: none;
+    border-color: rgba(229, 160, 13, 0.5);
+    box-shadow: 0 0 0 3px rgba(229, 160, 13, 0.1);
+}
+
+.plex-search::placeholder {
+    color: var(--archie-text-muted);
+}
+
+.search-results {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    background: var(--archie-bg-elevated);
+    border: 1px solid rgba(229, 160, 13, 0.3);
+    border-radius: 8px;
+    max-height: 400px;
+    overflow-y: auto;
+    display: none;
+    z-index: 100;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.search-results.active {
+    display: block;
+}
+
+.search-result-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border-bottom: 1px solid rgba(229, 160, 13, 0.1);
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.search-result-item:hover {
+    background: rgba(229, 160, 13, 0.1);
+}
+
+.search-result-item:last-child {
+    border-bottom: none;
+}
+
+.search-result-poster {
+    width: 45px;
+    height: 67px;
+    border-radius: 4px;
+    object-fit: cover;
+    background: var(--archie-bg-tertiary);
+}
+
+.search-result-info {
+    flex: 1;
+}
+
+.search-result-title {
+    font-weight: 600;
+    color: var(--archie-text-secondary);
+}
+
+.search-result-year {
+    font-size: 0.8rem;
+    color: var(--archie-text-muted);
+}
+
+.search-result-type {
+    padding: 2px 8px;
+    background: rgba(229, 160, 13, 0.2);
+    color: #E5A00D;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+}
+
+.plex-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: var(--archie-bg-tertiary);
+    border-radius: 8px;
+    font-size: 0.875rem;
+    color: var(--archie-text-secondary);
+}
+
+.status-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--archie-text-muted);
+}
+
+.status-indicator.online {
+    background: var(--archie-green);
+    box-shadow: 0 0 10px var(--archie-green);
+}
+
+.status-indicator.partial {
+    background: var(--archie-orange);
+    box-shadow: 0 0 10px var(--archie-orange);
+}
+
+.status-indicator.offline {
+    background: var(--archie-red);
+    box-shadow: 0 0 10px var(--archie-red);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SERVICE CARDS
+   ───────────────────────────────────────────────────────────────────────────── */
+.plex-services {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+@media (max-width: 1400px) {
+    .plex-services {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .plex-services {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.service-card {
+    background: var(--archie-bg-elevated);
+    border: 1px solid rgba(229, 160, 13, 0.15);
+    border-radius: 12px;
+    padding: 16px;
+    transition: all 0.3s ease;
+}
+
+.service-card:hover {
+    border-color: var(--service-color, #E5A00D);
+    box-shadow: 0 0 20px rgba(229, 160, 13, 0.15);
+    transform: translateY(-2px);
+}
+
+.service-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.service-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: rgba(229, 160, 13, 0.1);
+    border-radius: 8px;
+    color: var(--service-color, #E5A00D);
+}
+
+.service-icon i {
+    width: 22px;
+    height: 22px;
+}
+
+.service-info {
+    flex: 1;
+}
+
+.service-name {
+    display: block;
+    font-weight: 600;
+    color: var(--archie-text-secondary);
+    font-size: 0.95rem;
+}
+
+.service-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    color: var(--archie-text-muted);
+}
+
+.service-status .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--archie-text-muted);
+}
+
+.service-status.online .status-dot {
+    background: var(--archie-green);
+    box-shadow: 0 0 6px var(--archie-green);
+}
+
+.service-status.offline .status-dot {
+    background: var(--archie-red);
+    box-shadow: 0 0 6px var(--archie-red);
+}
+
+.service-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.service-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    background: var(--archie-bg-tertiary);
+    border: 1px solid rgba(229, 160, 13, 0.2);
+    border-radius: 6px;
+    color: var(--archie-text-tertiary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+}
+
+.service-btn:hover {
+    background: rgba(229, 160, 13, 0.1);
+    border-color: rgba(229, 160, 13, 0.4);
+    color: #E5A00D;
+}
+
+.service-btn i {
+    width: 16px;
+    height: 16px;
+}
+
+.service-btn.loading i {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   PANELS (Activity & Logs)
+   ───────────────────────────────────────────────────────────────────────────── */
+.plex-panels {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr;
+    gap: 24px;
+}
+
+@media (max-width: 1200px) {
+    .plex-panels {
+        grid-template-columns: 1fr;
+    }
+}
+
+.plex-panel {
+    background: var(--archie-bg-elevated);
+    border: 1px solid rgba(229, 160, 13, 0.15);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(229, 160, 13, 0.1);
+}
+
+.panel-header h2 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #E5A00D;
+    margin: 0;
+}
+
+.panel-header h2 i {
+    width: 18px;
+    height: 18px;
+}
+
+.panel-refresh {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: transparent;
+    border: 1px solid rgba(229, 160, 13, 0.2);
+    border-radius: 6px;
+    color: var(--archie-text-tertiary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.panel-refresh:hover {
+    background: rgba(229, 160, 13, 0.1);
+    border-color: rgba(229, 160, 13, 0.4);
+    color: #E5A00D;
+}
+
+.panel-refresh i {
+    width: 16px;
+    height: 16px;
+}
+
+.panel-content {
+    padding: 16px 20px;
+    min-height: 300px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.log-service-select {
+    padding: 6px 12px;
+    background: var(--archie-bg-tertiary);
+    border: 1px solid rgba(229, 160, 13, 0.2);
+    border-radius: 6px;
+    color: var(--archie-text-secondary);
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.log-service-select:focus {
+    outline: none;
+    border-color: rgba(229, 160, 13, 0.5);
+}
+
+.logs-content {
+    padding: 0;
+}
+
+.logs-output {
+    margin: 0;
+    padding: 16px;
+    background: var(--archie-bg-secondary);
+    color: var(--archie-text-tertiary);
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-all;
+    min-height: 300px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   ACTIVITY ITEMS
+   ───────────────────────────────────────────────────────────────────────────── */
+.activity-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: var(--archie-bg-tertiary);
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+
+.activity-item:last-child {
+    margin-bottom: 0;
+}
+
+.activity-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    background: rgba(229, 160, 13, 0.1);
+    border-radius: 6px;
+    color: #E5A00D;
+}
+
+.activity-icon i {
+    width: 18px;
+    height: 18px;
+}
+
+.activity-icon.completed {
+    background: rgba(0, 255, 65, 0.1);
+    color: var(--archie-green);
+}
+
+.activity-icon.downloading {
+    background: rgba(0, 170, 255, 0.1);
+    color: var(--archie-cyan);
+}
+
+.activity-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.activity-name {
+    display: block;
+    font-weight: 500;
+    color: var(--archie-text-secondary);
+    font-size: 0.875rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.activity-details {
+    font-size: 0.75rem;
+    color: var(--archie-text-muted);
+}
+
+.activity-progress {
+    width: 80px;
+}
+
+.progress-bar {
+    height: 6px;
+    background: var(--archie-bg-secondary);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #E5A00D, #FFC230);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    font-size: 0.7rem;
+    color: var(--archie-text-muted);
+    text-align: right;
+    margin-top: 2px;
+}
+
+.loading-spinner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    color: var(--archie-text-muted);
+}
+
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    color: var(--archie-text-muted);
+    text-align: center;
+}
+
+.empty-state i {
+    width: 48px;
+    height: 48px;
+    margin-bottom: 12px;
+    opacity: 0.5;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   LIGHT MODE OVERRIDES
+   ───────────────────────────────────────────────────────────────────────────── */
+body.light-mode .plex-header,
+body.light-mode .service-card,
+body.light-mode .plex-panel {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: rgba(229, 160, 13, 0.25);
+}
+
+body.light-mode .plex-title {
+    color: #B8860B;
+    text-shadow: none;
+}
+
+body.light-mode .plex-search {
+    background: rgba(255, 255, 255, 0.8);
+    border-color: rgba(229, 160, 13, 0.3);
+}
+
+body.light-mode .service-name,
+body.light-mode .search-result-title {
+    color: #1a1a1a;
+}
+
+body.light-mode .logs-output {
+    background: #f5f5f5;
+    color: #333;
+}
+</style>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════════
+// PLEX STACK MODULE JAVASCRIPT
+// Using safe DOM manipulation (templates + textContent)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const OVERSEERR_HOST = '{{ host }}';
+let statusInterval;
+let searchTimeout;
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    lucide.createIcons();
+    loadStatus();
+    loadActivity();
+
+    // Auto-refresh status every 30 seconds
+    statusInterval = setInterval(loadStatus, 30000);
+
+    // Setup search
+    const searchInput = document.getElementById('quickSearch');
+    searchInput.addEventListener('input', handleSearch);
+    searchInput.addEventListener('focus', () => {
+        const results = document.getElementById('searchResults');
+        if (results.children.length > 0) {
+            results.classList.add('active');
+        }
+    });
+
+    // Close search results when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.plex-search-container')) {
+            document.getElementById('searchResults').classList.remove('active');
+        }
+    });
+});
+
+// Load service status
+async function loadStatus() {
+    try {
+        const response = await fetch('/tools/plex-stack/api/status');
+        const data = await response.json();
+
+        if (data.success) {
+            let onlineCount = 0;
+            const services = data.services;
+
+            for (const [serviceId, status] of Object.entries(services)) {
+                const statusEl = document.getElementById(`status-${serviceId}`);
+                if (statusEl) {
+                    const isOnline = status.online && status.running !== false;
+                    if (isOnline) onlineCount++;
+
+                    statusEl.className = `service-status ${isOnline ? 'online' : 'offline'}`;
+                    const statusText = statusEl.querySelector('.status-text');
+                    statusText.textContent = isOnline ?
+                        `Online${status.response_time ? ` (${Math.round(status.response_time)}ms)` : ''}` :
+                        'Offline';
+                }
+            }
+
+            // Update overall status
+            const totalServices = Object.keys(services).length;
+            const overallStatus = document.getElementById('overallStatus');
+            const statusText = document.getElementById('statusText');
+
+            if (onlineCount === totalServices) {
+                overallStatus.className = 'status-indicator online';
+                statusText.textContent = 'All Services Online';
+            } else if (onlineCount > 0) {
+                overallStatus.className = 'status-indicator partial';
+                statusText.textContent = `${onlineCount}/${totalServices} Online`;
+            } else {
+                overallStatus.className = 'status-indicator offline';
+                statusText.textContent = 'All Services Offline';
+            }
+        }
+    } catch (error) {
+        console.error('Failed to load status:', error);
+    }
+}
+
+// Perform service action
+async function serviceAction(serviceId, action) {
+    const card = document.querySelector(`[data-service="${serviceId}"]`);
+    const btn = card.querySelector('.service-btn-restart');
+    btn.classList.add('loading');
+
+    try {
+        const response = await fetch(`/tools/plex-stack/api/services/${serviceId}/action`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showToast(`${serviceId} ${action}ed successfully`, 'success');
+            setTimeout(loadStatus, 2000);
+        } else {
+            showToast(data.error || 'Action failed', 'error');
+        }
+    } catch (error) {
+        showToast('Failed to perform action', 'error');
+    } finally {
+        btn.classList.remove('loading');
+    }
+}
+
+// Load logs for a service
+async function loadLogs(serviceId) {
+    const logsOutput = document.getElementById('logsOutput');
+    logsOutput.textContent = 'Loading logs...';
+
+    try {
+        const response = await fetch(`/tools/plex-stack/api/services/${serviceId}/logs?lines=100`);
+        const data = await response.json();
+
+        if (data.success) {
+            logsOutput.textContent = data.logs || 'No logs available';
+            logsOutput.scrollTop = logsOutput.scrollHeight;
+        } else {
+            logsOutput.textContent = `Error: ${data.error}`;
+        }
+    } catch (error) {
+        logsOutput.textContent = `Failed to load logs: ${error.message}`;
+    }
+}
+
+// Show logs for a specific service
+function showLogs(serviceId) {
+    document.getElementById('logServiceSelect').value = serviceId;
+    loadLogs(serviceId);
+
+    // Scroll to logs panel
+    document.querySelector('.logs-panel').scrollIntoView({ behavior: 'smooth' });
+}
+
+// Load recent activity from SABnzbd (using safe DOM manipulation)
+async function loadActivity() {
+    const activityContent = document.getElementById('activityContent');
+    activityContent.textContent = '';
+
+    const loadingDiv = document.createElement('div');
+    loadingDiv.className = 'loading-spinner';
+    loadingDiv.textContent = 'Loading...';
+    activityContent.appendChild(loadingDiv);
+
+    try {
+        const response = await fetch('/tools/plex-stack/api/activity');
+        const data = await response.json();
+
+        activityContent.textContent = '';
+
+        // Queue items (downloading)
+        if (data.queue && data.queue.length > 0) {
+            for (const item of data.queue) {
+                const progress = parseFloat(item.percentage) || 0;
+                const activityItem = createActivityItem(
+                    'download',
+                    'downloading',
+                    item.filename || 'Unknown',
+                    `${item.sizeleft || '?'} left • ${item.timeleft || '?'}`,
+                    progress
+                );
+                activityContent.appendChild(activityItem);
+            }
+        }
+
+        // History items (completed)
+        if (data.history && data.history.length > 0) {
+            for (const item of data.history.slice(0, 5)) {
+                const activityItem = createActivityItem(
+                    'check-circle',
+                    'completed',
+                    item.name || 'Unknown',
+                    `${item.size || '?'} • Completed`,
+                    null
+                );
+                activityContent.appendChild(activityItem);
+            }
+        }
+
+        if (activityContent.children.length === 0) {
+            const emptyState = document.createElement('div');
+            emptyState.className = 'empty-state';
+            const icon = document.createElement('i');
+            icon.setAttribute('data-lucide', 'inbox');
+            const text = document.createElement('p');
+            text.textContent = 'No recent activity';
+            emptyState.appendChild(icon);
+            emptyState.appendChild(text);
+            activityContent.appendChild(emptyState);
+        }
+
+        lucide.createIcons();
+    } catch (error) {
+        activityContent.textContent = '';
+        const emptyState = document.createElement('div');
+        emptyState.className = 'empty-state';
+        const icon = document.createElement('i');
+        icon.setAttribute('data-lucide', 'alert-circle');
+        const text = document.createElement('p');
+        text.textContent = 'Failed to load activity';
+        emptyState.appendChild(icon);
+        emptyState.appendChild(text);
+        activityContent.appendChild(emptyState);
+        lucide.createIcons();
+    }
+}
+
+// Create activity item element (safe DOM creation)
+function createActivityItem(iconName, iconClass, name, details, progress) {
+    const item = document.createElement('div');
+    item.className = 'activity-item';
+
+    const iconDiv = document.createElement('div');
+    iconDiv.className = `activity-icon ${iconClass}`;
+    const icon = document.createElement('i');
+    icon.setAttribute('data-lucide', iconName);
+    iconDiv.appendChild(icon);
+
+    const infoDiv = document.createElement('div');
+    infoDiv.className = 'activity-info';
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'activity-name';
+    nameSpan.textContent = name;
+    const detailsSpan = document.createElement('span');
+    detailsSpan.className = 'activity-details';
+    detailsSpan.textContent = details;
+    infoDiv.appendChild(nameSpan);
+    infoDiv.appendChild(detailsSpan);
+
+    item.appendChild(iconDiv);
+    item.appendChild(infoDiv);
+
+    if (progress !== null) {
+        const progressDiv = document.createElement('div');
+        progressDiv.className = 'activity-progress';
+        const progressBar = document.createElement('div');
+        progressBar.className = 'progress-bar';
+        const progressFill = document.createElement('div');
+        progressFill.className = 'progress-fill';
+        progressFill.style.width = `${progress}%`;
+        progressBar.appendChild(progressFill);
+        const progressText = document.createElement('div');
+        progressText.className = 'progress-text';
+        progressText.textContent = `${progress.toFixed(0)}%`;
+        progressDiv.appendChild(progressBar);
+        progressDiv.appendChild(progressText);
+        item.appendChild(progressDiv);
+    }
+
+    return item;
+}
+
+// Handle search input
+function handleSearch(e) {
+    clearTimeout(searchTimeout);
+    const query = e.target.value.trim();
+
+    if (query.length < 2) {
+        document.getElementById('searchResults').classList.remove('active');
+        return;
+    }
+
+    searchTimeout = setTimeout(() => performSearch(query), 300);
+}
+
+// Perform search via Overseerr (using safe DOM manipulation)
+async function performSearch(query) {
+    const resultsEl = document.getElementById('searchResults');
+    resultsEl.textContent = '';
+
+    const loadingDiv = document.createElement('div');
+    loadingDiv.className = 'loading-spinner';
+    loadingDiv.textContent = 'Searching...';
+    resultsEl.appendChild(loadingDiv);
+    resultsEl.classList.add('active');
+
+    try {
+        const response = await fetch(`/tools/plex-stack/api/search?q=${encodeURIComponent(query)}`);
+        const data = await response.json();
+
+        resultsEl.textContent = '';
+
+        if (data.success && data.results.length > 0) {
+            for (const item of data.results) {
+                const resultItem = createSearchResultItem(item);
+                resultsEl.appendChild(resultItem);
+            }
+        } else {
+            const emptyState = document.createElement('div');
+            emptyState.className = 'empty-state';
+            const text = document.createElement('p');
+            text.textContent = 'No results found';
+            emptyState.appendChild(text);
+            resultsEl.appendChild(emptyState);
+        }
+    } catch (error) {
+        resultsEl.textContent = '';
+        const emptyState = document.createElement('div');
+        emptyState.className = 'empty-state';
+        const text = document.createElement('p');
+        text.textContent = 'Search failed';
+        emptyState.appendChild(text);
+        resultsEl.appendChild(emptyState);
+    }
+}
+
+// Create search result item (safe DOM creation)
+function createSearchResultItem(item) {
+    const resultItem = document.createElement('div');
+    resultItem.className = 'search-result-item';
+    resultItem.addEventListener('click', () => {
+        window.open(`http://${OVERSEERR_HOST}:5055/${item.mediaType}/${item.id}`, '_blank');
+    });
+
+    const poster = document.createElement('img');
+    poster.className = 'search-result-poster';
+    if (item.posterPath) {
+        poster.src = `https://image.tmdb.org/t/p/w92${item.posterPath}`;
+    }
+    poster.alt = '';
+    poster.onerror = function() { this.style.display = 'none'; };
+
+    const infoDiv = document.createElement('div');
+    infoDiv.className = 'search-result-info';
+    const titleDiv = document.createElement('div');
+    titleDiv.className = 'search-result-title';
+    titleDiv.textContent = item.title || item.name || 'Unknown';
+    const yearDiv = document.createElement('div');
+    yearDiv.className = 'search-result-year';
+    yearDiv.textContent = (item.releaseDate || item.firstAirDate || '').split('-')[0] || '';
+    infoDiv.appendChild(titleDiv);
+    infoDiv.appendChild(yearDiv);
+
+    const typeSpan = document.createElement('span');
+    typeSpan.className = 'search-result-type';
+    typeSpan.textContent = item.mediaType === 'movie' ? 'Movie' : 'TV';
+
+    resultItem.appendChild(poster);
+    resultItem.appendChild(infoDiv);
+    resultItem.appendChild(typeSpan);
+
+    return resultItem;
+}
+
+// Utility: Show toast notification
+function showToast(message, type = 'info') {
+    if (typeof window.showToast === 'function') {
+        window.showToast(message, type);
+    } else {
+        console.log(`[${type}] ${message}`);
+    }
+}
+</script>
+{% endblock %}

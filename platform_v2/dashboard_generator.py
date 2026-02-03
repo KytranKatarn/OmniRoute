@@ -37,6 +37,8 @@ def get_user_dashboard_data(user) -> Dict:
     locked = []
 
     for module in enabled_modules:
+        if not module.show_on_dashboard:
+            continue
         if can_access_module(module.id, user):
             accessible.append(module)
         else:

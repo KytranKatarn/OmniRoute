@@ -62,12 +62,14 @@ def list_orgs():
             SELECT o.*,
                    COUNT(DISTINCT ou.user_id) AS user_count,
                    COUNT(DISTINCT om.id) FILTER (WHERE om.enabled) AS module_count,
-                   COUNT(DISTINCT od.id) AS domain_count
+                   COUNT(DISTINCT od.id) AS domain_count,
+                   rn.node_name, rn.status AS node_status
             FROM organizations o
             LEFT JOIN org_users ou ON ou.org_id = o.id
             LEFT JOIN org_modules om ON om.org_id = o.id
             LEFT JOIN org_domains od ON od.org_id = o.id
-            GROUP BY o.id
+            LEFT JOIN remote_nodes rn ON rn.node_id = o.node_id
+            GROUP BY o.id, rn.node_name, rn.status
             ORDER BY o.created_at DESC
         """
         )
@@ -144,7 +146,7 @@ def create_org():
 @saas_manager_bp.route("/orgs/<int:org_id>", methods=["GET"])
 @admin_required
 def get_org(org_id):
-    """Get organization details with users, modules, domains."""
+    """Get organization details with users, modules, domains, and node."""
     with get_db_cursor() as (conn, cur):
         cur.execute("SELECT * FROM organizations WHERE id = %s", (org_id,))
         org = cur.fetchone()
@@ -170,6 +172,20 @@ def get_org(org_id):
         cur.execute("SELECT * FROM org_domains WHERE org_id = %s ORDER BY domain", (org_id,))
         domains = cur.fetchall()
 
+        # Fetch assigned node info if org has one
+        node = None
+        if org.get("node_id"):
+            cur.execute(
+                """
+                SELECT node_id, node_name, vpn_ip, status, gpu_model, gpu_vram_gb,
+                       cpu_cores, cpu_model, ram_gb, current_load, max_concurrent,
+                       last_heartbeat, ollama_available, approval_status
+                FROM remote_nodes WHERE node_id = %s
+            """,
+                (org["node_id"],),
+            )
+            node = cur.fetchone()
+
     return jsonify(
         {
             "success": True,
@@ -177,6 +193,7 @@ def get_org(org_id):
             "users": [_serialize(u) for u in users],
             "modules": [_serialize(m) for m in modules],
             "domains": [_serialize(d) for d in domains],
+            "node": _serialize(node),
         }
     )
 
@@ -189,7 +206,7 @@ def update_org(org_id):
     with get_db_cursor() as (conn, cur):
         fields = []
         values = []
-        for key in ("name", "status", "settings", "ai_config"):
+        for key in ("name", "status", "settings", "ai_config", "node_id", "isolation_type"):
             if key in data:
                 fields.append(f"{key} = %s")
                 val = data[key]
@@ -543,6 +560,155 @@ def available_modules():
             }
         )
     return jsonify({"success": True, "modules": modules})
+
+
+# -- Node-to-Org Assignment ----------------------------------------------------
+
+
+@saas_manager_bp.route("/orgs/<int:org_id>/node", methods=["GET"])
+@admin_required
+def get_org_node(org_id):
+    """Get the node assigned to an organization."""
+    with get_db_cursor() as (conn, cur):
+        cur.execute("SELECT node_id, isolation_type FROM organizations WHERE id = %s", (org_id,))
+        org = cur.fetchone()
+        if not org:
+            return jsonify({"success": False, "error": "Organization not found"}), 404
+
+        node = None
+        if org["node_id"]:
+            cur.execute(
+                """
+                SELECT node_id, node_name, vpn_ip, status, gpu_model, gpu_vram_gb,
+                       cpu_cores, cpu_model, ram_gb, disk_gb, os_info,
+                       current_load, max_concurrent, last_heartbeat,
+                       ollama_available, approval_status, bridge_enabled
+                FROM remote_nodes WHERE node_id = %s
+            """,
+                (org["node_id"],),
+            )
+            node = cur.fetchone()
+
+    return jsonify(
+        {
+            "success": True,
+            "isolation_type": org["isolation_type"],
+            "node": _serialize(node),
+        }
+    )
+
+
+@saas_manager_bp.route("/orgs/<int:org_id>/node", methods=["PUT"])
+@admin_required
+def assign_org_node(org_id):
+    """Assign a node to an organization."""
+    data = request.get_json() or {}
+    node_id = data.get("node_id")
+
+    if not node_id:
+        return jsonify({"success": False, "error": "node_id required"}), 400
+
+    with get_db_cursor() as (conn, cur):
+        # Verify org exists
+        cur.execute("SELECT id FROM organizations WHERE id = %s", (org_id,))
+        if not cur.fetchone():
+            return jsonify({"success": False, "error": "Organization not found"}), 404
+
+        # Verify node exists, is approved and active
+        cur.execute(
+            """
+            SELECT node_id, node_name, status, approval_status
+            FROM remote_nodes
+            WHERE node_id = %s AND is_active = TRUE
+        """,
+            (node_id,),
+        )
+        node = cur.fetchone()
+        if not node:
+            return jsonify({"success": False, "error": "Node not found or inactive"}), 404
+
+        if node["approval_status"] != "approved":
+            return (
+                jsonify({"success": False, "error": f"Node is not approved (status: {node['approval_status']})"}),
+                400,
+            )
+
+        # Check if node is already assigned to another org
+        cur.execute(
+            "SELECT id, name FROM organizations WHERE node_id = %s AND id != %s",
+            (node_id, org_id),
+        )
+        existing = cur.fetchone()
+        if existing:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"Node already assigned to '{existing['name']}' (org #{existing['id']})",
+                    }
+                ),
+                409,
+            )
+
+        # Assign node to org
+        cur.execute(
+            """
+            UPDATE organizations
+            SET node_id = %s, isolation_type = 'node', updated_at = NOW()
+            WHERE id = %s
+            RETURNING id, name, node_id, isolation_type
+        """,
+            (node_id, org_id),
+        )
+        org = cur.fetchone()
+
+    logger.info("Assigned node %s to org %s (#%s)", node_id, org["name"], org_id)
+    return jsonify({"success": True, "org": _serialize(org), "node_name": node["node_name"]})
+
+
+@saas_manager_bp.route("/orgs/<int:org_id>/node", methods=["DELETE"])
+@admin_required
+def unassign_org_node(org_id):
+    """Unassign a node from an organization, reverting to shared infrastructure."""
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """
+            UPDATE organizations
+            SET node_id = NULL, isolation_type = 'shared', updated_at = NOW()
+            WHERE id = %s AND node_id IS NOT NULL
+            RETURNING id, name, isolation_type
+        """,
+            (org_id,),
+        )
+        org = cur.fetchone()
+        if not org:
+            return jsonify({"success": False, "error": "Organization not found or no node assigned"}), 404
+
+    logger.info("Unassigned node from org %s (#%s)", org["name"], org_id)
+    return jsonify({"success": True, "org": _serialize(org)})
+
+
+@saas_manager_bp.route("/nodes", methods=["GET"])
+@admin_required
+def list_available_nodes():
+    """List approved nodes with their org assignment status."""
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """
+            SELECT rn.node_id, rn.node_name, rn.vpn_ip, rn.status,
+                   rn.gpu_model, rn.gpu_vram_gb, rn.cpu_cores, rn.ram_gb,
+                   rn.current_load, rn.max_concurrent, rn.last_heartbeat,
+                   rn.approval_status, rn.ollama_available, rn.bridge_enabled,
+                   o.id AS assigned_org_id, o.name AS assigned_org_name
+            FROM remote_nodes rn
+            LEFT JOIN organizations o ON o.node_id = rn.node_id
+            WHERE rn.approval_status = 'approved' AND rn.is_active = TRUE
+            ORDER BY rn.node_name
+        """
+        )
+        nodes = cur.fetchall()
+
+    return jsonify({"success": True, "nodes": [_serialize(n) for n in nodes]})
 
 
 # -- Helpers --------------------------------------------------------------------

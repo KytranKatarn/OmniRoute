@@ -2740,6 +2740,13 @@
                 </div>
                 <div id="saas-detail-domains"></div>
             </div>
+            <div class="saas-detail-section">
+                <div class="saas-detail-section-title">
+                    <i data-lucide="server" style="width:16px;height:16px"></i>
+                    COMPUTE NODE
+                </div>
+                <div id="saas-detail-node"></div>
+            </div>
         </div>
     </div>
 </div>
@@ -6526,7 +6533,25 @@ async function executeImport() {
                 statsDiv.appendChild(stat);
             });
 
-            card.appendChild(nameDiv);
+            // Node badge
+            if (org.node_name) {
+                var nodeBadge = document.createElement('div');
+                nodeBadge.style.cssText = 'display:flex;align-items:center;gap:4px;margin-top:6px;font-size:11px;color:var(--archie-success);';
+                var nbIcon = document.createElement('i');
+                nbIcon.setAttribute('data-lucide', 'server');
+                nbIcon.style.cssText = 'width:12px;height:12px';
+                nodeBadge.appendChild(nbIcon);
+                var nbText = document.createElement('span');
+                nbText.textContent = 'Node: ' + org.node_name;
+                nodeBadge.appendChild(nbText);
+                var nbDot = document.createElement('span');
+                nbDot.style.cssText = 'width:6px;height:6px;border-radius:50%;display:inline-block;margin-left:4px;background:' + (org.node_status === 'online' ? 'var(--archie-success)' : 'var(--archie-text-muted)') + ';';
+                nodeBadge.appendChild(nbDot);
+                card.appendChild(nameDiv);
+                card.appendChild(nodeBadge);
+            } else {
+                card.appendChild(nameDiv);
+            }
             card.appendChild(statsDiv);
             grid.appendChild(card);
         });
@@ -6571,6 +6596,7 @@ async function executeImport() {
                 saasRenderDetailUsers(data.users || []);
                 saasRenderDetailModules(data.modules || [], orgId);
                 saasRenderDetailDomains(data.domains || [], orgId);
+                saasRenderDetailNode(data.node, data.org, orgId);
                 if (typeof lucide !== 'undefined') lucide.createIcons();
             })
             .catch(function(err) {
@@ -6683,6 +6709,186 @@ async function executeImport() {
             container.appendChild(item);
         });
     }
+
+    // ── Node Assignment ─────────────────────────────────────────────────────
+
+    function saasRenderDetailNode(node, org, orgId) {
+        var container = document.getElementById('saas-detail-node');
+        container.textContent = '';
+
+        if (!node) {
+            // No node assigned - show shared info + assign button
+            var wrapper = document.createElement('div');
+            wrapper.style.cssText = 'padding:var(--archie-space-4);';
+
+            var shared = document.createElement('div');
+            shared.style.cssText = 'color:var(--archie-text-muted);margin-bottom:var(--archie-space-3);font-size:13px;';
+            shared.textContent = 'Running on shared infrastructure';
+            wrapper.appendChild(shared);
+
+            var btn = document.createElement('button');
+            btn.className = 'btn btn-sm';
+            btn.style.cssText = 'background:var(--archie-accent);color:#000;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;';
+            btn.textContent = 'Assign Node';
+            btn.setAttribute('onclick', 'saasShowAssignNodeModal(' + orgId + ')');
+            wrapper.appendChild(btn);
+            container.appendChild(wrapper);
+            return;
+        }
+
+        // Node assigned - show card with info
+        var card = document.createElement('div');
+        card.style.cssText = 'padding:var(--archie-space-3);background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:8px;';
+
+        var header = document.createElement('div');
+        header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;';
+
+        var nameGroup = document.createElement('div');
+        nameGroup.style.cssText = 'display:flex;align-items:center;gap:8px;';
+        var icon = document.createElement('i');
+        icon.setAttribute('data-lucide', 'server');
+        icon.style.cssText = 'width:16px;height:16px;color:var(--archie-accent)';
+        nameGroup.appendChild(icon);
+        var name = document.createElement('span');
+        name.style.cssText = 'font-weight:600;font-size:14px;';
+        name.textContent = node.node_name || node.node_id;
+        nameGroup.appendChild(name);
+
+        var dot = document.createElement('span');
+        var isOnline = node.status === 'online';
+        dot.style.cssText = 'width:8px;height:8px;border-radius:50%;display:inline-block;background:' + (isOnline ? 'var(--archie-success)' : 'var(--archie-danger)') + ';';
+        nameGroup.appendChild(dot);
+
+        var statusText = document.createElement('span');
+        statusText.style.cssText = 'font-size:11px;color:' + (isOnline ? 'var(--archie-success)' : 'var(--archie-danger)') + ';';
+        statusText.textContent = node.status || 'unknown';
+        nameGroup.appendChild(statusText);
+        header.appendChild(nameGroup);
+
+        var unassignBtn = document.createElement('button');
+        unassignBtn.className = 'btn btn-ghost btn-sm';
+        unassignBtn.style.cssText = 'color:var(--archie-danger);font-size:11px;';
+        unassignBtn.textContent = 'Unassign';
+        unassignBtn.setAttribute('onclick', 'saasUnassignNode(' + orgId + ')');
+        header.appendChild(unassignBtn);
+        card.appendChild(header);
+
+        // Hardware specs grid
+        var specs = document.createElement('div');
+        specs.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;color:var(--archie-text-muted);';
+        var specItems = [
+            {label: 'IP', value: node.vpn_ip || '-'},
+            {label: 'GPU', value: (node.gpu_model || 'None') + (node.gpu_vram_gb ? ' (' + node.gpu_vram_gb + 'GB)' : '')},
+            {label: 'CPU', value: (node.cpu_cores || '?') + ' cores'},
+            {label: 'RAM', value: (node.ram_gb || '?') + ' GB'},
+        ];
+        specItems.forEach(function(s) {
+            var div = document.createElement('div');
+            var lbl = document.createElement('span');
+            lbl.style.cssText = 'color:var(--archie-text-muted);opacity:0.6;';
+            lbl.textContent = s.label + ': ';
+            div.appendChild(lbl);
+            div.appendChild(document.createTextNode(s.value));
+            specs.appendChild(div);
+        });
+        card.appendChild(specs);
+
+        // Load bar
+        if (node.current_load !== null && node.current_load !== undefined) {
+            var loadWrap = document.createElement('div');
+            loadWrap.style.cssText = 'margin-top:10px;';
+            var loadLabel = document.createElement('div');
+            loadLabel.style.cssText = 'font-size:11px;color:var(--archie-text-muted);margin-bottom:4px;display:flex;justify-content:space-between;';
+            loadLabel.textContent = 'Load';
+            var loadVal = document.createElement('span');
+            loadVal.textContent = node.current_load + '%';
+            loadLabel.appendChild(loadVal);
+            loadWrap.appendChild(loadLabel);
+            var loadBar = document.createElement('div');
+            loadBar.style.cssText = 'height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden;';
+            var loadFill = document.createElement('div');
+            var loadPct = Math.min(100, Math.max(0, node.current_load));
+            var loadColor = loadPct > 80 ? 'var(--archie-danger)' : loadPct > 50 ? 'var(--archie-warning)' : 'var(--archie-success)';
+            loadFill.style.cssText = 'height:100%;width:' + loadPct + '%;background:' + loadColor + ';border-radius:2px;transition:width 0.3s;';
+            loadBar.appendChild(loadFill);
+            loadWrap.appendChild(loadBar);
+            card.appendChild(loadWrap);
+        }
+
+        // Last heartbeat
+        if (node.last_heartbeat) {
+            var hbDiv = document.createElement('div');
+            hbDiv.style.cssText = 'margin-top:8px;font-size:11px;color:var(--archie-text-muted);opacity:0.6;';
+            hbDiv.textContent = 'Last heartbeat: ' + new Date(node.last_heartbeat).toLocaleString();
+            card.appendChild(hbDiv);
+        }
+
+        container.appendChild(card);
+    }
+
+    window.saasShowAssignNodeModal = function(orgId) {
+        // Fetch available nodes and show selection
+        fetch(SAAS_API + '/nodes')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success || !data.nodes || data.nodes.length === 0) {
+                    saasShowToast('No approved nodes available', 'warning');
+                    return;
+                }
+                // Filter to unassigned nodes
+                var available = data.nodes.filter(function(n) { return !n.assigned_org_id; });
+                if (available.length === 0) {
+                    saasShowToast('All nodes are assigned to other orgs', 'warning');
+                    return;
+                }
+                // Simple prompt-based selection (can be enhanced to modal later)
+                var msg = 'Available nodes:\\n';
+                available.forEach(function(n, i) {
+                    msg += (i + 1) + '. ' + n.node_name + ' (' + (n.vpn_ip || 'no IP') + ') - ' + (n.gpu_model || 'no GPU') + '\\n';
+                });
+                msg += '\\nEnter number to assign:';
+                var choice = prompt(msg);
+                if (!choice) return;
+                var idx = parseInt(choice, 10) - 1;
+                if (idx < 0 || idx >= available.length) {
+                    saasShowToast('Invalid selection', 'error');
+                    return;
+                }
+                var selectedNode = available[idx];
+                fetch(SAAS_API + '/orgs/' + orgId + '/node', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ node_id: selectedNode.node_id })
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(res) {
+                    if (res.success) {
+                        saasShowToast('Node assigned: ' + selectedNode.node_name, 'success');
+                        saasOpenOrgDetail(orgId);
+                        saasLoadOrgs();
+                    } else {
+                        saasShowToast('Failed: ' + (res.error || ''), 'error');
+                    }
+                });
+            })
+            .catch(function(err) { saasShowToast('Error: ' + err.message, 'error'); });
+    };
+
+    window.saasUnassignNode = function(orgId) {
+        if (!confirm('Unassign this node? The org will revert to shared infrastructure.')) return;
+        fetch(SAAS_API + '/orgs/' + orgId + '/node', { method: 'DELETE' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    saasShowToast('Node unassigned', 'success');
+                    saasOpenOrgDetail(orgId);
+                    saasLoadOrgs();
+                } else {
+                    saasShowToast('Failed: ' + (data.error || ''), 'error');
+                }
+            })
+            .catch(function(err) { saasShowToast('Error: ' + err.message, 'error'); });
+    };
 
     // ── Module Toggle ───────────────────────────────────────────────────────
 

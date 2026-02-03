@@ -1110,7 +1110,7 @@ def request_station_support(station_code):
 
         # Define capability keywords and their model mappings
         # Bridge interprets the capability_needed string to find appropriate agents
-        FAST_CODER_MODELS = ["qwen2.5-coder:7b", "starcoder2:7b", "deepseek-coder-v2:16b"]
+        fast_coder_models = ["qwen2.5-coder:7b", "starcoder2:7b", "deepseek-coder-v2:16b"]  # noqa: F841
 
         # Determine what kind of agent is needed based on capability description
         capability_lower = capability_needed.lower() if capability_needed else ""
@@ -1572,7 +1572,8 @@ def send_agent_to_lounge(agent_id):
 
         # Cancel any active training
         cur.execute(
-            "UPDATE training_assignments SET status = 'cancelled' WHERE agent_id = %s AND status IN ('pending', 'in_progress')",
+            "UPDATE training_assignments SET status = 'cancelled' "
+            "WHERE agent_id = %s AND status IN ('pending', 'in_progress')",
             (agent_id,),
         )
 
@@ -2019,8 +2020,7 @@ def get_llm_history(connection_id):
 # REMOTE NODES API - Phase 29
 # ============================================================================
 
-import hashlib
-import secrets
+import secrets  # noqa: E402 (hashlib already imported at top)
 
 
 def generate_node_id():
@@ -2050,32 +2050,34 @@ def get_all_nodes():
         active_only = request.args.get("active", "true").lower() == "true"
 
         query = """
-            SELECT id, node_id, node_name, description, vpn_ip, hostname, port,
-                   status, last_heartbeat, last_error, error_count,
-                   client_version, gpu_available, gpu_model, gpu_vram_gb,
-                   cpu_cores, cpu_model, ram_gb, disk_gb, os_info, ollama_available,
-                   priority, weight, max_concurrent, current_load,
-                   total_requests, successful_requests, failed_requests, avg_latency_ms,
-                   tags, is_active, created_at, updated_at,
-                   approval_status, approved_by, approved_at,
-                   bridge_enabled, bridge_priority, last_model_sync
-            FROM remote_nodes
+            SELECT rn.id, rn.node_id, rn.node_name, rn.description, rn.vpn_ip, rn.hostname, rn.port,
+                   rn.status, rn.last_heartbeat, rn.last_error, rn.error_count,
+                   rn.client_version, rn.gpu_available, rn.gpu_model, rn.gpu_vram_gb,
+                   rn.cpu_cores, rn.cpu_model, rn.ram_gb, rn.disk_gb, rn.os_info, rn.ollama_available,
+                   rn.priority, rn.weight, rn.max_concurrent, rn.current_load,
+                   rn.total_requests, rn.successful_requests, rn.failed_requests, rn.avg_latency_ms,
+                   rn.tags, rn.is_active, rn.created_at, rn.updated_at,
+                   rn.approval_status, rn.approved_by, rn.approved_at,
+                   rn.bridge_enabled, rn.bridge_priority, rn.last_model_sync,
+                   o.name AS org_name, o.id AS org_id
+            FROM remote_nodes rn
+            LEFT JOIN organizations o ON o.node_id = rn.node_id
             WHERE 1=1
         """
         params = []
 
         if active_only:
-            query += " AND is_active = TRUE"
+            query += " AND rn.is_active = TRUE"
 
         if status_filter != "all":
-            query += " AND status = %s"
+            query += " AND rn.status = %s"
             params.append(status_filter)
 
         if approval_filter != "all":
-            query += " AND approval_status = %s"
+            query += " AND rn.approval_status = %s"
             params.append(approval_filter)
 
-        query += " ORDER BY CASE approval_status WHEN 'pending' THEN 0 ELSE 1 END, priority, node_name"
+        query += " ORDER BY CASE rn.approval_status WHEN 'pending' THEN 0 ELSE 1 END, rn.priority, rn.node_name"
 
         cur.execute(query, params)
         nodes = cur.fetchall()
@@ -2161,6 +2163,46 @@ def get_node_install_script_windows():
         )
     else:
         return "Install script not found", 404
+
+
+@bridge_bp.route("/api/nodes/heartbeat.ps1", methods=["GET"])
+def get_node_heartbeat_script_windows():
+    """Serve the Windows PowerShell heartbeat script"""
+    import os
+
+    script_path = "/mnt/archie_brain/node_client/heartbeat.ps1"
+
+    if os.path.exists(script_path):
+        with open(script_path, "r") as f:
+            script_content = f.read()
+
+        return (
+            script_content,
+            200,
+            {"Content-Type": "text/plain; charset=utf-8", "Content-Disposition": 'inline; filename="heartbeat.ps1"'},
+        )
+    else:
+        return "Heartbeat script not found", 404
+
+
+@bridge_bp.route("/api/nodes/heartbeat.sh", methods=["GET"])
+def get_node_heartbeat_script_linux():
+    """Serve the Linux heartbeat script"""
+    import os
+
+    script_path = "/mnt/archie_brain/node_client/heartbeat.sh"
+
+    if os.path.exists(script_path):
+        with open(script_path, "r") as f:
+            script_content = f.read()
+
+        return (
+            script_content,
+            200,
+            {"Content-Type": "text/plain; charset=utf-8", "Content-Disposition": 'inline; filename="heartbeat.sh"'},
+        )
+    else:
+        return "Heartbeat script not found", 404
 
 
 @bridge_bp.route("/api/nodes/client-package", methods=["GET"])
@@ -2259,7 +2301,9 @@ def register_node():
                 iaae_compliant, priority, weight, max_concurrent, tags,
                 approval_status
             ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
             )
             RETURNING id, node_id, node_name, approval_status
         """,
@@ -2333,7 +2377,11 @@ def register_node():
                     if node["approval_status"] == "pending"
                     else "Node registered successfully."
                 ),
-                "hardware_recommendation": f'Based on {data.get("ram_gb", 8)}GB RAM, {data.get("cpu_cores", 4)} cores, recommended max_concurrent: {calculated_max}',
+                "hardware_recommendation": (
+                    f'Based on {data.get("ram_gb", 8)}GB RAM, '
+                    f'{data.get("cpu_cores", 4)} cores, '
+                    f"recommended max_concurrent: {calculated_max}"
+                ),
             }
         )
 
@@ -3441,7 +3489,9 @@ def update_node_station_assignment(node_id, station_id):
         return jsonify(
             {
                 "success": True,
-                "message": f"Assignment updated for node '{node['node_name']}' at station '{assignment['station_name']}'",
+                "message": (
+                    f"Assignment updated for node '{node['node_name']}' " f"at station '{assignment['station_name']}'"
+                ),
                 "assignment": {
                     "node_id": node_id,
                     "station_id": station_id,
@@ -3501,7 +3551,10 @@ def remove_node_from_station(node_id, station_id):
         return jsonify(
             {
                 "success": True,
-                "message": f"Node '{node['node_name']}' removed from station '{station['station_name'] if station else station_id}'",
+                "message": (
+                    f"Node '{node['node_name']}' removed from station "
+                    f"'{station['station_name'] if station else station_id}'"
+                ),
             }
         )
 
@@ -3999,7 +4052,7 @@ def get_scheduler_status():
             }
         )
 
-    except Exception as e:
+    except Exception:
         # Table might not exist yet - return defaults
         return jsonify(
             {
@@ -4117,7 +4170,7 @@ def get_contributors():
 
         return jsonify({"success": True, "contributors": contributors, "summary": summary})
 
-    except Exception as e:
+    except Exception:
         # Tables might not exist
         return jsonify(
             {
@@ -4348,7 +4401,7 @@ def get_pool_integration_stats():
             pool_stats = response.json()
         else:
             pool_stats = None
-    except:
+    except Exception:
         pool_stats = None
 
     # Get Bridge node stats
@@ -4370,7 +4423,7 @@ def get_pool_integration_stats():
 
         cur.close()
         conn.close()
-    except:
+    except Exception:
         node_stats = {"total_nodes": 0, "online_nodes": 0, "gpu_nodes": 0}
 
     return jsonify(

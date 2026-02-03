@@ -1909,6 +1909,19 @@
     margin-bottom: 4px;
 }
 
+.node-org-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.65rem;
+    padding: 2px 8px;
+    border-radius: 3px;
+    background: rgba(88, 166, 255, 0.15);
+    color: #58a6ff;
+    margin-bottom: 6px;
+    width: fit-content;
+}
+
 .node-connection {
     font-size: 0.75rem;
     color: var(--bridge-muted);
@@ -3421,6 +3434,7 @@ function renderNodeCard(node) {
             </div>
             <div class="node-body">
                 <div class="node-name">${escapeHtml(node.node_name)}</div>
+                ${node.org_name ? `<div class="node-org-badge"><i data-lucide="building" style="width:11px;height:11px;"></i> ${escapeHtml(node.org_name)}</div>` : ''}
                 <div class="node-connection">${node.vpn_ip || node.hostname || 'Unknown'}:${node.port || 11434}</div>
                 <div class="node-specs">
                     <span><i data-lucide="cpu" style="width:12px;height:12px;"></i> ${node.cpu_cores || '?'} cores</span>

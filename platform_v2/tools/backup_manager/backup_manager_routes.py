@@ -4034,3 +4034,409 @@ def delete_hook(hook_type, name):
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+# =============================================================================
+# GOOGLE DRIVE CLOUD BACKUP ROUTES
+# =============================================================================
+
+# In-memory progress tracking for cloud operations
+_cloud_progress = {}
+
+
+def _get_cloud_config():
+    """Read Google Drive configuration from environment."""
+    return {
+        "enabled": os.environ.get("GDRIVE_ENABLED", "false").lower() == "true",
+        "service_account_path": os.environ.get(
+            "GDRIVE_SERVICE_ACCOUNT_PATH", "/app/credentials/gdrive-service-account.json"
+        ),
+        "folder_id": os.environ.get("GDRIVE_BACKUP_FOLDER_ID", ""),
+        "passphrase_hash": os.environ.get("GDRIVE_ENCRYPTION_PASSPHRASE_HASH", ""),
+    }
+
+
+def _update_env_var(key, value):
+    """Update an environment variable in memory and in the .env file."""
+    os.environ[key] = value
+    env_path = "/app/.env"
+    if not os.path.exists(env_path):
+        return
+    lines = []
+    found = False
+    with open(env_path, "r") as f:
+        for line in f:
+            if line.strip().startswith(f"{key}="):
+                lines.append(f"{key}={value}\n")
+                found = True
+            else:
+                lines.append(line)
+    if not found:
+        lines.append(f"{key}={value}\n")
+    with open(env_path, "w") as f:
+        f.writelines(lines)
+
+
+@backup_manager_bp.route("/cloud/status", methods=["GET"])
+@admin_required
+def cloud_status():
+    """Get Google Drive cloud backup status."""
+    config = _get_cloud_config()
+
+    result = {
+        "enabled": config["enabled"],
+        "has_service_account": os.path.exists(config["service_account_path"]),
+        "has_folder_id": bool(config["folder_id"]),
+        "has_passphrase": bool(config["passphrase_hash"]),
+        "connected": False,
+        "storage": None,
+        "email": None,
+    }
+
+    if config["enabled"] and result["has_service_account"]:
+        try:
+            from tools.backup_manager.gdrive_service import get_drive_service, test_connection, get_storage_quota
+
+            svc = get_drive_service(config["service_account_path"])
+            conn = test_connection(svc)
+            if conn["success"]:
+                result["connected"] = True
+                result["email"] = conn.get("email")
+                result["storage"] = get_storage_quota(svc)
+        except Exception as e:
+            result["connection_error"] = str(e)
+
+    return jsonify({"success": True, **result})
+
+
+@backup_manager_bp.route("/cloud/setup", methods=["POST"])
+@admin_required
+def cloud_setup():
+    """Test service account and create/find backup folder."""
+    config = _get_cloud_config()
+
+    if not os.path.exists(config["service_account_path"]):
+        return (
+            jsonify({"success": False, "error": f"Service account key not found at {config['service_account_path']}"}),
+            400,
+        )
+
+    try:
+        from tools.backup_manager.gdrive_service import get_drive_service, test_connection, ensure_backup_folder
+
+        svc = get_drive_service(config["service_account_path"])
+        conn = test_connection(svc)
+        if not conn["success"]:
+            return jsonify({"success": False, "error": conn["error"]}), 400
+
+        folder_id = ensure_backup_folder(svc, config["folder_id"])
+
+        # Save folder ID and enable
+        _update_env_var("GDRIVE_BACKUP_FOLDER_ID", folder_id)
+        _update_env_var("GDRIVE_ENABLED", "true")
+
+        return jsonify(
+            {
+                "success": True,
+                "email": conn.get("email"),
+                "folder_id": folder_id,
+                "message": "Google Drive connected and backup folder ready",
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@backup_manager_bp.route("/cloud/set-passphrase", methods=["POST"])
+@admin_required
+def cloud_set_passphrase():
+    """Set or update the encryption passphrase."""
+    data = request.get_json()
+    passphrase = data.get("passphrase", "").strip() if data else ""
+
+    if len(passphrase) < 8:
+        return jsonify({"success": False, "error": "Passphrase must be at least 8 characters"}), 400
+
+    from tools.backup_manager.gdrive_crypto import hash_passphrase
+
+    ph = hash_passphrase(passphrase)
+    _update_env_var("GDRIVE_ENCRYPTION_PASSPHRASE_HASH", ph)
+
+    return jsonify({"success": True, "message": "Encryption passphrase set"})
+
+
+@backup_manager_bp.route("/cloud/verify-passphrase", methods=["POST"])
+@admin_required
+def cloud_verify_passphrase():
+    """Verify the passphrase matches the stored hash."""
+    data = request.get_json()
+    passphrase = data.get("passphrase", "").strip() if data else ""
+    config = _get_cloud_config()
+
+    if not config["passphrase_hash"]:
+        return jsonify({"success": False, "error": "No passphrase has been set yet"}), 400
+
+    from tools.backup_manager.gdrive_crypto import verify_passphrase
+
+    if verify_passphrase(passphrase, config["passphrase_hash"]):
+        return jsonify({"success": True, "message": "Passphrase verified"})
+    return jsonify({"success": False, "error": "Incorrect passphrase"}), 401
+
+
+@backup_manager_bp.route("/cloud/upload/<backup_name>", methods=["POST"])
+@admin_required
+def cloud_upload(backup_name):
+    """Encrypt and upload a local backup to Google Drive."""
+    data = request.get_json() or {}
+    passphrase = data.get("passphrase", "").strip()
+    config = _get_cloud_config()
+
+    if not config["enabled"]:
+        return jsonify({"success": False, "error": "Google Drive not enabled"}), 400
+    if not config["passphrase_hash"]:
+        return jsonify({"success": False, "error": "No passphrase configured"}), 400
+
+    from tools.backup_manager.gdrive_crypto import verify_passphrase
+
+    if not verify_passphrase(passphrase, config["passphrase_hash"]):
+        return jsonify({"success": False, "error": "Incorrect passphrase"}), 401
+
+    # Find the local backup
+    backup_path = os.path.join(BACKUP_DIR, backup_name)
+    if not os.path.isdir(backup_path):
+        return jsonify({"success": False, "error": f"Backup {backup_name} not found"}), 404
+
+    import threading
+
+    op_id = f"upload_{backup_name}_{int(time.time())}"
+    _cloud_progress[op_id] = {"stage": "starting", "percent": 0, "error": None, "result": None}
+
+    def _do_upload():
+        temp_tar = None
+        temp_enc = None
+        try:
+            import tarfile as _tarfile
+            from tools.backup_manager.gdrive_crypto import encrypt_file
+            from tools.backup_manager.gdrive_service import get_drive_service, upload_file, ensure_backup_folder
+
+            _cloud_progress[op_id]["stage"] = "compressing"
+            _cloud_progress[op_id]["percent"] = 5
+
+            # Create tar.gz of backup directory
+            temp_tar = os.path.join(BACKUP_DIR, f".cloud_tmp_{backup_name}.tar.gz")
+            with _tarfile.open(temp_tar, "w:gz") as tar:
+                tar.add(backup_path, arcname=backup_name)
+
+            _cloud_progress[op_id]["stage"] = "encrypting"
+            _cloud_progress[op_id]["percent"] = 15
+
+            # Encrypt
+            temp_enc = temp_tar + ".enc"
+
+            def enc_progress(done, total):
+                pct = 15 + int((done / total) * 25) if total else 15
+                _cloud_progress[op_id]["percent"] = pct
+
+            encrypt_file(temp_tar, temp_enc, passphrase, on_progress=enc_progress)
+
+            # Clean up tar (keep only encrypted)
+            os.remove(temp_tar)
+            temp_tar = None
+
+            _cloud_progress[op_id]["stage"] = "uploading"
+            _cloud_progress[op_id]["percent"] = 40
+
+            # Upload
+            svc = get_drive_service(config["service_account_path"])
+            folder_id = ensure_backup_folder(svc, config["folder_id"])
+
+            def upload_progress(done, total):
+                pct = 40 + int((done / total) * 55) if total else 40
+                _cloud_progress[op_id]["percent"] = pct
+
+            result = upload_file(
+                svc, temp_enc, folder_id, filename=f"{backup_name}.tar.gz.enc", on_progress=upload_progress
+            )
+
+            # Cleanup
+            os.remove(temp_enc)
+            temp_enc = None
+
+            _cloud_progress[op_id]["stage"] = "complete"
+            _cloud_progress[op_id]["percent"] = 100
+            _cloud_progress[op_id]["result"] = result
+
+        except Exception as e:
+            _cloud_progress[op_id]["stage"] = "error"
+            _cloud_progress[op_id]["error"] = str(e)
+        finally:
+            if temp_tar and os.path.exists(temp_tar):
+                os.remove(temp_tar)
+            if temp_enc and os.path.exists(temp_enc):
+                os.remove(temp_enc)
+
+    thread = threading.Thread(target=_do_upload, daemon=True)
+    thread.start()
+
+    return jsonify({"success": True, "operation_id": op_id, "message": "Upload started"})
+
+
+@backup_manager_bp.route("/cloud/download/<file_id>", methods=["POST"])
+@admin_required
+def cloud_download(file_id):
+    """Download and decrypt a backup from Google Drive."""
+    data = request.get_json() or {}
+    passphrase = data.get("passphrase", "").strip()
+    config = _get_cloud_config()
+
+    if not config["enabled"]:
+        return jsonify({"success": False, "error": "Google Drive not enabled"}), 400
+    if not config["passphrase_hash"]:
+        return jsonify({"success": False, "error": "No passphrase configured"}), 400
+
+    from tools.backup_manager.gdrive_crypto import verify_passphrase
+
+    if not verify_passphrase(passphrase, config["passphrase_hash"]):
+        return jsonify({"success": False, "error": "Incorrect passphrase"}), 401
+
+    import threading
+
+    op_id = f"download_{file_id}_{int(time.time())}"
+    _cloud_progress[op_id] = {"stage": "starting", "percent": 0, "error": None, "result": None}
+
+    def _do_download():
+        temp_enc = None
+        temp_tar = None
+        try:
+            from tools.backup_manager.gdrive_service import get_drive_service, download_file as gdrive_download
+            from tools.backup_manager.gdrive_crypto import decrypt_file
+
+            _cloud_progress[op_id]["stage"] = "downloading"
+            _cloud_progress[op_id]["percent"] = 5
+
+            svc = get_drive_service(config["service_account_path"])
+
+            # Get filename
+            file_meta = svc.files().get(fileId=file_id, fields="name").execute()
+            orig_name = file_meta.get("name", "backup.tar.gz.enc")
+
+            temp_enc = os.path.join(BACKUP_DIR, f".cloud_dl_{orig_name}")
+
+            def dl_progress(done, total):
+                pct = 5 + int((done / total) * 45) if total else 5
+                _cloud_progress[op_id]["percent"] = pct
+
+            gdrive_download(svc, file_id, temp_enc, on_progress=dl_progress)
+
+            _cloud_progress[op_id]["stage"] = "decrypting"
+            _cloud_progress[op_id]["percent"] = 50
+
+            # Decrypt
+            temp_tar = temp_enc.replace(".enc", "")
+            if temp_tar == temp_enc:
+                temp_tar = temp_enc + ".decrypted"
+
+            def dec_progress(done, total):
+                pct = 50 + int((done / total) * 30) if total else 50
+                _cloud_progress[op_id]["percent"] = pct
+
+            decrypt_file(temp_enc, temp_tar, passphrase, on_progress=dec_progress)
+            os.remove(temp_enc)
+            temp_enc = None
+
+            _cloud_progress[op_id]["stage"] = "extracting"
+            _cloud_progress[op_id]["percent"] = 85
+
+            # Extract tar.gz
+            import tarfile as _tarfile
+
+            with _tarfile.open(temp_tar, "r:gz") as tar:
+                # Security: check for path traversal
+                for member in tar.getmembers():
+                    if member.name.startswith("/") or ".." in member.name:
+                        raise ValueError(f"Unsafe path in archive: {member.name}")
+                tar.extractall(path=BACKUP_DIR)
+
+            # Determine extracted backup name
+            backup_name = orig_name.replace(".tar.gz.enc", "")
+            os.remove(temp_tar)
+            temp_tar = None
+
+            _cloud_progress[op_id]["stage"] = "complete"
+            _cloud_progress[op_id]["percent"] = 100
+            _cloud_progress[op_id]["result"] = {"backup_name": backup_name}
+
+        except Exception as e:
+            _cloud_progress[op_id]["stage"] = "error"
+            _cloud_progress[op_id]["error"] = str(e)
+        finally:
+            if temp_enc and os.path.exists(temp_enc):
+                os.remove(temp_enc)
+            if temp_tar and os.path.exists(temp_tar):
+                os.remove(temp_tar)
+
+    thread = threading.Thread(target=_do_download, daemon=True)
+    thread.start()
+
+    return jsonify({"success": True, "operation_id": op_id, "message": "Download started"})
+
+
+@backup_manager_bp.route("/cloud/list", methods=["GET"])
+@admin_required
+def cloud_list():
+    """List all cloud backups."""
+    config = _get_cloud_config()
+    if not config["enabled"]:
+        return jsonify({"success": False, "error": "Google Drive not enabled"}), 400
+
+    try:
+        from tools.backup_manager.gdrive_service import get_drive_service, list_backups, ensure_backup_folder
+
+        svc = get_drive_service(config["service_account_path"])
+        folder_id = ensure_backup_folder(svc, config["folder_id"])
+        backups = list_backups(svc, folder_id)
+        return jsonify({"success": True, "backups": backups})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@backup_manager_bp.route("/cloud/delete/<file_id>", methods=["DELETE"])
+@admin_required
+def cloud_delete(file_id):
+    """Delete a cloud backup."""
+    config = _get_cloud_config()
+    if not config["enabled"]:
+        return jsonify({"success": False, "error": "Google Drive not enabled"}), 400
+
+    try:
+        from tools.backup_manager.gdrive_service import get_drive_service, delete_backup
+
+        svc = get_drive_service(config["service_account_path"])
+        delete_backup(svc, file_id)
+        return jsonify({"success": True, "message": "Cloud backup deleted"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@backup_manager_bp.route("/cloud/progress", methods=["GET"])
+@admin_required
+def cloud_progress():
+    """Poll endpoint for cloud operation progress."""
+    op_id = request.args.get("operation_id", "")
+    if op_id not in _cloud_progress:
+        return jsonify({"success": False, "error": "Operation not found"}), 404
+
+    progress = _cloud_progress[op_id]
+
+    # Clean up completed/errored operations after reading
+    if progress["stage"] in ("complete", "error"):
+        result = dict(progress)
+        import threading
+
+        def cleanup():
+            _cloud_progress.pop(op_id, None)
+
+        threading.Timer(60, cleanup).start()
+        return jsonify({"success": True, **result})
+
+    return jsonify({"success": True, **progress})

@@ -89,6 +89,8 @@ services:
       - /mnt/stacks:/mnt/stacks:ro
       # Media stack configs for Media Hub service discovery (API keys, etc.)
       - /mnt/Plex/config:/mnt/Plex/config:ro
+      # Google Drive service account credentials for cloud backup
+      - ./credentials:/app/credentials:ro
     ports:
       - "3000:3000"
     networks:

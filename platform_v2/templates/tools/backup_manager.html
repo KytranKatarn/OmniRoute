@@ -796,6 +796,159 @@
     body.light-mode .badge-current {
         background: #ea580c;
     }
+
+    /* ─── Cloud Backup Styles ─── */
+    .cloud-setup-panel {
+        padding: var(--archie-space-5);
+        border: 1px solid var(--archie-border-default);
+        border-radius: var(--archie-radius-lg);
+        background: var(--archie-bg-tertiary);
+        margin-bottom: var(--archie-space-5);
+    }
+
+    .cloud-status-row {
+        display: flex;
+        align-items: center;
+        gap: var(--archie-space-3);
+        padding: var(--archie-space-2) 0;
+        border-bottom: 1px solid var(--archie-border-subtle);
+    }
+
+    .cloud-status-row:last-child { border-bottom: none; }
+
+    .cloud-status-dot {
+        width: 10px; height: 10px;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+    .cloud-status-dot.ok { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
+    .cloud-status-dot.warn { background: #eab308; box-shadow: 0 0 6px #eab308; }
+    .cloud-status-dot.off { background: #64748b; }
+
+    .cloud-quota-bar {
+        width: 100%;
+        height: 8px;
+        background: var(--archie-bg-deep);
+        border-radius: 4px;
+        overflow: hidden;
+        margin: var(--archie-space-2) 0;
+    }
+    .cloud-quota-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #22c55e, #eab308);
+        border-radius: 4px;
+        transition: width 0.5s ease;
+    }
+
+    .cloud-backup-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .cloud-backup-table th {
+        text-align: left;
+        padding: var(--archie-space-2) var(--archie-space-3);
+        color: var(--archie-text-tertiary);
+        font-size: var(--archie-text-sm);
+        border-bottom: 1px solid var(--archie-border-default);
+        font-weight: 500;
+    }
+    .cloud-backup-table td {
+        padding: var(--archie-space-2) var(--archie-space-3);
+        border-bottom: 1px solid var(--archie-border-subtle);
+        font-size: var(--archie-text-sm);
+        color: var(--archie-text-secondary);
+    }
+
+    .cloud-passphrase-input {
+        display: flex;
+        gap: var(--archie-space-2);
+        align-items: center;
+        margin: var(--archie-space-3) 0;
+    }
+    .cloud-passphrase-input input {
+        flex: 1;
+        padding: var(--archie-space-2) var(--archie-space-3);
+        background: var(--archie-bg-deep);
+        border: 1px solid var(--archie-border-default);
+        border-radius: var(--archie-radius-md);
+        color: var(--archie-text-primary);
+        font-family: var(--archie-font-mono);
+        font-size: var(--archie-text-sm);
+    }
+
+    .cloud-progress-overlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.75);
+        z-index: 10000;
+        align-items: center;
+        justify-content: center;
+    }
+    .cloud-progress-overlay.active { display: flex; }
+    .cloud-progress-box {
+        background: var(--archie-bg-tertiary);
+        border: 1px solid var(--archie-orange);
+        border-radius: var(--archie-radius-lg);
+        padding: var(--archie-space-6);
+        width: 90%;
+        max-width: 480px;
+        text-align: center;
+    }
+    .cloud-progress-bar {
+        width: 100%;
+        height: 12px;
+        background: var(--archie-bg-deep);
+        border-radius: 6px;
+        overflow: hidden;
+        margin: var(--archie-space-3) 0;
+    }
+    .cloud-progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--archie-orange), #f97316);
+        border-radius: 6px;
+        transition: width 0.3s ease;
+        width: 0%;
+    }
+    .cloud-progress-stage {
+        color: var(--archie-text-secondary);
+        font-size: var(--archie-text-sm);
+        margin-bottom: var(--archie-space-2);
+        letter-spacing: 0.04em;
+    }
+    .cloud-progress-pct {
+        color: var(--archie-orange);
+        font-family: var(--archie-font-mono);
+        font-size: var(--archie-text-xl);
+        font-weight: 600;
+    }
+
+    .badge-cloud {
+        background: rgba(96, 165, 250, 0.2);
+        color: #60a5fa;
+        border: 1px solid #60a5fa;
+    }
+
+    .btn-blue {
+        border-color: #60a5fa;
+        color: #60a5fa;
+    }
+    .btn-blue:hover {
+        background: rgba(96, 165, 250, 0.15);
+    }
+
+    @media (max-width: 500px) {
+        .cloud-backup-table th:nth-child(3),
+        .cloud-backup-table td:nth-child(3) {
+            display: none;
+        }
+        .cloud-passphrase-input {
+            flex-direction: column;
+        }
+        .cloud-passphrase-input input {
+            width: 100%;
+        }
+    }
 </style>
 {% endblock %}
 
@@ -847,6 +1000,7 @@
             <!-- Tab Navigation -->
             <div class="tab-nav">
                 <button class="tab-btn active" onclick="switchTab('backups')">BACKUPS</button>
+                <button class="tab-btn" onclick="switchTab('cloud')">CLOUD</button>
                 <button class="tab-btn" onclick="switchTab('external')">EXTERNAL</button>
                 <button class="tab-btn" onclick="switchTab('deployments')">DEPLOYMENT</button>
                 <button class="tab-btn" onclick="switchTab('modules')">MODULES</button>
@@ -886,6 +1040,53 @@
                 <!-- Backup List -->
                 <div id="backupsList" class="backup-list">
                     <div class="loading"><div class="spinner"></div><p>Loading backups...</p></div>
+                </div>
+            </div>
+
+            <!-- CLOUD BACKUP TAB -->
+            <div class="tab-content" id="tab-cloud">
+                <div style="margin-bottom: var(--archie-space-5);">
+                    <h3 class="section-header" style="color: #60a5fa;">Google Drive Cloud Backup</h3>
+                    <p class="section-description">Encrypted cloud backup storage using Google Drive with AES-256-GCM encryption.</p>
+                </div>
+
+                <!-- Cloud Setup / Status Panel -->
+                <div class="cloud-setup-panel" id="cloudSetupPanel">
+                    <div class="loading"><div class="spinner"></div><p>Checking cloud status...</p></div>
+                </div>
+
+                <!-- Passphrase Section -->
+                <div id="cloudPassphraseSection" style="display:none; margin-bottom: var(--archie-space-5);">
+                    <div class="retention-info" style="border-color: #60a5fa;">
+                        <h4 style="color: #60a5fa; margin-bottom: var(--archie-space-3);">Encryption Passphrase</h4>
+                        <p style="font-size: var(--archie-text-sm); color: var(--archie-text-tertiary); margin-bottom: var(--archie-space-2);">
+                            Required for uploading and downloading cloud backups. AES-256-GCM encryption.
+                        </p>
+                        <div class="cloud-passphrase-input">
+                            <input type="password" id="cloudPassphrase" placeholder="Enter encryption passphrase" autocomplete="off">
+                            <button class="btn btn-blue" onclick="verifyCloudPassphrase()">Verify</button>
+                        </div>
+                        <div id="cloudPassphraseStatus" style="font-size: var(--archie-text-sm); margin-top: var(--archie-space-1);"></div>
+                    </div>
+                </div>
+
+                <!-- Storage Quota -->
+                <div id="cloudQuotaSection" style="display:none; margin-bottom: var(--archie-space-5);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--archie-space-2);">
+                        <span style="color: var(--archie-text-secondary); font-size: var(--archie-text-sm);">Storage Usage</span>
+                        <span id="cloudQuotaText" style="color: var(--archie-text-tertiary); font-size: var(--archie-text-sm);"></span>
+                    </div>
+                    <div class="cloud-quota-bar">
+                        <div class="cloud-quota-fill" id="cloudQuotaFill" style="width: 0%;"></div>
+                    </div>
+                </div>
+
+                <!-- Cloud Backups List -->
+                <div id="cloudBackupsSection" style="display:none;">
+                    <h4 style="color: #60a5fa; margin-bottom: var(--archie-space-3);">Cloud Backups</h4>
+                    <div id="cloudBackupsList" class="backup-list">
+                        <div class="loading"><div class="spinner"></div><p>Loading cloud backups...</p></div>
+                    </div>
                 </div>
             </div>
 
@@ -1179,6 +1380,7 @@
         if (tabId === 'packages') loadDeploymentPackages();
         if (tabId === 'retention') checkRetention();
         if (tabId === 'external') { loadExternalStatus(); loadExternalBackups(); }
+        if (tabId === 'cloud') { loadCloudStatus(); }
         if (tabId === 'hooks') { loadHooks(); loadWebhooks(); }
     }
 
@@ -1294,6 +1496,15 @@
                 titleDiv.appendChild(usbBadge);
             }
 
+            // Cloud copy badge
+            if (_cloudBackupNames && _cloudBackupNames.has(backup.name + '.tar.gz.enc')) {
+                const cloudBadge = document.createElement('span');
+                cloudBadge.className = 'badge badge-cloud';
+                cloudBadge.title = 'Uploaded to Google Drive';
+                cloudBadge.textContent = 'CLOUD';
+                titleDiv.appendChild(cloudBadge);
+            }
+
             // Current badge
             if (isCurrent) {
                 const currentBadge = document.createElement('span');
@@ -1359,6 +1570,16 @@
                 syncBtn.title = 'Copy to external storage';
                 syncBtn.onclick = function() { syncToExternal(backup.name); };
                 actionsDiv.appendChild(syncBtn);
+            }
+
+            // Upload to Cloud button
+            if (_cloudEnabled && (!_cloudBackupNames || !_cloudBackupNames.has(backup.name + '.tar.gz.enc'))) {
+                const cloudBtn = document.createElement('button');
+                cloudBtn.className = 'btn btn-blue';
+                cloudBtn.textContent = 'Cloud';
+                cloudBtn.title = 'Upload to Google Drive';
+                cloudBtn.onclick = function() { uploadToCloud(backup.name); };
+                actionsDiv.appendChild(cloudBtn);
             }
 
             // Download button
@@ -2720,5 +2941,547 @@
     async function restoreSelective(backupName, components) {
         showConfirmRestoreDialog(backupName, components);
     }
+
+    // =====================================================================
+    // GOOGLE DRIVE CLOUD BACKUP
+    // =====================================================================
+
+    let _cloudEnabled = false;
+    let _cloudBackupNames = new Set();
+    let _cloudPassphraseCache = '';
+    let _cloudPollingTimer = null;
+
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    async function loadCloudStatus() {
+        const panel = document.getElementById('cloudSetupPanel');
+        panel.textContent = '';
+        const loader = document.createElement('div');
+        loader.className = 'loading';
+        const spinner = document.createElement('div');
+        spinner.className = 'spinner';
+        loader.appendChild(spinner);
+        const p = document.createElement('p');
+        p.textContent = 'Checking cloud status...';
+        loader.appendChild(p);
+        panel.appendChild(loader);
+
+        try {
+            const response = await fetch('/tools/backup-manager/cloud/status', { credentials: 'same-origin' });
+            const data = await response.json();
+
+            _cloudEnabled = data.enabled && data.connected;
+            panel.textContent = '';
+
+            // Build status rows using DOM methods
+            function addStatusRow(dotClass, label, valueText, valueColor) {
+                const row = document.createElement('div');
+                row.className = 'cloud-status-row';
+                const dot = document.createElement('div');
+                dot.className = 'cloud-status-dot ' + dotClass;
+                row.appendChild(dot);
+                const lbl = document.createElement('span');
+                lbl.style.cssText = 'color: var(--archie-text-secondary); flex: 1;';
+                lbl.textContent = label;
+                row.appendChild(lbl);
+                const val = document.createElement('span');
+                val.style.cssText = 'color: ' + valueColor + '; font-size: var(--archie-text-sm);';
+                val.textContent = valueText;
+                row.appendChild(val);
+                panel.appendChild(row);
+            }
+
+            // Service account row
+            addStatusRow(
+                data.has_service_account ? 'ok' : 'off',
+                'Service Account',
+                data.has_service_account ? (data.email || 'Key found') : 'Not configured',
+                data.has_service_account ? 'var(--archie-text-tertiary)' : '#ef4444'
+            );
+
+            // Connection row
+            addStatusRow(
+                data.connected ? 'ok' : (data.has_service_account ? 'warn' : 'off'),
+                'Drive Connection',
+                data.connected ? 'Connected' : (data.connection_error || 'Not connected'),
+                data.connected ? '#22c55e' : (data.connection_error ? '#ef4444' : 'var(--archie-text-tertiary)')
+            );
+
+            // Passphrase row
+            addStatusRow(
+                data.has_passphrase ? 'ok' : 'warn',
+                'Encryption Passphrase',
+                data.has_passphrase ? 'Set' : 'Not set',
+                'var(--archie-text-tertiary)'
+            );
+
+            // Connect button if not connected
+            if (!data.connected) {
+                const btnWrap = document.createElement('div');
+                btnWrap.style.cssText = 'margin-top: var(--archie-space-4); text-align: center;';
+                if (!data.has_service_account) {
+                    const hint = document.createElement('p');
+                    hint.style.cssText = 'color: var(--archie-text-tertiary); font-size: var(--archie-text-sm); margin: 0 0 var(--archie-space-3) 0; padding: var(--archie-space-3); background: rgba(0,0,0,0.2); border-radius: var(--archie-radius-md);';
+                    hint.textContent = 'Place your Google service account JSON key at: credentials/gdrive-service-account.json then restart the container.';
+                    btnWrap.appendChild(hint);
+                }
+                const connectBtn = document.createElement('button');
+                connectBtn.className = 'btn btn-blue';
+                connectBtn.textContent = 'Connect to Google Drive';
+                connectBtn.onclick = setupCloudDrive;
+                btnWrap.appendChild(connectBtn);
+                panel.appendChild(btnWrap);
+            }
+
+            // Set passphrase if connected but no passphrase
+            if (data.connected && !data.has_passphrase) {
+                const ppWrap = document.createElement('div');
+                ppWrap.style.cssText = 'margin-top: var(--archie-space-4); padding: var(--archie-space-3); border: 1px solid #eab308; border-radius: var(--archie-radius-md); background: rgba(234, 179, 8, 0.05);';
+                const ppLabel = document.createElement('p');
+                ppLabel.style.cssText = 'color: #eab308; font-size: var(--archie-text-sm); margin: 0 0 var(--archie-space-2) 0;';
+                ppLabel.textContent = 'Set an encryption passphrase to enable cloud backups:';
+                ppWrap.appendChild(ppLabel);
+                const ppInputWrap = document.createElement('div');
+                ppInputWrap.className = 'cloud-passphrase-input';
+                const ppInput = document.createElement('input');
+                ppInput.type = 'password';
+                ppInput.id = 'cloudNewPassphrase';
+                ppInput.placeholder = 'Enter passphrase (min 8 chars)';
+                ppInput.autocomplete = 'off';
+                ppInputWrap.appendChild(ppInput);
+                const ppBtn = document.createElement('button');
+                ppBtn.className = 'btn';
+                ppBtn.style.cssText = 'border-color: #eab308; color: #eab308;';
+                ppBtn.textContent = 'Set';
+                ppBtn.onclick = setCloudPassphrase;
+                ppInputWrap.appendChild(ppBtn);
+                ppWrap.appendChild(ppInputWrap);
+                panel.appendChild(ppWrap);
+            }
+
+            // Show/hide dependent sections
+            if (data.connected) {
+                document.getElementById('cloudPassphraseSection').style.display = data.has_passphrase ? 'block' : 'none';
+
+                if (data.storage) {
+                    const quotaSection = document.getElementById('cloudQuotaSection');
+                    quotaSection.style.display = 'block';
+                    document.getElementById('cloudQuotaText').textContent = data.storage.usage_formatted + ' / ' + data.storage.limit_formatted;
+                    document.getElementById('cloudQuotaFill').style.width = data.storage.percent_used + '%';
+                }
+
+                if (data.has_passphrase) {
+                    document.getElementById('cloudBackupsSection').style.display = 'block';
+                    loadCloudBackups();
+                }
+            } else {
+                document.getElementById('cloudPassphraseSection').style.display = 'none';
+                document.getElementById('cloudQuotaSection').style.display = 'none';
+                document.getElementById('cloudBackupsSection').style.display = 'none';
+            }
+
+        } catch (error) {
+            panel.textContent = '';
+            const errP = document.createElement('p');
+            errP.style.color = '#ef4444';
+            errP.textContent = 'Failed to check cloud status: ' + error.message;
+            panel.appendChild(errP);
+        }
+    }
+
+    async function setupCloudDrive() {
+        showToast('Connecting to Google Drive...', 'info');
+        try {
+            const response = await fetch('/tools/backup-manager/cloud/setup', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await response.json();
+            if (data.success) {
+                showToast('Connected to Google Drive!', 'success');
+                loadCloudStatus();
+            } else {
+                showToast('Connection failed: ' + data.error, 'error');
+            }
+        } catch (error) {
+            showToast('Error: ' + error.message, 'error');
+        }
+    }
+
+    async function setCloudPassphrase() {
+        const input = document.getElementById('cloudNewPassphrase');
+        const passphrase = input ? input.value.trim() : '';
+        if (passphrase.length < 8) {
+            showToast('Passphrase must be at least 8 characters', 'error');
+            return;
+        }
+        try {
+            const response = await fetch('/tools/backup-manager/cloud/set-passphrase', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ passphrase })
+            });
+            const data = await response.json();
+            if (data.success) {
+                showToast('Encryption passphrase set!', 'success');
+                _cloudPassphraseCache = passphrase;
+                loadCloudStatus();
+            } else {
+                showToast(data.error, 'error');
+            }
+        } catch (error) {
+            showToast('Error: ' + error.message, 'error');
+        }
+    }
+
+    async function verifyCloudPassphrase() {
+        const input = document.getElementById('cloudPassphrase');
+        const status = document.getElementById('cloudPassphraseStatus');
+        const passphrase = input ? input.value.trim() : '';
+
+        if (!passphrase) {
+            status.textContent = '';
+            const errSpan = document.createElement('span');
+            errSpan.style.color = '#ef4444';
+            errSpan.textContent = 'Enter a passphrase';
+            status.appendChild(errSpan);
+            return;
+        }
+
+        try {
+            const response = await fetch('/tools/backup-manager/cloud/verify-passphrase', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ passphrase })
+            });
+            const data = await response.json();
+            status.textContent = '';
+            const span = document.createElement('span');
+            if (data.success) {
+                _cloudPassphraseCache = passphrase;
+                span.style.color = '#22c55e';
+                span.textContent = 'Passphrase verified — ready for cloud operations';
+            } else {
+                _cloudPassphraseCache = '';
+                span.style.color = '#ef4444';
+                span.textContent = data.error;
+            }
+            status.appendChild(span);
+        } catch (error) {
+            status.textContent = '';
+            const span = document.createElement('span');
+            span.style.color = '#ef4444';
+            span.textContent = 'Error: ' + error.message;
+            status.appendChild(span);
+        }
+    }
+
+    async function loadCloudBackups() {
+        const container = document.getElementById('cloudBackupsList');
+        container.textContent = '';
+        const loader = document.createElement('div');
+        loader.className = 'loading';
+        const spin = document.createElement('div');
+        spin.className = 'spinner';
+        loader.appendChild(spin);
+        const lp = document.createElement('p');
+        lp.textContent = 'Loading cloud backups...';
+        loader.appendChild(lp);
+        container.appendChild(loader);
+
+        try {
+            const response = await fetch('/tools/backup-manager/cloud/list', { credentials: 'same-origin' });
+            const data = await response.json();
+
+            if (!data.success) {
+                container.textContent = '';
+                const errP = document.createElement('p');
+                errP.style.color = 'var(--archie-text-tertiary)';
+                errP.textContent = data.error || 'Could not load cloud backups';
+                container.appendChild(errP);
+                return;
+            }
+
+            const backups = data.backups || [];
+            _cloudBackupNames = new Set(backups.map(function(b) { return b.name; }));
+
+            if (backups.length === 0) {
+                container.textContent = '';
+                const emptyP = document.createElement('p');
+                emptyP.style.cssText = 'color: var(--archie-text-tertiary); text-align: center; padding: var(--archie-space-5);';
+                emptyP.textContent = 'No cloud backups yet. Upload a local backup to get started.';
+                container.appendChild(emptyP);
+                return;
+            }
+
+            container.textContent = '';
+            const table = document.createElement('table');
+            table.className = 'cloud-backup-table';
+            const thead = document.createElement('thead');
+            const headRow = document.createElement('tr');
+            ['Name', 'Size', 'Uploaded', 'Actions'].forEach(function(t) {
+                const th = document.createElement('th');
+                th.textContent = t;
+                headRow.appendChild(th);
+            });
+            thead.appendChild(headRow);
+            table.appendChild(thead);
+
+            const tbody = document.createElement('tbody');
+            backups.forEach(function(b) {
+                const tr = document.createElement('tr');
+                const tdName = document.createElement('td');
+                tdName.style.color = 'var(--archie-text-primary)';
+                tdName.textContent = b.name.replace('.tar.gz.enc', '');
+                tr.appendChild(tdName);
+
+                const tdSize = document.createElement('td');
+                tdSize.textContent = (b.size / 1024 / 1024).toFixed(1) + ' MB';
+                tr.appendChild(tdSize);
+
+                const tdDate = document.createElement('td');
+                tdDate.textContent = b.created_time ? new Date(b.created_time).toLocaleDateString() : '-';
+                tr.appendChild(tdDate);
+
+                const tdActions = document.createElement('td');
+                const dlBtn = document.createElement('button');
+                dlBtn.className = 'btn btn-blue';
+                dlBtn.style.cssText = 'padding: 2px 8px; font-size: 0.7rem;';
+                dlBtn.textContent = 'Download';
+                dlBtn.onclick = function() { downloadFromCloud(b.id); };
+                tdActions.appendChild(dlBtn);
+                tdActions.appendChild(document.createTextNode(' '));
+                const delBtn = document.createElement('button');
+                delBtn.className = 'btn';
+                delBtn.style.cssText = 'padding: 2px 8px; font-size: 0.7rem; border-color: #ef4444; color: #ef4444;';
+                delBtn.textContent = 'Delete';
+                delBtn.onclick = function() { deleteFromCloud(b.id, b.name.replace('.tar.gz.enc', '')); };
+                tdActions.appendChild(delBtn);
+                tr.appendChild(tdActions);
+
+                tbody.appendChild(tr);
+            });
+            table.appendChild(tbody);
+            container.appendChild(table);
+
+        } catch (error) {
+            container.textContent = '';
+            const errP = document.createElement('p');
+            errP.style.color = '#ef4444';
+            errP.textContent = 'Error: ' + error.message;
+            container.appendChild(errP);
+        }
+    }
+
+    function ensurePassphrase() {
+        if (_cloudPassphraseCache) return _cloudPassphraseCache;
+        const pp = prompt('Enter your encryption passphrase:');
+        if (pp) _cloudPassphraseCache = pp.trim();
+        return _cloudPassphraseCache;
+    }
+
+    async function uploadToCloud(backupName) {
+        const passphrase = ensurePassphrase();
+        if (!passphrase) { showToast('Passphrase required for cloud upload', 'error'); return; }
+
+        showCloudProgress('Compressing...', 0);
+
+        try {
+            const response = await fetch('/tools/backup-manager/cloud/upload/' + encodeURIComponent(backupName), {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ passphrase: passphrase })
+            });
+            const data = await response.json();
+
+            if (!data.success) {
+                hideCloudProgress();
+                if (data.error === 'Incorrect passphrase') _cloudPassphraseCache = '';
+                showToast(data.error, 'error');
+                return;
+            }
+
+            pollCloudProgress(data.operation_id, function() {
+                showToast('Backup uploaded to Google Drive!', 'success');
+                loadCloudBackups();
+                loadBackups();
+            });
+
+        } catch (error) {
+            hideCloudProgress();
+            showToast('Upload error: ' + error.message, 'error');
+        }
+    }
+
+    async function downloadFromCloud(fileId) {
+        const passphrase = ensurePassphrase();
+        if (!passphrase) { showToast('Passphrase required for cloud download', 'error'); return; }
+
+        showCloudProgress('Downloading...', 0);
+
+        try {
+            const response = await fetch('/tools/backup-manager/cloud/download/' + encodeURIComponent(fileId), {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ passphrase: passphrase })
+            });
+            const data = await response.json();
+
+            if (!data.success) {
+                hideCloudProgress();
+                if (data.error === 'Incorrect passphrase') _cloudPassphraseCache = '';
+                showToast(data.error, 'error');
+                return;
+            }
+
+            pollCloudProgress(data.operation_id, function() {
+                showToast('Backup downloaded and decrypted!', 'success');
+                loadBackups();
+            });
+
+        } catch (error) {
+            hideCloudProgress();
+            showToast('Download error: ' + error.message, 'error');
+        }
+    }
+
+    async function deleteFromCloud(fileId, displayName) {
+        if (!confirm('Delete cloud backup "' + displayName + '"? This cannot be undone.')) return;
+
+        try {
+            const response = await fetch('/tools/backup-manager/cloud/delete/' + encodeURIComponent(fileId), {
+                method: 'DELETE',
+                credentials: 'same-origin'
+            });
+            const data = await response.json();
+            if (data.success) {
+                showToast('Cloud backup deleted', 'success');
+                loadCloudBackups();
+                loadBackups();
+            } else {
+                showToast(data.error, 'error');
+            }
+        } catch (error) {
+            showToast('Error: ' + error.message, 'error');
+        }
+    }
+
+    // ─── Cloud Progress Overlay ───
+
+    function getProgressOverlay() {
+        let overlay = document.getElementById('cloudProgressOverlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'cloudProgressOverlay';
+            overlay.className = 'cloud-progress-overlay';
+
+            const box = document.createElement('div');
+            box.className = 'cloud-progress-box';
+
+            const stage = document.createElement('div');
+            stage.className = 'cloud-progress-stage';
+            stage.id = 'cloudProgressStage';
+            stage.textContent = 'Starting...';
+            box.appendChild(stage);
+
+            const pct = document.createElement('div');
+            pct.className = 'cloud-progress-pct';
+            pct.id = 'cloudProgressPct';
+            pct.textContent = '0%';
+            box.appendChild(pct);
+
+            const barOuter = document.createElement('div');
+            barOuter.className = 'cloud-progress-bar';
+            const barFill = document.createElement('div');
+            barFill.className = 'cloud-progress-fill';
+            barFill.id = 'cloudProgressFill';
+            barOuter.appendChild(barFill);
+            box.appendChild(barOuter);
+
+            overlay.appendChild(box);
+            document.body.appendChild(overlay);
+        }
+        return overlay;
+    }
+
+    function showCloudProgress(stage, pct) {
+        var overlay = getProgressOverlay();
+        overlay.classList.add('active');
+        document.getElementById('cloudProgressStage').textContent = stage;
+        document.getElementById('cloudProgressPct').textContent = pct + '%';
+        document.getElementById('cloudProgressFill').style.width = pct + '%';
+    }
+
+    function hideCloudProgress() {
+        var overlay = document.getElementById('cloudProgressOverlay');
+        if (overlay) overlay.classList.remove('active');
+        if (_cloudPollingTimer) { clearInterval(_cloudPollingTimer); _cloudPollingTimer = null; }
+    }
+
+    var STAGE_LABELS = {
+        'starting': 'Starting...',
+        'compressing': 'Compressing backup...',
+        'encrypting': 'Encrypting...',
+        'uploading': 'Uploading to Google Drive...',
+        'downloading': 'Downloading from Google Drive...',
+        'decrypting': 'Decrypting...',
+        'extracting': 'Extracting backup...',
+        'complete': 'Complete!',
+        'error': 'Error'
+    };
+
+    function pollCloudProgress(opId, onComplete) {
+        _cloudPollingTimer = setInterval(async function() {
+            try {
+                var response = await fetch('/tools/backup-manager/cloud/progress?operation_id=' + encodeURIComponent(opId), { credentials: 'same-origin' });
+                var data = await response.json();
+
+                if (!data.success) {
+                    hideCloudProgress();
+                    showToast(data.error || 'Operation lost', 'error');
+                    return;
+                }
+
+                var label = STAGE_LABELS[data.stage] || data.stage;
+                showCloudProgress(label, data.percent || 0);
+
+                if (data.stage === 'complete') {
+                    hideCloudProgress();
+                    if (onComplete) onComplete(data.result);
+                } else if (data.stage === 'error') {
+                    hideCloudProgress();
+                    showToast('Cloud operation failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (e) {
+                // Network error during poll, keep trying
+            }
+        }, 1000);
+    }
+
+    // Load cloud backup names on page load (for badges on local backups)
+    (async function() {
+        try {
+            var r = await fetch('/tools/backup-manager/cloud/status', { credentials: 'same-origin' });
+            var d = await r.json();
+            _cloudEnabled = d.enabled && d.connected;
+            if (_cloudEnabled) {
+                var r2 = await fetch('/tools/backup-manager/cloud/list', { credentials: 'same-origin' });
+                var d2 = await r2.json();
+                if (d2.success && d2.backups) {
+                    _cloudBackupNames = new Set(d2.backups.map(function(b) { return b.name; }));
+                    loadBackups();
+                }
+            }
+        } catch(e) { /* silent */ }
+    })();
 </script>
 {% endblock %}

@@ -70,13 +70,8 @@
             <i data-lucide="brain"></i>
             <span>Mind</span>
         </a>
-        <a href="{{ url_for('hr_management.index') }}"
-           class="nav-module-btn {% if request.endpoint and 'hr_management' in request.endpoint %}active{% endif %}"
-           onclick="showTransition(event, this.href)"
-           title="HR Management">
-            <i data-lucide="clipboard-list"></i>
-            <span>HR</span>
-        </a>
+        <!-- HR Management merged into Team Management - 2026-02-03 -->
+        <!-- HR features now at /tools/team-management/api/hr/* -->
         <a href="{{ url_for('pool_management.index') }}"
            class="nav-module-btn {% if request.endpoint and 'pool_management' in request.endpoint %}active{% endif %}"
            onclick="showTransition(event, this.href)"

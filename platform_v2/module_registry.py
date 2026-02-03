@@ -656,7 +656,7 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="team_management",
         name="Team Management",
-        description="Unified agent control center<br>Roster • Tasks • Execution • Performance",
+        description="Unified agent control center<br>Roster • Tasks • HR • IAAE • Performance",
         icon="users-round",
         category=ModuleCategory.ADMIN_OPS,
         route="/tools/team-management",
@@ -666,24 +666,25 @@ MODULES: List[ModuleDefinition] = [
         enabled=True,
         health_check=lambda: default_health_check("team_management"),
         priority=2,  # Third in Admin Ops (Blueprint=0, Bridge=1, Team=2, Consciousness=3)
-        tags=["team", "agents", "management", "execution", "admin-ops"],
+        tags=["team", "agents", "management", "execution", "admin-ops", "hr", "iaae"],
     ),
-    # Phase 51: HR Management - Extracted from Team Management
-    ModuleDefinition(
-        id="hr_management",
-        name="HR Management",
-        description="Staff performance & compliance<br>Skills • Scheduling • IAAE • Wellness",
-        icon="clipboard-list",
-        category=ModuleCategory.ADMIN_OPS,
-        route="/tools/hr-management",
-        blueprint_import="tools.hr_management.routes:hr_bp",
-        required_permissions=["admin:access"],
-        minimum_role="ADMIN",
-        enabled=True,
-        health_check=lambda: default_health_check("hr_management"),
-        priority=3,  # After Team Management
-        tags=["hr", "performance", "skills", "scheduling", "wellness", "iaae"],
-    ),
+    # DEPRECATED 2026-02-03: Merged into team_management
+    # HR features now available at /tools/team-management/api/hr/*
+    # ModuleDefinition(
+    #     id="hr_management",
+    #     name="HR Management",
+    #     description="Staff performance & compliance<br>Skills • Scheduling • IAAE • Wellness",
+    #     icon="clipboard-list",
+    #     category=ModuleCategory.ADMIN_OPS,
+    #     route="/tools/hr-management",
+    #     blueprint_import="tools.hr_management.routes:hr_bp",
+    #     required_permissions=["admin:access"],
+    #     minimum_role="ADMIN",
+    #     enabled=True,
+    #     health_check=lambda: default_health_check("hr_management"),
+    #     priority=3,  # After Team Management
+    #     tags=["hr", "performance", "skills", "scheduling", "wellness", "iaae"],
+    # ),
     ModuleDefinition(
         id="backup_manager",
         name="Backup Manager",

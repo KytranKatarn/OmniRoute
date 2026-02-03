@@ -13,11 +13,11 @@ Date: 2026-01-07
 """
 
 from enum import Enum
-from typing import List, Optional, Set
+from typing import List, Set
 from functools import wraps
 
 try:
-    from flask import abort, current_app
+    from flask import abort
     from flask_login import current_user
 
     FLASK_AVAILABLE = True
@@ -41,7 +41,23 @@ class Role(Enum):
 
 
 class Permission(Enum):
-    """System permissions"""
+    """
+    System permissions - functional capabilities, not module-specific.
+
+    Module access is controlled via module_registry.py where modules specify
+    their required permissions. These permissions are generic and can be
+    reused across multiple modules.
+
+    Module Consolidation (2026-02-03):
+    - media_hub uses: No special permissions (USER access)
+    - website_studio uses: WEBSITE_BUILDER_* permissions
+    - project_manager uses: ADMIN_PROJECTS permission
+    - automations uses: AUTOMATION_* permissions
+    - sandbox_manager uses: ADMIN_SANDBOX, ADMIN_TESTING permissions
+    - bridge uses: ADMIN_FINE_TUNING, ADMIN_IDE permissions
+    - team_management uses: ADMIN_USERS permission
+    - crm uses: ANALYTICS_VIEW permission
+    """
 
     # Public (no login required)
     PUBLIC_VIEW = "public:view"

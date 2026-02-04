@@ -71,6 +71,9 @@ htmlcov/
 conversation_logs/
 persistence/
 
+# Docker image tarballs
+*.tar.gz
+
 # Host-specific data
 host_monitor_data.json
 CREDENTIALS.md

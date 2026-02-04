@@ -2235,6 +2235,11 @@ body.light-mode .compact-header .subtitle {
         <button class="header-icon-btn theme-toggle" id="themeToggle" title="Toggle Light/Dark Mode" onclick="toggleTheme()">
             <i data-lucide="sun" id="themeIcon"></i>
         </button>
+        {% if current_user.is_admin %}
+        <a href="{{ url_for('dev_hq.index') }}" class="header-icon-btn" title="Dev HQ" style="text-decoration:none;">
+            <i data-lucide="compass"></i>
+        </a>
+        {% endif %}
         <a href="{{ url_for('logout') }}" class="logout-btn">[ LOGOUT ]</a>
     </div>
 </div>

@@ -203,9 +203,10 @@ LLM_CONNECTIONS = {
 def bridge_dashboard():
     """Render the main Bridge command center"""
     deployment_mode = os.getenv("DEPLOYMENT_MODE", "hub")
-    if deployment_mode == "hub":
+    if deployment_mode == "business_node":
         return render_template("tools/bridge_hub.html")
     else:
+        # Hub and default: full command center with stations, agents, crew + mesh
         return render_template("tools/bridge.html")
 
 

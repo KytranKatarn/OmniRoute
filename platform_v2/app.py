@@ -983,6 +983,11 @@ from tools.api_docs import api_docs_bp  # noqa: E402
 
 app.register_blueprint(api_docs_bp)
 
+# Dev HQ - Unified Development Command Center (not a module - header-level admin tool)
+from tools.dev_hq import dev_hq_bp  # noqa: E402
+
+app.register_blueprint(dev_hq_bp)
+
 # NOTE: System Operations (Phase 78) loaded via module_registry
 
 # NOTE: Business module now loaded via module_registry (business_directory module)

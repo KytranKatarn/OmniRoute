@@ -422,9 +422,21 @@ install_docker_stack() {
     # --- Download node_sync.py ---
     SYNC_URL="${ARCHIE_BASE_URL}/tools/bridge/api/nodes/node_sync.py"
     info "Downloading node_sync.py from ${SYNC_URL}..."
-    mkdir -p "${DEPLOY_DIR}/node_client"
-    curl -fsSL "${SYNC_URL}" -o "${DEPLOY_DIR}/node_client/node_sync.py"
+    curl -fsSL "${SYNC_URL}" -o "${DEPLOY_DIR}/node_sync.py"
     success "Downloaded node_sync.py"
+
+    # --- Download and load node Docker image ---
+    IMAGE_URL="${ARCHIE_BASE_URL}/tools/bridge/api/nodes/archie-node-latest.tar.gz"
+    info "Downloading node Docker image (this may take several minutes)..."
+    curl -fsSL "${IMAGE_URL}" -o "${DEPLOY_DIR}/archie-node-latest.tar.gz"
+    success "Downloaded node image tarball"
+
+    info "Loading Docker image..."
+    docker load < "${DEPLOY_DIR}/archie-node-latest.tar.gz"
+    success "Loaded archie-node:latest image"
+
+    # Clean up tarball to save disk space
+    rm -f "${DEPLOY_DIR}/archie-node-latest.tar.gz"
 
     # --- Generate credentials and detect host ---
     DB_PASSWORD=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
@@ -448,11 +460,7 @@ DOTENV
     chmod 600 "${DEPLOY_DIR}/.env"
     success "Environment file created at ${DEPLOY_DIR}/.env"
 
-    # --- Pull and start containers ---
-    info "Pulling Docker images (this may take several minutes)..."
-    (cd "${DEPLOY_DIR}" && docker compose pull)
-    success "Docker images pulled"
-
+    # --- Start containers ---
     info "Starting containers..."
     (cd "${DEPLOY_DIR}" && docker compose up -d)
     success "Docker stack is running"

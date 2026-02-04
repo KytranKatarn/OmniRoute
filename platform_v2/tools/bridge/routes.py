@@ -2243,6 +2243,28 @@ def get_node_sync_service():
     return jsonify({"success": False, "error": "Sync service script not found"}), 404
 
 
+@bridge_bp.route("/api/nodes/archie-node-latest.tar.gz", methods=["GET"])
+def serve_node_image():
+    """Serve the pre-built node Docker image tarball"""
+    from flask import send_file
+
+    tarball_path = "/tmp/archie-node-latest.tar.gz"
+    if not os.path.isfile(tarball_path):
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": "Node image not built yet. Run: "
+                    "docker save archie-node:latest | gzip > /tmp/archie-node-latest.tar.gz",
+                }
+            ),
+            404,
+        )
+    return send_file(
+        tarball_path, mimetype="application/gzip", as_attachment=True, download_name="archie-node-latest.tar.gz"
+    )
+
+
 @bridge_bp.route("/api/nodes/client-package", methods=["GET"])
 def get_node_client_package():
     """Serve the node client package as a tarball"""

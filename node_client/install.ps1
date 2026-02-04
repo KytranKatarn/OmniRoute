@@ -503,18 +503,37 @@ function Install-DockerStack {
 
     # --- Download node_sync.py ---
     $syncUrl = "$ARCHIE_BASE_URL/tools/bridge/api/nodes/node_sync.py"
-    $nodeClientDir = Join-Path $deployDir "node_client"
-    if (-not (Test-Path $nodeClientDir)) {
-        New-Item -ItemType Directory -Path $nodeClientDir -Force | Out-Null
-    }
     Write-Info "Downloading node_sync.py..."
     try {
-        Invoke-WebRequest -Uri $syncUrl -OutFile (Join-Path $nodeClientDir "node_sync.py") -UseBasicParsing
+        Invoke-WebRequest -Uri $syncUrl -OutFile (Join-Path $deployDir "node_sync.py") -UseBasicParsing
         Write-Ok "Downloaded node_sync.py"
     } catch {
         Write-Fail "Failed to download node_sync.py: $_"
         return
     }
+
+    # --- Download and load node Docker image ---
+    $imageUrl = "$ARCHIE_BASE_URL/tools/bridge/api/nodes/archie-node-latest.tar.gz"
+    Write-Info "Downloading node Docker image (this may take several minutes)..."
+    try {
+        Invoke-WebRequest -Uri $imageUrl -OutFile (Join-Path $deployDir "archie-node-latest.tar.gz") -UseBasicParsing
+        Write-Ok "Downloaded node image tarball"
+    } catch {
+        Write-Fail "Failed to download node image: $_"
+        return
+    }
+
+    Write-Info "Loading Docker image..."
+    try {
+        & docker load -i (Join-Path $deployDir "archie-node-latest.tar.gz")
+        Write-Ok "Loaded archie-node:latest image"
+    } catch {
+        Write-Fail "Failed to load Docker image: $_"
+        return
+    }
+
+    # Clean up tarball
+    Remove-Item (Join-Path $deployDir "archie-node-latest.tar.gz") -Force -ErrorAction SilentlyContinue
 
     # --- Generate credentials and detect host ---
     $dbPassword = -join ((1..32) | ForEach-Object { [char](Get-Random -Minimum 33 -Maximum 126) })
@@ -542,14 +561,10 @@ DEPLOYMENT_MODE=business_node
     $envContent | Set-Content -Path $envPath -Encoding UTF8
     Write-Ok "Environment file created at $envPath"
 
-    # --- Pull and start containers ---
-    Write-Info "Pulling Docker images (this may take several minutes)..."
+    # --- Start containers ---
+    Write-Info "Starting containers..."
     try {
         Push-Location $deployDir
-        & docker compose pull
-        Write-Ok "Docker images pulled"
-
-        Write-Info "Starting containers..."
         & docker compose up -d
         Write-Ok "Docker stack is running"
         Pop-Location

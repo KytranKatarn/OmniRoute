@@ -42,13 +42,14 @@
             </button>
         </div>
         <div class="nav-divider"></div>
-        <a href="{{ url_for('blueprint.index') }}"
-           class="nav-module-btn {% if request.endpoint and 'blueprint' in request.endpoint %}active{% endif %}"
+        {% if current_user.is_authenticated and current_user.is_admin %}
+        <a href="{{ url_for('dev_hq.index') }}"
+           class="nav-module-btn {% if request.endpoint and 'dev_hq' in request.endpoint %}active{% endif %}"
            onclick="showTransition(event, this.href)"
-           title="A.R.C.H.I.E. Blueprint">
-            <i data-lucide="drafting-compass"></i>
-            <span>Blueprint</span>
+           title="Dev HQ">
+            <i data-lucide="compass"></i>
         </a>
+        {% endif %}
         <a href="{{ url_for('bridge.bridge_dashboard') }}"
            class="nav-module-btn {% if request.endpoint and 'bridge' in request.endpoint %}active{% endif %}"
            onclick="showTransition(event, this.href)"

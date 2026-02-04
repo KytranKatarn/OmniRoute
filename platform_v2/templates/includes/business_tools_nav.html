@@ -41,6 +41,14 @@
                 <i data-lucide="globe"></i>
             </button>
         </div>
+        {% if current_user.is_authenticated and current_user.is_admin %}
+        <a href="{{ url_for('dev_hq.index') }}"
+           class="nav-module-btn {% if request.endpoint and 'dev_hq' in request.endpoint %}active{% endif %}"
+           onclick="showTransition(event, this.href)"
+           title="Dev HQ">
+            <i data-lucide="compass"></i>
+        </a>
+        {% endif %}
         <div class="nav-divider"></div>
         <a href="{{ url_for('social_media.index') }}"
            class="nav-module-btn {% if request.endpoint and 'social_media' in request.endpoint %}active{% endif %}"

@@ -81,6 +81,9 @@ services:
       - ./docker-compose.yml:/mnt/archie_brain/docker-compose.yml:ro
       # Mount Goose orchestration directory (Phase 55)
       - ./goose:/mnt/archie_brain/goose:rw
+      # Mount .mcp.json and CLAUDE.md for Dev HQ Integrations tab
+      - ./.mcp.json:/mnt/archie_brain/.mcp.json:ro
+      - ./CLAUDE.md:/mnt/archie_brain/CLAUDE.md:ro
       # Mount .git for git operations (CodeRabbit Local Git management)
       - ./.git:/mnt/archie_brain/.git:rw
       # Mount node client package for remote node deployment

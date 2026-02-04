@@ -1,13 +1,1020 @@
 {% extends "base.html" %}
 
+{% block extra_head %}
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+{% endblock %}
+
 {% block title %}Dev HQ - A.R.C.H.I.E.{% endblock %}
 
 {% block module_name %}dev-hq{% endblock %}
 
 {% block content %}
 {% include "includes/admin_ops_nav.html" %}
-<div style="padding: 40px; text-align: center; color: var(--archie-text-primary, #c9d1d9); font-family: 'Orbitron', sans-serif;">
-    <h1>DEV HQ</h1>
-    <p style="font-family: 'IBM Plex Mono', monospace;">Skeleton loaded successfully.</p>
+
+<style>
+/* Container */
+.dev-hq {
+    min-height: 100vh;
+    background: var(--archie-bg-primary, #000);
+    font-family: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+    color: var(--archie-text-primary, #c9d1d9);
+    padding: 0 24px 48px;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+/* Header */
+.dev-hq-header {
+    text-align: center;
+    padding: 32px 0 24px;
+    border-bottom: 1px solid var(--archie-border, #1a1a2e);
+    margin-bottom: 0;
+}
+
+.dev-hq-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.6rem;
+    font-weight: 800;
+    letter-spacing: 0.15em;
+    color: var(--archie-cyan, #00FFFF);
+    text-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+    margin: 0 0 8px;
+}
+
+.dev-hq-subtitle {
+    font-size: 0.72rem;
+    color: var(--archie-text-muted, #6e7681);
+    letter-spacing: 0.1em;
+}
+
+/* Tab Bar */
+.dev-hq-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--archie-border, #1a1a2e);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 0;
+}
+
+.dev-hq-tabs::-webkit-scrollbar { display: none; }
+
+.dev-hq-tab-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 20px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--archie-text-muted, #6e7681);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.2s, border-color 0.2s;
+}
+
+.dev-hq-tab-btn:hover {
+    color: var(--archie-text-primary, #c9d1d9);
+}
+
+.dev-hq-tab-btn.active {
+    color: var(--archie-cyan, #00FFFF);
+    border-bottom-color: var(--archie-cyan, #00FFFF);
+}
+
+.dev-hq-tab-btn i {
+    width: 16px;
+    height: 16px;
+}
+
+/* Tab Panels */
+.dev-hq-panel {
+    display: none;
+    padding: 24px 0;
+}
+
+.dev-hq-panel.active {
+    display: block;
+}
+
+/* Stat Cards */
+.dev-hq-stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.dev-hq-stat-card {
+    background: var(--archie-bg-secondary, #0a0a0f);
+    border: 1px solid var(--archie-border, #1a1a2e);
+    border-radius: var(--archie-radius-md, 8px);
+    padding: 20px;
+    text-align: center;
+}
+
+.dev-hq-stat-value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--archie-cyan, #00FFFF);
+    margin-bottom: 4px;
+}
+
+.dev-hq-stat-label {
+    font-size: 0.68rem;
+    color: var(--archie-text-muted, #6e7681);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+/* Section cards (reusable) */
+.dev-hq-section {
+    background: var(--archie-bg-secondary, #0a0a0f);
+    border: 1px solid var(--archie-border, #1a1a2e);
+    border-radius: var(--archie-radius-md, 8px);
+    margin-bottom: 20px;
+    overflow: hidden;
+}
+
+.dev-hq-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--archie-border, #1a1a2e);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    color: var(--archie-cyan, #00FFFF);
+    text-transform: uppercase;
+}
+
+.dev-hq-section-body {
+    padding: 20px;
+}
+
+/* Activity feed */
+.dev-hq-activity-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.dev-hq-activity-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--archie-border, #1a1a2e);
+    border-radius: 6px;
+    font-size: 0.78rem;
+}
+
+.dev-hq-activity-item .activity-type {
+    font-size: 0.65rem;
+    padding: 2px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.dev-hq-activity-item .activity-text {
+    flex: 1;
+    color: var(--archie-text-secondary, #8b949e);
+}
+
+.dev-hq-activity-item .activity-time {
+    color: var(--archie-text-muted, #6e7681);
+    font-size: 0.68rem;
+    flex-shrink: 0;
+}
+
+/* Project cards */
+.dev-hq-project-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+}
+
+.dev-hq-project-card {
+    background: var(--archie-bg-secondary, #0a0a0f);
+    border: 1px solid var(--archie-border, #1a1a2e);
+    border-radius: var(--archie-radius-md, 8px);
+    padding: 16px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.dev-hq-project-card:hover {
+    border-color: var(--archie-cyan, #00FFFF);
+}
+
+.dev-hq-project-card .project-name {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--archie-text-primary, #c9d1d9);
+    margin-bottom: 8px;
+}
+
+.dev-hq-project-card .project-meta {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+/* Status badges */
+.dev-hq-badge {
+    font-size: 0.6rem;
+    padding: 2px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+}
+
+.dev-hq-badge.active { color: var(--archie-green, #00FF41); border: 1px solid rgba(0,255,65,0.3); }
+.dev-hq-badge.completed { color: var(--archie-cyan, #00FFFF); border: 1px solid rgba(0,255,255,0.3); }
+.dev-hq-badge.on_hold { color: var(--archie-amber, #FFAA00); border: 1px solid rgba(255,170,0,0.3); }
+.dev-hq-badge.archived { color: var(--archie-text-muted, #6e7681); border: 1px solid rgba(110,118,129,0.3); }
+.dev-hq-badge.pending { color: var(--archie-text-secondary, #8b949e); border: 1px solid rgba(139,148,158,0.3); }
+.dev-hq-badge.in_progress { color: var(--archie-amber, #FFAA00); border: 1px solid rgba(255,170,0,0.3); }
+.dev-hq-badge.critical { color: var(--archie-danger, #ff4444); border: 1px solid rgba(255,68,68,0.3); }
+.dev-hq-badge.high { color: var(--archie-amber, #FFAA00); border: 1px solid rgba(255,170,0,0.3); }
+.dev-hq-badge.medium { color: var(--archie-cyan, #00FFFF); border: 1px solid rgba(0,255,255,0.3); }
+.dev-hq-badge.low { color: var(--archie-text-muted, #6e7681); border: 1px solid rgba(110,118,129,0.3); }
+
+/* Progress bar */
+.dev-hq-progress {
+    height: 4px;
+    background: var(--archie-border, #1a1a2e);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 8px;
+}
+
+.dev-hq-progress-fill {
+    height: 100%;
+    background: var(--archie-cyan, #00FFFF);
+    border-radius: 2px;
+    transition: width 0.3s;
+}
+
+/* Buttons */
+.dev-hq-btn {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    border: 1px solid;
+    letter-spacing: 0.05em;
+    transition: all 0.2s;
+}
+
+.dev-hq-btn.primary {
+    background: transparent;
+    color: var(--archie-cyan, #00FFFF);
+    border-color: var(--archie-cyan, #00FFFF);
+}
+
+.dev-hq-btn.primary:hover {
+    background: rgba(0, 255, 255, 0.1);
+}
+
+.dev-hq-btn.secondary {
+    background: transparent;
+    color: var(--archie-text-muted, #6e7681);
+    border-color: var(--archie-border, #1a1a2e);
+}
+
+.dev-hq-btn.danger {
+    color: var(--archie-danger, #ff4444);
+    border-color: var(--archie-danger, #ff4444);
+    background: transparent;
+}
+
+/* Modal */
+.dev-hq-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9000;
+}
+
+.dev-hq-modal {
+    background: var(--archie-bg-secondary, #0a0a0f);
+    border: 1px solid var(--archie-border, #1a1a2e);
+    border-radius: var(--archie-radius-lg, 12px);
+    width: 90%;
+    max-width: 560px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.dev-hq-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--archie-border, #1a1a2e);
+}
+
+.dev-hq-modal-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--archie-cyan, #00FFFF);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.dev-hq-modal-close {
+    background: none;
+    border: none;
+    color: var(--archie-text-muted, #6e7681);
+    font-size: 1.2rem;
+    cursor: pointer;
+}
+
+.dev-hq-modal-body {
+    padding: 20px;
+}
+
+.dev-hq-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 16px 20px;
+    border-top: 1px solid var(--archie-border, #1a1a2e);
+}
+
+/* Form fields */
+.dev-hq-field {
+    margin-bottom: 14px;
+}
+
+.dev-hq-field label {
+    display: block;
+    font-size: 0.68rem;
+    color: var(--archie-text-muted, #6e7681);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 6px;
+}
+
+.dev-hq-field input,
+.dev-hq-field textarea,
+.dev-hq-field select {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--archie-bg-primary, #000);
+    border: 1px solid var(--archie-border, #1a1a2e);
+    border-radius: 6px;
+    color: var(--archie-text-primary, #c9d1d9);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.78rem;
+    box-sizing: border-box;
+}
+
+.dev-hq-field textarea {
+    min-height: 80px;
+    resize: vertical;
+}
+
+/* Task list inside project */
+.dev-hq-task-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 12px;
+}
+
+.dev-hq-task-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto auto;
+    gap: 10px;
+    align-items: center;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--archie-border, #1a1a2e);
+    border-radius: 6px;
+    font-size: 0.75rem;
+}
+
+.dev-hq-task-row .task-title {
+    color: var(--archie-text-primary, #c9d1d9);
+}
+
+.dev-hq-task-row .task-due {
+    color: var(--archie-text-muted, #6e7681);
+    font-size: 0.68rem;
+}
+
+/* Filters bar */
+.dev-hq-filters {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+}
+
+.dev-hq-filters select,
+.dev-hq-filters input {
+    padding: 6px 10px;
+    background: var(--archie-bg-secondary, #0a0a0f);
+    border: 1px solid var(--archie-border, #1a1a2e);
+    border-radius: 6px;
+    color: var(--archie-text-primary, #c9d1d9);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem;
+}
+
+/* Knowledge items */
+.dev-hq-knowledge-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.dev-hq-knowledge-item {
+    padding: 14px 16px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--archie-border, #1a1a2e);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.dev-hq-knowledge-item:hover {
+    border-color: var(--archie-cyan, #00FFFF);
+}
+
+.dev-hq-knowledge-item .kb-title {
+    font-weight: 500;
+    color: var(--archie-text-primary, #c9d1d9);
+    margin-bottom: 4px;
+}
+
+.dev-hq-knowledge-item .kb-snippet {
+    font-size: 0.72rem;
+    color: var(--archie-text-muted, #6e7681);
+    line-height: 1.4;
+}
+
+.dev-hq-knowledge-item .kb-meta {
+    display: flex;
+    gap: 8px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+}
+
+.dev-hq-tag {
+    font-size: 0.6rem;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: rgba(0, 255, 255, 0.08);
+    color: var(--archie-cyan, #00FFFF);
+}
+
+/* Schema table */
+.dev-hq-schema-layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 20px;
+    min-height: 500px;
+}
+
+.dev-hq-table-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    overflow-y: auto;
+    max-height: 600px;
+}
+
+.dev-hq-table-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    transition: background 0.2s;
+}
+
+.dev-hq-table-item:hover {
+    background: rgba(0, 255, 255, 0.05);
+}
+
+.dev-hq-table-item.selected {
+    background: rgba(0, 255, 255, 0.1);
+    color: var(--archie-cyan, #00FFFF);
+}
+
+.dev-hq-table-item .row-count {
+    color: var(--archie-text-muted, #6e7681);
+    font-size: 0.68rem;
+}
+
+/* Column detail table */
+.dev-hq-columns-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.75rem;
+}
+
+.dev-hq-columns-table th {
+    text-align: left;
+    padding: 8px 12px;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--archie-text-muted, #6e7681);
+    border-bottom: 1px solid var(--archie-border, #1a1a2e);
+}
+
+.dev-hq-columns-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    color: var(--archie-text-primary, #c9d1d9);
+}
+
+/* API docs */
+.dev-hq-endpoint-group {
+    margin-bottom: 20px;
+}
+
+.dev-hq-endpoint-group-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--archie-cyan, #00FFFF);
+    padding: 10px 0;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dev-hq-endpoint-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 12px;
+    font-size: 0.75rem;
+}
+
+.dev-hq-method-badge {
+    font-size: 0.6rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    min-width: 50px;
+    text-align: center;
+    text-transform: uppercase;
+}
+
+.dev-hq-method-badge.get { background: rgba(0, 255, 65, 0.15); color: var(--archie-green, #00FF41); }
+.dev-hq-method-badge.post { background: rgba(0, 255, 255, 0.15); color: var(--archie-cyan, #00FFFF); }
+.dev-hq-method-badge.put { background: rgba(255, 170, 0, 0.15); color: var(--archie-amber, #FFAA00); }
+.dev-hq-method-badge.delete { background: rgba(255, 68, 68, 0.15); color: var(--archie-danger, #ff4444); }
+
+/* Integrations */
+.dev-hq-kv-grid {
+    display: grid;
+    grid-template-columns: 160px 1fr;
+    gap: 8px 16px;
+    font-size: 0.78rem;
+}
+
+.dev-hq-kv-label {
+    color: var(--archie-text-muted, #6e7681);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.dev-hq-kv-value {
+    color: var(--archie-text-primary, #c9d1d9);
+    word-break: break-all;
+}
+
+/* Tool registry table */
+.dev-hq-tool-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.75rem;
+}
+
+.dev-hq-tool-table th {
+    text-align: left;
+    padding: 8px 12px;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--archie-text-muted, #6e7681);
+    border-bottom: 1px solid var(--archie-border, #1a1a2e);
+}
+
+.dev-hq-tool-table td {
+    padding: 6px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+/* Pre-formatted content */
+.dev-hq-pre {
+    background: var(--archie-bg-primary, #000);
+    border: 1px solid var(--archie-border, #1a1a2e);
+    border-radius: 6px;
+    padding: 16px;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+/* Empty state */
+.dev-hq-empty {
+    text-align: center;
+    padding: 40px;
+    color: var(--archie-text-muted, #6e7681);
+    font-size: 0.78rem;
+    font-style: italic;
+}
+
+/* Loading spinner */
+.dev-hq-loading {
+    text-align: center;
+    padding: 40px;
+    color: var(--archie-text-muted, #6e7681);
+    font-size: 0.75rem;
+}
+
+/* Light mode overrides */
+body.light-mode .dev-hq { background: #f8f9fa; color: #1a1a2e; }
+body.light-mode .dev-hq-title { color: #0088aa; text-shadow: none; }
+body.light-mode .dev-hq-tab-btn.active { color: #0088aa; border-bottom-color: #0088aa; }
+body.light-mode .dev-hq-stat-card { background: #fff; border-color: #ddd; }
+body.light-mode .dev-hq-stat-value { color: #0088aa; }
+body.light-mode .dev-hq-section { background: #fff; border-color: #ddd; }
+body.light-mode .dev-hq-section-header { color: #0088aa; border-bottom-color: #eee; }
+body.light-mode .dev-hq-project-card { background: #fff; border-color: #ddd; }
+body.light-mode .dev-hq-project-card:hover { border-color: #0088aa; }
+body.light-mode .dev-hq-activity-item { background: #f5f5f5; border-color: #ddd; }
+body.light-mode .dev-hq-knowledge-item { background: #f5f5f5; border-color: #ddd; }
+body.light-mode .dev-hq-knowledge-item:hover { border-color: #0088aa; }
+body.light-mode .dev-hq-field input,
+body.light-mode .dev-hq-field textarea,
+body.light-mode .dev-hq-field select { background: #fff; border-color: #ddd; color: #333; }
+body.light-mode .dev-hq-filters select,
+body.light-mode .dev-hq-filters input { background: #fff; border-color: #ddd; color: #333; }
+body.light-mode .dev-hq-modal { background: #fff; border-color: #ddd; }
+body.light-mode .dev-hq-pre { background: #f5f5f5; border-color: #ddd; }
+body.light-mode .dev-hq-table-item:hover { background: rgba(0, 136, 170, 0.05); }
+body.light-mode .dev-hq-table-item.selected { background: rgba(0, 136, 170, 0.1); color: #0088aa; }
+body.light-mode .dev-hq-tag { background: rgba(0, 136, 170, 0.1); color: #0088aa; }
+body.light-mode .dev-hq-task-row { background: #f5f5f5; border-color: #ddd; }
+body.light-mode .dev-hq-columns-table td { color: #333; }
+
+/* Responsive */
+@media (max-width: 768px) {
+    .dev-hq { padding: 0 12px 24px; }
+    .dev-hq-tabs { gap: 0; }
+    .dev-hq-tab-btn { padding: 12px 14px; font-size: 0.62rem; }
+    .dev-hq-stats-row { grid-template-columns: 1fr 1fr; }
+    .dev-hq-project-grid { grid-template-columns: 1fr; }
+    .dev-hq-schema-layout { grid-template-columns: 1fr; }
+    .dev-hq-task-row { grid-template-columns: auto 1fr auto; }
+}
+</style>
+
+<div class="dev-hq">
+    <!-- Header -->
+    <div class="dev-hq-header">
+        <h1 class="dev-hq-title">DEV HQ</h1>
+        <div class="dev-hq-subtitle">UNIFIED DEVELOPER COMMAND CENTER</div>
+    </div>
+
+    <!-- Tab Bar -->
+    <div class="dev-hq-tabs">
+        <button class="dev-hq-tab-btn active" data-tab="overview">
+            <i data-lucide="layout-dashboard"></i> Overview
+        </button>
+        <button class="dev-hq-tab-btn" data-tab="projects">
+            <i data-lucide="folder-kanban"></i> Projects &amp; Tasks
+        </button>
+        <button class="dev-hq-tab-btn" data-tab="knowledge">
+            <i data-lucide="book-open"></i> Knowledge
+        </button>
+        <button class="dev-hq-tab-btn" data-tab="schema">
+            <i data-lucide="database"></i> DB Schema
+        </button>
+        <button class="dev-hq-tab-btn" data-tab="api-docs">
+            <i data-lucide="file-code"></i> API Docs
+        </button>
+        <button class="dev-hq-tab-btn" data-tab="integrations">
+            <i data-lucide="plug"></i> Integrations
+        </button>
+    </div>
+
+    <!-- Tab Panels -->
+
+    <!-- Tab 1 - Overview -->
+    <div class="dev-hq-panel active" id="panel-overview">
+        <div class="dev-hq-stats-row" id="overviewStats">
+            <!-- 4 stat cards populated by JS -->
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div class="dev-hq-section">
+                <div class="dev-hq-section-header">Recent Activity</div>
+                <div class="dev-hq-section-body">
+                    <div class="dev-hq-activity-list" id="overviewActivity">
+                        <div class="dev-hq-loading">Loading...</div>
+                    </div>
+                </div>
+            </div>
+            <div class="dev-hq-section">
+                <div class="dev-hq-section-header">Active Projects</div>
+                <div class="dev-hq-section-body">
+                    <div class="dev-hq-project-grid" id="overviewProjects">
+                        <div class="dev-hq-loading">Loading...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 2 - Projects & Tasks -->
+    <div class="dev-hq-panel" id="panel-projects">
+        <div class="dev-hq-filters" id="projectFilters">
+            <select id="filterStatus"><option value="">All Status</option><option value="active">Active</option><option value="completed">Completed</option><option value="on_hold">On Hold</option><option value="archived">Archived</option></select>
+            <select id="filterPriority"><option value="">All Priority</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
+            <input type="text" id="filterSearch" placeholder="Search projects...">
+            <button class="dev-hq-btn primary" onclick="openProjectModal()">+ New Project</button>
+        </div>
+        <div id="projectsList">
+            <div class="dev-hq-loading">Loading projects...</div>
+        </div>
+    </div>
+
+    <!-- Tab 3 - Knowledge -->
+    <div class="dev-hq-panel" id="panel-knowledge">
+        <div class="dev-hq-filters">
+            <input type="text" id="knowledgeSearch" placeholder="Search knowledge base..." style="flex:1;">
+            <select id="knowledgeCategory"><option value="">All Categories</option></select>
+        </div>
+        <div id="knowledgeResults">
+            <div class="dev-hq-loading">Loading...</div>
+        </div>
+        <div style="margin-top: 20px;">
+            <div class="dev-hq-section">
+                <div class="dev-hq-section-header">Project Decisions (ADRs)</div>
+                <div class="dev-hq-section-body">
+                    <div id="decisionsContainer">
+                        <div class="dev-hq-loading">Loading decisions...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 4 - DB Schema -->
+    <div class="dev-hq-panel" id="panel-schema">
+        <div class="dev-hq-schema-layout">
+            <div class="dev-hq-section">
+                <div class="dev-hq-section-header">Tables</div>
+                <div class="dev-hq-section-body" style="padding: 8px;">
+                    <div class="dev-hq-table-list" id="schemaTableList">
+                        <div class="dev-hq-loading">Loading schema...</div>
+                    </div>
+                </div>
+            </div>
+            <div class="dev-hq-section">
+                <div class="dev-hq-section-header" id="schemaDetailHeader">Select a table</div>
+                <div class="dev-hq-section-body">
+                    <div id="schemaDetail">
+                        <div class="dev-hq-empty">Click a table to view its columns</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab 5 - API Docs -->
+    <div class="dev-hq-panel" id="panel-api-docs">
+        <div id="apiDocsContainer">
+            <div class="dev-hq-loading">Loading API documentation...</div>
+        </div>
+    </div>
+
+    <!-- Tab 6 - Integrations -->
+    <div class="dev-hq-panel" id="panel-integrations">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div class="dev-hq-section">
+                <div class="dev-hq-section-header">MCP Server</div>
+                <div class="dev-hq-section-body">
+                    <div id="mcpServerInfo">
+                        <div class="dev-hq-loading">Loading MCP config...</div>
+                    </div>
+                </div>
+            </div>
+            <div class="dev-hq-section">
+                <div class="dev-hq-section-header">Claude Configuration</div>
+                <div class="dev-hq-section-body">
+                    <div id="claudeConfigInfo">
+                        <div class="dev-hq-loading">Loading Claude config...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="dev-hq-section">
+            <div class="dev-hq-section-header">MCP Tool Registry</div>
+            <div class="dev-hq-section-body">
+                <div id="mcpToolRegistry">
+                    <div class="dev-hq-loading">Loading tool registry...</div>
+                </div>
+            </div>
+        </div>
+        <div class="dev-hq-section">
+            <div class="dev-hq-section-header">CLAUDE.md Instructions</div>
+            <div class="dev-hq-section-body">
+                <div id="claudeMdContent">
+                    <div class="dev-hq-loading">Loading CLAUDE.md...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Project Modal -->
+    <div class="dev-hq-modal-overlay" id="projectModal" style="display:none;">
+        <div class="dev-hq-modal">
+            <div class="dev-hq-modal-header">
+                <span class="dev-hq-modal-title" id="projectModalTitle">New Project</span>
+                <button onclick="closeModal('projectModal')" class="dev-hq-modal-close">&times;</button>
+            </div>
+            <div class="dev-hq-modal-body">
+                <input type="hidden" id="projectEditId">
+                <div class="dev-hq-field"><label>Name</label><input type="text" id="projectName" placeholder="Project name"></div>
+                <div class="dev-hq-field"><label>Description</label><textarea id="projectDesc" placeholder="Description"></textarea></div>
+                <div class="dev-hq-field"><label>Type</label><select id="projectType"><option value="feature">Feature</option><option value="bugfix">Bugfix</option><option value="maintenance">Maintenance</option><option value="research">Research</option><option value="infrastructure">Infrastructure</option></select></div>
+                <div class="dev-hq-field"><label>Priority</label><select id="projectPriority"><option value="medium">Medium</option><option value="critical">Critical</option><option value="high">High</option><option value="low">Low</option></select></div>
+                <div class="dev-hq-field"><label>Target Date</label><input type="date" id="projectTargetDate"></div>
+            </div>
+            <div class="dev-hq-modal-footer">
+                <button class="dev-hq-btn secondary" onclick="closeModal('projectModal')">Cancel</button>
+                <button class="dev-hq-btn primary" id="projectSubmitBtn" onclick="submitProject()">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Task Modal -->
+    <div class="dev-hq-modal-overlay" id="taskModal" style="display:none;">
+        <div class="dev-hq-modal">
+            <div class="dev-hq-modal-header">
+                <span class="dev-hq-modal-title" id="taskModalTitle">New Task</span>
+                <button onclick="closeModal('taskModal')" class="dev-hq-modal-close">&times;</button>
+            </div>
+            <div class="dev-hq-modal-body">
+                <input type="hidden" id="taskEditId">
+                <input type="hidden" id="taskProjectId">
+                <div class="dev-hq-field"><label>Title</label><input type="text" id="taskTitle" placeholder="Task title"></div>
+                <div class="dev-hq-field"><label>Description</label><textarea id="taskDesc" placeholder="Description"></textarea></div>
+                <div class="dev-hq-field"><label>Type</label><select id="taskType"><option value="implementation">Implementation</option><option value="review">Review</option><option value="testing">Testing</option><option value="documentation">Documentation</option><option value="research">Research</option><option value="bugfix">Bugfix</option></select></div>
+                <div class="dev-hq-field"><label>Priority</label><select id="taskPriority"><option value="medium">Medium</option><option value="critical">Critical</option><option value="high">High</option><option value="low">Low</option></select></div>
+                <div class="dev-hq-field"><label>Due Date</label><input type="date" id="taskDueDate"></div>
+            </div>
+            <div class="dev-hq-modal-footer">
+                <button class="dev-hq-btn secondary" onclick="closeModal('taskModal')">Cancel</button>
+                <button class="dev-hq-btn primary" id="taskSubmitBtn" onclick="submitTask()">Create</button>
+            </div>
+        </div>
+    </div>
+
 </div>
+
+<script>
+(function() {
+'use strict';
+
+var loadedTabs = {};
+
+// Tab switching
+document.querySelectorAll('.dev-hq-tab-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        var tab = this.getAttribute('data-tab');
+        document.querySelectorAll('.dev-hq-tab-btn').forEach(function(b) { b.classList.remove('active'); });
+        document.querySelectorAll('.dev-hq-panel').forEach(function(p) { p.classList.remove('active'); });
+        this.classList.add('active');
+        document.getElementById('panel-' + tab).classList.add('active');
+        if (!loadedTabs[tab]) {
+            loadedTabs[tab] = true;
+            loadTabData(tab);
+        }
+    });
+});
+
+function loadTabData(tab) {
+    switch(tab) {
+        case 'overview': loadOverview(); break;
+        case 'projects': loadProjects(); break;
+        case 'knowledge': loadKnowledge(); loadDecisions(); break;
+        case 'schema': loadSchema(); break;
+        case 'api-docs': loadApiDocs(); break;
+        case 'integrations': loadIntegrations(); break;
+    }
+}
+
+// Utility
+function setText(el, text) {
+    if (el) el.textContent = (text !== null && text !== undefined) ? String(text) : '--';
+}
+
+function formatAge(isoStr) {
+    if (!isoStr) return '--';
+    var diff = Math.floor((Date.now() - new Date(isoStr).getTime()) / 1000);
+    if (diff < 60) return diff + 's ago';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    return Math.floor(diff / 86400) + 'd ago';
+}
+
+function formatDate(isoStr) {
+    if (!isoStr) return '--';
+    return new Date(isoStr).toLocaleDateString();
+}
+
+// Modal helpers
+window.openProjectModal = function(project) {
+    document.getElementById('projectEditId').value = project ? project.id : '';
+    document.getElementById('projectName').value = project ? project.name : '';
+    document.getElementById('projectDesc').value = project ? (project.description || '') : '';
+    document.getElementById('projectType').value = project ? (project.project_type || 'feature') : 'feature';
+    document.getElementById('projectPriority').value = project ? (project.priority || 'medium') : 'medium';
+    document.getElementById('projectTargetDate').value = project ? (project.target_date || '').split('T')[0] : '';
+    document.getElementById('projectModalTitle').textContent = project ? 'Edit Project' : 'New Project';
+    document.getElementById('projectSubmitBtn').textContent = project ? 'Save' : 'Create';
+    document.getElementById('projectModal').style.display = 'flex';
+};
+
+window.closeModal = function(id) {
+    document.getElementById(id).style.display = 'none';
+};
+
+window.openTaskModal = function(projectId, task) {
+    document.getElementById('taskEditId').value = task ? task.id : '';
+    document.getElementById('taskProjectId').value = projectId;
+    document.getElementById('taskTitle').value = task ? task.title : '';
+    document.getElementById('taskDesc').value = task ? (task.description || '') : '';
+    document.getElementById('taskType').value = task ? (task.task_type || 'implementation') : 'implementation';
+    document.getElementById('taskPriority').value = task ? (task.priority || 'medium') : 'medium';
+    document.getElementById('taskDueDate').value = task ? (task.due_date || '').split('T')[0] : '';
+    document.getElementById('taskModalTitle').textContent = task ? 'Edit Task' : 'New Task';
+    document.getElementById('taskSubmitBtn').textContent = task ? 'Save' : 'Create';
+    document.getElementById('taskModal').style.display = 'flex';
+};
+
+// Placeholder load functions (will be fully implemented in later tasks 8-12)
+function loadOverview() { console.debug('loadOverview placeholder'); }
+function loadProjects() { console.debug('loadProjects placeholder'); }
+function loadKnowledge() { console.debug('loadKnowledge placeholder'); }
+function loadDecisions() { console.debug('loadDecisions placeholder'); }
+function loadSchema() { console.debug('loadSchema placeholder'); }
+function loadApiDocs() { console.debug('loadApiDocs placeholder'); }
+function loadIntegrations() { console.debug('loadIntegrations placeholder'); }
+
+window.submitProject = function() { console.debug('submitProject placeholder'); };
+window.submitTask = function() { console.debug('submitTask placeholder'); };
+
+// Init
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+    loadedTabs['overview'] = true;
+    loadOverview();
+});
+
+})();
+</script>
+
 {% endblock %}

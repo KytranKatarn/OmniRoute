@@ -5823,3 +5823,14 @@ def test_trained_model(model_id):
     except Exception as e:
         logger.error(f"Failed to test model: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# MESH CLUSTER API ROUTES
+# ============================================================================
+try:
+    from tools.bridge.mesh_routes import register_mesh_routes
+
+    register_mesh_routes(bridge_bp)
+except ImportError as e:
+    logger.warning(f"Mesh routes not loaded: {e}")

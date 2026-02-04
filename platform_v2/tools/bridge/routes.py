@@ -2248,14 +2248,23 @@ def serve_node_image():
     """Serve the pre-built node Docker image tarball"""
     from flask import send_file
 
-    tarball_path = "/tmp/archie-node-latest.tar.gz"
-    if not os.path.isfile(tarball_path):
+    # Check multiple locations: node_client dir (mounted in container) and /tmp (host builds)
+    tarball_paths = [
+        "/mnt/archie_brain/node_client/archie-node-latest.tar.gz",
+        "/tmp/archie-node-latest.tar.gz",
+    ]
+    tarball_path = None
+    for path in tarball_paths:
+        if os.path.isfile(path):
+            tarball_path = path
+            break
+    if tarball_path is None:
         return (
             jsonify(
                 {
                     "success": False,
                     "error": "Node image not built yet. Run: "
-                    "docker save archie-node:latest | gzip > /tmp/archie-node-latest.tar.gz",
+                    "docker save archie-node:latest | gzip > /mnt/archie_brain/node_client/archie-node-latest.tar.gz",
                 }
             ),
             404,

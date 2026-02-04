@@ -673,80 +673,73 @@
 }
 
 /* Docs Tab */
-.docs-toolbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 16px;
-    margin-bottom: 20px;
-    flex-wrap: wrap;
-}
-.docs-filters {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-    flex-wrap: wrap;
-}
 .docs-layout {
     display: grid;
-    grid-template-columns: 380px 1fr;
+    grid-template-columns: 300px 1fr;
     gap: 20px;
-    min-height: 500px;
+    min-height: 600px;
 }
-.docs-list-panel {
-    background: var(--archie-bg-secondary, #0d1117);
-    border: 1px solid var(--archie-border, #1a1a2e);
-    border-radius: 8px;
-    overflow-y: auto;
-    max-height: 700px;
-    padding: 8px;
-}
-.docs-detail-panel {
-    background: var(--archie-bg-secondary, #0d1117);
-    border: 1px solid var(--archie-border, #1a1a2e);
-    border-radius: 8px;
-    padding: 24px;
-    overflow-y: auto;
-    max-height: 700px;
-}
-.doc-list-item {
-    padding: 12px 14px;
-    border-radius: 6px;
-    cursor: pointer;
-    border: 1px solid transparent;
-    margin-bottom: 4px;
-    transition: background 0.15s, border-color 0.15s;
-}
-.doc-list-item:hover {
-    background: rgba(0, 255, 255, 0.04);
-    border-color: var(--archie-border, #1a1a2e);
-}
-.doc-list-item.selected {
-    background: rgba(0, 255, 255, 0.08);
-    border-color: var(--archie-cyan, #00FFFF);
-}
-.doc-list-title {
-    font-weight: 600;
-    font-size: 0.82rem;
-    color: var(--archie-text-primary, #c9d1d9);
-    margin-bottom: 4px;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-}
-.doc-list-meta {
+.docs-modules-panel {
     display: flex;
+    flex-direction: column;
     gap: 8px;
-    align-items: center;
-    font-size: 0.68rem;
+}
+.docs-modules-header {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
     color: var(--archie-text-muted, #6e7681);
+    padding: 8px 4px 4px;
+    border-bottom: 1px solid var(--archie-border, #1a1a2e);
+}
+.docs-module-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: var(--archie-bg-secondary, #0d1117);
+    border: 1px solid var(--archie-border, #1a1a2e);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+}
+.docs-module-card:hover {
+    border-color: rgba(0, 255, 255, 0.3);
+    background: rgba(0, 255, 255, 0.03);
+}
+.docs-module-card.selected {
+    border-color: var(--archie-cyan, #00FFFF);
+    background: rgba(0, 255, 255, 0.06);
+}
+.docs-module-icon {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 255, 255, 0.08);
+    border-radius: 8px;
+    flex-shrink: 0;
+    color: var(--archie-cyan, #00FFFF);
+}
+.docs-module-icon svg { width: 18px; height: 18px; }
+.docs-module-info { flex: 1; min-width: 0; }
+.docs-module-name {
+    font-weight: 600;
+    font-size: 0.8rem;
+    color: var(--archie-text-primary, #c9d1d9);
+    margin-bottom: 2px;
+}
+.docs-module-badges {
+    display: flex;
+    gap: 6px;
 }
 .doc-type-badge {
     display: inline-block;
     padding: 1px 7px;
     border-radius: 3px;
-    font-size: 0.62rem;
+    font-size: 0.58rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.04em;
@@ -761,40 +754,122 @@
     color: var(--archie-cyan, #00FFFF);
     border: 1px solid rgba(0, 255, 255, 0.25);
 }
-.doc-detail-header {
+.doc-type-badge.empty {
+    background: rgba(110, 118, 129, 0.1);
+    color: var(--archie-text-muted, #6e7681);
+    border: 1px solid rgba(110, 118, 129, 0.2);
+    opacity: 0.5;
+}
+.docs-detail-panel {
+    background: var(--archie-bg-secondary, #0d1117);
+    border: 1px solid var(--archie-border, #1a1a2e);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.docs-detail-header {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 20px;
-    padding-bottom: 16px;
+    align-items: center;
+    padding: 16px 20px;
     border-bottom: 1px solid var(--archie-border, #1a1a2e);
+    flex-wrap: wrap;
+    gap: 12px;
 }
-.doc-detail-title {
+.docs-detail-title {
     font-family: 'Orbitron', sans-serif;
-    font-size: 1.1rem;
+    font-size: 1rem;
     font-weight: 700;
     color: var(--archie-cyan, #00FFFF);
-    margin: 0 0 8px;
 }
-.doc-detail-actions {
+.docs-detail-actions {
     display: flex;
     gap: 8px;
     flex-shrink: 0;
 }
-.doc-detail-content {
+.docs-sub-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--archie-border, #1a1a2e);
+    padding: 0 20px;
+}
+.docs-sub-tab {
+    padding: 10px 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-family: 'Orbitron', sans-serif;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--archie-text-muted, #6e7681);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+}
+.docs-sub-tab:hover { color: var(--archie-text-primary, #c9d1d9); }
+.docs-sub-tab.active {
+    color: var(--archie-cyan, #00FFFF);
+    border-bottom-color: var(--archie-cyan, #00FFFF);
+}
+.docs-detail-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
     font-size: 0.82rem;
     line-height: 1.7;
     white-space: pre-wrap;
     word-wrap: break-word;
+    max-height: 600px;
 }
-.doc-detail-content h1, .doc-detail-content h2, .doc-detail-content h3 {
+.docs-detail-content h1, .docs-detail-content h2, .docs-detail-content h3 {
     color: var(--archie-cyan, #00FFFF);
     font-family: 'Orbitron', sans-serif;
     margin: 20px 0 10px;
 }
-.doc-detail-content h1 { font-size: 1.1rem; }
-.doc-detail-content h2 { font-size: 0.95rem; }
-.doc-detail-content h3 { font-size: 0.85rem; }
+.docs-detail-content h1 { font-size: 1.1rem; }
+.docs-detail-content h2 { font-size: 0.95rem; }
+.docs-detail-content h3 { font-size: 0.85rem; }
+.docs-detail-meta {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    font-size: 0.68rem;
+    color: var(--archie-text-muted, #6e7681);
+    padding: 10px 20px;
+    border-top: 1px solid var(--archie-border, #1a1a2e);
+}
+.docs-doc-list {
+    padding: 12px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.docs-doc-list-item {
+    padding: 10px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background 0.15s, border-color 0.15s;
+}
+.docs-doc-list-item:hover {
+    background: rgba(0, 255, 255, 0.04);
+    border-color: var(--archie-border, #1a1a2e);
+}
+.docs-doc-list-item.selected {
+    background: rgba(0, 255, 255, 0.08);
+    border-color: var(--archie-cyan, #00FFFF);
+}
+.docs-doc-list-title {
+    font-weight: 600;
+    font-size: 0.78rem;
+    color: var(--archie-text-primary, #c9d1d9);
+}
+.docs-doc-list-meta {
+    font-size: 0.65rem;
+    color: var(--archie-text-muted, #6e7681);
+    margin-top: 2px;
+}
 
 /* Light mode overrides */
 body.light-mode .dev-hq { background: #f8f9fa; color: #1a1a2e; }
@@ -821,15 +896,19 @@ body.light-mode .dev-hq-table-item.selected { background: rgba(0, 136, 170, 0.1)
 body.light-mode .dev-hq-tag { background: rgba(0, 136, 170, 0.1); color: #0088aa; }
 body.light-mode .dev-hq-task-row { background: #f5f5f5; border-color: #ddd; }
 body.light-mode .dev-hq-columns-table td { color: #333; }
-body.light-mode .docs-list-panel,
+body.light-mode .docs-module-card { background: #fff; border-color: #ddd; }
+body.light-mode .docs-module-card:hover { border-color: #0088aa; background: rgba(0, 136, 170, 0.03); }
+body.light-mode .docs-module-card.selected { border-color: #0088aa; background: rgba(0, 136, 170, 0.06); }
+body.light-mode .docs-module-icon { background: rgba(0, 136, 170, 0.08); color: #0088aa; }
+body.light-mode .docs-module-name { color: #1a1a2e; }
 body.light-mode .docs-detail-panel { background: #fff; border-color: #ddd; }
-body.light-mode .doc-list-item:hover { background: rgba(0, 136, 170, 0.04); }
-body.light-mode .doc-list-item.selected { background: rgba(0, 136, 170, 0.08); border-color: #0088aa; }
-body.light-mode .doc-list-title { color: #1a1a2e; }
-body.light-mode .doc-detail-title { color: #0088aa; }
-body.light-mode .doc-detail-content h1,
-body.light-mode .doc-detail-content h2,
-body.light-mode .doc-detail-content h3 { color: #0088aa; }
+body.light-mode .docs-detail-title { color: #0088aa; }
+body.light-mode .docs-sub-tab.active { color: #0088aa; border-bottom-color: #0088aa; }
+body.light-mode .docs-detail-content h1,
+body.light-mode .docs-detail-content h2,
+body.light-mode .docs-detail-content h3 { color: #0088aa; }
+body.light-mode .docs-doc-list-item:hover { background: rgba(0, 136, 170, 0.04); }
+body.light-mode .docs-doc-list-item.selected { background: rgba(0, 136, 170, 0.08); border-color: #0088aa; }
 
 /* Responsive */
 @media (max-width: 768px) {
@@ -841,7 +920,6 @@ body.light-mode .doc-detail-content h3 { color: #0088aa; }
     .dev-hq-schema-layout { grid-template-columns: 1fr; }
     .dev-hq-task-row { grid-template-columns: auto 1fr auto; }
     .docs-layout { grid-template-columns: 1fr; }
-    .docs-toolbar { flex-direction: column; align-items: stretch; }
 }
 </style>
 
@@ -1007,25 +1085,14 @@ body.light-mode .doc-detail-content h3 { color: #0088aa; }
 
     <!-- Tab 7 - Docs -->
     <div class="dev-hq-panel" id="panel-docs">
-        <div class="docs-toolbar">
-            <div class="docs-filters">
-                <input type="text" id="docsSearch" placeholder="Search documentation..." class="dev-hq-input" style="width: 280px;">
-                <select id="docsTypeFilter" class="dev-hq-select">
-                    <option value="">All Types</option>
-                    <option value="user">User Guides</option>
-                    <option value="coder">Coder Docs</option>
-                </select>
-            </div>
-            <button class="dev-hq-btn primary" onclick="openDocModal()">
-                <i data-lucide="plus" style="width:14px;height:14px;"></i> New Document
-            </button>
-        </div>
         <div class="docs-layout">
-            <div class="docs-list-panel" id="docsListPanel">
-                <div class="dev-hq-loading">Loading documentation...</div>
+            <div class="docs-modules-panel" id="docsModulesPanel">
+                <div class="dev-hq-loading">Loading modules...</div>
             </div>
             <div class="docs-detail-panel" id="docsDetailPanel">
-                <div class="dev-hq-empty">Select a document to view its contents</div>
+                <div style="display:flex;align-items:center;justify-content:center;height:100%;padding:40px;">
+                    <div class="dev-hq-empty">Select a module to view its documentation</div>
+                </div>
             </div>
         </div>
     </div>
@@ -1047,7 +1114,8 @@ body.light-mode .doc-detail-content h3 { color: #0088aa; }
                         <option value="user">User Guide (End User)</option>
                     </select>
                 </div>
-                <div class="dev-hq-field"><label>Category</label><input type="text" id="docCategory" placeholder="e.g. admin_operations, system_operations"></div>
+                <div class="dev-hq-field"><label>Module</label><input type="text" id="docModule" placeholder="e.g. system_operations, account_center, dashboard"></div>
+                <div class="dev-hq-field"><label>Category</label><input type="text" id="docCategory" placeholder="e.g. admin_ops, ai_command"></div>
                 <div class="dev-hq-field">
                     <label>Content (Markdown)</label>
                     <textarea id="docContent" placeholder="Write documentation in Markdown..." style="min-height: 350px; font-family: 'IBM Plex Mono', monospace; font-size: 0.82rem;"></textarea>
@@ -2432,179 +2500,347 @@ function loadIntegrations() {
 // Docs Tab
 // ---------------------------------------------------------------------------
 
-var docsDebounceTimer = null;
+var selectedDocsModule = null;
 var selectedDocId = null;
+var docsActiveSubTab = 'coder';
+var docsModuleData = {};
+
+// Module metadata for display
+var MODULE_INFO = {
+    dashboard: { name: 'Dashboard', icon: 'layout-dashboard', category: 'Core' },
+    system_operations: { name: 'System Operations', icon: 'server', category: 'Admin Operations' },
+    account_center: { name: 'Account Center', icon: 'users', category: 'Admin Operations' },
+    backup_manager: { name: 'Backup Manager', icon: 'hard-drive', category: 'Admin Operations' },
+    security_network: { name: 'Security & Network', icon: 'shield', category: 'Admin Operations' },
+    saas_manager: { name: 'SaaS Manager', icon: 'building', category: 'Admin Operations' },
+    bridge: { name: 'Bridge Command', icon: 'radio', category: 'AI Command' },
+    media_hub: { name: 'Media Hub', icon: 'film', category: 'Media Home' },
+    dev_hq: { name: 'Dev HQ', icon: 'compass', category: 'Development' },
+    improvements_lab: { name: 'Improvements Lab', icon: 'flask-conical', category: 'Development' },
+    admin_tools: { name: 'Admin Tools Overview', icon: 'settings', category: 'Overview' }
+};
+
+// Category display order
+var CATEGORY_ORDER = ['Core', 'Admin Operations', 'AI Command', 'Media Home', 'Development', 'Overview'];
 
 function loadDocs() {
-    var search = document.getElementById('docsSearch') ? document.getElementById('docsSearch').value : '';
-    var docType = document.getElementById('docsTypeFilter') ? document.getElementById('docsTypeFilter').value : '';
-    var url = '/dev-hq/api/docs/list?limit=100';
-    if (search) url += '&search=' + encodeURIComponent(search);
-    if (docType) url += '&doc_type=' + encodeURIComponent(docType);
-    fetch(url).then(function(r) { return r.json(); }).then(function(data) {
+    fetch('/dev-hq/api/docs/modules').then(function(r) { return r.json(); }).then(function(data) {
         if (!data.success) return;
-        renderDocsList(data.entries, data.total);
+        docsModuleData = data.modules;
+        renderDocsModules(data.modules);
     }).catch(function(err) {
         console.debug('loadDocs error:', err);
     });
 }
 
-function renderDocsList(entries, total) {
-    var panel = document.getElementById('docsListPanel');
+function renderDocsModules(modules) {
+    var panel = document.getElementById('docsModulesPanel');
     panel.replaceChildren();
-    if (!entries || entries.length === 0) {
-        var empty = document.createElement('div');
-        empty.className = 'dev-hq-empty';
-        empty.textContent = 'No documentation found';
-        panel.appendChild(empty);
-        return;
-    }
-    entries.forEach(function(doc) {
-        var item = document.createElement('div');
-        item.className = 'doc-list-item';
-        if (doc.id === selectedDocId) item.className += ' selected';
-        item.setAttribute('data-id', doc.id);
 
-        var title = document.createElement('div');
-        title.className = 'doc-list-title';
-        // Extract title from first line of content or use file_name
-        var docTitle = doc.file_name || '';
-        if (doc.snippet) {
-            var firstLine = doc.snippet.split('\n')[0].replace(/^#+ */, '').trim();
-            if (firstLine) docTitle = firstLine;
-        }
-        title.textContent = docTitle;
-        item.appendChild(title);
+    // Group modules by category
+    var byCategory = {};
+    var moduleKeys = Object.keys(modules);
+    // Also include modules from MODULE_INFO that might not have docs yet
+    Object.keys(MODULE_INFO).forEach(function(k) {
+        if (moduleKeys.indexOf(k) === -1) moduleKeys.push(k);
+    });
+    moduleKeys.forEach(function(modId) {
+        var info = MODULE_INFO[modId] || { name: modId.replace(/_/g, ' '), icon: 'file-text', category: 'Other' };
+        var cat = info.category;
+        if (!byCategory[cat]) byCategory[cat] = [];
+        byCategory[cat].push(modId);
+    });
 
-        var meta = document.createElement('div');
-        meta.className = 'doc-list-meta';
+    CATEGORY_ORDER.forEach(function(cat) {
+        var mods = byCategory[cat];
+        if (!mods || mods.length === 0) return;
 
-        // Doc type badge from memory_metadata
-        var docMeta = doc.memory_metadata || {};
-        var docTypeVal = docMeta.doc_type || '';
-        if (docTypeVal) {
-            var badge = document.createElement('span');
-            badge.className = 'doc-type-badge ' + (docTypeVal === 'user' ? 'user' : 'coder');
-            badge.textContent = docTypeVal === 'user' ? 'USER' : 'CODER';
-            meta.appendChild(badge);
-        }
+        var header = document.createElement('div');
+        header.className = 'docs-modules-header';
+        header.textContent = cat;
+        panel.appendChild(header);
 
-        if (doc.primary_category) {
-            var cat = document.createElement('span');
-            cat.textContent = doc.primary_category;
-            meta.appendChild(cat);
-        }
+        mods.forEach(function(modId) {
+            var info = MODULE_INFO[modId] || { name: modId.replace(/_/g, ' '), icon: 'file-text', category: 'Other' };
+            var counts = modules[modId] || { coder: 0, user: 0 };
 
-        var age = document.createElement('span');
-        age.textContent = formatAge(doc.updated_at);
-        meta.appendChild(age);
+            var card = document.createElement('div');
+            card.className = 'docs-module-card';
+            if (modId === selectedDocsModule) card.className += ' selected';
+            card.setAttribute('data-module', modId);
 
-        item.appendChild(meta);
+            var iconWrap = document.createElement('div');
+            iconWrap.className = 'docs-module-icon';
+            var iconEl = document.createElement('i');
+            iconEl.setAttribute('data-lucide', info.icon);
+            iconWrap.appendChild(iconEl);
+            card.appendChild(iconWrap);
 
-        item.addEventListener('click', function() {
-            document.querySelectorAll('.doc-list-item').forEach(function(el) { el.classList.remove('selected'); });
-            item.classList.add('selected');
-            selectedDocId = doc.id;
-            loadDocDetail(doc.id);
+            var infoDiv = document.createElement('div');
+            infoDiv.className = 'docs-module-info';
+
+            var nameEl = document.createElement('div');
+            nameEl.className = 'docs-module-name';
+            nameEl.textContent = info.name;
+            infoDiv.appendChild(nameEl);
+
+            var badges = document.createElement('div');
+            badges.className = 'docs-module-badges';
+
+            var coderBadge = document.createElement('span');
+            coderBadge.className = 'doc-type-badge ' + (counts.coder > 0 ? 'coder' : 'empty');
+            coderBadge.textContent = 'CODER' + (counts.coder > 1 ? ' (' + counts.coder + ')' : '');
+            badges.appendChild(coderBadge);
+
+            var userBadge = document.createElement('span');
+            userBadge.className = 'doc-type-badge ' + (counts.user > 0 ? 'user' : 'empty');
+            userBadge.textContent = 'MANUAL' + (counts.user > 1 ? ' (' + counts.user + ')' : '');
+            badges.appendChild(userBadge);
+
+            infoDiv.appendChild(badges);
+            card.appendChild(infoDiv);
+
+            card.addEventListener('click', function() {
+                document.querySelectorAll('.docs-module-card').forEach(function(el) { el.classList.remove('selected'); });
+                card.classList.add('selected');
+                selectedDocsModule = modId;
+                selectedDocId = null;
+                docsActiveSubTab = 'coder';
+                loadModuleDocs(modId, 'coder');
+            });
+
+            panel.appendChild(card);
         });
-
-        panel.appendChild(item);
     });
+
+    // Also show any modules not in known categories
+    Object.keys(byCategory).forEach(function(cat) {
+        if (CATEGORY_ORDER.indexOf(cat) === -1 && byCategory[cat].length > 0) {
+            var header = document.createElement('div');
+            header.className = 'docs-modules-header';
+            header.textContent = cat;
+            panel.appendChild(header);
+            byCategory[cat].forEach(function(modId) {
+                // Same card render as above but simplified
+                var info = MODULE_INFO[modId] || { name: modId.replace(/_/g, ' '), icon: 'file-text' };
+                var counts = modules[modId] || { coder: 0, user: 0 };
+                var card = document.createElement('div');
+                card.className = 'docs-module-card';
+                card.setAttribute('data-module', modId);
+                var nameEl = document.createElement('div');
+                nameEl.className = 'docs-module-name';
+                nameEl.textContent = info.name;
+                card.appendChild(nameEl);
+                card.addEventListener('click', function() {
+                    document.querySelectorAll('.docs-module-card').forEach(function(el) { el.classList.remove('selected'); });
+                    card.classList.add('selected');
+                    selectedDocsModule = modId;
+                    loadModuleDocs(modId, 'coder');
+                });
+                panel.appendChild(card);
+            });
+        }
+    });
+
+    // Re-init lucide icons for the new cards
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
-function loadDocDetail(docId) {
+function loadModuleDocs(modId, docType) {
     var panel = document.getElementById('docsDetailPanel');
     panel.replaceChildren();
-    var loading = document.createElement('div');
-    loading.className = 'dev-hq-loading';
-    loading.textContent = 'Loading...';
-    panel.appendChild(loading);
 
-    fetch('/dev-hq/api/docs/' + docId).then(function(r) { return r.json(); }).then(function(data) {
-        if (!data.success) return;
-        renderDocDetail(data.entry);
-    }).catch(function(err) {
-        console.debug('loadDocDetail error:', err);
-        panel.replaceChildren();
-        var errEl = document.createElement('div');
-        errEl.className = 'dev-hq-empty';
-        errEl.textContent = 'Error loading document';
-        panel.appendChild(errEl);
-    });
-}
-
-function renderDocDetail(entry) {
-    var panel = document.getElementById('docsDetailPanel');
-    panel.replaceChildren();
+    var info = MODULE_INFO[modId] || { name: modId.replace(/_/g, ' '), icon: 'file-text' };
+    var counts = docsModuleData[modId] || { coder: 0, user: 0 };
 
     // Header
     var header = document.createElement('div');
-    header.className = 'doc-detail-header';
-
-    var headerLeft = document.createElement('div');
-
+    header.className = 'docs-detail-header';
     var titleEl = document.createElement('div');
-    titleEl.className = 'doc-detail-title';
-    var docTitle = entry.title || entry.file_name || 'Untitled';
-    if (!docTitle || docTitle === 'Untitled') {
-        var firstLine = (entry.content || '').split('\n')[0].replace(/^#+ */, '').trim();
-        if (firstLine) docTitle = firstLine;
-    }
-    titleEl.textContent = docTitle;
-    headerLeft.appendChild(titleEl);
-
-    var metaRow = document.createElement('div');
-    metaRow.className = 'doc-list-meta';
-    var entryMeta = entry.memory_metadata || {};
-    var entryDocType = entryMeta.doc_type || '';
-    if (entryDocType) {
-        var badge = document.createElement('span');
-        badge.className = 'doc-type-badge ' + (entryDocType === 'user' ? 'user' : 'coder');
-        badge.textContent = entryDocType === 'user' ? 'User Guide' : 'Coder Doc';
-        metaRow.appendChild(badge);
-    }
-    if (entry.primary_category) {
-        var cat = document.createElement('span');
-        cat.textContent = entry.primary_category;
-        metaRow.appendChild(cat);
-    }
-    var updated = document.createElement('span');
-    updated.textContent = 'Updated ' + formatDate(entry.updated_at);
-    metaRow.appendChild(updated);
-    var idSpan = document.createElement('span');
-    idSpan.textContent = 'ID: ' + entry.id;
-    metaRow.appendChild(idSpan);
-    headerLeft.appendChild(metaRow);
-    header.appendChild(headerLeft);
+    titleEl.className = 'docs-detail-title';
+    titleEl.textContent = info.name;
+    header.appendChild(titleEl);
 
     var actions = document.createElement('div');
-    actions.className = 'doc-detail-actions';
-    var editBtn = document.createElement('button');
-    editBtn.className = 'dev-hq-btn secondary';
-    editBtn.textContent = 'Edit';
-    editBtn.addEventListener('click', function() { openDocModal(entry); });
-    actions.appendChild(editBtn);
-    var delBtn = document.createElement('button');
-    delBtn.className = 'dev-hq-btn danger';
-    delBtn.textContent = 'Delete';
-    delBtn.addEventListener('click', function() { deleteDoc(entry.id); });
-    actions.appendChild(delBtn);
+    actions.className = 'docs-detail-actions';
+    var newBtn = document.createElement('button');
+    newBtn.className = 'dev-hq-btn primary';
+    newBtn.textContent = '+ New Doc';
+    newBtn.addEventListener('click', function() { openDocModal(null, modId); });
+    actions.appendChild(newBtn);
     header.appendChild(actions);
     panel.appendChild(header);
 
-    // Content
-    var content = document.createElement('div');
-    content.className = 'doc-detail-content';
-    content.textContent = entry.content || '';
-    panel.appendChild(content);
+    // Sub-tabs
+    var tabs = document.createElement('div');
+    tabs.className = 'docs-sub-tabs';
+
+    var coderTab = document.createElement('button');
+    coderTab.className = 'docs-sub-tab' + (docType === 'coder' ? ' active' : '');
+    coderTab.textContent = 'Coder (' + (counts.coder || 0) + ')';
+    coderTab.addEventListener('click', function() {
+        docsActiveSubTab = 'coder';
+        loadModuleDocs(modId, 'coder');
+    });
+    tabs.appendChild(coderTab);
+
+    var userTab = document.createElement('button');
+    userTab.className = 'docs-sub-tab' + (docType === 'user' ? ' active' : '');
+    userTab.textContent = 'Manual (' + (counts.user || 0) + ')';
+    userTab.addEventListener('click', function() {
+        docsActiveSubTab = 'user';
+        loadModuleDocs(modId, 'user');
+    });
+    tabs.appendChild(userTab);
+
+    panel.appendChild(tabs);
+
+    // Content area - fetch docs for this module+type
+    var contentArea = document.createElement('div');
+    contentArea.style.flex = '1';
+    contentArea.style.overflow = 'hidden';
+    contentArea.style.display = 'flex';
+    contentArea.style.flexDirection = 'column';
+
+    var loadingEl = document.createElement('div');
+    loadingEl.className = 'dev-hq-loading';
+    loadingEl.textContent = 'Loading...';
+    contentArea.appendChild(loadingEl);
+    panel.appendChild(contentArea);
+
+    var url = '/dev-hq/api/docs/list?limit=50&module=' + encodeURIComponent(modId) + '&doc_type=' + encodeURIComponent(docType);
+    fetch(url).then(function(r) { return r.json(); }).then(function(data) {
+        contentArea.replaceChildren();
+        if (!data.success || !data.entries || data.entries.length === 0) {
+            var empty = document.createElement('div');
+            empty.style.padding = '40px';
+            empty.style.textAlign = 'center';
+            empty.className = 'dev-hq-empty';
+            empty.textContent = 'No ' + (docType === 'user' ? 'user guide' : 'coder documentation') + ' yet for ' + info.name;
+            contentArea.appendChild(empty);
+            return;
+        }
+        if (data.entries.length === 1) {
+            // Single doc - show directly
+            loadDocContent(data.entries[0].id, contentArea);
+        } else {
+            // Multiple docs - show a list, click to view
+            renderDocListForModule(data.entries, contentArea);
+        }
+    }).catch(function(err) {
+        contentArea.replaceChildren();
+        var errEl = document.createElement('div');
+        errEl.className = 'dev-hq-empty';
+        errEl.textContent = 'Error loading documentation';
+        contentArea.appendChild(errEl);
+    });
 }
 
-window.openDocModal = function(doc) {
+function renderDocListForModule(entries, container) {
+    var list = document.createElement('div');
+    list.className = 'docs-doc-list';
+    entries.forEach(function(doc) {
+        var item = document.createElement('div');
+        item.className = 'docs-doc-list-item';
+        if (doc.id === selectedDocId) item.className += ' selected';
+
+        var title = document.createElement('div');
+        title.className = 'docs-doc-list-title';
+        title.textContent = doc.title || doc.file_name || 'Untitled';
+        item.appendChild(title);
+
+        var meta = document.createElement('div');
+        meta.className = 'docs-doc-list-meta';
+        meta.textContent = 'Updated ' + formatAge(doc.updated_at);
+        if (doc.importance_score) {
+            meta.textContent += ' \u00B7 Score: ' + Number(doc.importance_score).toFixed(2);
+        }
+        item.appendChild(meta);
+
+        item.addEventListener('click', function() {
+            document.querySelectorAll('.docs-doc-list-item').forEach(function(el) { el.classList.remove('selected'); });
+            item.classList.add('selected');
+            selectedDocId = doc.id;
+            // Replace list with content, add back button
+            container.replaceChildren();
+            var backBtn = document.createElement('button');
+            backBtn.className = 'dev-hq-btn secondary';
+            backBtn.style.margin = '12px 20px 0';
+            backBtn.textContent = '\u2190 Back to list';
+            backBtn.addEventListener('click', function() {
+                selectedDocId = null;
+                container.replaceChildren();
+                renderDocListForModule(entries, container);
+            });
+            container.appendChild(backBtn);
+            loadDocContent(doc.id, container);
+        });
+
+        list.appendChild(item);
+    });
+    container.appendChild(list);
+}
+
+function loadDocContent(docId, container) {
+    var loading = document.createElement('div');
+    loading.className = 'dev-hq-loading';
+    loading.textContent = 'Loading...';
+    container.appendChild(loading);
+
+    fetch('/dev-hq/api/docs/' + docId).then(function(r) { return r.json(); }).then(function(data) {
+        if (loading.parentNode) loading.parentNode.removeChild(loading);
+        if (!data.success) return;
+        var entry = data.entry;
+        selectedDocId = entry.id;
+
+        // Content
+        var content = document.createElement('div');
+        content.className = 'docs-detail-content';
+        content.textContent = entry.content || '';
+        container.appendChild(content);
+
+        // Meta footer
+        var metaFooter = document.createElement('div');
+        metaFooter.className = 'docs-detail-meta';
+
+        var idSpan = document.createElement('span');
+        idSpan.textContent = 'ID: ' + entry.id;
+        metaFooter.appendChild(idSpan);
+
+        var updSpan = document.createElement('span');
+        updSpan.textContent = 'Updated: ' + formatDate(entry.updated_at);
+        metaFooter.appendChild(updSpan);
+
+        var editBtn = document.createElement('button');
+        editBtn.className = 'dev-hq-btn secondary';
+        editBtn.style.marginLeft = 'auto';
+        editBtn.style.padding = '3px 12px';
+        editBtn.style.fontSize = '0.68rem';
+        editBtn.textContent = 'Edit';
+        editBtn.addEventListener('click', function() { openDocModal(entry, selectedDocsModule); });
+        metaFooter.appendChild(editBtn);
+
+        var delBtn = document.createElement('button');
+        delBtn.className = 'dev-hq-btn danger';
+        delBtn.style.padding = '3px 12px';
+        delBtn.style.fontSize = '0.68rem';
+        delBtn.textContent = 'Delete';
+        delBtn.addEventListener('click', function() { deleteDoc(entry.id); });
+        metaFooter.appendChild(delBtn);
+
+        container.appendChild(metaFooter);
+    }).catch(function(err) {
+        if (loading.parentNode) loading.parentNode.removeChild(loading);
+    });
+}
+
+window.openDocModal = function(doc, moduleId) {
     document.getElementById('docEditId').value = doc ? doc.id : '';
     document.getElementById('docTitle').value = doc ? (doc.title || doc.file_name || '') : '';
     document.getElementById('docCategory').value = doc ? (doc.primary_category || '') : '';
     var editMeta = doc ? (doc.memory_metadata || {}) : {};
     document.getElementById('docType').value = editMeta.doc_type === 'user' ? 'user' : 'coder';
+    document.getElementById('docModule').value = moduleId || editMeta.module || selectedDocsModule || '';
     document.getElementById('docContent').value = doc ? (doc.content || '') : '';
     document.getElementById('docModalTitle').textContent = doc ? 'Edit Document' : 'New Document';
     document.getElementById('docSubmitBtn').textContent = doc ? 'Save' : 'Create';
@@ -2617,6 +2853,7 @@ window.submitDoc = function() {
     var content = document.getElementById('docContent').value.trim();
     var docType = document.getElementById('docType').value;
     var category = document.getElementById('docCategory').value.trim();
+    var module = document.getElementById('docModule').value.trim();
 
     if (!content) { alert('Content is required'); return; }
     if (!title) {
@@ -2637,7 +2874,8 @@ window.submitDoc = function() {
         title: title,
         content: content,
         doc_type: docType,
-        category: category
+        category: category,
+        module: module
     };
 
     fetch(url, {
@@ -2647,14 +2885,10 @@ window.submitDoc = function() {
     }).then(function(r) { return r.json(); }).then(function(data) {
         if (data.success) {
             closeModal('docModal');
+            // Refresh module list and current view
             loadDocs();
-            if (editId) {
-                selectedDocId = parseInt(editId);
-                loadDocDetail(parseInt(editId));
-            } else if (data.id) {
-                selectedDocId = data.id;
-                // Small delay to let the list reload, then select
-                setTimeout(function() { loadDocDetail(data.id); }, 300);
+            if (selectedDocsModule) {
+                setTimeout(function() { loadModuleDocs(selectedDocsModule, docsActiveSubTab); }, 300);
             }
         } else {
             alert('Error: ' + (data.error || 'Unknown error'));
@@ -2671,13 +2905,10 @@ function deleteDoc(docId) {
         .then(function(data) {
             if (data.success) {
                 selectedDocId = null;
-                var detailPanel = document.getElementById('docsDetailPanel');
-                detailPanel.replaceChildren();
-                var empty = document.createElement('div');
-                empty.className = 'dev-hq-empty';
-                empty.textContent = 'Document deleted';
-                detailPanel.appendChild(empty);
                 loadDocs();
+                if (selectedDocsModule) {
+                    setTimeout(function() { loadModuleDocs(selectedDocsModule, docsActiveSubTab); }, 300);
+                }
             } else {
                 alert('Error: ' + (data.error || 'Unknown error'));
             }
@@ -2717,19 +2948,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     if (knowledgeCategorySelect) {
         knowledgeCategorySelect.addEventListener('change', function() { loadKnowledge(); });
-    }
-
-    // Docs tab event listeners
-    var docsSearchInput = document.getElementById('docsSearch');
-    var docsTypeSelect = document.getElementById('docsTypeFilter');
-    if (docsSearchInput) {
-        docsSearchInput.addEventListener('input', function() {
-            clearTimeout(docsDebounceTimer);
-            docsDebounceTimer = setTimeout(function() { loadDocs(); }, 500);
-        });
-    }
-    if (docsTypeSelect) {
-        docsTypeSelect.addEventListener('change', function() { loadDocs(); });
     }
 
     loadedTabs['overview'] = true;

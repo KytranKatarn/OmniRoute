@@ -625,6 +625,41 @@ def api_claude_config():
 # ---------------------------------------------------------------------------
 
 
+@dev_hq_bp.route("/api/docs/modules")
+@login_required
+@admin_hub_only
+def api_docs_modules():
+    """Return list of modules that have documentation, with doc counts."""
+    with get_db_connection() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur.execute(
+                """
+                SELECT memory_metadata->>'module' as module,
+                       memory_metadata->>'doc_type' as doc_type,
+                       COUNT(*) as count
+                FROM knowledge_base
+                WHERE knowledge_type = 'vault_note'
+                  AND memory_metadata->>'doc_type' IS NOT NULL
+                  AND memory_metadata->>'module' IS NOT NULL
+                GROUP BY 1, 2
+                ORDER BY 1, 2
+            """
+            )
+            rows = cur.fetchall()
+            modules = {}
+            for row in rows:
+                mod = row["module"]
+                if mod not in modules:
+                    modules[mod] = {"coder": 0, "user": 0}
+                modules[mod][row["doc_type"]] = row["count"]
+            return jsonify({"success": True, "modules": modules})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+            cur.close()
+
+
 @dev_hq_bp.route("/api/docs/list")
 @login_required
 @admin_hub_only
@@ -636,6 +671,7 @@ def api_docs_list():
     """
     search = request.args.get("search", "")
     doc_type = request.args.get("doc_type", "")  # 'user' or 'coder'
+    module = request.args.get("module", "")
     limit = min(int(request.args.get("limit", 50)), 200)
     offset = int(request.args.get("offset", 0))
     with get_db_connection() as conn:
@@ -653,6 +689,9 @@ def api_docs_list():
                 where_clauses.append("memory_metadata->>'doc_type' = 'user'")
             elif doc_type == "coder":
                 where_clauses.append("memory_metadata->>'doc_type' = 'coder'")
+            if module:
+                where_clauses.append("memory_metadata->>'module' = %s")
+                params.append(module)
             where_sql = " AND ".join(where_clauses)
 
             cur.execute(
@@ -711,8 +750,12 @@ def api_docs_create():
     content = data["content"]
     doc_type = data.get("doc_type", "coder")  # 'user' or 'coder'
     category = data.get("category", "")
+    module = data.get("module", "")
     importance = 0.95 if doc_type == "coder" else 0.90
-    metadata = json_module.dumps({"doc_type": doc_type})
+    meta_dict = {"doc_type": doc_type}
+    if module:
+        meta_dict["module"] = module
+    metadata = json_module.dumps(meta_dict)
 
     with get_db_connection() as conn:
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -760,10 +803,15 @@ def api_docs_update(doc_id):
             if "category" in data:
                 sets.append("primary_category = %s")
                 params.append(data["category"])
-            if "doc_type" in data:
-                # Merge doc_type into existing memory_metadata
+            if "doc_type" in data or "module" in data:
+                # Merge doc_type/module into existing memory_metadata
+                meta_update = {}
+                if "doc_type" in data:
+                    meta_update["doc_type"] = data["doc_type"]
+                if "module" in data:
+                    meta_update["module"] = data["module"]
                 sets.append("memory_metadata = COALESCE(memory_metadata, '{}'::jsonb) || %s::jsonb")
-                params.append(json_module.dumps({"doc_type": data["doc_type"]}))
+                params.append(json_module.dumps(meta_update))
             if not sets:
                 return jsonify({"success": False, "error": "No valid fields"}), 400
             sets.append("updated_at = NOW()")

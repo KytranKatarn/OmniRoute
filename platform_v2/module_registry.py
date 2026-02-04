@@ -401,24 +401,11 @@ MODULES: List[ModuleDefinition] = [
         version="1.0",
     ),
     # ============================================
-    # AI COMMAND (4 modules)
+    # AI COMMAND (3 modules)
     # ============================================
-    # blueprint, consciousness, team_management, bridge, archie_core
-    ModuleDefinition(
-        id="blueprint",
-        name="Mission Control",
-        description="Unified intelligence & operations center<br>Knowledge • Team • Platform • Governance",
-        icon="drafting-compass",
-        category=ModuleCategory.AI_COMMAND,
-        route="/tools/blueprint",
-        blueprint_import="tools.blueprint.routes:blueprint_bp",
-        required_permissions=["admin:access"],
-        minimum_role="ADMIN",
-        enabled=True,
-        health_check=lambda: default_health_check("blueprint"),
-        priority=1,
-        tags=["documentation", "overview", "blueprint", "ai-command"],
-    ),
+    # consciousness, team_management, bridge, archie_core
+    # NOTE: blueprint (Mission Control) removed from grid 2026-02-04
+    # Blueprint Flask routes still registered manually in app.py for Dev HQ API access
     ModuleDefinition(
         id="bridge",
         name="Bridge Command",

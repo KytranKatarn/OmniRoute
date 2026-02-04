@@ -1,6 +1,6 @@
 """A.R.C.H.I.E. Mission Control Routes - Admin Only"""
 
-from flask import render_template, jsonify, request
+from flask import jsonify, request, redirect, url_for
 from . import blueprint_bp
 import json
 from datetime import datetime
@@ -8,7 +8,7 @@ from psycopg2.extras import RealDictCursor
 
 # Import module registry for module status
 try:
-    from module_registry import get_all_modules, get_enabled_modules, ModuleCategory
+    from module_registry import get_all_modules, get_enabled_modules, ModuleCategory  # noqa: F401
 
     REGISTRY_AVAILABLE = True
 except ImportError:
@@ -30,7 +30,7 @@ try:
         get_roadmap_summary,
         get_sections,
     )
-    from .inventory_scanner import (
+    from .inventory_scanner import (  # noqa: F401
         scan_platform,
         get_current_inventory,
         get_inventory_history,
@@ -38,7 +38,7 @@ try:
         delete_inventory_snapshot,
         scan_and_save,
     )
-    from .cleanup_manager import (
+    from .cleanup_manager import (  # noqa: F401
         scan_for_candidates,
         add_candidates_to_db,
         get_candidates,
@@ -87,8 +87,8 @@ except ImportError as e:
 
 @blueprint_bp.route("/")
 def index():
-    """Main blueprint dashboard"""
-    return render_template("tools/blueprint.html")
+    """Redirect to Dev HQ (Mission Control replaced by Dev HQ)."""
+    return redirect(url_for("dev_hq.index"))
 
 
 @blueprint_bp.route("/api/overview")
@@ -170,7 +170,7 @@ def get_modules():
             try:
                 health = module.health_check()
                 health_status = "healthy" if health.get("healthy") else "unhealthy"
-            except:
+            except Exception:
                 health_status = "error"
 
         categories[cat_name]["modules"].append(
@@ -1433,11 +1433,11 @@ def get_git_activity():
         # Check if git poller is running
         poller_status = "unknown"
         try:
-            from git_commit_poller import GitCommitPoller
+            from git_commit_poller import GitCommitPoller  # noqa: F401
 
             # Can't easily check if running without a reference
             poller_status = "available"
-        except:
+        except Exception:
             poller_status = "not_imported"
 
         return jsonify(
@@ -1495,7 +1495,7 @@ def initialize_git_tracking():
     try:
         # Note: Poller should be started by app.py on startup, not here
         # But we can check status
-        from git_commit_poller import GitCommitPoller
+        from git_commit_poller import GitCommitPoller  # noqa: F401
 
         results["poller"] = {"success": True, "message": "GitCommitPoller class available. Start via app.py"}
     except Exception as e:

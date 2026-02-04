@@ -4365,6 +4365,31 @@ def api_stacks_status():
 
 
 # ============================================================================
+# FULL SYSTEM HEALTH (moved from Blueprint/Mission Control 2026-02-04)
+# ============================================================================
+
+try:
+    from tools.blueprint.blueprint_intelligence import get_system_health
+
+    BLUEPRINT_HEALTH_AVAILABLE = True
+except ImportError:
+    BLUEPRINT_HEALTH_AVAILABLE = False
+
+
+@system_operations_bp.route("/api/system-health-full")
+@login_required
+def api_system_health_full():
+    """Full system health check (moved from Blueprint/Mission Control)."""
+    if not BLUEPRINT_HEALTH_AVAILABLE:
+        return jsonify({"error": "Health check not available"}), 500
+    try:
+        health = get_system_health()
+        return jsonify(health)
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
 # HEALTH CHECK
 # ============================================================================
 

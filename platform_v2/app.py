@@ -988,6 +988,12 @@ from tools.dev_hq import dev_hq_bp  # noqa: E402
 
 app.register_blueprint(dev_hq_bp)
 
+# Blueprint API routes still needed for Dev HQ (schema, docs, intelligence endpoints)
+# Removed from module_registry 2026-02-04 but Flask routes must remain active
+from tools.blueprint import blueprint_bp  # noqa: E402
+
+app.register_blueprint(blueprint_bp)
+
 # NOTE: System Operations (Phase 78) loaded via module_registry
 
 # NOTE: Business module now loaded via module_registry (business_directory module)

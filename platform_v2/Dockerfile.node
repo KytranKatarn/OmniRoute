@@ -1,0 +1,34 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# System deps (no Docker CLI needed for nodes)
+RUN apt-get update && apt-get install -y \
+    gcc \
+    postgresql-client \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy and install slim requirements
+COPY platform_v2/requirements.node.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy database schema and migrations for bootstrap
+COPY database/schema/ /app/db_init/schema/
+COPY database/migrations/ /app/db_init/migrations/
+
+# Copy entrypoint
+COPY platform_v2/entrypoint.node.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+# Copy application code
+COPY platform_v2/ /app/
+
+# Create templates directory
+RUN mkdir -p templates
+
+EXPOSE 3000
+
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["gunicorn", "--bind", "0.0.0.0:3000", "--workers", "2", "--timeout", "300", "app:app"]

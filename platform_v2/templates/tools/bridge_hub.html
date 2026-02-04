@@ -1,73 +1,81 @@
 {% extends "base.html" %}
 
-{% block module_name %}Hub Bridge Command{% endblock %}
+{% block extra_head %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+{% endblock %}
+
+{% block module_name %}Bridge Node{% endblock %}
 
 {% block content %}
 {% include "includes/admin_ops_nav.html" %}
 
 <style>
 /* ============================================================================
-   HUB BRIDGE COMMAND - Mesh Orchestrator View
-   Dark mode default, light mode via body.light-mode
+   BRIDGE NODE - Connected Node Dashboard (Business Node View)
    ============================================================================ */
-
-/* --- Variables --- */
 :root {
-    --hub-bg: #000000;
-    --hub-surface: #0a0a0f;
-    --hub-border: #1a1a2e;
-    --hub-amber: #FFAA00;
-    --hub-green: #00FF41;
-    --hub-red: #ff4444;
-    --hub-text: #c9d1d9;
-    --hub-muted: #6e7681;
-    --hub-font-display: 'Orbitron', sans-serif;
-    --hub-font-mono: 'JetBrains Mono', monospace;
+    --node-bg: #000000;
+    --node-surface: #0a0a0f;
+    --node-border: #1a1a2e;
+    --node-cyan: #00FFFF;
+    --node-green: #00FF41;
+    --node-amber: #FFAA00;
+    --node-red: #ff4444;
+    --node-text: #c9d1d9;
+    --node-muted: #6e7681;
 }
 
-/* --- Main Container --- */
-.hub-container {
+.node-dashboard {
     min-height: 100vh;
-    background: var(--hub-bg);
-    font-family: var(--hub-font-mono);
-    color: var(--hub-text);
+    background: var(--node-bg);
+    font-family: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+    color: var(--node-text);
     padding: 0 24px 48px;
-    max-width: 1400px;
+    max-width: 900px;
     margin: 0 auto;
 }
 
-/* --- Header --- */
-.hub-header {
+/* Header */
+.node-dash-header {
     text-align: center;
     padding: 32px 0 24px;
-    border-bottom: 1px solid var(--hub-border);
+    border-bottom: 1px solid var(--node-border);
     margin-bottom: 32px;
 }
 
-.hub-header-title {
-    font-family: var(--hub-font-display);
-    font-size: 1.6rem;
+.node-dash-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.4rem;
     font-weight: 800;
     letter-spacing: 0.15em;
-    color: var(--hub-amber);
-    text-shadow: 0 0 20px rgba(255, 170, 0, 0.3);
+    color: var(--node-cyan);
+    text-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
     margin: 0 0 8px;
 }
 
-.hub-header-badge {
+.node-dash-badge {
     display: inline-block;
-    font-family: var(--hub-font-mono);
     font-size: 0.65rem;
     letter-spacing: 0.2em;
-    color: var(--hub-green);
-    border: 1px solid rgba(0, 255, 65, 0.3);
     padding: 4px 14px;
     border-radius: 20px;
     text-transform: uppercase;
     margin-bottom: 16px;
 }
 
-.hub-stat-chips {
+.node-dash-badge.connected {
+    color: var(--node-green);
+    border: 1px solid rgba(0, 255, 65, 0.3);
+}
+
+.node-dash-badge.disconnected {
+    color: var(--node-red);
+    border: 1px solid rgba(255, 68, 68, 0.3);
+}
+
+.node-stat-chips {
     display: flex;
     justify-content: center;
     gap: 16px;
@@ -75,510 +83,241 @@
     margin-top: 12px;
 }
 
-.hub-stat-chip {
+.node-stat-chip {
     display: flex;
     align-items: center;
     gap: 6px;
     font-size: 0.72rem;
-    color: var(--hub-muted);
+    color: var(--node-muted);
     padding: 4px 12px;
-    border: 1px solid var(--hub-border);
+    border: 1px solid var(--node-border);
     border-radius: 6px;
-    background: var(--hub-surface);
+    background: var(--node-surface);
 }
 
-.hub-stat-chip .chip-value {
-    color: var(--hub-amber);
+.node-stat-chip .chip-val {
+    color: var(--node-cyan);
     font-weight: 600;
 }
 
-/* --- Section --- */
-.hub-section {
-    border: 1px solid var(--hub-border);
+/* Sections */
+.node-section {
+    border: 1px solid var(--node-border);
     border-radius: 8px;
-    background: var(--hub-surface);
+    background: var(--node-surface);
     margin-bottom: 24px;
     overflow: hidden;
 }
 
-.hub-section-header {
+.node-section-header {
     display: flex;
     align-items: center;
     gap: 10px;
     padding: 14px 20px;
-    border-bottom: 1px solid var(--hub-border);
-    font-family: var(--hub-font-display);
+    border-bottom: 1px solid var(--node-border);
+    font-family: 'Orbitron', sans-serif;
     font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 0.12em;
-    color: var(--hub-amber);
+    color: var(--node-cyan);
     text-transform: uppercase;
 }
 
-.hub-section-header i {
+.node-section-header i {
     width: 18px;
     height: 18px;
     opacity: 0.8;
 }
 
-.hub-section-body {
+.node-section-body {
     padding: 20px;
 }
 
-/* --- Node Card Grid --- */
-.hub-node-grid {
+/* Info rows */
+.node-info-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-    gap: 16px;
+    grid-template-columns: 140px 1fr;
+    gap: 10px 16px;
+    font-size: 0.78rem;
 }
 
-.hub-node-card {
-    border: 1px solid var(--hub-border);
-    border-radius: 8px;
-    padding: 16px;
-    background: rgba(255, 255, 255, 0.02);
-    transition: border-color 0.2s ease;
+.node-info-label {
+    color: var(--node-muted);
+    text-transform: uppercase;
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    padding-top: 2px;
 }
 
-.hub-node-card:hover {
-    border-color: rgba(255, 170, 0, 0.3);
+.node-info-value {
+    color: var(--node-text);
+    word-break: break-all;
 }
 
-.hub-node-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 12px;
+.node-info-value.highlight {
+    color: var(--node-cyan);
+    font-weight: 500;
 }
 
-.hub-node-name {
+/* Status indicator */
+.node-conn-indicator {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-family: var(--hub-font-display);
-    font-size: 0.78rem;
-    font-weight: 600;
-    letter-spacing: 0.05em;
-    color: var(--hub-text);
 }
 
-.hub-status-dot {
-    width: 8px;
-    height: 8px;
+.node-conn-dot {
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
     flex-shrink: 0;
 }
 
-.hub-status-dot.online {
-    background: var(--hub-green);
-    box-shadow: 0 0 6px var(--hub-green);
+.node-conn-dot.online {
+    background: var(--node-green);
+    box-shadow: 0 0 8px var(--node-green);
+    animation: pulse-dot 2s infinite;
 }
 
-.hub-status-dot.offline {
-    background: var(--hub-red);
-    box-shadow: 0 0 6px var(--hub-red);
+.node-conn-dot.offline {
+    background: var(--node-red);
+    box-shadow: 0 0 8px var(--node-red);
 }
 
-.hub-status-dot.degraded {
-    background: var(--hub-amber);
-    box-shadow: 0 0 6px var(--hub-amber);
+@keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
 }
 
-.hub-node-org {
-    font-size: 0.6rem;
-    letter-spacing: 0.1em;
-    color: var(--hub-muted);
-    border: 1px solid var(--hub-border);
-    padding: 2px 8px;
-    border-radius: 4px;
-    text-transform: uppercase;
-}
-
-.hub-node-meta {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 6px 16px;
-    font-size: 0.7rem;
-    margin-bottom: 12px;
-}
-
-.hub-node-meta-item {
+/* Model list */
+.node-model-list {
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
+    gap: 6px;
 }
 
-.hub-node-meta-label {
-    color: var(--hub-muted);
-}
-
-.hub-node-meta-value {
-    color: var(--hub-text);
-    font-weight: 500;
-}
-
-.hub-load-bar-wrapper {
-    height: 4px;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 2px;
-    overflow: hidden;
-}
-
-.hub-load-bar {
-    height: 100%;
-    border-radius: 2px;
-    transition: width 0.5s ease;
-    background: var(--hub-green);
-}
-
-.hub-load-bar.medium {
-    background: var(--hub-amber);
-}
-
-.hub-load-bar.high {
-    background: var(--hub-red);
-}
-
-/* --- Agent Loans Table --- */
-.hub-loans-list {
-    width: 100%;
-    font-size: 0.72rem;
-}
-
-.hub-loan-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr 2fr 100px;
-    gap: 12px;
-    padding: 10px 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-    align-items: center;
-}
-
-.hub-loan-row:last-child {
-    border-bottom: none;
-}
-
-.hub-loan-flow {
-    color: var(--hub-amber);
-    font-weight: 500;
-}
-
-.hub-loan-task {
-    color: var(--hub-text);
-}
-
-.hub-loan-status {
-    font-size: 0.65rem;
-    padding: 2px 8px;
-    border-radius: 4px;
-    text-align: center;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-.hub-loan-status.active {
-    color: var(--hub-green);
-    background: rgba(0, 255, 65, 0.1);
-    border: 1px solid rgba(0, 255, 65, 0.2);
-}
-
-.hub-loan-status.pending {
-    color: var(--hub-amber);
-    background: rgba(255, 170, 0, 0.1);
-    border: 1px solid rgba(255, 170, 0, 0.2);
-}
-
-.hub-loan-status.completed {
-    color: var(--hub-muted);
-    background: rgba(110, 118, 129, 0.1);
-    border: 1px solid rgba(110, 118, 129, 0.2);
-}
-
-.hub-loan-status.rejected {
-    color: var(--hub-red);
-    background: rgba(255, 68, 68, 0.1);
-    border: 1px solid rgba(255, 68, 68, 0.2);
-}
-
-/* --- Learning Feed --- */
-.hub-learning-item {
-    padding: 12px 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-    font-size: 0.72rem;
-}
-
-.hub-learning-item:last-child {
-    border-bottom: none;
-}
-
-.hub-learning-header {
+.node-model-item {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 4px;
-}
-
-.hub-learning-type {
-    font-size: 0.6rem;
-    letter-spacing: 0.1em;
-    color: var(--hub-amber);
-    text-transform: uppercase;
-    font-weight: 600;
-}
-
-.hub-learning-source {
-    font-size: 0.6rem;
-    color: var(--hub-muted);
-}
-
-.hub-learning-text {
-    color: var(--hub-text);
-    line-height: 1.5;
-}
-
-/* --- Empty State --- */
-.hub-empty {
-    text-align: center;
-    padding: 32px 20px;
-    color: var(--hub-muted);
+    padding: 6px 10px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--node-border);
+    border-radius: 6px;
     font-size: 0.75rem;
-    letter-spacing: 0.05em;
 }
 
-.hub-empty i {
-    width: 32px;
-    height: 32px;
-    opacity: 0.4;
-    margin-bottom: 12px;
+.node-model-item .model-name {
+    color: var(--node-cyan);
+    font-weight: 500;
 }
 
-/* --- Loading --- */
-.hub-loading {
+.node-model-item .model-size {
+    margin-left: auto;
+    color: var(--node-muted);
+    font-size: 0.68rem;
+}
+
+.node-empty {
     text-align: center;
     padding: 24px;
-    color: var(--hub-muted);
-    font-size: 0.72rem;
-    letter-spacing: 0.08em;
+    color: var(--node-muted);
+    font-size: 0.78rem;
+    font-style: italic;
 }
 
-/* ============================================================================
-   LIGHT MODE
-   ============================================================================ */
-body.light-mode .hub-container {
-    background: #f8f9fa;
-    color: #1a1a2e;
-}
-
-body.light-mode .hub-header {
-    border-bottom-color: rgba(204, 102, 0, 0.2);
-}
-
-body.light-mode .hub-header-title {
-    color: #cc6600;
-    text-shadow: none;
-}
-
-body.light-mode .hub-header-badge {
-    color: #00aa33;
-    border-color: rgba(0, 170, 51, 0.3);
-}
-
-body.light-mode .hub-stat-chip {
-    background: #ffffff;
-    border-color: rgba(204, 102, 0, 0.15);
-    color: #555;
-}
-
-body.light-mode .hub-stat-chip .chip-value {
-    color: #cc6600;
-}
-
-body.light-mode .hub-section {
-    background: #ffffff;
-    border-color: rgba(204, 102, 0, 0.15);
-}
-
-body.light-mode .hub-section-header {
-    border-bottom-color: rgba(204, 102, 0, 0.1);
-    color: #cc6600;
-}
-
-body.light-mode .hub-node-card {
-    border-color: rgba(204, 102, 0, 0.12);
-    background: rgba(204, 102, 0, 0.02);
-}
-
-body.light-mode .hub-node-card:hover {
-    border-color: rgba(204, 102, 0, 0.3);
-}
-
-body.light-mode .hub-node-name {
-    color: #1a1a2e;
-}
-
-body.light-mode .hub-status-dot.online {
-    background: #00aa33;
-    box-shadow: 0 0 6px #00aa33;
-}
-
-body.light-mode .hub-status-dot.degraded {
-    background: #cc6600;
-    box-shadow: 0 0 6px #cc6600;
-}
-
-body.light-mode .hub-node-org {
-    color: #777;
-    border-color: rgba(204, 102, 0, 0.15);
-}
-
-body.light-mode .hub-node-meta-label {
-    color: #888;
-}
-
-body.light-mode .hub-node-meta-value {
-    color: #333;
-}
-
-body.light-mode .hub-load-bar-wrapper {
-    background: rgba(0, 0, 0, 0.06);
-}
-
-body.light-mode .hub-load-bar {
-    background: #00aa33;
-}
-
-body.light-mode .hub-load-bar.medium {
-    background: #cc6600;
-}
-
-body.light-mode .hub-loan-flow {
-    color: #cc6600;
-}
-
-body.light-mode .hub-loan-task {
-    color: #333;
-}
-
-body.light-mode .hub-loan-status.active {
-    color: #00aa33;
-    background: rgba(0, 170, 51, 0.08);
-    border-color: rgba(0, 170, 51, 0.2);
-}
-
-body.light-mode .hub-loan-status.pending {
-    color: #cc6600;
-    background: rgba(204, 102, 0, 0.08);
-    border-color: rgba(204, 102, 0, 0.2);
-}
-
-body.light-mode .hub-learning-type {
-    color: #cc6600;
-}
-
-body.light-mode .hub-learning-source {
-    color: #888;
-}
-
-body.light-mode .hub-learning-text {
-    color: #333;
-}
-
-body.light-mode .hub-empty {
-    color: #999;
-}
-
-body.light-mode .hub-loading {
-    color: #999;
-}
-
-body.light-mode .hub-loan-row {
-    border-bottom-color: rgba(0, 0, 0, 0.06);
-}
-
-body.light-mode .hub-learning-item {
-    border-bottom-color: rgba(0, 0, 0, 0.06);
-}
-
-body.light-mode .hub-node-meta {
-    color: #555;
-}
+/* Light mode overrides */
+body.light-mode .node-dashboard { background: #f8f9fa; color: #1a1a2e; }
+body.light-mode .node-dash-title { color: #0088aa; text-shadow: none; }
+body.light-mode .node-dash-badge.connected { color: #00aa33; border-color: rgba(0,170,51,0.3); }
+body.light-mode .node-stat-chip { background: #fff; border-color: #ddd; color: #555; }
+body.light-mode .node-stat-chip .chip-val { color: #0088aa; }
+body.light-mode .node-section { background: #fff; border-color: #ddd; }
+body.light-mode .node-section-header { color: #0088aa; border-bottom-color: #eee; }
+body.light-mode .node-info-label { color: #888; }
+body.light-mode .node-info-value { color: #333; }
+body.light-mode .node-info-value.highlight { color: #0088aa; }
+body.light-mode .node-model-item { background: #f5f5f5; border-color: #ddd; }
+body.light-mode .node-model-item .model-name { color: #0088aa; }
+body.light-mode .node-empty { color: #999; }
 </style>
 
-<div class="hub-container">
+<div class="node-dashboard">
 
-    <!-- ═══ HEADER ═══ -->
-    <div class="hub-header">
-        <h1 class="hub-header-title">HUB BRIDGE COMMAND</h1>
-        <div class="hub-header-badge">MESH ORCHESTRATOR</div>
-        <div class="hub-stat-chips" id="hubStatChips">
-            <div class="hub-stat-chip">
-                <i data-lucide="server" style="width:14px;height:14px;"></i>
-                NODES <span class="chip-value" id="chipNodes">--</span>
+    <!-- Header -->
+    <div class="node-dash-header">
+        <h1 class="node-dash-title">BRIDGE NODE</h1>
+        <div class="node-dash-badge connected" id="connBadge">CONNECTED TO HUB</div>
+        <div class="node-stat-chips">
+            <div class="node-stat-chip">
+                <i data-lucide="radio" style="width:14px;height:14px;"></i>
+                HUB <span class="chip-val" id="chipHubStatus">--</span>
             </div>
-            <div class="hub-stat-chip">
-                <i data-lucide="wifi" style="width:14px;height:14px;"></i>
-                ONLINE <span class="chip-value" id="chipOnline">--</span>
+            <div class="node-stat-chip">
+                <i data-lucide="heart-pulse" style="width:14px;height:14px;"></i>
+                HEARTBEAT <span class="chip-val" id="chipHeartbeat">--</span>
             </div>
-            <div class="hub-stat-chip">
+            <div class="node-stat-chip">
                 <i data-lucide="brain" style="width:14px;height:14px;"></i>
-                MODELS <span class="chip-value" id="chipModels">--</span>
-            </div>
-            <div class="hub-stat-chip">
-                <i data-lucide="gauge" style="width:14px;height:14px;"></i>
-                LOAD <span class="chip-value" id="chipLoad">--</span>
+                MODELS <span class="chip-val" id="chipModelCount">--</span>
             </div>
         </div>
     </div>
 
-    <!-- ═══ CLUSTER MAP ═══ -->
-    <div class="hub-section">
-        <div class="hub-section-header">
-            <i data-lucide="layout-grid"></i>
-            CLUSTER MAP
+    <!-- Hub Connection -->
+    <div class="node-section">
+        <div class="node-section-header">
+            <i data-lucide="link"></i>
+            HUB CONNECTION
         </div>
-        <div class="hub-section-body">
-            <div class="hub-node-grid" id="hubNodeGrid">
-                <div class="hub-loading">Loading cluster nodes...</div>
+        <div class="node-section-body">
+            <div class="node-info-grid">
+                <span class="node-info-label">Hub URL</span>
+                <span class="node-info-value highlight" id="infoHubUrl">{{ hub_url or '--' }}</span>
+
+                <span class="node-info-label">Node ID</span>
+                <span class="node-info-value" id="infoNodeId">{{ node_id or '--' }}</span>
+
+                <span class="node-info-label">Last Heartbeat</span>
+                <span class="node-info-value" id="infoHeartbeat">--</span>
+
+                <span class="node-info-label">Connection</span>
+                <span class="node-info-value">
+                    <div class="node-conn-indicator">
+                        <span class="node-conn-dot" id="connDot"></span>
+                        <span id="connText">Checking...</span>
+                    </div>
+                </span>
             </div>
         </div>
     </div>
 
-    <!-- ═══ AGENT MESH POOL ═══ -->
-    <div class="hub-section">
-        <div class="hub-section-header">
-            <i data-lucide="arrow-left-right"></i>
-            AGENT MESH POOL
+    <!-- Local System -->
+    <div class="node-section">
+        <div class="node-section-header">
+            <i data-lucide="cpu"></i>
+            LOCAL SYSTEM
         </div>
-        <div class="hub-section-body">
-            <div id="hubLoansContainer">
-                <div class="hub-loading">Loading agent loans...</div>
+        <div class="node-section-body">
+            <div class="node-model-list" id="modelList">
+                <div class="node-empty">Checking local models...</div>
             </div>
         </div>
     </div>
 
-    <!-- ═══ CODE VERSIONS ═══ -->
-    <div class="hub-section">
-        <div class="hub-section-header">
-            <i data-lucide="git-branch"></i>
-            CODE VERSIONS
+    <!-- Sync Status -->
+    <div class="node-section">
+        <div class="node-section-header">
+            <i data-lucide="refresh-cw"></i>
+            SYNC STATUS
         </div>
-        <div class="hub-section-body">
-            <div class="hub-empty">
-                <i data-lucide="package"></i>
-                <div>Code version tracking not yet implemented.</div>
-                <div style="margin-top:4px;font-size:0.65rem;">Coming in a future update.</div>
-            </div>
-        </div>
-    </div>
+        <div class="node-section-body">
+            <div class="node-info-grid">
+                <span class="node-info-label">Status</span>
+                <span class="node-info-value" id="syncStatus">Idle</span>
 
-    <!-- ═══ LEARNING PATTERNS ═══ -->
-    <div class="hub-section">
-        <div class="hub-section-header">
-            <i data-lucide="lightbulb"></i>
-            LEARNING PATTERNS
-        </div>
-        <div class="hub-section-body">
-            <div id="hubLearningsContainer">
-                <div class="hub-loading">Loading learning patterns...</div>
+                <span class="node-info-label">Last Sync</span>
+                <span class="node-info-value" id="syncLast">--</span>
             </div>
         </div>
     </div>
@@ -589,307 +328,150 @@ body.light-mode .hub-node-meta {
 (function() {
     'use strict';
 
-    // ── Helpers ──
+    var hubUrl = '{{ hub_url or "" }}';
+    var nodeId = '{{ node_id or "" }}';
 
     function setText(el, text) {
-        el.textContent = (text !== null && text !== undefined) ? String(text) : '--';
+        if (el) el.textContent = (text !== null && text !== undefined) ? String(text) : '--';
     }
 
     function formatAge(isoStr) {
         if (!isoStr) return '--';
-        var then = new Date(isoStr);
-        var diffSec = Math.floor((Date.now() - then.getTime()) / 1000);
-        if (diffSec < 60) return diffSec + 's ago';
-        if (diffSec < 3600) return Math.floor(diffSec / 60) + 'm ago';
-        if (diffSec < 86400) return Math.floor(diffSec / 3600) + 'h ago';
-        return Math.floor(diffSec / 86400) + 'd ago';
+        var diff = Math.floor((Date.now() - new Date(isoStr).getTime()) / 1000);
+        if (diff < 60) return diff + 's ago';
+        if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+        if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+        return Math.floor(diff / 86400) + 'd ago';
     }
 
-    function statusClass(status) {
-        if (!status) return 'offline';
-        var s = String(status).toLowerCase();
-        if (s === 'online' || s === 'active') return 'online';
-        if (s === 'degraded') return 'degraded';
-        return 'offline';
-    }
+    // Check hub connectivity
+    function checkHubConnection() {
+        var dot = document.getElementById('connDot');
+        var text = document.getElementById('connText');
+        var badge = document.getElementById('connBadge');
+        var chipStatus = document.getElementById('chipHubStatus');
 
-    function loadBarClass(pct) {
-        if (pct > 80) return 'high';
-        if (pct > 50) return 'medium';
-        return '';
-    }
-
-    // ── Fetch wrapper ──
-
-    function apiFetch(url) {
-        return fetch(url, { credentials: 'same-origin' })
-            .then(function(r) { return r.json(); });
-    }
-
-    // ── Render Cluster Map ──
-
-    function renderNodes(nodes) {
-        var grid = document.getElementById('hubNodeGrid');
-        // Clear children safely
-        while (grid.firstChild) {
-            grid.removeChild(grid.firstChild);
-        }
-
-        if (!nodes || nodes.length === 0) {
-            var empty = document.createElement('div');
-            empty.className = 'hub-empty';
-            setText(empty, 'No cluster nodes found.');
-            grid.appendChild(empty);
+        if (!hubUrl) {
+            if (dot) dot.className = 'node-conn-dot offline';
+            setText(text, 'No HUB_URL configured');
+            if (badge) { badge.className = 'node-dash-badge disconnected'; badge.textContent = 'NOT CONNECTED'; }
+            setText(chipStatus, 'N/A');
             return;
         }
 
-        // Compute stats
-        var totalOnline = 0;
-        var modelSet = {};
-        var totalLoad = 0;
-
-        nodes.forEach(function(node) {
-            var st = statusClass(node.status);
-            if (st === 'online') totalOnline++;
-
-            // Count unique models
-            if (node.capabilities && node.capabilities.models) {
-                var models = node.capabilities.models;
-                if (Array.isArray(models)) {
-                    models.forEach(function(m) { modelSet[m] = true; });
-                }
-            }
-
-            // Average load from capabilities
-            if (node.capabilities) {
-                var cpu = parseFloat(node.capabilities.cpu_usage) || 0;
-                totalLoad += cpu;
-            }
-        });
-
-        var avgLoad = nodes.length > 0 ? Math.round(totalLoad / nodes.length) : 0;
-
-        setText(document.getElementById('chipNodes'), String(nodes.length));
-        setText(document.getElementById('chipOnline'), String(totalOnline));
-        setText(document.getElementById('chipModels'), String(Object.keys(modelSet).length));
-        setText(document.getElementById('chipLoad'), avgLoad + '%');
-
-        // Render each node card
-        nodes.forEach(function(node) {
-            var card = document.createElement('div');
-            card.className = 'hub-node-card';
-
-            // Top row: name + status dot + org badge
-            var top = document.createElement('div');
-            top.className = 'hub-node-top';
-
-            var nameWrap = document.createElement('div');
-            nameWrap.className = 'hub-node-name';
-
-            var dot = document.createElement('span');
-            dot.className = 'hub-status-dot ' + statusClass(node.status);
-            nameWrap.appendChild(dot);
-
-            var nameText = document.createElement('span');
-            setText(nameText, node.node_name || node.name || 'Unknown');
-            nameWrap.appendChild(nameText);
-
-            top.appendChild(nameWrap);
-
-            if (node.org_id || node.org_name) {
-                var orgBadge = document.createElement('span');
-                orgBadge.className = 'hub-node-org';
-                setText(orgBadge, node.org_name || node.org_id || '');
-                top.appendChild(orgBadge);
-            }
-
-            card.appendChild(top);
-
-            // Meta grid
-            var meta = document.createElement('div');
-            meta.className = 'hub-node-meta';
-
-            var caps = node.capabilities || {};
-
-            var fields = [
-                ['IP', node.ip_address || '--'],
-                ['GPU', caps.gpu || '--'],
-                ['VRAM', caps.vram || '--'],
-                ['CPU', caps.cpu_cores ? caps.cpu_cores + ' cores' : '--'],
-                ['RAM', caps.ram || '--'],
-                ['Heartbeat', formatAge(node.last_heartbeat)]
-            ];
-
-            fields.forEach(function(f) {
-                var item = document.createElement('div');
-                item.className = 'hub-node-meta-item';
-
-                var label = document.createElement('span');
-                label.className = 'hub-node-meta-label';
-                setText(label, f[0]);
-                item.appendChild(label);
-
-                var val = document.createElement('span');
-                val.className = 'hub-node-meta-value';
-                setText(val, f[1]);
-                item.appendChild(val);
-
-                meta.appendChild(item);
+        fetch('/tools/bridge/api/nodes?active=true', { credentials: 'same-origin' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (dot) dot.className = 'node-conn-dot online';
+                setText(text, 'Connected');
+                if (badge) { badge.className = 'node-dash-badge connected'; badge.textContent = 'CONNECTED TO HUB'; }
+                setText(chipStatus, 'Online');
+            })
+            .catch(function() {
+                if (dot) dot.className = 'node-conn-dot offline';
+                setText(text, 'Connection failed');
+                if (badge) { badge.className = 'node-dash-badge disconnected'; badge.textContent = 'DISCONNECTED'; }
+                setText(chipStatus, 'Offline');
             });
-
-            card.appendChild(meta);
-
-            // Load bar
-            var loadPct = parseFloat(caps.cpu_usage) || 0;
-            var barWrap = document.createElement('div');
-            barWrap.className = 'hub-load-bar-wrapper';
-
-            var bar = document.createElement('div');
-            bar.className = 'hub-load-bar ' + loadBarClass(loadPct);
-            bar.style.width = Math.min(loadPct, 100) + '%';
-            barWrap.appendChild(bar);
-
-            card.appendChild(barWrap);
-
-            grid.appendChild(card);
-        });
     }
 
-    // ── Render Agent Loans ──
+    // Load local Ollama models
+    function loadLocalModels() {
+        var list = document.getElementById('modelList');
+        var chipCount = document.getElementById('chipModelCount');
 
-    function renderLoans(loans) {
-        var container = document.getElementById('hubLoansContainer');
-        while (container.firstChild) {
-            container.removeChild(container.firstChild);
-        }
+        fetch('/tools/bridge/api/models', { credentials: 'same-origin' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var models = data.models || data.data || [];
+                if (!Array.isArray(models)) models = [];
 
-        if (!loans || loans.length === 0) {
-            var empty = document.createElement('div');
-            empty.className = 'hub-empty';
-            setText(empty, 'No active agent loans.');
-            container.appendChild(empty);
+                setText(chipCount, String(models.length));
+
+                while (list.firstChild) list.removeChild(list.firstChild);
+
+                if (models.length === 0) {
+                    var empty = document.createElement('div');
+                    empty.className = 'node-empty';
+                    empty.textContent = 'No local models detected';
+                    list.appendChild(empty);
+                    return;
+                }
+
+                models.forEach(function(m) {
+                    var item = document.createElement('div');
+                    item.className = 'node-model-item';
+
+                    var name = document.createElement('span');
+                    name.className = 'model-name';
+                    name.textContent = m.name || m.model || '--';
+                    item.appendChild(name);
+
+                    if (m.size || m.parameter_size) {
+                        var size = document.createElement('span');
+                        size.className = 'model-size';
+                        size.textContent = m.parameter_size || m.size || '';
+                        item.appendChild(size);
+                    }
+
+                    list.appendChild(item);
+                });
+            })
+            .catch(function() {
+                setText(chipCount, '?');
+                while (list.firstChild) list.removeChild(list.firstChild);
+                var err = document.createElement('div');
+                err.className = 'node-empty';
+                err.textContent = 'Could not load models';
+                list.appendChild(err);
+            });
+    }
+
+    // Load heartbeat info
+    function loadHeartbeat() {
+        var chipHb = document.getElementById('chipHeartbeat');
+        var infoHb = document.getElementById('infoHeartbeat');
+
+        if (!nodeId) {
+            setText(chipHb, 'N/A');
+            setText(infoHb, 'No NODE_ID configured');
             return;
         }
 
-        var list = document.createElement('div');
-        list.className = 'hub-loans-list';
+        fetch('/tools/bridge/api/nodes?active=true', { credentials: 'same-origin' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var nodes = data.nodes || data.data || [];
+                if (!Array.isArray(nodes)) nodes = [];
 
-        loans.forEach(function(loan) {
-            var row = document.createElement('div');
-            row.className = 'hub-loan-row';
+                var self = null;
+                for (var i = 0; i < nodes.length; i++) {
+                    if (nodes[i].node_id === nodeId || nodes[i].id === nodeId) {
+                        self = nodes[i];
+                        break;
+                    }
+                }
 
-            var flow = document.createElement('span');
-            flow.className = 'hub-loan-flow';
-            setText(flow, (loan.source_node || '?') + ' \u2192 ' + (loan.target_node || '?'));
-            row.appendChild(flow);
-
-            var agent = document.createElement('span');
-            setText(agent, loan.agent_name || loan.agent_id || '--');
-            row.appendChild(agent);
-
-            var task = document.createElement('span');
-            task.className = 'hub-loan-task';
-            setText(task, loan.task || loan.reason || '--');
-            row.appendChild(task);
-
-            var statusBadge = document.createElement('span');
-            var loanStatus = String(loan.status || 'pending').toLowerCase();
-            statusBadge.className = 'hub-loan-status ' + loanStatus;
-            setText(statusBadge, loanStatus);
-            row.appendChild(statusBadge);
-
-            list.appendChild(row);
-        });
-
-        container.appendChild(list);
+                if (self && self.last_heartbeat) {
+                    var age = formatAge(self.last_heartbeat);
+                    setText(chipHb, age);
+                    setText(infoHb, age);
+                } else {
+                    setText(chipHb, '--');
+                    setText(infoHb, 'No heartbeat data');
+                }
+            })
+            .catch(function() {
+                setText(chipHb, '?');
+                setText(infoHb, 'Error fetching heartbeat');
+            });
     }
-
-    // ── Render Learning Patterns ──
-
-    function renderLearnings(learnings) {
-        var container = document.getElementById('hubLearningsContainer');
-        while (container.firstChild) {
-            container.removeChild(container.firstChild);
-        }
-
-        if (!learnings || learnings.length === 0) {
-            var empty = document.createElement('div');
-            empty.className = 'hub-empty';
-            setText(empty, 'No learning patterns shared yet.');
-            container.appendChild(empty);
-            return;
-        }
-
-        learnings.forEach(function(item) {
-            var el = document.createElement('div');
-            el.className = 'hub-learning-item';
-
-            var header = document.createElement('div');
-            header.className = 'hub-learning-header';
-
-            var typeBadge = document.createElement('span');
-            typeBadge.className = 'hub-learning-type';
-            setText(typeBadge, item.pattern_type || item.type || 'insight');
-            header.appendChild(typeBadge);
-
-            var source = document.createElement('span');
-            source.className = 'hub-learning-source';
-            var srcText = item.source_node || item.node_name || '';
-            if (item.created_at) {
-                srcText += (srcText ? ' \u00B7 ' : '') + formatAge(item.created_at);
-            }
-            setText(source, srcText);
-            header.appendChild(source);
-
-            el.appendChild(header);
-
-            var text = document.createElement('div');
-            text.className = 'hub-learning-text';
-            setText(text, item.description || item.pattern || item.content || '--');
-            el.appendChild(text);
-
-            container.appendChild(el);
-        });
-    }
-
-    // ── Data Loading ──
 
     function loadAll() {
-        // Load nodes
-        apiFetch('/tools/bridge/api/nodes?active=true&approval=approved')
-            .then(function(data) {
-                var nodes = data.nodes || data.data || data || [];
-                if (!Array.isArray(nodes)) nodes = [];
-                renderNodes(nodes);
-            })
-            .catch(function() {
-                renderNodes([]);
-            });
-
-        // Load agent loans
-        apiFetch('/tools/bridge/api/mesh/agents/loans?status=all')
-            .then(function(data) {
-                var loans = data.loans || data.data || data || [];
-                if (!Array.isArray(loans)) loans = [];
-                renderLoans(loans);
-            })
-            .catch(function() {
-                renderLoans([]);
-            });
-
-        // Load learning patterns
-        apiFetch('/tools/bridge/api/mesh/learning?limit=20')
-            .then(function(data) {
-                var learnings = data.patterns || data.learnings || data.data || data || [];
-                if (!Array.isArray(learnings)) learnings = [];
-                renderLearnings(learnings);
-            })
-            .catch(function() {
-                renderLearnings([]);
-            });
+        checkHubConnection();
+        loadLocalModels();
+        loadHeartbeat();
     }
-
-    // ── Init ──
 
     document.addEventListener('DOMContentLoaded', function() {
         if (typeof lucide !== 'undefined') {

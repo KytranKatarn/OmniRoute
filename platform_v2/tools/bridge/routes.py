@@ -204,10 +204,15 @@ def bridge_dashboard():
     """Render the main Bridge command center"""
     deployment_mode = os.getenv("DEPLOYMENT_MODE", "hub")
     if deployment_mode == "business_node":
-        return render_template("tools/bridge_hub.html")
+        return render_template(
+            "tools/bridge_hub.html",
+            deployment_mode=deployment_mode,
+            node_id=os.getenv("NODE_ID", ""),
+            hub_url=os.getenv("HUB_URL", ""),
+        )
     else:
         # Hub and default: full command center with stations, agents, crew + mesh
-        return render_template("tools/bridge.html")
+        return render_template("tools/bridge.html", deployment_mode=deployment_mode)
 
 
 # ============================================================================

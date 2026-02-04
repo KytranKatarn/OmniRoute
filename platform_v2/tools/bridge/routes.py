@@ -2209,6 +2209,40 @@ def get_node_heartbeat_script_linux():
         return "Heartbeat script not found", 404
 
 
+@bridge_bp.route("/api/nodes/docker-compose.node.yml", methods=["GET"])
+def get_node_docker_compose():
+    """Serve the node Docker Compose template"""
+    script_path = "/mnt/archie_brain/node_client/docker-compose.node.yml"
+    if os.path.exists(script_path):
+        with open(script_path, "r") as f:
+            content = f.read()
+        from flask import Response
+
+        return Response(
+            content,
+            mimetype="text/yaml",
+            headers={"Content-Disposition": "attachment; filename=docker-compose.node.yml"},
+        )
+    return jsonify({"success": False, "error": "Docker Compose template not found"}), 404
+
+
+@bridge_bp.route("/api/nodes/node_sync.py", methods=["GET"])
+def get_node_sync_service():
+    """Serve the node sync service script"""
+    script_path = "/mnt/archie_brain/node_client/node_sync.py"
+    if os.path.exists(script_path):
+        with open(script_path, "r") as f:
+            content = f.read()
+        from flask import Response
+
+        return Response(
+            content,
+            mimetype="text/x-python",
+            headers={"Content-Disposition": "attachment; filename=node_sync.py"},
+        )
+    return jsonify({"success": False, "error": "Sync service script not found"}), 404
+
+
 @bridge_bp.route("/api/nodes/client-package", methods=["GET"])
 def get_node_client_package():
     """Serve the node client package as a tarball"""

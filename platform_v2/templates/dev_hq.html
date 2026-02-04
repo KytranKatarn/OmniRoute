@@ -1467,12 +1467,772 @@ function deleteTask(id) {
         });
 }
 
-// Placeholder load functions for tabs 10-12
-function loadKnowledge() { console.debug('loadKnowledge placeholder'); }
-function loadDecisions() { console.debug('loadDecisions placeholder'); }
-function loadSchema() { console.debug('loadSchema placeholder'); }
-function loadApiDocs() { console.debug('loadApiDocs placeholder'); }
-function loadIntegrations() { console.debug('loadIntegrations placeholder'); }
+// ---------- Task 10: Knowledge Tab ----------
+var knowledgeCategoriesLoaded = false;
+var knowledgeDebounceTimer = null;
+
+function loadKnowledge() {
+    var searchVal = document.getElementById('knowledgeSearch').value;
+    var catVal = document.getElementById('knowledgeCategory').value;
+    var params = new URLSearchParams();
+    if (searchVal) params.set('search', searchVal);
+    if (catVal) params.set('category', catVal);
+
+    fetch('/dev-hq/api/knowledge?' + params.toString(), {credentials: 'same-origin'})
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) return;
+
+            // Populate category dropdown once
+            if (!knowledgeCategoriesLoaded && data.categories && data.categories.length) {
+                knowledgeCategoriesLoaded = true;
+                var catSelect = document.getElementById('knowledgeCategory');
+                data.categories.forEach(function(cat) {
+                    var opt = document.createElement('option');
+                    opt.value = cat;
+                    opt.textContent = cat;
+                    catSelect.appendChild(opt);
+                });
+            }
+
+            var container = document.getElementById('knowledgeResults');
+            if (!data.entries || !data.entries.length) {
+                var empty = document.createElement('div');
+                empty.className = 'dev-hq-empty';
+                empty.textContent = 'No knowledge entries found';
+                container.replaceChildren(empty);
+                return;
+            }
+
+            var list = document.createElement('div');
+            list.className = 'dev-hq-knowledge-list';
+
+            data.entries.forEach(function(entry) {
+                var item = document.createElement('div');
+                item.className = 'dev-hq-knowledge-item';
+
+                var title = document.createElement('div');
+                title.className = 'kb-title';
+                title.textContent = entry.file_name || 'Untitled';
+                item.appendChild(title);
+
+                var meta = document.createElement('div');
+                meta.className = 'kb-meta';
+
+                if (entry.primary_category) {
+                    var catTag = document.createElement('span');
+                    catTag.className = 'dev-hq-tag';
+                    catTag.textContent = entry.primary_category;
+                    meta.appendChild(catTag);
+                }
+
+                var tags = entry.tags;
+                if (tags) {
+                    if (typeof tags === 'string') {
+                        try { tags = JSON.parse(tags); } catch(e) { tags = []; }
+                    }
+                    if (Array.isArray(tags)) {
+                        tags.slice(0, 5).forEach(function(tag) {
+                            var tagEl = document.createElement('span');
+                            tagEl.className = 'dev-hq-tag';
+                            tagEl.textContent = tag;
+                            meta.appendChild(tagEl);
+                        });
+                    }
+                }
+
+                if (entry.importance_score != null) {
+                    var score = document.createElement('span');
+                    score.style.cssText = 'font-size:0.6rem; color:var(--archie-text-muted);';
+                    score.textContent = 'Score: ' + entry.importance_score;
+                    meta.appendChild(score);
+                }
+
+                item.appendChild(meta);
+
+                var snippet = document.createElement('div');
+                snippet.className = 'kb-snippet';
+                var snippetText = entry.snippet || '';
+                if (snippetText.length > 200) snippetText = snippetText.substring(0, 200) + '...';
+                snippet.textContent = snippetText;
+                item.appendChild(snippet);
+
+                // Click to expand
+                var detailBlock = null;
+                item.addEventListener('click', function() {
+                    if (detailBlock) {
+                        if (detailBlock.style.display === 'none') {
+                            detailBlock.style.display = 'block';
+                        } else {
+                            detailBlock.style.display = 'none';
+                        }
+                        return;
+                    }
+                    detailBlock = document.createElement('div');
+                    detailBlock.className = 'dev-hq-pre';
+                    detailBlock.style.marginTop = '10px';
+                    detailBlock.textContent = 'Loading...';
+                    item.appendChild(detailBlock);
+
+                    fetch('/dev-hq/api/knowledge/' + entry.id, {credentials: 'same-origin'})
+                        .then(function(r) { return r.json(); })
+                        .then(function(detail) {
+                            if (detail.success && detail.entry) {
+                                detailBlock.textContent = detail.entry.content || 'No content';
+                            } else {
+                                detailBlock.textContent = 'Error loading content';
+                            }
+                        })
+                        .catch(function() {
+                            detailBlock.textContent = 'Error loading content';
+                        });
+                });
+
+                list.appendChild(item);
+            });
+
+            // Total count
+            var countInfo = document.createElement('div');
+            countInfo.style.cssText = 'font-size:0.68rem; color:var(--archie-text-muted); margin-bottom:8px;';
+            countInfo.textContent = 'Showing ' + data.entries.length + ' of ' + (data.total || data.entries.length) + ' entries';
+
+            container.replaceChildren(countInfo, list);
+        })
+        .catch(function(err) {
+            console.debug('loadKnowledge error:', err);
+        });
+}
+
+function loadDecisions() {
+    fetch('/dev-hq/api/decisions', {credentials: 'same-origin'})
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var container = document.getElementById('decisionsContainer');
+            if (!data.success || !data.decisions || !data.decisions.length) {
+                var empty = document.createElement('div');
+                empty.className = 'dev-hq-empty';
+                empty.textContent = 'No decisions recorded';
+                container.replaceChildren(empty);
+                return;
+            }
+
+            var list = document.createElement('div');
+            list.style.cssText = 'display:flex; flex-direction:column; gap:8px;';
+
+            data.decisions.forEach(function(dec) {
+                var item = document.createElement('div');
+                item.className = 'dev-hq-knowledge-item';
+
+                var titleRow = document.createElement('div');
+                titleRow.style.cssText = 'display:flex; align-items:center; gap:10px; margin-bottom:6px;';
+
+                var title = document.createElement('span');
+                title.className = 'kb-title';
+                title.textContent = dec.decision_title || dec.title || dec.subject || 'Untitled Decision';
+                titleRow.appendChild(title);
+
+                var statusBadge = document.createElement('span');
+                statusBadge.className = 'dev-hq-badge';
+                var decStatus = dec.status || 'proposed';
+                statusBadge.textContent = decStatus;
+                if (decStatus === 'accepted' || decStatus === 'approved') {
+                    statusBadge.style.cssText = 'color:var(--archie-green,#00FF41); border:1px solid rgba(0,255,65,0.3);';
+                } else if (decStatus === 'proposed' || decStatus === 'pending') {
+                    statusBadge.style.cssText = 'color:var(--archie-amber,#FFAA00); border:1px solid rgba(255,170,0,0.3);';
+                } else if (decStatus === 'deprecated' || decStatus === 'rejected') {
+                    statusBadge.style.cssText = 'color:var(--archie-danger,#ff4444); border:1px solid rgba(255,68,68,0.3);';
+                }
+                titleRow.appendChild(statusBadge);
+
+                item.appendChild(titleRow);
+
+                var meta = document.createElement('div');
+                meta.style.cssText = 'font-size:0.68rem; color:var(--archie-text-muted); display:flex; gap:12px; margin-bottom:6px;';
+
+                if (dec.project_name) {
+                    var projSpan = document.createElement('span');
+                    projSpan.textContent = 'Project: ' + dec.project_name;
+                    meta.appendChild(projSpan);
+                }
+
+                if (dec.created_at) {
+                    var dateSpan = document.createElement('span');
+                    dateSpan.textContent = formatDate(dec.created_at);
+                    meta.appendChild(dateSpan);
+                }
+
+                item.appendChild(meta);
+
+                var contextText = dec.context || dec.description || dec.rationale || '';
+                if (contextText) {
+                    var context = document.createElement('div');
+                    context.className = 'kb-snippet';
+                    if (contextText.length > 200) contextText = contextText.substring(0, 200) + '...';
+                    context.textContent = contextText;
+                    item.appendChild(context);
+                }
+
+                list.appendChild(item);
+            });
+
+            container.replaceChildren(list);
+        })
+        .catch(function(err) {
+            console.debug('loadDecisions error:', err);
+        });
+}
+
+// ---------- Task 11: DB Schema + API Docs ----------
+
+function loadSchema() {
+    fetch('/dev-hq/api/schema', {credentials: 'same-origin'})
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) {
+                var errEl = document.createElement('div');
+                errEl.className = 'dev-hq-empty';
+                errEl.textContent = 'Error loading schema: ' + (data.error || 'Unknown');
+                document.getElementById('schemaTableList').replaceChildren(errEl);
+                return;
+            }
+
+            var tables = data.tables || [];
+            var tableList = document.getElementById('schemaTableList');
+
+            if (!tables.length) {
+                var empty = document.createElement('div');
+                empty.className = 'dev-hq-empty';
+                empty.textContent = 'No tables found';
+                tableList.replaceChildren(empty);
+                return;
+            }
+
+            var items = [];
+            tables.forEach(function(table) {
+                var item = document.createElement('div');
+                item.className = 'dev-hq-table-item';
+
+                var nameSpan = document.createElement('span');
+                nameSpan.textContent = table.name;
+                item.appendChild(nameSpan);
+
+                var countSpan = document.createElement('span');
+                countSpan.className = 'row-count';
+                countSpan.textContent = (table.row_count != null ? table.row_count : (table.rows != null ? table.rows : '?')) + ' rows';
+                item.appendChild(countSpan);
+
+                item.addEventListener('click', function() {
+                    tableList.querySelectorAll('.dev-hq-table-item').forEach(function(el) {
+                        el.classList.remove('selected');
+                    });
+                    item.classList.add('selected');
+                    showTableColumns(table);
+                });
+
+                items.push(item);
+            });
+
+            tableList.replaceChildren.apply(tableList, items);
+
+            // Show summary info in detail header
+            if (data.summary) {
+                var header = document.getElementById('schemaDetailHeader');
+                header.textContent = data.summary.total_tables + ' tables, ' + (data.summary.total_rows || 0) + ' total rows';
+            }
+        })
+        .catch(function(err) {
+            console.debug('loadSchema error:', err);
+        });
+}
+
+function showTableColumns(table) {
+    var header = document.getElementById('schemaDetailHeader');
+    header.textContent = table.name + ' (' + (table.row_count != null ? table.row_count : '?') + ' rows)';
+
+    var detail = document.getElementById('schemaDetail');
+    var columns = table.columns || [];
+
+    if (!columns.length) {
+        var empty = document.createElement('div');
+        empty.className = 'dev-hq-empty';
+        empty.textContent = 'No columns found';
+        detail.replaceChildren(empty);
+        return;
+    }
+
+    var tbl = document.createElement('table');
+    tbl.className = 'dev-hq-columns-table';
+
+    var thead = document.createElement('thead');
+    var headerRow = document.createElement('tr');
+    ['Column', 'Type', 'Nullable', 'Default'].forEach(function(h) {
+        var th = document.createElement('th');
+        th.textContent = h;
+        headerRow.appendChild(th);
+    });
+    thead.appendChild(headerRow);
+    tbl.appendChild(thead);
+
+    var tbody = document.createElement('tbody');
+    columns.forEach(function(col) {
+        var tr = document.createElement('tr');
+
+        var tdName = document.createElement('td');
+        tdName.textContent = col.column_name || col.name || '';
+        // Highlight primary keys
+        if (table.primary_keys && table.primary_keys.indexOf(tdName.textContent) !== -1) {
+            tdName.style.cssText = 'color:var(--archie-cyan,#00FFFF); font-weight:600;';
+        }
+        tr.appendChild(tdName);
+
+        var tdType = document.createElement('td');
+        var typeStr = col.data_type || col.type || '';
+        if (col.character_maximum_length) typeStr += '(' + col.character_maximum_length + ')';
+        tdType.textContent = typeStr;
+        tr.appendChild(tdType);
+
+        var tdNull = document.createElement('td');
+        var nullable = col.is_nullable;
+        if (nullable === 'YES' || nullable === true) {
+            tdNull.textContent = 'YES';
+        } else if (nullable === 'NO' || nullable === false) {
+            tdNull.textContent = 'NO';
+            tdNull.style.color = 'var(--archie-amber, #FFAA00)';
+        } else {
+            tdNull.textContent = String(nullable != null ? nullable : '--');
+        }
+        tr.appendChild(tdNull);
+
+        var tdDefault = document.createElement('td');
+        var defVal = col.column_default || col['default'] || '';
+        if (defVal && defVal.length > 40) defVal = defVal.substring(0, 40) + '...';
+        tdDefault.textContent = defVal || '--';
+        tdDefault.style.cssText = 'font-size:0.68rem; color:var(--archie-text-muted);';
+        tr.appendChild(tdDefault);
+
+        tbody.appendChild(tr);
+    });
+    tbl.appendChild(tbody);
+
+    // Also show foreign keys if present
+    var elements = [tbl];
+    if (table.foreign_keys && table.foreign_keys.length) {
+        var fkTitle = document.createElement('div');
+        fkTitle.style.cssText = 'margin-top:16px; font-size:0.68rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--archie-text-muted); margin-bottom:8px;';
+        fkTitle.textContent = 'Foreign Keys';
+        elements.push(fkTitle);
+
+        table.foreign_keys.forEach(function(fk) {
+            var fkRow = document.createElement('div');
+            fkRow.style.cssText = 'font-size:0.72rem; padding:4px 0; color:var(--archie-text-secondary);';
+            fkRow.textContent = (fk.column_name || '') + ' \u2192 ' + (fk.foreign_table || '') + '.' + (fk.foreign_column || '');
+            elements.push(fkRow);
+        });
+    }
+
+    detail.replaceChildren.apply(detail, elements);
+}
+
+function createEndpointRow(ep) {
+    var row = document.createElement('div');
+    row.className = 'dev-hq-endpoint-row';
+
+    var methods = ep.methods || ['GET'];
+    methods.forEach(function(m) {
+        if (m === 'HEAD' || m === 'OPTIONS') return;
+        var badge = document.createElement('span');
+        badge.className = 'dev-hq-method-badge ' + m.toLowerCase();
+        badge.textContent = m;
+        row.appendChild(badge);
+    });
+
+    var path = document.createElement('span');
+    path.style.cssText = 'color: var(--archie-text-primary); font-weight: 500;';
+    path.textContent = ep.rule || ep.path || '';
+    row.appendChild(path);
+
+    if (ep.description) {
+        var desc = document.createElement('span');
+        desc.style.cssText = 'color: var(--archie-text-muted); font-size: 0.68rem; margin-left: auto;';
+        desc.textContent = ep.description;
+        row.appendChild(desc);
+    }
+
+    return row;
+}
+
+function loadApiDocs() {
+    fetch('/dev-hq/api/docs', {credentials: 'same-origin'})
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var container = document.getElementById('apiDocsContainer');
+            if (!data.success) {
+                var errEl = document.createElement('div');
+                errEl.className = 'dev-hq-empty';
+                errEl.textContent = 'Error loading API docs: ' + (data.error || 'Unknown');
+                container.replaceChildren(errEl);
+                return;
+            }
+
+            // Use categories object for grouped display
+            var categories = data.categories || {};
+            var catKeys = Object.keys(categories);
+
+            if (!catKeys.length && data.endpoints && data.endpoints.length) {
+                // Fallback: group from flat list
+                data.endpoints.forEach(function(ep) {
+                    var cat = ep.category || ep.blueprint || 'core';
+                    if (!categories[cat]) categories[cat] = [];
+                    categories[cat].push(ep);
+                });
+                catKeys = Object.keys(categories);
+            }
+
+            if (!catKeys.length) {
+                var empty = document.createElement('div');
+                empty.className = 'dev-hq-empty';
+                empty.textContent = 'No API endpoints found';
+                container.replaceChildren(empty);
+                return;
+            }
+
+            catKeys.sort();
+
+            // Total count
+            var totalInfo = document.createElement('div');
+            totalInfo.style.cssText = 'font-size:0.68rem; color:var(--archie-text-muted); margin-bottom:16px;';
+            totalInfo.textContent = (data.total || 0) + ' endpoints across ' + catKeys.length + ' modules';
+
+            var groups = [totalInfo];
+
+            catKeys.forEach(function(catName) {
+                var endpoints = categories[catName];
+                if (!endpoints || !endpoints.length) return;
+
+                var group = document.createElement('div');
+                group.className = 'dev-hq-endpoint-group';
+
+                var groupTitle = document.createElement('div');
+                groupTitle.className = 'dev-hq-endpoint-group-title';
+
+                var arrow = document.createElement('span');
+                arrow.textContent = '\u25B6';
+                arrow.style.cssText = 'font-size:0.6rem; transition:transform 0.2s;';
+                groupTitle.appendChild(arrow);
+
+                var titleText = document.createElement('span');
+                titleText.textContent = catName + ' (' + endpoints.length + ')';
+                groupTitle.appendChild(titleText);
+
+                var epList = document.createElement('div');
+                epList.style.display = 'none';
+
+                endpoints.forEach(function(ep) {
+                    epList.appendChild(createEndpointRow(ep));
+                });
+
+                groupTitle.addEventListener('click', function() {
+                    if (epList.style.display === 'none') {
+                        epList.style.display = 'block';
+                        arrow.style.transform = 'rotate(90deg)';
+                    } else {
+                        epList.style.display = 'none';
+                        arrow.style.transform = 'rotate(0deg)';
+                    }
+                });
+
+                group.appendChild(groupTitle);
+                group.appendChild(epList);
+                groups.push(group);
+            });
+
+            container.replaceChildren.apply(container, groups);
+        })
+        .catch(function(err) {
+            console.debug('loadApiDocs error:', err);
+        });
+}
+
+// ---------- Task 12: Integrations Tab ----------
+
+function loadIntegrations() {
+    Promise.all([
+        fetch('/dev-hq/api/integrations/mcp', {credentials: 'same-origin'}).then(function(r) { return r.json(); }),
+        fetch('/dev-hq/api/integrations/claude', {credentials: 'same-origin'}).then(function(r) { return r.json(); })
+    ]).then(function(results) {
+        var mcpData = results[0];
+        var claudeData = results[1];
+
+        // --- MCP Server Panel ---
+        var mcpPanel = document.getElementById('mcpServerInfo');
+        var mcpConfig = mcpData.mcp_config || {};
+
+        if (mcpConfig.error) {
+            var errEl = document.createElement('div');
+            errEl.className = 'dev-hq-empty';
+            errEl.textContent = 'MCP config error: ' + mcpConfig.error;
+            mcpPanel.replaceChildren(errEl);
+        } else {
+            var mcpServers = mcpConfig.mcpServers || {};
+            var serverNames = Object.keys(mcpServers);
+
+            if (!serverNames.length) {
+                var noServers = document.createElement('div');
+                noServers.className = 'dev-hq-empty';
+                noServers.textContent = 'No MCP servers configured';
+                mcpPanel.replaceChildren(noServers);
+            } else {
+                var mcpElements = [];
+                serverNames.forEach(function(serverName) {
+                    var server = mcpServers[serverName];
+                    var sTitle = document.createElement('div');
+                    sTitle.style.cssText = 'font-weight:600; color:var(--archie-cyan,#00FFFF); font-size:0.75rem; margin-bottom:8px;' + (mcpElements.length ? ' margin-top:16px;' : '');
+                    sTitle.textContent = serverName;
+                    mcpElements.push(sTitle);
+
+                    var grid = document.createElement('div');
+                    grid.className = 'dev-hq-kv-grid';
+
+                    function addKV(label, value) {
+                        var lbl = document.createElement('div');
+                        lbl.className = 'dev-hq-kv-label';
+                        lbl.textContent = label;
+                        grid.appendChild(lbl);
+                        var val = document.createElement('div');
+                        val.className = 'dev-hq-kv-value';
+                        val.textContent = value || '--';
+                        grid.appendChild(val);
+                    }
+
+                    if (server.command) addKV('Command', server.command);
+                    if (server.args) addKV('Args', Array.isArray(server.args) ? server.args.join(' ') : String(server.args));
+                    if (server.cwd) addKV('CWD', server.cwd);
+                    if (server.url) addKV('URL', server.url);
+
+                    var envObj = server.env || {};
+                    var envKeys = Object.keys(envObj);
+                    if (envKeys.length) {
+                        envKeys.forEach(function(ek) {
+                            addKV('ENV: ' + ek, envObj[ek]);
+                        });
+                    }
+
+                    mcpElements.push(grid);
+                });
+                mcpPanel.replaceChildren.apply(mcpPanel, mcpElements);
+            }
+        }
+
+        // --- Claude Config Panel ---
+        var claudePanel = document.getElementById('claudeConfigInfo');
+        var claudeElements = [];
+
+        // Plugins
+        var settings = claudeData.claude_settings || {};
+        var plugins = settings.enabledPlugins || settings.plugins || [];
+
+        var pluginTitle = document.createElement('div');
+        pluginTitle.style.cssText = 'font-weight:600; color:var(--archie-cyan,#00FFFF); font-size:0.72rem; margin-bottom:6px;';
+        pluginTitle.textContent = 'Enabled Plugins';
+        claudeElements.push(pluginTitle);
+
+        if (plugins.length) {
+            plugins.forEach(function(p) {
+                var pEl = document.createElement('div');
+                pEl.style.cssText = 'font-size:0.75rem; padding:2px 0; color:var(--archie-text-secondary);';
+                pEl.textContent = typeof p === 'string' ? p : (p.name || JSON.stringify(p));
+                claudeElements.push(pEl);
+            });
+        } else {
+            var noPlugins = document.createElement('div');
+            noPlugins.style.cssText = 'font-size:0.72rem; color:var(--archie-text-muted); font-style:italic;';
+            noPlugins.textContent = 'No plugins enabled';
+            claudeElements.push(noPlugins);
+        }
+
+        // Custom commands
+        var commands = claudeData.custom_commands || [];
+        var cmdTitle = document.createElement('div');
+        cmdTitle.style.cssText = 'font-weight:600; color:var(--archie-cyan,#00FFFF); font-size:0.72rem; margin-top:16px; margin-bottom:6px;';
+        cmdTitle.textContent = 'Custom Commands (' + commands.length + ')';
+        claudeElements.push(cmdTitle);
+
+        if (commands.length) {
+            commands.forEach(function(cmd) {
+                var cmdEl = document.createElement('div');
+                cmdEl.style.cssText = 'font-size:0.75rem; padding:2px 0; color:var(--archie-text-secondary);';
+                cmdEl.textContent = '/' + (cmd.name || '') + (cmd.description ? ' \u2014 ' + cmd.description : '');
+                claudeElements.push(cmdEl);
+            });
+        } else {
+            var noCmds = document.createElement('div');
+            noCmds.style.cssText = 'font-size:0.72rem; color:var(--archie-text-muted); font-style:italic;';
+            noCmds.textContent = 'No custom commands';
+            claudeElements.push(noCmds);
+        }
+
+        // Hooks
+        var hooks = claudeData.hooks || [];
+        var hookTitle = document.createElement('div');
+        hookTitle.style.cssText = 'font-weight:600; color:var(--archie-cyan,#00FFFF); font-size:0.72rem; margin-top:16px; margin-bottom:6px;';
+        hookTitle.textContent = 'Hooks (' + hooks.length + ')';
+        claudeElements.push(hookTitle);
+
+        if (hooks.length) {
+            hooks.forEach(function(h) {
+                var hEl = document.createElement('div');
+                hEl.style.cssText = 'font-size:0.75rem; padding:2px 0; color:var(--archie-text-secondary);';
+                hEl.textContent = h;
+                claudeElements.push(hEl);
+            });
+        } else {
+            var noHooks = document.createElement('div');
+            noHooks.style.cssText = 'font-size:0.72rem; color:var(--archie-text-muted); font-style:italic;';
+            noHooks.textContent = 'No hooks configured';
+            claudeElements.push(noHooks);
+        }
+
+        claudePanel.replaceChildren.apply(claudePanel, claudeElements);
+
+        // --- MCP Tool Registry ---
+        var toolPanel = document.getElementById('mcpToolRegistry');
+        var toolsDefs = mcpData.mcp_tools_db || [];
+        var toolUsage = mcpData.tool_usage || [];
+
+        // Build usage lookup
+        var usageMap = {};
+        toolUsage.forEach(function(u) {
+            usageMap[u.tool_name] = u;
+        });
+
+        if (!toolsDefs.length) {
+            var noTools = document.createElement('div');
+            noTools.className = 'dev-hq-empty';
+            noTools.textContent = 'No MCP tools found in database';
+            toolPanel.replaceChildren(noTools);
+        } else {
+            // Group by category
+            var toolCats = {};
+            toolsDefs.forEach(function(tool) {
+                var cat = tool.category || 'uncategorized';
+                if (!toolCats[cat]) toolCats[cat] = [];
+                toolCats[cat].push(tool);
+            });
+
+            var tbl = document.createElement('table');
+            tbl.className = 'dev-hq-tool-table';
+
+            var thead = document.createElement('thead');
+            var hRow = document.createElement('tr');
+            ['Name', 'Category', 'Description', 'Usage', 'Last Used'].forEach(function(h) {
+                var th = document.createElement('th');
+                th.textContent = h;
+                hRow.appendChild(th);
+            });
+            thead.appendChild(hRow);
+            tbl.appendChild(thead);
+
+            var tbody = document.createElement('tbody');
+            var catKeys = Object.keys(toolCats).sort();
+            catKeys.forEach(function(cat) {
+                // Category header row
+                var catRow = document.createElement('tr');
+                var catCell = document.createElement('td');
+                catCell.setAttribute('colspan', '5');
+                catCell.style.cssText = 'font-weight:600; color:var(--archie-cyan,#00FFFF); font-size:0.68rem; text-transform:uppercase; letter-spacing:0.08em; padding-top:12px;';
+                catCell.textContent = cat + ' (' + toolCats[cat].length + ')';
+                catRow.appendChild(catCell);
+                tbody.appendChild(catRow);
+
+                toolCats[cat].forEach(function(tool) {
+                    var tr = document.createElement('tr');
+
+                    var tdName = document.createElement('td');
+                    tdName.textContent = tool.name || '';
+                    tdName.style.cssText = 'color:var(--archie-text-primary); font-weight:500;';
+                    tr.appendChild(tdName);
+
+                    var tdCat = document.createElement('td');
+                    tdCat.textContent = tool.category || '';
+                    tdCat.style.color = 'var(--archie-text-muted)';
+                    tr.appendChild(tdCat);
+
+                    var tdDesc = document.createElement('td');
+                    var descText = tool.description || '';
+                    if (descText.length > 60) descText = descText.substring(0, 60) + '...';
+                    tdDesc.textContent = descText;
+                    tdDesc.style.cssText = 'font-size:0.68rem; color:var(--archie-text-secondary);';
+                    tr.appendChild(tdDesc);
+
+                    var usage = usageMap[tool.name];
+                    var tdUsage = document.createElement('td');
+                    tdUsage.textContent = usage ? String(usage.usage_count) : '0';
+                    tdUsage.style.cssText = 'text-align:center;';
+                    tr.appendChild(tdUsage);
+
+                    var tdLast = document.createElement('td');
+                    tdLast.textContent = usage && usage.last_used ? formatAge(usage.last_used) : '--';
+                    tdLast.style.cssText = 'font-size:0.68rem; color:var(--archie-text-muted);';
+                    tr.appendChild(tdLast);
+
+                    tbody.appendChild(tr);
+                });
+            });
+            tbl.appendChild(tbody);
+
+            var toolCount = document.createElement('div');
+            toolCount.style.cssText = 'font-size:0.68rem; color:var(--archie-text-muted); margin-bottom:8px;';
+            toolCount.textContent = toolsDefs.length + ' tools registered across ' + catKeys.length + ' categories';
+
+            toolPanel.replaceChildren(toolCount, tbl);
+        }
+
+        // --- CLAUDE.md Content ---
+        var mdPanel = document.getElementById('claudeMdContent');
+        var mdElements = [];
+
+        if (claudeData.claude_md_root) {
+            var rootLabel = document.createElement('div');
+            rootLabel.style.cssText = 'font-weight:600; color:var(--archie-cyan,#00FFFF); font-size:0.72rem; margin-bottom:6px;';
+            rootLabel.textContent = 'CLAUDE.md (Root)';
+            mdElements.push(rootLabel);
+
+            var rootPre = document.createElement('pre');
+            rootPre.className = 'dev-hq-pre';
+            rootPre.textContent = claudeData.claude_md_root;
+            mdElements.push(rootPre);
+        }
+
+        if (claudeData.claude_md_platform) {
+            var platLabel = document.createElement('div');
+            platLabel.style.cssText = 'font-weight:600; color:var(--archie-cyan,#00FFFF); font-size:0.72rem; margin-top:16px; margin-bottom:6px;';
+            platLabel.textContent = 'CLAUDE.md (platform_v2/.claude/)';
+            mdElements.push(platLabel);
+
+            var platPre = document.createElement('pre');
+            platPre.className = 'dev-hq-pre';
+            platPre.textContent = claudeData.claude_md_platform;
+            mdElements.push(platPre);
+        }
+
+        if (!mdElements.length) {
+            var noMd = document.createElement('div');
+            noMd.className = 'dev-hq-empty';
+            noMd.textContent = 'No CLAUDE.md files found';
+            mdElements.push(noMd);
+        }
+
+        mdPanel.replaceChildren.apply(mdPanel, mdElements);
+
+    }).catch(function(err) {
+        console.debug('loadIntegrations error:', err);
+        var mcpPanel = document.getElementById('mcpServerInfo');
+        var errEl = document.createElement('div');
+        errEl.className = 'dev-hq-empty';
+        errEl.textContent = 'Error loading integrations';
+        mcpPanel.replaceChildren(errEl);
+    });
+}
 
 // Init
 var searchDebounceTimer = null;
@@ -1494,6 +2254,19 @@ document.addEventListener('DOMContentLoaded', function() {
             clearTimeout(searchDebounceTimer);
             searchDebounceTimer = setTimeout(function() { loadProjects(); }, 500);
         });
+    }
+
+    // Knowledge tab event listeners
+    var knowledgeSearchInput = document.getElementById('knowledgeSearch');
+    var knowledgeCategorySelect = document.getElementById('knowledgeCategory');
+    if (knowledgeSearchInput) {
+        knowledgeSearchInput.addEventListener('input', function() {
+            clearTimeout(knowledgeDebounceTimer);
+            knowledgeDebounceTimer = setTimeout(function() { loadKnowledge(); }, 500);
+        });
+    }
+    if (knowledgeCategorySelect) {
+        knowledgeCategorySelect.addEventListener('change', function() { loadKnowledge(); });
     }
 
     loadedTabs['overview'] = true;

@@ -995,21 +995,507 @@ window.openTaskModal = function(projectId, task) {
     document.getElementById('taskModal').style.display = 'flex';
 };
 
-// Placeholder load functions (will be fully implemented in later tasks 8-12)
-function loadOverview() { console.debug('loadOverview placeholder'); }
-function loadProjects() { console.debug('loadProjects placeholder'); }
+// ---------- Helper: stat card ----------
+function createStatCard(value, label) {
+    var card = document.createElement('div');
+    card.className = 'dev-hq-stat-card';
+    var valEl = document.createElement('div');
+    valEl.className = 'dev-hq-stat-value';
+    valEl.textContent = String(value);
+    var labelEl = document.createElement('div');
+    labelEl.className = 'dev-hq-stat-label';
+    labelEl.textContent = label;
+    card.appendChild(valEl);
+    card.appendChild(labelEl);
+    return card;
+}
+
+// ---------- Helper: activity item ----------
+function createActivityItem(item) {
+    var el = document.createElement('div');
+    el.className = 'dev-hq-activity-item';
+
+    var badge = document.createElement('span');
+    badge.className = 'activity-type';
+    badge.textContent = item.activity_type || 'update';
+    var typeColors = {created:'#00FF41', updated:'#00FFFF', completed:'#00FF41', commented:'#FFAA00', assigned:'#00FFFF', status_changed:'#FFAA00'};
+    badge.style.color = typeColors[item.activity_type] || '#00FFFF';
+    badge.style.border = '1px solid ' + (typeColors[item.activity_type] || '#00FFFF');
+    el.appendChild(badge);
+
+    var text = document.createElement('span');
+    text.className = 'activity-text';
+    text.textContent = (item.project_name || 'System') + ' \u2014 ' + (item.description || item.activity_type || '');
+    el.appendChild(text);
+
+    var time = document.createElement('span');
+    time.className = 'activity-time';
+    time.textContent = formatAge(item.created_at);
+    el.appendChild(time);
+
+    return el;
+}
+
+// ---------- Helper: mini project card (overview) ----------
+function createMiniProjectCard(p) {
+    var card = document.createElement('div');
+    card.className = 'dev-hq-project-card';
+    card.style.cursor = 'pointer';
+    card.addEventListener('click', function() {
+        document.querySelector('[data-tab="projects"]').click();
+    });
+
+    var name = document.createElement('div');
+    name.className = 'project-name';
+    name.textContent = p.name;
+    card.appendChild(name);
+
+    var meta = document.createElement('div');
+    meta.className = 'project-meta';
+    var badge = document.createElement('span');
+    badge.className = 'dev-hq-badge ' + (p.status || 'active');
+    badge.textContent = p.status || 'active';
+    meta.appendChild(badge);
+    var taskCount = document.createElement('span');
+    taskCount.style.cssText = 'font-size:0.68rem; color:var(--archie-text-muted)';
+    taskCount.textContent = (p.completed_tasks || 0) + '/' + (p.total_tasks || 0) + ' tasks';
+    meta.appendChild(taskCount);
+    card.appendChild(meta);
+
+    var progress = document.createElement('div');
+    progress.className = 'dev-hq-progress';
+    var fill = document.createElement('div');
+    fill.className = 'dev-hq-progress-fill';
+    var pct = p.total_tasks > 0 ? Math.round((p.completed_tasks / p.total_tasks) * 100) : 0;
+    fill.style.width = pct + '%';
+    progress.appendChild(fill);
+    card.appendChild(progress);
+
+    return card;
+}
+
+// ---------- Task 8: loadOverview ----------
+function loadOverview() {
+    fetch('/dev-hq/api/overview', {credentials: 'same-origin'})
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) return;
+            // Stats
+            var statsEl = document.getElementById('overviewStats');
+            statsEl.replaceChildren(
+                createStatCard(data.project_stats.active || 0, 'Active Projects'),
+                createStatCard(data.task_stats.open_tasks || 0, 'Open Tasks'),
+                createStatCard(data.task_stats.completed_this_week || 0, 'Completed This Week'),
+                createStatCard(data.task_stats.overdue || 0, 'Overdue')
+            );
+            // Activity
+            var actEl = document.getElementById('overviewActivity');
+            if (data.activity && data.activity.length > 0) {
+                var items = data.activity.map(createActivityItem);
+                actEl.replaceChildren.apply(actEl, items);
+            } else {
+                var empty = document.createElement('div');
+                empty.className = 'dev-hq-empty';
+                empty.textContent = 'No recent activity';
+                actEl.replaceChildren(empty);
+            }
+            // Projects
+            var projEl = document.getElementById('overviewProjects');
+            if (data.active_projects && data.active_projects.length > 0) {
+                var cards = data.active_projects.map(createMiniProjectCard);
+                projEl.replaceChildren.apply(projEl, cards);
+            } else {
+                var empty2 = document.createElement('div');
+                empty2.className = 'dev-hq-empty';
+                empty2.textContent = 'No active projects';
+                projEl.replaceChildren(empty2);
+            }
+        })
+        .catch(function(err) {
+            console.debug('loadOverview error:', err);
+        });
+}
+
+// ---------- Task 9: Projects & Tasks ----------
+var expandedProjects = {};
+
+function createTaskRow(task, projectId) {
+    var row = document.createElement('div');
+    row.className = 'dev-hq-task-row';
+    row.setAttribute('data-task-id', task.id);
+
+    // Status badge (clickable to cycle)
+    var statusBadge = document.createElement('span');
+    statusBadge.className = 'dev-hq-badge ' + (task.status || 'pending');
+    statusBadge.textContent = task.status || 'pending';
+    statusBadge.style.cursor = 'pointer';
+    statusBadge.title = 'Click to cycle status';
+    statusBadge.addEventListener('click', function() {
+        cycleTaskStatus(task, projectId);
+    });
+    row.appendChild(statusBadge);
+
+    // Title
+    var title = document.createElement('span');
+    title.className = 'task-title';
+    title.textContent = task.title || 'Untitled';
+    row.appendChild(title);
+
+    // Priority badge
+    var priBadge = document.createElement('span');
+    priBadge.className = 'dev-hq-badge ' + (task.priority || 'medium');
+    priBadge.textContent = task.priority || 'medium';
+    row.appendChild(priBadge);
+
+    // Due date
+    var due = document.createElement('span');
+    due.className = 'task-due';
+    due.textContent = task.due_date ? formatDate(task.due_date) : '';
+    row.appendChild(due);
+
+    // Delete icon
+    var delBtn = document.createElement('span');
+    delBtn.textContent = '\u2715';
+    delBtn.style.cssText = 'cursor:pointer; color:var(--archie-danger, #ff4444); font-size:0.75rem;';
+    delBtn.title = 'Delete task';
+    delBtn.addEventListener('click', function() {
+        deleteTask(task.id);
+    });
+    row.appendChild(delBtn);
+
+    return row;
+}
+
+function cycleTaskStatus(task, projectId) {
+    var cycle = {pending: 'in_progress', in_progress: 'completed', completed: 'pending'};
+    var newStatus = cycle[task.status || 'pending'] || 'pending';
+    fetch('/dev-hq/api/tasks/' + task.id, {
+        method: 'PUT',
+        credentials: 'same-origin',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({status: newStatus})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(result) {
+        if (result.success) {
+            loadProjectTasks(projectId);
+            loadOverview();
+        }
+    });
+}
+
+function loadProjectTasks(projectId) {
+    var container = document.getElementById('tasks-' + projectId);
+    if (!container) return;
+    fetch('/dev-hq/api/projects/' + projectId + '/tasks', {credentials: 'same-origin'})
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success || !data.tasks || !data.tasks.length) {
+                var empty = document.createElement('div');
+                empty.className = 'dev-hq-empty';
+                empty.style.padding = '16px';
+                empty.textContent = 'No tasks yet';
+                container.replaceChildren(empty);
+                return;
+            }
+            var rows = data.tasks.map(function(t) { return createTaskRow(t, projectId); });
+            container.replaceChildren.apply(container, rows);
+        })
+        .catch(function(err) {
+            console.debug('loadProjectTasks error:', err);
+        });
+}
+
+function createProjectCard(p) {
+    var card = document.createElement('div');
+    card.className = 'dev-hq-section';
+    card.style.marginBottom = '16px';
+
+    // Header row
+    var header = document.createElement('div');
+    header.className = 'dev-hq-section-header';
+    header.style.cursor = 'default';
+
+    var nameSpan = document.createElement('span');
+    nameSpan.textContent = p.name;
+    header.appendChild(nameSpan);
+
+    var actions = document.createElement('div');
+    actions.style.cssText = 'display:flex; gap:8px; align-items:center;';
+
+    // Status badge
+    var statusBadge = document.createElement('span');
+    statusBadge.className = 'dev-hq-badge ' + (p.status || 'active');
+    statusBadge.textContent = p.status || 'active';
+    actions.appendChild(statusBadge);
+
+    // Priority badge
+    var priBadge = document.createElement('span');
+    priBadge.className = 'dev-hq-badge ' + (p.priority || 'medium');
+    priBadge.textContent = p.priority || 'medium';
+    actions.appendChild(priBadge);
+
+    // Edit button
+    var editBtn = document.createElement('span');
+    editBtn.textContent = '\u270E';
+    editBtn.style.cssText = 'cursor:pointer; font-size:0.85rem;';
+    editBtn.title = 'Edit project';
+    editBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        openProjectModal(p);
+    });
+    actions.appendChild(editBtn);
+
+    // Delete button
+    var delBtn = document.createElement('span');
+    delBtn.textContent = '\u2715';
+    delBtn.style.cssText = 'cursor:pointer; color:var(--archie-danger, #ff4444); font-size:0.85rem;';
+    delBtn.title = 'Delete project';
+    delBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        deleteProject(p.id);
+    });
+    actions.appendChild(delBtn);
+
+    header.appendChild(actions);
+    card.appendChild(header);
+
+    // Body
+    var body = document.createElement('div');
+    body.className = 'dev-hq-section-body';
+
+    // Meta row
+    var meta = document.createElement('div');
+    meta.style.cssText = 'display:flex; gap:16px; align-items:center; margin-bottom:10px; font-size:0.72rem; color:var(--archie-text-muted, #6e7681);';
+
+    if (p.project_type) {
+        var typeSpan = document.createElement('span');
+        typeSpan.textContent = 'Type: ' + p.project_type;
+        meta.appendChild(typeSpan);
+    }
+    if (p.target_date) {
+        var dateSpan = document.createElement('span');
+        dateSpan.textContent = 'Target: ' + formatDate(p.target_date);
+        meta.appendChild(dateSpan);
+    }
+
+    var taskInfo = document.createElement('span');
+    taskInfo.textContent = (p.completed_tasks || 0) + '/' + (p.total_tasks || 0) + ' tasks completed';
+    meta.appendChild(taskInfo);
+    body.appendChild(meta);
+
+    // Progress bar
+    var progress = document.createElement('div');
+    progress.className = 'dev-hq-progress';
+    var fill = document.createElement('div');
+    fill.className = 'dev-hq-progress-fill';
+    var pct = p.total_tasks > 0 ? Math.round((p.completed_tasks / p.total_tasks) * 100) : 0;
+    fill.style.width = pct + '%';
+    progress.appendChild(fill);
+    body.appendChild(progress);
+
+    // Button row
+    var btnRow = document.createElement('div');
+    btnRow.style.cssText = 'display:flex; gap:10px; margin-top:12px;';
+
+    var addTaskBtn = document.createElement('button');
+    addTaskBtn.className = 'dev-hq-btn primary';
+    addTaskBtn.textContent = '+ Add Task';
+    addTaskBtn.addEventListener('click', function() {
+        openTaskModal(p.id);
+    });
+    btnRow.appendChild(addTaskBtn);
+
+    var toggleBtn = document.createElement('button');
+    toggleBtn.className = 'dev-hq-btn secondary';
+    toggleBtn.textContent = expandedProjects[p.id] ? 'Hide Tasks' : 'Show Tasks';
+    toggleBtn.addEventListener('click', function() {
+        var taskList = document.getElementById('tasks-' + p.id);
+        if (!taskList) return;
+        if (expandedProjects[p.id]) {
+            taskList.style.display = 'none';
+            expandedProjects[p.id] = false;
+            toggleBtn.textContent = 'Show Tasks';
+        } else {
+            taskList.style.display = 'flex';
+            expandedProjects[p.id] = true;
+            toggleBtn.textContent = 'Hide Tasks';
+            loadProjectTasks(p.id);
+        }
+    });
+    btnRow.appendChild(toggleBtn);
+    body.appendChild(btnRow);
+
+    // Task list container (hidden by default)
+    var taskList = document.createElement('div');
+    taskList.className = 'dev-hq-task-list';
+    taskList.id = 'tasks-' + p.id;
+    taskList.style.display = expandedProjects[p.id] ? 'flex' : 'none';
+    if (expandedProjects[p.id]) {
+        var loading = document.createElement('div');
+        loading.className = 'dev-hq-loading';
+        loading.textContent = 'Loading tasks...';
+        taskList.appendChild(loading);
+    }
+    body.appendChild(taskList);
+
+    card.appendChild(body);
+
+    // If previously expanded, re-load tasks
+    if (expandedProjects[p.id]) {
+        setTimeout(function() { loadProjectTasks(p.id); }, 0);
+    }
+
+    return card;
+}
+
+function loadProjects() {
+    var status = document.getElementById('filterStatus').value;
+    var priority = document.getElementById('filterPriority').value;
+    var search = document.getElementById('filterSearch').value;
+    var params = new URLSearchParams();
+    if (status) params.set('status', status);
+    if (priority) params.set('priority', priority);
+    if (search) params.set('search', search);
+
+    fetch('/dev-hq/api/projects?' + params.toString(), {credentials: 'same-origin'})
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var container = document.getElementById('projectsList');
+            if (!data.success || !data.projects || !data.projects.length) {
+                var empty = document.createElement('div');
+                empty.className = 'dev-hq-empty';
+                empty.textContent = data.projects ? 'No projects match filters' : 'Error loading projects';
+                container.replaceChildren(empty);
+                return;
+            }
+            var cards = data.projects.map(function(p) { return createProjectCard(p); });
+            container.replaceChildren.apply(container, cards);
+        })
+        .catch(function(err) { console.debug('loadProjects error:', err); });
+}
+
+window.submitProject = function() {
+    var editId = document.getElementById('projectEditId').value;
+    var payload = {
+        name: document.getElementById('projectName').value,
+        description: document.getElementById('projectDesc').value,
+        project_type: document.getElementById('projectType').value,
+        priority: document.getElementById('projectPriority').value,
+        target_date: document.getElementById('projectTargetDate').value || null
+    };
+    if (!payload.name) return alert('Project name is required');
+
+    var url = editId ? '/dev-hq/api/projects/' + editId : '/dev-hq/api/projects';
+    var method = editId ? 'PUT' : 'POST';
+
+    fetch(url, {
+        method: method,
+        credentials: 'same-origin',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(result) {
+        if (result.success) {
+            closeModal('projectModal');
+            loadProjects();
+            loadOverview();
+        } else {
+            alert('Error: ' + (result.error || 'Unknown'));
+        }
+    });
+};
+
+window.submitTask = function() {
+    var editId = document.getElementById('taskEditId').value;
+    var projectId = document.getElementById('taskProjectId').value;
+    var payload = {
+        title: document.getElementById('taskTitle').value,
+        description: document.getElementById('taskDesc').value,
+        task_type: document.getElementById('taskType').value,
+        priority: document.getElementById('taskPriority').value,
+        due_date: document.getElementById('taskDueDate').value || null
+    };
+    if (!payload.title) return alert('Task title is required');
+
+    var url, method;
+    if (editId) {
+        url = '/dev-hq/api/tasks/' + editId;
+        method = 'PUT';
+    } else {
+        url = '/dev-hq/api/projects/' + projectId + '/tasks';
+        method = 'POST';
+    }
+
+    fetch(url, {
+        method: method,
+        credentials: 'same-origin',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(result) {
+        if (result.success) {
+            closeModal('taskModal');
+            if (projectId) {
+                expandedProjects[projectId] = true;
+                loadProjects();
+            }
+            loadOverview();
+        } else {
+            alert('Error: ' + (result.error || 'Unknown'));
+        }
+    });
+};
+
+function deleteProject(id) {
+    if (!confirm('Delete this project and all its tasks?')) return;
+    fetch('/dev-hq/api/projects/' + id, {method: 'DELETE', credentials: 'same-origin'})
+        .then(function(r) { return r.json(); })
+        .then(function(result) {
+            if (result.success) { loadProjects(); loadOverview(); }
+        });
+}
+
+function deleteTask(id) {
+    if (!confirm('Delete this task?')) return;
+    fetch('/dev-hq/api/tasks/' + id, {method: 'DELETE', credentials: 'same-origin'})
+        .then(function(r) { return r.json(); })
+        .then(function(result) {
+            if (result.success) { loadProjects(); loadOverview(); }
+        });
+}
+
+// Placeholder load functions for tabs 10-12
 function loadKnowledge() { console.debug('loadKnowledge placeholder'); }
 function loadDecisions() { console.debug('loadDecisions placeholder'); }
 function loadSchema() { console.debug('loadSchema placeholder'); }
 function loadApiDocs() { console.debug('loadApiDocs placeholder'); }
 function loadIntegrations() { console.debug('loadIntegrations placeholder'); }
 
-window.submitProject = function() { console.debug('submitProject placeholder'); };
-window.submitTask = function() { console.debug('submitTask placeholder'); };
-
 // Init
+var searchDebounceTimer = null;
 document.addEventListener('DOMContentLoaded', function() {
     if (typeof lucide !== 'undefined') lucide.createIcons();
+
+    // Filter event listeners for Projects tab
+    var filterStatus = document.getElementById('filterStatus');
+    var filterPriority = document.getElementById('filterPriority');
+    var filterSearch = document.getElementById('filterSearch');
+    if (filterStatus) {
+        filterStatus.addEventListener('change', function() { loadProjects(); });
+    }
+    if (filterPriority) {
+        filterPriority.addEventListener('change', function() { loadProjects(); });
+    }
+    if (filterSearch) {
+        filterSearch.addEventListener('input', function() {
+            clearTimeout(searchDebounceTimer);
+            searchDebounceTimer = setTimeout(function() { loadProjects(); }, 500);
+        });
+    }
+
     loadedTabs['overview'] = true;
     loadOverview();
 });

@@ -202,7 +202,11 @@ LLM_CONNECTIONS = {
 @bridge_bp.route("/")
 def bridge_dashboard():
     """Render the main Bridge command center"""
-    return render_template("tools/bridge.html")
+    deployment_mode = os.getenv("DEPLOYMENT_MODE", "hub")
+    if deployment_mode == "hub":
+        return render_template("tools/bridge_hub.html")
+    else:
+        return render_template("tools/bridge.html")
 
 
 # ============================================================================

@@ -16,8 +16,8 @@
 | Resource | Location |
 |----------|----------|
 | Platform | http://192.168.1.200:3000 |
-| Blueprint | http://192.168.1.200:3000/tools/blueprint |
-| Docs | `/mnt/archie_brain/docs/` (88 files) |
+| Dev HQ | http://192.168.1.200:3000/dev-hq |
+| Docs | `knowledge_base` table → Dev HQ Knowledge tab or MCP `search_knowledge` |
 | Modules | `/mnt/archie_brain/platform_v2/tools/` (50 modules) |
 | MCP Tools | 69 tools via `.mcp.json` |
 | Projects | `unified_projects` table (84 projects) |
@@ -27,7 +27,7 @@
 1. **Knowledge Base** - `knowledge_base` table (3,390 entries)
 2. **AI Bridge** - `/ai_bridge/archie_bridge.py` (multi-model router)
 3. **Module System** - Flask Blueprints in `/platform_v2/tools/`
-4. **Blueprint** - Intelligence center, 45+ API endpoints
+4. **Dev HQ** - Development command center (`/dev-hq`), projects, knowledge, schema, integrations
 5. **Improvement Workflow** - Scan → Proposal → Sandbox → Deploy
 
 ## Key Files

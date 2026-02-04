@@ -16,8 +16,8 @@
 | Resource | Location |
 |----------|----------|
 | Platform | http://192.168.1.200:3000 |
-| Mission Control | http://192.168.1.200:3000/tools/blueprint |
-| Docs | `knowledge_base` table → Mission Control Knowledge tab or MCP `search_knowledge` |
+| Dev HQ | http://192.168.1.200:3000/dev-hq |
+| Docs | `knowledge_base` table → Dev HQ Knowledge tab or MCP `search_knowledge` |
 | Modules | `/mnt/archie_brain/platform_v2/tools/` (50 modules) |
 | MCP Tools | 69 tools via `.mcp.json` |
 | Projects | `unified_projects` table → MCP `get_projects` / `create_task` |
@@ -27,14 +27,14 @@
 1. **Knowledge Base** - `knowledge_base` table (3,390+ entries)
 2. **AI Bridge** - `/ai_bridge/archie_bridge.py` (multi-model router)
 3. **Module System** - Flask Blueprints in `/platform_v2/tools/`
-4. **Mission Control** - Unified dashboard (Blueprint + Consciousness), 45+ API endpoints
+4. **Dev HQ** - Development command center (`/dev-hq`), projects, knowledge, schema, integrations
 5. **Improvement Workflow** - Scan → Proposal → Sandbox → Deploy
 
 ## Source of Truth
 
 | Data | Location | Access |
 |------|----------|--------|
-| **Documentation & Knowledge** | `knowledge_base` table | Mission Control Knowledge tab, MCP `search_knowledge`, MCP `store_memory` (use `knowledge_type='vault_note'` for docs) |
+| **Documentation & Knowledge** | `knowledge_base` table | Dev HQ Knowledge tab, MCP `search_knowledge`, MCP `store_memory` (use `knowledge_type='vault_note'` for docs) |
 | **Projects & Tasks** | `unified_projects` + `unified_tasks` tables | MCP `get_projects`, `create_project`, `create_task`, `complete_task` |
 | **Decisions** | `project_decisions` table | MCP `log_decision` |
 | **Module Code** | `/platform_v2/tools/` filesystem | Direct file access |

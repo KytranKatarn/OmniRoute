@@ -1,0 +1,127 @@
+###############################################################################
+# A.R.C.H.I.E. Business Node — Docker Compose Template
+# ============================================================================
+# Deploy on each business node machine.
+#
+# Required env vars (set in .env or export):
+#   NODE_ID        — Unique node identifier (e.g. node_acme_hq)
+#   HUB_URL        — Hub platform URL (e.g. http://192.168.1.200:3000)
+#   HUB_API_KEY    — API key issued by Hub during node registration
+#   DB_PASSWORD    — PostgreSQL password for local node database
+#
+# Optional:
+#   ARCHIE_VERSION — Platform version tag (default: 5.25.0)
+#   HOST_IP        — Bind address for platform (default: 0.0.0.0)
+#
+# Usage:
+#   cp .env.example .env   # fill in values
+#   docker compose -f docker-compose.node.yml up -d
+###############################################################################
+
+version: "3.8"
+
+services:
+  # --------------------------------------------------------------------------
+  # Local PostgreSQL for the node
+  # --------------------------------------------------------------------------
+  node_database:
+    image: postgres:16-alpine
+    container_name: archie_node_database
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: archie
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: archie_node
+    volumes:
+      - node_db_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U archie -d archie_node"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - archie_node
+
+  # --------------------------------------------------------------------------
+  # ARCHIE Platform running in business_node mode
+  # --------------------------------------------------------------------------
+  node_platform:
+    image: archie-platform:latest
+    container_name: archie_node_platform
+    restart: unless-stopped
+    depends_on:
+      node_database:
+        condition: service_healthy
+    environment:
+      DB_HOST: node_database
+      DB_PORT: "5432"
+      DB_NAME: archie_node
+      DB_USER: archie
+      DB_PASSWORD: ${DB_PASSWORD}
+      DEPLOYMENT_MODE: business_node
+      NODE_ID: ${NODE_ID}
+      HUB_URL: ${HUB_URL}
+      OLLAMA_PRIMARY: http://node_ollama:11434
+      ARCHIE_VERSION: ${ARCHIE_VERSION:-5.25.0}
+      HOST_IP: ${HOST_IP:-0.0.0.0}
+    ports:
+      - "3000:3000"
+    networks:
+      - archie_node
+
+  # --------------------------------------------------------------------------
+  # Ollama — local LLM inference with GPU passthrough
+  # --------------------------------------------------------------------------
+  node_ollama:
+    image: ollama/ollama:latest
+    container_name: archie_node_ollama
+    restart: unless-stopped
+    environment:
+      OLLAMA_HOST: "0.0.0.0"
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - archie_node
+
+  # --------------------------------------------------------------------------
+  # Node Sync Service — heartbeat, version reporting, sync polling
+  # --------------------------------------------------------------------------
+  node_sync:
+    image: python:3.11-slim
+    container_name: archie_node_sync
+    restart: unless-stopped
+    depends_on:
+      - node_platform
+    environment:
+      NODE_ID: ${NODE_ID}
+      HUB_URL: ${HUB_URL}
+      HUB_API_KEY: ${HUB_API_KEY}
+      OLLAMA_HOST: http://node_ollama:11434
+      HEARTBEAT_INTERVAL: "30"
+      SYNC_POLL_INTERVAL: "60"
+      ARCHIE_VERSION: ${ARCHIE_VERSION:-5.25.0}
+    volumes:
+      - ./node_client/node_sync.py:/app/node_sync.py:ro
+    working_dir: /app
+    command: ["python3", "-u", "node_sync.py"]
+    networks:
+      - archie_node
+
+volumes:
+  node_db_data:
+  ollama_data:
+
+networks:
+  archie_node:
+    driver: bridge

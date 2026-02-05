@@ -1092,7 +1092,7 @@
     }
 
     /* ===========================================
-       LLM Routing Tab Styles (Phase 76)
+       Model Marketplace Styles (Phase 77)
        =========================================== */
     .llm-routing-container {
         display: flex;
@@ -1102,9 +1102,9 @@
     }
 
     .llm-section {
-        background: var(--team-card-bg, #1a1a2e);
-        border: 1px solid var(--team-border, #333);
-        border-radius: 8px;
+        background: var(--archie-bg-tertiary, #161b22);
+        border: 1px solid var(--archie-border-default, #30363d);
+        border-radius: var(--archie-radius-lg, 8px);
         overflow: hidden;
     }
 
@@ -1113,13 +1113,13 @@
         align-items: center;
         gap: 0.5rem;
         padding: 0.75rem 1rem;
-        background: var(--team-header-bg, #0f0f1a);
-        border-bottom: 1px solid var(--team-border, #333);
-        font-family: 'Orbitron', monospace;
+        background: var(--archie-bg-secondary, #0d1117);
+        border-bottom: 1px solid var(--archie-border-default, #30363d);
+        font-family: var(--archie-font-display, 'Orbitron', sans-serif);
         font-size: 0.85rem;
         text-transform: uppercase;
         letter-spacing: 0.05em;
-        color: var(--team-cyan, #00d4ff);
+        color: var(--archie-cyan, #00ffff);
     }
 
     .llm-section-header i {
@@ -1130,27 +1130,27 @@
     .llm-status-badge {
         margin-left: auto;
         padding: 0.25rem 0.75rem;
-        border-radius: 4px;
+        border-radius: var(--archie-radius-sm, 3px);
         font-size: 0.7rem;
         font-weight: bold;
     }
 
     .llm-status-badge.online {
-        background: rgba(0, 255, 136, 0.2);
-        color: #00ff88;
+        background: var(--archie-green-alpha-20, rgba(0, 255, 65, 0.2));
+        color: var(--archie-green, #00ff41);
     }
 
     .llm-status-badge.offline {
-        background: rgba(255, 68, 68, 0.2);
-        color: #ff4444;
+        background: var(--archie-red-alpha-20, rgba(255, 107, 107, 0.2));
+        color: var(--archie-red, #ff6b6b);
     }
 
     .llm-count-badge {
         margin-left: auto;
         padding: 0.2rem 0.5rem;
-        background: var(--team-cyan, #00d4ff);
+        background: var(--archie-cyan, #00ffff);
         color: #000;
-        border-radius: 4px;
+        border-radius: var(--archie-radius-sm, 3px);
         font-size: 0.7rem;
         font-weight: bold;
     }
@@ -1164,80 +1164,254 @@
     }
 
     .llm-hw-card {
-        background: var(--team-bg, #0f0f1a);
-        border: 1px solid var(--team-border, #333);
-        border-radius: 6px;
+        background: var(--archie-bg-primary, #010409);
+        border: 1px solid var(--archie-border-default, #30363d);
+        border-radius: var(--archie-radius-md, 6px);
         padding: 1rem;
         text-align: center;
     }
 
-    .llm-hw-icon {
-        margin-bottom: 0.5rem;
-    }
+    .llm-hw-icon { margin-bottom: 0.5rem; }
 
     .llm-hw-icon i {
         width: 32px;
         height: 32px;
-        color: var(--team-cyan, #00d4ff);
+        color: var(--archie-cyan, #00ffff);
     }
 
     .llm-hw-label {
-        font-family: 'Orbitron', monospace;
+        font-family: var(--archie-font-display, 'Orbitron', sans-serif);
         font-size: 0.7rem;
         text-transform: uppercase;
-        color: #888;
+        color: var(--archie-text-tertiary, #8b949e);
         margin-bottom: 0.25rem;
     }
 
     .llm-hw-value {
         font-size: 1rem;
         font-weight: 600;
-        color: #fff;
+        color: var(--archie-text-primary, #00ff41);
         margin-bottom: 0.25rem;
     }
 
     .llm-hw-stat {
         font-size: 0.8rem;
-        color: #888;
+        color: var(--archie-text-tertiary, #8b949e);
+    }
+
+    /* Marketplace Stats Row */
+    .llm-marketplace-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 0.75rem;
+        padding: 1rem;
+    }
+
+    /* Filter Row */
+    .llm-filter-row {
+        display: flex;
+        gap: 0.75rem;
+        padding: 0 1rem 0.75rem 1rem;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .llm-search-bar {
+        flex: 1;
+        min-width: 180px;
+        padding: 0.6rem 0.75rem;
+        background: var(--archie-bg-primary, #010409);
+        border: 1px solid var(--archie-border-default, #30363d);
+        border-radius: var(--archie-radius-md, 6px);
+        color: var(--archie-text-secondary, #c9d1d9);
+        font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+        font-size: 0.8rem;
+        transition: border-color var(--archie-duration-fast, 150ms);
+    }
+
+    .llm-search-bar:focus {
+        outline: none;
+        border-color: var(--archie-cyan, #00ffff);
+    }
+
+    .llm-filter-select {
+        padding: 0.6rem 0.75rem;
+        background: var(--archie-bg-primary, #010409);
+        border: 1px solid var(--archie-border-default, #30363d);
+        border-radius: var(--archie-radius-md, 6px);
+        color: var(--archie-text-secondary, #c9d1d9);
+        font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+        font-size: 0.8rem;
+        cursor: pointer;
+        transition: border-color var(--archie-duration-fast, 150ms);
+    }
+
+    .llm-filter-select:focus {
+        outline: none;
+        border-color: var(--archie-cyan, #00ffff);
+    }
+
+    /* Category Filter Buttons */
+    .llm-category-filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        padding: 0 1rem 1rem 1rem;
+    }
+
+    .llm-cat-btn {
+        padding: 0.35rem 0.7rem;
+        border: 1px solid var(--archie-border-default, #30363d);
+        border-radius: var(--archie-radius-full, 9999px);
+        background: transparent;
+        color: var(--archie-text-tertiary, #8b949e);
+        font-family: var(--archie-font-display, 'Orbitron', sans-serif);
+        font-size: 0.65rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        cursor: pointer;
+        transition: all var(--archie-duration-fast, 150ms);
+    }
+
+    .llm-cat-btn:hover {
+        border-color: var(--archie-cyan, #00ffff);
+        color: var(--archie-cyan, #00ffff);
+    }
+
+    .llm-cat-btn.active {
+        background: var(--archie-cyan-alpha-20, rgba(0, 255, 255, 0.2));
+        border-color: var(--archie-cyan, #00ffff);
+        color: var(--archie-cyan, #00ffff);
     }
 
     /* Models Grid */
     .llm-models-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
         gap: 1rem;
         padding: 1rem;
     }
 
     .llm-model-card {
-        background: var(--team-bg, #0f0f1a);
-        border: 1px solid var(--team-border, #333);
-        border-radius: 6px;
+        background: var(--archie-bg-primary, #010409);
+        border: 1px solid var(--archie-border-default, #30363d);
+        border-radius: var(--archie-radius-md, 6px);
         padding: 1rem;
-        transition: border-color 0.2s, transform 0.2s;
+        transition: border-color var(--archie-duration-fast, 150ms), transform var(--archie-duration-fast, 150ms);
     }
 
     .llm-model-card:hover {
-        border-color: var(--team-cyan, #00d4ff);
+        border-color: var(--archie-cyan, #00ffff);
         transform: translateY(-2px);
     }
 
+    .llm-model-card.too_large {
+        opacity: 0.4;
+        filter: grayscale(40%);
+    }
+
+    .llm-model-card.too_large:hover {
+        opacity: 0.6;
+        transform: none;
+    }
+
+    .llm-model-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.4rem;
+        flex-wrap: wrap;
+    }
+
     .llm-model-name {
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 1rem;
+        font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+        font-size: 0.95rem;
         font-weight: 600;
-        color: var(--team-cyan, #00d4ff);
+        color: var(--archie-cyan, #00ffff);
+    }
+
+    .llm-installed-badge {
+        padding: 0.15rem 0.5rem;
+        border-radius: var(--archie-radius-sm, 3px);
+        font-size: 0.6rem;
+        font-weight: bold;
+        text-transform: uppercase;
+        color: var(--archie-green, #00ff41);
+        background: var(--archie-green-alpha-10, rgba(0, 255, 65, 0.15));
+    }
+
+    .llm-compat-badge {
+        padding: 0.15rem 0.5rem;
+        border-radius: var(--archie-radius-sm, 3px);
+        font-size: 0.6rem;
+        font-weight: bold;
+        text-transform: uppercase;
+    }
+
+    .llm-compat-badge.gpu {
+        color: var(--archie-green, #00ff41);
+        background: var(--archie-green-alpha-10, rgba(0, 255, 65, 0.15));
+    }
+
+    .llm-compat-badge.cpu {
+        color: var(--archie-orange, #ffaa00);
+        background: var(--archie-orange-alpha-10, rgba(255, 170, 0, 0.15));
+    }
+
+    .llm-compat-badge.too_large {
+        color: var(--archie-text-muted, #6e7681);
+        background: rgba(100, 100, 100, 0.15);
+    }
+
+    .llm-model-desc {
+        font-size: 0.78rem;
+        color: var(--archie-text-tertiary, #8b949e);
         margin-bottom: 0.5rem;
+        line-height: 1.4;
     }
 
     .llm-model-meta {
         display: flex;
-        gap: 1rem;
-        font-size: 0.8rem;
-        color: #888;
+        gap: 0.75rem;
+        font-size: 0.72rem;
+        color: var(--archie-text-muted, #6e7681);
         margin-bottom: 0.75rem;
+        font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
     }
 
+    .llm-model-meta span {
+        white-space: nowrap;
+    }
+
+    /* Progress bar */
+    .llm-progress-wrap {
+        display: none;
+        margin-bottom: 0.5rem;
+    }
+
+    .llm-progress-bar {
+        height: 6px;
+        background: var(--archie-border-default, #30363d);
+        border-radius: 3px;
+        overflow: hidden;
+    }
+
+    .llm-progress-fill {
+        height: 100%;
+        width: 0%;
+        background: var(--archie-cyan, #00ffff);
+        border-radius: 3px;
+        transition: width 0.3s;
+    }
+
+    .llm-progress-text {
+        font-size: 0.65rem;
+        color: var(--archie-text-tertiary, #8b949e);
+        margin-top: 0.25rem;
+        font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+    }
+
+    /* Model actions */
     .llm-model-actions {
         display: flex;
         gap: 0.5rem;
@@ -1245,41 +1419,64 @@
 
     .llm-model-actions button {
         flex: 1;
-        padding: 0.5rem;
-        border: 1px solid var(--team-border, #333);
-        border-radius: 4px;
+        padding: 0.45rem 0.5rem;
+        border: 1px solid var(--archie-border-default, #30363d);
+        border-radius: var(--archie-radius-sm, 3px);
         background: transparent;
-        color: #fff;
-        font-size: 0.75rem;
+        color: var(--archie-text-secondary, #c9d1d9);
+        font-size: 0.72rem;
         cursor: pointer;
-        transition: all 0.2s;
+        transition: all var(--archie-duration-fast, 150ms);
+        font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
     }
 
     .llm-model-actions button:hover {
-        background: var(--team-cyan, #00d4ff);
+        background: var(--archie-cyan, #00ffff);
         color: #000;
-        border-color: var(--team-cyan, #00d4ff);
+        border-color: var(--archie-cyan, #00ffff);
     }
 
     .llm-model-actions button.primary {
-        background: var(--team-cyan, #00d4ff);
+        background: var(--archie-cyan, #00ffff);
         color: #000;
-        border-color: var(--team-cyan, #00d4ff);
+        border-color: var(--archie-cyan, #00ffff);
+    }
+
+    .llm-model-actions button.danger {
+        border-color: var(--archie-red-alpha-30, rgba(255, 107, 107, 0.3));
+        color: var(--archie-red, #ff6b6b);
+    }
+
+    .llm-model-actions button.danger:hover {
+        background: var(--archie-red, #ff6b6b);
+        color: #000;
+        border-color: var(--archie-red, #ff6b6b);
+    }
+
+    .llm-model-actions button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+
+    .llm-model-actions button:disabled:hover {
+        background: transparent;
+        color: var(--archie-text-muted, #6e7681);
+        border-color: var(--archie-border-default, #30363d);
     }
 
     .llm-empty-state {
         grid-column: 1 / -1;
         text-align: center;
         padding: 2rem;
-        color: #666;
+        color: var(--archie-text-muted, #6e7681);
     }
 
     .llm-error {
         padding: 1rem;
-        background: rgba(255, 68, 68, 0.1);
-        border: 1px solid rgba(255, 68, 68, 0.3);
-        border-radius: 4px;
-        color: #ff6666;
+        background: var(--archie-danger-bg, rgba(255, 107, 107, 0.1));
+        border: 1px solid var(--archie-danger-border, rgba(255, 107, 107, 0.3));
+        border-radius: var(--archie-radius-sm, 3px);
+        color: var(--archie-red-bright, #ff8888);
         margin: 1rem;
     }
 
@@ -1301,7 +1498,7 @@
     .llm-modal .form-group label {
         display: block;
         margin-bottom: 0.5rem;
-        color: var(--team-cyan, #00d4ff);
+        color: var(--archie-cyan, #00ffff);
         font-size: 0.85rem;
         font-weight: 500;
     }
@@ -1309,16 +1506,16 @@
     .llm-modal .form-input {
         width: 100%;
         padding: 0.75rem;
-        background: var(--team-bg, #0f0f1a);
-        border: 1px solid var(--team-border, #333);
-        border-radius: 4px;
+        background: var(--archie-bg-primary, #010409);
+        border: 1px solid var(--archie-border-default, #30363d);
+        border-radius: var(--archie-radius-sm, 3px);
         color: #fff;
         font-size: 0.9rem;
     }
 
     .llm-modal .form-input:focus {
         outline: none;
-        border-color: var(--team-cyan, #00d4ff);
+        border-color: var(--archie-cyan, #00ffff);
     }
 
     .llm-modal textarea.form-input {
@@ -1331,12 +1528,12 @@
         gap: 1rem;
         justify-content: flex-end;
         padding-top: 1rem;
-        border-top: 1px solid var(--team-border, #333);
+        border-top: 1px solid var(--archie-border-default, #30363d);
     }
 
     .llm-modal .btn {
         padding: 0.75rem 1.5rem;
-        border-radius: 4px;
+        border-radius: var(--archie-radius-sm, 3px);
         font-size: 0.85rem;
         cursor: pointer;
         display: flex;
@@ -1346,19 +1543,41 @@
 
     .llm-modal .btn-secondary {
         background: transparent;
-        border: 1px solid var(--team-border, #333);
-        color: #888;
+        border: 1px solid var(--archie-border-default, #30363d);
+        color: var(--archie-text-tertiary, #8b949e);
     }
 
     .llm-modal .btn-primary {
-        background: var(--team-cyan, #00d4ff);
-        border: 1px solid var(--team-cyan, #00d4ff);
+        background: var(--archie-cyan, #00ffff);
+        border: 1px solid var(--archie-cyan, #00ffff);
         color: #000;
         font-weight: 600;
     }
 
     .llm-modal .btn-primary:hover {
-        background: #00b8d9;
+        background: var(--archie-cyan-dim, #00cccc);
+    }
+
+    /* Responsive Breakpoints */
+    @media (max-width: 920px) {
+        .llm-hardware-grid { grid-template-columns: 1fr 1fr; }
+        .llm-models-grid { grid-template-columns: 1fr; }
+        .llm-marketplace-stats { grid-template-columns: repeat(3, 1fr); }
+        .llm-filter-row { flex-direction: column; }
+        .llm-search-bar { min-width: 100%; }
+    }
+
+    @media (max-width: 768px) {
+        .llm-hardware-grid { grid-template-columns: 1fr; }
+        .llm-marketplace-stats { grid-template-columns: repeat(2, 1fr); }
+        .llm-model-meta { flex-wrap: wrap; gap: 0.5rem; }
+    }
+
+    @media (max-width: 480px) {
+        .llm-marketplace-stats { grid-template-columns: 1fr 1fr; }
+        .llm-category-filters { gap: 0.3rem; }
+        .llm-cat-btn { font-size: 0.6rem; padding: 0.3rem 0.5rem; }
+        .llm-model-name { font-size: 0.85rem; }
     }
 </style>
 {% endblock %}
@@ -1421,7 +1640,7 @@
             <span class="team-tab-icon">💬</span> TEAM CHAT
         </button>
         <button class="team-tab" data-tab="llm-routing">
-            <span class="team-tab-icon">🧠</span> LLM ROUTING
+            <span class="team-tab-icon">🏪</span> MODEL MARKETPLACE
         </button>
         <button class="team-tab" data-tab="contractors">
             <span class="team-tab-icon">📋</span> CONTRACTORS
@@ -1622,34 +1841,36 @@
         </div>
     </div>
 
-    <!-- ==================== LLM ROUTING TAB ==================== -->
+    <!-- ==================== MODEL MARKETPLACE TAB ==================== -->
     <div id="tab-llm-routing" class="team-content">
-        <div class="team-section-header">🧠 SMART LLM ROUTING</div>
-        <div class="team-section-subtitle">Configure intelligent model selection and routing</div>
+        <div class="team-section-header">🏪 MODEL MARKETPLACE</div>
+        <div class="team-section-subtitle">Browse, download, and deploy Ollama models with hardware compatibility</div>
 
         <div class="team-stats">
             <div class="team-stat-card">
-                <div class="team-stat-value" id="llm-local">--</div>
-                <div class="team-stat-label">Local Models</div>
+                <div class="team-stat-value" id="llm-available">--</div>
+                <div class="team-stat-label">Available</div>
             </div>
             <div class="team-stat-card">
-                <div class="team-stat-value" id="llm-external">--</div>
-                <div class="team-stat-label">External APIs</div>
+                <div class="team-stat-value" id="llm-installed">--</div>
+                <div class="team-stat-label">Installed</div>
             </div>
             <div class="team-stat-card">
-                <div class="team-stat-value" id="llm-cost">$--</div>
-                <div class="team-stat-label">Monthly Cost</div>
+                <div class="team-stat-value" id="llm-gpu-fit">--</div>
+                <div class="team-stat-label">GPU Fit</div>
             </div>
             <div class="team-stat-card">
-                <div class="team-stat-value" id="llm-requests">--</div>
-                <div class="team-stat-label">Requests Today</div>
+                <div class="team-stat-value" id="llm-cpu-only">--</div>
+                <div class="team-stat-label">CPU Only</div>
+            </div>
+            <div class="team-stat-card">
+                <div class="team-stat-value" id="llm-too-large">--</div>
+                <div class="team-stat-label">Too Large</div>
             </div>
         </div>
 
         <div class="team-actions">
-            <button class="team-btn" onclick="loadLlmRouting()">🔄 REFRESH</button>
-            <button class="team-btn" onclick="showRoutingRules()">📜 ROUTING RULES</button>
-            <button class="team-btn" onclick="showModelHealth()">💚 MODEL HEALTH</button>
+            <button class="team-btn" onclick="loadMarketplace()">🔄 REFRESH</button>
         </div>
 
         <div id="llmRoutingContent" class="llm-routing-container">
@@ -1693,15 +1914,32 @@
                 </div>
             </div>
 
-            <!-- Available Models Panel -->
+            <!-- Model Catalog Panel -->
             <div class="llm-section">
                 <div class="llm-section-header">
-                    <i data-lucide="layers"></i>
-                    <span>AVAILABLE MODELS</span>
+                    <i data-lucide="store"></i>
+                    <span>MODEL CATALOG</span>
                     <span class="llm-count-badge" id="modelCountBadge">0</span>
                 </div>
+                <div class="llm-filter-row">
+                    <input type="text" id="marketplaceSearch" class="llm-search-bar" placeholder="Search models..." oninput="filterMarketplace()">
+                    <select id="compatFilter" class="llm-filter-select" onchange="filterMarketplace()">
+                        <option value="all">All Compatibility</option>
+                        <option value="gpu">GPU Compatible</option>
+                        <option value="cpu">CPU Compatible</option>
+                        <option value="too_large">Too Large</option>
+                        <option value="installed">Installed</option>
+                    </select>
+                    <select id="sortFilter" class="llm-filter-select" onchange="filterMarketplace()">
+                        <option value="name-asc">Name A-Z</option>
+                        <option value="name-desc">Name Z-A</option>
+                        <option value="size-asc">Size (smallest)</option>
+                        <option value="size-desc">Size (largest)</option>
+                    </select>
+                </div>
+                <div class="llm-category-filters" id="categoryFilters"></div>
                 <div class="llm-models-grid" id="modelsGrid">
-                    <div class="llm-empty-state">Loading models...</div>
+                    <div class="llm-empty-state">Loading marketplace...</div>
                 </div>
             </div>
         </div>
@@ -2107,7 +2345,7 @@
             case 'roster': loadRoster(); break;
             case 'execution': loadAgents(); break;
             case 'chat': loadTeamSelection(); break;
-            case 'llm-routing': loadLlmRouting(); break;
+            case 'llm-routing': loadMarketplace(); break;
             case 'contractors': loadContractorAPIs(); break;
         }
     }
@@ -3059,34 +3297,30 @@
     }
 
     // ============================================
-    // LLM ROUTING FUNCTIONS - LOCAL OLLAMA TEAM CREATION (Phase 76)
+    // MODEL MARKETPLACE FUNCTIONS (Phase 77)
     // ============================================
-    let localOllamaData = null;
+    let marketplaceCatalog = [];
+    let marketplaceActiveCategory = 'all';
 
-    async function loadLlmRouting() {
+    async function loadMarketplace() {
         try {
-            const response = await fetch('/tools/team-management/api/local-ollama/status');
-            const data = await response.json();
+            var response = await fetch('/tools/team-management/api/model-marketplace');
+            var data = await response.json();
 
             if (data.success) {
-                localOllamaData = data;
+                marketplaceCatalog = data.catalog || [];
                 renderHardwareResources(data.hardware);
-                renderOllamaStatus(data.ollama);
-                renderAvailableModels(data.ollama.models);
-
-                // Update header stats
-                document.getElementById('llm-local').textContent = data.ollama.models.length;
-                document.getElementById('llm-external').textContent = '0';
-                document.getElementById('llm-cost').textContent = '$0.00';
-                document.getElementById('llm-requests').textContent = '--';
+                renderOllamaMarketplaceStatus(data.ollama_online);
+                renderMarketplaceStats(data.stats);
+                renderCategoryFilters(data.categories);
+                filterMarketplace();
             }
         } catch (error) {
-            console.error('Failed to load LLM routing data:', error);
+            console.error('Failed to load marketplace:', error);
             document.getElementById('ollamaStatusBadge').textContent = 'ERROR';
             document.getElementById('ollamaStatusBadge').className = 'llm-status-badge offline';
         }
 
-        // Refresh Lucide icons
         if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 
@@ -3097,7 +3331,7 @@
         document.getElementById('hwRamAvail').textContent = hw.ram_available_gb + ' GB available';
 
         if (hw.gpus && hw.gpus.length > 0) {
-            const gpu = hw.gpus[0];
+            var gpu = hw.gpus[0];
             document.getElementById('hwGpuModel').textContent = gpu.model;
             document.getElementById('hwGpuVram').textContent = gpu.vram_total_gb + ' GB VRAM';
         } else {
@@ -3106,11 +3340,11 @@
         }
     }
 
-    function renderOllamaStatus(ollama) {
-        const badge = document.getElementById('ollamaStatusBadge');
-        const errorDiv = document.getElementById('ollamaError');
+    function renderOllamaMarketplaceStatus(online) {
+        var badge = document.getElementById('ollamaStatusBadge');
+        var errorDiv = document.getElementById('ollamaError');
 
-        if (ollama.available) {
+        if (online) {
             badge.textContent = 'ONLINE';
             badge.className = 'llm-status-badge online';
             errorDiv.style.display = 'none';
@@ -3123,18 +3357,89 @@
             strong.textContent = 'Ollama Not Available';
             errorDiv.appendChild(strong);
             errorDiv.appendChild(document.createElement('br'));
-            errorDiv.appendChild(document.createTextNode(ollama.error || 'Cannot connect to local Ollama service'));
-            errorDiv.appendChild(document.createElement('br'));
-            errorDiv.appendChild(document.createElement('br'));
-            var small = document.createElement('small');
-            small.textContent = 'Host: ' + ollama.host;
-            errorDiv.appendChild(small);
+            errorDiv.appendChild(document.createTextNode('Cannot connect to local Ollama service. Check that Ollama is running.'));
         }
     }
 
-    function renderAvailableModels(models) {
-        const grid = document.getElementById('modelsGrid');
-        const countBadge = document.getElementById('modelCountBadge');
+    function renderMarketplaceStats(stats) {
+        document.getElementById('llm-available').textContent = stats.total || 0;
+        document.getElementById('llm-installed').textContent = stats.installed || 0;
+        document.getElementById('llm-gpu-fit').textContent = stats.gpu_compatible || 0;
+        document.getElementById('llm-cpu-only').textContent = stats.cpu_compatible || 0;
+        document.getElementById('llm-too-large').textContent = stats.too_large || 0;
+    }
+
+    function renderCategoryFilters(categories) {
+        var container = document.getElementById('categoryFilters');
+        container.textContent = '';
+
+        var allBtn = document.createElement('button');
+        allBtn.className = 'llm-cat-btn' + (marketplaceActiveCategory === 'all' ? ' active' : '');
+        allBtn.textContent = 'ALL';
+        allBtn.onclick = function() { setCategory('all'); };
+        container.appendChild(allBtn);
+
+        categories.forEach(function(cat) {
+            var btn = document.createElement('button');
+            btn.className = 'llm-cat-btn' + (marketplaceActiveCategory === cat ? ' active' : '');
+            btn.textContent = cat.toUpperCase();
+            btn.onclick = function() { setCategory(cat); };
+            container.appendChild(btn);
+        });
+    }
+
+    function setCategory(cat) {
+        marketplaceActiveCategory = cat;
+        // Update active state on buttons
+        document.querySelectorAll('.llm-cat-btn').forEach(function(btn) {
+            var btnCat = btn.textContent.toLowerCase();
+            btn.classList.toggle('active', btnCat === cat || (cat === 'all' && btnCat === 'all'));
+        });
+        filterMarketplace();
+    }
+
+    function filterMarketplace() {
+        var searchEl = document.getElementById('marketplaceSearch');
+        var compatEl = document.getElementById('compatFilter');
+        var sortEl = document.getElementById('sortFilter');
+
+        var search = searchEl ? searchEl.value.toLowerCase().trim() : '';
+        var compat = compatEl ? compatEl.value : 'all';
+        var sort = sortEl ? sortEl.value : 'name-asc';
+
+        var filtered = marketplaceCatalog.filter(function(m) {
+            // Category filter
+            if (marketplaceActiveCategory !== 'all' && m.category !== marketplaceActiveCategory) return false;
+            // Search filter
+            if (search && m.name.toLowerCase().indexOf(search) === -1 &&
+                m.id.toLowerCase().indexOf(search) === -1 &&
+                m.description.toLowerCase().indexOf(search) === -1 &&
+                m.category.toLowerCase().indexOf(search) === -1) return false;
+            // Compatibility filter
+            if (compat === 'gpu' && m.compatibility !== 'gpu') return false;
+            if (compat === 'cpu' && m.compatibility !== 'cpu') return false;
+            if (compat === 'too_large' && m.compatibility !== 'too_large') return false;
+            if (compat === 'installed' && !m.installed) return false;
+            return true;
+        });
+
+        // Sort
+        filtered.sort(function(a, b) {
+            switch (sort) {
+                case 'name-asc': return a.name.localeCompare(b.name);
+                case 'name-desc': return b.name.localeCompare(a.name);
+                case 'size-asc': return a.size_gb - b.size_gb;
+                case 'size-desc': return b.size_gb - a.size_gb;
+                default: return 0;
+            }
+        });
+
+        renderModelGrid(filtered);
+    }
+
+    function renderModelGrid(models) {
+        var grid = document.getElementById('modelsGrid');
+        var countBadge = document.getElementById('modelCountBadge');
 
         countBadge.textContent = models.length;
         grid.textContent = '';
@@ -3142,48 +3447,228 @@
         if (!models || models.length === 0) {
             var emptyDiv = document.createElement('div');
             emptyDiv.className = 'llm-empty-state';
-            emptyDiv.textContent = 'No models available. Install models via Ollama CLI.';
+            emptyDiv.textContent = 'No models match your filters.';
             grid.appendChild(emptyDiv);
             return;
         }
 
         models.forEach(function(model) {
             var card = document.createElement('div');
-            card.className = 'llm-model-card';
+            card.className = 'llm-model-card' + (model.compatibility === 'too_large' ? ' too_large' : '');
+            card.setAttribute('data-model-id', model.id);
 
-            var nameDiv = document.createElement('div');
-            nameDiv.className = 'llm-model-name';
-            nameDiv.textContent = model.name;
-            card.appendChild(nameDiv);
+            // Header row: name + badges
+            var headerDiv = document.createElement('div');
+            headerDiv.className = 'llm-model-header';
 
+            var nameSpan = document.createElement('span');
+            nameSpan.className = 'llm-model-name';
+            nameSpan.textContent = model.name;
+            headerDiv.appendChild(nameSpan);
+
+            if (model.installed) {
+                var instBadge = document.createElement('span');
+                instBadge.className = 'llm-installed-badge';
+                instBadge.textContent = 'INSTALLED';
+                headerDiv.appendChild(instBadge);
+            }
+
+            var compatBadge = document.createElement('span');
+            compatBadge.className = 'llm-compat-badge ' + model.compatibility;
+            if (model.compatibility === 'gpu') {
+                compatBadge.textContent = 'GPU OK';
+            } else if (model.compatibility === 'cpu') {
+                compatBadge.textContent = 'CPU ONLY';
+            } else {
+                compatBadge.textContent = 'TOO LARGE';
+            }
+            headerDiv.appendChild(compatBadge);
+            card.appendChild(headerDiv);
+
+            // Description
+            var descDiv = document.createElement('div');
+            descDiv.className = 'llm-model-desc';
+            descDiv.textContent = model.description;
+            card.appendChild(descDiv);
+
+            // Meta row
             var metaDiv = document.createElement('div');
             metaDiv.className = 'llm-model-meta';
+
+            var paramsSpan = document.createElement('span');
+            paramsSpan.textContent = model.params;
+            metaDiv.appendChild(paramsSpan);
 
             var sizeSpan = document.createElement('span');
             sizeSpan.textContent = model.size_gb + ' GB';
             metaDiv.appendChild(sizeSpan);
 
-            var digestSpan = document.createElement('span');
-            digestSpan.textContent = model.digest;
-            metaDiv.appendChild(digestSpan);
+            var vramSpan = document.createElement('span');
+            vramSpan.textContent = 'VRAM: ' + model.vram_gb + ' GB';
+            metaDiv.appendChild(vramSpan);
+
+            var catSpan = document.createElement('span');
+            catSpan.textContent = model.category;
+            metaDiv.appendChild(catSpan);
 
             card.appendChild(metaDiv);
 
+            // Progress bar (hidden by default)
+            var progressWrap = document.createElement('div');
+            progressWrap.className = 'llm-progress-wrap';
+            progressWrap.id = 'progress-' + model.id.replace(/[:.]/g, '-');
+
+            var progressBar = document.createElement('div');
+            progressBar.className = 'llm-progress-bar';
+            var progressFill = document.createElement('div');
+            progressFill.className = 'llm-progress-fill';
+            progressBar.appendChild(progressFill);
+            progressWrap.appendChild(progressBar);
+
+            var progressText = document.createElement('div');
+            progressText.className = 'llm-progress-text';
+            progressText.textContent = '';
+            progressWrap.appendChild(progressText);
+
+            card.appendChild(progressWrap);
+
+            // Action buttons
             var actionsDiv = document.createElement('div');
             actionsDiv.className = 'llm-model-actions';
 
-            var btn = document.createElement('button');
-            btn.className = 'primary';
-            btn.textContent = 'Create Agent';
-            btn.onclick = function() { openCreateAgentModal(model.name); };
-            actionsDiv.appendChild(btn);
+            if (model.installed) {
+                var agentBtn = document.createElement('button');
+                agentBtn.className = 'primary';
+                agentBtn.textContent = '+ Create Agent';
+                agentBtn.onclick = function() { openCreateAgentModal(model.id); };
+                actionsDiv.appendChild(agentBtn);
+
+                var delBtn = document.createElement('button');
+                delBtn.className = 'danger';
+                delBtn.textContent = 'Delete';
+                delBtn.onclick = function() { deleteModel(model.id); };
+                actionsDiv.appendChild(delBtn);
+            } else if (model.compatibility !== 'too_large') {
+                var dlBtn = document.createElement('button');
+                dlBtn.className = 'primary';
+                dlBtn.textContent = 'Download';
+                dlBtn.onclick = function() { pullModel(model.id); };
+                actionsDiv.appendChild(dlBtn);
+            } else {
+                var disBtn = document.createElement('button');
+                disBtn.disabled = true;
+                disBtn.textContent = 'Insufficient Resources';
+                actionsDiv.appendChild(disBtn);
+            }
 
             card.appendChild(actionsDiv);
             grid.appendChild(card);
         });
     }
 
-    // Create Agent Modal
+    async function pullModel(modelId) {
+        var safeId = modelId.replace(/[:.]/g, '-');
+        var progressWrap = document.getElementById('progress-' + safeId);
+        if (!progressWrap) return;
+
+        progressWrap.style.display = 'block';
+        var fill = progressWrap.querySelector('.llm-progress-fill');
+        var text = progressWrap.querySelector('.llm-progress-text');
+        fill.style.width = '0%';
+        text.textContent = 'Starting download...';
+
+        // Disable the download button
+        var card = progressWrap.closest('.llm-model-card');
+        var dlBtn = card ? card.querySelector('.llm-model-actions button') : null;
+        if (dlBtn) {
+            dlBtn.disabled = true;
+            dlBtn.textContent = 'Downloading...';
+        }
+
+        try {
+            var response = await fetch('/tools/team-management/api/model-marketplace/pull', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model: modelId })
+            });
+
+            var reader = response.body.getReader();
+            var decoder = new TextDecoder();
+            var buffer = '';
+
+            while (true) {
+                var result = await reader.read();
+                if (result.done) break;
+
+                buffer += decoder.decode(result.value, { stream: true });
+                var lines = buffer.split('\n');
+                buffer = lines.pop(); // Keep incomplete last line
+
+                for (var i = 0; i < lines.length; i++) {
+                    var line = lines[i].trim();
+                    if (!line) continue;
+                    try {
+                        var chunk = JSON.parse(line);
+                        if (chunk.total && chunk.completed) {
+                            var pct = Math.round((chunk.completed / chunk.total) * 100);
+                            fill.style.width = pct + '%';
+                            var dlMB = (chunk.completed / 1048576).toFixed(0);
+                            var totalMB = (chunk.total / 1048576).toFixed(0);
+                            text.textContent = chunk.status + ' ' + dlMB + ' / ' + totalMB + ' MB (' + pct + '%)';
+                        } else if (chunk.status === 'success') {
+                            fill.style.width = '100%';
+                            fill.style.background = 'var(--archie-green, #00ff41)';
+                            text.textContent = 'Download complete!';
+                            showNotification('Model ' + modelId + ' downloaded successfully', 'success');
+                            setTimeout(function() { loadMarketplace(); }, 1500);
+                        } else if (chunk.status) {
+                            text.textContent = chunk.status;
+                        }
+                        if (chunk.error) {
+                            text.textContent = 'Error: ' + chunk.error;
+                            fill.style.background = 'var(--archie-red, #ff6b6b)';
+                            if (dlBtn) {
+                                dlBtn.disabled = false;
+                                dlBtn.textContent = 'Retry Download';
+                            }
+                        }
+                    } catch (e) {
+                        // skip unparseable lines
+                    }
+                }
+            }
+        } catch (error) {
+            text.textContent = 'Download failed: ' + error.message;
+            fill.style.background = 'var(--archie-red, #ff6b6b)';
+            if (dlBtn) {
+                dlBtn.disabled = false;
+                dlBtn.textContent = 'Retry Download';
+            }
+        }
+    }
+
+    async function deleteModel(modelId) {
+        if (!confirm('Delete model "' + modelId + '"? This will remove the downloaded model files.')) return;
+
+        try {
+            var response = await fetch('/tools/team-management/api/model-marketplace/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model: modelId })
+            });
+            var data = await response.json();
+            if (data.success) {
+                showNotification('Model ' + modelId + ' deleted', 'success');
+                loadMarketplace();
+            } else {
+                showNotification(data.error || 'Failed to delete model', 'error');
+            }
+        } catch (error) {
+            showNotification('Error deleting model: ' + error.message, 'error');
+        }
+    }
+
+    // Create Agent Modal (kept from Phase 76)
     function openCreateAgentModal(modelName) {
         document.getElementById('agentModel').value = modelName;
 
@@ -3205,7 +3690,7 @@
     }
 
     async function submitCreateAgent() {
-        const payload = {
+        var payload = {
             model: document.getElementById('agentModel').value,
             first_name: document.getElementById('agentFirstName').value,
             last_name: document.getElementById('agentLastName').value,
@@ -3217,14 +3702,12 @@
         };
 
         try {
-            const response = await fetch('/tools/team-management/api/agents', {
+            var response = await fetch('/tools/team-management/api/agents', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-
-            const data = await response.json();
-
+            var data = await response.json();
             if (data.success) {
                 closeCreateAgentModal();
                 showNotification('Agent "' + data.agent.first_name + ' ' + data.agent.last_name + '" created!', 'success');
@@ -3235,15 +3718,6 @@
         } catch (error) {
             showNotification('Error creating agent: ' + error.message, 'error');
         }
-    }
-
-    function showRoutingRules() {
-        showNotification('Routing Rules editor coming in Phase 77', 'info');
-    }
-
-    function showModelHealth() {
-        loadLlmRouting();
-        showNotification('Model status refreshed', 'info');
     }
 
     // ============================================

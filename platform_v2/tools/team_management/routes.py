@@ -17,13 +17,14 @@ Migrated routes:
 - /api/agent-directory GET - Get complete agent directory
 """
 
-from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
+from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, Response, stream_with_context
 from flask_login import login_required, current_user
 from functools import wraps
 import psycopg2
 from psycopg2.extras import RealDictCursor
 import os
 import json
+import requests
 import sys
 
 # Add ai_bridge to path for image generation
@@ -7567,3 +7568,853 @@ def api_create_agent():
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
         conn.close()
+
+
+# =============================================================================
+# MODEL MARKETPLACE - Phase 77
+# Catalog of ~61 Ollama models with hardware compatibility
+# =============================================================================
+
+OLLAMA_MODEL_CATALOG = [
+    # --- General Purpose ---
+    {
+        "id": "tinyllama",
+        "name": "TinyLlama 1.1B",
+        "params": "1.1B",
+        "size_gb": 0.6,
+        "vram_gb": 1.5,
+        "ram_gb": 4,
+        "category": "general",
+        "description": "Ultra-lightweight model for testing and edge devices",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "qwen2.5:0.5b",
+        "name": "Qwen 2.5 0.5B",
+        "params": "0.5B",
+        "size_gb": 0.4,
+        "vram_gb": 1.0,
+        "ram_gb": 2,
+        "category": "general",
+        "description": "Smallest Qwen model for minimal resource environments",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "qwen2.5:1.5b",
+        "name": "Qwen 2.5 1.5B",
+        "params": "1.5B",
+        "size_gb": 1.0,
+        "vram_gb": 2.0,
+        "ram_gb": 4,
+        "category": "general",
+        "description": "Compact Qwen model with good efficiency",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "qwen2.5:3b",
+        "name": "Qwen 2.5 3B",
+        "params": "3B",
+        "size_gb": 1.9,
+        "vram_gb": 3.5,
+        "ram_gb": 6,
+        "category": "general",
+        "description": "Balanced Qwen model for general tasks",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "qwen2.5:7b",
+        "name": "Qwen 2.5 7B",
+        "params": "7B",
+        "size_gb": 4.4,
+        "vram_gb": 6.5,
+        "ram_gb": 10,
+        "category": "general",
+        "description": "Strong general-purpose Qwen model",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "qwen2.5:14b",
+        "name": "Qwen 2.5 14B",
+        "params": "14B",
+        "size_gb": 8.7,
+        "vram_gb": 12.0,
+        "ram_gb": 18,
+        "category": "general",
+        "description": "High-capability Qwen model for complex tasks",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "qwen2.5:32b",
+        "name": "Qwen 2.5 32B",
+        "params": "32B",
+        "size_gb": 19.0,
+        "vram_gb": 24.0,
+        "ram_gb": 36,
+        "category": "general",
+        "description": "Large Qwen model with excellent reasoning",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "qwen2.5:72b",
+        "name": "Qwen 2.5 72B",
+        "params": "72B",
+        "size_gb": 41.0,
+        "vram_gb": 48.0,
+        "ram_gb": 80,
+        "category": "general",
+        "description": "Flagship Qwen model rivaling GPT-4 class",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "gemma2:2b",
+        "name": "Gemma 2 2B",
+        "params": "2B",
+        "size_gb": 1.6,
+        "vram_gb": 3.0,
+        "ram_gb": 5,
+        "category": "general",
+        "description": "Google lightweight model with strong benchmarks",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "gemma2:9b",
+        "name": "Gemma 2 9B",
+        "params": "9B",
+        "size_gb": 5.4,
+        "vram_gb": 8.0,
+        "ram_gb": 12,
+        "category": "general",
+        "description": "Google mid-size model with excellent quality",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "gemma2:27b",
+        "name": "Gemma 2 27B",
+        "params": "27B",
+        "size_gb": 15.8,
+        "vram_gb": 20.0,
+        "ram_gb": 30,
+        "category": "general",
+        "description": "Google large model for demanding tasks",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "llama3.2:1b",
+        "name": "Llama 3.2 1B",
+        "params": "1B",
+        "size_gb": 0.7,
+        "vram_gb": 1.5,
+        "ram_gb": 3,
+        "category": "general",
+        "description": "Meta compact model for edge deployment",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "llama3.2:3b",
+        "name": "Llama 3.2 3B",
+        "params": "3B",
+        "size_gb": 2.0,
+        "vram_gb": 3.5,
+        "ram_gb": 6,
+        "category": "general",
+        "description": "Meta small model with solid capabilities",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "llama3.1:8b",
+        "name": "Llama 3.1 8B",
+        "params": "8B",
+        "size_gb": 4.7,
+        "vram_gb": 7.0,
+        "ram_gb": 10,
+        "category": "general",
+        "description": "Meta flagship open model with 128K context",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "llama3.1:70b",
+        "name": "Llama 3.1 70B",
+        "params": "70B",
+        "size_gb": 40.0,
+        "vram_gb": 48.0,
+        "ram_gb": 80,
+        "category": "general",
+        "description": "Meta large model competing with GPT-4",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "phi3:mini",
+        "name": "Phi-3 Mini 3.8B",
+        "params": "3.8B",
+        "size_gb": 2.3,
+        "vram_gb": 4.0,
+        "ram_gb": 6,
+        "category": "general",
+        "description": "Microsoft compact model with strong reasoning",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "phi4",
+        "name": "Phi-4 14B",
+        "params": "14B",
+        "size_gb": 8.4,
+        "vram_gb": 12.0,
+        "ram_gb": 18,
+        "category": "general",
+        "description": "Microsoft latest with state-of-art benchmarks",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "mistral",
+        "name": "Mistral 7B",
+        "params": "7B",
+        "size_gb": 4.1,
+        "vram_gb": 6.0,
+        "ram_gb": 10,
+        "category": "general",
+        "description": "Fast and capable with sliding window attention",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "yi:6b",
+        "name": "Yi 6B",
+        "params": "6B",
+        "size_gb": 3.5,
+        "vram_gb": 5.5,
+        "ram_gb": 8,
+        "category": "general",
+        "description": "01.AI bilingual model (English/Chinese)",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "yi:34b",
+        "name": "Yi 34B",
+        "params": "34B",
+        "size_gb": 19.5,
+        "vram_gb": 24.0,
+        "ram_gb": 38,
+        "category": "general",
+        "description": "01.AI large bilingual model",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "dolphin3:8b",
+        "name": "Dolphin 3 8B",
+        "params": "8B",
+        "size_gb": 4.9,
+        "vram_gb": 7.0,
+        "ram_gb": 10,
+        "category": "general",
+        "description": "Uncensored fine-tune with strong instruction following",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "command-r",
+        "name": "Command R 35B",
+        "params": "35B",
+        "size_gb": 20.0,
+        "vram_gb": 24.0,
+        "ram_gb": 38,
+        "category": "general",
+        "description": "Cohere RAG-optimized with tool use and citations",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "mixtral",
+        "name": "Mixtral 8x7B MoE",
+        "params": "47B",
+        "size_gb": 26.0,
+        "vram_gb": 32.0,
+        "ram_gb": 48,
+        "category": "general",
+        "description": "Mistral mixture-of-experts with 8 expert heads",
+        "quant": "Q4_K_M",
+    },
+    # --- Code ---
+    {
+        "id": "starcoder2:3b",
+        "name": "StarCoder2 3B",
+        "params": "3B",
+        "size_gb": 1.7,
+        "vram_gb": 3.5,
+        "ram_gb": 6,
+        "category": "code",
+        "description": "BigCode compact code model, 600+ languages",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "starcoder2:7b",
+        "name": "StarCoder2 7B",
+        "params": "7B",
+        "size_gb": 4.0,
+        "vram_gb": 6.0,
+        "ram_gb": 10,
+        "category": "code",
+        "description": "BigCode mid-size code generation model",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "starcoder2:15b",
+        "name": "StarCoder2 15B",
+        "params": "15B",
+        "size_gb": 8.9,
+        "vram_gb": 12.0,
+        "ram_gb": 18,
+        "category": "code",
+        "description": "BigCode large code model with broad language support",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "qwen2.5-coder:1.5b",
+        "name": "Qwen 2.5 Coder 1.5B",
+        "params": "1.5B",
+        "size_gb": 1.0,
+        "vram_gb": 2.0,
+        "ram_gb": 4,
+        "category": "code",
+        "description": "Lightweight Qwen code model for autocomplete",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "qwen2.5-coder:7b",
+        "name": "Qwen 2.5 Coder 7B",
+        "params": "7B",
+        "size_gb": 4.4,
+        "vram_gb": 6.5,
+        "ram_gb": 10,
+        "category": "code",
+        "description": "Strong Qwen code model rivaling CodeLlama",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "qwen2.5-coder:32b",
+        "name": "Qwen 2.5 Coder 32B",
+        "params": "32B",
+        "size_gb": 19.0,
+        "vram_gb": 24.0,
+        "ram_gb": 36,
+        "category": "code",
+        "description": "Top-tier Qwen code model for complex tasks",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "codellama:7b",
+        "name": "CodeLlama 7B",
+        "params": "7B",
+        "size_gb": 3.8,
+        "vram_gb": 6.0,
+        "ram_gb": 10,
+        "category": "code",
+        "description": "Meta code-specialized Llama with infill support",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "codellama:13b",
+        "name": "CodeLlama 13B",
+        "params": "13B",
+        "size_gb": 7.4,
+        "vram_gb": 10.0,
+        "ram_gb": 16,
+        "category": "code",
+        "description": "Meta mid-size code model with 100K context",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "codellama:34b",
+        "name": "CodeLlama 34B",
+        "params": "34B",
+        "size_gb": 19.0,
+        "vram_gb": 24.0,
+        "ram_gb": 36,
+        "category": "code",
+        "description": "Meta large code model for professional development",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "deepseek-coder:1.3b",
+        "name": "DeepSeek Coder 1.3B",
+        "params": "1.3B",
+        "size_gb": 0.8,
+        "vram_gb": 2.0,
+        "ram_gb": 4,
+        "category": "code",
+        "description": "DeepSeek lightweight code assistant",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "deepseek-coder:6.7b",
+        "name": "DeepSeek Coder 6.7B",
+        "params": "6.7B",
+        "size_gb": 3.8,
+        "vram_gb": 6.0,
+        "ram_gb": 10,
+        "category": "code",
+        "description": "DeepSeek strong code model with fill-in-middle",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "deepseek-coder:33b",
+        "name": "DeepSeek Coder 33B",
+        "params": "33B",
+        "size_gb": 18.5,
+        "vram_gb": 24.0,
+        "ram_gb": 36,
+        "category": "code",
+        "description": "DeepSeek large code model for complex generation",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "deepseek-coder-v2:16b",
+        "name": "DeepSeek Coder V2 16B",
+        "params": "16B",
+        "size_gb": 8.9,
+        "vram_gb": 12.0,
+        "ram_gb": 18,
+        "category": "code",
+        "description": "DeepSeek V2 MoE architecture for efficient coding",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "codestral",
+        "name": "Codestral 22B",
+        "params": "22B",
+        "size_gb": 12.3,
+        "vram_gb": 16.0,
+        "ram_gb": 24,
+        "category": "code",
+        "description": "Mistral code model with 80+ language support",
+        "quant": "Q4_K_M",
+    },
+    # --- Reasoning ---
+    {
+        "id": "deepseek-r1:1.5b",
+        "name": "DeepSeek R1 1.5B",
+        "params": "1.5B",
+        "size_gb": 1.0,
+        "vram_gb": 2.0,
+        "ram_gb": 4,
+        "category": "reasoning",
+        "description": "Compact reasoning model with chain-of-thought",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "deepseek-r1:7b",
+        "name": "DeepSeek R1 7B",
+        "params": "7B",
+        "size_gb": 4.4,
+        "vram_gb": 6.5,
+        "ram_gb": 10,
+        "category": "reasoning",
+        "description": "Mid-size reasoning model for logic tasks",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "deepseek-r1:8b",
+        "name": "DeepSeek R1 8B",
+        "params": "8B",
+        "size_gb": 4.9,
+        "vram_gb": 7.0,
+        "ram_gb": 10,
+        "category": "reasoning",
+        "description": "Llama-distilled reasoning with strong math",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "deepseek-r1:32b",
+        "name": "DeepSeek R1 32B",
+        "params": "32B",
+        "size_gb": 19.0,
+        "vram_gb": 24.0,
+        "ram_gb": 36,
+        "category": "reasoning",
+        "description": "Large reasoning model rivaling o1-preview",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "deepseek-r1:70b",
+        "name": "DeepSeek R1 70B",
+        "params": "70B",
+        "size_gb": 40.0,
+        "vram_gb": 48.0,
+        "ram_gb": 80,
+        "category": "reasoning",
+        "description": "Flagship reasoning model with full chain-of-thought",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "qwq",
+        "name": "QwQ 32B",
+        "params": "32B",
+        "size_gb": 19.0,
+        "vram_gb": 24.0,
+        "ram_gb": 36,
+        "category": "reasoning",
+        "description": "Qwen reasoning model with analytical thinking",
+        "quant": "Q4_K_M",
+    },
+    # --- Math ---
+    {
+        "id": "qwen2-math:7b",
+        "name": "Qwen2 Math 7B",
+        "params": "7B",
+        "size_gb": 4.4,
+        "vram_gb": 6.5,
+        "ram_gb": 10,
+        "category": "math",
+        "description": "Qwen math-specialized with step-by-step solving",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "qwen2-math:72b",
+        "name": "Qwen2 Math 72B",
+        "params": "72B",
+        "size_gb": 41.0,
+        "vram_gb": 48.0,
+        "ram_gb": 80,
+        "category": "math",
+        "description": "Qwen large math model for competition problems",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "wizard-math:7b",
+        "name": "WizardMath 7B",
+        "params": "7B",
+        "size_gb": 4.1,
+        "vram_gb": 6.0,
+        "ram_gb": 10,
+        "category": "math",
+        "description": "Math-tuned wizard model with reinforcement learning",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "wizard-math:13b",
+        "name": "WizardMath 13B",
+        "params": "13B",
+        "size_gb": 7.4,
+        "vram_gb": 10.0,
+        "ram_gb": 16,
+        "category": "math",
+        "description": "Mid-size math wizard for complex problems",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "wizard-math:70b",
+        "name": "WizardMath 70B",
+        "params": "70B",
+        "size_gb": 40.0,
+        "vram_gb": 48.0,
+        "ram_gb": 80,
+        "category": "math",
+        "description": "Large math wizard rivaling GPT-4 on math",
+        "quant": "Q4_K_M",
+    },
+    # --- Vision ---
+    {
+        "id": "llava:7b",
+        "name": "LLaVA 7B",
+        "params": "7B",
+        "size_gb": 4.7,
+        "vram_gb": 7.0,
+        "ram_gb": 10,
+        "category": "vision",
+        "description": "Visual instruction-tuned model for image understanding",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "llava:13b",
+        "name": "LLaVA 13B",
+        "params": "13B",
+        "size_gb": 8.0,
+        "vram_gb": 10.0,
+        "ram_gb": 16,
+        "category": "vision",
+        "description": "Mid-size vision model with improved accuracy",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "llava:34b",
+        "name": "LLaVA 34B",
+        "params": "34B",
+        "size_gb": 19.5,
+        "vram_gb": 24.0,
+        "ram_gb": 38,
+        "category": "vision",
+        "description": "Large vision model for detailed image analysis",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "minicpm-v",
+        "name": "MiniCPM-V 3B",
+        "params": "3B",
+        "size_gb": 2.0,
+        "vram_gb": 3.5,
+        "ram_gb": 6,
+        "category": "vision",
+        "description": "Compact vision model with OCR capabilities",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "llama3.2-vision:11b",
+        "name": "Llama 3.2 Vision 11B",
+        "params": "11B",
+        "size_gb": 6.4,
+        "vram_gb": 10.0,
+        "ram_gb": 14,
+        "category": "vision",
+        "description": "Meta multimodal model with image reasoning",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "llama3.2-vision:90b",
+        "name": "Llama 3.2 Vision 90B",
+        "params": "90B",
+        "size_gb": 52.0,
+        "vram_gb": 64.0,
+        "ram_gb": 100,
+        "category": "vision",
+        "description": "Meta flagship multimodal model",
+        "quant": "Q4_K_M",
+    },
+    # --- Embedding ---
+    {
+        "id": "nomic-embed-text",
+        "name": "Nomic Embed Text",
+        "params": "137M",
+        "size_gb": 0.3,
+        "vram_gb": 1.0,
+        "ram_gb": 2,
+        "category": "embedding",
+        "description": "High-quality text embeddings with 8K context",
+        "quant": "F16",
+    },
+    {
+        "id": "mxbai-embed-large",
+        "name": "mxbai Embed Large",
+        "params": "335M",
+        "size_gb": 0.7,
+        "vram_gb": 1.5,
+        "ram_gb": 3,
+        "category": "embedding",
+        "description": "State-of-art embedding model for retrieval",
+        "quant": "F16",
+    },
+    {
+        "id": "bge-small-en",
+        "name": "BGE Small EN",
+        "params": "33M",
+        "size_gb": 0.1,
+        "vram_gb": 0.5,
+        "ram_gb": 1,
+        "category": "embedding",
+        "description": "Tiny fast embedding model for English text",
+        "quant": "F16",
+    },
+    # --- Multilingual ---
+    {
+        "id": "aya:8b",
+        "name": "Aya 8B",
+        "params": "8B",
+        "size_gb": 4.9,
+        "vram_gb": 7.0,
+        "ram_gb": 10,
+        "category": "multilingual",
+        "description": "Cohere multilingual model covering 100+ languages",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "aya:35b",
+        "name": "Aya 35B",
+        "params": "35B",
+        "size_gb": 20.0,
+        "vram_gb": 24.0,
+        "ram_gb": 38,
+        "category": "multilingual",
+        "description": "Cohere large multilingual for professional translation",
+        "quant": "Q4_K_M",
+    },
+    {
+        "id": "glm4:9b",
+        "name": "GLM-4 9B",
+        "params": "9B",
+        "size_gb": 5.5,
+        "vram_gb": 8.0,
+        "ram_gb": 12,
+        "category": "multilingual",
+        "description": "Zhipu bilingual model (English/Chinese)",
+        "quant": "Q4_K_M",
+    },
+    # --- Uncensored ---
+    {
+        "id": "nous-hermes2:11b",
+        "name": "Nous Hermes 2 11B",
+        "params": "11B",
+        "size_gb": 6.4,
+        "vram_gb": 9.0,
+        "ram_gb": 14,
+        "category": "uncensored",
+        "description": "Uncensored fine-tune for unrestricted conversations",
+        "quant": "Q4_K_M",
+    },
+]
+
+
+def calculate_model_compatibility(entry, hardware):
+    """Returns 'gpu', 'cpu', or 'too_large' based on local hardware."""
+    vram = 0
+    if hardware.get("gpus") and len(hardware["gpus"]) > 0:
+        vram = hardware["gpus"][0].get("vram_total_gb", 0)
+    ram = hardware.get("ram_total_gb", 0)
+
+    if vram >= entry["vram_gb"]:
+        return "gpu"
+    elif ram >= entry["ram_gb"]:
+        return "cpu"
+    return "too_large"
+
+
+@team_management_bp.route("/api/model-marketplace")
+@login_required
+def api_model_marketplace():
+    """Get full model marketplace: catalog merged with local Ollama status and hardware compatibility."""
+    # Read hardware from host_monitor_data.json
+    hardware = {
+        "cpu_model": "Unknown",
+        "cpu_cores": 0,
+        "cpu_threads": 0,
+        "ram_total_gb": 0,
+        "ram_available_gb": 0,
+        "gpus": [],
+    }
+    try:
+        hw_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "host_monitor_data.json"
+        )
+        if os.path.exists(hw_path):
+            with open(hw_path) as f:
+                hw_data = json.load(f)
+            hardware["cpu_model"] = hw_data.get("cpu", {}).get("model", "Unknown")
+            hardware["cpu_cores"] = hw_data.get("cpu", {}).get("cores", 0)
+            hardware["cpu_threads"] = hw_data.get("cpu", {}).get("threads", 0)
+            hardware["ram_total_gb"] = round(hw_data.get("memory", {}).get("total_gb", 0), 1)
+            hardware["ram_available_gb"] = round(hw_data.get("memory", {}).get("available_gb", 0), 1)
+            for gpu in hw_data.get("gpus", []):
+                hardware["gpus"].append(
+                    {
+                        "model": gpu.get("model", "Unknown"),
+                        "vram_total_gb": round(gpu.get("vram_total_mb", 0) / 1024, 1),
+                    }
+                )
+    except Exception:
+        pass
+
+    # Query Ollama for installed models
+    ollama_host = os.environ.get("OLLAMA_HOST", "http://192.168.1.200:11434")
+    ollama_online = False
+    installed_models = set()
+
+    try:
+        resp = requests.get(f"{ollama_host}/api/tags", timeout=5)
+        if resp.status_code == 200:
+            ollama_online = True
+            for m in resp.json().get("models", []):
+                name = m.get("name", "")
+                installed_models.add(name)
+                # Also add base name without tag
+                if ":" in name:
+                    installed_models.add(name.split(":")[0])
+    except Exception:
+        pass
+
+    # Build catalog with compatibility and installed status
+    catalog = []
+    stats = {"total": 0, "installed": 0, "gpu_compatible": 0, "cpu_compatible": 0, "too_large": 0}
+
+    for entry in OLLAMA_MODEL_CATALOG:
+        model = dict(entry)
+        model_id = entry["id"]
+
+        # Check installed: try exact id, id:latest, base name
+        is_installed = (
+            model_id in installed_models
+            or f"{model_id}:latest" in installed_models
+            or model_id.split(":")[0] in installed_models
+        )
+        model["installed"] = is_installed
+
+        # Calculate compatibility
+        compat = calculate_model_compatibility(entry, hardware)
+        model["compatibility"] = compat
+
+        catalog.append(model)
+        stats["total"] += 1
+        if is_installed:
+            stats["installed"] += 1
+        if compat == "gpu":
+            stats["gpu_compatible"] += 1
+        elif compat == "cpu":
+            stats["cpu_compatible"] += 1
+        else:
+            stats["too_large"] += 1
+
+    # Collect unique categories sorted
+    categories = sorted(set(e["category"] for e in OLLAMA_MODEL_CATALOG))
+
+    return jsonify(
+        {
+            "success": True,
+            "ollama_online": ollama_online,
+            "hardware": hardware,
+            "catalog": catalog,
+            "categories": categories,
+            "stats": stats,
+        }
+    )
+
+
+@team_management_bp.route("/api/model-marketplace/pull", methods=["POST"])
+@login_required
+def api_model_marketplace_pull():
+    """Stream-pull a model from Ollama registry with progress."""
+    data = request.get_json()
+    model_name = data.get("model", "")
+    if not model_name:
+        return jsonify({"success": False, "error": "No model specified"}), 400
+
+    ollama_host = os.environ.get("OLLAMA_HOST", "http://192.168.1.200:11434")
+
+    def generate():
+        try:
+            resp = requests.post(
+                f"{ollama_host}/api/pull",
+                json={"name": model_name, "stream": True},
+                stream=True,
+                timeout=3600,  # 1 hour for large models
+            )
+            for line in resp.iter_lines():
+                if line:
+                    yield line.decode("utf-8") + "\n"
+        except Exception as e:
+            yield json.dumps({"status": "error", "error": str(e)}) + "\n"
+
+    return Response(stream_with_context(generate()), mimetype="application/x-ndjson")
+
+
+@team_management_bp.route("/api/model-marketplace/delete", methods=["POST"])
+@login_required
+def api_model_marketplace_delete():
+    """Delete a model from local Ollama."""
+    data = request.get_json()
+    model_name = data.get("model", "")
+    if not model_name:
+        return jsonify({"success": False, "error": "No model specified"}), 400
+
+    ollama_host = os.environ.get("OLLAMA_HOST", "http://192.168.1.200:11434")
+
+    try:
+        resp = requests.delete(f"{ollama_host}/api/delete", json={"name": model_name}, timeout=30)
+        if resp.status_code == 200:
+            return jsonify({"success": True, "message": f"Model {model_name} deleted"})
+        else:
+            return jsonify({"success": False, "error": f"Ollama returned {resp.status_code}"}), resp.status_code
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500

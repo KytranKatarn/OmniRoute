@@ -158,9 +158,12 @@ def get_agents():
                 at.name as type_name,
                 at.icon as type_icon,
                 at.category as type_category,
-                (SELECT COUNT(*) FROM agent_executions WHERE agent_id = a.id AND status = 'completed') as total_executions,
-                (SELECT COUNT(*) FROM agent_executions WHERE agent_id = a.id AND status = 'failed') as failed_executions,
-                (SELECT AVG(duration_seconds) FROM agent_executions WHERE agent_id = a.id AND status = 'completed') as avg_duration
+                (SELECT COUNT(*) FROM agent_executions
+                    WHERE agent_id = a.id AND status = 'completed') as total_executions,
+                (SELECT COUNT(*) FROM agent_executions
+                    WHERE agent_id = a.id AND status = 'failed') as failed_executions,
+                (SELECT AVG(duration_seconds) FROM agent_executions
+                    WHERE agent_id = a.id AND status = 'completed') as avg_duration
             FROM agents a
             LEFT JOIN agent_types at ON a.type_id = at.id
             WHERE {where_clause}
@@ -460,7 +463,8 @@ def get_agent_work_history(agent_id):
         cur.execute(
             """
             SELECT DISTINCT d.id, d.topic, d.status, d.created_at,
-                   (SELECT COUNT(*) FROM agent_discussion_messages WHERE discussion_id = d.id AND agent_id = %s) as message_count
+                   (SELECT COUNT(*) FROM agent_discussion_messages
+                    WHERE discussion_id = d.id AND agent_id = %s) as message_count
             FROM agent_discussions d
             JOIN agent_discussion_messages m ON d.id = m.discussion_id
             WHERE m.agent_id = %s
@@ -658,7 +662,8 @@ def agent_chat():
             or f"""You are {agent['name']}, {agent.get('title', 'an AI agent')}.
 {agent.get('bio', 'You are helpful and knowledgeable.')}
 
-Respond in character as this agent. Be helpful, professional, and stay true to your role in the {agent.get('department', 'team')} department."""
+Respond in character as this agent. Be helpful, professional, """
+            f"""and stay true to your role in the {agent.get('department', 'team')} department."""
         )
 
         # Build conversation context from history
@@ -1076,7 +1081,7 @@ def get_skills_matrix():
 
         # Get optional filters
         category = request.args.get("category")
-        min_proficiency = request.args.get("min_proficiency", 1, type=int)
+        request.args.get("min_proficiency", 1, type=int)
 
         # Get all agents with skills
         cur.execute(
@@ -2454,7 +2459,9 @@ def assign_agent_shift(agent_id):
 
         cur.execute(
             """
-            INSERT INTO agent_shifts (agent_id, shift_id, station_id, day_of_week, is_primary, rotation_group, notes, created_by)
+            INSERT INTO agent_shifts (
+                agent_id, shift_id, station_id, day_of_week,
+                is_primary, rotation_group, notes, created_by)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
         """,
@@ -2614,7 +2621,9 @@ def create_rotation():
 
         cur.execute(
             """
-            INSERT INTO shift_rotations (rotation_name, station_id, rotation_pattern, rotation_interval_days, auto_rotate, next_rotation_at)
+            INSERT INTO shift_rotations (
+                rotation_name, station_id, rotation_pattern,
+                rotation_interval_days, auto_rotate, next_rotation_at)
             VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP + (%s || ' days')::INTERVAL)
             RETURNING id, rotation_name
         """,
@@ -2957,7 +2966,13 @@ def get_task_assignment(task_id):
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "task": dict(task), "logs": [dict(l) for l in logs]})
+        return jsonify(
+            {
+                "success": True,
+                "task": dict(task),
+                "logs": [dict(row) for row in logs],
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -3232,7 +3247,7 @@ Please complete this task and provide a clear summary of what you accomplished."
             conn.commit()
             cur.close()
             conn.close()
-        except:
+        except Exception:
             pass
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -3633,7 +3648,9 @@ def update_agent_memory(agent_id, memory_id):
         cur.execute(
             """
             INSERT INTO governance_audit_log
-            (event_type, event_category, agent_id, user_id, action, target_table, target_id, old_value, new_value, outcome)
+            (event_type, event_category, agent_id, user_id,
+             action, target_table, target_id, old_value,
+             new_value, outcome)
             VALUES ('memory_updated', 'data_management', %s, %s, 'update_memory', 'agent_memory', %s, %s, %s, 'success')
         """,
             (
@@ -4966,8 +4983,8 @@ def update_ethics_config():
 def check_iaae_move_compliance(agent_id):
     """Pre-check if moving an agent would violate IAAE guidelines"""
     try:
-        target_type = request.args.get("target_type")
-        target_id = request.args.get("target_id")
+        _target_type = request.args.get("target_type")  # noqa: F841
+        _target_id = request.args.get("target_id")  # noqa: F841
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -5435,7 +5452,7 @@ def get_stations_full_layout():
             ORDER BY arc.started_at DESC
         """
         )
-        lounge = [dict(l) for l in cur.fetchall()]
+        lounge = [dict(row) for row in cur.fetchall()]
 
         # Get unassigned agents (not in station, training, or lounge)
         cur.execute(
@@ -5883,7 +5900,13 @@ def get_lounge_agents():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "data": [dict(l) for l in lounge], "count": len(lounge)})
+        return jsonify(
+            {
+                "success": True,
+                "data": [dict(row) for row in lounge],
+                "count": len(lounge),
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -6820,7 +6843,8 @@ def get_contractor_budget():
                 a.contractor_budget_monthly as budget,
                 a.contractor_usage_this_month as used,
                 a.contractor_budget_monthly - a.contractor_usage_this_month as remaining,
-                ROUND(100.0 * a.contractor_usage_this_month / NULLIF(a.contractor_budget_monthly, 0), 2) as usage_percent,
+                ROUND(100.0 * a.contractor_usage_this_month
+                    / NULLIF(a.contractor_budget_monthly, 0), 2) as usage_percent,
                 a.auto_approve_threshold,
                 CASE
                     WHEN a.contractor_usage_this_month >= a.contractor_budget_monthly THEN 'exhausted'
@@ -7063,7 +7087,7 @@ def get_task_execution_log():
         executions = [dict(row) for row in cur.fetchall()]
 
         # Get summary statistics
-        summary_where = where_sql.replace("tel.", "")
+        _summary_where = where_sql.replace("tel.", "")  # noqa: F841
         cur.execute(
             f"""
             SELECT
@@ -7131,7 +7155,8 @@ def get_team_productivity():
                 COUNT(tel.id) as tasks_completed,
                 COUNT(tel.id) FILTER (WHERE tel.success = TRUE) as successful_tasks,
                 COUNT(tel.id) FILTER (WHERE tel.success = FALSE) as failed_tasks,
-                ROUND(100.0 * COUNT(tel.id) FILTER (WHERE tel.success = TRUE) / NULLIF(COUNT(tel.id), 0), 2) as success_rate,
+                ROUND(100.0 * COUNT(tel.id) FILTER (WHERE tel.success = TRUE)
+                    / NULLIF(COUNT(tel.id), 0), 2) as success_rate,
                 SUM(tel.tokens_used) as total_tokens,
                 SUM(tel.cost) as total_cost,
                 AVG(tel.duration_ms) as avg_duration_ms,
@@ -7157,7 +7182,8 @@ def get_team_productivity():
                 COUNT(DISTINCT a.id) as agent_count,
                 COUNT(tel.id) as total_tasks,
                 SUM(tel.cost) as total_cost,
-                ROUND(100.0 * COUNT(tel.id) FILTER (WHERE tel.success = TRUE) / NULLIF(COUNT(tel.id), 0), 2) as success_rate
+                ROUND(100.0 * COUNT(tel.id) FILTER (WHERE tel.success = TRUE)
+                    / NULLIF(COUNT(tel.id), 0), 2) as success_rate
             FROM agents a
             LEFT JOIN task_execution_log tel ON a.id = tel.agent_id
                 AND tel.created_at > NOW() - INTERVAL '%s days'
@@ -7286,7 +7312,7 @@ def get_hr_wellness():
             """
             )
             wellness = cur.fetchall()
-        except:
+        except Exception:
             # Fallback if table doesn't exist
             cur.execute(
                 """
@@ -7378,3 +7404,166 @@ def get_hr_skill_validation():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+# =============================================================================
+# LOCAL OLLAMA TEAM CREATION (Phase 76)
+# =============================================================================
+
+
+@team_management_bp.route("/api/local-ollama/status")
+@login_required
+@api_admin_required
+def api_local_ollama_status():
+    """Check local Ollama status and discovered models"""
+    import requests
+
+    # Local Ollama host (inside Docker, localhost won't work — use host.docker.internal)
+    local_host = os.getenv("OLLAMA_LOCAL_HOST", "http://host.docker.internal:11434")
+
+    # Load hardware data for context
+    host_data = {}
+    host_data_path = "/mnt/archie_brain/host_monitor_data.json"
+    try:
+        with open(host_data_path, "r") as f:
+            host_data = json.load(f)
+    except Exception:
+        pass
+
+    # Extract hardware info (structure: cpu_hardware.processors[], memory_hardware.total_capacity_gb, gpu[])
+    cpu_hw = host_data.get("cpu_hardware", {})
+    cpu_info = host_data.get("cpu", {})
+    processors = cpu_hw.get("processors", [])
+    first_cpu = processors[0] if processors else {}
+    memory = host_data.get("memory_hardware", {})
+    gpus = host_data.get("gpu", [])
+
+    hardware = {
+        "cpu_model": first_cpu.get("model") or cpu_info.get("model", "Unknown"),
+        "cpu_cores": first_cpu.get("cores") or cpu_info.get("physical_cores", 0),
+        "cpu_threads": first_cpu.get("threads") or cpu_info.get("logical_cores", 0),
+        "ram_total_gb": memory.get("total_capacity_gb", 0),
+        "ram_available_gb": memory.get("total_capacity_gb", 0),  # No runtime avail in hardware data
+        "gpus": [],
+    }
+
+    for gpu in gpus:
+        hardware["gpus"].append(
+            {
+                "model": gpu.get("model", "Unknown"),
+                "vendor": gpu.get("vendor", "unknown"),
+                "vram_total_gb": round(gpu.get("vram_total_mb", 0) / 1024, 1),
+                "vram_used_gb": round(gpu.get("vram_used_mb", 0) / 1024, 1),
+                "driver": gpu.get("driver", "N/A"),
+            }
+        )
+
+    # Query local Ollama
+    ollama_status = {"available": False, "host": local_host, "models": [], "error": None}
+
+    try:
+        r = requests.get(f"{local_host}/api/tags", timeout=3)
+        if r.status_code == 200:
+            ollama_status["available"] = True
+            models_data = r.json().get("models", [])
+            for m in models_data:
+                ollama_status["models"].append(
+                    {
+                        "name": m.get("name"),
+                        "size": m.get("size", 0),
+                        "size_gb": round(m.get("size", 0) / (1024**3), 1),
+                        "modified_at": m.get("modified_at"),
+                        "digest": m.get("digest", "")[:12],
+                        "details": m.get("details", {}),
+                    }
+                )
+    except requests.exceptions.ConnectionError:
+        ollama_status["error"] = "Connection refused - Ollama not running locally"
+    except requests.exceptions.Timeout:
+        ollama_status["error"] = "Connection timeout"
+    except Exception as e:
+        ollama_status["error"] = str(e)
+
+    return jsonify({"success": True, "hardware": hardware, "ollama": ollama_status})
+
+
+@team_management_bp.route("/api/agents", methods=["POST"])
+@login_required
+@api_admin_required
+def api_create_agent():
+    """Create a new agent from Ollama model"""
+    data = request.get_json()
+    if not data:
+        return jsonify({"success": False, "error": "No data provided"}), 400
+
+    # Required fields
+    model = data.get("model")
+    if not model:
+        return jsonify({"success": False, "error": "Model is required"}), 400
+
+    # Generate agent name from model if not provided
+    first_name = data.get("first_name") or model.split(":")[0].replace("-", " ").title()
+    last_name = data.get("last_name", "Agent")
+
+    # Defaults
+    title = data.get("title", f"{model} Specialist")
+    department = data.get("department", "AI Operations")
+    worker_type = data.get("worker_type", "ai")
+    status = data.get("status", "active")
+    temperature = data.get("temperature", 0.7)
+    max_tokens = data.get("max_tokens", 4096)
+    default_model_tier = data.get("default_model_tier", "local")
+
+    # System prompt
+    system_prompt = data.get(
+        "system_prompt",
+        f"You are {first_name}, an AI assistant powered by {model}. You are helpful, accurate, and concise.",
+    )
+
+    # Bio
+    bio = data.get("bio", f"AI agent powered by local Ollama model {model}.")
+
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO agents (
+                first_name, last_name, title, department, worker_type,
+                model, temperature, max_tokens, system_prompt, bio,
+                default_model_tier, status, created_at, updated_at
+            ) VALUES (
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW()
+            )
+            RETURNING id, first_name, last_name, model
+        """,
+            (
+                first_name,
+                last_name,
+                title,
+                department,
+                worker_type,
+                model,
+                temperature,
+                max_tokens,
+                system_prompt,
+                bio,
+                default_model_tier,
+                status,
+            ),
+        )
+        row = cur.fetchone()
+        conn.commit()
+
+        return jsonify(
+            {
+                "success": True,
+                "agent": {"id": row[0], "first_name": row[1], "last_name": row[2], "model": row[3]},
+                "message": f"Agent {row[1]} {row[2]} created successfully",
+            }
+        )
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        conn.close()

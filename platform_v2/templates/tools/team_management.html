@@ -1090,6 +1090,276 @@
         .team-container { padding: 15px; }
         .team-chat-container { grid-template-columns: 1fr; height: auto; }
     }
+
+    /* ===========================================
+       LLM Routing Tab Styles (Phase 76)
+       =========================================== */
+    .llm-routing-container {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+        padding: 1rem;
+    }
+
+    .llm-section {
+        background: var(--team-card-bg, #1a1a2e);
+        border: 1px solid var(--team-border, #333);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .llm-section-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1rem;
+        background: var(--team-header-bg, #0f0f1a);
+        border-bottom: 1px solid var(--team-border, #333);
+        font-family: 'Orbitron', monospace;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--team-cyan, #00d4ff);
+    }
+
+    .llm-section-header i {
+        width: 18px;
+        height: 18px;
+    }
+
+    .llm-status-badge {
+        margin-left: auto;
+        padding: 0.25rem 0.75rem;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        font-weight: bold;
+    }
+
+    .llm-status-badge.online {
+        background: rgba(0, 255, 136, 0.2);
+        color: #00ff88;
+    }
+
+    .llm-status-badge.offline {
+        background: rgba(255, 68, 68, 0.2);
+        color: #ff4444;
+    }
+
+    .llm-count-badge {
+        margin-left: auto;
+        padding: 0.2rem 0.5rem;
+        background: var(--team-cyan, #00d4ff);
+        color: #000;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        font-weight: bold;
+    }
+
+    /* Hardware Grid */
+    .llm-hardware-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        padding: 1rem;
+    }
+
+    .llm-hw-card {
+        background: var(--team-bg, #0f0f1a);
+        border: 1px solid var(--team-border, #333);
+        border-radius: 6px;
+        padding: 1rem;
+        text-align: center;
+    }
+
+    .llm-hw-icon {
+        margin-bottom: 0.5rem;
+    }
+
+    .llm-hw-icon i {
+        width: 32px;
+        height: 32px;
+        color: var(--team-cyan, #00d4ff);
+    }
+
+    .llm-hw-label {
+        font-family: 'Orbitron', monospace;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        color: #888;
+        margin-bottom: 0.25rem;
+    }
+
+    .llm-hw-value {
+        font-size: 1rem;
+        font-weight: 600;
+        color: #fff;
+        margin-bottom: 0.25rem;
+    }
+
+    .llm-hw-stat {
+        font-size: 0.8rem;
+        color: #888;
+    }
+
+    /* Models Grid */
+    .llm-models-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 1rem;
+        padding: 1rem;
+    }
+
+    .llm-model-card {
+        background: var(--team-bg, #0f0f1a);
+        border: 1px solid var(--team-border, #333);
+        border-radius: 6px;
+        padding: 1rem;
+        transition: border-color 0.2s, transform 0.2s;
+    }
+
+    .llm-model-card:hover {
+        border-color: var(--team-cyan, #00d4ff);
+        transform: translateY(-2px);
+    }
+
+    .llm-model-name {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--team-cyan, #00d4ff);
+        margin-bottom: 0.5rem;
+    }
+
+    .llm-model-meta {
+        display: flex;
+        gap: 1rem;
+        font-size: 0.8rem;
+        color: #888;
+        margin-bottom: 0.75rem;
+    }
+
+    .llm-model-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .llm-model-actions button {
+        flex: 1;
+        padding: 0.5rem;
+        border: 1px solid var(--team-border, #333);
+        border-radius: 4px;
+        background: transparent;
+        color: #fff;
+        font-size: 0.75rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .llm-model-actions button:hover {
+        background: var(--team-cyan, #00d4ff);
+        color: #000;
+        border-color: var(--team-cyan, #00d4ff);
+    }
+
+    .llm-model-actions button.primary {
+        background: var(--team-cyan, #00d4ff);
+        color: #000;
+        border-color: var(--team-cyan, #00d4ff);
+    }
+
+    .llm-empty-state {
+        grid-column: 1 / -1;
+        text-align: center;
+        padding: 2rem;
+        color: #666;
+    }
+
+    .llm-error {
+        padding: 1rem;
+        background: rgba(255, 68, 68, 0.1);
+        border: 1px solid rgba(255, 68, 68, 0.3);
+        border-radius: 4px;
+        color: #ff6666;
+        margin: 1rem;
+    }
+
+    /* LLM Modal Styles */
+    .llm-modal {
+        max-width: 500px;
+    }
+
+    .llm-modal .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+    }
+
+    .llm-modal .form-group {
+        margin-bottom: 1rem;
+    }
+
+    .llm-modal .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        color: var(--team-cyan, #00d4ff);
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+
+    .llm-modal .form-input {
+        width: 100%;
+        padding: 0.75rem;
+        background: var(--team-bg, #0f0f1a);
+        border: 1px solid var(--team-border, #333);
+        border-radius: 4px;
+        color: #fff;
+        font-size: 0.9rem;
+    }
+
+    .llm-modal .form-input:focus {
+        outline: none;
+        border-color: var(--team-cyan, #00d4ff);
+    }
+
+    .llm-modal textarea.form-input {
+        resize: vertical;
+        min-height: 80px;
+    }
+
+    .llm-modal .modal-footer {
+        display: flex;
+        gap: 1rem;
+        justify-content: flex-end;
+        padding-top: 1rem;
+        border-top: 1px solid var(--team-border, #333);
+    }
+
+    .llm-modal .btn {
+        padding: 0.75rem 1.5rem;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .llm-modal .btn-secondary {
+        background: transparent;
+        border: 1px solid var(--team-border, #333);
+        color: #888;
+    }
+
+    .llm-modal .btn-primary {
+        background: var(--team-cyan, #00d4ff);
+        border: 1px solid var(--team-cyan, #00d4ff);
+        color: #000;
+        font-weight: 600;
+    }
+
+    .llm-modal .btn-primary:hover {
+        background: #00b8d9;
+    }
 </style>
 {% endblock %}
 
@@ -1382,10 +1652,116 @@
             <button class="team-btn" onclick="showModelHealth()">💚 MODEL HEALTH</button>
         </div>
 
-        <div id="llmRoutingContent">
-            <div class="team-coming-soon">
-                <h3>🧠 LLM Routing Dashboard</h3>
-                <p>View and configure model routing rules, priorities, and fallbacks.</p>
+        <div id="llmRoutingContent" class="llm-routing-container">
+            <!-- Hardware Resources Panel -->
+            <div class="llm-section">
+                <div class="llm-section-header">
+                    <i data-lucide="cpu"></i>
+                    <span>LOCAL HARDWARE RESOURCES</span>
+                </div>
+                <div class="llm-hardware-grid" id="hardwareGrid">
+                    <div class="llm-hw-card">
+                        <div class="llm-hw-icon"><i data-lucide="cpu"></i></div>
+                        <div class="llm-hw-label">CPU</div>
+                        <div class="llm-hw-value" id="hwCpuModel">--</div>
+                        <div class="llm-hw-stat" id="hwCpuCores">-- cores / -- threads</div>
+                    </div>
+                    <div class="llm-hw-card">
+                        <div class="llm-hw-icon"><i data-lucide="memory-stick"></i></div>
+                        <div class="llm-hw-label">RAM</div>
+                        <div class="llm-hw-value" id="hwRamTotal">-- GB</div>
+                        <div class="llm-hw-stat" id="hwRamAvail">-- GB available</div>
+                    </div>
+                    <div class="llm-hw-card" id="gpuCard">
+                        <div class="llm-hw-icon"><i data-lucide="monitor"></i></div>
+                        <div class="llm-hw-label">GPU</div>
+                        <div class="llm-hw-value" id="hwGpuModel">--</div>
+                        <div class="llm-hw-stat" id="hwGpuVram">-- GB VRAM</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ollama Status Panel -->
+            <div class="llm-section">
+                <div class="llm-section-header">
+                    <i data-lucide="box"></i>
+                    <span>LOCAL OLLAMA</span>
+                    <span class="llm-status-badge" id="ollamaStatusBadge">CHECKING...</span>
+                </div>
+                <div class="llm-ollama-status" id="ollamaStatus">
+                    <div id="ollamaError" class="llm-error" style="display:none;"></div>
+                </div>
+            </div>
+
+            <!-- Available Models Panel -->
+            <div class="llm-section">
+                <div class="llm-section-header">
+                    <i data-lucide="layers"></i>
+                    <span>AVAILABLE MODELS</span>
+                    <span class="llm-count-badge" id="modelCountBadge">0</span>
+                </div>
+                <div class="llm-models-grid" id="modelsGrid">
+                    <div class="llm-empty-state">Loading models...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Agent Modal -->
+    <div id="createAgentModal" class="modal" style="display:none;">
+        <div class="modal-content llm-modal">
+            <div class="modal-header">
+                <h3><i data-lucide="user-plus"></i> CREATE AGENT FROM MODEL</h3>
+                <button class="modal-close" onclick="closeCreateAgentModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Model</label>
+                    <input type="text" id="agentModel" readonly class="form-input">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>First Name</label>
+                        <input type="text" id="agentFirstName" class="form-input" placeholder="Auto-generated">
+                    </div>
+                    <div class="form-group">
+                        <label>Last Name</label>
+                        <input type="text" id="agentLastName" class="form-input" value="Agent">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Title</label>
+                    <input type="text" id="agentTitle" class="form-input" placeholder="e.g., Code Specialist">
+                </div>
+                <div class="form-group">
+                    <label>Department</label>
+                    <select id="agentDepartment" class="form-input">
+                        <option value="AI Operations">AI Operations</option>
+                        <option value="Development">Development</option>
+                        <option value="Research">Research</option>
+                        <option value="Analysis">Analysis</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Temperature</label>
+                        <input type="number" id="agentTemperature" class="form-input" value="0.7" min="0" max="2" step="0.1">
+                    </div>
+                    <div class="form-group">
+                        <label>Max Tokens</label>
+                        <input type="number" id="agentMaxTokens" class="form-input" value="4096" min="256" max="32768">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>System Prompt</label>
+                    <textarea id="agentSystemPrompt" class="form-input" rows="3" placeholder="Custom instructions for this agent..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeCreateAgentModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="submitCreateAgent()">
+                    <i data-lucide="plus"></i> Create Agent
+                </button>
             </div>
         </div>
     </div>
@@ -2683,21 +3059,191 @@
     }
 
     // ============================================
-    // LLM ROUTING FUNCTIONS
+    // LLM ROUTING FUNCTIONS - LOCAL OLLAMA TEAM CREATION (Phase 76)
     // ============================================
-    function loadLlmRouting() {
-        document.getElementById('llm-local').textContent = '5';
-        document.getElementById('llm-external').textContent = '4';
-        document.getElementById('llm-cost').textContent = '$12.50';
-        document.getElementById('llm-requests').textContent = '247';
+    let localOllamaData = null;
+
+    async function loadLlmRouting() {
+        try {
+            const response = await fetch('/tools/team-management/api/local-ollama/status');
+            const data = await response.json();
+
+            if (data.success) {
+                localOllamaData = data;
+                renderHardwareResources(data.hardware);
+                renderOllamaStatus(data.ollama);
+                renderAvailableModels(data.ollama.models);
+
+                // Update header stats
+                document.getElementById('llm-local').textContent = data.ollama.models.length;
+                document.getElementById('llm-external').textContent = '0';
+                document.getElementById('llm-cost').textContent = '$0.00';
+                document.getElementById('llm-requests').textContent = '--';
+            }
+        } catch (error) {
+            console.error('Failed to load LLM routing data:', error);
+            document.getElementById('ollamaStatusBadge').textContent = 'ERROR';
+            document.getElementById('ollamaStatusBadge').className = 'llm-status-badge offline';
+        }
+
+        // Refresh Lucide icons
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    function renderHardwareResources(hw) {
+        document.getElementById('hwCpuModel').textContent = hw.cpu_model || 'Unknown';
+        document.getElementById('hwCpuCores').textContent = hw.cpu_cores + ' cores / ' + hw.cpu_threads + ' threads';
+        document.getElementById('hwRamTotal').textContent = hw.ram_total_gb + ' GB';
+        document.getElementById('hwRamAvail').textContent = hw.ram_available_gb + ' GB available';
+
+        if (hw.gpus && hw.gpus.length > 0) {
+            const gpu = hw.gpus[0];
+            document.getElementById('hwGpuModel').textContent = gpu.model;
+            document.getElementById('hwGpuVram').textContent = gpu.vram_total_gb + ' GB VRAM';
+        } else {
+            document.getElementById('hwGpuModel').textContent = 'No GPU';
+            document.getElementById('hwGpuVram').textContent = '--';
+        }
+    }
+
+    function renderOllamaStatus(ollama) {
+        const badge = document.getElementById('ollamaStatusBadge');
+        const errorDiv = document.getElementById('ollamaError');
+
+        if (ollama.available) {
+            badge.textContent = 'ONLINE';
+            badge.className = 'llm-status-badge online';
+            errorDiv.style.display = 'none';
+        } else {
+            badge.textContent = 'OFFLINE';
+            badge.className = 'llm-status-badge offline';
+            errorDiv.style.display = 'block';
+            errorDiv.textContent = '';
+            var strong = document.createElement('strong');
+            strong.textContent = 'Ollama Not Available';
+            errorDiv.appendChild(strong);
+            errorDiv.appendChild(document.createElement('br'));
+            errorDiv.appendChild(document.createTextNode(ollama.error || 'Cannot connect to local Ollama service'));
+            errorDiv.appendChild(document.createElement('br'));
+            errorDiv.appendChild(document.createElement('br'));
+            var small = document.createElement('small');
+            small.textContent = 'Host: ' + ollama.host;
+            errorDiv.appendChild(small);
+        }
+    }
+
+    function renderAvailableModels(models) {
+        const grid = document.getElementById('modelsGrid');
+        const countBadge = document.getElementById('modelCountBadge');
+
+        countBadge.textContent = models.length;
+        grid.textContent = '';
+
+        if (!models || models.length === 0) {
+            var emptyDiv = document.createElement('div');
+            emptyDiv.className = 'llm-empty-state';
+            emptyDiv.textContent = 'No models available. Install models via Ollama CLI.';
+            grid.appendChild(emptyDiv);
+            return;
+        }
+
+        models.forEach(function(model) {
+            var card = document.createElement('div');
+            card.className = 'llm-model-card';
+
+            var nameDiv = document.createElement('div');
+            nameDiv.className = 'llm-model-name';
+            nameDiv.textContent = model.name;
+            card.appendChild(nameDiv);
+
+            var metaDiv = document.createElement('div');
+            metaDiv.className = 'llm-model-meta';
+
+            var sizeSpan = document.createElement('span');
+            sizeSpan.textContent = model.size_gb + ' GB';
+            metaDiv.appendChild(sizeSpan);
+
+            var digestSpan = document.createElement('span');
+            digestSpan.textContent = model.digest;
+            metaDiv.appendChild(digestSpan);
+
+            card.appendChild(metaDiv);
+
+            var actionsDiv = document.createElement('div');
+            actionsDiv.className = 'llm-model-actions';
+
+            var btn = document.createElement('button');
+            btn.className = 'primary';
+            btn.textContent = 'Create Agent';
+            btn.onclick = function() { openCreateAgentModal(model.name); };
+            actionsDiv.appendChild(btn);
+
+            card.appendChild(actionsDiv);
+            grid.appendChild(card);
+        });
+    }
+
+    // Create Agent Modal
+    function openCreateAgentModal(modelName) {
+        document.getElementById('agentModel').value = modelName;
+
+        var baseName = modelName.split(':')[0].replace(/-/g, ' ').replace(/\./g, ' ');
+        var words = baseName.split(' ').map(function(w) {
+            return w.charAt(0).toUpperCase() + w.slice(1);
+        });
+        document.getElementById('agentFirstName').value = words.slice(0, 2).join(' ');
+        document.getElementById('agentLastName').value = 'Agent';
+        document.getElementById('agentTitle').value = words[0] + ' Specialist';
+        document.getElementById('agentSystemPrompt').value = 'You are a helpful AI assistant powered by ' + modelName + '. You are accurate, concise, and helpful.';
+
+        document.getElementById('createAgentModal').style.display = 'flex';
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    function closeCreateAgentModal() {
+        document.getElementById('createAgentModal').style.display = 'none';
+    }
+
+    async function submitCreateAgent() {
+        const payload = {
+            model: document.getElementById('agentModel').value,
+            first_name: document.getElementById('agentFirstName').value,
+            last_name: document.getElementById('agentLastName').value,
+            title: document.getElementById('agentTitle').value,
+            department: document.getElementById('agentDepartment').value,
+            temperature: parseFloat(document.getElementById('agentTemperature').value),
+            max_tokens: parseInt(document.getElementById('agentMaxTokens').value),
+            system_prompt: document.getElementById('agentSystemPrompt').value
+        };
+
+        try {
+            const response = await fetch('/tools/team-management/api/agents', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                closeCreateAgentModal();
+                showNotification('Agent "' + data.agent.first_name + ' ' + data.agent.last_name + '" created!', 'success');
+                loadRoster();
+            } else {
+                showNotification(data.error || 'Failed to create agent', 'error');
+            }
+        } catch (error) {
+            showNotification('Error creating agent: ' + error.message, 'error');
+        }
     }
 
     function showRoutingRules() {
-        alert('Routing rules editor coming soon!');
+        showNotification('Routing Rules editor coming in Phase 77', 'info');
     }
 
     function showModelHealth() {
-        alert('Model health dashboard coming soon!');
+        loadLlmRouting();
+        showNotification('Model status refreshed', 'info');
     }
 
     // ============================================

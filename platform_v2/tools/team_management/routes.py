@@ -8273,8 +8273,8 @@ def calculate_model_compatibility(entry, hardware):
 
 
 def _get_ollama_host():
-    """Get Ollama host URL, ensuring http:// scheme is present."""
-    host = os.environ.get("OLLAMA_HOST", "http://192.168.1.200:11434")
+    """Get LOCAL Ollama host URL for this node's own Ollama instance."""
+    host = os.getenv("OLLAMA_LOCAL_HOST", "http://host.docker.internal:11434")
     if host and not host.startswith("http://") and not host.startswith("https://"):
         host = "http://" + host
     return host

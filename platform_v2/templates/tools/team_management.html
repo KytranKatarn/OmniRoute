@@ -1407,6 +1407,9 @@
         flex: 1;
         overflow-y: auto;
         padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
     }
 
     .team-chat-input-area {
@@ -1444,6 +1447,82 @@
 
     .team-agent-checkbox:hover {
         background: rgba(0, 255, 255, 0.05);
+    }
+
+    /* Team Chat message styles */
+    .team-chat-message {
+        margin-bottom: 16px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .team-chat-message.team-chat-user {
+        align-items: flex-end;
+    }
+
+    .team-chat-message.team-chat-agent {
+        align-items: flex-start;
+    }
+
+    .team-chat-message.team-chat-system {
+        align-items: center;
+    }
+
+    .team-chat-bubble {
+        max-width: 80%;
+        padding: 12px 16px;
+        border-radius: 16px;
+        line-height: 1.5;
+    }
+
+    .team-chat-bubble.user-bubble {
+        background: var(--archie-accent);
+        color: #000;
+        border-radius: 16px 16px 4px 16px;
+    }
+
+    .team-chat-bubble.agent-bubble {
+        background: var(--archie-bg-tertiary);
+        border: 1px solid var(--archie-border-default);
+        color: var(--archie-text-secondary);
+        border-radius: 16px 16px 16px 4px;
+    }
+
+    .team-chat-bubble.error-bubble {
+        background: rgba(255, 68, 68, 0.15);
+        border: 1px solid var(--archie-red);
+        color: var(--archie-red);
+    }
+
+    .team-chat-meta {
+        font-size: 0.75rem;
+        margin-top: 6px;
+        color: var(--archie-text-muted);
+    }
+
+    /* Typing indicator animation */
+    .typing-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 0;
+    }
+
+    .typing-indicator .dot {
+        width: 8px;
+        height: 8px;
+        background: var(--archie-accent);
+        border-radius: 50%;
+        animation: typingBounce 1.4s infinite ease-in-out;
+    }
+
+    .typing-indicator .dot:nth-child(1) { animation-delay: 0s; }
+    .typing-indicator .dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-indicator .dot:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes typingBounce {
+        0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+        30% { transform: translateY(-6px); opacity: 1; }
     }
 
     /* Task form */
@@ -2582,26 +2661,32 @@
     <!-- ==================== CHAT TAB ==================== -->
     <div id="tab-chat" class="team-content">
         <div class="team-section-header">💬 TEAM CHAT</div>
-        <div class="team-section-subtitle">Multi-agent discussions and collaboration</div>
+        <div class="team-section-subtitle">Direct communication with your team members • Responses persist to agent memory</div>
 
         <div class="team-chat-container">
-            <div class="team-chat-panel">
-                <div class="team-chat-header">Team Discussion</div>
-                <div id="chatMessages" class="team-chat-messages">
-                    <div class="team-empty">Start a discussion with the team...</div>
+            <div class="team-chat-panel" style="flex: 2;">
+                <div class="team-chat-header">
+                    <span>Team Discussion</span>
+                    <button class="team-btn team-btn-sm" onclick="clearTeamChat()" style="margin-left: auto;">🗑️ Clear</button>
+                </div>
+                <div id="teamChatMessages" class="team-chat-messages">
+                    <div style="text-align: center; color: var(--archie-text-muted); padding: 40px 20px;">
+                        <div style="font-size: 2rem; margin-bottom: 10px;">💬</div>
+                        <div>Select team members and start a discussion</div>
+                    </div>
                 </div>
                 <div class="team-chat-input-area">
-                    <input type="text" id="chatInput" class="team-chat-input" placeholder="Type your message..." onkeypress="if(event.key==='Enter')sendChatMessage()">
-                    <button class="team-btn team-btn-primary" onclick="sendChatMessage()">SEND</button>
+                    <input type="text" id="teamChatInput" class="team-chat-input" placeholder="Type your message..." onkeypress="if(event.key==='Enter')sendChatMessage()">
+                    <button id="teamChatSendBtn" class="team-btn team-btn-primary" onclick="sendChatMessage()">SEND</button>
                 </div>
             </div>
 
-            <div class="team-chat-panel">
+            <div class="team-chat-panel" style="flex: 1; min-width: 250px;">
                 <div class="team-chat-header">Select Team Members</div>
                 <div id="teamSelection" class="team-agent-select">
-                    <!-- Team member checkboxes -->
+                    <!-- Team member checkboxes populated by JS -->
                 </div>
-                <div style="padding: 15px; border-top: 1px solid var(--archie-border-default);">
+                <div style="padding: 15px; border-top: 1px solid var(--archie-border-default); display: flex; gap: 8px;">
                     <button class="team-btn team-btn-sm" onclick="selectAllAgents()">Select All</button>
                     <button class="team-btn team-btn-sm" onclick="clearSelection()">Clear</button>
                 </div>
@@ -4445,49 +4530,167 @@
         document.querySelectorAll('#teamSelection input[type="checkbox"]').forEach(cb => cb.checked = false);
     }
 
+    // Team Chat state
+    let teamChatHistory = [];
+    let currentDiscussionId = null;
+
     async function sendChatMessage() {
-        const input = document.getElementById('chatInput');
+        const input = document.getElementById('teamChatInput');
+        const sendBtn = document.getElementById('teamChatSendBtn');
         const message = input.value.trim();
         if (!message) return;
 
         const selectedAgents = [];
         document.querySelectorAll('#teamSelection input:checked').forEach(cb => {
-            selectedAgents.push({ id: cb.value, name: cb.dataset.name });
+            selectedAgents.push({ id: parseInt(cb.value), name: cb.dataset.name });
         });
 
         if (selectedAgents.length === 0) {
-            alert('Please select at least one team member');
+            showNotification('Please select at least one team member', 'warning');
             return;
         }
 
-        const messagesContainer = document.getElementById('chatMessages');
+        const messagesContainer = document.getElementById('teamChatMessages');
 
-        // Add user message
-        messagesContainer.innerHTML += `
-            <div style="margin-bottom: 15px; text-align: right;">
-                <div style="display: inline-block; background: var(--archie-accent); color: #000; padding: 10px 15px; border-radius: 12px 12px 0 12px; max-width: 80%;">
-                    ${message}
-                </div>
-                <div style="font-size: 0.75rem; color: var(--archie-text-muted); margin-top: 5px;">You</div>
-            </div>
+        // Disable input while processing
+        input.disabled = true;
+        sendBtn.disabled = true;
+        sendBtn.textContent = '...';
+
+        // Add user message to UI
+        const userMsgDiv = document.createElement('div');
+        userMsgDiv.className = 'team-chat-message team-chat-user';
+        userMsgDiv.innerHTML = `
+            <div class="team-chat-bubble user-bubble">${escapeHtml(message)}</div>
+            <div class="team-chat-meta">You • ${new Date().toLocaleTimeString()}</div>
         `;
+        messagesContainer.appendChild(userMsgDiv);
+
+        // Add to history
+        teamChatHistory.push({ sender: 'User', content: message });
 
         input.value = '';
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
-        // Simulate responses (would connect to actual API)
+        // Show typing indicators for each selected agent
+        const typingIndicators = {};
         for (const agent of selectedAgents) {
-            messagesContainer.innerHTML += `
-                <div style="margin-bottom: 15px;">
-                    <div style="display: inline-block; background: var(--archie-bg-tertiary); color: var(--archie-text-secondary); padding: 10px 15px; border-radius: 12px 12px 12px 0; max-width: 80%;">
-                        <em style="color: var(--archie-text-muted);">[Response from ${agent.name} would appear here]</em>
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'team-chat-message team-chat-agent';
+            typingDiv.id = `typing-${agent.id}`;
+            typingDiv.innerHTML = `
+                <div class="team-chat-bubble agent-bubble">
+                    <span class="typing-indicator">
+                        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+                    </span>
+                </div>
+                <div class="team-chat-meta">${agent.name} is typing...</div>
+            `;
+            messagesContainer.appendChild(typingDiv);
+            typingIndicators[agent.id] = typingDiv;
+        }
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+        try {
+            const response = await fetch('/tools/team-management/api/team-chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    agent_ids: selectedAgents.map(a => a.id),
+                    message: message,
+                    discussion_id: currentDiscussionId,
+                    history: teamChatHistory.slice(-10)
+                })
+            });
+
+            const data = await response.json();
+
+            // Remove typing indicators
+            for (const id in typingIndicators) {
+                typingIndicators[id].remove();
+            }
+
+            if (data.success) {
+                currentDiscussionId = data.discussion_id;
+
+                // Add agent responses
+                for (const resp of data.responses) {
+                    const agentMsgDiv = document.createElement('div');
+                    agentMsgDiv.className = 'team-chat-message team-chat-agent';
+
+                    const formattedResponse = resp.response
+                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                        .replace(/\n/g, '<br>');
+
+                    agentMsgDiv.innerHTML = `
+                        <div class="team-chat-bubble agent-bubble ${resp.success ? '' : 'error-bubble'}">
+                            ${formattedResponse}
+                        </div>
+                        <div class="team-chat-meta">
+                            <span style="color: var(--archie-accent);">${resp.agent_name}</span>
+                            <span style="color: var(--archie-text-muted);">• ${resp.title || 'Agent'}</span>
+                            ${resp.model_used ? `<span style="color: var(--archie-text-muted); font-size: 0.65rem;"> via ${resp.model_used}</span>` : ''}
+                        </div>
+                    `;
+                    messagesContainer.appendChild(agentMsgDiv);
+
+                    // Add to history
+                    teamChatHistory.push({ sender: resp.agent_name, content: resp.response });
+                }
+            } else {
+                // Show error
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'team-chat-message team-chat-system';
+                errorDiv.innerHTML = `
+                    <div class="team-chat-bubble error-bubble">
+                        Error: ${data.error || 'Failed to get responses'}
                     </div>
-                    <div style="font-size: 0.75rem; color: var(--archie-accent); margin-top: 5px;">${agent.name}</div>
+                `;
+                messagesContainer.appendChild(errorDiv);
+            }
+
+        } catch (error) {
+            // Remove typing indicators
+            for (const id in typingIndicators) {
+                typingIndicators[id].remove();
+            }
+
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'team-chat-message team-chat-system';
+            errorDiv.innerHTML = `
+                <div class="team-chat-bubble error-bubble">
+                    Connection error: ${error.message}
                 </div>
             `;
+            messagesContainer.appendChild(errorDiv);
         }
 
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+        // Re-enable input
+        input.disabled = false;
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'SEND';
+        input.focus();
+    }
+
+    function clearTeamChat() {
+        document.getElementById('teamChatMessages').innerHTML = `
+            <div style="text-align: center; color: var(--archie-text-muted); padding: 40px 20px;">
+                <div style="font-size: 2rem; margin-bottom: 10px;">💬</div>
+                <div>Select team members and start a discussion</div>
+            </div>
+        `;
+        teamChatHistory = [];
+        currentDiscussionId = null;
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 
     function startChat(agentId) {

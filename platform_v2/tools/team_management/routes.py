@@ -762,6 +762,282 @@ Respond in character as this agent. Be helpful, professional, """
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+# ============================================
+# TEAM CHAT ENDPOINTS (Multi-Agent Discussions)
+# ============================================
+
+
+@team_management_bp.route("/api/discussions", methods=["GET"])
+@login_required
+@api_admin_required
+def list_discussions():
+    """List all team discussions"""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            SELECT d.id, d.topic, d.description, d.status, d.started_at, d.ended_at,
+                   d.discussion_type, d.consensus_reached,
+                   (SELECT COUNT(*) FROM agent_discussion_messages
+                    WHERE discussion_id = d.id) as message_count,
+                   (SELECT array_agg(DISTINCT agent_id) FROM agent_discussion_messages
+                    WHERE discussion_id = d.id) as participant_ids
+            FROM agent_discussions d
+            WHERE d.discussion_type = 'team_chat'
+            ORDER BY d.started_at DESC
+            LIMIT 50
+        """
+        )
+        discussions = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        return jsonify({"success": True, "discussions": [dict(d) for d in discussions]})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@team_management_bp.route("/api/discussions", methods=["POST"])
+@login_required
+@api_admin_required
+def create_discussion():
+    """Create a new team discussion"""
+    try:
+        data = request.json
+        topic = data.get("topic", "Team Chat")
+        description = data.get("description", "")
+
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            INSERT INTO agent_discussions (topic, description, discussion_type, initiated_by_user, status)
+            VALUES (%s, %s, 'team_chat', %s, 'active')
+            RETURNING id, topic, started_at, status
+        """,
+            (topic, description, current_user.id),
+        )
+
+        discussion = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({"success": True, "discussion": dict(discussion)})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@team_management_bp.route("/api/discussions/<int:discussion_id>/messages", methods=["GET"])
+@login_required
+@api_admin_required
+def get_discussion_messages(discussion_id):
+    """Get messages for a specific discussion"""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            SELECT m.id, m.agent_id, m.message_type, m.message, m.confidence_score,
+                   m.supporting_data, m.created_at,
+                   a.name as agent_name, a.model as agent_model
+            FROM agent_discussion_messages m
+            LEFT JOIN agents a ON m.agent_id = a.id
+            WHERE m.discussion_id = %s
+            ORDER BY m.created_at ASC
+        """,
+            (discussion_id,),
+        )
+
+        messages = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        return jsonify({"success": True, "messages": [dict(m) for m in messages]})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@team_management_bp.route("/api/team-chat", methods=["POST"])
+@login_required
+@api_admin_required
+def team_chat():
+    """Send a message to multiple agents and get their responses"""
+    try:
+        from ai_bridge.archie_bridge import archie_bridge
+
+        data = request.json
+        agent_ids = data.get("agent_ids", [])
+        message = data.get("message", "")
+        discussion_id = data.get("discussion_id")
+        history = data.get("history", [])
+
+        if not agent_ids or not message:
+            return jsonify({"success": False, "error": "Agent IDs and message required"}), 400
+
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Create discussion if not provided
+        if not discussion_id:
+            cur.execute(
+                """
+                INSERT INTO agent_discussions (topic, discussion_type, initiated_by_user, status)
+                VALUES ('Team Chat', 'team_chat', %s, 'active')
+                RETURNING id
+            """,
+                (current_user.id,),
+            )
+            discussion_id = cur.fetchone()["id"]
+            conn.commit()
+
+        # Store user message (agent_id = NULL for user messages)
+        cur.execute(
+            """
+            INSERT INTO agent_discussion_messages (discussion_id, agent_id, message_type, message)
+            VALUES (%s, NULL, 'user', %s)
+        """,
+            (discussion_id, message),
+        )
+        conn.commit()
+
+        # Get all requested agents
+        cur.execute(
+            """
+            SELECT id, name, first_name, last_name, title, bio, model, system_prompt, department
+            FROM agents WHERE id = ANY(%s)
+        """,
+            (agent_ids,),
+        )
+        agents = cur.fetchall()
+
+        if not agents:
+            cur.close()
+            conn.close()
+            return jsonify({"success": False, "error": "No agents found"}), 404
+
+        responses = []
+
+        # Get responses from each agent
+        for agent in agents:
+            try:
+                # Build system prompt with agent personality
+                system_prompt = (
+                    agent.get("system_prompt")
+                    or f"""You are {agent['name']}, {agent.get('title', 'an AI agent')}.
+{agent.get('bio', 'You are helpful and knowledgeable.')}
+
+You are participating in a team discussion. Other team members may also respond.
+Be collaborative, professional, and stay true to your role in the {agent.get('department', 'team')} department.
+Keep responses concise (2-4 sentences) unless more detail is needed."""
+                )
+
+                # Build context from history
+                context = ""
+                if history:
+                    for msg in history[-10:]:  # Last 5 exchanges
+                        role = msg.get("sender", "User")
+                        context += f"{role}: {msg.get('content', '')}\n"
+
+                full_prompt = f"{context}User: {message}\n{agent['name']}:"
+
+                # Call archie_bridge
+                result = archie_bridge(
+                    prompt=full_prompt,
+                    user_id=current_user.id,
+                    agent_id=agent["id"],
+                    system_prompt=system_prompt,
+                    enable_memory=True,
+                    try_local_first=True,
+                    task_type="team_chat",
+                )
+
+                response_text = (
+                    result.get("response", "I apologize, I couldn't generate a response.")
+                    if result.get("success")
+                    else "Error getting response"
+                )
+                model_used = result.get("model_used", agent.get("model", "unknown"))
+
+                # Store agent response in database
+                cur.execute(
+                    """
+                    INSERT INTO agent_discussion_messages
+                    (discussion_id, agent_id, message_type, message, supporting_data)
+                    VALUES (%s, %s, 'response', %s, %s)
+                """,
+                    (discussion_id, agent["id"], response_text, json.dumps({"model_used": model_used})),
+                )
+                conn.commit()
+
+                agent_name = f"{agent.get('first_name', '')} {agent.get('last_name', '')}".strip() or agent["name"]
+
+                responses.append(
+                    {
+                        "agent_id": agent["id"],
+                        "agent_name": agent_name,
+                        "title": agent.get("title", "Agent"),
+                        "response": response_text,
+                        "model_used": model_used,
+                        "success": result.get("success", False),
+                    }
+                )
+
+            except Exception as agent_error:
+                responses.append(
+                    {
+                        "agent_id": agent["id"],
+                        "agent_name": agent.get("name", "Unknown"),
+                        "title": agent.get("title", "Agent"),
+                        "response": f"Error: {str(agent_error)}",
+                        "model_used": None,
+                        "success": False,
+                    }
+                )
+
+        cur.close()
+        conn.close()
+
+        return jsonify({"success": True, "discussion_id": discussion_id, "responses": responses})
+
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@team_management_bp.route("/api/discussions/<int:discussion_id>/end", methods=["POST"])
+@login_required
+@api_admin_required
+def end_discussion(discussion_id):
+    """End a team discussion"""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+
+        cur.execute(
+            """
+            UPDATE agent_discussions
+            SET status = 'completed', ended_at = NOW()
+            WHERE id = %s AND status = 'active'
+        """,
+            (discussion_id,),
+        )
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({"success": True, "message": "Discussion ended"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @team_management_bp.route("/api/agents/<int:agent_id>/toggle", methods=["POST"])
 @login_required
 @api_admin_required

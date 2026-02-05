@@ -7,25 +7,26 @@
 {% block styles %}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Orbitron:wght@400;500;700;900&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
     :root {
-        --team-bg: #010409;
-        --team-panel: #0d1117;
-        --team-surface: #161b22;
-        --team-border: #30363d;
-        --team-cyan: #00FFFF;
-        --team-cyan-dim: rgba(0, 255, 255, 0.3);
-        --team-amber: #FFAA00;
-        --team-green: #00FF41;
-        --team-red: #FF4444;
-        --team-purple: #A78BFA;
-        --team-text: #E6EDF3;
-        --team-text-dim: #8b949e;
-        --team-font-display: 'Orbitron', sans-serif;
-        --team-font-body: 'Rajdhani', sans-serif;
-        --team-font-mono: 'Share Tech Mono', monospace;
+        /* Team Management — mapped to platform design system */
+        --team-bg: var(--archie-bg-primary);
+        --team-panel: var(--archie-bg-secondary);
+        --team-surface: var(--archie-bg-tertiary);
+        --team-border: var(--archie-border-default);
+        --team-cyan: var(--archie-accent);
+        --team-cyan-dim: var(--archie-accent-alpha-30);
+        --team-amber: var(--archie-orange);
+        --team-green: var(--archie-green);
+        --team-red: var(--archie-red);
+        --team-purple: var(--archie-purple);
+        --team-text: var(--archie-text-secondary);
+        --team-text-dim: var(--archie-text-muted);
+        --team-font-display: var(--archie-font-heading);
+        --team-font-body: var(--archie-font-mono);
+        --team-font-mono: var(--archie-font-mono);
     }
 
     /* Scoped reset - avoid global reset that conflicts with Bootstrap/base */
@@ -689,28 +690,28 @@
         font-size: 0.8rem;
     }
 
-    /* ===== Phase 78: Roster Rebuild - Template Cards & Model Badges ===== */
+    /* ===== Phase 78/79: Roster Rebuild — Design System Compliant ===== */
 
     .roster-section-title {
-        font-family: var(--team-font-display);
+        font-family: var(--archie-font-heading);
         font-size: 1.05rem;
         font-weight: 700;
-        letter-spacing: 2.5px;
-        color: #fff;
+        letter-spacing: var(--archie-tracking-wider);
+        color: var(--archie-accent);
         margin-bottom: 18px;
         display: flex;
         align-items: center;
         gap: 12px;
-        text-shadow: 0 0 12px rgba(0, 255, 255, 0.25);
+        text-transform: uppercase;
     }
 
     .roster-section-count {
-        background: var(--team-cyan);
+        background: var(--archie-accent);
         color: #000;
-        font-family: var(--team-font-mono);
-        font-size: 0.8rem;
+        font-family: var(--archie-font-mono);
+        font-size: var(--archie-text-xs);
         padding: 3px 12px;
-        border-radius: 12px;
+        border-radius: var(--archie-radius-full);
         font-weight: 700;
         letter-spacing: 0.5px;
     }
@@ -718,7 +719,7 @@
     .roster-templates-grid {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
-        gap: 16px;
+        gap: var(--archie-space-5);
         margin-bottom: 35px;
     }
 
@@ -731,41 +732,41 @@
 
     .roster-template-category-header {
         grid-column: 1 / -1;
-        font-family: var(--team-font-display);
-        font-size: 0.8rem;
+        font-family: var(--archie-font-heading);
+        font-size: var(--archie-text-xs);
         font-weight: 700;
-        letter-spacing: 2.5px;
-        color: var(--team-amber);
+        letter-spacing: var(--archie-tracking-wider);
+        color: var(--archie-orange);
         text-transform: uppercase;
         padding: 14px 0 8px 0;
-        border-bottom: 1px solid rgba(255, 170, 0, 0.2);
+        border-bottom: 1px solid var(--archie-orange-alpha-20, rgba(255, 170, 0, 0.2));
         margin-top: 8px;
     }
 
     .roster-template-card {
-        background: var(--team-surface);
-        border: 1px solid var(--team-border);
-        border-radius: 10px;
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
+        border-radius: var(--archie-radius-lg);
         padding: 20px;
         cursor: pointer;
-        transition: all 0.25s ease;
+        transition: all var(--archie-duration-normal) ease;
         position: relative;
         overflow: hidden;
     }
 
     .roster-template-card:hover {
-        border-color: var(--team-cyan);
+        border-color: var(--archie-accent-alpha-30);
         transform: translateY(-3px);
-        box-shadow: 0 6px 28px rgba(0, 255, 255, 0.12);
-        background: #1c2128;
+        box-shadow: var(--archie-glow-green-sm);
+        background: var(--archie-bg-elevated);
     }
 
     .roster-template-card.has-model {
-        border-left: 3px solid var(--team-green);
+        border-left: 3px solid var(--archie-green);
     }
 
     .roster-template-card.no-model {
-        border-left: 3px solid var(--team-border);
+        border-left: 3px solid var(--archie-border-default);
         opacity: 0.65;
     }
 
@@ -783,13 +784,13 @@
     .roster-template-icon {
         width: 46px;
         height: 46px;
-        background: rgba(0, 255, 255, 0.08);
-        border: 1px solid rgba(0, 255, 255, 0.25);
-        border-radius: 10px;
+        background: var(--archie-accent-alpha-10);
+        border: 1px solid var(--archie-accent-alpha-30);
+        border-radius: var(--archie-radius-lg);
         display: flex;
         align-items: center;
         justify-content: center;
-        color: var(--team-cyan);
+        color: var(--archie-accent);
         flex-shrink: 0;
     }
 
@@ -800,19 +801,19 @@
     }
 
     .roster-template-name {
-        font-family: var(--team-font-body);
+        font-family: var(--archie-font-heading);
         font-size: 1.1rem;
         font-weight: 700;
-        color: #fff;
+        color: var(--archie-text-primary);
         letter-spacing: 0.3px;
         line-height: 1.2;
     }
 
     .roster-template-role {
-        font-family: var(--team-font-body);
+        font-family: var(--archie-font-mono);
         font-size: 0.92rem;
         font-weight: 500;
-        color: #b0bac5;
+        color: var(--archie-text-secondary);
         margin-top: 3px;
         line-height: 1.3;
     }
@@ -825,26 +826,28 @@
     }
 
     .roster-model-badge {
-        font-family: var(--team-font-mono);
-        font-size: 0.78rem;
+        font-family: var(--archie-font-mono);
+        font-size: var(--archie-text-xs);
         padding: 4px 10px;
-        border-radius: 5px;
+        border-radius: var(--archie-radius-sm);
         display: inline-flex;
         align-items: center;
         gap: 5px;
         font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
 
     .roster-model-badge.installed {
-        background: rgba(0, 255, 65, 0.12);
-        color: #5cff7e;
-        border: 1px solid rgba(0, 255, 65, 0.35);
+        background: var(--archie-green-alpha-10);
+        color: var(--archie-green);
+        border: 1px solid var(--archie-green-alpha-30, rgba(0, 255, 65, 0.35));
     }
 
     .roster-model-badge.running {
-        background: rgba(0, 255, 65, 0.18);
-        color: #5cff7e;
-        border: 1px solid rgba(0, 255, 65, 0.5);
+        background: var(--archie-green-alpha-20);
+        color: var(--archie-green);
+        border: 1px solid var(--archie-green-alpha-30, rgba(0, 255, 65, 0.5));
         animation: pulseGreen 2s ease-in-out infinite;
     }
 
@@ -855,7 +858,7 @@
 
     .roster-model-badge.not-installed {
         background: rgba(139, 148, 158, 0.08);
-        color: #7a8490;
+        color: var(--archie-text-muted);
         border: 1px solid rgba(139, 148, 158, 0.2);
     }
 
@@ -863,31 +866,31 @@
         margin-top: 14px;
         width: 100%;
         padding: 10px;
-        font-family: var(--team-font-body);
+        font-family: var(--archie-font-mono);
         font-size: 0.88rem;
         font-weight: 700;
-        letter-spacing: 1.5px;
-        background: rgba(0, 255, 255, 0.1);
-        border: 1px solid rgba(0, 255, 255, 0.35);
-        color: var(--team-cyan);
-        border-radius: 6px;
+        letter-spacing: var(--archie-tracking-wide);
+        background: var(--archie-accent-alpha-10);
+        border: 1px solid var(--archie-accent-alpha-30);
+        color: var(--archie-accent);
+        border-radius: var(--archie-radius-md);
         cursor: pointer;
-        transition: all 0.2s ease;
+        transition: all var(--archie-duration-fast) ease;
         text-transform: uppercase;
     }
 
     .roster-template-deploy:hover {
-        background: var(--team-cyan);
+        background: var(--archie-accent);
         color: #000;
-        box-shadow: 0 0 18px rgba(0, 255, 255, 0.35);
+        box-shadow: var(--archie-glow-green-sm);
     }
 
     /* Agent cards - model status */
     .roster-agent-model {
-        font-family: var(--team-font-mono);
-        font-size: 0.82rem;
+        font-family: var(--archie-font-mono);
+        font-size: var(--archie-text-xs);
         padding: 4px 10px;
-        border-radius: 5px;
+        border-radius: var(--archie-radius-sm);
         display: inline-flex;
         align-items: center;
         gap: 6px;
@@ -902,24 +905,24 @@
     }
 
     .roster-agent-model.loaded {
-        background: rgba(0, 255, 65, 0.12);
-        color: #5cff7e;
-        border: 1px solid rgba(0, 255, 65, 0.35);
+        background: var(--archie-green-alpha-10);
+        color: var(--archie-green);
+        border: 1px solid var(--archie-green-alpha-30, rgba(0, 255, 65, 0.35));
     }
 
     .roster-agent-model.loaded .status-dot {
-        background: #5cff7e;
-        box-shadow: 0 0 8px #00ff41;
+        background: var(--archie-green);
+        box-shadow: var(--archie-glow-green-sm);
     }
 
     .roster-agent-model.offline {
         background: rgba(139, 148, 158, 0.1);
-        color: #99a3ae;
+        color: var(--archie-text-muted);
         border: 1px solid rgba(139, 148, 158, 0.25);
     }
 
     .roster-agent-model.offline .status-dot {
-        background: #7a8490;
+        background: var(--archie-text-muted);
     }
 
     /* Category filter chips */
@@ -931,33 +934,33 @@
     }
 
     .roster-category-chip {
-        font-family: var(--team-font-body);
+        font-family: var(--archie-font-mono);
         font-size: 0.88rem;
         font-weight: 600;
         padding: 7px 18px;
-        border-radius: 20px;
-        background: var(--team-surface);
-        border: 1px solid var(--team-border);
-        color: #b0bac5;
+        border-radius: var(--archie-radius-full);
+        background: var(--archie-bg-tertiary);
+        border: 1px solid var(--archie-border-default);
+        color: var(--archie-text-secondary);
         cursor: pointer;
-        transition: all 0.2s ease;
+        transition: all var(--archie-duration-fast) ease;
         letter-spacing: 0.3px;
     }
 
     .roster-category-chip:hover {
-        border-color: var(--team-cyan);
-        color: #fff;
-        background: rgba(0, 255, 255, 0.06);
+        border-color: var(--archie-accent);
+        color: var(--archie-text-primary);
+        background: var(--archie-accent-alpha-10);
     }
 
     .roster-category-chip.active {
-        background: var(--team-cyan);
-        border-color: var(--team-cyan);
+        background: var(--archie-accent);
+        border-color: var(--archie-accent);
         color: #000;
         font-weight: 700;
     }
 
-    /* Deploy modal */
+    /* Deploy modal form */
     .deploy-modal-form {
         padding: 30px 34px;
     }
@@ -965,7 +968,7 @@
     .deploy-form-section {
         margin-bottom: 28px;
         padding-bottom: 24px;
-        border-bottom: 1px solid rgba(48, 54, 61, 0.4);
+        border-bottom: 1px solid var(--archie-border-muted, rgba(48, 54, 61, 0.4));
     }
 
     .deploy-form-section:last-child {
@@ -975,16 +978,15 @@
     }
 
     .deploy-form-section h4 {
-        font-family: var(--team-font-display);
+        font-family: var(--archie-font-heading);
         font-size: 0.95rem;
         font-weight: 700;
-        letter-spacing: 2.5px;
-        color: var(--team-cyan);
+        letter-spacing: var(--archie-tracking-wider);
+        color: var(--archie-accent);
         margin-bottom: 16px;
         text-transform: uppercase;
-        text-shadow: 0 0 10px rgba(0, 255, 255, 0.25);
         padding-bottom: 8px;
-        border-bottom: 2px solid rgba(0, 255, 255, 0.15);
+        border-bottom: 2px solid var(--archie-accent-alpha-20);
     }
 
     .deploy-form-row {
@@ -1005,10 +1007,10 @@
     }
 
     .deploy-form-group label {
-        font-family: var(--team-font-body);
+        font-family: var(--archie-font-mono);
         font-size: 0.9rem;
         font-weight: 700;
-        color: #cdd5de;
+        color: var(--archie-text-secondary);
         text-transform: uppercase;
         letter-spacing: 0.8px;
     }
@@ -1016,24 +1018,24 @@
     .deploy-form-group input,
     .deploy-form-group select,
     .deploy-form-group textarea {
-        background: #0a0e14;
-        border: 1.5px solid #3d454e;
-        color: #fff;
+        background: var(--archie-bg-tertiary);
+        border: 1.5px solid var(--archie-border-default);
+        color: var(--archie-text-primary);
         padding: 12px 16px;
-        border-radius: 8px;
-        font-family: var(--team-font-body);
+        border-radius: var(--archie-radius-lg);
+        font-family: var(--archie-font-mono);
         font-size: 1rem;
         font-weight: 500;
-        transition: all 0.2s ease;
+        transition: all var(--archie-duration-fast) ease;
     }
 
     .deploy-form-group input:focus,
     .deploy-form-group select:focus,
     .deploy-form-group textarea:focus {
         outline: none;
-        border-color: var(--team-cyan);
-        box-shadow: 0 0 0 3px rgba(0, 255, 255, 0.15);
-        background: #0d1219;
+        border-color: var(--archie-accent);
+        box-shadow: 0 0 0 3px var(--archie-accent-alpha-20);
+        background: var(--archie-bg-secondary);
     }
 
     .deploy-form-group textarea {
@@ -1045,19 +1047,19 @@
     .deploy-form-group select {
         cursor: pointer;
         appearance: none;
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2300FFFF' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2300ff41' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
         background-repeat: no-repeat;
         background-position: right 14px center;
         padding-right: 36px;
     }
 
     .deploy-recommended-badge {
-        font-family: var(--team-font-mono);
+        font-family: var(--archie-font-mono);
         font-size: 0.76rem;
-        background: rgba(0, 255, 65, 0.2);
-        color: #5cff7e;
+        background: var(--archie-green-alpha-20);
+        color: var(--archie-green);
         padding: 3px 10px;
-        border-radius: 4px;
+        border-radius: var(--archie-radius-sm);
         margin-left: 6px;
         font-weight: 700;
     }
@@ -1068,25 +1070,25 @@
         bottom: 30px;
         right: 30px;
         padding: 16px 28px;
-        border-radius: 8px;
-        font-family: var(--team-font-body);
+        border-radius: var(--archie-radius-lg);
+        font-family: var(--archie-font-mono);
         font-size: 1rem;
         font-weight: 600;
-        z-index: 2000;
+        z-index: var(--archie-z-notification);
         animation: toastSlideIn 0.3s ease, toastFadeOut 0.3s ease 2.7s forwards;
-        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+        box-shadow: var(--archie-shadow-lg);
     }
 
     .roster-toast.success {
-        background: rgba(0, 255, 65, 0.18);
-        border: 1px solid #5cff7e;
-        color: #5cff7e;
+        background: var(--archie-success-bg);
+        border: 1px solid var(--archie-green);
+        color: var(--archie-green);
     }
 
     .roster-toast.error {
-        background: rgba(255, 68, 68, 0.18);
-        border: 1px solid var(--team-red);
-        color: #ff7777;
+        background: var(--archie-danger-bg);
+        border: 1px solid var(--archie-red);
+        color: var(--archie-red);
     }
 
     @keyframes toastSlideIn {
@@ -2155,7 +2157,7 @@
         <!-- Actions -->
         <div class="team-actions">
             <div class="team-search">
-                <input type="text" id="rosterSearch" placeholder="Search templates and agents..." oninput="searchRoster(this.value)">
+                <input type="text" id="rosterSearch" class="form-input" placeholder="Search templates and agents..." oninput="searchRoster(this.value)">
             </div>
             <button class="team-btn" onclick="loadRoster()">REFRESH</button>
             <button class="team-btn" onclick="filterByCategory('all')">ALL CATEGORIES</button>
@@ -2738,28 +2740,28 @@
 </div>
 
 <!-- ==================== AGENT DETAIL MODAL ==================== -->
-<div id="agentDetailModal" class="team-modal">
-    <div class="team-modal-content" style="max-width: 700px;">
-        <div class="team-modal-header">
-            <h2 class="team-modal-title">AGENT PROFILE</h2>
-            <button class="team-modal-close" onclick="closeAgentDetail()">&times;</button>
+<div id="agentDetailModal" class="modal-overlay" onclick="if(event.target===this)closeAgentDetail()">
+    <div class="modal modal-lg" style="max-width: 700px;">
+        <div class="modal-header">
+            <h3 class="modal-title">AGENT PROFILE</h3>
+            <button class="modal-close" onclick="closeAgentDetail()">&times;</button>
         </div>
-        <div class="team-modal-body" id="agentDetailContent">
+        <div class="modal-body" id="agentDetailContent">
             <!-- Populated dynamically -->
         </div>
     </div>
 </div>
 
 <!-- ==================== DEPLOY AGENT MODAL ==================== -->
-<div id="deployAgentModal" class="team-modal">
-    <div class="team-modal-content" style="max-width: 650px;">
-        <div class="team-modal-header">
-            <h2 class="team-modal-title">DEPLOY AGENT</h2>
-            <button class="team-modal-close" onclick="closeDeployModal()">&times;</button>
+<div id="deployAgentModal" class="modal-overlay" onclick="if(event.target===this)closeDeployModal()">
+    <div class="modal modal-lg" style="max-width: 650px;">
+        <div class="modal-header">
+            <h3 class="modal-title">DEPLOY AGENT</h3>
+            <button class="modal-close" onclick="closeDeployModal()">&times;</button>
         </div>
         <form onsubmit="deployAgent(event)">
             <input type="hidden" id="deployTemplateId" value="">
-            <div class="deploy-modal-form">
+            <div class="modal-body">
                 <!-- Agent Identity -->
                 <div class="deploy-form-section">
                     <h4>Agent Identity</h4>
@@ -2814,9 +2816,9 @@
                 </div>
             </div>
 
-            <div class="team-modal-footer">
-                <button type="button" class="team-btn" onclick="closeDeployModal()">CANCEL</button>
-                <button type="submit" class="team-btn team-btn-primary">DEPLOY AGENT</button>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-ghost" onclick="closeDeployModal()">CANCEL</button>
+                <button type="submit" class="btn btn-success">DEPLOY AGENT</button>
             </div>
         </form>
     </div>
@@ -3124,7 +3126,7 @@
                     badge.className = 'roster-model-badge ' + ms.status;
                     if (ms.status === 'running') {
                         const dot = document.createElement('span');
-                        dot.style.cssText = 'display:inline-block;width:5px;height:5px;background:var(--team-green);border-radius:50%;';
+                        dot.style.cssText = 'display:inline-block;width:5px;height:5px;background:var(--archie-green);border-radius:50%;';
                         badge.appendChild(dot);
                         badge.appendChild(document.createTextNode(' '));
                     }
@@ -3288,21 +3290,21 @@
         const avatarImg = document.createElement('img');
         avatarImg.src = avatarUrl;
         avatarImg.alt = fullName;
-        avatarImg.style.cssText = 'width:100px;height:100px;border-radius:50%;border:3px solid var(--team-cyan);box-shadow:0 0 20px rgba(0,255,255,0.2);';
+        avatarImg.style.cssText = 'width:100px;height:100px;border-radius:50%;border:3px solid var(--archie-accent);box-shadow:0 0 20px var(--archie-accent-alpha-20);';
 
         const infoCol = document.createElement('div');
         infoCol.style.flex = '1';
 
         const h2 = document.createElement('h2');
-        h2.style.cssText = 'color:var(--team-cyan);margin:0 0 8px 0;font-family:var(--team-font-display);font-size:1.4rem;';
+        h2.style.cssText = 'color:var(--archie-accent);margin:0 0 8px 0;font-family:var(--archie-font-heading);font-size:1.4rem;';
         h2.textContent = fullName;
 
         const titleDiv = document.createElement('div');
-        titleDiv.style.cssText = 'color:var(--team-text);font-size:1rem;margin-bottom:6px;';
+        titleDiv.style.cssText = 'color:var(--archie-text-secondary);font-size:1rem;margin-bottom:6px;';
         titleDiv.textContent = agent.title || 'AI Agent';
 
         const deptDiv = document.createElement('div');
-        deptDiv.style.cssText = 'color:var(--team-text-dim);margin-bottom:8px;';
+        deptDiv.style.cssText = 'color:var(--archie-text-muted);margin-bottom:8px;';
         deptDiv.textContent = agent.department || 'Unassigned';
 
         const modelStatusSpan = document.createElement('span');
@@ -3326,12 +3328,12 @@
 
         // About
         const aboutBox = document.createElement('div');
-        aboutBox.style.cssText = 'background:var(--team-surface);border-left:3px solid var(--team-cyan);padding:15px;margin-bottom:15px;border-radius:0 8px 8px 0;';
+        aboutBox.style.cssText = 'background:var(--archie-bg-tertiary);border-left:3px solid var(--archie-accent);padding:15px;margin-bottom:15px;border-radius:0 8px 8px 0;';
         const aboutLabel = document.createElement('div');
-        aboutLabel.style.cssText = 'color:var(--team-cyan);font-weight:600;margin-bottom:8px;font-size:0.8rem;';
+        aboutLabel.style.cssText = 'color:var(--archie-accent);font-weight:600;margin-bottom:8px;font-size:0.8rem;';
         aboutLabel.textContent = 'ABOUT';
         const aboutText = document.createElement('div');
-        aboutText.style.cssText = 'color:var(--team-text);line-height:1.6;font-size:0.9rem;';
+        aboutText.style.cssText = 'color:var(--archie-text-secondary);line-height:1.6;font-size:0.9rem;';
         aboutText.textContent = agent.bio || 'No biography available.';
         aboutBox.appendChild(aboutLabel);
         aboutBox.appendChild(aboutText);
@@ -3342,16 +3344,16 @@
         statsGrid.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;';
         [
             { label: 'Model', value: agent.model || 'N/A' },
-            { label: 'Status', value: (agent.status || 'active').toUpperCase(), color: agent.status === 'active' ? 'var(--team-green)' : 'var(--team-amber)' },
+            { label: 'Status', value: (agent.status || 'active').toUpperCase(), color: agent.status === 'active' ? 'var(--archie-green)' : 'var(--archie-orange)' },
             { label: 'Engine', value: isLoaded ? 'RUNNING' : 'STANDBY' }
         ].forEach(stat => {
             const cell = document.createElement('div');
-            cell.style.cssText = 'background:var(--team-surface);padding:12px;text-align:center;border-radius:8px;';
+            cell.style.cssText = 'background:var(--archie-bg-tertiary);padding:12px;text-align:center;border-radius:8px;';
             const lbl = document.createElement('div');
-            lbl.style.cssText = 'font-size:0.75rem;color:var(--team-text-dim);';
+            lbl.style.cssText = 'font-size:0.75rem;color:var(--archie-text-muted);';
             lbl.textContent = stat.label;
             const val = document.createElement('div');
-            val.style.cssText = 'color:' + (stat.color || 'var(--team-cyan)') + ';margin-top:4px;font-size:0.85rem;';
+            val.style.cssText = 'color:' + (stat.color || 'var(--archie-accent)') + ';margin-top:4px;font-size:0.85rem;';
             val.textContent = stat.value;
             cell.appendChild(lbl);
             cell.appendChild(val);
@@ -3390,11 +3392,11 @@
         detailsWrap.appendChild(btnRow);
 
         content.appendChild(detailsWrap);
-        modal.style.display = 'block';
+        modal.classList.add('active');
     }
 
     function closeAgentDetail() {
-        document.getElementById('agentDetailModal').style.display = 'none';
+        document.getElementById('agentDetailModal').classList.remove('active');
     }
 
     // ============================================
@@ -3449,11 +3451,11 @@
 
         if (firstRecommended > 0) select.selectedIndex = firstRecommended;
 
-        document.getElementById('deployAgentModal').style.display = 'block';
+        document.getElementById('deployAgentModal').classList.add('active');
     }
 
     function closeDeployModal() {
-        document.getElementById('deployAgentModal').style.display = 'none';
+        document.getElementById('deployAgentModal').classList.remove('active');
     }
 
     async function deployAgent(event) {

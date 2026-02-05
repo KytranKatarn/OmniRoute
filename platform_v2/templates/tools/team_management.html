@@ -1363,6 +1363,16 @@
         background: rgba(100, 100, 100, 0.15);
     }
 
+    .llm-disk-warning {
+        font-size: 0.72rem;
+        color: var(--archie-amber, #f0a500);
+        background: rgba(240, 165, 0, 0.1);
+        border: 1px solid rgba(240, 165, 0, 0.25);
+        border-radius: 4px;
+        padding: 0.25rem 0.5rem;
+        margin-bottom: 0.4rem;
+    }
+
     .llm-model-desc {
         font-size: 0.78rem;
         color: var(--archie-text-tertiary, #8b949e);
@@ -1898,6 +1908,12 @@
                         <div class="llm-hw-label">GPU</div>
                         <div class="llm-hw-value" id="hwGpuModel">--</div>
                         <div class="llm-hw-stat" id="hwGpuVram">-- GB VRAM</div>
+                    </div>
+                    <div class="llm-hw-card" id="storageCard">
+                        <div class="llm-hw-icon"><i data-lucide="hard-drive"></i></div>
+                        <div class="llm-hw-label">MODEL STORAGE</div>
+                        <div class="llm-hw-value" id="hwStorageFree">-- GB free</div>
+                        <div class="llm-hw-stat" id="hwStorageTotal">-- GB total</div>
                     </div>
                 </div>
             </div>
@@ -3301,6 +3317,7 @@
     // ============================================
     let marketplaceCatalog = [];
     let marketplaceActiveCategory = 'all';
+    let currentStorageFreeGb = 0;
 
     async function loadMarketplace() {
         try {
@@ -3313,6 +3330,13 @@
                 renderOllamaMarketplaceStatus(data.ollama_online);
                 renderMarketplaceStats(data.stats);
                 renderCategoryFilters(data.categories);
+
+                if (data.storage) {
+                    currentStorageFreeGb = data.storage.free_gb || 0;
+                    document.getElementById('hwStorageFree').textContent = data.storage.free_gb + ' GB free';
+                    document.getElementById('hwStorageTotal').textContent = data.storage.total_gb + ' GB total';
+                }
+
                 filterMarketplace();
             }
         } catch (error) {
@@ -3536,6 +3560,14 @@
             var actionsDiv = document.createElement('div');
             actionsDiv.className = 'llm-model-actions';
 
+            // Disk space warning badge
+            if (!model.installed && currentStorageFreeGb > 0 && model.size_gb > currentStorageFreeGb) {
+                var diskWarn = document.createElement('div');
+                diskWarn.className = 'llm-disk-warning';
+                diskWarn.textContent = 'Needs ' + model.size_gb + ' GB — only ' + currentStorageFreeGb + ' GB free';
+                card.appendChild(diskWarn);
+            }
+
             if (model.installed) {
                 var agentBtn = document.createElement('button');
                 agentBtn.className = 'primary';
@@ -3550,9 +3582,15 @@
                 actionsDiv.appendChild(delBtn);
             } else if (model.compatibility !== 'too_large') {
                 var dlBtn = document.createElement('button');
-                dlBtn.className = 'primary';
-                dlBtn.textContent = 'Download';
-                dlBtn.onclick = function() { pullModel(model.id); };
+                if (currentStorageFreeGb > 0 && model.size_gb > currentStorageFreeGb) {
+                    dlBtn.className = 'primary';
+                    dlBtn.disabled = true;
+                    dlBtn.textContent = 'Insufficient Disk Space';
+                } else {
+                    dlBtn.className = 'primary';
+                    dlBtn.textContent = 'Download';
+                    dlBtn.onclick = function() { pullModel(model.id); };
+                }
                 actionsDiv.appendChild(dlBtn);
             } else {
                 var disBtn = document.createElement('button');
@@ -3567,6 +3605,15 @@
     }
 
     async function pullModel(modelId) {
+        // Pre-download disk space check
+        var model = marketplaceCatalog.find(function(m) { return m.id === modelId; });
+        if (model && currentStorageFreeGb > 0) {
+            if (model.size_gb > currentStorageFreeGb) {
+                showNotification('Not enough disk space. Need ' + model.size_gb + ' GB, only ' + currentStorageFreeGb + ' GB free.', 'error');
+                return;
+            }
+        }
+
         var safeId = modelId.replace(/[:.]/g, '-');
         var progressWrap = document.getElementById('progress-' + safeId);
         if (!progressWrap) return;

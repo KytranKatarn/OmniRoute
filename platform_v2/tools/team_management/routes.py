@@ -25,6 +25,7 @@ from psycopg2.extras import RealDictCursor
 import os
 import json
 import requests
+import shutil
 import sys
 
 # Add ai_bridge to path for image generation
@@ -8371,6 +8372,17 @@ def api_model_marketplace():
     # Collect unique categories sorted
     categories = sorted(set(e["category"] for e in OLLAMA_MODEL_CATALOG))
 
+    # Disk storage info for model downloads
+    models_path = os.getenv("OLLAMA_MODELS", "/mnt/data2/ollama/models")
+    storage = {"models_path": models_path, "total_gb": 0, "used_gb": 0, "free_gb": 0}
+    try:
+        usage = shutil.disk_usage(models_path)
+        storage["total_gb"] = round(usage.total / (1024**3), 1)
+        storage["used_gb"] = round(usage.used / (1024**3), 1)
+        storage["free_gb"] = round(usage.free / (1024**3), 1)
+    except Exception:
+        pass
+
     return jsonify(
         {
             "success": True,
@@ -8379,6 +8391,7 @@ def api_model_marketplace():
             "catalog": catalog,
             "categories": categories,
             "stats": stats,
+            "storage": storage,
         }
     )
 

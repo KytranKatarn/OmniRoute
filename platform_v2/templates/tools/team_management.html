@@ -2164,8 +2164,18 @@
         <!-- Category filters -->
         <div id="categoryFilters" class="roster-category-filters"></div>
 
+        <!-- Active Agents section -->
+        <div class="roster-agents-section">
+            <div class="roster-section-title">
+                ACTIVE AGENTS <span id="agentsCount" class="roster-section-count">0</span>
+            </div>
+            <div id="rosterGrid" class="team-grid">
+                <div class="team-empty">No agents deployed yet. Deploy from a template below.</div>
+            </div>
+        </div>
+
         <!-- Templates section -->
-        <div class="roster-templates-section">
+        <div class="roster-templates-section" style="margin-top: 30px;">
             <div class="roster-section-title">
                 DEPLOY FROM TEMPLATE <span id="templatesCount" class="roster-section-count">0</span>
             </div>
@@ -2174,16 +2184,6 @@
                     <div class="team-spinner"></div>
                     <div class="team-loading-text">Loading templates...</div>
                 </div>
-            </div>
-        </div>
-
-        <!-- Active Agents section -->
-        <div class="roster-agents-section" style="margin-top: 30px;">
-            <div class="roster-section-title">
-                ACTIVE AGENTS <span id="agentsCount" class="roster-section-count">0</span>
-            </div>
-            <div id="rosterGrid" class="team-grid">
-                <div class="team-empty">No agents deployed yet. Deploy from a template above.</div>
             </div>
         </div>
     </div>

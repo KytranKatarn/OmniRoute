@@ -8272,11 +8272,19 @@ def calculate_model_compatibility(entry, hardware):
     return "too_large"
 
 
+def _get_ollama_host():
+    """Get Ollama host URL, ensuring http:// scheme is present."""
+    host = os.environ.get("OLLAMA_HOST", "http://192.168.1.200:11434")
+    if host and not host.startswith("http://") and not host.startswith("https://"):
+        host = "http://" + host
+    return host
+
+
 @team_management_bp.route("/api/model-marketplace")
 @login_required
 def api_model_marketplace():
     """Get full model marketplace: catalog merged with local Ollama status and hardware compatibility."""
-    # Read hardware from host_monitor_data.json
+    # Read hardware from host_monitor_data.json (same structure as Phase 76)
     hardware = {
         "cpu_model": "Unknown",
         "cpu_cores": 0,
@@ -8286,18 +8294,22 @@ def api_model_marketplace():
         "gpus": [],
     }
     try:
-        hw_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "host_monitor_data.json"
-        )
+        hw_path = "/mnt/archie_brain/host_monitor_data.json"
         if os.path.exists(hw_path):
             with open(hw_path) as f:
                 hw_data = json.load(f)
-            hardware["cpu_model"] = hw_data.get("cpu", {}).get("model", "Unknown")
-            hardware["cpu_cores"] = hw_data.get("cpu", {}).get("cores", 0)
-            hardware["cpu_threads"] = hw_data.get("cpu", {}).get("threads", 0)
-            hardware["ram_total_gb"] = round(hw_data.get("memory", {}).get("total_gb", 0), 1)
-            hardware["ram_available_gb"] = round(hw_data.get("memory", {}).get("available_gb", 0), 1)
-            for gpu in hw_data.get("gpus", []):
+            cpu_hw = hw_data.get("cpu_hardware", {})
+            cpu_info = hw_data.get("cpu", {})
+            processors = cpu_hw.get("processors", [])
+            first_cpu = processors[0] if processors else {}
+            memory = hw_data.get("memory_hardware", {})
+
+            hardware["cpu_model"] = first_cpu.get("model") or cpu_info.get("model", "Unknown")
+            hardware["cpu_cores"] = first_cpu.get("cores") or cpu_info.get("physical_cores", 0)
+            hardware["cpu_threads"] = first_cpu.get("threads") or cpu_info.get("logical_cores", 0)
+            hardware["ram_total_gb"] = memory.get("total_capacity_gb", 0)
+            hardware["ram_available_gb"] = memory.get("total_capacity_gb", 0)
+            for gpu in hw_data.get("gpu", []):
                 hardware["gpus"].append(
                     {
                         "model": gpu.get("model", "Unknown"),
@@ -8308,7 +8320,7 @@ def api_model_marketplace():
         pass
 
     # Query Ollama for installed models
-    ollama_host = os.environ.get("OLLAMA_HOST", "http://192.168.1.200:11434")
+    ollama_host = _get_ollama_host()
     ollama_online = False
     installed_models = set()
 
@@ -8380,7 +8392,7 @@ def api_model_marketplace_pull():
     if not model_name:
         return jsonify({"success": False, "error": "No model specified"}), 400
 
-    ollama_host = os.environ.get("OLLAMA_HOST", "http://192.168.1.200:11434")
+    ollama_host = _get_ollama_host()
 
     def generate():
         try:
@@ -8408,7 +8420,7 @@ def api_model_marketplace_delete():
     if not model_name:
         return jsonify({"success": False, "error": "No model specified"}), 400
 
-    ollama_host = os.environ.get("OLLAMA_HOST", "http://192.168.1.200:11434")
+    ollama_host = _get_ollama_host()
 
     try:
         resp = requests.delete(f"{ollama_host}/api/delete", json={"name": model_name}, timeout=30)

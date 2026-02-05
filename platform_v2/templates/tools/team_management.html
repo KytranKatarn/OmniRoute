@@ -1373,6 +1373,29 @@
         margin-bottom: 0.4rem;
     }
 
+    /* Speed tier badges */
+    .llm-speed-badge { padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.6rem; font-weight: bold; }
+    .llm-speed-badge.fast { color: #00ff41; background: rgba(0,255,65,0.15); }
+    .llm-speed-badge.moderate { color: #ffdd00; background: rgba(255,221,0,0.15); }
+    .llm-speed-badge.slow { color: #ff8800; background: rgba(255,136,0,0.15); }
+    .llm-speed-badge.very_slow { color: #ff4444; background: rgba(255,68,68,0.15); }
+
+    /* Running model panel */
+    .llm-running-model { padding: 0.75rem 1rem; background: var(--archie-bg-primary, #010409); border: 1px solid var(--archie-border-default, #30363d); border-radius: 6px; margin-top: 0.5rem; }
+    .llm-running-model-header { display: flex; align-items: center; gap: 0.5rem; font-family: var(--archie-font-display, 'Orbitron', sans-serif); font-size: 0.7rem; color: var(--archie-text-tertiary, #8b949e); text-transform: uppercase; margin-bottom: 0.5rem; }
+    .llm-running-model-header i { width: 16px; height: 16px; color: var(--archie-green, #00ff41); }
+    .llm-running-model-info { display: flex; flex-wrap: wrap; gap: 1rem; font-size: 0.8rem; font-family: var(--archie-font-mono, 'JetBrains Mono', monospace); }
+    .llm-running-model-info .rm-field { display: flex; flex-direction: column; gap: 0.15rem; }
+    .llm-running-model-info .rm-label { font-size: 0.6rem; color: var(--archie-text-muted, #6e7681); text-transform: uppercase; }
+    .llm-running-model-info .rm-value { color: var(--archie-cyan, #00ffff); font-weight: 600; }
+
+    /* GPU VRAM bar */
+    .llm-hw-bar-wrap { margin-top: 0.4rem; }
+    .llm-hw-bar { height: 4px; background: var(--archie-border-default, #30363d); border-radius: 2px; overflow: hidden; }
+    .llm-hw-bar-fill { height: 100%; border-radius: 2px; background: var(--archie-cyan, #00ffff); transition: width 0.5s ease; width: 0%; }
+    .llm-hw-bar-fill.high { background: var(--archie-orange, #ffaa00); }
+    .llm-hw-bar-fill.critical { background: #ff4444; }
+
     .llm-model-desc {
         font-size: 0.78rem;
         color: var(--archie-text-tertiary, #8b949e);
@@ -1896,6 +1919,7 @@
                         <div class="llm-hw-label">CPU</div>
                         <div class="llm-hw-value" id="hwCpuModel">--</div>
                         <div class="llm-hw-stat" id="hwCpuCores">-- cores / -- threads</div>
+                        <div class="llm-hw-stat" id="hwCpuTemp" style="display:none;"></div>
                     </div>
                     <div class="llm-hw-card">
                         <div class="llm-hw-icon"><i data-lucide="memory-stick"></i></div>
@@ -1908,6 +1932,10 @@
                         <div class="llm-hw-label">GPU</div>
                         <div class="llm-hw-value" id="hwGpuModel">--</div>
                         <div class="llm-hw-stat" id="hwGpuVram">-- GB VRAM</div>
+                        <div class="llm-hw-bar-wrap" id="hwGpuBarWrap" style="display:none;">
+                            <div class="llm-hw-bar"><div class="llm-hw-bar-fill" id="hwGpuBarFill"></div></div>
+                        </div>
+                        <div class="llm-hw-stat" id="hwGpuUtil" style="display:none;"></div>
                     </div>
                     <div class="llm-hw-card" id="storageCard">
                         <div class="llm-hw-icon"><i data-lucide="hard-drive"></i></div>
@@ -1927,6 +1955,13 @@
                 </div>
                 <div class="llm-ollama-status" id="ollamaStatus">
                     <div id="ollamaError" class="llm-error" style="display:none;"></div>
+                    <div id="runningModelPanel" class="llm-running-model" style="display:none;">
+                        <div class="llm-running-model-header">
+                            <i data-lucide="activity"></i>
+                            <span>LOADED IN MEMORY</span>
+                        </div>
+                        <div id="runningModelInfo" class="llm-running-model-info"></div>
+                    </div>
                 </div>
             </div>
 
@@ -3337,6 +3372,7 @@
                     document.getElementById('hwStorageTotal').textContent = data.storage.total_gb + ' GB total';
                 }
 
+                renderRunningModels(data.running_models || []);
                 filterMarketplace();
             }
         } catch (error) {
@@ -3354,14 +3390,117 @@
         document.getElementById('hwRamTotal').textContent = hw.ram_total_gb + ' GB';
         document.getElementById('hwRamAvail').textContent = hw.ram_available_gb + ' GB available';
 
+        // CPU temperature
+        var cpuTempEl = document.getElementById('hwCpuTemp');
+        if (hw.cpu_temperature) {
+            cpuTempEl.textContent = 'Temp: ' + hw.cpu_temperature + '°C';
+            cpuTempEl.style.display = '';
+        }
+
         if (hw.gpus && hw.gpus.length > 0) {
             var gpu = hw.gpus[0];
             document.getElementById('hwGpuModel').textContent = gpu.model;
-            document.getElementById('hwGpuVram').textContent = gpu.vram_total_gb + ' GB VRAM';
+
+            // Show used/total VRAM
+            var vramText = gpu.vram_used_gb + ' / ' + gpu.vram_total_gb + ' GB VRAM';
+            document.getElementById('hwGpuVram').textContent = vramText;
+
+            // VRAM usage bar
+            if (gpu.vram_total_gb > 0) {
+                var pct = Math.min(100, Math.round((gpu.vram_used_gb / gpu.vram_total_gb) * 100));
+                var barWrap = document.getElementById('hwGpuBarWrap');
+                var barFill = document.getElementById('hwGpuBarFill');
+                barWrap.style.display = '';
+                barFill.style.width = pct + '%';
+                barFill.className = 'llm-hw-bar-fill' + (pct > 90 ? ' critical' : pct > 70 ? ' high' : '');
+            }
+
+            // GPU utilization
+            if (gpu.utilization_percent !== undefined && gpu.utilization_percent !== null) {
+                var utilEl = document.getElementById('hwGpuUtil');
+                utilEl.textContent = 'Utilization: ' + gpu.utilization_percent + '%';
+                utilEl.style.display = '';
+            }
         } else {
             document.getElementById('hwGpuModel').textContent = 'No GPU';
             document.getElementById('hwGpuVram').textContent = '--';
         }
+    }
+
+    function renderRunningModels(models) {
+        var panel = document.getElementById('runningModelPanel');
+        var info = document.getElementById('runningModelInfo');
+
+        if (!models || models.length === 0) {
+            panel.style.display = 'none';
+            return;
+        }
+
+        panel.style.display = '';
+        info.textContent = '';
+
+        models.forEach(function(m) {
+            // Model name
+            var nameField = document.createElement('div');
+            nameField.className = 'rm-field';
+            var nameLabel = document.createElement('div');
+            nameLabel.className = 'rm-label';
+            nameLabel.textContent = 'Model';
+            var nameValue = document.createElement('div');
+            nameValue.className = 'rm-value';
+            nameValue.textContent = m.name;
+            nameField.appendChild(nameLabel);
+            nameField.appendChild(nameValue);
+            info.appendChild(nameField);
+
+            // VRAM used
+            var vramField = document.createElement('div');
+            vramField.className = 'rm-field';
+            var vramLabel = document.createElement('div');
+            vramLabel.className = 'rm-label';
+            vramLabel.textContent = 'VRAM Used';
+            var vramValue = document.createElement('div');
+            vramValue.className = 'rm-value';
+            vramValue.textContent = m.size_vram_gb + ' GB';
+            vramField.appendChild(vramLabel);
+            vramField.appendChild(vramValue);
+            info.appendChild(vramField);
+
+            // Total size
+            var sizeField = document.createElement('div');
+            sizeField.className = 'rm-field';
+            var sizeLabel = document.createElement('div');
+            sizeLabel.className = 'rm-label';
+            sizeLabel.textContent = 'Total Size';
+            var sizeValue = document.createElement('div');
+            sizeValue.className = 'rm-value';
+            sizeValue.textContent = m.size_gb + ' GB';
+            sizeField.appendChild(sizeLabel);
+            sizeField.appendChild(sizeValue);
+            info.appendChild(sizeField);
+
+            // Expires
+            if (m.expires_at) {
+                var expiresField = document.createElement('div');
+                expiresField.className = 'rm-field';
+                var expiresLabel = document.createElement('div');
+                expiresLabel.className = 'rm-label';
+                expiresLabel.textContent = 'Expires';
+                var expiresValue = document.createElement('div');
+                expiresValue.className = 'rm-value';
+                try {
+                    var expiresDate = new Date(m.expires_at);
+                    var now = new Date();
+                    var minsLeft = Math.max(0, Math.round((expiresDate - now) / 60000));
+                    expiresValue.textContent = minsLeft + ' min';
+                } catch(e) {
+                    expiresValue.textContent = m.expires_at;
+                }
+                expiresField.appendChild(expiresLabel);
+                expiresField.appendChild(expiresValue);
+                info.appendChild(expiresField);
+            }
+        });
     }
 
     function renderOllamaMarketplaceStatus(online) {
@@ -3507,6 +3646,15 @@
                 compatBadge.textContent = 'TOO LARGE';
             }
             headerDiv.appendChild(compatBadge);
+
+            if (model.speed_tier) {
+                var speedBadge = document.createElement('span');
+                speedBadge.className = 'llm-speed-badge ' + model.speed_tier;
+                var speedLabels = {'fast':'FAST','moderate':'MODERATE','slow':'SLOW','very_slow':'VERY SLOW'};
+                speedBadge.textContent = speedLabels[model.speed_tier] || model.speed_tier.toUpperCase();
+                headerDiv.appendChild(speedBadge);
+            }
+
             card.appendChild(headerDiv);
 
             // Description

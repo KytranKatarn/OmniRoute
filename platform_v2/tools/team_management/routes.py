@@ -8273,6 +8273,21 @@ def calculate_model_compatibility(entry, hardware):
     return "too_large"
 
 
+def calculate_speed_tier(entry, compatibility):
+    """Estimated inference speed based on GPU vs CPU and model size."""
+    if compatibility == "gpu":
+        return "fast"
+    elif compatibility == "cpu":
+        ram_gb = entry.get("ram_gb", 0)
+        if ram_gb <= 12:
+            return "moderate"
+        elif ram_gb <= 24:
+            return "slow"
+        else:
+            return "very_slow"
+    return None
+
+
 def _get_ollama_host():
     """Get LOCAL Ollama host URL for this node's own Ollama instance."""
     host = os.getenv("OLLAMA_LOCAL_HOST", "http://host.docker.internal:11434")
@@ -8315,8 +8330,12 @@ def api_model_marketplace():
                     {
                         "model": gpu.get("model", "Unknown"),
                         "vram_total_gb": round(gpu.get("vram_total_mb", 0) / 1024, 1),
+                        "vram_used_gb": round(gpu.get("vram_used_mb", 0) / 1024, 2),
+                        "utilization_percent": gpu.get("utilization_percent", 0),
+                        "temperature": gpu.get("temperature"),
                     }
                 )
+            hardware["cpu_temperature"] = cpu_info.get("temperature")
     except Exception:
         pass
 
@@ -8338,6 +8357,26 @@ def api_model_marketplace():
     except Exception:
         pass
 
+    # Query Ollama for running/loaded models
+    running_models = []
+    if ollama_online:
+        try:
+            ps_resp = requests.get(f"{ollama_host}/api/ps", timeout=5)
+            if ps_resp.status_code == 200:
+                for m in ps_resp.json().get("models", []):
+                    running_models.append(
+                        {
+                            "name": m.get("name", ""),
+                            "size_gb": round(m.get("size", 0) / (1024**3), 2),
+                            "size_vram_gb": round(m.get("size_vram", 0) / (1024**3), 2),
+                            "parameter_size": m.get("details", {}).get("parameter_size", ""),
+                            "quantization": m.get("details", {}).get("quantization_level", ""),
+                            "expires_at": m.get("expires_at", ""),
+                        }
+                    )
+        except Exception:
+            pass
+
     # Build catalog with compatibility and installed status
     catalog = []
     stats = {"total": 0, "installed": 0, "gpu_compatible": 0, "cpu_compatible": 0, "too_large": 0}
@@ -8357,6 +8396,7 @@ def api_model_marketplace():
         # Calculate compatibility
         compat = calculate_model_compatibility(entry, hardware)
         model["compatibility"] = compat
+        model["speed_tier"] = calculate_speed_tier(entry, compat)
 
         catalog.append(model)
         stats["total"] += 1
@@ -8392,6 +8432,7 @@ def api_model_marketplace():
             "categories": categories,
             "stats": stats,
             "storage": storage,
+            "running_models": running_models,
         }
     )
 

@@ -11,7 +11,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
     :root {
-        /* Team Management — mapped to platform design system */
+        /* DEPRECATED: backwards-compat shim — remove after full migration */
         --team-bg: var(--archie-bg-primary);
         --team-panel: var(--archie-bg-secondary);
         --team-surface: var(--archie-bg-tertiary);
@@ -37,9 +37,9 @@
 
     /* Page wrapper styling */
     .team-page-wrapper {
-        font-family: var(--team-font-body);
-        background: var(--team-bg);
-        color: var(--team-text);
+        font-family: var(--archie-font-mono);
+        background: var(--archie-bg-primary);
+        color: var(--archie-text-secondary);
         min-height: 100vh;
         overflow-x: hidden;
         position: relative;
@@ -87,7 +87,7 @@
         position: relative;
         z-index: 10;
         background: linear-gradient(180deg, rgba(13, 17, 23, 0.95) 0%, rgba(13, 17, 23, 0.8) 100%);
-        border-bottom: 3px solid var(--team-cyan);
+        border-bottom: 3px solid var(--archie-accent);
         padding: 0;
     }
 
@@ -99,7 +99,7 @@
 
     /* LCARS corner block */
     .team-lcars-block {
-        background: var(--team-cyan);
+        background: var(--archie-accent);
         width: 180px;
         min-height: 80px;
         display: flex;
@@ -116,11 +116,11 @@
         bottom: 0;
         width: 30px;
         height: 100%;
-        background: linear-gradient(90deg, var(--team-cyan) 0%, transparent 100%);
+        background: linear-gradient(90deg, var(--archie-accent) 0%, transparent 100%);
     }
 
     .team-lcars-title {
-        font-family: var(--team-font-display);
+        font-family: var(--archie-font-heading);
         font-size: 0.85rem;
         font-weight: 700;
         color: #000;
@@ -137,18 +137,18 @@
     }
 
     .team-main-title {
-        font-family: var(--team-font-display);
+        font-family: var(--archie-font-heading);
         font-size: 1.8rem;
         font-weight: 700;
-        color: var(--team-cyan);
+        color: var(--archie-accent);
         text-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
         letter-spacing: 3px;
     }
 
     .team-subtitle {
-        font-family: var(--team-font-body);
+        font-family: var(--archie-font-mono);
         font-size: 0.9rem;
-        color: var(--team-text-dim);
+        color: var(--archie-text-muted);
         margin-top: 5px;
         letter-spacing: 1px;
     }
@@ -167,44 +167,23 @@
         gap: 8px;
         padding: 8px 16px;
         background: rgba(0, 255, 255, 0.1);
-        border: 1px solid var(--team-cyan-dim);
+        border: 1px solid var(--archie-accent-alpha-30);
         border-radius: 20px;
-        font-family: var(--team-font-mono);
+        font-family: var(--archie-font-mono);
         font-size: 0.85rem;
     }
 
     .team-stat-pill .value {
-        color: var(--team-cyan);
+        color: var(--archie-accent);
         font-weight: 700;
     }
 
     .team-stat-pill .label {
-        color: var(--team-text-dim);
+        color: var(--archie-text-muted);
         font-size: 0.75rem;
     }
 
-    .team-hr-link {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        padding: 10px 20px;
-        background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(16, 185, 129, 0.1));
-        border: 1px solid #10B981;
-        border-radius: 8px;
-        color: #10B981;
-        text-decoration: none;
-        font-family: var(--team-font-body);
-        font-weight: 600;
-        font-size: 0.9rem;
-        transition: all 0.3s ease;
-    }
-
-    .team-hr-link:hover {
-        background: #10B981;
-        color: #000;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
-    }
+    /* .team-hr-link removed — HR Dashboard is now a tab */
 
     /* LCARS-style tabs */
     .team-tabs {
@@ -212,17 +191,20 @@
         gap: 3px;
         padding: 0 30px;
         background: rgba(0, 0, 0, 0.3);
-        border-bottom: 1px solid var(--team-border);
+        border-bottom: 1px solid var(--archie-border-default);
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
     }
 
     .team-tab {
-        padding: 14px 24px;
-        font-family: var(--team-font-body);
+        padding: 12px 16px;
+        white-space: nowrap;
+        font-family: var(--archie-font-mono);
         font-size: 0.95rem;
         font-weight: 600;
-        color: var(--team-text-dim);
+        color: var(--archie-text-muted);
         background: rgba(22, 27, 34, 0.8);
-        border: 2px solid var(--team-border);
+        border: 2px solid var(--archie-border-default);
         border-bottom: 3px solid transparent;
         border-radius: 8px 8px 0 0;
         cursor: pointer;
@@ -235,16 +217,16 @@
     }
 
     .team-tab:hover {
-        color: var(--team-cyan);
+        color: var(--archie-accent);
         background: rgba(0, 255, 255, 0.1);
-        border-color: var(--team-cyan-dim);
+        border-color: var(--archie-accent-alpha-30);
         box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
     }
 
     .team-tab.active {
-        color: var(--team-cyan);
-        border-color: var(--team-cyan);
-        border-bottom-color: var(--team-bg);
+        color: var(--archie-accent);
+        border-color: var(--archie-accent);
+        border-bottom-color: var(--archie-bg-primary);
         background: linear-gradient(180deg, rgba(0, 255, 255, 0.15) 0%, rgba(0, 255, 255, 0.05) 100%);
         text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
         box-shadow: 0 0 20px rgba(0, 255, 255, 0.3), inset 0 1px 0 rgba(0, 255, 255, 0.2);
@@ -279,10 +261,10 @@
 
     /* Section headers */
     .team-section-header {
-        font-family: var(--team-font-display);
+        font-family: var(--archie-font-heading);
         font-size: 1.4rem;
         font-weight: 700;
-        color: var(--team-cyan);
+        color: var(--archie-accent);
         margin-bottom: 8px;
         letter-spacing: 2px;
         text-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
@@ -290,7 +272,7 @@
 
     .team-section-subtitle {
         font-size: 0.95rem;
-        color: var(--team-text-dim);
+        color: var(--archie-text-muted);
         margin-bottom: 25px;
     }
 
@@ -303,9 +285,9 @@
     }
 
     .team-stat-card {
-        background: var(--team-panel);
-        border: 1px solid var(--team-border);
-        border-left: 4px solid var(--team-cyan);
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
+        border-left: 4px solid var(--archie-accent);
         border-radius: 0 8px 8px 0;
         padding: 20px;
         text-align: center;
@@ -313,22 +295,22 @@
     }
 
     .team-stat-card:hover {
-        border-color: var(--team-cyan);
+        border-color: var(--archie-accent);
         box-shadow: 0 0 20px rgba(0, 255, 255, 0.15);
         transform: translateY(-2px);
     }
 
     .team-stat-value {
-        font-family: var(--team-font-display);
+        font-family: var(--archie-font-heading);
         font-size: 2.2rem;
         font-weight: 700;
-        color: var(--team-cyan);
+        color: var(--archie-accent);
         text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
     }
 
     .team-stat-label {
         font-size: 0.8rem;
-        color: var(--team-text-dim);
+        color: var(--archie-text-muted);
         text-transform: uppercase;
         letter-spacing: 1px;
         margin-top: 5px;
@@ -353,18 +335,18 @@
     .team-search input {
         width: 100%;
         padding: 12px 20px 12px 45px;
-        background: var(--team-surface);
-        border: 1px solid var(--team-border);
+        background: var(--archie-bg-tertiary);
+        border: 1px solid var(--archie-border-default);
         border-radius: 8px;
-        color: var(--team-text);
-        font-family: var(--team-font-body);
+        color: var(--archie-text-secondary);
+        font-family: var(--archie-font-mono);
         font-size: 0.95rem;
         transition: all 0.3s ease;
     }
 
     .team-search input:focus {
         outline: none;
-        border-color: var(--team-cyan);
+        border-color: var(--archie-accent);
         box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
     }
 
@@ -380,12 +362,12 @@
     /* Buttons */
     .team-btn {
         padding: 10px 20px;
-        font-family: var(--team-font-body);
+        font-family: var(--archie-font-mono);
         font-size: 0.9rem;
         font-weight: 600;
-        border: 1px solid var(--team-cyan);
+        border: 1px solid var(--archie-accent);
         background: rgba(0, 255, 255, 0.1);
-        color: var(--team-cyan);
+        color: var(--archie-accent);
         border-radius: 6px;
         cursor: pointer;
         transition: all 0.3s ease;
@@ -395,14 +377,14 @@
     }
 
     .team-btn:hover {
-        background: var(--team-cyan);
+        background: var(--archie-accent);
         color: #000;
         box-shadow: 0 0 20px rgba(0, 255, 255, 0.4);
         transform: translateY(-1px);
     }
 
     .team-btn-primary {
-        background: var(--team-cyan);
+        background: var(--archie-accent);
         color: #000;
     }
 
@@ -416,24 +398,24 @@
     }
 
     .team-btn-amber {
-        border-color: var(--team-amber);
-        color: var(--team-amber);
+        border-color: var(--archie-orange);
+        color: var(--archie-orange);
         background: rgba(255, 170, 0, 0.1);
     }
 
     .team-btn-amber:hover {
-        background: var(--team-amber);
+        background: var(--archie-orange);
         color: #000;
     }
 
     .team-btn-danger {
-        border-color: var(--team-red);
-        color: var(--team-red);
+        border-color: var(--archie-red);
+        color: var(--archie-red);
         background: rgba(255, 68, 68, 0.1);
     }
 
     .team-btn-danger:hover {
-        background: var(--team-red);
+        background: var(--archie-red);
         color: #fff;
         box-shadow: 0 0 20px rgba(255, 68, 68, 0.4);
     }
@@ -448,10 +430,10 @@
 
     .team-filter-chip {
         padding: 8px 16px;
-        background: var(--team-surface);
-        border: 1px solid var(--team-border);
+        background: var(--archie-bg-tertiary);
+        border: 1px solid var(--archie-border-default);
         border-radius: 20px;
-        color: var(--team-text-dim);
+        color: var(--archie-text-muted);
         font-size: 0.85rem;
         cursor: pointer;
         transition: all 0.3s ease;
@@ -460,8 +442,8 @@
     .team-filter-chip:hover,
     .team-filter-chip.active {
         background: rgba(0, 255, 255, 0.15);
-        border-color: var(--team-cyan);
-        color: var(--team-cyan);
+        border-color: var(--archie-accent);
+        color: var(--archie-accent);
     }
 
     /* Agent grid */
@@ -485,8 +467,8 @@
 
     /* Agent card - crew dossier style */
     .team-agent-card {
-        background: linear-gradient(145deg, var(--team-panel) 0%, rgba(22, 27, 34, 0.95) 100%);
-        border: 2px solid var(--team-cyan-dim);
+        background: linear-gradient(145deg, var(--archie-bg-secondary) 0%, rgba(22, 27, 34, 0.95) 100%);
+        border: 2px solid var(--archie-accent-alpha-30);
         border-radius: 12px;
         overflow: hidden;
         transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
@@ -502,7 +484,7 @@
         left: 0;
         right: 0;
         height: 4px;
-        background: linear-gradient(90deg, var(--team-cyan), var(--team-purple), var(--team-cyan));
+        background: linear-gradient(90deg, var(--archie-accent), var(--archie-purple), var(--archie-accent));
         opacity: 0.6;
     }
 
@@ -524,7 +506,7 @@
 
     .team-agent-card:hover {
         transform: translateY(-8px);
-        border-color: var(--team-cyan);
+        border-color: var(--archie-accent);
         box-shadow:
             0 20px 40px rgba(0, 0, 0, 0.5),
             0 0 40px rgba(0, 255, 255, 0.25),
@@ -547,11 +529,11 @@
 
     .team-agent-card.contract {
         border-color: rgba(255, 68, 68, 0.4);
-        border-left: 4px solid var(--team-red);
+        border-left: 4px solid var(--archie-red);
     }
 
     .team-agent-card.contract::before {
-        background: linear-gradient(90deg, var(--team-red), var(--team-amber), var(--team-red));
+        background: linear-gradient(90deg, var(--archie-red), var(--archie-orange), var(--archie-red));
     }
 
     .team-agent-header {
@@ -570,13 +552,13 @@
         width: 70px;
         height: 70px;
         border-radius: 50%;
-        border: 3px solid var(--team-cyan);
+        border: 3px solid var(--archie-accent);
         box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
         object-fit: cover;
     }
 
     .team-agent-card.contract .team-avatar {
-        border-color: var(--team-red);
+        border-color: var(--archie-red);
         box-shadow: 0 0 15px rgba(255, 68, 68, 0.3);
     }
 
@@ -587,12 +569,12 @@
         width: 16px;
         height: 16px;
         border-radius: 50%;
-        border: 3px solid var(--team-panel);
-        background: var(--team-green);
+        border: 3px solid var(--archie-bg-secondary);
+        background: var(--archie-green);
     }
 
-    .team-status-dot.training { background: var(--team-amber); }
-    .team-status-dot.inactive { background: var(--team-text-dim); }
+    .team-status-dot.training { background: var(--archie-orange); }
+    .team-status-dot.inactive { background: var(--archie-text-muted); }
 
     .team-agent-info {
         flex: 1;
@@ -600,10 +582,10 @@
     }
 
     .team-agent-name {
-        font-family: var(--team-font-body);
+        font-family: var(--archie-font-mono);
         font-size: 1.15rem;
         font-weight: 700;
-        color: var(--team-text);
+        color: var(--archie-text-secondary);
         margin-bottom: 4px;
         white-space: nowrap;
         overflow: hidden;
@@ -612,7 +594,7 @@
 
     .team-agent-title {
         font-size: 0.85rem;
-        color: var(--team-cyan);
+        color: var(--archie-accent);
         margin-bottom: 8px;
         white-space: nowrap;
         overflow: hidden;
@@ -620,7 +602,7 @@
     }
 
     .team-agent-card.contract .team-agent-title {
-        color: var(--team-red);
+        color: var(--archie-red);
     }
 
     .team-worker-badge {
@@ -635,13 +617,13 @@
 
     .team-worker-badge.internal {
         background: rgba(0, 255, 65, 0.2);
-        color: var(--team-green);
+        color: var(--archie-green);
         border: 1px solid rgba(0, 255, 65, 0.4);
     }
 
     .team-worker-badge.contract {
         background: rgba(255, 68, 68, 0.2);
-        color: var(--team-red);
+        color: var(--archie-red);
         border: 1px solid rgba(255, 68, 68, 0.4);
     }
 
@@ -655,7 +637,7 @@
         gap: 8px;
         padding: 6px 0;
         font-size: 0.85rem;
-        color: var(--team-text-dim);
+        color: var(--archie-text-muted);
         border-bottom: 1px solid rgba(48, 54, 61, 0.5);
     }
 
@@ -669,7 +651,7 @@
     }
 
     .team-agent-detail .value {
-        color: var(--team-text);
+        color: var(--archie-text-secondary);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -680,7 +662,7 @@
         gap: 8px;
         padding: 15px 20px;
         background: rgba(0, 0, 0, 0.2);
-        border-top: 1px solid var(--team-border);
+        border-top: 1px solid var(--archie-border-default);
     }
 
     .team-agent-actions .team-btn {
@@ -1119,7 +1101,7 @@
         background: #141a22;
         max-width: 900px;
         margin: 40px auto;
-        border: 1px solid var(--team-cyan);
+        border: 1px solid var(--archie-accent);
         border-radius: 12px;
         overflow: hidden;
         box-shadow: 0 25px 80px rgba(0, 0, 0, 0.7),
@@ -1134,7 +1116,7 @@
     }
 
     .team-modal-header {
-        background: linear-gradient(135deg, var(--team-cyan) 0%, #00CCCC 100%);
+        background: linear-gradient(135deg, var(--archie-accent) 0%, #00CCCC 100%);
         padding: 25px 30px;
         display: flex;
         justify-content: space-between;
@@ -1142,7 +1124,7 @@
     }
 
     .team-modal-title {
-        font-family: var(--team-font-display);
+        font-family: var(--archie-font-heading);
         font-size: 1.4rem;
         font-weight: 700;
         color: #000;
@@ -1188,13 +1170,13 @@
     }
 
     .team-modal-section-title {
-        font-family: var(--team-font-display);
+        font-family: var(--archie-font-heading);
         font-size: 0.9rem;
         font-weight: 700;
-        color: var(--team-cyan);
+        color: var(--archie-accent);
         margin-bottom: 15px;
         padding-bottom: 8px;
-        border-bottom: 2px solid var(--team-cyan);
+        border-bottom: 2px solid var(--archie-accent);
         letter-spacing: 1px;
     }
 
@@ -1207,13 +1189,13 @@
         display: block;
         font-size: 0.85rem;
         font-weight: 600;
-        color: var(--team-text);
+        color: var(--archie-text-secondary);
         margin-bottom: 6px;
     }
 
     .team-form-help {
         font-size: 0.75rem;
-        color: var(--team-text-dim);
+        color: var(--archie-text-muted);
         margin-bottom: 8px;
     }
 
@@ -1222,11 +1204,11 @@
     .team-form-textarea {
         width: 100%;
         padding: 12px 15px;
-        background: var(--team-surface);
-        border: 1px solid var(--team-border);
+        background: var(--archie-bg-tertiary);
+        border: 1px solid var(--archie-border-default);
         border-radius: 6px;
-        color: var(--team-text);
-        font-family: var(--team-font-body);
+        color: var(--archie-text-secondary);
+        font-family: var(--archie-font-mono);
         font-size: 0.95rem;
         transition: all 0.3s ease;
     }
@@ -1235,7 +1217,7 @@
     .team-form-select:focus,
     .team-form-textarea:focus {
         outline: none;
-        border-color: var(--team-cyan);
+        border-color: var(--archie-accent);
         box-shadow: 0 0 15px rgba(0, 255, 255, 0.15);
     }
 
@@ -1264,7 +1246,7 @@
 
     .team-avatar-preview-label {
         font-size: 0.75rem;
-        color: var(--team-text-dim);
+        color: var(--archie-text-muted);
         margin-bottom: 8px;
     }
 
@@ -1272,7 +1254,7 @@
         width: 80px;
         height: 80px;
         border-radius: 50%;
-        border: 3px solid var(--team-cyan);
+        border: 3px solid var(--archie-accent);
         object-fit: cover;
     }
 
@@ -1295,9 +1277,9 @@
     }
 
     .team-modal-footer .team-btn-primary {
-        background: var(--team-cyan);
+        background: var(--archie-accent);
         color: #000;
-        border-color: var(--team-cyan);
+        border-color: var(--archie-accent);
         box-shadow: 0 0 20px rgba(0, 255, 255, 0.25);
     }
 
@@ -1308,7 +1290,7 @@
 
     /* Work history */
     .team-work-history {
-        background: var(--team-surface);
+        background: var(--archie-bg-tertiary);
         border-radius: 8px;
         padding: 15px;
     }
@@ -1328,15 +1310,15 @@
     }
 
     .team-work-stat-value {
-        font-family: var(--team-font-display);
+        font-family: var(--archie-font-heading);
         font-size: 1.3rem;
         font-weight: 700;
-        color: var(--team-cyan);
+        color: var(--archie-accent);
     }
 
     .team-work-stat-label {
         font-size: 0.7rem;
-        color: var(--team-text-dim);
+        color: var(--archie-text-muted);
         margin-top: 4px;
     }
 
@@ -1350,14 +1332,14 @@
 
     .team-status-message.success {
         background: rgba(0, 255, 65, 0.1);
-        border: 1px solid var(--team-green);
-        color: var(--team-green);
+        border: 1px solid var(--archie-green);
+        color: var(--archie-green);
     }
 
     .team-status-message.error {
         background: rgba(255, 68, 68, 0.1);
-        border: 1px solid var(--team-red);
-        color: var(--team-red);
+        border: 1px solid var(--archie-red);
+        color: var(--archie-red);
     }
 
     /* Loading spinner */
@@ -1373,8 +1355,8 @@
     .team-spinner {
         width: 50px;
         height: 50px;
-        border: 3px solid var(--team-border);
-        border-top-color: var(--team-cyan);
+        border: 3px solid var(--archie-border-default);
+        border-top-color: var(--archie-accent);
         border-radius: 50%;
         animation: spin 1s linear infinite;
     }
@@ -1385,8 +1367,8 @@
 
     .team-loading-text {
         margin-top: 20px;
-        color: var(--team-cyan);
-        font-family: var(--team-font-mono);
+        color: var(--archie-accent);
+        font-family: var(--archie-font-mono);
     }
 
     /* Empty state */
@@ -1394,7 +1376,7 @@
         grid-column: 1 / -1;
         text-align: center;
         padding: 60px;
-        color: var(--team-text-dim);
+        color: var(--archie-text-muted);
     }
 
     /* Chat styles */
@@ -1406,8 +1388,8 @@
     }
 
     .team-chat-panel {
-        background: var(--team-panel);
-        border: 1px solid var(--team-border);
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
         border-radius: 8px;
         display: flex;
         flex-direction: column;
@@ -1416,9 +1398,9 @@
     .team-chat-header {
         padding: 15px 20px;
         background: rgba(0, 255, 255, 0.05);
-        border-bottom: 1px solid var(--team-border);
+        border-bottom: 1px solid var(--archie-border-default);
         font-weight: 600;
-        color: var(--team-cyan);
+        color: var(--archie-accent);
     }
 
     .team-chat-messages {
@@ -1431,17 +1413,17 @@
         display: flex;
         gap: 10px;
         padding: 15px;
-        border-top: 1px solid var(--team-border);
+        border-top: 1px solid var(--archie-border-default);
     }
 
     .team-chat-input {
         flex: 1;
         padding: 12px 15px;
-        background: var(--team-surface);
-        border: 1px solid var(--team-border);
+        background: var(--archie-bg-tertiary);
+        border: 1px solid var(--archie-border-default);
         border-radius: 8px;
-        color: var(--team-text);
-        font-family: var(--team-font-body);
+        color: var(--archie-text-secondary);
+        font-family: var(--archie-font-mono);
     }
 
     .team-agent-select {
@@ -1466,36 +1448,119 @@
 
     /* Task form */
     .team-task-form {
-        background: var(--team-panel);
-        border: 1px solid var(--team-border);
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
         border-radius: 8px;
         padding: 25px;
         margin-bottom: 30px;
     }
 
     .team-task-form h3 {
-        color: var(--team-cyan);
+        color: var(--archie-accent);
         margin-bottom: 20px;
-        font-family: var(--team-font-display);
+        font-family: var(--archie-font-heading);
     }
+
+    /* Task list */
+    .task-list { display: flex; flex-direction: column; gap: 12px; }
+    .task-card {
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
+        border-radius: 8px;
+        padding: 16px 20px;
+        transition: all 0.3s ease;
+    }
+    .task-card:hover { border-color: var(--archie-accent); }
+    .task-priority-critical { border-left: 4px solid var(--archie-red); }
+    .task-priority-high { border-left: 4px solid var(--archie-orange); }
+    .task-priority-normal, .task-priority-medium { border-left: 4px solid var(--archie-accent); }
+    .task-priority-low { border-left: 4px solid var(--archie-text-muted); }
+    .task-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .task-card-title { font-weight: 700; color: var(--archie-text-secondary); font-size: 1rem; }
+    .task-badge {
+        display: inline-block; padding: 3px 10px; font-size: 0.7rem; font-weight: 700;
+        border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .task-badge-pending { background: rgba(255,170,0,0.2); color: var(--archie-orange); }
+    .task-badge-in_progress { background: rgba(0,255,255,0.2); color: var(--archie-accent); }
+    .task-badge-completed { background: rgba(0,255,65,0.2); color: var(--archie-green); }
+    .task-badge-failed { background: rgba(255,68,68,0.2); color: var(--archie-red); }
+    .task-card-meta { display: flex; gap: 16px; font-size: 0.8rem; color: var(--archie-text-muted); margin-bottom: 8px; }
+    .task-card-actions { display: flex; gap: 8px; margin-top: 10px; }
+    .task-filter-btn.active { background: var(--archie-accent); color: #000; }
+
+    /* HR Dashboard */
+    .hr-section { margin-bottom: 30px; }
+    .hr-table { width: 100%; border-collapse: collapse; }
+    .hr-table th {
+        text-align: left; padding: 12px 16px; background: var(--archie-bg-tertiary);
+        color: var(--archie-accent); font-family: var(--archie-font-heading);
+        font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px;
+    }
+    .hr-table td { padding: 12px 16px; border-bottom: 1px solid var(--archie-border-default); color: var(--archie-text-secondary); font-size: 0.9rem; }
+    .hr-table tr:hover td { background: rgba(0,255,255,0.03); }
+    .hr-progress-bar { height: 8px; background: var(--archie-bg-tertiary); border-radius: 4px; overflow: hidden; }
+    .hr-progress-fill { height: 100%; border-radius: 4px; transition: width 0.3s ease; }
+    .hr-performers-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; }
+    .hr-performer-card {
+        background: var(--archie-bg-secondary); border: 1px solid var(--archie-border-default);
+        border-radius: 8px; padding: 16px; transition: all 0.3s ease;
+    }
+    .hr-performer-card:hover { border-color: var(--archie-accent); }
+    .hr-wellness-card {
+        display: flex; align-items: center; gap: 12px; padding: 12px;
+        background: var(--archie-bg-secondary); border: 1px solid var(--archie-border-default);
+        border-radius: 8px;
+    }
+    .hr-wellness-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+    .hr-skill-bar-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--archie-border-default); }
+    .hr-skill-bar-label { width: 160px; font-size: 0.85rem; color: var(--archie-text-secondary); }
+    .hr-skill-bar-track { flex: 1; height: 8px; background: var(--archie-bg-tertiary); border-radius: 4px; overflow: hidden; }
+    .hr-skill-bar-fill { height: 100%; border-radius: 4px; background: var(--archie-accent); }
+    .hr-skill-bar-value { width: 50px; text-align: right; font-size: 0.8rem; color: var(--archie-text-muted); font-family: var(--archie-font-mono); }
+
+    /* IAAE Governance */
+    .iaae-athena-status {
+        display: flex; align-items: center; gap: 12px; padding: 16px;
+        background: var(--archie-bg-secondary); border: 1px solid var(--archie-border-default);
+        border-radius: 8px; margin-bottom: 20px;
+    }
+    .iaae-section { margin-bottom: 30px; }
+    .iaae-alerts-list { display: flex; flex-direction: column; gap: 12px; }
+    .iaae-alert-card {
+        background: var(--archie-bg-secondary); border: 1px solid var(--archie-border-default);
+        border-radius: 8px; padding: 16px;
+    }
+    .iaae-severity-critical { border-left: 4px solid var(--archie-red); }
+    .iaae-severity-high { border-left: 4px solid var(--archie-orange); }
+    .iaae-severity-medium { border-left: 4px solid var(--archie-accent); }
+    .iaae-severity-low { border-left: 4px solid var(--archie-text-muted); }
+    .iaae-welfare-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+    .iaae-welfare-card {
+        background: var(--archie-bg-secondary); border: 1px solid var(--archie-border-default);
+        border-radius: 8px; padding: 14px;
+    }
+    .iaae-outcome-success { color: var(--archie-green); }
+    .iaae-outcome-warned { color: var(--archie-orange); }
+    .iaae-outcome-blocked { color: var(--archie-red); }
 
     /* Coming soon placeholder */
     .team-coming-soon {
         text-align: center;
         padding: 80px;
-        background: var(--team-panel);
-        border: 1px solid var(--team-border);
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
         border-radius: 8px;
     }
 
     .team-coming-soon h3 {
-        color: var(--team-cyan);
+        color: var(--archie-accent);
         margin-bottom: 15px;
-        font-family: var(--team-font-display);
+        font-family: var(--archie-font-heading);
     }
 
     .team-coming-soon p {
-        color: var(--team-text-dim);
+        color: var(--archie-text-muted);
     }
 
     /* Tier badges */
@@ -1510,12 +1575,12 @@
 
     .team-tier-badge.local {
         background: rgba(0, 255, 65, 0.2);
-        color: var(--team-green);
+        color: var(--archie-green);
     }
 
     .team-tier-badge.external {
         background: rgba(255, 68, 68, 0.2);
-        color: var(--team-red);
+        color: var(--archie-red);
     }
 
     /* Responsive adjustments */
@@ -2095,9 +2160,6 @@
                 <span class="value" id="headerTemplates">--</span>
                 <span class="label">TEMPLATES</span>
             </div>
-            <a href="/tools/hr-management" class="team-hr-link">
-                <span>📊</span> HR DASHBOARD →
-            </a>
         </div>
     </div>
 
@@ -2112,6 +2174,12 @@
         <button class="team-tab" data-tab="execution">
             <span class="team-tab-icon">▶️</span> EXECUTION
         </button>
+        <button class="team-tab" data-tab="hr">
+            <span class="team-tab-icon">📊</span> HR DASHBOARD
+        </button>
+        <button class="team-tab" data-tab="iaae">
+            <span class="team-tab-icon">⚖️</span> IAAE
+        </button>
         <button class="team-tab" data-tab="automations">
             <span class="team-tab-icon">⚙️</span> AUTOMATIONS
         </button>
@@ -2122,7 +2190,7 @@
             <span class="team-tab-icon">🏪</span> MODEL MARKETPLACE
         </button>
         <button class="team-tab" data-tab="contractors">
-            <span class="team-tab-icon">📋</span> CONTRACTORS
+            <span class="team-tab-icon">🔌</span> CONTRACTORS
             <span id="pendingApprovalsBadge" class="team-tab-badge" style="display: none;">0</span>
         </button>
     </nav>
@@ -2192,14 +2260,48 @@
 
     <!-- ==================== TASKS TAB ==================== -->
     <div id="tab-tasks" class="team-content">
-        <div class="team-section-header">📋 TASK ASSIGNMENTS</div>
-        <div class="team-section-subtitle">Assign and track tasks for team members</div>
+        <div class="team-section-header">TASK ASSIGNMENTS</div>
+        <div class="team-section-subtitle">Assign, track, and execute tasks for team members</div>
 
+        <!-- Stats -->
+        <div class="team-stats">
+            <div class="team-stat-card">
+                <div class="team-stat-value" id="task-total">--</div>
+                <div class="team-stat-label">Total Tasks</div>
+            </div>
+            <div class="team-stat-card">
+                <div class="team-stat-value" id="task-pending">--</div>
+                <div class="team-stat-label">Pending</div>
+            </div>
+            <div class="team-stat-card">
+                <div class="team-stat-value" id="task-in-progress">--</div>
+                <div class="team-stat-label">In Progress</div>
+            </div>
+            <div class="team-stat-card">
+                <div class="team-stat-value" id="task-completed">--</div>
+                <div class="team-stat-label">Completed</div>
+            </div>
+        </div>
+
+        <!-- Filter Bar -->
+        <div class="team-actions">
+            <button class="team-btn task-filter-btn active" onclick="filterTasks('all')">ALL</button>
+            <button class="team-btn task-filter-btn" onclick="filterTasks('pending')">PENDING</button>
+            <button class="team-btn task-filter-btn" onclick="filterTasks('in_progress')">IN PROGRESS</button>
+            <button class="team-btn task-filter-btn" onclick="filterTasks('completed')">COMPLETED</button>
+            <button class="team-btn" onclick="loadTasks()">REFRESH</button>
+        </div>
+
+        <!-- Task Creation Form -->
         <div class="team-task-form">
-            <h3>Quick Task Assignment</h3>
+            <h3>Create New Task</h3>
+            <div class="team-form-group">
+                <label class="team-form-label">Task Title</label>
+                <input type="text" id="taskTitle" class="team-form-input" placeholder="Enter task title..." required>
+            </div>
             <div class="team-form-row">
                 <div class="team-form-group">
-                    <label class="team-form-label">Select Agent</label>
+                    <label class="team-form-label">Assign to Agent</label>
                     <select id="taskAgentSelect" class="team-form-select">
                         <option value="">-- Select an agent --</option>
                     </select>
@@ -2208,21 +2310,36 @@
                     <label class="team-form-label">Priority</label>
                     <select id="taskPriority" class="team-form-select">
                         <option value="low">Low</option>
-                        <option value="medium" selected>Medium</option>
+                        <option value="normal" selected>Normal</option>
                         <option value="high">High</option>
                         <option value="critical">Critical</option>
                     </select>
                 </div>
             </div>
-            <div class="team-form-group">
-                <label class="team-form-label">Task Description</label>
-                <textarea id="taskDescription" class="team-form-textarea" placeholder="Describe the task to assign..."></textarea>
+            <div class="team-form-row">
+                <div class="team-form-group">
+                    <label class="team-form-label">Task Type</label>
+                    <select id="taskType" class="team-form-select">
+                        <option value="execute">Execute</option>
+                        <option value="review">Review</option>
+                        <option value="generate">Generate</option>
+                        <option value="analyze">Analyze</option>
+                    </select>
+                </div>
+                <div class="team-form-group">
+                    <label class="team-form-label">&nbsp;</label>
+                </div>
             </div>
-            <button class="team-btn team-btn-primary" onclick="assignTask()">✓ ASSIGN TASK</button>
+            <div class="team-form-group">
+                <label class="team-form-label">Description</label>
+                <textarea id="taskDescription" class="team-form-textarea" placeholder="Describe the task..."></textarea>
+            </div>
+            <button class="team-btn team-btn-primary" onclick="createTask()">ASSIGN TASK</button>
         </div>
 
+        <!-- Current Assignments List -->
         <div class="team-section-header" style="margin-top: 30px;">Current Assignments</div>
-        <div id="currentAssignments">
+        <div id="taskAssignmentsList" class="task-list">
             <div class="team-empty">No active task assignments</div>
         </div>
     </div>
@@ -2267,40 +2384,198 @@
         </div>
     </div>
 
+    <!-- ==================== HR DASHBOARD TAB ==================== -->
+    <div id="tab-hr" class="team-content">
+        <div class="team-section-header">HR DASHBOARD</div>
+        <div class="team-section-subtitle">Agent workforce analytics, skills, and wellness monitoring</div>
+
+        <!-- Overview Stats -->
+        <div class="team-stats">
+            <div class="team-stat-card">
+                <div class="team-stat-value" id="hr-total-agents">--</div>
+                <div class="team-stat-label">Total Agents</div>
+            </div>
+            <div class="team-stat-card">
+                <div class="team-stat-value" id="hr-unique-models">--</div>
+                <div class="team-stat-label">Unique Models</div>
+            </div>
+            <div class="team-stat-card">
+                <div class="team-stat-value" id="hr-total-skills">--</div>
+                <div class="team-stat-label">Total Skills</div>
+            </div>
+            <div class="team-stat-card">
+                <div class="team-stat-value" id="hr-skill-categories">--</div>
+                <div class="team-stat-label">Skill Categories</div>
+            </div>
+        </div>
+
+        <div class="team-actions">
+            <button class="team-btn" onclick="loadHRDashboard()">REFRESH</button>
+        </div>
+
+        <!-- Model Performance Comparison -->
+        <div class="hr-section">
+            <div class="team-section-header" style="font-size:1.1rem;">MODEL PERFORMANCE COMPARISON</div>
+            <div id="hrModelPerformance">
+                <div class="team-loading"><div class="team-spinner"></div><div class="team-loading-text">Loading...</div></div>
+            </div>
+        </div>
+
+        <!-- Top Performers -->
+        <div class="hr-section">
+            <div class="team-section-header" style="font-size:1.1rem;">TOP PERFORMERS</div>
+            <div id="hrTopPerformers" class="hr-performers-grid"></div>
+        </div>
+
+        <!-- Skills by Category -->
+        <div class="hr-section">
+            <div class="team-section-header" style="font-size:1.1rem;">SKILLS BY CATEGORY</div>
+            <div id="hrSkillsCategories"></div>
+        </div>
+
+        <!-- Skills Gap Analysis -->
+        <div class="hr-section">
+            <div class="team-section-header" style="font-size:1.1rem;">SKILLS GAP ANALYSIS</div>
+            <div id="hrSkillsGaps"></div>
+        </div>
+
+        <!-- Wellness Overview -->
+        <div class="hr-section">
+            <div class="team-section-header" style="font-size:1.1rem;">WELLNESS OVERVIEW</div>
+            <div id="hrWellnessOverview"></div>
+        </div>
+    </div>
+
+    <!-- ==================== IAAE GOVERNANCE TAB ==================== -->
+    <div id="tab-iaae" class="team-content">
+        <div class="team-section-header">IAAE GOVERNANCE</div>
+        <div class="team-section-subtitle">Institute for Artificial Agency Ethics — compliance, constraints, and audit</div>
+
+        <!-- ATHENA Status -->
+        <div id="iaaeAthenaStatus" class="iaae-athena-status">
+            <span style="font-size:1.5rem;">🛡️</span>
+            <div>
+                <div style="font-weight:700;color:var(--archie-text-secondary);">ATHENA Watchdog</div>
+                <div id="iaaeAthenaDetail" style="font-size:0.85rem;color:var(--archie-text-muted);">Checking status...</div>
+            </div>
+            <span id="iaaeAthenaStatusBadge" class="task-badge" style="margin-left:auto;">CHECKING</span>
+        </div>
+
+        <!-- Compliance Overview Stats -->
+        <div class="team-stats">
+            <div class="team-stat-card">
+                <div class="team-stat-value" id="iaae-constraints">--</div>
+                <div class="team-stat-label">Active Constraints</div>
+            </div>
+            <div class="team-stat-card">
+                <div class="team-stat-value" id="iaae-resting">--</div>
+                <div class="team-stat-label">Agents Resting</div>
+            </div>
+            <div class="team-stat-card">
+                <div class="team-stat-value" id="iaae-audit-24h">--</div>
+                <div class="team-stat-label">Audit Events (24h)</div>
+            </div>
+            <div class="team-stat-card">
+                <div class="team-stat-value" id="iaae-compliance-score">--</div>
+                <div class="team-stat-label">Compliance Score</div>
+            </div>
+        </div>
+
+        <!-- Action Bar -->
+        <div class="team-actions">
+            <button class="team-btn" onclick="loadIAAEDashboard()">REFRESH</button>
+            <button class="team-btn" onclick="runEthicsMonitoring()">RUN MONITORING</button>
+            <button class="team-btn" onclick="generateComplianceReport()">GENERATE REPORT</button>
+        </div>
+
+        <!-- Ethics Alerts -->
+        <div class="iaae-section">
+            <div class="team-section-header" style="font-size:1.1rem;">ETHICS ALERTS</div>
+            <div id="iaaeAlerts" class="iaae-alerts-list">
+                <div class="team-empty">Loading alerts...</div>
+            </div>
+        </div>
+
+        <!-- Ethics Constraints -->
+        <div class="iaae-section">
+            <div class="team-section-header" style="font-size:1.1rem;">ETHICS CONSTRAINTS</div>
+            <div class="team-actions" style="margin-bottom:10px;">
+                <button class="team-btn team-btn-sm iaae-type-filter active" onclick="filterConstraints('all')">ALL</button>
+                <button class="team-btn team-btn-sm iaae-type-filter" onclick="filterConstraints('emotional')">EMOTIONAL</button>
+                <button class="team-btn team-btn-sm iaae-type-filter" onclick="filterConstraints('autonomy')">AUTONOMY</button>
+                <button class="team-btn team-btn-sm iaae-type-filter" onclick="filterConstraints('workload')">WORKLOAD</button>
+                <button class="team-btn team-btn-sm iaae-type-filter" onclick="filterConstraints('safety')">SAFETY</button>
+            </div>
+            <div id="iaaeConstraints">
+                <div class="team-loading"><div class="team-spinner"></div><div class="team-loading-text">Loading...</div></div>
+            </div>
+        </div>
+
+        <!-- Agent Welfare Monitor -->
+        <div class="iaae-section">
+            <div class="team-section-header" style="font-size:1.1rem;">AGENT WELFARE MONITOR</div>
+            <div id="iaaeWelfare" class="iaae-welfare-grid"></div>
+        </div>
+
+        <!-- Resting Agents -->
+        <div class="iaae-section">
+            <div class="team-section-header" style="font-size:1.1rem;">RESTING AGENTS</div>
+            <div id="iaaeResting"></div>
+        </div>
+
+        <!-- Governance Audit Trail -->
+        <div class="iaae-section">
+            <div class="team-section-header" style="font-size:1.1rem;">GOVERNANCE AUDIT TRAIL</div>
+            <div id="iaaeAudit"></div>
+            <div id="iaaeAuditPagination" style="display:flex;gap:8px;margin-top:12px;"></div>
+        </div>
+    </div>
+
     <!-- ==================== AUTOMATIONS TAB ==================== -->
     <div id="tab-automations" class="team-content">
-        <div class="team-section-header">⚙️ WORKFLOW AUTOMATIONS</div>
+        <div class="team-section-header">WORKFLOW AUTOMATIONS</div>
         <div class="team-section-subtitle">Intelligent automation for platform tasks and workflows</div>
 
+        <!-- Stats -->
         <div class="team-stats">
             <div class="team-stat-card">
                 <div class="team-stat-value" id="auto-active">0</div>
                 <div class="team-stat-label">Active Workflows</div>
             </div>
             <div class="team-stat-card">
+                <div class="team-stat-value" id="auto-templates">0</div>
+                <div class="team-stat-label">Templates</div>
+            </div>
+            <div class="team-stat-card">
                 <div class="team-stat-value" id="auto-executions">0</div>
-                <div class="team-stat-label">Executions (24h)</div>
+                <div class="team-stat-label">Recent Executions</div>
             </div>
             <div class="team-stat-card">
                 <div class="team-stat-value" id="auto-success">100%</div>
                 <div class="team-stat-label">Success Rate</div>
             </div>
-            <div class="team-stat-card">
-                <div class="team-stat-value" id="auto-saved">0h</div>
-                <div class="team-stat-label">Time Saved</div>
+        </div>
+
+        <!-- Actions -->
+        <div class="team-actions">
+            <button class="team-btn" onclick="loadAutomations()">REFRESH</button>
+            <button class="team-btn" onclick="openN8nEditor()">OPEN N8N EDITOR</button>
+        </div>
+
+        <!-- Workflow Templates Section -->
+        <div class="hr-section">
+            <div class="team-section-header" style="font-size:1.1rem;">WORKFLOW TEMPLATES</div>
+            <div id="workflowTemplatesGrid" class="hr-performers-grid">
+                <div class="team-loading"><div class="team-spinner"></div><div class="team-loading-text">Loading templates...</div></div>
             </div>
         </div>
 
-        <div class="team-actions">
-            <button class="team-btn" onclick="loadAutomations()">🔄 REFRESH</button>
-            <button class="team-btn" onclick="openN8nEditor()">🔗 OPEN N8N EDITOR</button>
-            <button class="team-btn" onclick="showTemplates()">📄 BROWSE TEMPLATES</button>
-        </div>
-
-        <div class="team-coming-soon">
-            <h3>⚙️ Automations Coming Soon</h3>
-            <p>n8n workflow integration is under development.</p>
-            <button class="team-btn" style="margin-top: 20px;" onclick="openN8nEditor()">Open n8n Editor</button>
+        <!-- Recent Executions Section -->
+        <div class="hr-section">
+            <div class="team-section-header" style="font-size:1.1rem;">RECENT EXECUTIONS</div>
+            <div id="workflowExecutionsTable">
+                <div class="team-loading"><div class="team-spinner"></div><div class="team-loading-text">Loading executions...</div></div>
+            </div>
         </div>
     </div>
 
@@ -2326,7 +2601,7 @@
                 <div id="teamSelection" class="team-agent-select">
                     <!-- Team member checkboxes -->
                 </div>
-                <div style="padding: 15px; border-top: 1px solid var(--team-border);">
+                <div style="padding: 15px; border-top: 1px solid var(--archie-border-default);">
                     <button class="team-btn team-btn-sm" onclick="selectAllAgents()">Select All</button>
                     <button class="team-btn team-btn-sm" onclick="clearSelection()">Clear</button>
                 </div>
@@ -2522,19 +2797,19 @@
 
         <!-- Stats -->
         <div class="team-stats">
-            <div class="team-stat-card" style="border-left-color: var(--team-green);">
+            <div class="team-stat-card" style="border-left-color: var(--archie-green);">
                 <div class="team-stat-value" id="stat-api-configured">0</div>
                 <div class="team-stat-label">APIs Configured</div>
             </div>
-            <div class="team-stat-card" style="border-left-color: var(--team-amber);">
+            <div class="team-stat-card" style="border-left-color: var(--archie-orange);">
                 <div class="team-stat-value" id="stat-api-pending">0</div>
                 <div class="team-stat-label">Pending Setup</div>
             </div>
-            <div class="team-stat-card" style="border-left-color: var(--team-cyan);">
+            <div class="team-stat-card" style="border-left-color: var(--archie-accent);">
                 <div class="team-stat-value" id="stat-contractors-active">0</div>
                 <div class="team-stat-label">Active Contractors</div>
             </div>
-            <div class="team-stat-card" style="border-left-color: var(--team-purple);">
+            <div class="team-stat-card" style="border-left-color: var(--archie-purple);">
                 <div class="team-stat-value" id="stat-month-spent">$--</div>
                 <div class="team-stat-label">Spent This Month</div>
             </div>
@@ -2549,7 +2824,7 @@
         <!-- API Configuration Section -->
         <div class="team-subsection">
             <h3 class="team-subsection-header">🔑 API Configuration</h3>
-            <p style="color: var(--team-text-dim); margin-bottom: 15px; font-size: 0.9rem;">
+            <p style="color: var(--archie-text-muted); margin-bottom: 15px; font-size: 0.9rem;">
                 Configure API keys to enable contractor agents. Keys are stored securely in environment variables.
             </p>
             <div id="apiConfigGrid" class="team-grid" style="gap: 15px;">
@@ -2563,7 +2838,7 @@
         <!-- Contractor Agents Section -->
         <div class="team-subsection" style="margin-top: 20px;">
             <h3 class="team-subsection-header">👥 Contractor Agents</h3>
-            <p style="color: var(--team-text-dim); margin-bottom: 15px; font-size: 0.9rem;">
+            <p style="color: var(--archie-text-muted); margin-bottom: 15px; font-size: 0.9rem;">
                 Agents are automatically enabled when their API is configured and tested.
             </p>
             <div id="contractorAgentsList">
@@ -2714,7 +2989,7 @@
                 <!-- Contractor API Section (hidden by default) -->
                 <div id="contractorApiSection" style="display: none;">
                     <div class="team-modal-section">
-                        <h3 class="team-modal-section-title" style="color: var(--team-red);">💰 CONTRACTOR API STATUS</h3>
+                        <h3 class="team-modal-section-title" style="color: var(--archie-red);">💰 CONTRACTOR API STATUS</h3>
                         <div id="contractorApiStatus" class="team-work-history">
                             Loading API status...
                         </div>
@@ -2833,21 +3108,21 @@
         </div>
         <div class="team-modal-body" style="flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 0;">
             <!-- Agent Info Bar -->
-            <div id="chatAgentInfo" style="padding: 12px 20px; background: var(--team-surface); border-bottom: 1px solid var(--team-border); display: flex; align-items: center; gap: 12px;">
-                <img id="chatAgentAvatar" src="" alt="" style="width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--team-cyan);">
+            <div id="chatAgentInfo" style="padding: 12px 20px; background: var(--archie-bg-tertiary); border-bottom: 1px solid var(--archie-border-default); display: flex; align-items: center; gap: 12px;">
+                <img id="chatAgentAvatar" src="" alt="" style="width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--archie-accent);">
                 <div>
-                    <div id="chatAgentTitle" style="color: var(--team-text); font-weight: 600;"></div>
-                    <div id="chatAgentModel" style="color: var(--team-text-dim); font-size: 0.8rem;"></div>
+                    <div id="chatAgentTitle" style="color: var(--archie-text-secondary); font-weight: 600;"></div>
+                    <div id="chatAgentModel" style="color: var(--archie-text-muted); font-size: 0.8rem;"></div>
                 </div>
             </div>
             <!-- Chat Messages -->
             <div id="chatMessages" style="flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px;">
-                <div style="text-align: center; color: var(--team-text-dim); padding: 20px;">
+                <div style="text-align: center; color: var(--archie-text-muted); padding: 20px;">
                     Start a conversation with this agent...
                 </div>
             </div>
             <!-- Chat Input -->
-            <div style="padding: 15px 20px; background: var(--team-surface); border-top: 1px solid var(--team-border);">
+            <div style="padding: 15px 20px; background: var(--archie-bg-tertiary); border-top: 1px solid var(--archie-border-default);">
                 <div style="display: flex; gap: 10px;">
                     <input type="text" id="chatInput" class="team-form-input" placeholder="Type your message..." style="flex: 1;" onkeypress="if(event.key==='Enter')sendAgentChat()">
                     <button class="team-btn team-btn-primary" onclick="sendAgentChat()" id="chatSendBtn">SEND</button>
@@ -2865,7 +3140,7 @@
             <button class="team-modal-close" onclick="closeExecuteModal()">&times;</button>
         </div>
         <div class="team-modal-body">
-            <div id="executeAgentInfo" style="margin-bottom: 20px; padding: 15px; background: var(--team-surface); border-radius: 8px;"></div>
+            <div id="executeAgentInfo" style="margin-bottom: 20px; padding: 15px; background: var(--archie-bg-tertiary); border-radius: 8px;"></div>
             <div class="team-form-group">
                 <label class="team-form-label">Task / Prompt</label>
                 <textarea id="executePrompt" class="team-form-textarea" rows="5" placeholder="Enter the task or prompt for this agent..."></textarea>
@@ -2931,7 +3206,11 @@
         // Load tab-specific data
         switch(tabId) {
             case 'roster': loadRoster(); break;
+            case 'tasks': loadTasks(); break;
             case 'execution': loadAgents(); break;
+            case 'hr': loadHRDashboard(); break;
+            case 'iaae': loadIAAEDashboard(); break;
+            case 'automations': loadAutomations(); break;
             case 'chat': loadTeamSelection(); break;
             case 'llm-routing': loadMarketplace(); break;
             case 'contractors': loadContractorAPIs(); break;
@@ -3549,9 +3828,9 @@
 
         // Reset chat
         document.getElementById('chatMessages').innerHTML = `
-            <div style="text-align: center; color: var(--team-text-dim); padding: 20px;">
+            <div style="text-align: center; color: var(--archie-text-muted); padding: 20px;">
                 <div style="font-size: 2rem; margin-bottom: 10px;">👋</div>
-                <div>Start a conversation with <strong style="color: var(--team-cyan);">${fullName}</strong></div>
+                <div>Start a conversation with <strong style="color: var(--archie-accent);">${fullName}</strong></div>
                 <div style="font-size: 0.85rem; margin-top: 5px;">${agent.bio ? agent.bio.substring(0, 100) + '...' : 'Ask me anything!'}</div>
             </div>
         `;
@@ -3623,10 +3902,10 @@
 
         const msgDiv = document.createElement('div');
         msgDiv.style.cssText = type === 'user'
-            ? 'align-self: flex-end; background: var(--team-cyan); color: #000; padding: 12px 16px; border-radius: 16px 16px 4px 16px; max-width: 80%;'
+            ? 'align-self: flex-end; background: var(--archie-accent); color: #000; padding: 12px 16px; border-radius: 16px 16px 4px 16px; max-width: 80%;'
             : type === 'error'
-            ? 'align-self: center; background: rgba(255,68,68,0.2); color: var(--team-red); padding: 12px 16px; border-radius: 8px; text-align: center;'
-            : 'align-self: flex-start; background: var(--team-surface); border: 1px solid var(--team-border); padding: 12px 16px; border-radius: 16px 16px 16px 4px; max-width: 80%;';
+            ? 'align-self: center; background: rgba(255,68,68,0.2); color: var(--archie-red); padding: 12px 16px; border-radius: 8px; text-align: center;'
+            : 'align-self: flex-start; background: var(--archie-bg-tertiary); border: 1px solid var(--archie-border-default); padding: 12px 16px; border-radius: 16px 16px 16px 4px; max-width: 80%;';
 
         if (type === 'agent') {
             // Format agent response with markdown-like rendering
@@ -3636,8 +3915,8 @@
                 .replace(/\n/g, '<br>');
 
             msgDiv.innerHTML = `
-                <div style="color: var(--team-text);">${formattedContent}</div>
-                ${model ? `<div style="font-size: 0.7rem; color: var(--team-text-dim); margin-top: 8px; text-align: right;">via ${model}</div>` : ''}
+                <div style="color: var(--archie-text-secondary);">${formattedContent}</div>
+                ${model ? `<div style="font-size: 0.7rem; color: var(--archie-text-muted); margin-top: 8px; text-align: right;">via ${model}</div>` : ''}
             `;
         } else {
             msgDiv.textContent = content;
@@ -3789,7 +4068,7 @@
 
     async function loadAgentWorkHistory(agentId) {
         const container = document.getElementById('agentWorkHistory');
-        container.innerHTML = '<div style="color: var(--team-text-dim); text-align: center;">Loading...</div>';
+        container.innerHTML = '<div style="color: var(--archie-text-muted); text-align: center;">Loading...</div>';
 
         try {
             const response = await fetch(`/tools/team-management/api/agents/${agentId}/work-history`, { credentials: 'same-origin' });
@@ -3818,10 +4097,10 @@
                     </div>
                 `;
             } else {
-                container.innerHTML = '<div style="color: var(--team-text-dim);">No work history available</div>';
+                container.innerHTML = '<div style="color: var(--archie-text-muted);">No work history available</div>';
             }
         } catch (error) {
-            container.innerHTML = '<div style="color: var(--team-text-dim);">Unable to load work history</div>';
+            container.innerHTML = '<div style="color: var(--archie-text-muted);">Unable to load work history</div>';
         }
     }
 
@@ -3833,26 +4112,26 @@
 
             if (data.success) {
                 const configured = data.api_configured;
-                const statusColor = configured ? 'var(--team-green)' : 'var(--team-red)';
+                const statusColor = configured ? 'var(--archie-green)' : 'var(--archie-red)';
                 container.innerHTML = `
                     <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
                         <div style="text-align: center;">
-                            <div style="color: var(--team-text-dim); font-size: 0.8rem;">Provider</div>
-                            <div style="color: var(--team-red); font-weight: 600; margin-top: 5px;">${(data.provider || 'Unknown').toUpperCase()}</div>
+                            <div style="color: var(--archie-text-muted); font-size: 0.8rem;">Provider</div>
+                            <div style="color: var(--archie-red); font-weight: 600; margin-top: 5px;">${(data.provider || 'Unknown').toUpperCase()}</div>
                         </div>
                         <div style="text-align: center;">
-                            <div style="color: var(--team-text-dim); font-size: 0.8rem;">Model</div>
-                            <div style="color: var(--team-red); font-weight: 600; margin-top: 5px;">${data.model || 'N/A'}</div>
+                            <div style="color: var(--archie-text-muted); font-size: 0.8rem;">Model</div>
+                            <div style="color: var(--archie-red); font-weight: 600; margin-top: 5px;">${data.model || 'N/A'}</div>
                         </div>
                         <div style="text-align: center;">
-                            <div style="color: var(--team-text-dim); font-size: 0.8rem;">API Status</div>
+                            <div style="color: var(--archie-text-muted); font-size: 0.8rem;">API Status</div>
                             <div style="color: ${statusColor}; font-weight: 600; margin-top: 5px;">${configured ? '✓ CONFIGURED' : '✗ NOT CONFIGURED'}</div>
                         </div>
                     </div>
                 `;
             }
         } catch (error) {
-            container.innerHTML = '<div style="color: var(--team-red);">Error checking API status</div>';
+            container.innerHTML = '<div style="color: var(--archie-red);">Error checking API status</div>';
         }
     }
 
@@ -4050,13 +4329,13 @@
                     </div>
                     <div class="team-agent-body">
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
-                            <div style="text-align: center; padding: 10px; background: var(--team-surface); border-radius: 6px;">
-                                <div style="font-family: var(--team-font-display); font-size: 1.3rem; color: var(--team-cyan);">${agent.total_executions || 0}</div>
-                                <div style="font-size: 0.7rem; color: var(--team-text-dim);">EXECUTIONS</div>
+                            <div style="text-align: center; padding: 10px; background: var(--archie-bg-tertiary); border-radius: 6px;">
+                                <div style="font-family: var(--archie-font-heading); font-size: 1.3rem; color: var(--archie-accent);">${agent.total_executions || 0}</div>
+                                <div style="font-size: 0.7rem; color: var(--archie-text-muted);">EXECUTIONS</div>
                             </div>
-                            <div style="text-align: center; padding: 10px; background: var(--team-surface); border-radius: 6px;">
-                                <div style="font-family: var(--team-font-display); font-size: 1.3rem; color: ${agent.failed_executions > 0 ? 'var(--team-red)' : 'var(--team-cyan)'};">${agent.failed_executions || 0}</div>
-                                <div style="font-size: 0.7rem; color: var(--team-text-dim);">FAILED</div>
+                            <div style="text-align: center; padding: 10px; background: var(--archie-bg-tertiary); border-radius: 6px;">
+                                <div style="font-family: var(--archie-font-heading); font-size: 1.3rem; color: ${agent.failed_executions > 0 ? 'var(--archie-red)' : 'var(--archie-accent)'};">${agent.failed_executions || 0}</div>
+                                <div style="font-size: 0.7rem; color: var(--archie-text-muted);">FAILED</div>
                             </div>
                         </div>
                         <div class="team-agent-detail">
@@ -4080,7 +4359,7 @@
     function openExecuteModal(agentId, agentName) {
         currentExecuteAgentId = agentId;
         document.getElementById('executeAgentInfo').innerHTML = `
-            <div style="font-weight: 600; color: var(--team-cyan); margin-bottom: 5px;">Executing with:</div>
+            <div style="font-weight: 600; color: var(--archie-accent); margin-bottom: 5px;">Executing with:</div>
             <div style="font-size: 1.2rem;">${agentName}</div>
         `;
         document.getElementById('executePrompt').value = '';
@@ -4101,7 +4380,7 @@
 
         const resultDiv = document.getElementById('executeResult');
         resultDiv.style.display = 'block';
-        resultDiv.innerHTML = '<div style="color: var(--team-cyan);">⏳ Executing...</div>';
+        resultDiv.innerHTML = '<div style="color: var(--archie-accent);">⏳ Executing...</div>';
 
         try {
             const response = await fetch(`/tools/team-management/api/agents/${currentExecuteAgentId}/execute`, {
@@ -4115,21 +4394,21 @@
 
             if (data.success) {
                 resultDiv.innerHTML = `
-                    <div style="background: var(--team-surface); padding: 15px; border-radius: 8px; border-left: 4px solid var(--team-green);">
-                        <div style="color: var(--team-green); font-weight: 600; margin-bottom: 10px;">✓ Execution Complete</div>
-                        <div style="white-space: pre-wrap; color: var(--team-text);">${data.response || 'No response'}</div>
+                    <div style="background: var(--archie-bg-tertiary); padding: 15px; border-radius: 8px; border-left: 4px solid var(--archie-green);">
+                        <div style="color: var(--archie-green); font-weight: 600; margin-bottom: 10px;">✓ Execution Complete</div>
+                        <div style="white-space: pre-wrap; color: var(--archie-text-secondary);">${data.response || 'No response'}</div>
                     </div>
                 `;
             } else {
                 resultDiv.innerHTML = `
-                    <div style="background: var(--team-surface); padding: 15px; border-radius: 8px; border-left: 4px solid var(--team-red);">
-                        <div style="color: var(--team-red); font-weight: 600;">✗ Execution Failed</div>
-                        <div style="color: var(--team-text-dim);">${data.error || 'Unknown error'}</div>
+                    <div style="background: var(--archie-bg-tertiary); padding: 15px; border-radius: 8px; border-left: 4px solid var(--archie-red);">
+                        <div style="color: var(--archie-red); font-weight: 600;">✗ Execution Failed</div>
+                        <div style="color: var(--archie-text-muted);">${data.error || 'Unknown error'}</div>
                     </div>
                 `;
             }
         } catch (error) {
-            resultDiv.innerHTML = `<div style="color: var(--team-red);">Error: ${error.message}</div>`;
+            resultDiv.innerHTML = `<div style="color: var(--archie-red);">Error: ${error.message}</div>`;
         }
     }
 
@@ -4186,10 +4465,10 @@
         // Add user message
         messagesContainer.innerHTML += `
             <div style="margin-bottom: 15px; text-align: right;">
-                <div style="display: inline-block; background: var(--team-cyan); color: #000; padding: 10px 15px; border-radius: 12px 12px 0 12px; max-width: 80%;">
+                <div style="display: inline-block; background: var(--archie-accent); color: #000; padding: 10px 15px; border-radius: 12px 12px 0 12px; max-width: 80%;">
                     ${message}
                 </div>
-                <div style="font-size: 0.75rem; color: var(--team-text-dim); margin-top: 5px;">You</div>
+                <div style="font-size: 0.75rem; color: var(--archie-text-muted); margin-top: 5px;">You</div>
             </div>
         `;
 
@@ -4200,10 +4479,10 @@
         for (const agent of selectedAgents) {
             messagesContainer.innerHTML += `
                 <div style="margin-bottom: 15px;">
-                    <div style="display: inline-block; background: var(--team-surface); color: var(--team-text); padding: 10px 15px; border-radius: 12px 12px 12px 0; max-width: 80%;">
-                        <em style="color: var(--team-text-dim);">[Response from ${agent.name} would appear here]</em>
+                    <div style="display: inline-block; background: var(--archie-bg-tertiary); color: var(--archie-text-secondary); padding: 10px 15px; border-radius: 12px 12px 12px 0; max-width: 80%;">
+                        <em style="color: var(--archie-text-muted);">[Response from ${agent.name} would appear here]</em>
                     </div>
-                    <div style="font-size: 0.75rem; color: var(--team-cyan); margin-top: 5px;">${agent.name}</div>
+                    <div style="font-size: 0.75rem; color: var(--archie-accent); margin-top: 5px;">${agent.name}</div>
                 </div>
             `;
         }
@@ -4223,42 +4502,979 @@
     // ============================================
     // TASK FUNCTIONS
     // ============================================
+    let allTasks = [];
+    let taskFilter = 'all';
+
     function populateTaskAgentSelect() {
         const select = document.getElementById('taskAgentSelect');
-        select.innerHTML = '<option value="">-- Select an agent --</option>';
+        // NOTE: innerHTML used here for trusted internal data from our own API
+        select.textContent = '';
+        const defaultOpt = document.createElement('option');
+        defaultOpt.value = '';
+        defaultOpt.textContent = '-- Select an agent --';
+        select.appendChild(defaultOpt);
         allDirectoryAgents.forEach(agent => {
+            const opt = document.createElement('option');
+            opt.value = agent.id;
             const fullName = `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.name;
-            select.innerHTML += `<option value="${agent.id}">${fullName} - ${agent.title || 'Agent'}</option>`;
+            opt.textContent = `${fullName} - ${agent.title || 'Agent'}`;
+            select.appendChild(opt);
         });
     }
 
-    function assignTask() {
-        const agentId = document.getElementById('taskAgentSelect').value;
-        const description = document.getElementById('taskDescription').value;
-        const priority = document.getElementById('taskPriority').value;
+    async function loadTasks() {
+        try {
+            const statusParam = taskFilter !== 'all' ? `?status=${taskFilter}` : '';
+            const [statsRes, tasksRes] = await Promise.all([
+                fetch('/tools/team-management/api/tasks/stats', { credentials: 'same-origin' }),
+                fetch(`/tools/team-management/api/tasks${statusParam}`, { credentials: 'same-origin' })
+            ]);
 
-        if (!agentId || !description.trim()) {
-            alert('Please select an agent and enter a task description');
+            const statsData = await statsRes.json();
+            const tasksData = await tasksRes.json();
+
+            if (statsData.success) {
+                const o = statsData.overall;
+                document.getElementById('task-total').textContent = o.total_tasks || 0;
+                document.getElementById('task-pending').textContent = o.pending || 0;
+                document.getElementById('task-in-progress').textContent = o.in_progress || 0;
+                document.getElementById('task-completed').textContent = o.completed || 0;
+            }
+
+            if (tasksData.success) {
+                allTasks = tasksData.tasks || [];
+                renderTaskList(allTasks);
+            }
+        } catch (error) {
+            console.error('Error loading tasks:', error);
+            const container = document.getElementById('taskAssignmentsList');
+            container.textContent = '';
+            const errDiv = document.createElement('div');
+            errDiv.className = 'team-empty';
+            errDiv.textContent = 'Error loading tasks';
+            container.appendChild(errDiv);
+        }
+    }
+
+    function renderTaskList(tasks) {
+        const container = document.getElementById('taskAssignmentsList');
+        container.textContent = '';
+        if (!tasks || tasks.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'team-empty';
+            empty.textContent = 'No task assignments found';
+            container.appendChild(empty);
+            return;
+        }
+        tasks.forEach(task => {
+            const card = document.createElement('div');
+            const priorityClass = `task-priority-${task.priority || 'normal'}`;
+            card.className = `task-card ${priorityClass}`;
+
+            const statusLabel = (task.status || 'pending').replace('_', ' ');
+            const statusClass = `task-badge-${task.status || 'pending'}`;
+            const created = task.created_at ? new Date(task.created_at).toLocaleString() : 'N/A';
+            const agentName = task.agent_name || 'Unassigned';
+
+            // Header
+            const header = document.createElement('div');
+            header.className = 'task-card-header';
+            const title = document.createElement('span');
+            title.className = 'task-card-title';
+            title.textContent = task.title || 'Untitled Task';
+            const badge = document.createElement('span');
+            badge.className = `task-badge ${statusClass}`;
+            badge.textContent = statusLabel;
+            header.appendChild(title);
+            header.appendChild(badge);
+            card.appendChild(header);
+
+            // Meta
+            const meta = document.createElement('div');
+            meta.className = 'task-card-meta';
+            meta.textContent = `Agent: ${agentName} | Priority: ${(task.priority || 'normal').toUpperCase()} | Type: ${task.task_type || 'execute'} | Created: ${created}`;
+            card.appendChild(meta);
+
+            // Description
+            if (task.description) {
+                const desc = document.createElement('div');
+                desc.style.cssText = 'font-size:0.85rem;color:var(--archie-text-muted);margin-bottom:6px;';
+                desc.textContent = task.description;
+                card.appendChild(desc);
+            }
+
+            // Actions
+            const actions = document.createElement('div');
+            actions.className = 'task-card-actions';
+            if (task.status === 'pending') {
+                const startBtn = document.createElement('button');
+                startBtn.className = 'team-btn team-btn-sm';
+                startBtn.textContent = 'Start';
+                startBtn.onclick = () => startTask(task.id);
+                actions.appendChild(startBtn);
+                const execBtn = document.createElement('button');
+                execBtn.className = 'team-btn team-btn-sm';
+                execBtn.textContent = 'Execute';
+                execBtn.onclick = () => executeTaskWithAgent(task.id);
+                actions.appendChild(execBtn);
+            } else if (task.status === 'in_progress') {
+                const completeBtn = document.createElement('button');
+                completeBtn.className = 'team-btn team-btn-sm';
+                completeBtn.textContent = 'Complete';
+                completeBtn.onclick = () => completeTask(task.id);
+                actions.appendChild(completeBtn);
+                const execBtn = document.createElement('button');
+                execBtn.className = 'team-btn team-btn-sm';
+                execBtn.textContent = 'Execute';
+                execBtn.onclick = () => executeTaskWithAgent(task.id);
+                actions.appendChild(execBtn);
+            }
+            card.appendChild(actions);
+
+            container.appendChild(card);
+        });
+    }
+
+    function filterTasks(status) {
+        taskFilter = status;
+        document.querySelectorAll('.task-filter-btn').forEach(b => b.classList.remove('active'));
+        if (event && event.target) event.target.classList.add('active');
+        loadTasks();
+    }
+
+    async function createTask() {
+        const title = document.getElementById('taskTitle').value.trim();
+        const agentId = document.getElementById('taskAgentSelect').value;
+        const description = document.getElementById('taskDescription').value.trim();
+        const priority = document.getElementById('taskPriority').value;
+        const taskType = document.getElementById('taskType').value;
+
+        if (!title || !agentId) {
+            showNotification('Title and agent are required', 'error');
             return;
         }
 
-        alert(`Task assigned to agent ${agentId} with ${priority} priority!`);
-        document.getElementById('taskDescription').value = '';
+        try {
+            const response = await fetch('/tools/team-management/api/tasks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ title, agent_id: parseInt(agentId), description, priority, task_type: taskType })
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                showNotification('Task assigned successfully', 'success');
+                document.getElementById('taskTitle').value = '';
+                document.getElementById('taskDescription').value = '';
+                loadTasks();
+            } else {
+                showNotification(data.error || 'Failed to create task', 'error');
+            }
+        } catch (error) {
+            showNotification('Error: ' + error.message, 'error');
+        }
+    }
+
+    async function startTask(taskId) {
+        try {
+            const response = await fetch(`/tools/team-management/api/tasks/${taskId}/start`, {
+                method: 'POST', credentials: 'same-origin'
+            });
+            const data = await response.json();
+            if (data.success) { showNotification('Task started', 'success'); loadTasks(); }
+            else { showNotification(data.error || 'Failed', 'error'); }
+        } catch (error) { showNotification('Error: ' + error.message, 'error'); }
+    }
+
+    async function completeTask(taskId) {
+        try {
+            const response = await fetch(`/tools/team-management/api/tasks/${taskId}/complete`, {
+                method: 'POST', credentials: 'same-origin'
+            });
+            const data = await response.json();
+            if (data.success) { showNotification('Task completed', 'success'); loadTasks(); }
+            else { showNotification(data.error || 'Failed', 'error'); }
+        } catch (error) { showNotification('Error: ' + error.message, 'error'); }
+    }
+
+    async function executeTaskWithAgent(taskId) {
+        try {
+            const response = await fetch(`/tools/team-management/api/tasks/${taskId}/execute`, {
+                method: 'POST', credentials: 'same-origin'
+            });
+            const data = await response.json();
+            if (data.success) { showNotification('Task execution started', 'success'); loadTasks(); }
+            else { showNotification(data.error || 'Execution failed', 'error'); }
+        } catch (error) { showNotification('Error: ' + error.message, 'error'); }
     }
 
     // ============================================
     // AUTOMATION FUNCTIONS
     // ============================================
-    function loadAutomations() {
-        // Placeholder
+    async function loadAutomations() {
+        try {
+            const [templatesRes, executionsRes] = await Promise.all([
+                fetch('/tools/team-management/api/workflows/templates', { credentials: 'same-origin' }),
+                fetch('/tools/team-management/api/workflows/executions', { credentials: 'same-origin' })
+            ]);
+            const templatesData = await templatesRes.json();
+            const executionsData = await executionsRes.json();
+
+            const templates = templatesData.success ? (templatesData.templates || []) : [];
+            const executions = executionsData.success ? (executionsData.executions || []) : [];
+
+            document.getElementById('auto-active').textContent = templates.filter(t => t.is_active !== false).length;
+            document.getElementById('auto-templates').textContent = templates.length;
+            document.getElementById('auto-executions').textContent = executions.length;
+
+            const successful = executions.filter(e => e.status === 'completed').length;
+            const rate = executions.length > 0 ? Math.round((successful / executions.length) * 100) : 100;
+            document.getElementById('auto-success').textContent = rate + '%';
+
+            const templatesContainer = document.getElementById('workflowTemplatesGrid');
+            const executionsContainer = document.getElementById('workflowExecutionsTable');
+            if (templatesContainer) renderWorkflowTemplates(templates, templatesContainer);
+            if (executionsContainer) renderWorkflowExecutions(executions, executionsContainer);
+        } catch (error) {
+            console.error('Error loading automations:', error);
+        }
+    }
+
+    function renderWorkflowTemplates(templates, container) {
+        container.textContent = '';
+        if (!templates || templates.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'team-empty';
+            empty.textContent = 'No workflow templates configured. Use n8n to create automation workflows.';
+            container.appendChild(empty);
+            return;
+        }
+        templates.forEach(t => {
+            const card = document.createElement('div');
+            card.className = 'team-card';
+            card.style.padding = '16px';
+
+            const header = document.createElement('div');
+            header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;';
+            const name = document.createElement('strong');
+            name.style.color = 'var(--archie-text-secondary)';
+            name.textContent = t.name || 'Unnamed';
+            const statusBadge = document.createElement('span');
+            statusBadge.className = `task-badge ${t.is_active !== false ? 'task-badge-completed' : 'task-badge-pending'}`;
+            statusBadge.textContent = t.is_active !== false ? 'Active' : 'Inactive';
+            header.appendChild(name);
+            header.appendChild(statusBadge);
+            card.appendChild(header);
+
+            const desc = document.createElement('div');
+            desc.style.cssText = 'font-size:0.85rem;color:var(--archie-text-muted);margin-bottom:8px;';
+            desc.textContent = t.description || 'No description';
+            card.appendChild(desc);
+
+            const meta = document.createElement('div');
+            meta.style.cssText = 'display:flex;gap:12px;font-size:0.8rem;color:var(--archie-text-muted);';
+            meta.textContent = `Trigger: ${t.trigger_type || 'manual'} | Steps: ${t.step_count || '--'}`;
+            card.appendChild(meta);
+
+            container.appendChild(card);
+        });
+    }
+
+    function renderWorkflowExecutions(executions, container) {
+        container.textContent = '';
+        if (!executions || executions.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'team-empty';
+            empty.textContent = 'No recent executions';
+            container.appendChild(empty);
+            return;
+        }
+        const table = document.createElement('table');
+        table.className = 'hr-table';
+        const thead = document.createElement('thead');
+        thead.innerHTML = '<tr><th>Template</th><th>Status</th><th>Started</th><th>Duration</th></tr>';
+        table.appendChild(thead);
+        const tbody = document.createElement('tbody');
+        executions.forEach(e => {
+            const tr = document.createElement('tr');
+            const tdName = document.createElement('td');
+            tdName.textContent = e.workflow_name || e.template_name || 'N/A';
+            const tdStatus = document.createElement('td');
+            tdStatus.textContent = (e.status || 'unknown').toUpperCase();
+            tdStatus.style.color = e.status === 'completed' ? 'var(--archie-green)' : e.status === 'failed' ? 'var(--archie-red)' : 'var(--archie-orange)';
+            const tdStarted = document.createElement('td');
+            tdStarted.textContent = e.started_at ? new Date(e.started_at).toLocaleString() : 'N/A';
+            const tdDuration = document.createElement('td');
+            tdDuration.textContent = e.duration_seconds ? e.duration_seconds + 's' : '--';
+            tr.append(tdName, tdStatus, tdStarted, tdDuration);
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        container.appendChild(table);
     }
 
     function openN8nEditor() {
         window.open('http://localhost:5678', '_blank');
     }
 
-    function showTemplates() {
-        alert('Template browser coming soon!');
+    // ============================================
+    // HR DASHBOARD FUNCTIONS
+    // ============================================
+    async function loadHRDashboard() {
+        try {
+            const [dashRes, gapsRes, wellnessRes] = await Promise.all([
+                fetch('/tools/team-management/api/hr/dashboard', { credentials: 'same-origin' }),
+                fetch('/tools/team-management/api/skills/gaps', { credentials: 'same-origin' }),
+                fetch('/tools/team-management/api/hr/wellness', { credentials: 'same-origin' })
+            ]);
+
+            const dashData = await dashRes.json();
+            const gapsData = await gapsRes.json();
+            const wellnessData = await wellnessRes.json();
+
+            if (dashData.success) {
+                const as = dashData.agent_statistics || {};
+                const ss = dashData.skill_statistics || {};
+                document.getElementById('hr-total-agents').textContent = as.total_agents || 0;
+                document.getElementById('hr-unique-models').textContent = as.unique_models || 0;
+                document.getElementById('hr-total-skills').textContent = ss.total_skills || 0;
+                document.getElementById('hr-skill-categories').textContent = ss.skill_categories || 0;
+
+                renderModelPerformance(dashData.model_performance || []);
+                renderTopPerformers(dashData.top_performers || []);
+                renderSkillsOverview(dashData.skills_by_category || []);
+            }
+
+            if (gapsData.success) {
+                renderSkillGaps(gapsData.gaps || gapsData.recommendations || []);
+            } else {
+                const gapsContainer = document.getElementById('hrSkillsGaps');
+                gapsContainer.textContent = '';
+                const msg = document.createElement('div');
+                msg.className = 'team-empty';
+                msg.textContent = 'No skill gap data available';
+                gapsContainer.appendChild(msg);
+            }
+
+            if (wellnessData.success) {
+                renderWellnessOverview(wellnessData.agents || []);
+            } else {
+                const wellContainer = document.getElementById('hrWellnessOverview');
+                wellContainer.textContent = '';
+                const msg = document.createElement('div');
+                msg.className = 'team-empty';
+                msg.textContent = 'No wellness data available';
+                wellContainer.appendChild(msg);
+            }
+        } catch (error) {
+            console.error('Error loading HR dashboard:', error);
+        }
+    }
+
+    function renderModelPerformance(models) {
+        const container = document.getElementById('hrModelPerformance');
+        container.textContent = '';
+        if (!models || models.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'team-empty';
+            empty.textContent = 'No model performance data available';
+            container.appendChild(empty);
+            return;
+        }
+        const table = document.createElement('table');
+        table.className = 'hr-table';
+        const thead = document.createElement('thead');
+        thead.innerHTML = '<tr><th>Model</th><th>Agents</th><th>Tasks</th><th>Success Rate</th><th>Avg Duration</th><th>Cost Type</th></tr>';
+        table.appendChild(thead);
+        const tbody = document.createElement('tbody');
+        models.forEach(m => {
+            const tr = document.createElement('tr');
+            const rate = parseFloat(m.success_rate || 0);
+            const rateColor = rate >= 80 ? 'var(--archie-green)' : rate >= 50 ? 'var(--archie-orange)' : 'var(--archie-red)';
+
+            const tdModel = document.createElement('td');
+            tdModel.style.fontWeight = '600';
+            tdModel.textContent = m.model || 'Unknown';
+            const tdAgents = document.createElement('td');
+            tdAgents.textContent = m.agent_count || 0;
+            const tdTasks = document.createElement('td');
+            tdTasks.textContent = m.total_tasks || 0;
+            const tdRate = document.createElement('td');
+            tdRate.style.color = rateColor;
+            tdRate.style.fontWeight = '600';
+            tdRate.textContent = rate + '%';
+            const tdDuration = document.createElement('td');
+            tdDuration.textContent = m.avg_duration ? m.avg_duration + 's' : '--';
+            const tdCost = document.createElement('td');
+            const costBadge = document.createElement('span');
+            costBadge.className = 'task-badge';
+            costBadge.style.cssText = m.cost_type === 'FREE'
+                ? 'background:rgba(0,255,65,0.2);color:var(--archie-green)'
+                : 'background:rgba(255,170,0,0.2);color:var(--archie-orange)';
+            costBadge.textContent = m.cost_type || 'N/A';
+            tdCost.appendChild(costBadge);
+
+            tr.append(tdModel, tdAgents, tdTasks, tdRate, tdDuration, tdCost);
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        container.appendChild(table);
+    }
+
+    function renderTopPerformers(performers) {
+        const container = document.getElementById('hrTopPerformers');
+        container.textContent = '';
+        if (!performers || performers.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'team-empty';
+            empty.textContent = 'No performer data available';
+            container.appendChild(empty);
+            return;
+        }
+        performers.forEach(p => {
+            const card = document.createElement('div');
+            card.className = 'hr-performer-card';
+
+            const header = document.createElement('div');
+            header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;';
+            const name = document.createElement('strong');
+            name.style.color = 'var(--archie-text-secondary)';
+            name.textContent = p.name || 'Unknown';
+            const model = document.createElement('span');
+            model.style.cssText = 'font-size:0.75rem;color:var(--archie-accent);';
+            model.textContent = p.model || '';
+            header.append(name, model);
+            card.appendChild(header);
+
+            const meta = document.createElement('div');
+            meta.style.cssText = 'font-size:0.8rem;color:var(--archie-text-muted);margin-bottom:8px;';
+            meta.textContent = `${p.department || 'N/A'} | ${p.skill_count || 0} skills`;
+            card.appendChild(meta);
+
+            const barWrap = document.createElement('div');
+            barWrap.className = 'hr-progress-bar';
+            const barFill = document.createElement('div');
+            barFill.className = 'hr-progress-fill';
+            const proficiency = parseFloat(p.avg_proficiency || 0);
+            barFill.style.width = (proficiency * 10) + '%';
+            barFill.style.background = proficiency >= 8 ? 'var(--archie-green)' : proficiency >= 5 ? 'var(--archie-accent)' : 'var(--archie-orange)';
+            barWrap.appendChild(barFill);
+            card.appendChild(barWrap);
+
+            const label = document.createElement('div');
+            label.style.cssText = 'font-size:0.75rem;color:var(--archie-text-muted);margin-top:4px;text-align:right;';
+            label.textContent = `Avg proficiency: ${proficiency}/10`;
+            card.appendChild(label);
+
+            container.appendChild(card);
+        });
+    }
+
+    function renderSkillsOverview(categories) {
+        const container = document.getElementById('hrSkillsCategories');
+        container.textContent = '';
+        if (!categories || categories.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'team-empty';
+            empty.textContent = 'No skills data available';
+            container.appendChild(empty);
+            return;
+        }
+        const maxAgents = Math.max(...categories.map(c => c.agent_count || 1));
+        categories.forEach(cat => {
+            const row = document.createElement('div');
+            row.className = 'hr-skill-bar-row';
+
+            const label = document.createElement('div');
+            label.className = 'hr-skill-bar-label';
+            label.textContent = cat.skill_category || 'Uncategorized';
+
+            const track = document.createElement('div');
+            track.className = 'hr-skill-bar-track';
+            const fill = document.createElement('div');
+            fill.className = 'hr-skill-bar-fill';
+            fill.style.width = Math.round(((cat.agent_count || 0) / maxAgents) * 100) + '%';
+            track.appendChild(fill);
+
+            const value = document.createElement('div');
+            value.className = 'hr-skill-bar-value';
+            value.textContent = `${cat.skill_count || 0} skills`;
+
+            row.append(label, track, value);
+            container.appendChild(row);
+        });
+    }
+
+    function renderSkillGaps(gaps) {
+        const container = document.getElementById('hrSkillsGaps');
+        container.textContent = '';
+        if (!gaps || gaps.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'team-empty';
+            empty.textContent = 'No skill gaps detected — good coverage';
+            container.appendChild(empty);
+            return;
+        }
+        gaps.forEach(gap => {
+            const row = document.createElement('div');
+            row.style.cssText = 'padding:10px 16px;border-bottom:1px solid var(--archie-border-default);display:flex;justify-content:space-between;align-items:center;';
+
+            const info = document.createElement('div');
+            const title = document.createElement('strong');
+            title.style.color = 'var(--archie-text-secondary)';
+            title.textContent = gap.skill_name || gap.name || 'Unknown';
+            info.appendChild(title);
+            if (gap.description || gap.category) {
+                const desc = document.createElement('div');
+                desc.style.cssText = 'font-size:0.8rem;color:var(--archie-text-muted);';
+                desc.textContent = gap.description || gap.category || '';
+                info.appendChild(desc);
+            }
+
+            const badge = document.createElement('span');
+            badge.className = 'task-badge task-badge-pending';
+            badge.textContent = gap.coverage ? `${gap.coverage}% coverage` : 'Gap';
+
+            row.append(info, badge);
+            container.appendChild(row);
+        });
+    }
+
+    function renderWellnessOverview(agents) {
+        const container = document.getElementById('hrWellnessOverview');
+        container.textContent = '';
+        if (!agents || agents.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'team-empty';
+            empty.textContent = 'No wellness data available';
+            container.appendChild(empty);
+            return;
+        }
+        const grid = document.createElement('div');
+        grid.className = 'hr-wellness-grid';
+        agents.forEach(a => {
+            const card = document.createElement('div');
+            card.className = 'hr-wellness-card';
+            const energy = parseFloat(a.energy_level || 0);
+            const stress = parseFloat(a.stress_level || 0);
+            const isWarning = stress > 0.6 || energy < 0.3;
+
+            if (isWarning) card.style.borderColor = 'var(--archie-orange)';
+
+            const info = document.createElement('div');
+            info.style.flex = '1';
+            const name = document.createElement('div');
+            name.style.cssText = 'font-weight:600;color:var(--archie-text-secondary);margin-bottom:4px;';
+            name.textContent = a.name || 'Unknown';
+            info.appendChild(name);
+
+            const dept = document.createElement('div');
+            dept.style.cssText = 'font-size:0.8rem;color:var(--archie-text-muted);margin-bottom:8px;';
+            dept.textContent = a.department || '';
+            info.appendChild(dept);
+
+            // Energy bar
+            const eLbl = document.createElement('div');
+            eLbl.style.cssText = 'font-size:0.7rem;color:var(--archie-text-muted);margin-bottom:2px;';
+            eLbl.textContent = `Energy: ${Math.round(energy * 100)}%`;
+            info.appendChild(eLbl);
+            const eBar = document.createElement('div');
+            eBar.className = 'hr-progress-bar';
+            eBar.style.marginBottom = '6px';
+            const eFill = document.createElement('div');
+            eFill.className = 'hr-progress-fill';
+            eFill.style.width = Math.round(energy * 100) + '%';
+            eFill.style.background = energy >= 0.6 ? 'var(--archie-green)' : energy >= 0.3 ? 'var(--archie-orange)' : 'var(--archie-red)';
+            eBar.appendChild(eFill);
+            info.appendChild(eBar);
+
+            // Stress bar
+            const sLbl = document.createElement('div');
+            sLbl.style.cssText = 'font-size:0.7rem;color:var(--archie-text-muted);margin-bottom:2px;';
+            sLbl.textContent = `Stress: ${Math.round(stress * 100)}%`;
+            info.appendChild(sLbl);
+            const sBar = document.createElement('div');
+            sBar.className = 'hr-progress-bar';
+            const sFill = document.createElement('div');
+            sFill.className = 'hr-progress-fill';
+            sFill.style.width = Math.round(stress * 100) + '%';
+            sFill.style.background = stress <= 0.3 ? 'var(--archie-green)' : stress <= 0.6 ? 'var(--archie-orange)' : 'var(--archie-red)';
+            sBar.appendChild(sFill);
+            info.appendChild(sBar);
+
+            card.appendChild(info);
+            grid.appendChild(card);
+        });
+        container.appendChild(grid);
+    }
+
+    // ============================================
+    // IAAE GOVERNANCE FUNCTIONS
+    // ============================================
+    let iaaeConstraintFilter = 'all';
+    let iaaeAllConstraints = [];
+
+    async function loadIAAEDashboard() {
+        try {
+            const fetches = [
+                fetch('/tools/team-management/api/iaae/compliance', { credentials: 'same-origin' }).catch(() => null),
+                fetch('/tools/team-management/api/ethics/athena-status', { credentials: 'same-origin' }).catch(() => null),
+                fetch('/tools/team-management/api/ethics/alerts', { credentials: 'same-origin' }).catch(() => null),
+                fetch('/tools/team-management/api/iaae/constraints', { credentials: 'same-origin' }).catch(() => null),
+                fetch('/tools/team-management/api/iaae/welfare', { credentials: 'same-origin' }).catch(() => null),
+                fetch('/tools/team-management/api/iaae/agents/resting', { credentials: 'same-origin' }).catch(() => null),
+                fetch('/tools/team-management/api/iaae/audit?per_page=30', { credentials: 'same-origin' }).catch(() => null)
+            ];
+
+            const [compRes, athenaRes, alertsRes, constraintsRes, welfareRes, restingRes, auditRes] = await Promise.all(fetches);
+
+            // Compliance overview
+            if (compRes) {
+                const compData = await compRes.json();
+                if (compData.success) {
+                    const d = compData.dashboard || {};
+                    document.getElementById('iaae-constraints').textContent = d.active_constraints || 0;
+                    document.getElementById('iaae-resting').textContent = d.agents_resting || 0;
+                    document.getElementById('iaae-audit-24h').textContent = d.audit_events_24h || 0;
+                    document.getElementById('iaae-compliance-score').textContent = (d.compliance_score || 0) + '%';
+                }
+            }
+
+            // ATHENA status
+            if (athenaRes) {
+                try {
+                    const athenaData = await athenaRes.json();
+                    renderAthenaStatus(athenaData.success ? athenaData.data : null);
+                } catch { renderAthenaStatus(null); }
+            } else { renderAthenaStatus(null); }
+
+            // Ethics alerts
+            if (alertsRes) {
+                try {
+                    const alertsData = await alertsRes.json();
+                    renderEthicsAlerts(alertsData.success ? (alertsData.data || []) : []);
+                } catch { renderEthicsAlerts([]); }
+            } else { renderEthicsAlerts([]); }
+
+            // Constraints
+            if (constraintsRes) {
+                try {
+                    const constraintsData = await constraintsRes.json();
+                    iaaeAllConstraints = constraintsData.success ? (constraintsData.constraints || []) : [];
+                    renderConstraintsFiltered();
+                } catch { iaaeAllConstraints = []; renderConstraintsFiltered(); }
+            }
+
+            // Welfare
+            if (welfareRes) {
+                try {
+                    const welfareData = await welfareRes.json();
+                    renderWelfareMonitor(welfareData.success ? (welfareData.welfare || []) : []);
+                } catch { renderWelfareMonitor([]); }
+            }
+
+            // Resting
+            if (restingRes) {
+                try {
+                    const restingData = await restingRes.json();
+                    renderRestingAgents(restingData.success ? (restingData.resting_agents || []) : []);
+                } catch { renderRestingAgents([]); }
+            }
+
+            // Audit
+            if (auditRes) {
+                try {
+                    const auditData = await auditRes.json();
+                    renderAuditTrail(auditData.success ? (auditData.events || []) : [], auditData);
+                } catch { renderAuditTrail([], {}); }
+            }
+        } catch (error) {
+            console.error('Error loading IAAE dashboard:', error);
+        }
+    }
+
+    function renderAthenaStatus(data) {
+        const badge = document.getElementById('iaaeAthenaStatusBadge');
+        const detail = document.getElementById('iaaeAthenaDetail');
+        if (data && data.online !== false) {
+            badge.textContent = 'ONLINE';
+            badge.className = 'task-badge task-badge-completed';
+            detail.textContent = data.message || 'Ethics watchdog is active and monitoring';
+        } else {
+            badge.textContent = 'OFFLINE';
+            badge.className = 'task-badge task-badge-failed';
+            detail.textContent = data?.message || 'ATHENA module not available — ethics monitoring may require ai_bridge.ethics_monitor';
+        }
+    }
+
+    function renderEthicsAlerts(alerts) {
+        const container = document.getElementById('iaaeAlerts');
+        container.textContent = '';
+        if (!alerts || alerts.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'team-empty';
+            empty.textContent = 'No active ethics alerts — all clear';
+            container.appendChild(empty);
+            return;
+        }
+        alerts.forEach(alert => {
+            const card = document.createElement('div');
+            const severity = (alert.severity || 'medium').toLowerCase();
+            card.className = `iaae-alert-card iaae-severity-${severity}`;
+
+            const header = document.createElement('div');
+            header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;';
+            const title = document.createElement('strong');
+            title.style.color = 'var(--archie-text-secondary)';
+            title.textContent = alert.title || alert.alert_type || 'Alert';
+            const sevBadge = document.createElement('span');
+            sevBadge.className = 'task-badge';
+            const sevColors = { critical: 'task-badge-failed', high: 'task-badge-pending', medium: 'task-badge-in_progress', low: '' };
+            sevBadge.className = `task-badge ${sevColors[severity] || ''}`;
+            sevBadge.textContent = severity.toUpperCase();
+            header.append(title, sevBadge);
+            card.appendChild(header);
+
+            if (alert.description || alert.message) {
+                const desc = document.createElement('div');
+                desc.style.cssText = 'font-size:0.85rem;color:var(--archie-text-muted);margin-bottom:8px;';
+                desc.textContent = alert.description || alert.message;
+                card.appendChild(desc);
+            }
+
+            if (alert.recommendation) {
+                const rec = document.createElement('div');
+                rec.style.cssText = 'font-size:0.8rem;color:var(--archie-accent);';
+                rec.textContent = 'Recommendation: ' + alert.recommendation;
+                card.appendChild(rec);
+            }
+
+            container.appendChild(card);
+        });
+    }
+
+    function filterConstraints(type) {
+        iaaeConstraintFilter = type;
+        document.querySelectorAll('.iaae-type-filter').forEach(b => b.classList.remove('active'));
+        if (event && event.target) event.target.classList.add('active');
+        renderConstraintsFiltered();
+    }
+
+    function renderConstraintsFiltered() {
+        const filtered = iaaeConstraintFilter === 'all'
+            ? iaaeAllConstraints
+            : iaaeAllConstraints.filter(c => c.constraint_type === iaaeConstraintFilter);
+        renderConstraintsTable(filtered);
+    }
+
+    function renderConstraintsTable(constraints) {
+        const container = document.getElementById('iaaeConstraints');
+        container.textContent = '';
+        if (!constraints || constraints.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'team-empty';
+            empty.textContent = 'No ethics constraints found';
+            container.appendChild(empty);
+            return;
+        }
+        const table = document.createElement('table');
+        table.className = 'hr-table';
+        const thead = document.createElement('thead');
+        thead.innerHTML = '<tr><th>Name</th><th>Type</th><th>Severity</th><th>Applies To</th><th>Enforcement</th><th>Status</th></tr>';
+        table.appendChild(thead);
+        const tbody = document.createElement('tbody');
+        constraints.forEach(c => {
+            const tr = document.createElement('tr');
+            const tdName = document.createElement('td');
+            tdName.style.fontWeight = '600';
+            tdName.textContent = c.constraint_name || 'N/A';
+            const tdType = document.createElement('td');
+            tdType.textContent = c.constraint_type || 'N/A';
+            const tdSev = document.createElement('td');
+            const sevColor = { critical: 'var(--archie-red)', high: 'var(--archie-orange)', medium: 'var(--archie-accent)', low: 'var(--archie-text-muted)' };
+            tdSev.style.color = sevColor[(c.severity || '').toLowerCase()] || 'var(--archie-text-muted)';
+            tdSev.textContent = (c.severity || 'N/A').toUpperCase();
+            const tdApplies = document.createElement('td');
+            tdApplies.textContent = c.agent_name || c.applies_to || 'All agents';
+            const tdEnforce = document.createElement('td');
+            tdEnforce.textContent = c.enforcement_action || c.enforcement || 'warn';
+            const tdStatus = document.createElement('td');
+            const statusBadge = document.createElement('span');
+            statusBadge.className = `task-badge ${c.is_active ? 'task-badge-completed' : 'task-badge-pending'}`;
+            statusBadge.textContent = c.is_active ? 'Active' : 'Inactive';
+            tdStatus.appendChild(statusBadge);
+            tr.append(tdName, tdType, tdSev, tdApplies, tdEnforce, tdStatus);
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        container.appendChild(table);
+    }
+
+    function renderWelfareMonitor(welfare) {
+        const container = document.getElementById('iaaeWelfare');
+        container.textContent = '';
+        if (!welfare || welfare.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'team-empty';
+            empty.textContent = 'No welfare data available';
+            container.appendChild(empty);
+            return;
+        }
+        welfare.forEach(w => {
+            const card = document.createElement('div');
+            card.className = 'iaae-welfare-card';
+            const status = (w.welfare_status || 'healthy').toLowerCase();
+            const statusColors = { healthy: 'var(--archie-green)', warning: 'var(--archie-orange)', critical: 'var(--archie-red)', low_energy: 'var(--archie-orange)' };
+            card.style.borderLeftWidth = '4px';
+            card.style.borderLeftStyle = 'solid';
+            card.style.borderLeftColor = statusColors[status] || 'var(--archie-green)';
+
+            const name = document.createElement('div');
+            name.style.cssText = 'font-weight:600;color:var(--archie-text-secondary);margin-bottom:4px;';
+            name.textContent = w.agent_name || w.name || 'Unknown';
+            card.appendChild(name);
+
+            const meta = document.createElement('div');
+            meta.style.cssText = 'font-size:0.8rem;color:var(--archie-text-muted);margin-bottom:4px;';
+            meta.textContent = w.department || '';
+            card.appendChild(meta);
+
+            const statusBadge = document.createElement('span');
+            statusBadge.style.cssText = `font-size:0.75rem;font-weight:700;color:${statusColors[status] || 'var(--archie-green)'};`;
+            statusBadge.textContent = status.toUpperCase().replace('_', ' ');
+            card.appendChild(statusBadge);
+
+            container.appendChild(card);
+        });
+    }
+
+    function renderRestingAgents(agents) {
+        const container = document.getElementById('iaaeResting');
+        container.textContent = '';
+        if (!agents || agents.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'team-empty';
+            empty.textContent = 'No agents currently resting';
+            container.appendChild(empty);
+            return;
+        }
+        agents.forEach(a => {
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--archie-border-default);';
+
+            const info = document.createElement('div');
+            const name = document.createElement('strong');
+            name.style.color = 'var(--archie-text-secondary)';
+            name.textContent = a.agent_name || 'Unknown';
+            info.appendChild(name);
+            const detail = document.createElement('div');
+            detail.style.cssText = 'font-size:0.8rem;color:var(--archie-text-muted);';
+            detail.textContent = `${a.department || ''} | Rest type: ${a.rest_type || 'standard'}`;
+            info.appendChild(detail);
+
+            const duration = document.createElement('span');
+            duration.style.cssText = 'font-size:0.85rem;color:var(--archie-accent);font-family:var(--archie-font-mono);';
+            const mins = a.duration_minutes ? Math.round(a.duration_minutes) : 0;
+            duration.textContent = mins >= 60 ? `${Math.floor(mins/60)}h ${mins%60}m` : `${mins}m`;
+
+            row.append(info, duration);
+            container.appendChild(row);
+        });
+    }
+
+    function renderAuditTrail(events, meta) {
+        const container = document.getElementById('iaaeAudit');
+        container.textContent = '';
+        if (!events || events.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'team-empty';
+            empty.textContent = 'No audit events found';
+            container.appendChild(empty);
+            return;
+        }
+        const table = document.createElement('table');
+        table.className = 'hr-table';
+        const thead = document.createElement('thead');
+        thead.innerHTML = '<tr><th>Timestamp</th><th>Event Type</th><th>Category</th><th>Agent</th><th>Action</th><th>Outcome</th></tr>';
+        table.appendChild(thead);
+        const tbody = document.createElement('tbody');
+        events.forEach(e => {
+            const tr = document.createElement('tr');
+            const tdTime = document.createElement('td');
+            tdTime.style.fontSize = '0.8rem';
+            tdTime.textContent = e.timestamp ? new Date(e.timestamp).toLocaleString() : 'N/A';
+            const tdType = document.createElement('td');
+            tdType.textContent = e.event_type || 'N/A';
+            const tdCat = document.createElement('td');
+            tdCat.textContent = e.event_category || 'N/A';
+            const tdAgent = document.createElement('td');
+            tdAgent.textContent = e.agent_name || 'System';
+            const tdAction = document.createElement('td');
+            tdAction.textContent = e.action || e.description || 'N/A';
+            const tdOutcome = document.createElement('td');
+            const outcomeClass = { success: 'iaae-outcome-success', warned: 'iaae-outcome-warned', blocked: 'iaae-outcome-blocked' };
+            tdOutcome.className = outcomeClass[(e.outcome || '').toLowerCase()] || '';
+            tdOutcome.style.fontWeight = '600';
+            tdOutcome.textContent = (e.outcome || 'N/A').toUpperCase();
+            tr.append(tdTime, tdType, tdCat, tdAgent, tdAction, tdOutcome);
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        container.appendChild(table);
+
+        // Pagination
+        const pagContainer = document.getElementById('iaaeAuditPagination');
+        pagContainer.textContent = '';
+        if (meta && meta.pages > 1) {
+            for (let i = 1; i <= Math.min(meta.pages, 10); i++) {
+                const btn = document.createElement('button');
+                btn.className = 'team-btn team-btn-sm';
+                if (i === (meta.page || 1)) btn.style.cssText = 'background:var(--archie-accent);color:#000;';
+                btn.textContent = i;
+                btn.onclick = () => loadIAAEAudit(i);
+                pagContainer.appendChild(btn);
+            }
+        }
+    }
+
+    async function loadIAAEAudit(page) {
+        try {
+            const res = await fetch(`/tools/team-management/api/iaae/audit?page=${page}&per_page=30`, { credentials: 'same-origin' });
+            const data = await res.json();
+            if (data.success) renderAuditTrail(data.events || [], data);
+        } catch (error) { console.error('Error loading audit:', error); }
+    }
+
+    async function runEthicsMonitoring() {
+        showNotification('Running ethics monitoring cycle...', 'info');
+        try {
+            const res = await fetch('/tools/team-management/api/ethics/run-monitoring', {
+                method: 'POST', credentials: 'same-origin'
+            });
+            const data = await res.json();
+            if (data.success) {
+                showNotification(data.message || 'Monitoring complete', 'success');
+                loadIAAEDashboard();
+            } else {
+                showNotification(data.error || 'Monitoring failed', 'error');
+            }
+        } catch (error) { showNotification('Error: ' + error.message, 'error'); }
+    }
+
+    async function generateComplianceReport() {
+        showNotification('Generating compliance report...', 'info');
+        try {
+            const res = await fetch('/tools/team-management/api/ethics/reports/generate', {
+                method: 'POST', credentials: 'same-origin'
+            });
+            const data = await res.json();
+            if (data.success) {
+                showNotification(data.message || 'Report generated', 'success');
+            } else {
+                showNotification(data.error || 'Report generation failed', 'error');
+            }
+        } catch (error) { showNotification('Error: ' + error.message, 'error'); }
     }
 
     // ============================================
@@ -4891,7 +6107,7 @@
         grid.innerHTML = contractors.map(c => {
             const info = providerInfo[c.api_provider] || { name: c.api_provider, env: 'UNKNOWN', icon: '❓', color: '#666', placeholder: 'Enter API key...' };
             const isConfigured = c.api_key_configured;
-            const statusColor = isConfigured ? 'var(--team-green)' : 'var(--team-amber)';
+            const statusColor = isConfigured ? 'var(--archie-green)' : 'var(--archie-orange)';
             const statusText = isConfigured ? '✓ Configured' : '⚠ Not Configured';
             const inputId = `apikey-${c.id}`;
 
@@ -4901,31 +6117,31 @@
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <span style="font-size: 24px;">${info.icon}</span>
                             <div>
-                                <strong style="color: var(--team-text);">${info.name}</strong>
-                                <div style="font-size: 11px; color: var(--team-text-dim);">${c.name}</div>
+                                <strong style="color: var(--archie-text-secondary);">${info.name}</strong>
+                                <div style="font-size: 11px; color: var(--archie-text-muted);">${c.name}</div>
                             </div>
                         </div>
                         <span id="status-${c.id}" style="color: ${statusColor}; font-size: 12px; font-weight: bold;">${statusText}</span>
                     </div>
 
                     <!-- API Key Input Section -->
-                    <div style="background: var(--team-bg); padding: 12px; border-radius: 4px; margin-bottom: 12px;">
+                    <div style="background: var(--archie-bg-primary); padding: 12px; border-radius: 4px; margin-bottom: 12px;">
                         <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                            <code style="color: var(--team-cyan); font-family: var(--team-font-mono); font-size: 11px;">${info.env}</code>
-                            <a href="${info.docs}" target="_blank" style="font-size: 11px; color: var(--team-purple);">Get Key →</a>
+                            <code style="color: var(--archie-accent); font-family: var(--archie-font-mono); font-size: 11px;">${info.env}</code>
+                            <a href="${info.docs}" target="_blank" style="font-size: 11px; color: var(--archie-purple);">Get Key →</a>
                         </div>
                         <div style="display: flex; gap: 8px;">
                             <input type="password" id="${inputId}"
                                    placeholder="${isConfigured ? '••••••••••••••••' : info.placeholder}"
-                                   style="flex: 1; padding: 8px 12px; background: var(--team-surface); border: 1px solid var(--team-border);
-                                          border-radius: 4px; color: var(--team-text); font-family: var(--team-font-mono); font-size: 12px;"
+                                   style="flex: 1; padding: 8px 12px; background: var(--archie-bg-tertiary); border: 1px solid var(--archie-border-default);
+                                          border-radius: 4px; color: var(--archie-text-secondary); font-family: var(--archie-font-mono); font-size: 12px;"
                                    onkeyup="if(event.key==='Enter') saveAPIKey(${c.id}, '${c.api_provider}')">
                             <button class="team-btn" style="font-size: 12px; padding: 8px 12px;"
                                     onclick="saveAPIKey(${c.id}, '${c.api_provider}')" id="save-btn-${c.id}">
                                 💾 Save
                             </button>
                         </div>
-                        ${isConfigured ? `<div style="font-size: 10px; color: var(--team-green); margin-top: 6px;">✓ Key saved - enter new key to update</div>` : ''}
+                        ${isConfigured ? `<div style="font-size: 10px; color: var(--archie-green); margin-top: 6px;">✓ Key saved - enter new key to update</div>` : ''}
                     </div>
 
                     <!-- Action Buttons -->
@@ -4934,12 +6150,12 @@
                                 onclick="testContractorAPI(${c.id}, '${c.api_provider}')" id="test-btn-${c.id}">
                             🧪 Test
                         </button>
-                        <button class="team-btn" style="font-size: 12px; padding: 6px 12px; ${c.status === 'active' ? 'background: var(--team-green); color: #000;' : ''}"
+                        <button class="team-btn" style="font-size: 12px; padding: 6px 12px; ${c.status === 'active' ? 'background: var(--archie-green); color: #000;' : ''}"
                                 onclick="toggleContractor(${c.id}, '${c.status}')" id="toggle-btn-${c.id}"
                                 ${!isConfigured ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>
                             ${c.status === 'active' ? '✓ Active' : '○ Enable'}
                         </button>
-                        <span id="msg-${c.id}" style="font-size: 11px; color: var(--team-text-dim);"></span>
+                        <span id="msg-${c.id}" style="font-size: 11px; color: var(--archie-text-muted);"></span>
                     </div>
                 </div>
             `;
@@ -4954,14 +6170,14 @@
 
         if (!apiKey) {
             msgSpan.textContent = '⚠ Enter an API key';
-            msgSpan.style.color = 'var(--team-amber)';
+            msgSpan.style.color = 'var(--archie-orange)';
             return;
         }
 
         // Basic validation
         if (apiKey.length < 10) {
             msgSpan.textContent = '⚠ Key too short';
-            msgSpan.style.color = 'var(--team-amber)';
+            msgSpan.style.color = 'var(--archie-orange)';
             return;
         }
 
@@ -4979,7 +6195,7 @@
 
             if (data.success) {
                 msgSpan.textContent = '✓ Saved! Click Test to verify.';
-                msgSpan.style.color = 'var(--team-green)';
+                msgSpan.style.color = 'var(--archie-green)';
                 input.value = '';
                 input.placeholder = '••••••••••••••••';
 
@@ -4987,11 +6203,11 @@
                 setTimeout(() => testContractorAPI(agentId, provider), 500);
             } else {
                 msgSpan.textContent = `✗ ${data.error}`;
-                msgSpan.style.color = 'var(--team-red)';
+                msgSpan.style.color = 'var(--archie-red)';
             }
         } catch (error) {
             msgSpan.textContent = `✗ ${error.message}`;
-            msgSpan.style.color = 'var(--team-red)';
+            msgSpan.style.color = 'var(--archie-red)';
         } finally {
             saveBtn.disabled = false;
             saveBtn.textContent = '💾 Save';
@@ -5012,14 +6228,14 @@
         let html = '';
 
         if (activeContractors.length > 0) {
-            html += `<h4 style="color: var(--team-green); margin-bottom: 10px;">✓ Active (${activeContractors.length})</h4>`;
+            html += `<h4 style="color: var(--archie-green); margin-bottom: 10px;">✓ Active (${activeContractors.length})</h4>`;
             html += `<div class="team-grid" style="margin-bottom: 20px;">`;
             html += activeContractors.map(c => renderContractorCard(c, true)).join('');
             html += `</div>`;
         }
 
         if (disabledContractors.length > 0) {
-            html += `<h4 style="color: var(--team-text-dim); margin-bottom: 10px;">○ Disabled (${disabledContractors.length})</h4>`;
+            html += `<h4 style="color: var(--archie-text-muted); margin-bottom: 10px;">○ Disabled (${disabledContractors.length})</h4>`;
             html += `<div class="team-grid">`;
             html += disabledContractors.map(c => renderContractorCard(c, false)).join('');
             html += `</div>`;
@@ -5029,7 +6245,7 @@
     }
 
     function renderContractorCard(contractor, isActive) {
-        const borderColor = isActive ? 'var(--team-green)' : 'var(--team-border)';
+        const borderColor = isActive ? 'var(--archie-green)' : 'var(--archie-border-default)';
         const reasonText = !contractor.api_key_configured ? 'API not configured' : 'Manually disabled';
 
         return `
@@ -5038,12 +6254,12 @@
                     <img src="${contractor.avatar_url || '/static/avatars/default.png'}"
                          style="width: 40px; height: 40px; border-radius: 50%; border: 2px solid ${borderColor};">
                     <div>
-                        <strong style="color: var(--team-text);">${contractor.name}</strong>
-                        <div style="font-size: 11px; color: var(--team-text-dim);">${contractor.title || 'Contractor'}</div>
-                        <div style="font-size: 10px; color: var(--team-cyan);">${contractor.model}</div>
+                        <strong style="color: var(--archie-text-secondary);">${contractor.name}</strong>
+                        <div style="font-size: 11px; color: var(--archie-text-muted);">${contractor.title || 'Contractor'}</div>
+                        <div style="font-size: 10px; color: var(--archie-accent);">${contractor.model}</div>
                     </div>
                 </div>
-                ${!isActive ? `<div style="font-size: 11px; color: var(--team-amber); margin-top: 8px;">⚠ ${reasonText}</div>` : ''}
+                ${!isActive ? `<div style="font-size: 11px; color: var(--archie-orange); margin-top: 8px;">⚠ ${reasonText}</div>` : ''}
             </div>
         `;
     }
@@ -5166,31 +6382,31 @@
             <div class="team-card" style="margin-bottom:12px;padding:16px;">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                     <div>
-                        <strong style="color:var(--team-cyan);">${approval.agent_first_name || approval.agent_name}</strong>
-                        <span style="color:var(--team-text-dim);margin-left:8px;">${approval.agent_department || ''}</span>
+                        <strong style="color:var(--archie-accent);">${approval.agent_first_name || approval.agent_name}</strong>
+                        <span style="color:var(--archie-text-muted);margin-left:8px;">${approval.agent_department || ''}</span>
                     </div>
                     <div>
-                        <span class="priority-badge" style="background:${approval.priority === 'urgent' ? 'var(--team-red)' : approval.priority === 'high' ? 'var(--team-amber)' : 'var(--team-surface)'};padding:2px 8px;border-radius:4px;font-size:11px;">${approval.priority.toUpperCase()}</span>
-                        <span style="color:var(--team-green);margin-left:8px;">Est: $${parseFloat(approval.estimated_cost || 0).toFixed(4)}</span>
+                        <span class="priority-badge" style="background:${approval.priority === 'urgent' ? 'var(--archie-red)' : approval.priority === 'high' ? 'var(--archie-orange)' : 'var(--archie-bg-tertiary)'};padding:2px 8px;border-radius:4px;font-size:11px;">${approval.priority.toUpperCase()}</span>
+                        <span style="color:var(--archie-green);margin-left:8px;">Est: $${parseFloat(approval.estimated_cost || 0).toFixed(4)}</span>
                     </div>
                 </div>
                 <div style="margin-bottom:8px;">
                     <strong>Task:</strong> ${approval.task_type}<br>
-                    <span style="color:var(--team-text-dim);">${approval.task_description || 'No description'}</span>
+                    <span style="color:var(--archie-text-muted);">${approval.task_description || 'No description'}</span>
                 </div>
-                <div style="display:flex;gap:12px;font-size:12px;color:var(--team-text-dim);margin-bottom:8px;">
+                <div style="display:flex;gap:12px;font-size:12px;color:var(--archie-text-muted);margin-bottom:8px;">
                     <span>Model: ${approval.contractor_model || 'N/A'}</span>
                     <span>Provider: ${approval.contractor_provider || 'N/A'}</span>
                     <span>Module: ${approval.module_source || 'N/A'}</span>
                 </div>
                 <div style="display:flex;justify-content:space-between;align-items:center;">
-                    <span style="font-size:12px;color:var(--team-text-dim);">Requested ${formatTimeAgo(approval.created_at)}</span>
+                    <span style="font-size:12px;color:var(--archie-text-muted);">Requested ${formatTimeAgo(approval.created_at)}</span>
                     ${approval.status === 'pending' ? `
                         <div>
-                            <button class="team-btn" style="background:var(--team-green);color:#000;margin-right:8px;" onclick="approveRequest(${approval.id})">✓ APPROVE</button>
-                            <button class="team-btn" style="background:var(--team-red);" onclick="denyRequest(${approval.id})">✗ DENY</button>
+                            <button class="team-btn" style="background:var(--archie-green);color:#000;margin-right:8px;" onclick="approveRequest(${approval.id})">✓ APPROVE</button>
+                            <button class="team-btn" style="background:var(--archie-red);" onclick="denyRequest(${approval.id})">✗ DENY</button>
                         </div>
-                    ` : `<span style="color:${approval.status === 'approved' ? 'var(--team-green)' : 'var(--team-red)'}">${approval.status.toUpperCase()}</span>`}
+                    ` : `<span style="color:${approval.status === 'approved' ? 'var(--archie-green)' : 'var(--archie-red)'}">${approval.status.toUpperCase()}</span>`}
                 </div>
             </div>
         `).join('');
@@ -5283,13 +6499,13 @@
         container.innerHTML = contractors.map(c => `
             <div class="team-card" style="padding:16px;">
                 <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-                    <strong style="color:var(--team-cyan);">${c.first_name || c.agent_name}</strong>
-                    <span style="color:var(--team-text-dim);">${c.api_provider || ''}</span>
+                    <strong style="color:var(--archie-accent);">${c.first_name || c.agent_name}</strong>
+                    <span style="color:var(--archie-text-muted);">${c.api_provider || ''}</span>
                 </div>
-                <div style="background:var(--team-surface);border-radius:4px;height:8px;margin-bottom:8px;">
-                    <div style="background:${c.budget_status === 'exhausted' ? 'var(--team-red)' : c.budget_status === 'warning' ? 'var(--team-amber)' : 'var(--team-green)'};height:100%;width:${Math.min(c.usage_percent || 0, 100)}%;border-radius:4px;"></div>
+                <div style="background:var(--archie-bg-tertiary);border-radius:4px;height:8px;margin-bottom:8px;">
+                    <div style="background:${c.budget_status === 'exhausted' ? 'var(--archie-red)' : c.budget_status === 'warning' ? 'var(--archie-orange)' : 'var(--archie-green)'};height:100%;width:${Math.min(c.usage_percent || 0, 100)}%;border-radius:4px;"></div>
                 </div>
-                <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--team-text-dim);">
+                <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--archie-text-muted);">
                     <span>Used: $${parseFloat(c.used || 0).toFixed(2)}</span>
                     <span>Budget: $${parseFloat(c.budget || 0).toFixed(2)}</span>
                 </div>
@@ -5359,16 +6575,16 @@
         const container = document.getElementById('executionLogContent');
 
         let html = `
-            <div style="display:flex;gap:20px;margin-bottom:16px;padding:12px;background:var(--team-surface);border-radius:8px;">
+            <div style="display:flex;gap:20px;margin-bottom:16px;padding:12px;background:var(--archie-bg-tertiary);border-radius:8px;">
                 <span>Total: ${summary?.total_tasks || 0}</span>
-                <span style="color:var(--team-green);">Success: ${summary?.successful_tasks || 0}</span>
+                <span style="color:var(--archie-green);">Success: ${summary?.successful_tasks || 0}</span>
                 <span>Internal: ${summary?.internal_tasks || 0}</span>
-                <span style="color:var(--team-amber);">Contract: ${summary?.contractor_tasks || 0}</span>
-                <span style="color:var(--team-cyan);">Cost: $${parseFloat(summary?.total_cost || 0).toFixed(4)}</span>
+                <span style="color:var(--archie-orange);">Contract: ${summary?.contractor_tasks || 0}</span>
+                <span style="color:var(--archie-accent);">Cost: $${parseFloat(summary?.total_cost || 0).toFixed(4)}</span>
             </div>
             <table style="width:100%;border-collapse:collapse;">
                 <thead>
-                    <tr style="background:var(--team-surface);text-align:left;">
+                    <tr style="background:var(--archie-bg-tertiary);text-align:left;">
                         <th style="padding:8px;">Time</th>
                         <th style="padding:8px;">Agent</th>
                         <th style="padding:8px;">Task</th>
@@ -5383,14 +6599,14 @@
 
         executions.forEach(exec => {
             html += `
-                <tr style="border-bottom:1px solid var(--team-border);">
+                <tr style="border-bottom:1px solid var(--archie-border-default);">
                     <td style="padding:8px;font-size:12px;">${new Date(exec.created_at).toLocaleString()}</td>
                     <td style="padding:8px;">${exec.worker_type === 'internal' ? '👤' : '📋'} ${exec.first_name || exec.agent_name}</td>
                     <td style="padding:8px;">${exec.task_type}</td>
                     <td style="padding:8px;font-size:12px;">${exec.model_used || 'N/A'}</td>
                     <td style="padding:8px;">${exec.tokens_used || 0}</td>
-                    <td style="padding:8px;color:${exec.cost > 0 ? 'var(--team-amber)' : 'var(--team-green)'};">$${parseFloat(exec.cost || 0).toFixed(4)}</td>
-                    <td style="padding:8px;color:${exec.success ? 'var(--team-green)' : 'var(--team-red)'};">${exec.success ? '✓' : '✗'}</td>
+                    <td style="padding:8px;color:${exec.cost > 0 ? 'var(--archie-orange)' : 'var(--archie-green)'};">$${parseFloat(exec.cost || 0).toFixed(4)}</td>
+                    <td style="padding:8px;color:${exec.success ? 'var(--archie-green)' : 'var(--archie-red)'};">${exec.success ? '✓' : '✗'}</td>
                 </tr>
             `;
         });
@@ -5400,13 +6616,16 @@
     }
 
     function showNotification(message, type = 'info') {
-        const colors = { success: 'var(--team-green)', error: 'var(--team-red)', info: 'var(--team-cyan)' };
+        const colors = { success: 'var(--archie-green)', error: 'var(--archie-red)', info: 'var(--archie-accent)', warning: 'var(--archie-orange)' };
         const n = document.createElement('div');
-        n.style.cssText = `position:fixed;top:20px;right:20px;padding:12px 20px;background:var(--team-surface);border-left:4px solid ${colors[type]};color:var(--team-text);z-index:9999;`;
+        n.style.cssText = `position:fixed;top:20px;right:20px;padding:12px 20px;background:var(--archie-bg-tertiary);border-left:4px solid ${colors[type] || colors.info};color:var(--archie-text-secondary);z-index:9999;border-radius:4px;font-family:var(--archie-font-mono);font-size:0.9rem;`;
         n.textContent = message;
         document.body.appendChild(n);
         setTimeout(() => n.remove(), 3000);
     }
+
+    // Alias for backward compatibility
+    const showStatus = showNotification;
 
     // Check for pending approvals on page load
     document.addEventListener('DOMContentLoaded', () => {

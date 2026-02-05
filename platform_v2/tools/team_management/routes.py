@@ -3472,6 +3472,58 @@ def get_available_modules():
 
 
 # =============================================================================
+# WORKFLOW AUTOMATION APIs (Phase 80)
+# =============================================================================
+
+
+@team_management_bp.route("/api/workflows/templates", methods=["GET"])
+@login_required
+@api_admin_required
+def get_workflow_templates():
+    """Get workflow templates"""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur.execute("SELECT * FROM workflow_templates ORDER BY name")
+            templates = cur.fetchall()
+        except Exception:
+            # Table may not exist yet
+            templates = []
+        cur.close()
+        conn.close()
+        return jsonify({"success": True, "templates": [dict(t) for t in templates]})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@team_management_bp.route("/api/workflows/executions", methods=["GET"])
+@login_required
+@api_admin_required
+def get_workflow_executions():
+    """Get recent workflow executions"""
+    try:
+        limit = request.args.get("limit", 50, type=int)
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur.execute(
+                """SELECT we.* FROM workflow_executions we
+                   ORDER BY we.started_at DESC LIMIT %s""",
+                (limit,),
+            )
+            executions = cur.fetchall()
+        except Exception:
+            # Table may not exist yet
+            executions = []
+        cur.close()
+        conn.close()
+        return jsonify({"success": True, "executions": [dict(e) for e in executions]})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# =============================================================================
 # IAAE COMPLIANCE APIs - Agent-Specific Endpoints (Phases 32-37)
 # =============================================================================
 

@@ -425,6 +425,18 @@
         color: #000;
     }
 
+    .team-btn-danger {
+        border-color: var(--team-red);
+        color: var(--team-red);
+        background: rgba(255, 68, 68, 0.1);
+    }
+
+    .team-btn-danger:hover {
+        background: var(--team-red);
+        color: #fff;
+        box-shadow: 0 0 20px rgba(255, 68, 68, 0.4);
+    }
+
     /* Department filters */
     .team-filters {
         display: flex;
@@ -681,30 +693,33 @@
 
     .roster-section-title {
         font-family: var(--team-font-display);
-        font-size: 0.85rem;
-        letter-spacing: 2px;
-        color: var(--team-cyan);
-        margin-bottom: 15px;
+        font-size: 1.05rem;
+        font-weight: 700;
+        letter-spacing: 2.5px;
+        color: #fff;
+        margin-bottom: 18px;
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 12px;
+        text-shadow: 0 0 12px rgba(0, 255, 255, 0.25);
     }
 
     .roster-section-count {
         background: var(--team-cyan);
         color: #000;
         font-family: var(--team-font-mono);
-        font-size: 0.7rem;
-        padding: 2px 8px;
-        border-radius: 10px;
+        font-size: 0.8rem;
+        padding: 3px 12px;
+        border-radius: 12px;
         font-weight: 700;
+        letter-spacing: 0.5px;
     }
 
     .roster-templates-grid {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
-        gap: 15px;
-        margin-bottom: 30px;
+        gap: 16px;
+        margin-bottom: 35px;
     }
 
     @media (max-width: 1200px) {
@@ -717,30 +732,32 @@
     .roster-template-category-header {
         grid-column: 1 / -1;
         font-family: var(--team-font-display);
-        font-size: 0.7rem;
-        letter-spacing: 2px;
-        color: var(--team-text-dim);
+        font-size: 0.8rem;
+        font-weight: 700;
+        letter-spacing: 2.5px;
+        color: var(--team-amber);
         text-transform: uppercase;
-        padding: 8px 0 4px 0;
-        border-bottom: 1px solid rgba(48, 54, 61, 0.5);
-        margin-top: 5px;
+        padding: 14px 0 8px 0;
+        border-bottom: 1px solid rgba(255, 170, 0, 0.2);
+        margin-top: 8px;
     }
 
     .roster-template-card {
         background: var(--team-surface);
         border: 1px solid var(--team-border);
         border-radius: 10px;
-        padding: 18px;
+        padding: 20px;
         cursor: pointer;
-        transition: all 0.2s ease;
+        transition: all 0.25s ease;
         position: relative;
         overflow: hidden;
     }
 
     .roster-template-card:hover {
         border-color: var(--team-cyan);
-        transform: translateY(-2px);
-        box-shadow: 0 4px 20px rgba(0, 255, 255, 0.1);
+        transform: translateY(-3px);
+        box-shadow: 0 6px 28px rgba(0, 255, 255, 0.12);
+        background: #1c2128;
     }
 
     .roster-template-card.has-model {
@@ -749,7 +766,7 @@
 
     .roster-template-card.no-model {
         border-left: 3px solid var(--team-border);
-        opacity: 0.7;
+        opacity: 0.65;
     }
 
     .roster-template-card.no-model:hover {
@@ -759,15 +776,15 @@
     .roster-template-header {
         display: flex;
         align-items: center;
-        gap: 12px;
-        margin-bottom: 10px;
+        gap: 14px;
+        margin-bottom: 12px;
     }
 
     .roster-template-icon {
-        width: 40px;
-        height: 40px;
-        background: rgba(0, 255, 255, 0.1);
-        border: 1px solid var(--team-cyan-dim);
+        width: 46px;
+        height: 46px;
+        background: rgba(0, 255, 255, 0.08);
+        border: 1px solid rgba(0, 255, 255, 0.25);
         border-radius: 10px;
         display: flex;
         align-items: center;
@@ -776,69 +793,82 @@
         flex-shrink: 0;
     }
 
+    .roster-template-icon svg,
+    .roster-template-icon i {
+        width: 22px;
+        height: 22px;
+    }
+
     .roster-template-name {
-        font-family: var(--team-font-display);
-        font-size: 0.85rem;
-        color: var(--team-text);
-        letter-spacing: 0.5px;
+        font-family: var(--team-font-body);
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #fff;
+        letter-spacing: 0.3px;
+        line-height: 1.2;
     }
 
     .roster-template-role {
-        font-size: 0.78rem;
-        color: var(--team-text-dim);
-        margin-top: 2px;
+        font-family: var(--team-font-body);
+        font-size: 0.92rem;
+        font-weight: 500;
+        color: #b0bac5;
+        margin-top: 3px;
+        line-height: 1.3;
     }
 
     .roster-template-models {
         display: flex;
         flex-wrap: wrap;
-        gap: 5px;
-        margin-top: 10px;
+        gap: 6px;
+        margin-top: 14px;
     }
 
     .roster-model-badge {
         font-family: var(--team-font-mono);
-        font-size: 0.65rem;
-        padding: 2px 8px;
-        border-radius: 4px;
+        font-size: 0.78rem;
+        padding: 4px 10px;
+        border-radius: 5px;
         display: inline-flex;
         align-items: center;
-        gap: 4px;
+        gap: 5px;
+        font-weight: 500;
     }
 
     .roster-model-badge.installed {
-        background: rgba(0, 255, 65, 0.1);
-        color: var(--team-green);
-        border: 1px solid rgba(0, 255, 65, 0.3);
+        background: rgba(0, 255, 65, 0.12);
+        color: #5cff7e;
+        border: 1px solid rgba(0, 255, 65, 0.35);
     }
 
     .roster-model-badge.running {
-        background: rgba(0, 255, 65, 0.15);
-        color: var(--team-green);
-        border: 1px solid rgba(0, 255, 65, 0.4);
+        background: rgba(0, 255, 65, 0.18);
+        color: #5cff7e;
+        border: 1px solid rgba(0, 255, 65, 0.5);
         animation: pulseGreen 2s ease-in-out infinite;
     }
 
     @keyframes pulseGreen {
         0%, 100% { box-shadow: 0 0 0 0 rgba(0, 255, 65, 0); }
-        50% { box-shadow: 0 0 8px 0 rgba(0, 255, 65, 0.3); }
+        50% { box-shadow: 0 0 10px 2px rgba(0, 255, 65, 0.25); }
     }
 
     .roster-model-badge.not-installed {
-        background: rgba(139, 148, 158, 0.1);
-        color: var(--team-text-dim);
+        background: rgba(139, 148, 158, 0.08);
+        color: #7a8490;
         border: 1px solid rgba(139, 148, 158, 0.2);
     }
 
     .roster-template-deploy {
-        margin-top: 12px;
+        margin-top: 14px;
         width: 100%;
-        padding: 8px;
-        font-family: var(--team-font-display);
-        font-size: 0.7rem;
-        letter-spacing: 1px;
+        padding: 10px;
+        font-family: var(--team-font-body);
+        font-size: 0.88rem;
+        font-weight: 700;
+        letter-spacing: 1.5px;
         background: rgba(0, 255, 255, 0.1);
-        border: 1px solid var(--team-cyan-dim);
+        border: 1px solid rgba(0, 255, 255, 0.35);
         color: var(--team-cyan);
         border-radius: 6px;
         cursor: pointer;
@@ -849,108 +879,125 @@
     .roster-template-deploy:hover {
         background: var(--team-cyan);
         color: #000;
+        box-shadow: 0 0 18px rgba(0, 255, 255, 0.35);
     }
 
     /* Agent cards - model status */
     .roster-agent-model {
         font-family: var(--team-font-mono);
-        font-size: 0.7rem;
-        padding: 3px 8px;
-        border-radius: 4px;
+        font-size: 0.82rem;
+        padding: 4px 10px;
+        border-radius: 5px;
         display: inline-flex;
         align-items: center;
-        gap: 5px;
+        gap: 6px;
+        font-weight: 500;
     }
 
     .roster-agent-model .status-dot {
-        width: 6px;
-        height: 6px;
+        width: 8px;
+        height: 8px;
         border-radius: 50%;
         display: inline-block;
     }
 
     .roster-agent-model.loaded {
-        background: rgba(0, 255, 65, 0.1);
-        color: var(--team-green);
-        border: 1px solid rgba(0, 255, 65, 0.3);
+        background: rgba(0, 255, 65, 0.12);
+        color: #5cff7e;
+        border: 1px solid rgba(0, 255, 65, 0.35);
     }
 
     .roster-agent-model.loaded .status-dot {
-        background: var(--team-green);
-        box-shadow: 0 0 6px var(--team-green);
+        background: #5cff7e;
+        box-shadow: 0 0 8px #00ff41;
     }
 
     .roster-agent-model.offline {
         background: rgba(139, 148, 158, 0.1);
-        color: var(--team-text-dim);
-        border: 1px solid rgba(139, 148, 158, 0.2);
+        color: #99a3ae;
+        border: 1px solid rgba(139, 148, 158, 0.25);
     }
 
     .roster-agent-model.offline .status-dot {
-        background: var(--team-text-dim);
+        background: #7a8490;
     }
 
     /* Category filter chips */
     .roster-category-filters {
         display: flex;
         flex-wrap: wrap;
-        gap: 8px;
-        margin-bottom: 20px;
+        gap: 10px;
+        margin-bottom: 22px;
     }
 
     .roster-category-chip {
-        font-family: var(--team-font-mono);
-        font-size: 0.72rem;
-        padding: 5px 14px;
+        font-family: var(--team-font-body);
+        font-size: 0.88rem;
+        font-weight: 600;
+        padding: 7px 18px;
         border-radius: 20px;
         background: var(--team-surface);
         border: 1px solid var(--team-border);
-        color: var(--team-text-dim);
+        color: #b0bac5;
         cursor: pointer;
         transition: all 0.2s ease;
+        letter-spacing: 0.3px;
     }
 
     .roster-category-chip:hover {
         border-color: var(--team-cyan);
-        color: var(--team-text);
+        color: #fff;
+        background: rgba(0, 255, 255, 0.06);
     }
 
     .roster-category-chip.active {
         background: var(--team-cyan);
         border-color: var(--team-cyan);
         color: #000;
-        font-weight: 600;
+        font-weight: 700;
     }
 
     /* Deploy modal */
     .deploy-modal-form {
-        padding: 25px 30px;
+        padding: 30px 34px;
     }
 
     .deploy-form-section {
-        margin-bottom: 20px;
+        margin-bottom: 28px;
+        padding-bottom: 24px;
+        border-bottom: 1px solid rgba(48, 54, 61, 0.4);
+    }
+
+    .deploy-form-section:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+        padding-bottom: 0;
     }
 
     .deploy-form-section h4 {
         font-family: var(--team-font-display);
-        font-size: 0.75rem;
-        letter-spacing: 1.5px;
+        font-size: 0.95rem;
+        font-weight: 700;
+        letter-spacing: 2.5px;
         color: var(--team-cyan);
-        margin-bottom: 12px;
+        margin-bottom: 16px;
         text-transform: uppercase;
+        text-shadow: 0 0 10px rgba(0, 255, 255, 0.25);
+        padding-bottom: 8px;
+        border-bottom: 2px solid rgba(0, 255, 255, 0.15);
     }
 
     .deploy-form-row {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 12px;
-        margin-bottom: 10px;
+        gap: 16px;
+        margin-bottom: 14px;
     }
 
     .deploy-form-group {
         display: flex;
         flex-direction: column;
-        gap: 4px;
+        gap: 8px;
     }
 
     .deploy-form-group.full-width {
@@ -958,22 +1005,26 @@
     }
 
     .deploy-form-group label {
-        font-size: 0.75rem;
-        color: var(--team-text-dim);
+        font-family: var(--team-font-body);
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: #cdd5de;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.8px;
     }
 
     .deploy-form-group input,
     .deploy-form-group select,
     .deploy-form-group textarea {
-        background: var(--team-bg);
-        border: 1px solid var(--team-border);
-        color: var(--team-text);
-        padding: 8px 12px;
-        border-radius: 6px;
+        background: #0a0e14;
+        border: 1.5px solid #3d454e;
+        color: #fff;
+        padding: 12px 16px;
+        border-radius: 8px;
         font-family: var(--team-font-body);
-        font-size: 0.85rem;
+        font-size: 1rem;
+        font-weight: 500;
+        transition: all 0.2s ease;
     }
 
     .deploy-form-group input:focus,
@@ -981,22 +1032,34 @@
     .deploy-form-group textarea:focus {
         outline: none;
         border-color: var(--team-cyan);
-        box-shadow: 0 0 0 2px rgba(0, 255, 255, 0.1);
+        box-shadow: 0 0 0 3px rgba(0, 255, 255, 0.15);
+        background: #0d1219;
     }
 
     .deploy-form-group textarea {
-        min-height: 80px;
+        min-height: 100px;
         resize: vertical;
+        line-height: 1.5;
+    }
+
+    .deploy-form-group select {
+        cursor: pointer;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2300FFFF' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 14px center;
+        padding-right: 36px;
     }
 
     .deploy-recommended-badge {
         font-family: var(--team-font-mono);
-        font-size: 0.6rem;
-        background: rgba(0, 255, 65, 0.15);
-        color: var(--team-green);
-        padding: 1px 6px;
-        border-radius: 3px;
-        margin-left: 5px;
+        font-size: 0.76rem;
+        background: rgba(0, 255, 65, 0.2);
+        color: #5cff7e;
+        padding: 3px 10px;
+        border-radius: 4px;
+        margin-left: 6px;
+        font-weight: 700;
     }
 
     /* Toast notification */
@@ -1004,25 +1067,26 @@
         position: fixed;
         bottom: 30px;
         right: 30px;
-        padding: 14px 24px;
+        padding: 16px 28px;
         border-radius: 8px;
         font-family: var(--team-font-body);
-        font-size: 0.9rem;
+        font-size: 1rem;
+        font-weight: 600;
         z-index: 2000;
         animation: toastSlideIn 0.3s ease, toastFadeOut 0.3s ease 2.7s forwards;
-        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
     }
 
     .roster-toast.success {
-        background: rgba(0, 255, 65, 0.15);
-        border: 1px solid var(--team-green);
-        color: var(--team-green);
+        background: rgba(0, 255, 65, 0.18);
+        border: 1px solid #5cff7e;
+        color: #5cff7e;
     }
 
     .roster-toast.error {
-        background: rgba(255, 68, 68, 0.15);
+        background: rgba(255, 68, 68, 0.18);
         border: 1px solid var(--team-red);
-        color: var(--team-red);
+        color: #ff7777;
     }
 
     @keyframes toastSlideIn {
@@ -1043,20 +1107,22 @@
         left: 0;
         width: 100%;
         height: 100%;
-        background: rgba(0, 0, 0, 0.85);
+        background: rgba(0, 0, 0, 0.92);
         z-index: 1000;
         overflow-y: auto;
-        backdrop-filter: blur(5px);
+        backdrop-filter: blur(10px);
     }
 
     .team-modal-content {
-        background: var(--team-panel);
+        background: #141a22;
         max-width: 900px;
         margin: 40px auto;
         border: 1px solid var(--team-cyan);
         border-radius: 12px;
         overflow: hidden;
-        box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5), 0 0 40px rgba(0, 255, 255, 0.1);
+        box-shadow: 0 25px 80px rgba(0, 0, 0, 0.7),
+                    0 0 60px rgba(0, 255, 255, 0.12),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.04);
         animation: modalSlideIn 0.3s ease;
     }
 
@@ -1213,9 +1279,29 @@
         display: flex;
         justify-content: flex-end;
         gap: 15px;
-        padding: 20px 30px;
-        background: rgba(0, 0, 0, 0.2);
-        border-top: 1px solid var(--team-border);
+        padding: 22px 32px;
+        background: rgba(0, 0, 0, 0.3);
+        border-top: 1px solid rgba(48, 54, 61, 0.6);
+    }
+
+    .team-modal-footer .team-btn {
+        padding: 12px 28px;
+        font-size: 0.95rem;
+        font-weight: 700;
+        letter-spacing: 1px;
+        border-radius: 8px;
+    }
+
+    .team-modal-footer .team-btn-primary {
+        background: var(--team-cyan);
+        color: #000;
+        border-color: var(--team-cyan);
+        box-shadow: 0 0 20px rgba(0, 255, 255, 0.25);
+    }
+
+    .team-modal-footer .team-btn-primary:hover {
+        background: #00e6e6;
+        box-shadow: 0 0 30px rgba(0, 255, 255, 0.4);
     }
 
     /* Work history */
@@ -3166,9 +3252,15 @@
             chatBtn.textContent = 'CHAT';
             chatBtn.onclick = (e) => { e.stopPropagation(); startChat(agent.id); };
 
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'team-btn team-btn-sm team-btn-danger';
+            deleteBtn.textContent = 'DELETE';
+            deleteBtn.onclick = (e) => { e.stopPropagation(); deleteAgent(agent.id, fullName); };
+
             actions.appendChild(editBtn);
             actions.appendChild(runBtn);
             actions.appendChild(chatBtn);
+            actions.appendChild(deleteBtn);
             card.appendChild(actions);
 
             grid.appendChild(card);
@@ -3286,9 +3378,15 @@
         editBtn.textContent = 'EDIT PROFILE';
         editBtn.onclick = () => { closeAgentDetail(); openEditModal(agent.id); };
 
+        const delBtn = document.createElement('button');
+        delBtn.className = 'team-btn team-btn-danger';
+        delBtn.textContent = 'DELETE';
+        delBtn.onclick = () => { closeAgentDetail(); deleteAgent(agent.id, fullName); };
+
         btnRow.appendChild(chatBtn);
         btnRow.appendChild(execBtn);
         btnRow.appendChild(editBtn);
+        btnRow.appendChild(delBtn);
         detailsWrap.appendChild(btnRow);
 
         content.appendChild(detailsWrap);
@@ -3408,6 +3506,21 @@
         toast.textContent = message;
         document.body.appendChild(toast);
         setTimeout(() => toast.remove(), 3000);
+    }
+
+    function deleteAgent(agentId, agentName) {
+        if (!confirm('Delete agent "' + agentName + '"? This cannot be undone.')) return;
+        fetch('/tools/team-management/api/agents/' + agentId, { method: 'DELETE' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(data.message, 'success');
+                    loadRoster();
+                } else {
+                    showToast('Error: ' + (data.error || 'Unknown'), 'error');
+                }
+            })
+            .catch(err => showToast('Delete failed: ' + err.message, 'error'));
     }
 
     // ============================================

@@ -438,6 +438,60 @@ def update_agent_profile(agent_id):
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@team_management_bp.route("/api/agents/<int:agent_id>", methods=["DELETE"])
+@login_required
+@api_admin_required
+def delete_agent(agent_id):
+    """Permanently delete an agent"""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute("SELECT id, name FROM agents WHERE id = %s", (agent_id,))
+        agent = cur.fetchone()
+        if not agent:
+            cur.close()
+            conn.close()
+            return (
+                jsonify({"success": False, "error": "Agent not found"}),
+                404,
+            )
+
+        agent_name = agent["name"]
+
+        # Null out FK references in unified_projects and unified_tasks
+        cur.execute(
+            "UPDATE unified_projects SET created_by_agent_id = NULL " "WHERE created_by_agent_id = %s",
+            (agent_id,),
+        )
+        cur.execute(
+            "UPDATE unified_tasks SET assigned_agent_id = NULL " "WHERE assigned_agent_id = %s",
+            (agent_id,),
+        )
+        cur.execute(
+            "UPDATE unified_tasks SET created_by_agent_id = NULL " "WHERE created_by_agent_id = %s",
+            (agent_id,),
+        )
+
+        cur.execute("DELETE FROM agents WHERE id = %s", (agent_id,))
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify(
+            {
+                "success": True,
+                "message": f"Agent '{agent_name}' deleted",
+            }
+        )
+
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @team_management_bp.route("/api/agents/<int:agent_id>/work-history", methods=["GET"])
 @login_required
 def get_agent_work_history(agent_id):

@@ -677,6 +677,364 @@
         font-size: 0.8rem;
     }
 
+    /* ===== Phase 78: Roster Rebuild - Template Cards & Model Badges ===== */
+
+    .roster-section-title {
+        font-family: var(--team-font-display);
+        font-size: 0.85rem;
+        letter-spacing: 2px;
+        color: var(--team-cyan);
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .roster-section-count {
+        background: var(--team-cyan);
+        color: #000;
+        font-family: var(--team-font-mono);
+        font-size: 0.7rem;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-weight: 700;
+    }
+
+    .roster-templates-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 15px;
+        margin-bottom: 30px;
+    }
+
+    @media (max-width: 1200px) {
+        .roster-templates-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 768px) {
+        .roster-templates-grid { grid-template-columns: 1fr; }
+    }
+
+    .roster-template-category-header {
+        grid-column: 1 / -1;
+        font-family: var(--team-font-display);
+        font-size: 0.7rem;
+        letter-spacing: 2px;
+        color: var(--team-text-dim);
+        text-transform: uppercase;
+        padding: 8px 0 4px 0;
+        border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+        margin-top: 5px;
+    }
+
+    .roster-template-card {
+        background: var(--team-surface);
+        border: 1px solid var(--team-border);
+        border-radius: 10px;
+        padding: 18px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .roster-template-card:hover {
+        border-color: var(--team-cyan);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 20px rgba(0, 255, 255, 0.1);
+    }
+
+    .roster-template-card.has-model {
+        border-left: 3px solid var(--team-green);
+    }
+
+    .roster-template-card.no-model {
+        border-left: 3px solid var(--team-border);
+        opacity: 0.7;
+    }
+
+    .roster-template-card.no-model:hover {
+        opacity: 1;
+    }
+
+    .roster-template-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 10px;
+    }
+
+    .roster-template-icon {
+        width: 40px;
+        height: 40px;
+        background: rgba(0, 255, 255, 0.1);
+        border: 1px solid var(--team-cyan-dim);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--team-cyan);
+        flex-shrink: 0;
+    }
+
+    .roster-template-name {
+        font-family: var(--team-font-display);
+        font-size: 0.85rem;
+        color: var(--team-text);
+        letter-spacing: 0.5px;
+    }
+
+    .roster-template-role {
+        font-size: 0.78rem;
+        color: var(--team-text-dim);
+        margin-top: 2px;
+    }
+
+    .roster-template-models {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin-top: 10px;
+    }
+
+    .roster-model-badge {
+        font-family: var(--team-font-mono);
+        font-size: 0.65rem;
+        padding: 2px 8px;
+        border-radius: 4px;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .roster-model-badge.installed {
+        background: rgba(0, 255, 65, 0.1);
+        color: var(--team-green);
+        border: 1px solid rgba(0, 255, 65, 0.3);
+    }
+
+    .roster-model-badge.running {
+        background: rgba(0, 255, 65, 0.15);
+        color: var(--team-green);
+        border: 1px solid rgba(0, 255, 65, 0.4);
+        animation: pulseGreen 2s ease-in-out infinite;
+    }
+
+    @keyframes pulseGreen {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(0, 255, 65, 0); }
+        50% { box-shadow: 0 0 8px 0 rgba(0, 255, 65, 0.3); }
+    }
+
+    .roster-model-badge.not-installed {
+        background: rgba(139, 148, 158, 0.1);
+        color: var(--team-text-dim);
+        border: 1px solid rgba(139, 148, 158, 0.2);
+    }
+
+    .roster-template-deploy {
+        margin-top: 12px;
+        width: 100%;
+        padding: 8px;
+        font-family: var(--team-font-display);
+        font-size: 0.7rem;
+        letter-spacing: 1px;
+        background: rgba(0, 255, 255, 0.1);
+        border: 1px solid var(--team-cyan-dim);
+        color: var(--team-cyan);
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        text-transform: uppercase;
+    }
+
+    .roster-template-deploy:hover {
+        background: var(--team-cyan);
+        color: #000;
+    }
+
+    /* Agent cards - model status */
+    .roster-agent-model {
+        font-family: var(--team-font-mono);
+        font-size: 0.7rem;
+        padding: 3px 8px;
+        border-radius: 4px;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .roster-agent-model .status-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+
+    .roster-agent-model.loaded {
+        background: rgba(0, 255, 65, 0.1);
+        color: var(--team-green);
+        border: 1px solid rgba(0, 255, 65, 0.3);
+    }
+
+    .roster-agent-model.loaded .status-dot {
+        background: var(--team-green);
+        box-shadow: 0 0 6px var(--team-green);
+    }
+
+    .roster-agent-model.offline {
+        background: rgba(139, 148, 158, 0.1);
+        color: var(--team-text-dim);
+        border: 1px solid rgba(139, 148, 158, 0.2);
+    }
+
+    .roster-agent-model.offline .status-dot {
+        background: var(--team-text-dim);
+    }
+
+    /* Category filter chips */
+    .roster-category-filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 20px;
+    }
+
+    .roster-category-chip {
+        font-family: var(--team-font-mono);
+        font-size: 0.72rem;
+        padding: 5px 14px;
+        border-radius: 20px;
+        background: var(--team-surface);
+        border: 1px solid var(--team-border);
+        color: var(--team-text-dim);
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .roster-category-chip:hover {
+        border-color: var(--team-cyan);
+        color: var(--team-text);
+    }
+
+    .roster-category-chip.active {
+        background: var(--team-cyan);
+        border-color: var(--team-cyan);
+        color: #000;
+        font-weight: 600;
+    }
+
+    /* Deploy modal */
+    .deploy-modal-form {
+        padding: 25px 30px;
+    }
+
+    .deploy-form-section {
+        margin-bottom: 20px;
+    }
+
+    .deploy-form-section h4 {
+        font-family: var(--team-font-display);
+        font-size: 0.75rem;
+        letter-spacing: 1.5px;
+        color: var(--team-cyan);
+        margin-bottom: 12px;
+        text-transform: uppercase;
+    }
+
+    .deploy-form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-bottom: 10px;
+    }
+
+    .deploy-form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .deploy-form-group.full-width {
+        grid-column: 1 / -1;
+    }
+
+    .deploy-form-group label {
+        font-size: 0.75rem;
+        color: var(--team-text-dim);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .deploy-form-group input,
+    .deploy-form-group select,
+    .deploy-form-group textarea {
+        background: var(--team-bg);
+        border: 1px solid var(--team-border);
+        color: var(--team-text);
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-family: var(--team-font-body);
+        font-size: 0.85rem;
+    }
+
+    .deploy-form-group input:focus,
+    .deploy-form-group select:focus,
+    .deploy-form-group textarea:focus {
+        outline: none;
+        border-color: var(--team-cyan);
+        box-shadow: 0 0 0 2px rgba(0, 255, 255, 0.1);
+    }
+
+    .deploy-form-group textarea {
+        min-height: 80px;
+        resize: vertical;
+    }
+
+    .deploy-recommended-badge {
+        font-family: var(--team-font-mono);
+        font-size: 0.6rem;
+        background: rgba(0, 255, 65, 0.15);
+        color: var(--team-green);
+        padding: 1px 6px;
+        border-radius: 3px;
+        margin-left: 5px;
+    }
+
+    /* Toast notification */
+    .roster-toast {
+        position: fixed;
+        bottom: 30px;
+        right: 30px;
+        padding: 14px 24px;
+        border-radius: 8px;
+        font-family: var(--team-font-body);
+        font-size: 0.9rem;
+        z-index: 2000;
+        animation: toastSlideIn 0.3s ease, toastFadeOut 0.3s ease 2.7s forwards;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    .roster-toast.success {
+        background: rgba(0, 255, 65, 0.15);
+        border: 1px solid var(--team-green);
+        color: var(--team-green);
+    }
+
+    .roster-toast.error {
+        background: rgba(255, 68, 68, 0.15);
+        border: 1px solid var(--team-red);
+        color: var(--team-red);
+    }
+
+    @keyframes toastSlideIn {
+        from { transform: translateX(100px); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+
+    @keyframes toastFadeOut {
+        from { opacity: 1; }
+        to { opacity: 0; }
+    }
+
     /* Modal styles */
     .team-modal {
         display: none;
@@ -1642,12 +2000,12 @@
                 <span class="label">AGENTS</span>
             </div>
             <div class="team-stat-pill">
-                <span class="value" id="headerInternal">--</span>
-                <span class="label">INTERNAL</span>
+                <span class="value" id="headerModels">--</span>
+                <span class="label">MODELS</span>
             </div>
             <div class="team-stat-pill">
-                <span class="value" id="headerContract">--</span>
-                <span class="label">CONTRACT</span>
+                <span class="value" id="headerTemplates">--</span>
+                <span class="label">TEMPLATES</span>
             </div>
             <a href="/tools/hr-management" class="team-hr-link">
                 <span>📊</span> HR DASHBOARD →
@@ -1685,47 +2043,61 @@
 <main class="team-container">
     <!-- ==================== ROSTER TAB ==================== -->
     <div id="tab-roster" class="team-content active">
-        <div class="team-section-header">👥 CREW ROSTER</div>
-        <div class="team-section-subtitle">Complete directory of all AI agents in the organization</div>
+        <div class="team-section-header">AGENT ROSTER</div>
+        <div class="team-section-subtitle">Deploy and manage LLM-powered agents from module templates</div>
 
         <!-- Stats -->
         <div class="team-stats">
             <div class="team-stat-card">
-                <div class="team-stat-value" id="stat-total">--</div>
-                <div class="team-stat-label">Total Agents</div>
+                <div class="team-stat-value" id="stat-active-agents">--</div>
+                <div class="team-stat-label">Active Agents</div>
             </div>
             <div class="team-stat-card">
-                <div class="team-stat-value" id="stat-internal">--</div>
-                <div class="team-stat-label">Internal (Free)</div>
-            </div>
-            <div class="team-stat-card">
-                <div class="team-stat-value" id="stat-contract">--</div>
-                <div class="team-stat-label">Contract (Paid)</div>
+                <div class="team-stat-value" id="stat-models-in-use">--</div>
+                <div class="team-stat-label">Models In Use</div>
             </div>
             <div class="team-stat-card">
                 <div class="team-stat-value" id="stat-departments">--</div>
                 <div class="team-stat-label">Departments</div>
+            </div>
+            <div class="team-stat-card">
+                <div class="team-stat-value" id="stat-templates">--</div>
+                <div class="team-stat-label">Templates Available</div>
             </div>
         </div>
 
         <!-- Actions -->
         <div class="team-actions">
             <div class="team-search">
-                <input type="text" id="agentSearch" placeholder="Search agents..." oninput="searchAgents(this.value)">
+                <input type="text" id="rosterSearch" placeholder="Search templates and agents..." oninput="searchRoster(this.value)">
             </div>
-            <button class="team-btn" onclick="loadRoster()">🔄 REFRESH</button>
-            <button class="team-btn" onclick="filterByDepartment('all')">📊 ALL DEPTS</button>
-            <button class="team-btn" onclick="exportRoster()">📥 EXPORT CSV</button>
+            <button class="team-btn" onclick="loadRoster()">REFRESH</button>
+            <button class="team-btn" onclick="filterByCategory('all')">ALL CATEGORIES</button>
         </div>
 
-        <!-- Department filters -->
-        <div id="departmentFilters" class="team-filters"></div>
+        <!-- Category filters -->
+        <div id="categoryFilters" class="roster-category-filters"></div>
 
-        <!-- Agent grid -->
-        <div id="rosterGrid" class="team-grid">
-            <div class="team-loading">
-                <div class="team-spinner"></div>
-                <div class="team-loading-text">Loading crew manifest...</div>
+        <!-- Templates section -->
+        <div class="roster-templates-section">
+            <div class="roster-section-title">
+                DEPLOY FROM TEMPLATE <span id="templatesCount" class="roster-section-count">0</span>
+            </div>
+            <div id="templatesGrid" class="roster-templates-grid">
+                <div class="team-loading">
+                    <div class="team-spinner"></div>
+                    <div class="team-loading-text">Loading templates...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Agents section -->
+        <div class="roster-agents-section" style="margin-top: 30px;">
+            <div class="roster-section-title">
+                ACTIVE AGENTS <span id="agentsCount" class="roster-section-count">0</span>
+            </div>
+            <div id="rosterGrid" class="team-grid">
+                <div class="team-empty">No agents deployed yet. Deploy from a template above.</div>
             </div>
         </div>
     </div>
@@ -2292,6 +2664,78 @@
     </div>
 </div>
 
+<!-- ==================== DEPLOY AGENT MODAL ==================== -->
+<div id="deployAgentModal" class="team-modal">
+    <div class="team-modal-content" style="max-width: 650px;">
+        <div class="team-modal-header">
+            <h2 class="team-modal-title">DEPLOY AGENT</h2>
+            <button class="team-modal-close" onclick="closeDeployModal()">&times;</button>
+        </div>
+        <form onsubmit="deployAgent(event)">
+            <input type="hidden" id="deployTemplateId" value="">
+            <div class="deploy-modal-form">
+                <!-- Agent Identity -->
+                <div class="deploy-form-section">
+                    <h4>Agent Identity</h4>
+                    <div class="deploy-form-row">
+                        <div class="deploy-form-group">
+                            <label>First Name</label>
+                            <input type="text" id="deployFirstName" required>
+                        </div>
+                        <div class="deploy-form-group">
+                            <label>Last Name</label>
+                            <input type="text" id="deployLastName" value="Agent">
+                        </div>
+                    </div>
+                    <div class="deploy-form-row">
+                        <div class="deploy-form-group">
+                            <label>Title</label>
+                            <input type="text" id="deployTitle" required>
+                        </div>
+                        <div class="deploy-form-group">
+                            <label>Department</label>
+                            <input type="text" id="deployDepartment" required>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Model Selection -->
+                <div class="deploy-form-section">
+                    <h4>Model Selection</h4>
+                    <div class="deploy-form-group full-width">
+                        <label>Assigned Model</label>
+                        <select id="deployModel" required>
+                            <option value="">Select a model...</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- System Prompt -->
+                <div class="deploy-form-section">
+                    <h4>System Prompt</h4>
+                    <div class="deploy-form-group full-width">
+                        <textarea id="deploySystemPrompt" rows="4"></textarea>
+                    </div>
+                </div>
+
+                <!-- Capabilities -->
+                <div class="deploy-form-section">
+                    <h4>Capabilities</h4>
+                    <div class="deploy-form-group full-width">
+                        <label>Comma-separated list</label>
+                        <input type="text" id="deployCapabilities" placeholder="e.g. backup_monitoring, integrity_checks">
+                    </div>
+                </div>
+            </div>
+
+            <div class="team-modal-footer">
+                <button type="button" class="team-btn" onclick="closeDeployModal()">CANCEL</button>
+                <button type="submit" class="team-btn team-btn-primary">DEPLOY AGENT</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- ==================== AGENT MINI-CHAT MODAL ==================== -->
 <div id="agentChatModal" class="team-modal">
     <div class="team-modal-content" style="max-width: 600px; height: 80vh; display: flex; flex-direction: column;">
@@ -2357,6 +2801,11 @@
     // ============================================
     let allDirectoryAgents = [];
     let allAgents = [];
+    let allTemplates = [];
+    let allInstalledModels = [];
+    let runningModelNames = [];
+    let currentCategory = 'all';
+    let currentRosterSearch = '';
     let currentFilter = 'all';
     let currentAgentFilter = 'all';
     let currentSearchQuery = '';
@@ -2402,156 +2851,330 @@
     }
 
     // ============================================
-    // ROSTER FUNCTIONS
+    // ROSTER FUNCTIONS (Phase 78 - LLM-Centric Rebuild)
     // ============================================
     async function loadRoster() {
-        const grid = document.getElementById('rosterGrid');
-        grid.innerHTML = `
-            <div class="team-loading">
-                <div class="team-spinner"></div>
-                <div class="team-loading-text">Loading crew manifest...</div>
-            </div>
-        `;
+        const templatesGrid = document.getElementById('templatesGrid');
+        templatesGrid.textContent = '';
+        const loadingDiv = document.createElement('div');
+        loadingDiv.className = 'team-loading';
+        loadingDiv.innerHTML = '<div class="team-spinner"></div><div class="team-loading-text">Loading templates...</div>';
+        templatesGrid.appendChild(loadingDiv);
 
         try {
-            const response = await fetch('/tools/team-management/api/agent-directory', { credentials: 'same-origin' });
-            const data = await response.json();
+            const [agentsRes, templatesRes] = await Promise.all([
+                fetch('/tools/team-management/api/agent-directory', { credentials: 'same-origin' }),
+                fetch('/tools/team-management/api/agent-templates', { credentials: 'same-origin' })
+            ]);
 
-            if (data.success) {
-                allDirectoryAgents = data.agents;
+            const agentsData = await agentsRes.json();
+            const templatesData = await templatesRes.json();
 
-                // Update stats
-                const internal = allDirectoryAgents.filter(a => a.worker_type === 'internal').length;
-                const contract = allDirectoryAgents.filter(a => a.worker_type === 'contract').length;
-                const departments = [...new Set(allDirectoryAgents.map(a => a.department).filter(Boolean))];
-
-                document.getElementById('stat-total').textContent = allDirectoryAgents.length;
-                document.getElementById('stat-internal').textContent = internal;
-                document.getElementById('stat-contract').textContent = contract;
-                document.getElementById('stat-departments').textContent = departments.length;
-
-                // Update header stats
-                document.getElementById('headerTotalAgents').textContent = allDirectoryAgents.length;
-                document.getElementById('headerInternal').textContent = internal;
-                document.getElementById('headerContract').textContent = contract;
-
-                // Build department filters
-                buildDepartmentFilters(departments);
-
-                // Populate task agent select
+            if (agentsData.success) {
+                allDirectoryAgents = agentsData.agents;
                 populateTaskAgentSelect();
-
-                // Display agents
-                displayRoster(allDirectoryAgents);
-            } else {
-                grid.innerHTML = `<div class="team-empty">Error: ${data.error}</div>`;
             }
+
+            if (templatesData.success) {
+                allTemplates = templatesData.templates;
+                allInstalledModels = templatesData.installed_models || [];
+                runningModelNames = (templatesData.running_models || []).map(n => n.split(':')[0].toLowerCase());
+            }
+
+            const models = [...new Set(allDirectoryAgents.map(a => a.model).filter(Boolean))];
+            const departments = [...new Set(allDirectoryAgents.map(a => a.department).filter(Boolean))];
+
+            document.getElementById('stat-active-agents').textContent = allDirectoryAgents.length;
+            document.getElementById('stat-models-in-use').textContent = models.length;
+            document.getElementById('stat-departments').textContent = departments.length;
+            document.getElementById('stat-templates').textContent = allTemplates.length;
+
+            document.getElementById('headerTotalAgents').textContent = allDirectoryAgents.length;
+            document.getElementById('headerModels').textContent = allInstalledModels.length;
+            document.getElementById('headerTemplates').textContent = allTemplates.length;
+
+            buildCategoryFilters();
+            applyRosterFilters();
+
         } catch (error) {
             console.error('Error loading roster:', error);
-            grid.innerHTML = `<div class="team-empty">Error loading roster</div>`;
+            templatesGrid.textContent = '';
+            const errDiv = document.createElement('div');
+            errDiv.className = 'team-empty';
+            errDiv.textContent = 'Error loading roster data';
+            templatesGrid.appendChild(errDiv);
         }
     }
 
-    function buildDepartmentFilters(departments) {
-        const container = document.getElementById('departmentFilters');
-        let html = `<button class="team-filter-chip active" onclick="filterByDepartment('all')">All</button>`;
-        departments.sort().forEach(dept => {
-            html += `<button class="team-filter-chip" onclick="filterByDepartment('${dept}')">${dept}</button>`;
+    function buildCategoryFilters() {
+        const container = document.getElementById('categoryFilters');
+        const categories = {};
+        allTemplates.forEach(t => {
+            if (!categories[t.category]) categories[t.category] = { name: t.department, count: 0 };
+            categories[t.category].count++;
         });
-        container.innerHTML = html;
+
+        container.textContent = '';
+        const allBtn = document.createElement('button');
+        allBtn.className = 'roster-category-chip active';
+        allBtn.textContent = 'All';
+        allBtn.onclick = () => filterByCategory('all');
+        container.appendChild(allBtn);
+
+        Object.entries(categories).forEach(([key, val]) => {
+            const btn = document.createElement('button');
+            btn.className = 'roster-category-chip';
+            btn.textContent = val.name + ' (' + val.count + ')';
+            btn.dataset.category = key;
+            btn.onclick = () => filterByCategory(key);
+            container.appendChild(btn);
+        });
     }
 
-    function filterByDepartment(dept) {
-        currentFilter = dept;
-
-        // Update filter chips
-        document.querySelectorAll('.team-filter-chip').forEach(chip => {
+    function filterByCategory(cat) {
+        currentCategory = cat;
+        document.querySelectorAll('.roster-category-chip').forEach(chip => {
             chip.classList.remove('active');
-            if (chip.textContent === dept || (dept === 'all' && chip.textContent === 'All')) {
-                chip.classList.add('active');
-            }
+            if (cat === 'all' && chip.textContent === 'All') chip.classList.add('active');
+            else if (chip.dataset && chip.dataset.category === cat) chip.classList.add('active');
         });
-
-        applyFilters();
+        applyRosterFilters();
     }
 
-    function searchAgents(query) {
-        currentSearchQuery = query.toLowerCase();
-        applyFilters();
+    function searchRoster(query) {
+        currentRosterSearch = query.toLowerCase();
+        applyRosterFilters();
     }
 
-    function applyFilters() {
-        let filtered = allDirectoryAgents;
+    function applyRosterFilters() {
+        let filteredTemplates = allTemplates;
+        let filteredAgents = allDirectoryAgents;
 
-        // Department filter
-        if (currentFilter !== 'all') {
-            filtered = filtered.filter(a => a.department === currentFilter);
+        if (currentCategory !== 'all') {
+            filteredTemplates = filteredTemplates.filter(t => t.category === currentCategory);
+            const deptNames = [...new Set(filteredTemplates.map(t => t.department))];
+            filteredAgents = filteredAgents.filter(a => deptNames.includes(a.department));
         }
 
-        // Search filter
-        if (currentSearchQuery) {
-            filtered = filtered.filter(a => {
-                const fullName = `${a.first_name} ${a.last_name}`.toLowerCase();
-                const title = (a.title || '').toLowerCase();
-                const email = (a.email || '').toLowerCase();
-                return fullName.includes(currentSearchQuery) ||
-                       title.includes(currentSearchQuery) ||
-                       email.includes(currentSearchQuery);
+        if (currentRosterSearch) {
+            filteredTemplates = filteredTemplates.filter(t => {
+                return t.name.toLowerCase().includes(currentRosterSearch) ||
+                       t.role.toLowerCase().includes(currentRosterSearch) ||
+                       t.department.toLowerCase().includes(currentRosterSearch) ||
+                       (t.capabilities || []).some(c => c.toLowerCase().includes(currentRosterSearch));
+            });
+            filteredAgents = filteredAgents.filter(a => {
+                const fullName = (a.first_name + ' ' + a.last_name).toLowerCase();
+                return fullName.includes(currentRosterSearch) ||
+                       (a.title || '').toLowerCase().includes(currentRosterSearch) ||
+                       (a.model || '').toLowerCase().includes(currentRosterSearch) ||
+                       (a.department || '').toLowerCase().includes(currentRosterSearch);
             });
         }
 
-        displayRoster(filtered);
+        displayTemplates(filteredTemplates);
+        displayRoster(filteredAgents);
+
+        document.getElementById('templatesCount').textContent = filteredTemplates.length;
+        document.getElementById('agentsCount').textContent = filteredAgents.length;
+    }
+
+    function displayTemplates(templates) {
+        const grid = document.getElementById('templatesGrid');
+        grid.textContent = '';
+
+        if (!templates || templates.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'team-empty';
+            empty.style.gridColumn = '1 / -1';
+            empty.textContent = 'No templates match your filter';
+            grid.appendChild(empty);
+            return;
+        }
+
+        const grouped = {};
+        templates.forEach(t => {
+            if (!grouped[t.category]) grouped[t.category] = { name: t.department, templates: [] };
+            grouped[t.category].templates.push(t);
+        });
+
+        Object.entries(grouped).forEach(([catKey, catData]) => {
+            const header = document.createElement('div');
+            header.className = 'roster-template-category-header';
+            header.textContent = catData.name;
+            grid.appendChild(header);
+
+            catData.templates.forEach(t => {
+                const card = document.createElement('div');
+                card.className = 'roster-template-card ' + (t.has_installed_model ? 'has-model' : 'no-model');
+
+                const hdr = document.createElement('div');
+                hdr.className = 'roster-template-header';
+
+                const iconDiv = document.createElement('div');
+                iconDiv.className = 'roster-template-icon';
+                const icon = document.createElement('i');
+                icon.setAttribute('data-lucide', t.icon);
+                iconDiv.appendChild(icon);
+
+                const infoDiv = document.createElement('div');
+                const nameDiv = document.createElement('div');
+                nameDiv.className = 'roster-template-name';
+                nameDiv.textContent = t.name;
+                const roleDiv = document.createElement('div');
+                roleDiv.className = 'roster-template-role';
+                roleDiv.textContent = t.role;
+                infoDiv.appendChild(nameDiv);
+                infoDiv.appendChild(roleDiv);
+
+                hdr.appendChild(iconDiv);
+                hdr.appendChild(infoDiv);
+                card.appendChild(hdr);
+
+                const modelsDiv = document.createElement('div');
+                modelsDiv.className = 'roster-template-models';
+                (t.model_status || []).forEach(ms => {
+                    const badge = document.createElement('span');
+                    badge.className = 'roster-model-badge ' + ms.status;
+                    if (ms.status === 'running') {
+                        const dot = document.createElement('span');
+                        dot.style.cssText = 'display:inline-block;width:5px;height:5px;background:var(--team-green);border-radius:50%;';
+                        badge.appendChild(dot);
+                        badge.appendChild(document.createTextNode(' '));
+                    }
+                    badge.appendChild(document.createTextNode(ms.name));
+                    modelsDiv.appendChild(badge);
+                });
+                card.appendChild(modelsDiv);
+
+                const deployBtn = document.createElement('button');
+                deployBtn.className = 'roster-template-deploy';
+                deployBtn.textContent = 'DEPLOY';
+                deployBtn.onclick = (e) => { e.stopPropagation(); openDeployModal(t.id); };
+                card.appendChild(deployBtn);
+
+                grid.appendChild(card);
+            });
+        });
+
+        if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 
     function displayRoster(agents) {
         const grid = document.getElementById('rosterGrid');
+        grid.textContent = '';
 
         if (!agents || agents.length === 0) {
-            grid.innerHTML = `<div class="team-empty">No agents found</div>`;
+            const empty = document.createElement('div');
+            empty.className = 'team-empty';
+            empty.textContent = 'No agents deployed yet. Deploy from a template above.';
+            grid.appendChild(empty);
             return;
         }
 
-        grid.innerHTML = agents.map(agent => {
-            const fullName = `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.name || 'Unknown';
-            const avatarUrl = agent.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(fullName)}`;
-            const isContract = agent.worker_type === 'contract';
+        agents.forEach(agent => {
+            const fullName = ((agent.first_name || '') + ' ' + (agent.last_name || '')).trim() || agent.name || 'Unknown';
+            const avatarUrl = agent.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + encodeURIComponent(fullName);
             const statusClass = agent.status === 'active' ? '' : (agent.status === 'training' ? 'training' : 'inactive');
+            const modelName = (agent.model || '').split(':')[0].toLowerCase();
+            const isLoaded = runningModelNames.includes(modelName);
+            const modelClass = isLoaded ? 'loaded' : 'offline';
 
-            return `
-                <div class="team-agent-card ${isContract ? 'contract' : ''}" onclick="viewAgentDetails(${agent.id})">
-                    <div class="team-agent-header">
-                        <div class="team-avatar-container">
-                            <img src="${avatarUrl}" alt="${fullName}" class="team-avatar" onerror="this.src='https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(fullName)}'">
-                            <div class="team-status-dot ${statusClass}"></div>
-                        </div>
-                        <div class="team-agent-info">
-                            <div class="team-agent-name">${fullName}</div>
-                            <div class="team-agent-title">${agent.title || 'AI Agent'}</div>
-                            <span class="team-worker-badge ${isContract ? 'contract' : 'internal'}">${isContract ? 'CONTRACT' : 'INTERNAL'}</span>
-                        </div>
-                    </div>
-                    <div class="team-agent-body">
-                        <div class="team-agent-detail">
-                            <span class="icon">📧</span>
-                            <span class="value">${agent.email || 'N/A'}</span>
-                        </div>
-                        <div class="team-agent-detail">
-                            <span class="icon">🏢</span>
-                            <span class="value">${agent.department || 'Unassigned'}</span>
-                        </div>
-                        <div class="team-agent-detail">
-                            <span class="icon">⚙️</span>
-                            <span class="value">${agent.model || 'llama3'}</span>
-                        </div>
-                    </div>
-                    <div class="team-agent-actions">
-                        <button class="team-btn team-btn-sm" onclick="event.stopPropagation(); openEditModal(${agent.id})">✎ EDIT</button>
-                        <button class="team-btn team-btn-sm" onclick="event.stopPropagation(); openExecuteModal(${agent.id}, '${fullName.replace(/'/g, "\\'")}')">▶️ RUN</button>
-                        <button class="team-btn team-btn-sm" onclick="event.stopPropagation(); startChat(${agent.id})">💬 CHAT</button>
-                    </div>
-                </div>
-            `;
-        }).join('');
+            const card = document.createElement('div');
+            card.className = 'team-agent-card';
+            card.onclick = () => viewAgentDetails(agent.id);
+
+            // Header
+            const headerEl = document.createElement('div');
+            headerEl.className = 'team-agent-header';
+
+            const avatarContainer = document.createElement('div');
+            avatarContainer.className = 'team-avatar-container';
+            const img = document.createElement('img');
+            img.src = avatarUrl;
+            img.alt = fullName;
+            img.className = 'team-avatar';
+            img.onerror = function() { this.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + encodeURIComponent(fullName); };
+            const statusDot = document.createElement('div');
+            statusDot.className = 'team-status-dot ' + statusClass;
+            avatarContainer.appendChild(img);
+            avatarContainer.appendChild(statusDot);
+
+            const agentInfo = document.createElement('div');
+            agentInfo.className = 'team-agent-info';
+            const nameEl = document.createElement('div');
+            nameEl.className = 'team-agent-name';
+            nameEl.textContent = fullName;
+            const titleEl = document.createElement('div');
+            titleEl.className = 'team-agent-title';
+            titleEl.textContent = agent.title || 'AI Agent';
+            agentInfo.appendChild(nameEl);
+            agentInfo.appendChild(titleEl);
+
+            headerEl.appendChild(avatarContainer);
+            headerEl.appendChild(agentInfo);
+            card.appendChild(headerEl);
+
+            // Body
+            const body = document.createElement('div');
+            body.className = 'team-agent-body';
+
+            const deptDetail = document.createElement('div');
+            deptDetail.className = 'team-agent-detail';
+            const deptIcon = document.createElement('span');
+            deptIcon.className = 'icon';
+            const deptLucide = document.createElement('i');
+            deptLucide.setAttribute('data-lucide', 'building-2');
+            deptLucide.style.cssText = 'width:14px;height:14px;';
+            deptIcon.appendChild(deptLucide);
+            const deptVal = document.createElement('span');
+            deptVal.className = 'value';
+            deptVal.textContent = agent.department || 'Unassigned';
+            deptDetail.appendChild(deptIcon);
+            deptDetail.appendChild(deptVal);
+            body.appendChild(deptDetail);
+
+            const modelDetail = document.createElement('div');
+            modelDetail.className = 'team-agent-detail';
+            const modelBadge = document.createElement('span');
+            modelBadge.className = 'roster-agent-model ' + modelClass;
+            const dot = document.createElement('span');
+            dot.className = 'status-dot';
+            modelBadge.appendChild(dot);
+            modelBadge.appendChild(document.createTextNode(' ' + (agent.model || 'No model')));
+            modelDetail.appendChild(modelBadge);
+            body.appendChild(modelDetail);
+
+            card.appendChild(body);
+
+            // Actions
+            const actions = document.createElement('div');
+            actions.className = 'team-agent-actions';
+
+            const editBtn = document.createElement('button');
+            editBtn.className = 'team-btn team-btn-sm';
+            editBtn.textContent = 'EDIT';
+            editBtn.onclick = (e) => { e.stopPropagation(); openEditModal(agent.id); };
+
+            const runBtn = document.createElement('button');
+            runBtn.className = 'team-btn team-btn-sm';
+            runBtn.textContent = 'RUN';
+            runBtn.onclick = (e) => { e.stopPropagation(); openExecuteModal(agent.id, fullName); };
+
+            const chatBtn = document.createElement('button');
+            chatBtn.className = 'team-btn team-btn-sm';
+            chatBtn.textContent = 'CHAT';
+            chatBtn.onclick = (e) => { e.stopPropagation(); startChat(agent.id); };
+
+            actions.appendChild(editBtn);
+            actions.appendChild(runBtn);
+            actions.appendChild(chatBtn);
+            card.appendChild(actions);
+
+            grid.appendChild(card);
+        });
+
+        if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 
     function viewAgentDetails(agentId) {
@@ -2560,55 +3183,231 @@
 
         const modal = document.getElementById('agentDetailModal');
         const content = document.getElementById('agentDetailContent');
+        content.textContent = '';
 
-        const fullName = `${agent.first_name || ''} ${agent.last_name || ''}`.trim() || agent.name;
-        const avatarUrl = agent.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(fullName)}`;
-        const isContract = agent.worker_type === 'contract';
-        const borderColor = isContract ? 'var(--team-red)' : 'var(--team-cyan)';
+        const fullName = ((agent.first_name || '') + ' ' + (agent.last_name || '')).trim() || agent.name;
+        const avatarUrl = agent.avatar_url || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + encodeURIComponent(fullName);
+        const modelName = (agent.model || '').split(':')[0].toLowerCase();
+        const isLoaded = runningModelNames.includes(modelName);
 
-        content.innerHTML = `
-            <div style="display: flex; gap: 25px; margin-bottom: 25px;">
-                <img src="${avatarUrl}" alt="${fullName}" style="width: 120px; height: 120px; border-radius: 50%; border: 4px solid ${borderColor}; box-shadow: 0 0 20px ${isContract ? 'rgba(255,68,68,0.3)' : 'rgba(0,255,255,0.3)'};">
-                <div style="flex: 1;">
-                    <h2 style="color: ${borderColor}; margin: 0 0 8px 0; font-family: var(--team-font-display); font-size: 1.6rem;">${fullName}</h2>
-                    <div style="color: var(--team-text); font-size: 1.1rem; margin-bottom: 8px;">${agent.title || 'AI Agent'}</div>
-                    <div style="color: var(--team-text-dim);">${agent.department || 'Unassigned'}</div>
-                    <span class="team-worker-badge ${isContract ? 'contract' : 'internal'}" style="margin-top: 10px;">${isContract ? 'CONTRACT' : 'INTERNAL'}</span>
-                </div>
-            </div>
+        // Header section
+        const headerSection = document.createElement('div');
+        headerSection.style.cssText = 'display:flex;gap:25px;margin-bottom:25px;padding:20px;';
+        const avatarImg = document.createElement('img');
+        avatarImg.src = avatarUrl;
+        avatarImg.alt = fullName;
+        avatarImg.style.cssText = 'width:100px;height:100px;border-radius:50%;border:3px solid var(--team-cyan);box-shadow:0 0 20px rgba(0,255,255,0.2);';
 
-            <div style="background: var(--team-surface); border-left: 4px solid ${borderColor}; padding: 15px; margin-bottom: 20px; border-radius: 0 8px 8px 0;">
-                <div style="color: ${borderColor}; font-weight: 600; margin-bottom: 8px;">ABOUT</div>
-                <div style="color: var(--team-text); line-height: 1.6;">${agent.bio || 'No biography available.'}</div>
-            </div>
+        const infoCol = document.createElement('div');
+        infoCol.style.flex = '1';
 
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 25px;">
-                <div style="background: var(--team-surface); padding: 15px; text-align: center; border-radius: 8px;">
-                    <div style="font-size: 0.8rem; color: var(--team-text-dim);">Email</div>
-                    <div style="color: var(--team-cyan); margin-top: 5px; font-size: 0.9rem;">${agent.email || 'N/A'}</div>
-                </div>
-                <div style="background: var(--team-surface); padding: 15px; text-align: center; border-radius: 8px;">
-                    <div style="font-size: 0.8rem; color: var(--team-text-dim);">Model</div>
-                    <div style="color: var(--team-cyan); margin-top: 5px; font-size: 0.9rem;">${agent.model || 'llama3'}</div>
-                </div>
-                <div style="background: var(--team-surface); padding: 15px; text-align: center; border-radius: 8px;">
-                    <div style="font-size: 0.8rem; color: var(--team-text-dim);">Status</div>
-                    <div style="color: ${agent.status === 'active' ? 'var(--team-green)' : 'var(--team-amber)'}; margin-top: 5px; font-size: 0.9rem;">${(agent.status || 'active').toUpperCase()}</div>
-                </div>
-            </div>
+        const h2 = document.createElement('h2');
+        h2.style.cssText = 'color:var(--team-cyan);margin:0 0 8px 0;font-family:var(--team-font-display);font-size:1.4rem;';
+        h2.textContent = fullName;
 
-            <div style="display: flex; gap: 15px; flex-wrap: wrap;">
-                <button class="team-btn team-btn-primary" onclick="openAgentChat(${agent.id}, '${fullName.replace(/'/g, "\\'")}')">💬 QUICK CHAT</button>
-                <button class="team-btn" onclick="openExecuteModal(${agent.id}, '${fullName.replace(/'/g, "\\'")}')">▶️ EXECUTE TASK</button>
-                <button class="team-btn" onclick="closeAgentDetail(); openEditModal(${agent.id})">✎ EDIT PROFILE</button>
-            </div>
-        `;
+        const titleDiv = document.createElement('div');
+        titleDiv.style.cssText = 'color:var(--team-text);font-size:1rem;margin-bottom:6px;';
+        titleDiv.textContent = agent.title || 'AI Agent';
 
+        const deptDiv = document.createElement('div');
+        deptDiv.style.cssText = 'color:var(--team-text-dim);margin-bottom:8px;';
+        deptDiv.textContent = agent.department || 'Unassigned';
+
+        const modelStatusSpan = document.createElement('span');
+        modelStatusSpan.className = 'roster-agent-model ' + (isLoaded ? 'loaded' : 'offline');
+        const mDot = document.createElement('span');
+        mDot.className = 'status-dot';
+        modelStatusSpan.appendChild(mDot);
+        modelStatusSpan.appendChild(document.createTextNode(' ' + (agent.model || 'N/A') + (isLoaded ? ' — LOADED' : ' — OFFLINE')));
+
+        infoCol.appendChild(h2);
+        infoCol.appendChild(titleDiv);
+        infoCol.appendChild(deptDiv);
+        infoCol.appendChild(modelStatusSpan);
+        headerSection.appendChild(avatarImg);
+        headerSection.appendChild(infoCol);
+        content.appendChild(headerSection);
+
+        // Details section
+        const detailsWrap = document.createElement('div');
+        detailsWrap.style.cssText = 'padding:0 20px 20px;';
+
+        // About
+        const aboutBox = document.createElement('div');
+        aboutBox.style.cssText = 'background:var(--team-surface);border-left:3px solid var(--team-cyan);padding:15px;margin-bottom:15px;border-radius:0 8px 8px 0;';
+        const aboutLabel = document.createElement('div');
+        aboutLabel.style.cssText = 'color:var(--team-cyan);font-weight:600;margin-bottom:8px;font-size:0.8rem;';
+        aboutLabel.textContent = 'ABOUT';
+        const aboutText = document.createElement('div');
+        aboutText.style.cssText = 'color:var(--team-text);line-height:1.6;font-size:0.9rem;';
+        aboutText.textContent = agent.bio || 'No biography available.';
+        aboutBox.appendChild(aboutLabel);
+        aboutBox.appendChild(aboutText);
+        detailsWrap.appendChild(aboutBox);
+
+        // Stats grid
+        const statsGrid = document.createElement('div');
+        statsGrid.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;';
+        [
+            { label: 'Model', value: agent.model || 'N/A' },
+            { label: 'Status', value: (agent.status || 'active').toUpperCase(), color: agent.status === 'active' ? 'var(--team-green)' : 'var(--team-amber)' },
+            { label: 'Engine', value: isLoaded ? 'RUNNING' : 'STANDBY' }
+        ].forEach(stat => {
+            const cell = document.createElement('div');
+            cell.style.cssText = 'background:var(--team-surface);padding:12px;text-align:center;border-radius:8px;';
+            const lbl = document.createElement('div');
+            lbl.style.cssText = 'font-size:0.75rem;color:var(--team-text-dim);';
+            lbl.textContent = stat.label;
+            const val = document.createElement('div');
+            val.style.cssText = 'color:' + (stat.color || 'var(--team-cyan)') + ';margin-top:4px;font-size:0.85rem;';
+            val.textContent = stat.value;
+            cell.appendChild(lbl);
+            cell.appendChild(val);
+            statsGrid.appendChild(cell);
+        });
+        detailsWrap.appendChild(statsGrid);
+
+        // Action buttons
+        const btnRow = document.createElement('div');
+        btnRow.style.cssText = 'display:flex;gap:12px;flex-wrap:wrap;';
+
+        const chatBtn = document.createElement('button');
+        chatBtn.className = 'team-btn team-btn-primary';
+        chatBtn.textContent = 'QUICK CHAT';
+        chatBtn.onclick = () => openAgentChat(agent.id, fullName);
+
+        const execBtn = document.createElement('button');
+        execBtn.className = 'team-btn';
+        execBtn.textContent = 'EXECUTE TASK';
+        execBtn.onclick = () => openExecuteModal(agent.id, fullName);
+
+        const editBtn = document.createElement('button');
+        editBtn.className = 'team-btn';
+        editBtn.textContent = 'EDIT PROFILE';
+        editBtn.onclick = () => { closeAgentDetail(); openEditModal(agent.id); };
+
+        btnRow.appendChild(chatBtn);
+        btnRow.appendChild(execBtn);
+        btnRow.appendChild(editBtn);
+        detailsWrap.appendChild(btnRow);
+
+        content.appendChild(detailsWrap);
         modal.style.display = 'block';
     }
 
     function closeAgentDetail() {
         document.getElementById('agentDetailModal').style.display = 'none';
+    }
+
+    // ============================================
+    // DEPLOY WORKFLOW
+    // ============================================
+    function openDeployModal(templateId) {
+        const template = allTemplates.find(t => t.id === templateId);
+        if (!template) return;
+
+        document.getElementById('deployTemplateId').value = templateId;
+        document.getElementById('deployFirstName').value = template.first_name || template.name;
+        document.getElementById('deployLastName').value = template.last_name || 'Agent';
+        document.getElementById('deployTitle').value = template.role;
+        document.getElementById('deployDepartment').value = template.department;
+        document.getElementById('deploySystemPrompt').value = template.system_prompt || '';
+        document.getElementById('deployCapabilities').value = (template.capabilities || []).join(', ');
+
+        const select = document.getElementById('deployModel');
+        select.textContent = '';
+        const defaultOpt = document.createElement('option');
+        defaultOpt.value = '';
+        defaultOpt.textContent = 'Select a model...';
+        select.appendChild(defaultOpt);
+
+        const recommended = (template.recommended_models || []).map(m => m.split(':')[0].toLowerCase());
+
+        // Sort: recommended+running first, then recommended, then rest
+        const sorted = [...allInstalledModels].sort((a, b) => {
+            const aNorm = a.split(':')[0].toLowerCase();
+            const bNorm = b.split(':')[0].toLowerCase();
+            const aRec = recommended.includes(aNorm) ? 1 : 0;
+            const bRec = recommended.includes(bNorm) ? 1 : 0;
+            const aRun = runningModelNames.includes(aNorm) ? 1 : 0;
+            const bRun = runningModelNames.includes(bNorm) ? 1 : 0;
+            return (bRec + bRun) - (aRec + aRun);
+        });
+
+        let firstRecommended = -1;
+        sorted.forEach((modelFullName, idx) => {
+            const norm = modelFullName.split(':')[0].toLowerCase();
+            const isRec = recommended.includes(norm);
+            const isRun = runningModelNames.includes(norm);
+            const opt = document.createElement('option');
+            opt.value = modelFullName;
+            let label = modelFullName;
+            if (isRun) label += ' [RUNNING]';
+            if (isRec) label += ' [RECOMMENDED]';
+            opt.textContent = label;
+            select.appendChild(opt);
+            if (isRec && firstRecommended === -1) firstRecommended = idx + 1;
+        });
+
+        if (firstRecommended > 0) select.selectedIndex = firstRecommended;
+
+        document.getElementById('deployAgentModal').style.display = 'block';
+    }
+
+    function closeDeployModal() {
+        document.getElementById('deployAgentModal').style.display = 'none';
+    }
+
+    async function deployAgent(event) {
+        event.preventDefault();
+
+        const data = {
+            first_name: document.getElementById('deployFirstName').value,
+            last_name: document.getElementById('deployLastName').value,
+            title: document.getElementById('deployTitle').value,
+            department: document.getElementById('deployDepartment').value,
+            model: document.getElementById('deployModel').value,
+            system_prompt: document.getElementById('deploySystemPrompt').value,
+            capabilities: document.getElementById('deployCapabilities').value,
+            worker_type: 'ai',
+            status: 'active',
+            default_model_tier: 'local',
+        };
+
+        if (!data.model) {
+            showToast('Please select a model', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch('/tools/team-management/api/agents', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify(data),
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                closeDeployModal();
+                showToast('Agent ' + result.agent.first_name + ' ' + result.agent.last_name + ' deployed successfully', 'success');
+                loadRoster();
+            } else {
+                showToast('Deploy failed: ' + result.error, 'error');
+            }
+        } catch (error) {
+            showToast('Deploy error: ' + error.message, 'error');
+        }
+    }
+
+    function showToast(message, type) {
+        document.querySelectorAll('.roster-toast').forEach(t => t.remove());
+        const toast = document.createElement('div');
+        toast.className = 'roster-toast ' + type;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
     }
 
     // ============================================

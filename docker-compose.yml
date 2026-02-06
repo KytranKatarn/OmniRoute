@@ -1,7 +1,7 @@
 services:
-  # PostgreSQL Database
+  # PostgreSQL Database (with pgvector for semantic embeddings)
   archie_database:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: archie_database
     restart: unless-stopped
     environment:

@@ -139,7 +139,7 @@ def save_knowledge_card(
                 """
                 INSERT INTO knowledge_base
                     (title, content, knowledge_type, source_type, category,
-                     importance_score, metadata, tags, embedding, embedding_generated_at,
+                     importance_score, memory_metadata, tags, embedding, embedding_generated_at,
                      ai_analysis, analysis_version)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s, 1)
                 RETURNING id
@@ -162,7 +162,7 @@ def save_knowledge_card(
                 """
                 INSERT INTO knowledge_base
                     (title, content, knowledge_type, source_type, category,
-                     importance_score, metadata, tags, ai_analysis, analysis_version)
+                     importance_score, memory_metadata, tags, ai_analysis, analysis_version)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 1)
                 RETURNING id
                 """,
@@ -220,7 +220,7 @@ def export_to_markdown(
             cur.execute(
                 """
                 SELECT id, title, content, knowledge_type, category,
-                       importance_score, metadata, tags, ai_analysis, created_at
+                       importance_score, memory_metadata, tags, ai_analysis, created_at
                 FROM knowledge_base
                 WHERE id = ANY(%s) AND ai_analysis IS NOT NULL
                 ORDER BY created_at DESC
@@ -231,7 +231,7 @@ def export_to_markdown(
             cur.execute(
                 """
                 SELECT id, title, content, knowledge_type, category,
-                       importance_score, metadata, tags, ai_analysis, created_at
+                       importance_score, memory_metadata, tags, ai_analysis, created_at
                 FROM knowledge_base
                 WHERE ai_analysis IS NOT NULL AND created_at >= %s
                 ORDER BY created_at DESC
@@ -243,7 +243,7 @@ def export_to_markdown(
             cur.execute(
                 """
                 SELECT id, title, content, knowledge_type, category,
-                       importance_score, metadata, tags, ai_analysis, created_at
+                       importance_score, memory_metadata, tags, ai_analysis, created_at
                 FROM knowledge_base
                 WHERE ai_analysis IS NOT NULL
                 ORDER BY created_at DESC
@@ -281,7 +281,7 @@ def _export_single_card(row: dict) -> Optional[str]:
     if isinstance(ai_analysis, str):
         ai_analysis = json.loads(ai_analysis)
 
-    metadata = row.get("metadata", {})
+    metadata = row.get("memory_metadata", {})
     if isinstance(metadata, str):
         metadata = json.loads(metadata)
 
@@ -405,7 +405,7 @@ def get_card_by_id(knowledge_id: int) -> Optional[dict]:
         cur.execute(
             """
             SELECT id, title, content, knowledge_type, category,
-                   importance_score, metadata, tags, ai_analysis, created_at
+                   importance_score, memory_metadata, tags, ai_analysis, created_at
             FROM knowledge_base
             WHERE id = %s
             """,

@@ -1,8 +1,12 @@
 """
 Knowledge Analyzer for ARCHIE Consciousness Intelligence
 
-Uses Claude API for deep analysis of conversations, code files, and GitHub repos.
+Uses Claude API or Ollama for deep analysis of conversations, code files, and GitHub repos.
 Extracts knowledge cards, relationships, and semantic embeddings.
+
+Supports two backends:
+- Claude API (requires ANTHROPIC_API_KEY)
+- Ollama (local, free - uses qwen2.5:7b)
 
 Usage:
     from ai_bridge.knowledge_analyzer import get_knowledge_analyzer
@@ -17,6 +21,7 @@ import os
 import json
 import logging
 import re
+import requests
 from datetime import datetime
 from typing import Optional
 from dataclasses import dataclass, field, asdict
@@ -26,7 +31,37 @@ logger = logging.getLogger(__name__)
 # Configuration
 CLAUDE_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 CLAUDE_MODEL = "claude-sonnet-4-20250514"
-MAX_CONTENT_LENGTH = 50000  # Characters to send to Claude
+MAX_CONTENT_LENGTH = 50000  # Characters to send to LLM
+
+# Ollama configuration (fallback when no Claude API key)
+OLLAMA_MODEL = os.getenv("OLLAMA_ANALYSIS_MODEL", "qwen2.5:7b")
+
+# Determine Ollama host - prefer server with qwen model
+def _find_ollama_host():
+    """Find an Ollama host that has the analysis model"""
+    hosts = [
+        "http://192.168.1.200:11434",  # Main server (has qwen2.5:7b)
+        "http://192.168.1.246:11434",
+        "http://192.168.1.245:11434",
+    ]
+    for host in hosts:
+        try:
+            resp = requests.get(f"{host}/api/tags", timeout=3)
+            if resp.status_code == 200:
+                models = [m["name"] for m in resp.json().get("models", [])]
+                if any(OLLAMA_MODEL in m for m in models):
+                    logger.info(f"Found {OLLAMA_MODEL} at {host}")
+                    return host
+        except Exception:
+            continue
+    # Fallback to main server
+    return "http://192.168.1.200:11434"
+
+
+OLLAMA_HOST = _find_ollama_host()
+
+# Choose backend: "claude" or "ollama" (auto-selects based on API key if not set)
+ANALYZER_BACKEND = os.getenv("ANALYZER_BACKEND", "auto")
 
 
 @dataclass
@@ -167,16 +202,24 @@ Return ONLY valid JSON."""
 
 
 class KnowledgeAnalyzer:
-    """Analyzes content using Claude API to extract knowledge"""
+    """Analyzes content using Claude API or Ollama to extract knowledge"""
 
-    def __init__(self, api_key: str = CLAUDE_API_KEY):
+    def __init__(self, api_key: str = CLAUDE_API_KEY, backend: str = ANALYZER_BACKEND):
         self.api_key = api_key
         self._client = None
+
+        # Determine backend
+        if backend == "auto":
+            self.backend = "claude" if api_key else "ollama"
+        else:
+            self.backend = backend
+
+        logger.info(f"Knowledge analyzer using backend: {self.backend}")
 
     @property
     def client(self):
         """Lazy-load anthropic client"""
-        if self._client is None:
+        if self._client is None and self.backend == "claude":
             try:
                 import anthropic
 
@@ -188,22 +231,94 @@ class KnowledgeAnalyzer:
 
     def health_check(self) -> dict:
         """Check if analyzer is ready"""
+        if self.backend == "ollama":
+            # Check Ollama availability
+            try:
+                resp = requests.get(f"{OLLAMA_HOST}/api/tags", timeout=5)
+                if resp.status_code == 200:
+                    models = [m["name"] for m in resp.json().get("models", [])]
+                    if any(OLLAMA_MODEL in m for m in models):
+                        return {
+                            "status": "healthy",
+                            "backend": "ollama",
+                            "model": OLLAMA_MODEL,
+                            "host": OLLAMA_HOST,
+                        }
+                    return {
+                        "status": "unhealthy",
+                        "backend": "ollama",
+                        "error": f"Model {OLLAMA_MODEL} not found",
+                    }
+                return {"status": "unhealthy", "backend": "ollama", "error": "Ollama not responding"}
+            except Exception as e:
+                return {"status": "unhealthy", "backend": "ollama", "error": str(e)}
+
+        # Claude backend
         if not self.api_key:
-            return {"status": "unhealthy", "error": "No API key configured"}
+            return {"status": "unhealthy", "backend": "claude", "error": "No API key configured"}
 
         try:
-            # Just check that client can be created
             _ = self.client
-            return {"status": "healthy", "model": CLAUDE_MODEL}
+            return {"status": "healthy", "backend": "claude", "model": CLAUDE_MODEL}
         except Exception as e:
-            return {"status": "unhealthy", "error": str(e)}
+            return {"status": "unhealthy", "backend": "claude", "error": str(e)}
+
+    def _call_llm(self, prompt: str, max_tokens: int = 4000) -> tuple:
+        """
+        Call LLM (Claude or Ollama) with prompt.
+
+        Returns:
+            tuple: (response_text, input_tokens, output_tokens, elapsed_ms)
+        """
+        if self.backend == "ollama":
+            return self._call_ollama(prompt, max_tokens)
+        return self._call_claude(prompt, max_tokens)
+
+    def _call_ollama(self, prompt: str, max_tokens: int = 4000) -> tuple:
+        """
+        Call Ollama API with prompt.
+
+        Returns:
+            tuple: (response_text, input_tokens, output_tokens, elapsed_ms)
+        """
+        import time
+
+        start = time.time()
+        try:
+            response = requests.post(
+                f"{OLLAMA_HOST}/api/generate",
+                json={
+                    "model": OLLAMA_MODEL,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {
+                        "num_predict": max_tokens,
+                        "temperature": 0.3,  # Lower for more consistent JSON
+                    },
+                },
+                timeout=300,  # 5 minute timeout for analysis (Ollama is slower)
+            )
+            response.raise_for_status()
+            data = response.json()
+            elapsed = int((time.time() - start) * 1000)
+
+            # Ollama provides token counts in response
+            return (
+                data.get("response", ""),
+                data.get("prompt_eval_count", 0),
+                data.get("eval_count", 0),
+                elapsed,
+            )
+        except Exception as e:
+            logger.error(f"Ollama API error: {e}")
+            raise
 
     def _call_claude(self, prompt: str, max_tokens: int = 4000) -> tuple:
         """
         Call Claude API with prompt.
 
         Returns:
-            tuple: (response_text, input_tokens, output_tokens)
+            tuple: (response_text, input_tokens, output_tokens, elapsed_ms)
         """
         import time
 
@@ -283,7 +398,7 @@ class KnowledgeAnalyzer:
         )
 
         try:
-            response, input_tokens, output_tokens, elapsed = self._call_claude(prompt)
+            response, input_tokens, output_tokens, elapsed = self._call_llm(prompt)
             data = self._parse_json_response(response)
 
             # Parse cards
@@ -377,7 +492,7 @@ class KnowledgeAnalyzer:
         )
 
         try:
-            response, input_tokens, output_tokens, elapsed = self._call_claude(prompt)
+            response, input_tokens, output_tokens, elapsed = self._call_llm(prompt)
             data = self._parse_json_response(response)
 
             # Parse cards
@@ -454,8 +569,14 @@ if __name__ == "__main__":
     print(f"Health: {health}")
 
     if health["status"] == "healthy":
-        print("\nAnalyzer is ready. API key configured.")
+        backend = health.get("backend", "unknown")
+        model = health.get("model", "unknown")
+        print(f"\nAnalyzer ready using {backend} backend with {model}")
         print("To test analysis, use: analyzer.analyze_conversation(content)")
     else:
         print(f"\nAnalyzer not ready: {health.get('error', 'Unknown error')}")
-        print("Set ANTHROPIC_API_KEY environment variable")
+        backend = health.get("backend", "auto")
+        if backend == "claude":
+            print("Set ANTHROPIC_API_KEY environment variable")
+        else:
+            print(f"Check Ollama at {OLLAMA_HOST}")

@@ -262,7 +262,7 @@ def start_processing():
 
         cur.execute(
             """
-            SELECT id, title, content, metadata
+            SELECT id, title, content, memory_metadata
             FROM knowledge_base
             WHERE source_type = %s
             AND (ai_analysis IS NULL OR analysis_version = 0)

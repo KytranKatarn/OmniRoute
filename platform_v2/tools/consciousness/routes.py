@@ -2843,17 +2843,17 @@ def get_activity_stats():
                 -- Last hour
                 (SELECT COUNT(*) FROM knowledge_base WHERE created_at >= NOW() - INTERVAL '1 hour') as knowledge_1h,
                 (SELECT COUNT(*) FROM agent_executions WHERE started_at >= NOW() - INTERVAL '1 hour') as executions_1h,
-                (SELECT COUNT(*) FROM improvement_proposals WHERE created_at >= NOW() - INTERVAL '1 hour') as improvements_1h,
+                (SELECT COUNT(*) FROM improvement_proposals WHERE proposed_at >= NOW() - INTERVAL '1 hour') as improvements_1h,
 
                 -- Last 24 hours
                 (SELECT COUNT(*) FROM knowledge_base WHERE created_at >= NOW() - INTERVAL '24 hours') as knowledge_24h,
                 (SELECT COUNT(*) FROM agent_executions WHERE started_at >= NOW() - INTERVAL '24 hours') as executions_24h,
-                (SELECT COUNT(*) FROM improvement_proposals WHERE created_at >= NOW() - INTERVAL '24 hours') as improvements_24h,
+                (SELECT COUNT(*) FROM improvement_proposals WHERE proposed_at >= NOW() - INTERVAL '24 hours') as improvements_24h,
 
                 -- Last 7 days
                 (SELECT COUNT(*) FROM knowledge_base WHERE created_at >= NOW() - INTERVAL '7 days') as knowledge_7d,
                 (SELECT COUNT(*) FROM agent_executions WHERE started_at >= NOW() - INTERVAL '7 days') as executions_7d,
-                (SELECT COUNT(*) FROM improvement_proposals WHERE created_at >= NOW() - INTERVAL '7 days') as improvements_7d,
+                (SELECT COUNT(*) FROM improvement_proposals WHERE proposed_at >= NOW() - INTERVAL '7 days') as improvements_7d,
 
                 -- Totals
                 (SELECT COUNT(*) FROM knowledge_base) as knowledge_total,

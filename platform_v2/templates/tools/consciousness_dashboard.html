@@ -2,3043 +2,711 @@
 
 {% block title %}A.R.C.H.I.E. Consciousness{% endblock %}
 
+{% block module_name %}consciousness{% endblock %}
+
 {% block styles %}
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
+/* ═══════════════════════════════════════════════════════════════════════════
+   A.R.C.H.I.E. CONSCIOUSNESS - Neural Core Interface
+   Matrix Dark Theme | Purple Accent for Consciousness Module
+   ═══════════════════════════════════════════════════════════════════════════ */
 
+/* Design Tokens - Inherits from theme.css, module-specific overrides */
 :root {
-    --bg-void: #050508;
-    --bg-primary: #0a0a0f;
-    --bg-secondary: #12121a;
-    --bg-tertiary: #1a1a24;
-    --bg-card: #14141c;
-    --bg-elevated: #1c1c28;
-    --border-dim: #1e1e2a;
-    --border-color: #2a2a3a;
-    --border-glow: rgba(102, 126, 234, 0.4);
-    --text-primary: #e8e8ed;
-    --text-secondary: #9090a8;
-    --text-muted: #5a5a70;
-    --accent-purple: #667eea;
-    --accent-violet: #764ba2;
-    --accent-cyan: #00d4aa;
-    --accent-blue: #3b82f6;
-    --accent-orange: #ff9f43;
-    --accent-red: #ff6b6b;
-    --accent-green: #22c55e;
-    --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    --gradient-cyan: linear-gradient(135deg, #00d4aa 0%, #00a388 100%);
-    --gradient-neural: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(0, 212, 170, 0.08) 100%);
-    --shadow-glow: 0 0 40px rgba(102, 126, 234, 0.15);
-    --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.4);
-    --font-mono: 'JetBrains Mono', monospace;
-    --font-sans: 'Inter', -apple-system, sans-serif;
+    --module-accent: var(--archie-purple, #8b5cf6);
+    --module-accent-dim: var(--archie-purple-dim, #7048d4);
+    --module-accent-bright: var(--archie-purple-bright, #a78bfa);
+    --module-accent-alpha-10: var(--archie-purple-alpha-10, rgba(139, 92, 246, 0.1));
+    --module-accent-alpha-20: var(--archie-purple-alpha-20, rgba(139, 92, 246, 0.2));
+    --module-accent-alpha-30: var(--archie-purple-alpha-30, rgba(139, 92, 246, 0.3));
+    --module-glow: 0 0 20px rgba(139, 92, 246, 0.4), 0 0 40px rgba(139, 92, 246, 0.2);
 }
 
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-.consciousness-interface {
-    display: flex;
+/* Base Layout */
+.consciousness-container {
     min-height: 100vh;
-    background: var(--bg-void);
-    font-family: var(--font-sans);
-    color: var(--text-primary);
-    overflow: hidden;
+    background: var(--archie-bg-primary, #010409);
+    padding: var(--archie-space-6, 1.5rem);
+    font-family: var(--archie-font-body, 'JetBrains Mono', monospace);
+    color: var(--archie-text-secondary, #c9d1d9);
+    position: relative;
 }
 
-/* Neural Grid Background */
-.consciousness-interface::before {
+/* Atmospheric Background */
+.consciousness-container::before {
     content: '';
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-image:
-        radial-gradient(ellipse at 20% 30%, rgba(102, 126, 234, 0.06) 0%, transparent 50%),
-        radial-gradient(ellipse at 80% 70%, rgba(0, 212, 170, 0.04) 0%, transparent 50%),
-        linear-gradient(rgba(102, 126, 234, 0.02) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(102, 126, 234, 0.02) 1px, transparent 1px);
-    background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
+    inset: 0;
+    background:
+        radial-gradient(ellipse at 20% 0%, rgba(139, 92, 246, 0.04) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 100%, rgba(0, 255, 65, 0.02) 0%, transparent 50%);
     pointer-events: none;
     z-index: 0;
 }
 
-/* Neural Pulse Animation */
-@keyframes neural-pulse {
-    0%, 100% { opacity: 0.3; }
-    50% { opacity: 0.6; }
+/* Module Header */
+.module-header {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--archie-space-4, 1rem) var(--archie-space-6, 1.5rem);
+    background: linear-gradient(180deg, rgba(13, 17, 23, 0.95) 0%, rgba(1, 4, 9, 0.98) 100%);
+    border: 1px solid var(--archie-border-default, #30363d);
+    border-radius: var(--archie-radius-lg, 12px);
+    margin-bottom: var(--archie-space-6, 1.5rem);
 }
 
-@keyframes data-flow {
-    0% { background-position: 0% 50%; }
-    100% { background-position: 200% 50%; }
+.module-header::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 10%;
+    right: 10%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--module-accent), transparent);
 }
 
-@keyframes glow-pulse {
-    0%, 100% { box-shadow: 0 0 20px rgba(102, 126, 234, 0.2); }
-    50% { box-shadow: 0 0 40px rgba(102, 126, 234, 0.4); }
+.module-title {
+    display: flex;
+    align-items: center;
+    gap: var(--archie-space-3, 0.75rem);
 }
 
-@keyframes fade-in {
+.module-title h1 {
+    font-family: var(--archie-font-heading, 'Orbitron', sans-serif);
+    font-size: var(--archie-text-2xl, 1.5rem);
+    font-weight: 700;
+    color: var(--module-accent);
+    text-shadow: var(--module-glow);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin: 0;
+}
+
+.module-title .subtitle {
+    font-size: var(--archie-text-xs, 0.75rem);
+    color: var(--archie-text-muted, #6e7681);
+    letter-spacing: 1px;
+}
+
+.module-nav {
+    display: flex;
+    gap: var(--archie-space-2, 0.5rem);
+}
+
+.nav-link {
+    display: flex;
+    align-items: center;
+    gap: var(--archie-space-2, 0.5rem);
+    padding: var(--archie-space-2, 0.5rem) var(--archie-space-4, 1rem);
+    background: var(--archie-bg-tertiary, #161b22);
+    border: 1px solid var(--archie-border-default, #30363d);
+    border-radius: var(--archie-radius-md, 8px);
+    color: var(--archie-text-tertiary, #8b949e);
+    text-decoration: none;
+    font-size: var(--archie-text-sm, 0.875rem);
+    transition: all 0.2s ease;
+}
+
+.nav-link:hover {
+    border-color: var(--archie-green);
+    color: var(--archie-green);
+    background: var(--archie-green-alpha-10);
+}
+
+/* Tab Navigation */
+.tab-nav {
+    display: flex;
+    gap: var(--archie-space-2, 0.5rem);
+    margin-bottom: var(--archie-space-6, 1.5rem);
+    padding: var(--archie-space-2, 0.5rem);
+    background: var(--archie-bg-secondary, #0d1117);
+    border: 1px solid var(--archie-border-default, #30363d);
+    border-radius: var(--archie-radius-lg, 12px);
+    overflow-x: auto;
+    position: relative;
+    z-index: 10;
+}
+
+.tab-btn {
+    padding: var(--archie-space-3, 0.75rem) var(--archie-space-5, 1.25rem);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--archie-radius-md, 8px);
+    color: var(--archie-text-tertiary, #8b949e);
+    font-family: var(--archie-font-body, 'JetBrains Mono', monospace);
+    font-size: var(--archie-text-sm, 0.875rem);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.tab-btn:hover {
+    color: var(--module-accent);
+    background: var(--module-accent-alpha-10);
+}
+
+.tab-btn.active {
+    background: var(--module-accent-alpha-20);
+    border-color: var(--module-accent);
+    color: var(--module-accent);
+    box-shadow: var(--module-glow);
+}
+
+.tab-content {
+    display: none;
+    position: relative;
+    z-index: 10;
+}
+
+.tab-content.active {
+    display: block;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes slide-in-left {
-    from { opacity: 0; transform: translateX(-20px); }
-    to { opacity: 1; transform: translateX(0); }
-}
-
-/* ============================================
-   SIDEBAR
-   ============================================ */
-.consciousness-sidebar {
-    width: 280px;
-    background: var(--bg-secondary);
-    border-right: 1px solid var(--border-dim);
-    display: flex;
-    flex-direction: column;
-    z-index: 10;
-    position: relative;
-}
-
-.sidebar-header {
-    padding: 24px 20px;
-    border-bottom: 1px solid var(--border-dim);
-    background: var(--gradient-neural);
-}
-
-.brain-branding {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-}
-
-.brain-avatar {
-    width: 52px;
-    height: 52px;
-    border-radius: 14px;
-    background: var(--gradient-primary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 26px;
-    position: relative;
-    animation: glow-pulse 3s ease-in-out infinite;
-}
-
-.brain-avatar::after {
-    content: '';
-    position: absolute;
-    inset: -2px;
-    border-radius: 16px;
-    background: var(--gradient-primary);
-    opacity: 0.3;
-    filter: blur(8px);
-    z-index: -1;
-}
-
-.brain-info h1 {
-    font-size: 1.1rem;
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    margin-bottom: 4px;
-}
-
-.brain-info .subtitle {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-}
-
-/* Sidebar Stats */
-.sidebar-stats {
-    padding: 20px;
-    border-bottom: 1px solid var(--border-dim);
-}
-
-.stat-mini {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--border-dim);
-}
-
-.stat-mini:last-child {
-    border-bottom: none;
-}
-
-.stat-mini .label {
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-}
-
-.stat-mini .value {
-    font-family: var(--font-mono);
-    font-size: 1rem;
-    font-weight: 600;
-    background: var(--gradient-primary);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
-
-/* Sidebar Navigation */
-.sidebar-nav {
-    flex: 1;
-    padding: 16px 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.nav-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
-    background: transparent;
-    border: 1px solid transparent;
-    border-radius: 10px;
-    color: var(--text-secondary);
-    font-size: 0.9rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.nav-item:hover {
-    background: var(--bg-tertiary);
-    color: var(--text-primary);
-    border-color: var(--border-color);
-}
-
-.nav-item.active {
-    background: rgba(102, 126, 234, 0.1);
-    border-color: var(--accent-purple);
-    color: var(--text-primary);
-}
-
-.nav-item.active::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    width: 3px;
-    height: 24px;
-    background: var(--gradient-primary);
-    border-radius: 0 3px 3px 0;
-}
-
-.nav-item i {
-    width: 20px;
-    height: 20px;
-    opacity: 0.8;
-}
-
-.nav-item.active i {
-    opacity: 1;
-    color: var(--accent-purple);
-}
-
-/* Sidebar Footer */
-.sidebar-footer {
-    padding: 16px 20px;
-    border-top: 1px solid var(--border-dim);
-}
-
-.archie-link {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 16px;
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border-color);
-    border-radius: 10px;
-    color: var(--text-primary);
-    text-decoration: none;
-    font-size: 0.85rem;
-    transition: all 0.2s;
-}
-
-.archie-link:hover {
-    border-color: var(--accent-cyan);
-    background: rgba(0, 212, 170, 0.05);
-}
-
-.archie-link i {
-    color: var(--accent-cyan);
-}
-
-/* ============================================
-   MAIN CONTENT
-   ============================================ */
-.consciousness-main {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    position: relative;
-    z-index: 1;
-    overflow: hidden;
-}
-
-.main-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 20px 32px;
-    background: var(--bg-secondary);
-    border-bottom: 1px solid var(--border-dim);
-}
-
-.header-title {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.header-title h2 {
-    font-size: 1.25rem;
-    font-weight: 600;
-}
-
-.header-title .neural-badge {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 10px;
-    background: rgba(0, 212, 170, 0.1);
-    border: 1px solid rgba(0, 212, 170, 0.3);
-    border-radius: 20px;
-    font-size: 0.7rem;
-    color: var(--accent-cyan);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
-.neural-badge .pulse {
-    width: 6px;
-    height: 6px;
-    background: var(--accent-cyan);
-    border-radius: 50%;
-    animation: neural-pulse 2s ease-in-out infinite;
-}
-
-.header-actions {
-    display: flex;
-    gap: 12px;
-}
-
-.action-btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 16px;
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    color: var(--text-primary);
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: all 0.2s;
-    text-decoration: none;
-}
-
-.action-btn:hover {
-    border-color: var(--accent-purple);
-    background: rgba(102, 126, 234, 0.1);
-}
-
-.action-btn i {
-    width: 16px;
-    height: 16px;
-}
-
-/* Tab Content */
-.tab-content {
-    flex: 1;
-    padding: 24px 32px;
-    overflow-y: auto;
-}
-
-.tab-panel {
-    display: none;
-    animation: fade-in 0.3s ease;
-}
-
-.tab-panel.active {
-    display: block;
-}
-
-/* ============================================
-   STATS CARDS
-   ============================================ */
+/* Stats Grid */
 .stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 20px;
-    margin-bottom: 28px;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: var(--archie-space-4, 1rem);
+    margin-bottom: var(--archie-space-6, 1.5rem);
 }
 
 .stat-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border-dim);
-    border-radius: 14px;
-    padding: 24px;
-    position: relative;
-    overflow: hidden;
-    transition: all 0.3s ease;
-}
-
-.stat-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 3px;
-    background: var(--gradient-primary);
-    opacity: 0;
-    transition: opacity 0.3s;
+    background: var(--archie-bg-secondary, #0d1117);
+    border: 1px solid var(--archie-border-default, #30363d);
+    border-radius: var(--archie-radius-lg, 12px);
+    padding: var(--archie-space-5, 1.25rem);
+    text-align: center;
+    transition: all 0.2s ease;
 }
 
 .stat-card:hover {
-    border-color: var(--border-color);
-    transform: translateY(-2px);
+    border-color: var(--module-accent);
+    box-shadow: 0 0 20px var(--module-accent-alpha-20);
 }
-
-.stat-card:hover::before {
-    opacity: 1;
-}
-
-.stat-card.accent-cyan::before {
-    background: var(--gradient-cyan);
-}
-
-.stat-card.accent-orange::before {
-    background: linear-gradient(135deg, var(--accent-orange) 0%, #f59e0b 100%);
-}
-
-.stat-card.accent-green::before {
-    background: linear-gradient(135deg, var(--accent-green) 0%, #16a34a 100%);
-}
-
-.stat-icon {
-    width: 44px;
-    height: 44px;
-    border-radius: 12px;
-    background: var(--bg-elevated);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 16px;
-}
-
-.stat-icon i {
-    width: 22px;
-    height: 22px;
-    color: var(--accent-purple);
-}
-
-.stat-card.accent-cyan .stat-icon i { color: var(--accent-cyan); }
-.stat-card.accent-orange .stat-icon i { color: var(--accent-orange); }
-.stat-card.accent-green .stat-icon i { color: var(--accent-green); }
 
 .stat-value {
-    font-family: var(--font-mono);
-    font-size: 2.2rem;
-    font-weight: 600;
-    line-height: 1;
-    margin-bottom: 8px;
-    background: var(--gradient-primary);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
-
-.stat-card.accent-cyan .stat-value {
-    background: var(--gradient-cyan);
-    -webkit-background-clip: text;
+    font-family: var(--archie-font-heading, 'Orbitron', sans-serif);
+    font-size: var(--archie-text-2xl, 1.5rem);
+    font-weight: 700;
+    color: var(--module-accent);
+    text-shadow: 0 0 10px var(--module-accent-alpha-30);
 }
 
 .stat-label {
-    font-size: 0.8rem;
-    color: var(--text-muted);
+    font-size: var(--archie-text-xs, 0.75rem);
+    color: var(--archie-text-muted, #6e7681);
     text-transform: uppercase;
-    letter-spacing: 0.08em;
+    letter-spacing: 1px;
+    margin-top: var(--archie-space-1, 0.25rem);
 }
 
-.stat-trend {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    margin-top: 12px;
-    font-size: 0.75rem;
-    color: var(--accent-green);
-}
-
-.stat-trend.down {
-    color: var(--accent-red);
-}
-
-/* ============================================
-   CONTENT CARDS
-   ============================================ */
-.content-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border-dim);
-    border-radius: 14px;
-    margin-bottom: 24px;
+/* Cards & Panels */
+.panel {
+    background: var(--archie-bg-secondary, #0d1117);
+    border: 1px solid var(--archie-border-default, #30363d);
+    border-radius: var(--archie-radius-lg, 12px);
+    margin-bottom: var(--archie-space-6, 1.5rem);
     overflow: hidden;
 }
 
-.card-header {
+.panel-header {
+    padding: var(--archie-space-4, 1rem) var(--archie-space-5, 1.25rem);
+    border-bottom: 1px solid var(--archie-border-default, #30363d);
     display: flex;
+    align-items: center;
     justify-content: space-between;
-    align-items: center;
-    padding: 18px 24px;
-    border-bottom: 1px solid var(--border-dim);
-    background: var(--bg-elevated);
 }
 
-.card-header h3 {
-    font-size: 1rem;
+.panel-title {
+    font-family: var(--archie-font-heading, 'Orbitron', sans-serif);
+    font-size: var(--archie-text-base, 1rem);
     font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.card-header h3 i {
-    color: var(--accent-purple);
-    width: 18px;
-    height: 18px;
-}
-
-.card-body {
-    padding: 24px;
-}
-
-/* Knowledge Type Distribution */
-.type-distribution {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 16px;
-}
-
-.type-item {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.type-bar {
-    height: 8px;
-    background: var(--bg-tertiary);
-    border-radius: 4px;
-    overflow: hidden;
-}
-
-.type-bar-fill {
-    height: 100%;
-    border-radius: 4px;
-    transition: width 0.5s ease;
-}
-
-.type-bar-fill.vault { background: var(--accent-purple); }
-.type-bar-fill.memory { background: var(--accent-cyan); }
-.type-bar-fill.github { background: var(--accent-orange); }
-.type-bar-fill.code { background: var(--accent-green); }
-.type-bar-fill.mistake { background: var(--accent-red); }
-.type-bar-fill.improvement { background: var(--accent-blue); }
-
-.type-meta {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.type-name {
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-}
-
-.type-count {
-    font-family: var(--font-mono);
-    font-size: 0.85rem;
-    font-weight: 600;
-}
-
-/* ============================================
-   MEMORY BROWSER
-   ============================================ */
-.search-bar {
-    display: flex;
-    gap: 12px;
-    margin-bottom: 24px;
-}
-
-.search-input-wrapper {
-    flex: 1;
-    position: relative;
-}
-
-.search-input-wrapper i {
-    position: absolute;
-    left: 16px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--text-muted);
-    width: 18px;
-    height: 18px;
-}
-
-.search-input {
-    width: 100%;
-    padding: 14px 16px 14px 48px;
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: 10px;
-    color: var(--text-primary);
-    font-size: 0.95rem;
-    font-family: var(--font-sans);
-    transition: all 0.2s;
-}
-
-.search-input:focus {
-    outline: none;
-    border-color: var(--accent-purple);
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-.search-input::placeholder {
-    color: var(--text-muted);
-}
-
-.filter-select {
-    padding: 14px 20px;
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: 10px;
-    color: var(--text-primary);
-    font-size: 0.9rem;
-    cursor: pointer;
-    min-width: 160px;
-}
-
-.filter-select:focus {
-    outline: none;
-    border-color: var(--accent-purple);
-}
-
-/* Memory List */
-.memory-list {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.memory-item {
-    display: flex;
-    gap: 16px;
-    padding: 18px 20px;
-    background: var(--bg-card);
-    border: 1px solid var(--border-dim);
-    border-radius: 12px;
-    transition: all 0.2s;
-    cursor: pointer;
-}
-
-.memory-item:hover {
-    border-color: var(--border-color);
-    background: var(--bg-elevated);
-}
-
-.memory-type-icon {
-    width: 42px;
-    height: 42px;
-    border-radius: 10px;
-    background: var(--bg-tertiary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-.memory-type-icon i {
-    width: 20px;
-    height: 20px;
-    color: var(--accent-purple);
-}
-
-.memory-type-icon.vault i { color: var(--accent-purple); }
-.memory-type-icon.memory i { color: var(--accent-cyan); }
-.memory-type-icon.github i { color: var(--accent-orange); }
-.memory-type-icon.code i { color: var(--accent-green); }
-
-.memory-content {
-    flex: 1;
-    min-width: 0;
-}
-
-.memory-title {
-    font-size: 0.95rem;
-    font-weight: 500;
-    margin-bottom: 6px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.memory-preview {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    line-height: 1.5;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-}
-
-.memory-meta {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    margin-top: 10px;
-    font-size: 0.75rem;
-    color: var(--text-muted);
-}
-
-.memory-meta span {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.memory-meta i {
-    width: 12px;
-    height: 12px;
-}
-
-.importance-badge {
-    padding: 4px 10px;
-    border-radius: 20px;
-    font-size: 0.7rem;
-    font-weight: 500;
+    color: var(--module-accent);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 1px;
 }
 
-.importance-badge.high {
-    background: rgba(102, 126, 234, 0.15);
-    color: var(--accent-purple);
+.panel-body {
+    padding: var(--archie-space-5, 1.25rem);
 }
 
-.importance-badge.medium {
-    background: rgba(0, 212, 170, 0.15);
-    color: var(--accent-cyan);
-}
-
-.importance-badge.low {
-    background: rgba(90, 90, 112, 0.3);
-    color: var(--text-secondary);
-}
-
-/* ============================================
-   GITHUB LEARNING TAB
-   ============================================ */
-.github-form {
-    max-width: 600px;
-}
-
-.form-group {
-    margin-bottom: 24px;
-}
-
-.form-group label {
-    display: block;
-    font-size: 0.85rem;
-    font-weight: 500;
-    margin-bottom: 10px;
-    color: var(--text-secondary);
-}
-
-.form-input {
-    width: 100%;
-    padding: 14px 18px;
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: 10px;
-    color: var(--text-primary);
-    font-size: 0.95rem;
-    font-family: var(--font-sans);
-    transition: all 0.2s;
-}
-
-.form-input:focus {
-    outline: none;
-    border-color: var(--accent-purple);
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-.form-input::placeholder {
-    color: var(--text-muted);
-}
-
-textarea.form-input {
-    min-height: 120px;
-    resize: vertical;
-    font-family: var(--font-mono);
-    font-size: 0.9rem;
-    line-height: 1.6;
-}
-
-.form-select {
-    width: 100%;
-    padding: 14px 18px;
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: 10px;
-    color: var(--text-primary);
-    font-size: 0.95rem;
-    cursor: pointer;
-}
-
-.form-select:focus {
-    outline: none;
-    border-color: var(--accent-purple);
-}
-
-.form-hint {
-    font-size: 0.8rem;
-    color: var(--text-muted);
-    margin-top: 8px;
-}
-
-.btn-primary {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    padding: 14px 28px;
-    background: var(--gradient-primary);
-    border: none;
-    border-radius: 10px;
-    color: white;
-    font-size: 0.95rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.btn-primary:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.3);
-}
-
-.btn-primary:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: none;
-}
-
-.btn-primary i {
-    width: 18px;
-    height: 18px;
-}
-
-/* Indexed Files List */
-.indexed-list {
-    margin-top: 32px;
-}
-
-.indexed-item {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 14px 18px;
-    background: var(--bg-card);
-    border: 1px solid var(--border-dim);
-    border-radius: 10px;
-    margin-bottom: 10px;
-    transition: all 0.2s;
-}
-
-.indexed-item:hover {
-    border-color: var(--border-color);
-}
-
-.indexed-item i {
-    color: var(--accent-orange);
-    width: 18px;
-    height: 18px;
-}
-
-.indexed-path {
-    flex: 1;
-    font-family: var(--font-mono);
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-}
-
-.indexed-badge {
-    padding: 4px 10px;
-    background: rgba(0, 212, 170, 0.1);
-    border: 1px solid rgba(0, 212, 170, 0.3);
-    border-radius: 20px;
-    font-size: 0.7rem;
-    color: var(--accent-cyan);
-}
-
-/* ============================================
-   TEAM AWARENESS TAB
-   ============================================ */
-.agents-grid {
+/* Dashboard Grid */
+.dashboard-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 20px;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: var(--archie-space-5, 1.25rem);
 }
 
-.agent-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border-dim);
-    border-radius: 14px;
-    padding: 24px;
-    transition: all 0.3s;
+/* Chart Container */
+.chart-container {
+    background: var(--archie-bg-secondary, #0d1117);
+    border: 1px solid var(--archie-border-default, #30363d);
+    border-radius: var(--archie-radius-lg, 12px);
+    padding: var(--archie-space-5, 1.25rem);
 }
 
-.agent-card:hover {
-    border-color: var(--border-color);
-    transform: translateY(-2px);
+.chart-title {
+    font-family: var(--archie-font-heading, 'Orbitron', sans-serif);
+    font-size: var(--archie-text-sm, 0.875rem);
+    color: var(--module-accent);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: var(--archie-space-4, 1rem);
 }
 
-.agent-header {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    margin-bottom: 16px;
-}
-
-.agent-avatar {
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
-    background: var(--gradient-primary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 20px;
-}
-
-.agent-avatar.internal { background: var(--gradient-cyan); }
-.agent-avatar.contractor { background: linear-gradient(135deg, var(--accent-orange) 0%, #f59e0b 100%); }
-
-.agent-info h4 {
-    font-size: 1rem;
-    font-weight: 600;
-    margin-bottom: 4px;
-}
-
-.agent-role {
-    font-size: 0.8rem;
-    color: var(--text-muted);
-}
-
-.agent-stats {
+/* Emotional State Gauges */
+.emotional-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 12px;
-    padding-top: 16px;
-    border-top: 1px solid var(--border-dim);
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--archie-space-4, 1rem);
 }
 
-.agent-stat {
+.mood-indicator {
+    background: var(--archie-bg-secondary, #0d1117);
+    border: 1px solid var(--archie-border-default, #30363d);
+    border-radius: var(--archie-radius-lg, 12px);
+    padding: var(--archie-space-6, 1.5rem);
     text-align: center;
 }
 
-.agent-stat-value {
-    font-family: var(--font-mono);
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: var(--text-primary);
+.mood-emoji { font-size: 3rem; margin-bottom: var(--archie-space-2, 0.5rem); }
+.mood-label { font-family: var(--archie-font-heading, 'Orbitron', sans-serif); font-size: var(--archie-text-lg, 1.125rem); color: var(--module-accent); text-transform: capitalize; }
+
+.gauge-container {
+    background: var(--archie-bg-secondary, #0d1117);
+    border: 1px solid var(--archie-border-default, #30363d);
+    border-radius: var(--archie-radius-md, 8px);
+    padding: var(--archie-space-4, 1rem);
 }
 
-.agent-stat-label {
-    font-size: 0.7rem;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    margin-top: 4px;
-}
+.gauge-label { font-size: var(--archie-text-xs, 0.75rem); color: var(--archie-text-muted, #6e7681); text-transform: uppercase; letter-spacing: 1px; margin-bottom: var(--archie-space-2, 0.5rem); }
+.gauge-bar { height: 8px; background: var(--archie-bg-tertiary, #161b22); border-radius: 4px; overflow: hidden; }
+.gauge-fill { height: 100%; background: linear-gradient(90deg, var(--module-accent-dim), var(--module-accent-bright)); border-radius: 4px; transition: width 0.5s ease; }
+.gauge-value { font-family: var(--archie-font-heading, 'Orbitron', sans-serif); font-size: var(--archie-text-lg, 1.125rem); color: var(--module-accent); margin-top: var(--archie-space-2, 0.5rem); }
 
-.worker-type-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 10px;
-    border-radius: 20px;
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
+/* Activity Feed */
+.activity-feed { max-height: 500px; overflow-y: auto; }
+.activity-item { display: flex; gap: var(--archie-space-4, 1rem); padding: var(--archie-space-3, 0.75rem) var(--archie-space-4, 1rem); border-bottom: 1px solid var(--archie-border-subtle, #21262d); transition: background 0.2s ease; }
+.activity-item:hover { background: var(--module-accent-alpha-10); }
+.activity-icon { font-size: 1.5rem; flex-shrink: 0; }
+.activity-content { flex-grow: 1; min-width: 0; }
+.activity-title { color: var(--archie-text-secondary, #c9d1d9); font-weight: 500; }
+.activity-description { font-size: var(--archie-text-sm, 0.875rem); color: var(--archie-text-muted, #6e7681); margin-top: var(--archie-space-1, 0.25rem); }
+.activity-time { font-size: var(--archie-text-xs, 0.75rem); color: var(--archie-text-disabled, #484f58); margin-top: var(--archie-space-1, 0.25rem); }
+.activity-type { display: inline-block; font-size: var(--archie-text-xs, 0.75rem); padding: 2px 8px; border-radius: 10px; background: var(--module-accent-alpha-20); color: var(--module-accent); margin-left: var(--archie-space-2, 0.5rem); }
 
-.worker-type-badge.internal {
-    background: rgba(0, 212, 170, 0.15);
-    color: var(--accent-cyan);
-}
+/* Knowledge Graph */
+#knowledge-graph { width: 100%; height: 500px; background: var(--archie-bg-tertiary, #161b22); border-radius: var(--archie-radius-md, 8px); border: 1px solid var(--archie-border-default, #30363d); }
 
-.worker-type-badge.contractor {
-    background: rgba(255, 159, 67, 0.15);
-    color: var(--accent-orange);
-}
+/* Chat Interface */
+.chat-container { display: flex; flex-direction: column; height: calc(100vh - 280px); background: var(--archie-bg-secondary, #0d1117); border: 1px solid var(--archie-border-default, #30363d); border-radius: var(--archie-radius-lg, 12px); overflow: hidden; }
+.chat-header { padding: var(--archie-space-4, 1rem) var(--archie-space-5, 1.25rem); border-bottom: 1px solid var(--archie-border-default, #30363d); display: flex; align-items: center; gap: var(--archie-space-3, 0.75rem); background: var(--archie-bg-tertiary, #161b22); }
+.chat-avatar { width: 40px; height: 40px; border-radius: var(--archie-radius-md, 8px); background: linear-gradient(135deg, var(--module-accent), var(--archie-cyan)); display: flex; align-items: center; justify-content: center; font-size: 1.25rem; box-shadow: var(--module-glow); }
+.chat-info h3 { font-family: var(--archie-font-heading, 'Orbitron', sans-serif); font-size: var(--archie-text-base, 1rem); color: var(--module-accent); margin: 0; }
+.chat-info .status { font-size: var(--archie-text-xs, 0.75rem); color: var(--archie-text-muted, #6e7681); }
+.chat-messages { flex: 1; overflow-y: auto; padding: var(--archie-space-5, 1.25rem); display: flex; flex-direction: column; gap: var(--archie-space-4, 1rem); }
+.chat-message { display: flex; gap: var(--archie-space-3, 0.75rem); max-width: 85%; }
+.chat-message.user { margin-left: auto; flex-direction: row-reverse; }
+.chat-message .avatar { width: 32px; height: 32px; border-radius: var(--archie-radius-md, 8px); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.chat-message.archie .avatar { background: var(--module-accent); }
+.chat-message.user .avatar { background: var(--archie-cyan); }
+.chat-message .bubble { padding: var(--archie-space-3, 0.75rem) var(--archie-space-4, 1rem); border-radius: var(--archie-radius-lg, 12px); color: var(--archie-text-secondary, #c9d1d9); white-space: pre-wrap; word-break: break-word; }
+.chat-message.archie .bubble { background: var(--module-accent-alpha-10); border: 1px solid var(--module-accent-alpha-30); }
+.chat-message.user .bubble { background: var(--archie-cyan-alpha-10); border: 1px solid var(--archie-cyan-alpha-30); }
+.chat-input-area { padding: var(--archie-space-4, 1rem) var(--archie-space-5, 1.25rem); border-top: 1px solid var(--archie-border-default, #30363d); display: flex; gap: var(--archie-space-3, 0.75rem); background: var(--archie-bg-tertiary, #161b22); }
+.chat-input { flex: 1; background: var(--archie-bg-primary, #010409); border: 1px solid var(--archie-border-default, #30363d); border-radius: var(--archie-radius-md, 8px); padding: var(--archie-space-3, 0.75rem) var(--archie-space-4, 1rem); color: var(--archie-text-secondary, #c9d1d9); font-family: var(--archie-font-body, 'JetBrains Mono', monospace); font-size: var(--archie-text-sm, 0.875rem); }
+.chat-input:focus { outline: none; border-color: var(--module-accent); box-shadow: 0 0 0 2px var(--module-accent-alpha-20); }
+.chat-send-btn { background: var(--module-accent); border: none; border-radius: var(--archie-radius-md, 8px); padding: var(--archie-space-3, 0.75rem) var(--archie-space-6, 1.5rem); color: var(--archie-text-inverse, #010409); font-family: var(--archie-font-body, 'JetBrains Mono', monospace); font-weight: 600; cursor: pointer; transition: all 0.2s ease; }
+.chat-send-btn:hover { background: var(--module-accent-bright); box-shadow: var(--module-glow); }
+.typing-indicator { color: var(--module-accent); font-size: var(--archie-text-sm, 0.875rem); margin-left: auto; }
+.typing-dots span { animation: blink 1.4s infinite both; }
+.typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes blink { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; } }
 
-/* ============================================
-   LOADING STATES
-   ============================================ */
-.loading-skeleton {
-    background: linear-gradient(90deg, var(--bg-tertiary) 25%, var(--bg-elevated) 50%, var(--bg-tertiary) 75%);
-    background-size: 200% 100%;
-    animation: data-flow 1.5s ease-in-out infinite;
-    border-radius: 8px;
-}
+/* Buttons */
+.btn { display: inline-flex; align-items: center; gap: var(--archie-space-2, 0.5rem); padding: var(--archie-space-2, 0.5rem) var(--archie-space-4, 1rem); border-radius: var(--archie-radius-md, 8px); font-family: var(--archie-font-body, 'JetBrains Mono', monospace); font-size: var(--archie-text-sm, 0.875rem); cursor: pointer; transition: all 0.2s ease; text-decoration: none; border: 1px solid transparent; }
+.btn-primary { background: var(--module-accent-alpha-20); border-color: var(--module-accent); color: var(--module-accent); }
+.btn-primary:hover { background: var(--module-accent-alpha-30); box-shadow: var(--module-glow); }
+.btn-secondary { background: var(--archie-bg-tertiary, #161b22); border-color: var(--archie-border-default, #30363d); color: var(--archie-text-tertiary, #8b949e); }
+.btn-secondary:hover { border-color: var(--archie-text-tertiary); color: var(--archie-text-secondary); }
 
-.empty-state {
-    text-align: center;
-    padding: 60px 20px;
-    color: var(--text-muted);
-}
+/* Form Controls */
+.form-control { background: var(--archie-bg-primary, #010409); border: 1px solid var(--archie-border-default, #30363d); border-radius: var(--archie-radius-md, 8px); padding: var(--archie-space-3, 0.75rem); color: var(--archie-text-secondary, #c9d1d9); font-family: var(--archie-font-body, 'JetBrains Mono', monospace); width: 100%; }
+.form-control:focus { outline: none; border-color: var(--module-accent); box-shadow: 0 0 0 2px var(--module-accent-alpha-20); }
 
-.empty-state i {
-    width: 48px;
-    height: 48px;
-    margin-bottom: 16px;
-    opacity: 0.5;
-}
+/* Filter Buttons */
+.filter-group { display: flex; gap: var(--archie-space-2, 0.5rem); flex-wrap: wrap; margin-bottom: var(--archie-space-4, 1rem); }
+.filter-btn { padding: var(--archie-space-1, 0.25rem) var(--archie-space-3, 0.75rem); font-size: var(--archie-text-xs, 0.75rem); background: transparent; border: 1px solid var(--archie-border-default, #30363d); border-radius: 15px; color: var(--archie-text-muted, #6e7681); cursor: pointer; transition: all 0.2s ease; }
+.filter-btn:hover, .filter-btn.active { border-color: var(--module-accent); color: var(--module-accent); background: var(--module-accent-alpha-10); }
 
-.empty-state h4 {
-    font-size: 1.1rem;
-    margin-bottom: 8px;
-    color: var(--text-secondary);
-}
+/* Loading Spinner */
+.loading { display: flex; justify-content: center; align-items: center; padding: var(--archie-space-8, 2rem); }
+.spinner { width: 40px; height: 40px; border: 3px solid var(--archie-border-default, #30363d); border-top-color: var(--module-accent); border-radius: 50%; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 
-/* ============================================
-   TOAST NOTIFICATIONS
-   ============================================ */
-.toast-container {
-    position: fixed;
-    bottom: 24px;
-    right: 24px;
-    z-index: 10000;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
+/* Quick Access Cards */
+.quick-access-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--archie-space-4, 1rem); margin-top: var(--archie-space-6, 1.5rem); }
+.quick-card { background: var(--archie-bg-secondary, #0d1117); border: 1px solid var(--archie-border-default, #30363d); border-radius: var(--archie-radius-lg, 12px); padding: var(--archie-space-5, 1.25rem); transition: all 0.2s ease; }
+.quick-card:hover { border-color: var(--module-accent); box-shadow: 0 0 20px var(--module-accent-alpha-20); }
+.quick-card h3 { font-family: var(--archie-font-heading, 'Orbitron', sans-serif); font-size: var(--archie-text-base, 1rem); color: var(--module-accent); margin: 0 0 var(--archie-space-2, 0.5rem) 0; }
+.quick-card p { font-size: var(--archie-text-sm, 0.875rem); color: var(--archie-text-muted, #6e7681); margin: 0 0 var(--archie-space-4, 1rem) 0; }
 
-.toast {
-    padding: 14px 20px;
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    color: var(--text-primary);
-    font-size: 0.9rem;
-    box-shadow: var(--shadow-card);
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    animation: slide-in-left 0.3s ease;
-}
+/* Section Titles */
+.section-title { font-family: var(--archie-font-heading, 'Orbitron', sans-serif); font-size: var(--archie-text-sm, 0.875rem); color: var(--module-accent); text-transform: uppercase; letter-spacing: 2px; margin: var(--archie-space-6, 1.5rem) 0 var(--archie-space-4, 1rem) 0; }
 
-.toast.success { border-color: var(--accent-cyan); }
-.toast.error { border-color: var(--accent-red); }
-
-.toast i {
-    width: 18px;
-    height: 18px;
-}
-
-.toast.success i { color: var(--accent-cyan); }
-.toast.error i { color: var(--accent-red); }
-
-/* ============================================
-   RESPONSIVE
-   ============================================ */
-@media (max-width: 1024px) {
-    .consciousness-sidebar {
-        width: 240px;
-    }
-
-    .stats-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
-
+/* Responsive */
 @media (max-width: 768px) {
-    .consciousness-interface {
-        flex-direction: column;
-    }
-
-    .consciousness-sidebar {
-        width: 100%;
-        height: auto;
-        flex-direction: row;
-        flex-wrap: wrap;
-    }
-
-    .sidebar-header {
-        width: 100%;
-    }
-
-    .sidebar-stats {
-        display: none;
-    }
-
-    .sidebar-nav {
-        flex-direction: row;
-        width: 100%;
-        overflow-x: auto;
-        padding: 12px;
-    }
-
-    .nav-item {
-        flex-shrink: 0;
-    }
-
-    .tab-content {
-        padding: 16px;
-    }
-
-    .stats-grid {
-        grid-template-columns: 1fr;
-    }
-}
-
-/* ============================================
-   PHASE 62: BRIDGE ANALYTICS STYLES
-   ============================================ */
-.escalation-list {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.escalation-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 16px;
-    background: var(--bg-card);
-    border: 1px solid var(--border-dim);
-    border-radius: 12px;
-    transition: all 0.2s ease;
-}
-
-.escalation-item:hover {
-    border-color: var(--accent-purple);
-    background: var(--bg-elevated);
-}
-
-.escalation-info {
-    flex: 1;
-}
-
-.escalation-type {
-    font-weight: 600;
-    font-size: 14px;
-    color: var(--text-primary);
-    margin-bottom: 4px;
-}
-
-.escalation-module {
-    font-size: 12px;
-    color: var(--text-muted);
-    font-family: var(--font-mono);
-}
-
-.escalation-stats {
-    display: flex;
-    gap: 16px;
-    align-items: center;
-}
-
-.escalation-count {
-    font-size: 20px;
-    font-weight: 700;
-    color: var(--accent-orange);
-    font-family: var(--font-mono);
-}
-
-.escalation-cost {
-    font-size: 12px;
-    color: var(--text-secondary);
-}
-
-.recent-calls-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.call-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
-    background: var(--bg-card);
-    border: 1px solid var(--border-dim);
-    border-radius: 8px;
-    font-size: 13px;
-}
-
-.call-item .status-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
-}
-
-.call-item .status-dot.success { background: var(--accent-green); }
-.call-item .status-dot.failed { background: var(--accent-red); }
-.call-item .status-dot.escalated { background: var(--accent-orange); }
-
-.call-item .call-module {
-    font-weight: 500;
-    color: var(--text-primary);
-    min-width: 120px;
-}
-
-.call-item .call-preview {
-    flex: 1;
-    color: var(--text-secondary);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.call-item .call-time {
-    font-size: 11px;
-    color: var(--text-muted);
-    font-family: var(--font-mono);
-}
-
-/* ============================================
-   PHASE 62: AGENT SKILLS STYLES
-   ============================================ */
-.skills-list {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.skill-item {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 16px;
-    background: var(--bg-card);
-    border: 1px solid var(--border-dim);
-    border-radius: 12px;
-    transition: all 0.2s ease;
-}
-
-.skill-item:hover {
-    border-color: var(--accent-cyan);
-}
-
-.skill-avatar {
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
-    background: var(--gradient-primary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 18px;
-    font-weight: 700;
-    color: white;
-    flex-shrink: 0;
-}
-
-.skill-info {
-    flex: 1;
-    min-width: 0;
-}
-
-.skill-name {
-    font-weight: 600;
-    font-size: 14px;
-    color: var(--text-primary);
-    margin-bottom: 4px;
-}
-
-.skill-agent {
-    font-size: 12px;
-    color: var(--text-muted);
-}
-
-.skill-meta {
-    display: flex;
-    gap: 16px;
-    align-items: center;
-    font-size: 12px;
-    color: var(--text-secondary);
-    margin-top: 6px;
-}
-
-.skill-confidence {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    width: 140px;
-}
-
-.confidence-bar {
-    height: 6px;
-    background: var(--bg-tertiary);
-    border-radius: 3px;
-    overflow: hidden;
-}
-
-.confidence-fill {
-    height: 100%;
-    border-radius: 3px;
-    transition: width 0.3s ease;
-}
-
-.confidence-fill.mastered { background: var(--accent-green); }
-.confidence-fill.developing { background: var(--accent-cyan); }
-.confidence-fill.learning { background: var(--accent-orange); }
-
-.confidence-label {
-    font-size: 11px;
-    color: var(--text-muted);
-    text-align: right;
-}
-
-.skill-uses {
-    font-family: var(--font-mono);
-    font-size: 13px;
-    color: var(--text-secondary);
-}
-
-.skill-uses .success { color: var(--accent-green); }
-.skill-uses .failed { color: var(--accent-red); }
-
-/* ============================================
-   PHASE 62: SELF-IMPROVEMENT STYLES
-   ============================================ */
-.proposals-list {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-.proposal-item {
-    padding: 20px;
-    background: var(--bg-card);
-    border: 1px solid var(--border-dim);
-    border-radius: 12px;
-    transition: all 0.2s ease;
-}
-
-.proposal-item:hover {
-    border-color: var(--border-color);
-}
-
-.proposal-item.major {
-    border-left: 3px solid var(--accent-orange);
-}
-
-.proposal-item.approved {
-    border-left: 3px solid var(--accent-green);
-}
-
-.proposal-item.rejected {
-    border-left: 3px solid var(--accent-red);
-}
-
-.proposal-item.testing {
-    border-left: 3px solid var(--accent-cyan);
-}
-
-.proposal-item.deployed {
-    border-left: 3px solid var(--accent-purple);
-}
-
-.proposal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-}
-
-.proposal-title {
-    font-weight: 600;
-    font-size: 15px;
-    color: var(--text-primary);
-}
-
-.proposal-type {
-    font-size: 11px;
-    padding: 4px 10px;
-    background: var(--bg-tertiary);
-    border-radius: 6px;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    font-family: var(--font-mono);
-}
-
-.proposal-description {
-    font-size: 13px;
-    color: var(--text-secondary);
-    line-height: 1.6;
-    margin-bottom: 12px;
-}
-
-.proposal-meta {
-    display: flex;
-    gap: 20px;
-    font-size: 12px;
-    color: var(--text-muted);
-    margin-bottom: 16px;
-}
-
-.proposal-meta span {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.proposal-meta i {
-    width: 14px;
-    height: 14px;
-}
-
-.proposal-actions {
-    display: flex;
-    gap: 10px;
-}
-
-.proposal-actions button {
-    padding: 8px 16px;
-    border: none;
-    border-radius: 8px;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    transition: all 0.2s ease;
-}
-
-.proposal-actions button i {
-    width: 14px;
-    height: 14px;
-}
-
-.btn-approve {
-    background: var(--accent-green);
-    color: white;
-}
-
-.btn-approve:hover {
-    background: #1aa34a;
-    transform: translateY(-1px);
-}
-
-.btn-reject {
-    background: var(--bg-tertiary);
-    color: var(--text-secondary);
-    border: 1px solid var(--border-dim) !important;
-}
-
-.btn-reject:hover {
-    background: var(--accent-red);
-    color: white;
-    border-color: var(--accent-red) !important;
-}
-
-.btn-sandbox {
-    background: var(--bg-tertiary);
-    color: var(--accent-cyan);
-    border: 1px solid var(--accent-cyan) !important;
-}
-
-.btn-sandbox:hover {
-    background: rgba(0, 212, 170, 0.15);
-    transform: translateY(-1px);
-}
-
-/* Status badges for proposals */
-.status-badge {
-    display: inline-block;
-    padding: 4px 10px;
-    font-size: 11px;
-    font-weight: 600;
-    border-radius: 6px;
-    text-transform: uppercase;
-    font-family: var(--font-mono);
-}
-
-.status-badge.pending {
-    background: rgba(255, 159, 67, 0.15);
-    color: var(--accent-orange);
-}
-
-.status-badge.approved {
-    background: rgba(34, 197, 94, 0.15);
-    color: var(--accent-green);
-}
-
-.status-badge.rejected {
-    background: rgba(255, 107, 107, 0.15);
-    color: var(--accent-red);
-}
-
-.status-badge.testing {
-    background: rgba(0, 212, 170, 0.15);
-    color: var(--accent-cyan);
-}
-
-.status-badge.deployed {
-    background: rgba(102, 126, 234, 0.15);
-    color: var(--accent-purple);
-}
-
-/* Proposal list item (recent view) */
-.proposal-item .proposal-status-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    background: var(--bg-tertiary);
-}
-
-.proposal-item .proposal-status-icon i {
-    width: 20px;
-    height: 20px;
-}
-
-.proposal-item.approved .proposal-status-icon {
-    background: rgba(34, 197, 94, 0.15);
-    color: var(--accent-green);
-}
-
-.proposal-item.rejected .proposal-status-icon {
-    background: rgba(255, 107, 107, 0.15);
-    color: var(--accent-red);
-}
-
-.proposal-item.testing .proposal-status-icon {
-    background: rgba(0, 212, 170, 0.15);
-    color: var(--accent-cyan);
-}
-
-.proposal-item.deployed .proposal-status-icon {
-    background: rgba(102, 126, 234, 0.15);
-    color: var(--accent-purple);
-}
-
-.proposal-item .proposal-info {
-    flex: 1;
-    min-width: 0;
-}
-
-/* Recent proposals compact layout */
-.proposal-item:not(.major) {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 14px 16px;
-}
-
-.proposal-item:not(.major) .proposal-title {
-    margin-bottom: 4px;
-    font-size: 14px;
-}
-
-.proposal-item:not(.major) .proposal-meta {
-    margin-bottom: 0;
-}
-
-/* Category distribution styles */
-.category-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.category-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
-    background: var(--bg-card);
-    border-radius: 8px;
-}
-
-.category-name {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--text-primary);
-    min-width: 120px;
-}
-
-.category-bar {
-    flex: 1;
-    height: 8px;
-    background: var(--bg-tertiary);
-    border-radius: 4px;
-    overflow: hidden;
-}
-
-.category-fill {
-    height: 100%;
-    background: var(--gradient-primary);
-    border-radius: 4px;
-}
-
-.category-count {
-    font-family: var(--font-mono);
-    font-size: 12px;
-    color: var(--text-secondary);
-    min-width: 40px;
-    text-align: right;
+    .module-header { flex-direction: column; gap: var(--archie-space-4, 1rem); text-align: center; }
+    .module-nav { justify-content: center; }
+    .tab-nav { justify-content: flex-start; }
 }
 {% endblock %}
 
 {% block content %}
-<div class="toast-container" id="toastContainer"></div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
 
-<div class="consciousness-interface">
-    <!-- Sidebar -->
-    <aside class="consciousness-sidebar">
-        <div class="sidebar-header">
-            <div class="brain-branding">
-                <div class="brain-avatar">🧠</div>
-                <div class="brain-info">
-                    <h1>Consciousness</h1>
-                    <span class="subtitle">Knowledge & Memory</span>
-                </div>
+<div class="consciousness-container" data-module="consciousness">
+    <div class="module-header">
+        <div class="module-title">
+            <div>
+                <h1>🧠 A.R.C.H.I.E. CONSCIOUSNESS</h1>
+                <div class="subtitle">Neural Core • Dynamic Learning System • AI COMMAND</div>
             </div>
         </div>
+        <div class="module-nav">
+            <a href="{{ url_for('bridge.bridge_dashboard') }}" class="nav-link">🎛️ Bridge</a>
+            <a href="{{ url_for('team_management.index') }}" class="nav-link">👥 Team</a>
+        </div>
+    </div>
 
-        <div class="sidebar-stats">
-            <div class="stat-mini">
-                <span class="label">Total Knowledge</span>
-                <span class="value" id="statTotal">--</span>
+    <div class="tab-nav">
+        <button class="tab-btn active" data-tab="overview">📊 Overview</button>
+        <button class="tab-btn" data-tab="chat">💬 Chat</button>
+        <button class="tab-btn" data-tab="emotional">💜 Emotional</button>
+        <button class="tab-btn" data-tab="charts">📈 Charts</button>
+        <button class="tab-btn" data-tab="graph">🕸️ Graph</button>
+        <button class="tab-btn" data-tab="feed">📡 Feed</button>
+        <button class="tab-btn" data-tab="tools">🔧 Tools</button>
+    </div>
+
+    <div id="tab-overview" class="tab-content active">
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-value" id="stat-knowledge-total">-</div><div class="stat-label">Knowledge Entries</div></div>
+            <div class="stat-card"><div class="stat-value" id="stat-knowledge-24h">-</div><div class="stat-label">Added (24h)</div></div>
+            <div class="stat-card"><div class="stat-value" id="stat-agents">-</div><div class="stat-label">Active Agents</div></div>
+            <div class="stat-card"><div class="stat-value" id="stat-improvements">-</div><div class="stat-label">Improvements</div></div>
+            <div class="stat-card"><div class="stat-value" id="stat-llm-health">-</div><div class="stat-label">LLM Health</div></div>
+            <div class="stat-card"><div class="stat-value" id="stat-mood">-</div><div class="stat-label">Current Mood</div></div>
+        </div>
+        <div class="dashboard-grid">
+            <div class="chart-container"><div class="chart-title">📈 Knowledge Growth (7 days)</div><canvas id="growth-chart-mini" height="200"></canvas></div>
+            <div class="chart-container"><div class="chart-title">🎯 Knowledge by Type</div><canvas id="type-chart-mini" height="200"></canvas></div>
+        </div>
+        <h3 class="section-title">Quick Access</h3>
+        <div class="quick-access-grid">
+            <div class="quick-card"><h3>📚 Memory Management</h3><p>View and manage conversation memories</p><a href="{{ url_for('consciousness.memory') }}" class="btn btn-primary">View Memories</a></div>
+            <div class="quick-card"><h3>👥 Team Awareness</h3><p>Agent directory and performance tracking</p><a href="{{ url_for('consciousness.team_awareness') }}" class="btn btn-primary">View Team</a></div>
+            <div class="quick-card"><h3>📊 Full Analytics</h3><p>Detailed knowledge growth and usage metrics</p><a href="{{ url_for('consciousness.analytics') }}" class="btn btn-primary">View Analytics</a></div>
+            <div class="quick-card"><h3>🔍 Search Knowledge</h3><p>Search across all knowledge entries</p><form action="{{ url_for('consciousness.search_knowledge') }}" method="post"><input type="text" name="query" placeholder="Search knowledge base..." class="form-control"><button type="submit" class="btn btn-primary" style="margin-top: 0.5rem;">Search</button></form></div>
+        </div>
+    </div>
+
+    <div id="tab-chat" class="tab-content">
+        <div class="chat-container">
+            <div class="chat-header">
+                <div class="chat-avatar">🧠</div>
+                <div class="chat-info"><h3>A.R.C.H.I.E.</h3><div class="status">Autonomous Reasoning & Cognitive Hub</div></div>
+                <div id="archie-typing" class="typing-indicator" style="display: none;"><span class="typing-dots">Thinking<span>.</span><span>.</span><span>.</span></span></div>
             </div>
-            <div class="stat-mini">
-                <span class="label">Memories</span>
-                <span class="value" id="statMemories">--</span>
+            <div id="archie-chat-messages" class="chat-messages">
+                <div class="chat-message archie"><div class="avatar">🧠</div><div class="bubble">Hello! I'm A.R.C.H.I.E., your AI partner. I can help you with platform operations, answer questions about the system, or just have a conversation. What would you like to discuss?</div></div>
             </div>
-            <div class="stat-mini">
-                <span class="label">GitHub Files</span>
-                <span class="value" id="statGithub">--</span>
+            <div class="chat-input-area">
+                <input type="text" id="archie-chat-input" class="chat-input" placeholder="Talk to A.R.C.H.I.E...." onkeypress="if(event.key==='Enter') sendArchieMessage()">
+                <button onclick="sendArchieMessage()" class="chat-send-btn">Send</button>
             </div>
         </div>
+    </div>
 
-        <nav class="sidebar-nav">
-            <button class="nav-item active" data-tab="analytics" onclick="switchTab('analytics')">
-                <i data-lucide="bar-chart-3"></i>
-                Analytics
-            </button>
-            <button class="nav-item" data-tab="memory" onclick="switchTab('memory')">
-                <i data-lucide="database"></i>
-                Memory Browser
-            </button>
-            <button class="nav-item" data-tab="github" onclick="switchTab('github')">
-                <i data-lucide="github"></i>
-                GitHub Learning
-            </button>
-            <button class="nav-item" data-tab="team" onclick="switchTab('team')">
-                <i data-lucide="users"></i>
-                Team Awareness
-            </button>
-            <button class="nav-item" data-tab="bridge" onclick="switchTab('bridge')">
-                <i data-lucide="activity"></i>
-                Bridge Analytics
-            </button>
-            <button class="nav-item" data-tab="skills" onclick="switchTab('skills')">
-                <i data-lucide="graduation-cap"></i>
-                Agent Skills
-            </button>
-            <button class="nav-item" data-tab="improvements" onclick="switchTab('improvements')">
-                <i data-lucide="sparkles"></i>
-                Self-Improvement
-            </button>
-            <button class="nav-item" data-tab="agent-memory" onclick="switchTab('agent-memory')">
-                <i data-lucide="cpu"></i>
-                Agent Memory
-            </button>
-        </nav>
-
-        <div class="sidebar-footer">
-            <a href="/tools/archie-chat" class="archie-link">
-                <i data-lucide="message-circle"></i>
-                Chat with A.R.C.H.I.E.
-            </a>
+    <div id="tab-emotional" class="tab-content">
+        <div class="emotional-grid">
+            <div class="mood-indicator"><div class="mood-emoji" id="mood-emoji">🤔</div><div class="mood-label" id="mood-label">Loading...</div><div style="color: var(--archie-text-muted); font-size: 0.75rem; margin-top: 0.5rem;">Current State</div></div>
+            <div class="gauge-container"><div class="gauge-label">⚡ Energy Level</div><div class="gauge-bar"><div class="gauge-fill" id="energy-fill" style="width: 0%"></div></div><div class="gauge-value" id="energy-value">-</div></div>
+            <div class="gauge-container"><div class="gauge-label">🎯 Confidence Level</div><div class="gauge-bar"><div class="gauge-fill" id="confidence-fill" style="width: 0%"></div></div><div class="gauge-value" id="confidence-value">-</div></div>
+            <div class="gauge-container"><div class="gauge-label">💫 Stress Level</div><div class="gauge-bar"><div class="gauge-fill" id="stress-fill" style="width: 0%; background: linear-gradient(90deg, var(--archie-green), var(--archie-orange), var(--archie-red));"></div></div><div class="gauge-value" id="stress-value">-</div></div>
         </div>
-    </aside>
+        <div class="chart-container" style="margin-top: 1.5rem;"><div class="chart-title">💜 Emotional Timeline (7 days)</div><canvas id="emotional-timeline" height="250"></canvas></div>
+    </div>
 
-    <!-- Main Content -->
-    <main class="consciousness-main">
-        <header class="main-header">
-            <div class="header-title">
-                <h2 id="tabTitle">Analytics Dashboard</h2>
-                <div class="neural-badge">
-                    <span class="pulse"></span>
-                    Neural Active
+    <div id="tab-charts" class="tab-content">
+        <div class="dashboard-grid">
+            <div class="chart-container"><div class="chart-title">📈 Knowledge Growth (30 days)</div><canvas id="growth-chart" height="300"></canvas></div>
+            <div class="chart-container"><div class="chart-title">🎯 Knowledge by Type</div><canvas id="type-chart" height="300"></canvas></div>
+        </div>
+        <div class="dashboard-grid" style="margin-top: 1rem;">
+            <div class="chart-container"><div class="chart-title">📁 Knowledge by Category</div><canvas id="category-chart" height="300"></canvas></div>
+            <div class="chart-container"><div class="chart-title">⭐ Importance Distribution</div><canvas id="importance-chart" height="300"></canvas></div>
+        </div>
+    </div>
+
+    <div id="tab-graph" class="tab-content">
+        <div class="panel">
+            <div class="panel-header"><div class="panel-title">🕸️ Knowledge Graph Visualization</div></div>
+            <div class="panel-body">
+                <div class="filter-group">
+                    <button class="filter-btn active" data-type="all">All Types</button>
+                    <button class="filter-btn" data-type="vault_note">Vault Notes</button>
+                    <button class="filter-btn" data-type="mistake_learned">Mistakes</button>
+                    <button class="filter-btn" data-type="code_snippet">Code</button>
+                    <button class="filter-btn" data-type="github_file">GitHub</button>
                 </div>
-            </div>
-            <div class="header-actions">
-                <button class="action-btn" onclick="refreshData()">
-                    <i data-lucide="refresh-cw"></i>
-                    Refresh
-                </button>
-                <a href="/" class="action-btn">
-                    <i data-lucide="layout-dashboard"></i>
-                    Dashboard
-                </a>
-            </div>
-        </header>
-
-        <div class="tab-content">
-            <!-- Analytics Tab -->
-            <div id="tab-analytics" class="tab-panel active">
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-icon"><i data-lucide="brain"></i></div>
-                        <div class="stat-value" id="totalKnowledge">0</div>
-                        <div class="stat-label">Total Knowledge</div>
-                        <div class="stat-trend"><i data-lucide="trending-up"></i> Active</div>
-                    </div>
-                    <div class="stat-card accent-cyan">
-                        <div class="stat-icon"><i data-lucide="sparkles"></i></div>
-                        <div class="stat-value" id="memoriesCount">0</div>
-                        <div class="stat-label">Conversation Memories</div>
-                    </div>
-                    <div class="stat-card accent-orange">
-                        <div class="stat-icon"><i data-lucide="github"></i></div>
-                        <div class="stat-value" id="githubCount">0</div>
-                        <div class="stat-label">GitHub Files</div>
-                    </div>
-                    <div class="stat-card accent-green">
-                        <div class="stat-icon"><i data-lucide="file-text"></i></div>
-                        <div class="stat-value" id="vaultCount">0</div>
-                        <div class="stat-label">Vault Notes</div>
-                    </div>
-                </div>
-
-                <div class="content-card">
-                    <div class="card-header">
-                        <h3><i data-lucide="pie-chart"></i> Knowledge Distribution</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="type-distribution" id="typeDistribution">
-                            <!-- Populated by JS -->
-                        </div>
-                    </div>
-                </div>
-
-                <div class="content-card">
-                    <div class="card-header">
-                        <h3><i data-lucide="clock"></i> Recent Activity</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="memory-list" id="recentActivity">
-                            <div class="empty-state">
-                                <i data-lucide="inbox"></i>
-                                <h4>Loading recent activity...</h4>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Memory Browser Tab -->
-            <div id="tab-memory" class="tab-panel">
-                <div class="search-bar">
-                    <div class="search-input-wrapper">
-                        <i data-lucide="search"></i>
-                        <input type="text" class="search-input" id="memorySearch" placeholder="Search knowledge base..." onkeyup="searchMemories()">
-                    </div>
-                    <select class="filter-select" id="typeFilter" onchange="filterMemories()">
-                        <option value="">All Types</option>
-                        <option value="vault_note">Vault Notes</option>
-                        <option value="conversation_memory">Conversations</option>
-                        <option value="github_file">GitHub Files</option>
-                        <option value="code_snippet">Code Snippets</option>
-                        <option value="mistake_learned">Mistakes Learned</option>
-                    </select>
-                </div>
-
-                <div class="memory-list" id="memoryList">
-                    <div class="empty-state">
-                        <i data-lucide="search"></i>
-                        <h4>Search to browse memories</h4>
-                        <p>Enter a query above to search the knowledge base</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- GitHub Learning Tab -->
-            <div id="tab-github" class="tab-panel">
-                <div class="content-card">
-                    <div class="card-header">
-                        <h3><i data-lucide="download"></i> Index GitHub Repository</h3>
-                    </div>
-                    <div class="card-body">
-                        <form class="github-form" onsubmit="indexGithub(event)">
-                            <div class="form-group">
-                                <label>Repository URL</label>
-                                <input type="text" class="form-input" id="githubUrl" placeholder="https://github.com/user/repository">
-                                <p class="form-hint">Enter a public GitHub repository URL</p>
-                            </div>
-
-                            <div class="form-group">
-                                <label>Paths to Index (one per line)</label>
-                                <textarea class="form-input" id="githubPaths" placeholder="src/utils/&#10;docs/api.md&#10;README.md"></textarea>
-                                <p class="form-hint">Leave empty to index root level files</p>
-                            </div>
-
-                            <div class="form-group">
-                                <label>Priority Level</label>
-                                <select class="form-select" id="githubPriority">
-                                    <option value="high">High (1.1x weight in searches)</option>
-                                    <option value="medium">Medium (0.95x weight)</option>
-                                    <option value="low">Low (0.85x weight)</option>
-                                </select>
-                            </div>
-
-                            <button type="submit" class="btn-primary" id="indexBtn">
-                                <i data-lucide="brain"></i>
-                                Index to Consciousness
-                            </button>
-                        </form>
-                    </div>
-                </div>
-
-                <div class="content-card indexed-list">
-                    <div class="card-header">
-                        <h3><i data-lucide="folder-git-2"></i> Indexed Content</h3>
-                        <span id="indexedCount">0 files</span>
-                    </div>
-                    <div class="card-body" id="indexedFiles">
-                        <div class="empty-state">
-                            <i data-lucide="github"></i>
-                            <h4>No GitHub content indexed yet</h4>
-                            <p>Use the form above to add repositories</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Team Awareness Tab -->
-            <div id="tab-team" class="tab-panel">
-                <div class="stats-grid" style="margin-bottom: 32px;">
-                    <div class="stat-card">
-                        <div class="stat-icon"><i data-lucide="users"></i></div>
-                        <div class="stat-value" id="totalAgents">0</div>
-                        <div class="stat-label">Total Agents</div>
-                    </div>
-                    <div class="stat-card accent-cyan">
-                        <div class="stat-icon"><i data-lucide="cpu"></i></div>
-                        <div class="stat-value" id="internalAgents">0</div>
-                        <div class="stat-label">Internal Staff</div>
-                    </div>
-                    <div class="stat-card accent-orange">
-                        <div class="stat-icon"><i data-lucide="briefcase"></i></div>
-                        <div class="stat-value" id="contractorAgents">0</div>
-                        <div class="stat-label">Contractors</div>
-                    </div>
-                </div>
-
-                <div class="agents-grid" id="agentsList">
-                    <!-- Populated by JS -->
-                </div>
-            </div>
-
-            <!-- Bridge Analytics Tab -->
-            <div id="tab-bridge" class="tab-panel">
-                <div class="stats-grid" style="margin-bottom: 32px;">
-                    <div class="stat-card">
-                        <div class="stat-icon"><i data-lucide="activity"></i></div>
-                        <div class="stat-value" id="totalBridgeCalls">0</div>
-                        <div class="stat-label">Total Calls (30d)</div>
-                    </div>
-                    <div class="stat-card accent-cyan">
-                        <div class="stat-icon"><i data-lucide="check-circle"></i></div>
-                        <div class="stat-value" id="bridgeSuccessRate">0%</div>
-                        <div class="stat-label">Success Rate</div>
-                    </div>
-                    <div class="stat-card accent-orange">
-                        <div class="stat-icon"><i data-lucide="arrow-up-right"></i></div>
-                        <div class="stat-value" id="claudeEscalations">0</div>
-                        <div class="stat-label">Claude Escalations</div>
-                    </div>
-                    <div class="stat-card accent-green">
-                        <div class="stat-icon"><i data-lucide="coins"></i></div>
-                        <div class="stat-value" id="totalCost">$0</div>
-                        <div class="stat-label">Total Cost (30d)</div>
-                    </div>
-                </div>
-
-                <div class="content-card">
-                    <div class="card-header">
-                        <h3><i data-lucide="trending-up"></i> Escalation Patterns</h3>
-                        <span class="card-subtitle">Intent types that escalate to Claude most often</span>
-                    </div>
-                    <div class="card-body">
-                        <div class="escalation-list" id="escalationPatterns">
-                            <div class="empty-state">
-                                <i data-lucide="loader-2"></i>
-                                <h4>Loading escalation patterns...</h4>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="content-card">
-                    <div class="card-header">
-                        <h3><i data-lucide="list"></i> Recent Bridge Calls</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="bridge-log" id="recentBridgeCalls">
-                            <div class="empty-state">
-                                <i data-lucide="loader-2"></i>
-                                <h4>Loading bridge calls...</h4>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Agent Skills Tab -->
-            <div id="tab-skills" class="tab-panel">
-                <div class="stats-grid" style="margin-bottom: 32px;">
-                    <div class="stat-card">
-                        <div class="stat-icon"><i data-lucide="graduation-cap"></i></div>
-                        <div class="stat-value" id="totalSkillsLearned">0</div>
-                        <div class="stat-label">Skills Learned</div>
-                    </div>
-                    <div class="stat-card accent-cyan">
-                        <div class="stat-icon"><i data-lucide="award"></i></div>
-                        <div class="stat-value" id="masteredSkills">0</div>
-                        <div class="stat-label">Mastered (80%+)</div>
-                    </div>
-                    <div class="stat-card accent-orange">
-                        <div class="stat-icon"><i data-lucide="trending-up"></i></div>
-                        <div class="stat-value" id="developingSkills">0</div>
-                        <div class="stat-label">Developing</div>
-                    </div>
-                    <div class="stat-card accent-green">
-                        <div class="stat-icon"><i data-lucide="users"></i></div>
-                        <div class="stat-value" id="agentsWithSkills">0</div>
-                        <div class="stat-label">Agents Learning</div>
-                    </div>
-                </div>
-
-                <div class="content-card">
-                    <div class="card-header">
-                        <h3><i data-lucide="book-open"></i> Agent Skill Directory</h3>
-                        <span class="card-subtitle">Skills learned from Claude interactions</span>
-                    </div>
-                    <div class="card-body">
-                        <div class="skills-list" id="agentSkillsList">
-                            <div class="empty-state">
-                                <i data-lucide="loader-2"></i>
-                                <h4>Loading agent skills...</h4>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Self-Improvement Tab -->
-            <div id="tab-improvements" class="tab-panel">
-                <div class="stats-grid" style="margin-bottom: 32px;">
-                    <div class="stat-card">
-                        <div class="stat-icon"><i data-lucide="lightbulb"></i></div>
-                        <div class="stat-value" id="totalProposals">0</div>
-                        <div class="stat-label">Total Proposals</div>
-                    </div>
-                    <div class="stat-card accent-cyan">
-                        <div class="stat-icon"><i data-lucide="clock"></i></div>
-                        <div class="stat-value" id="pendingProposals">0</div>
-                        <div class="stat-label">Pending Review</div>
-                    </div>
-                    <div class="stat-card accent-green">
-                        <div class="stat-icon"><i data-lucide="check-circle"></i></div>
-                        <div class="stat-value" id="approvedProposals">0</div>
-                        <div class="stat-label">Approved</div>
-                    </div>
-                    <div class="stat-card accent-red">
-                        <div class="stat-icon"><i data-lucide="x-circle"></i></div>
-                        <div class="stat-value" id="rejectedProposals">0</div>
-                        <div class="stat-label">Rejected</div>
-                    </div>
-                </div>
-
-                <div class="content-card">
-                    <div class="card-header">
-                        <h3><i data-lucide="alert-triangle"></i> Pending Approval</h3>
-                        <span class="card-subtitle">Major changes requiring Kytran's approval</span>
-                    </div>
-                    <div class="card-body">
-                        <div class="proposals-list" id="pendingApprovals">
-                            <div class="empty-state">
-                                <i data-lucide="inbox"></i>
-                                <h4>No pending approvals</h4>
-                                <p>All major changes have been reviewed</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="content-card">
-                    <div class="card-header">
-                        <h3><i data-lucide="history"></i> Recent Proposals</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="proposals-list" id="recentProposals">
-                            <div class="empty-state">
-                                <i data-lucide="loader-2"></i>
-                                <h4>Loading proposals...</h4>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Agent Memory Tab (Phase 67: Per-Agent Memory Tables) -->
-            <div id="tab-agent-memory" class="tab-panel">
-                <div class="stats-grid" style="margin-bottom: 32px;">
-                    <div class="stat-card">
-                        <div class="stat-icon"><i data-lucide="brain"></i></div>
-                        <div class="stat-value" id="agentMemoryTotal">0</div>
-                        <div class="stat-label">Agent Memories</div>
-                    </div>
-                    <div class="stat-card accent-cyan">
-                        <div class="stat-icon"><i data-lucide="users"></i></div>
-                        <div class="stat-value" id="agentsWithMemory">0</div>
-                        <div class="stat-label">Agents w/ Memory</div>
-                    </div>
-                    <div class="stat-card accent-orange">
-                        <div class="stat-icon"><i data-lucide="shield"></i></div>
-                        <div class="stat-value" id="immuneMemories">0</div>
-                        <div class="stat-label">Decay Immune</div>
-                    </div>
-                    <div class="stat-card accent-red">
-                        <div class="stat-icon"><i data-lucide="trash-2"></i></div>
-                        <div class="stat-value" id="deletedMemories">0</div>
-                        <div class="stat-label">Soft Deleted</div>
-                    </div>
-                </div>
-
-                <div class="content-card">
-                    <div class="card-header">
-                        <h3><i data-lucide="search"></i> Browse Agent Memories</h3>
-                        <div class="header-controls">
-                            <select id="agentMemoryFilter" class="search-input" style="width: 200px;" onchange="loadAgentMemories()">
-                                <option value="">All Agents</option>
-                            </select>
-                            <select id="memoryTypeFilter" class="search-input" style="width: 150px;" onchange="loadAgentMemories()">
-                                <option value="">All Types</option>
-                                <option value="observation">Observations</option>
-                                <option value="learning">Learnings</option>
-                                <option value="interaction">Interactions</option>
-                                <option value="preference">Preferences</option>
-                                <option value="error">Errors</option>
-                            </select>
-                            <label class="checkbox-label" style="display: flex; align-items: center; gap: 6px; color: var(--text-secondary);">
-                                <input type="checkbox" id="showDeletedMemories" onchange="loadAgentMemories()">
-                                Show Deleted
-                            </label>
-                        </div>
-                    </div>
-                    <div class="card-body">
-                        <div class="memories-list" id="agentMemoriesList">
-                            <div class="empty-state">
-                                <i data-lucide="loader-2"></i>
-                                <h4>Loading agent memories...</h4>
-                            </div>
-                        </div>
-                        <div class="pagination-controls" id="agentMemoryPagination" style="display: none;">
-                            <button class="action-btn" onclick="loadAgentMemories(currentAgentMemoryOffset - 50)">
-                                <i data-lucide="chevron-left"></i> Previous
-                            </button>
-                            <span class="pagination-info"></span>
-                            <button class="action-btn" onclick="loadAgentMemories(currentAgentMemoryOffset + 50)">
-                                Next <i data-lucide="chevron-right"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="content-card">
-                    <div class="card-header">
-                        <h3><i data-lucide="pie-chart"></i> Memory Type Distribution</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="type-distribution" id="agentMemoryTypes">
-                            <!-- Populated by JS -->
-                        </div>
-                    </div>
-                </div>
+                <div id="knowledge-graph"></div>
+                <div id="graph-tooltip" style="display:none; position:absolute; background:var(--archie-bg-secondary); border:1px solid var(--module-accent); padding:0.5rem; border-radius:4px; color:var(--archie-text-secondary); font-size:0.85rem; pointer-events:none; z-index:1000;"></div>
             </div>
         </div>
-    </main>
+    </div>
+
+    <div id="tab-feed" class="tab-content">
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">📡 Live Activity Feed</div>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <select id="feed-hours" class="form-control" style="width: auto;"><option value="1">Last Hour</option><option value="6">Last 6 Hours</option><option value="24" selected>Last 24 Hours</option></select>
+                    <button class="btn btn-secondary" onclick="loadActivityFeed()">🔄 Refresh</button>
+                </div>
+            </div>
+            <div class="panel-body">
+                <div class="filter-group" id="feed-filters">
+                    <button class="filter-btn active" data-type="">All</button>
+                    <button class="filter-btn" data-type="knowledge">📚 Knowledge</button>
+                    <button class="filter-btn" data-type="execution">▶️ Executions</button>
+                    <button class="filter-btn" data-type="improvement">💡 Improvements</button>
+                    <button class="filter-btn" data-type="session">💬 Sessions</button>
+                    <button class="filter-btn" data-type="llm_alert">🚨 Alerts</button>
+                </div>
+                <div class="activity-feed" id="activity-feed"><div class="loading"><div class="spinner"></div></div></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab-tools" class="tab-content">
+        <div class="quick-access-grid">
+            <div class="quick-card"><h3>📚 Memory Management</h3><p>View and manage conversation memories</p><a href="{{ url_for('consciousness.memory') }}" class="btn btn-primary">View Memories</a></div>
+            <div class="quick-card"><h3>👥 Team Awareness</h3><p>Agent directory and performance tracking</p><a href="{{ url_for('consciousness.team_awareness') }}" class="btn btn-primary">View Team</a></div>
+            <div class="quick-card"><h3>📊 Full Analytics</h3><p>Detailed knowledge growth and usage metrics</p><a href="{{ url_for('consciousness.analytics') }}" class="btn btn-primary">View Analytics</a></div>
+            <div class="quick-card"><h3>🔍 Search Knowledge</h3><p>Search across all knowledge entries</p><form action="{{ url_for('consciousness.search_knowledge') }}" method="post"><input type="text" name="query" placeholder="Search knowledge base..." class="form-control"><button type="submit" class="btn btn-primary" style="margin-top: 0.5rem;">Search</button></form></div>
+        </div>
+    </div>
 </div>
 
-<script src="https://unpkg.com/lucide@latest"></script>
 <script>
-// Initialize Lucide icons
-lucide.createIcons();
-
-// Tab switching
-function switchTab(tabId) {
-    // Update nav items
-    document.querySelectorAll('.nav-item').forEach(btn => {
-        btn.classList.remove('active');
-        if (btn.dataset.tab === tabId) btn.classList.add('active');
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+        if (btn.dataset.tab === 'emotional') loadEmotionalData();
+        if (btn.dataset.tab === 'charts') loadChartData();
+        if (btn.dataset.tab === 'graph') loadKnowledgeGraph();
+        if (btn.dataset.tab === 'feed') loadActivityFeed();
     });
+});
 
-    // Update tab panels
-    document.querySelectorAll('.tab-panel').forEach(panel => {
-        panel.classList.remove('active');
+document.querySelectorAll('#feed-filters .filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('#feed-filters .filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        loadActivityFeed(btn.dataset.type);
     });
-    document.getElementById('tab-' + tabId).classList.add('active');
+});
 
-    // Update title
-    const titles = {
-        analytics: 'Analytics Dashboard',
-        memory: 'Memory Browser',
-        github: 'GitHub Learning',
-        team: 'Team Awareness',
-        bridge: 'Bridge Analytics',
-        skills: 'Agent Skills',
-        improvements: 'Self-Improvement',
-        'agent-memory': 'Agent Memory Browser'
-    };
-    document.getElementById('tabTitle').textContent = titles[tabId];
+let growthChartMini, typeChartMini, growthChart, typeChart, categoryChart, importanceChart, emotionalTimeline;
+const chartColors = { primary: '#8b5cf6', secondary: '#00ffff', success: '#00ff41', warning: '#ffaa00', danger: '#ff6b6b', info: '#0ea5e9' };
+const moodEmojis = { 'happy': '😊', 'curious': '🤔', 'focused': '🎯', 'neutral': '😐', 'confused': '😕', 'frustrated': '😤', 'supportive': '💜', 'excited': '🎉' };
 
-    // Load tab-specific data
-    if (tabId === 'memory') loadMemories();
-    if (tabId === 'github') loadIndexedFiles();
-    if (tabId === 'team') loadAgents();
-    if (tabId === 'bridge') loadBridgeAnalytics();
-    if (tabId === 'skills') loadAgentSkills();
-    if (tabId === 'improvements') loadImprovements();
-    if (tabId === 'agent-memory') loadAgentMemories();
-}
-
-// Toast notifications
-function showToast(message, type = 'success') {
-    const container = document.getElementById('toastContainer');
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    toast.innerHTML = `
-        <i data-lucide="${type === 'success' ? 'check-circle' : 'x-circle'}"></i>
-        <span>${message}</span>
-    `;
-    container.appendChild(toast);
-    lucide.createIcons();
-    setTimeout(() => toast.remove(), 4000);
-}
-
-// Load stats
 async function loadStats() {
     try {
-        const response = await fetch('/tools/consciousness/stats');
+        const response = await fetch('/tools/consciousness/activity-stats', {credentials: 'same-origin'});
         const data = await response.json();
-
         if (data.success) {
-            const stats = data.stats || {};
-            const sources = stats.knowledge_sources || {};
-
-            // Calculate totals from knowledge_sources
-            const totalKnowledge = stats.total_knowledge || 0;
-            const memoriesCount = sources.long_term_memories || 0;
-            const githubCount = sources.learning_resources || 0;
-            const aiConversations = sources.ai_conversations || 0;
-
-            // Get vault notes from categories (if available)
-            const categories = stats.categories || [];
-            const vaultCategory = categories.find(c => c.category === 'knowledge' || c.category === 'vault');
-            const vaultCount = vaultCategory?.count || sources.codebase_knowledge || 0;
-
-            // Update sidebar stats
-            document.getElementById('statTotal').textContent = totalKnowledge.toLocaleString();
-            document.getElementById('statMemories').textContent = memoriesCount.toLocaleString();
-            document.getElementById('statGithub').textContent = githubCount.toLocaleString();
-
-            // Update main stats cards
-            document.getElementById('totalKnowledge').textContent = totalKnowledge.toLocaleString();
-            document.getElementById('memoriesCount').textContent = memoriesCount.toLocaleString();
-            document.getElementById('githubCount').textContent = githubCount.toLocaleString();
-            document.getElementById('vaultCount').textContent = vaultCount.toLocaleString();
-
-            // Build type distribution from memory_types and categories
-            const byType = {};
-
-            // Add from memory_types
-            (stats.memory_types || []).forEach(mt => {
-                const key = mt.memory_type || 'unknown';
-                byType[key] = (byType[key] || 0) + (mt.count || 0);
-            });
-
-            // Add from categories
-            categories.forEach(cat => {
-                const key = cat.category || 'unknown';
-                if (!byType[key]) {
-                    byType[key] = cat.count || 0;
-                }
-            });
-
-            // Add knowledge sources
-            byType['github_file'] = githubCount;
-            byType['conversation_memory'] = aiConversations;
-            byType['long_term_memory'] = memoriesCount;
-
-            renderTypeDistribution(byType, totalKnowledge);
-
-            // Store recent memories for activity feed
-            window.recentMemoriesData = stats.recent_memories || [];
-            window.recentLearningResources = stats.recent_learning_resources || [];
-
-            // Render recent activity from stats data
-            renderRecentActivityFromStats(stats);
+            document.getElementById('stat-knowledge-total').textContent = (data.stats.knowledge_total || 0).toLocaleString();
+            document.getElementById('stat-knowledge-24h').textContent = '+' + (data.stats.knowledge_24h || 0);
+            document.getElementById('stat-agents').textContent = data.stats.agents_active || 0;
+            document.getElementById('stat-improvements').textContent = data.stats.improvements_total || 0;
+            if (data.llm_health && data.llm_health.total) document.getElementById('stat-llm-health').textContent = (data.llm_health.online || 0) + '/' + data.llm_health.total;
+            if (data.emotional_state) document.getElementById('stat-mood').textContent = moodEmojis[data.emotional_state.mood] || '🤔';
         }
-    } catch (e) {
-        console.log('Stats load error:', e);
-    }
+    } catch (e) { console.error('Error loading stats:', e); }
 }
 
-function renderTypeDistribution(byType, totalKnowledge) {
-    const container = document.getElementById('typeDistribution');
-    const total = totalKnowledge || Object.values(byType).reduce((a, b) => a + b, 0) || 1;
-
-    // Map various category names to display types
-    const typeConfig = [
-        { keys: ['long_term_memory', 'memory', 'long_term'], name: 'Long-term Memory', class: 'vault' },
-        { keys: ['conversation_memory', 'conversation', 'ai_conversation'], name: 'Conversations', class: 'memory' },
-        { keys: ['github_file', 'github', 'learning_resources'], name: 'GitHub/Learning', class: 'github' },
-        { keys: ['code_snippet', 'code', 'codebase'], name: 'Code Snippets', class: 'code' },
-        { keys: ['knowledge', 'vault_note', 'vault'], name: 'Knowledge Base', class: 'vault' },
-        { keys: ['solution', 'improvement'], name: 'Solutions', class: 'improvement' }
-    ];
-
-    // Calculate counts for each type
-    const typeData = typeConfig.map(config => {
-        let count = 0;
-        config.keys.forEach(key => {
-            count += byType[key] || 0;
-        });
-        return { ...config, count };
-    }).filter(t => t.count > 0); // Only show types with data
-
-    // If no data, show all types with 0
-    if (typeData.length === 0) {
-        typeData.push(
-            { name: 'Long-term Memory', class: 'vault', count: 0 },
-            { name: 'Conversations', class: 'memory', count: 0 },
-            { name: 'GitHub/Learning', class: 'github', count: 0 },
-            { name: 'Code Snippets', class: 'code', count: 0 }
-        );
-    }
-
-    container.innerHTML = typeData.map(t => {
-        const percent = Math.round((t.count / total) * 100) || 0;
-        return `
-            <div class="type-item">
-                <div class="type-bar">
-                    <div class="type-bar-fill ${t.class}" style="width: ${Math.max(percent, 2)}%"></div>
-                </div>
-                <div class="type-meta">
-                    <span class="type-name">${t.name}</span>
-                    <span class="type-count">${t.count.toLocaleString()} (${percent}%)</span>
-                </div>
-            </div>
-        `;
-    }).join('');
-}
-
-// Render recent activity from stats data (no separate API call needed)
-function renderRecentActivityFromStats(stats) {
-    const container = document.getElementById('recentActivity');
-    const recentMemories = stats.recent_memories || [];
-    const recentLearning = stats.recent_learning_resources || [];
-
-    // Combine and sort by date
-    const allRecent = [
-        ...recentMemories.map(m => ({
-            type: 'memory',
-            title: m.content?.substring(0, 60) || 'Memory',
-            content: m.content || '',
-            category: m.category || m.memory_type || 'memory',
-            created_at: m.created_at,
-            importance_score: m.importance_score || 0.5
-        })),
-        ...recentLearning.map(r => ({
-            type: 'learning',
-            title: r.title || r.file_name || 'Learning Resource',
-            content: r.file_path || '',
-            category: r.knowledge_type || r.repo_type || 'github_file',
-            created_at: r.indexed_at,
-            importance_score: 0.7
-        }))
-    ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 8);
-
-    if (allRecent.length > 0) {
-        container.innerHTML = allRecent.map(item => renderActivityItem(item)).join('');
-        lucide.createIcons();
-    } else {
-        container.innerHTML = '<div class="empty-state"><i data-lucide="inbox"></i><h4>No recent activity</h4><p>Knowledge will appear here as it\'s added</p></div>';
-        lucide.createIcons();
-    }
-}
-
-function renderActivityItem(item) {
-    const typeIcons = {
-        memory: 'brain',
-        learning: 'github',
-        code_snippet: 'code',
-        conversation: 'message-circle',
-        knowledge: 'file-text',
-        github_file: 'github',
-        solution: 'lightbulb',
-        website: 'globe'
-    };
-    const icon = typeIcons[item.category] || typeIcons[item.type] || 'file';
-
-    return `
-        <div class="memory-item">
-            <div class="memory-type-icon ${item.category}">
-                <i data-lucide="${icon}"></i>
-            </div>
-            <div class="memory-content">
-                <div class="memory-title">${item.title}</div>
-                <div class="memory-preview">${item.content.substring(0, 120)}${item.content.length > 120 ? '...' : ''}</div>
-                <div class="memory-meta">
-                    <span><i data-lucide="tag"></i> ${item.category}</span>
-                    <span><i data-lucide="calendar"></i> ${item.created_at ? new Date(item.created_at).toLocaleDateString() : 'Recently'}</span>
-                    <span class="importance-badge ${item.importance_score > 0.8 ? 'high' : item.importance_score > 0.5 ? 'medium' : 'low'}">
-                        ${item.importance_score > 0.8 ? 'High' : item.importance_score > 0.5 ? 'Medium' : 'Low'}
-                    </span>
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-// Load recent activity (now uses data from loadStats, kept for manual refresh)
-async function loadRecentActivity() {
-    // If we have cached data from stats, use it
-    if (window.recentMemoriesData || window.recentLearningResources) {
-        renderRecentActivityFromStats({
-            recent_memories: window.recentMemoriesData || [],
-            recent_learning_resources: window.recentLearningResources || []
-        });
-        return;
-    }
-
-    // Fallback: show loading state
-    const container = document.getElementById('recentActivity');
-    container.innerHTML = '<div class="empty-state"><i data-lucide="loader-2"></i><h4>Loading...</h4></div>';
-    lucide.createIcons();
-}
-
-function renderMemoryItem(m) {
-    const typeIcons = {
-        vault_note: 'file-text',
-        conversation_memory: 'message-circle',
-        github_file: 'github',
-        code_snippet: 'code',
-        mistake_learned: 'alert-triangle',
-        improvement: 'sparkles'
-    };
-    const icon = typeIcons[m.knowledge_type] || 'file';
-    const typeClass = m.knowledge_type?.replace('_', '-') || '';
-
-    return `
-        <div class="memory-item">
-            <div class="memory-type-icon ${typeClass}">
-                <i data-lucide="${icon}"></i>
-            </div>
-            <div class="memory-content">
-                <div class="memory-title">${m.title || 'Untitled'}</div>
-                <div class="memory-preview">${(m.content || '').substring(0, 150)}...</div>
-                <div class="memory-meta">
-                    <span><i data-lucide="tag"></i> ${m.knowledge_type || 'unknown'}</span>
-                    <span><i data-lucide="calendar"></i> ${new Date(m.created_at).toLocaleDateString()}</span>
-                    <span class="importance-badge ${m.importance_score > 0.8 ? 'high' : m.importance_score > 0.5 ? 'medium' : 'low'}">
-                        ${m.importance_score > 0.8 ? 'High' : m.importance_score > 0.5 ? 'Medium' : 'Low'}
-                    </span>
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-// Memory Browser
-async function loadMemories() {
-    await searchMemories();
-}
-
-async function searchMemories() {
-    const query = document.getElementById('memorySearch').value;
-    const type = document.getElementById('typeFilter').value;
-
-    if (!query && !type) return;
-
+async function loadMiniCharts() {
     try {
-        const response = await fetch('/tools/consciousness/search', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query, type, limit: 20 })
-        });
+        const response = await fetch('/tools/consciousness/stats', {credentials: 'same-origin'});
         const data = await response.json();
-
-        const container = document.getElementById('memoryList');
-        if (data.success && data.results?.length) {
-            container.innerHTML = data.results.map(m => renderMemoryItem(m)).join('');
-            lucide.createIcons();
-        } else {
-            container.innerHTML = '<div class="empty-state"><i data-lucide="search"></i><h4>No results found</h4></div>';
-            lucide.createIcons();
-        }
-    } catch (e) {
-        console.log('Search error:', e);
-    }
-}
-
-function filterMemories() {
-    searchMemories();
-}
-
-// GitHub Learning
-async function indexGithub(e) {
-    e.preventDefault();
-
-    const url = document.getElementById('githubUrl').value.trim();
-    const paths = document.getElementById('githubPaths').value.split('\n').filter(p => p.trim());
-    const priority = document.getElementById('githubPriority').value;
-
-    if (!url) {
-        showToast('Please enter a repository URL', 'error');
-        return;
-    }
-
-    const btn = document.getElementById('indexBtn');
-    btn.disabled = true;
-    btn.innerHTML = '<i data-lucide="loader-2" class="animate-spin"></i> Indexing...';
-
-    try {
-        const response = await fetch('/tools/consciousness/github/index-selective', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ repo_url: url, paths, priority })
-        });
-        const data = await response.json();
-
-        if (data.success) {
-            showToast(`Indexed ${data.indexed_count} files from ${data.repo}`, 'success');
-            document.getElementById('githubUrl').value = '';
-            document.getElementById('githubPaths').value = '';
-            loadIndexedFiles();
-        } else {
-            showToast(data.error || 'Failed to index', 'error');
-        }
-    } catch (e) {
-        showToast('Error indexing repository', 'error');
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = '<i data-lucide="brain"></i> Index to Consciousness';
-        lucide.createIcons();
-    }
-}
-
-async function loadIndexedFiles() {
-    try {
-        const response = await fetch('/tools/consciousness/github/indexed');
-        const data = await response.json();
-
-        const container = document.getElementById('indexedFiles');
-        const countEl = document.getElementById('indexedCount');
-
-        if (data.success && data.items?.length) {
-            countEl.textContent = `${data.stats?.total || data.items.length} files`;
-            container.innerHTML = data.items.slice(0, 20).map(item => `
-                <div class="indexed-item">
-                    <i data-lucide="file-code"></i>
-                    <span class="indexed-path">${item.file_path}</span>
-                    ${item.has_embedding ? '<span class="indexed-badge">Embedded</span>' : ''}
-                </div>
-            `).join('');
-            lucide.createIcons();
-        } else {
-            countEl.textContent = '0 files';
-            container.innerHTML = '<div class="empty-state"><i data-lucide="github"></i><h4>No GitHub content indexed yet</h4></div>';
-            lucide.createIcons();
-        }
-    } catch (e) {
-        console.log('Indexed files error:', e);
-    }
-}
-
-// Team Awareness
-async function loadAgents() {
-    try {
-        const response = await fetch('/tools/consciousness/team/agents');
-        const data = await response.json();
-
-        if (data.success && data.agents) {
-            const agents = data.agents;
-            const internal = agents.filter(a => a.worker_type === 'internal');
-            const contractors = agents.filter(a => a.worker_type === 'contractor');
-
-            document.getElementById('totalAgents').textContent = agents.length;
-            document.getElementById('internalAgents').textContent = internal.length;
-            document.getElementById('contractorAgents').textContent = contractors.length;
-
-            const container = document.getElementById('agentsList');
-            container.innerHTML = agents.slice(0, 12).map(a => `
-                <div class="agent-card">
-                    <div class="agent-header">
-                        <div class="agent-avatar ${a.worker_type}">${a.name?.charAt(0) || '?'}</div>
-                        <div class="agent-info">
-                            <h4>${a.name}</h4>
-                            <span class="agent-role">${a.role || a.agent_type || 'Agent'}</span>
-                        </div>
-                    </div>
-                    <span class="worker-type-badge ${a.worker_type}">
-                        <i data-lucide="${a.worker_type === 'internal' ? 'cpu' : 'briefcase'}"></i>
-                        ${a.worker_type}
-                    </span>
-                    <div class="agent-stats">
-                        <div class="agent-stat">
-                            <div class="agent-stat-value">${a.tasks_completed || 0}</div>
-                            <div class="agent-stat-label">Tasks</div>
-                        </div>
-                        <div class="agent-stat">
-                            <div class="agent-stat-value">${Math.round((a.success_rate || 0) * 100)}%</div>
-                            <div class="agent-stat-label">Success</div>
-                        </div>
-                        <div class="agent-stat">
-                            <div class="agent-stat-value">${a.tokens_used ? Math.round(a.tokens_used / 1000) + 'k' : '0'}</div>
-                            <div class="agent-stat-label">Tokens</div>
-                        </div>
-                    </div>
-                </div>
-            `).join('');
-            lucide.createIcons();
-        }
-    } catch (e) {
-        console.log('Agents load error:', e);
-    }
-}
-
-// ============================================================================
-// PHASE 62: NEW TAB DATA LOADERS
-// ============================================================================
-
-// Load Bridge Analytics data
-async function loadBridgeAnalytics() {
-    try {
-        const response = await fetch('/tools/consciousness/bridge-analytics');
-        const data = await response.json();
-
-        if (data.success) {
-            const stats = data.stats || {};
-
-            document.getElementById('totalBridgeCalls').textContent = (stats.total_calls || 0).toLocaleString();
-            document.getElementById('bridgeSuccessRate').textContent = Math.round(stats.success_rate || 0) + '%';
-            document.getElementById('claudeEscalations').textContent = (stats.claude_escalations || 0).toLocaleString();
-            document.getElementById('totalCost').textContent = '$' + (stats.total_cost || 0).toFixed(2);
-
-            // Render escalation patterns
-            const escalationContainer = document.getElementById('escalationPatterns');
-            const patterns = data.escalation_patterns || [];
-
-            if (patterns.length > 0) {
-                escalationContainer.innerHTML = patterns.map(p => `
-                    <div class="escalation-item">
-                        <div class="escalation-info">
-                            <span class="escalation-intent">${p.intent_type || 'Unknown'}</span>
-                            <span class="escalation-module">${p.module_name || ''}</span>
-                        </div>
-                        <div class="escalation-stats">
-                            <span class="escalation-count">${p.total_escalations} escalations</span>
-                            <span class="escalation-cost">$${(p.total_cost || 0).toFixed(2)}</span>
-                        </div>
-                    </div>
-                `).join('');
-            } else {
-                escalationContainer.innerHTML = '<div class="empty-state"><i data-lucide="check-circle"></i><h4>No escalations yet</h4><p>All tasks handled by internal agents</p></div>';
-            }
-
-            // Render recent bridge calls
-            const callsContainer = document.getElementById('recentBridgeCalls');
-            const recentCalls = data.recent_calls || [];
-
-            if (recentCalls.length > 0) {
-                callsContainer.innerHTML = recentCalls.map(c => `
-                    <div class="bridge-call-item ${c.escalated_to_claude ? 'escalated' : ''}">
-                        <div class="call-icon">
-                            <i data-lucide="${c.success ? 'check-circle' : 'x-circle'}"></i>
-                        </div>
-                        <div class="call-info">
-                            <div class="call-module">${c.module_name || 'archie_bridge'}</div>
-                            <div class="call-summary">${(c.prompt_summary || '').substring(0, 100)}...</div>
-                            <div class="call-meta">
-                                <span><i data-lucide="cpu"></i> ${c.model_used || 'unknown'}</span>
-                                <span><i data-lucide="clock"></i> ${c.created_at ? new Date(c.created_at).toLocaleDateString() : ''}</span>
-                                ${c.escalated_to_claude ? '<span class="escalated-badge"><i data-lucide="arrow-up-right"></i> Claude</span>' : ''}
-                            </div>
-                        </div>
-                    </div>
-                `).join('');
-            } else {
-                callsContainer.innerHTML = '<div class="empty-state"><i data-lucide="inbox"></i><h4>No bridge calls yet</h4></div>';
-            }
-
-            lucide.createIcons();
-        }
-    } catch (e) {
-        console.log('Bridge analytics load error:', e);
-    }
-}
-
-// Load Agent Skills data
-async function loadAgentSkills() {
-    try {
-        const response = await fetch('/tools/consciousness/agent-skills');
-        const data = await response.json();
-
-        if (data.success) {
-            const stats = data.stats || {};
-
-            document.getElementById('totalSkillsLearned').textContent = (stats.total_skills || 0).toLocaleString();
-            document.getElementById('masteredSkills').textContent = (stats.mastered || 0).toLocaleString();
-            document.getElementById('developingSkills').textContent = (stats.developing || 0).toLocaleString();
-            document.getElementById('agentsWithSkills').textContent = (stats.agents_learning || 0).toLocaleString();
-
-            // Render skills list
-            const container = document.getElementById('agentSkillsList');
-            const skills = data.skills || [];
-
-            if (skills.length > 0) {
-                container.innerHTML = skills.map(s => `
-                    <div class="skill-item">
-                        <div class="skill-agent">
-                            <div class="skill-agent-avatar">${(s.agent_name || '?').charAt(0)}</div>
-                            <div class="skill-agent-info">
-                                <span class="agent-name">${s.agent_name || 'Unknown Agent'}</span>
-                                <span class="agent-title">${s.title || ''}</span>
-                            </div>
-                        </div>
-                        <div class="skill-details">
-                            <div class="skill-name">${s.skill_name}</div>
-                            <div class="skill-category">${s.skill_category || 'general'}</div>
-                        </div>
-                        <div class="skill-confidence">
-                            <div class="confidence-bar">
-                                <div class="confidence-fill" style="width: ${Math.round((s.confidence || 0) * 100)}%"></div>
-                            </div>
-                            <span class="confidence-value">${Math.round((s.confidence || 0) * 100)}%</span>
-                        </div>
-                        <div class="skill-usage">
-                            <span class="usage-success">${s.successful_uses || 0} uses</span>
-                        </div>
-                    </div>
-                `).join('');
-            } else {
-                container.innerHTML = '<div class="empty-state"><i data-lucide="graduation-cap"></i><h4>No skills learned yet</h4><p>Agents will learn skills from Claude interactions</p></div>';
-            }
-
-            lucide.createIcons();
-        }
-    } catch (e) {
-        console.log('Agent skills load error:', e);
-    }
-}
-
-// Load Self-Improvement proposals
-async function loadImprovements() {
-    try {
-        const response = await fetch('/tools/consciousness/improvements-proposals');
-        const data = await response.json();
-
-        if (data.success) {
-            const stats = data.stats || {};
-            const proposals = data.proposals || [];
-
-            document.getElementById('totalProposals').textContent = (stats.total || 0).toLocaleString();
-            document.getElementById('pendingProposals').textContent = (stats.pending || 0).toLocaleString();
-            document.getElementById('approvedProposals').textContent = (stats.approved || 0).toLocaleString();
-            document.getElementById('rejectedProposals').textContent = (stats.rejected || 0).toLocaleString();
-
-            // Filter pending proposals (needing approval)
-            const pending = proposals.filter(p => p.status === 'pending');
-            const recent = proposals.filter(p => p.status !== 'pending').slice(0, 10);
-
-            // Render pending approvals (major changes needing Kytran approval)
-            const pendingContainer = document.getElementById('pendingApprovals');
-
-            if (pending.length > 0) {
-                pendingContainer.innerHTML = pending.map(p => `
-                    <div class="proposal-item major">
-                        <div class="proposal-header">
-                            <span class="proposal-title">${p.title || 'Untitled Proposal'}</span>
-                            <span class="proposal-type">${p.proposal_type || 'improvement'}</span>
-                        </div>
-                        <div class="proposal-description">${(p.description || '').substring(0, 200)}${p.description && p.description.length > 200 ? '...' : ''}</div>
-                        <div class="proposal-meta">
-                            <span><i data-lucide="file"></i> ${p.files_affected || 0} files</span>
-                            <span><i data-lucide="user"></i> ${p.assigned_agent_name || 'Unassigned'}</span>
-                            <span><i data-lucide="clock"></i> ${p.created_at ? new Date(p.created_at).toLocaleDateString() : ''}</span>
-                        </div>
-                        <div class="proposal-actions">
-                            <button class="btn-approve" onclick="approveProposal(${p.id})">
-                                <i data-lucide="check"></i> Approve
-                            </button>
-                            <button class="btn-reject" onclick="rejectProposal(${p.id})">
-                                <i data-lucide="x"></i> Reject
-                            </button>
-                            <button class="btn-sandbox" onclick="testInSandbox(${p.id})">
-                                <i data-lucide="flask-conical"></i> Test
-                            </button>
-                        </div>
-                    </div>
-                `).join('');
-            } else {
-                pendingContainer.innerHTML = '<div class="empty-state"><i data-lucide="inbox"></i><h4>No pending approvals</h4><p>All major changes have been reviewed</p></div>';
-            }
-
-            // Render recent proposals
-            const recentContainer = document.getElementById('recentProposals');
-
-            if (recent.length > 0) {
-                recentContainer.innerHTML = recent.map(p => `
-                    <div class="proposal-item ${p.status}">
-                        <div class="proposal-status-icon">
-                            <i data-lucide="${p.status === 'approved' ? 'check-circle' : p.status === 'rejected' ? 'x-circle' : p.status === 'testing' ? 'flask-conical' : p.status === 'deployed' ? 'rocket' : 'clock'}"></i>
-                        </div>
-                        <div class="proposal-info">
-                            <div class="proposal-title">${p.title || 'Untitled Proposal'}</div>
-                            <div class="proposal-meta">
-                                <span class="status-badge ${p.status}">${p.status}</span>
-                                <span><i data-lucide="clock"></i> ${p.created_at ? new Date(p.created_at).toLocaleDateString() : ''}</span>
-                            </div>
-                        </div>
-                    </div>
-                `).join('');
-            } else {
-                recentContainer.innerHTML = '<div class="empty-state"><i data-lucide="lightbulb"></i><h4>No proposals yet</h4><p>Self-improvement proposals will appear here</p></div>';
-            }
-
-            lucide.createIcons();
-        }
-    } catch (e) {
-        console.log('Improvements load error:', e);
-    }
-}
-
-// Approval actions
-async function approveProposal(proposalId) {
-    try {
-        const response = await fetch(`/tools/consciousness/improvements/${proposalId}/approve`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        });
-        const data = await response.json();
-
-        if (data.success) {
-            showToast('Proposal approved', 'success');
-            loadImprovements();
-        } else {
-            showToast(data.error || 'Failed to approve', 'error');
-        }
-    } catch (e) {
-        showToast('Error approving proposal', 'error');
-    }
-}
-
-async function rejectProposal(proposalId) {
-    try {
-        const response = await fetch(`/tools/consciousness/improvements/${proposalId}/reject`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        });
-        const data = await response.json();
-
-        if (data.success) {
-            showToast('Proposal rejected', 'success');
-            loadImprovements();
-        } else {
-            showToast(data.error || 'Failed to reject', 'error');
-        }
-    } catch (e) {
-        showToast('Error rejecting proposal', 'error');
-    }
-}
-
-async function testInSandbox(proposalId) {
-    showToast('Testing in sandbox...', 'success');
-    window.open(`/tools/sandbox?proposal=${proposalId}`, '_blank');
-}
-
-// Refresh all data
-function refreshData() {
-    // Clear cached data to force refresh
-    window.recentMemoriesData = null;
-    window.recentLearningResources = null;
-    loadStats();
-    showToast('Data refreshed', 'success');
-}
-
-// ============================================
-// AGENT MEMORY BROWSER (Phase 67)
-// ============================================
-
-let currentAgentMemoryOffset = 0;
-let agentMemoryTotal = 0;
-
-async function loadAgentMemories(offset = 0) {
-    currentAgentMemoryOffset = Math.max(0, offset);
-    const container = document.getElementById('agentMemoriesList');
-    const pagination = document.getElementById('agentMemoryPagination');
-
-    try {
-        // Build query params
-        const agentId = document.getElementById('agentMemoryFilter').value;
-        const memoryType = document.getElementById('memoryTypeFilter').value;
-        const includeDeleted = document.getElementById('showDeletedMemories').checked;
-
-        let url = `/tools/consciousness/api/agent-memory?limit=50&offset=${currentAgentMemoryOffset}`;
-        if (agentId) url += `&agent_id=${agentId}`;
-        if (memoryType) url += `&memory_type=${memoryType}`;
-        if (includeDeleted) url += `&include_deleted=true`;
-
-        const response = await fetch(url);
-        const data = await response.json();
-
-        if (data.success) {
-            agentMemoryTotal = data.total;
-
-            if (data.memories && data.memories.length > 0) {
-                container.innerHTML = data.memories.map(m => `
-                    <div class="memory-item ${m.is_deleted ? 'deleted' : ''}" data-id="${m.id}">
-                        <div class="memory-header">
-                            <span class="memory-type-badge ${m.memory_type}">${m.memory_type || 'unknown'}</span>
-                            <span class="memory-agent">
-                                <i data-lucide="user"></i> ${m.agent_name || 'Agent #' + m.agent_id}
-                            </span>
-                            ${m.is_deleted ? '<span class="deleted-badge"><i data-lucide="trash-2"></i> Deleted</span>' : ''}
-                            ${m.decay_immunity ? '<span class="immune-badge"><i data-lucide="shield"></i></span>' : ''}
-                        </div>
-                        <div class="memory-content">${escapeHtml(m.content || '').substring(0, 300)}${(m.content || '').length > 300 ? '...' : ''}</div>
-                        <div class="memory-footer">
-                            <span class="memory-meta">
-                                <i data-lucide="clock"></i> ${m.created_at ? new Date(m.created_at).toLocaleString() : 'Unknown'}
-                            </span>
-                            <span class="memory-meta">
-                                <i data-lucide="zap"></i> Importance: ${parseFloat(m.importance_score || 0).toFixed(2)}
-                            </span>
-                            <span class="memory-meta">
-                                <i data-lucide="eye"></i> ${m.access_count || 0} accesses
-                            </span>
-                            <div class="memory-actions">
-                                ${m.is_deleted ?
-                                    `<button class="action-btn small" onclick="restoreAgentMemory(${m.id})"><i data-lucide="undo-2"></i> Restore</button>` :
-                                    `<button class="action-btn small" onclick="reinforceAgentMemory(${m.id})"><i data-lucide="plus-circle"></i> Reinforce</button>
-                                     <button class="action-btn small danger" onclick="softDeleteAgentMemory(${m.id})"><i data-lucide="trash-2"></i></button>`
-                                }
-                            </div>
-                        </div>
-                        ${m.is_deleted && m.deletion_reason ? `<div class="deletion-info"><i data-lucide="info"></i> Deleted: ${m.deletion_reason}</div>` : ''}
-                    </div>
-                `).join('');
-
-                // Show pagination if needed
-                if (agentMemoryTotal > 50) {
-                    pagination.style.display = 'flex';
-                    const paginationInfo = pagination.querySelector('.pagination-info');
-                    const start = currentAgentMemoryOffset + 1;
-                    const end = Math.min(currentAgentMemoryOffset + 50, agentMemoryTotal);
-                    paginationInfo.textContent = `${start}-${end} of ${agentMemoryTotal}`;
-
-                    // Enable/disable buttons
-                    pagination.querySelectorAll('button')[0].disabled = currentAgentMemoryOffset === 0;
-                    pagination.querySelectorAll('button')[1].disabled = currentAgentMemoryOffset + 50 >= agentMemoryTotal;
-                } else {
-                    pagination.style.display = 'none';
-                }
-            } else {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <i data-lucide="brain"></i>
-                        <h4>No agent memories found</h4>
-                        <p>Agent memories will appear here as agents learn and interact</p>
-                    </div>
-                `;
-                pagination.style.display = 'none';
-            }
-
-            lucide.createIcons();
-        }
-
-        // Also load stats and type distribution
-        loadAgentMemoryStats();
-        populateAgentFilter();
-
-    } catch (e) {
-        console.error('Agent memory load error:', e);
-        container.innerHTML = `
-            <div class="empty-state">
-                <i data-lucide="alert-circle"></i>
-                <h4>Error loading memories</h4>
-                <p>${e.message}</p>
-            </div>
-        `;
-    }
-}
-
-async function loadAgentMemoryStats() {
-    try {
-        const response = await fetch('/tools/consciousness/api/agent-memory/stats');
-        const data = await response.json();
-
         if (data.success && data.stats) {
-            document.getElementById('agentMemoryTotal').textContent = data.stats.total_memories || 0;
-            document.getElementById('agentsWithMemory').textContent = data.stats.agents_with_memories || 0;
-            document.getElementById('deletedMemories').textContent = data.stats.deleted_memories || 0;
-
-            // Render type distribution
-            const typesContainer = document.getElementById('agentMemoryTypes');
-            if (data.by_type && data.by_type.length > 0) {
-                const colors = {
-                    observation: 'var(--accent-blue)',
-                    learning: 'var(--accent-green)',
-                    interaction: 'var(--accent-cyan)',
-                    preference: 'var(--accent-purple)',
-                    error: 'var(--accent-red)'
-                };
-
-                const total = data.by_type.reduce((sum, t) => sum + t.count, 0);
-                typesContainer.innerHTML = data.by_type.map(t => `
-                    <div class="type-bar">
-                        <div class="type-label">${t.memory_type || 'unknown'}</div>
-                        <div class="type-progress">
-                            <div class="type-fill" style="width: ${(t.count / total * 100)}%; background: ${colors[t.memory_type] || 'var(--accent-purple)'}"></div>
-                        </div>
-                        <div class="type-count">${t.count}</div>
-                    </div>
-                `).join('');
-            } else {
-                typesContainer.innerHTML = '<div class="empty-state small"><p>No memory types recorded yet</p></div>';
-            }
-        }
-    } catch (e) {
-        console.error('Agent memory stats error:', e);
-    }
-}
-
-async function populateAgentFilter() {
-    const select = document.getElementById('agentMemoryFilter');
-    if (select.options.length > 1) return; // Already populated
-
-    try {
-        const response = await fetch('/tools/consciousness/team/agents');
-        const data = await response.json();
-
-        if (data.agents && data.agents.length > 0) {
-            data.agents.forEach(agent => {
-                const option = document.createElement('option');
-                option.value = agent.id;
-                option.textContent = agent.name || `Agent #${agent.id}`;
-                select.appendChild(option);
+            const growthData = data.stats.learning_timeline || [];
+            const last7Days = growthData.slice(-7);
+            if (growthChartMini) growthChartMini.destroy();
+            growthChartMini = new Chart(document.getElementById('growth-chart-mini'), {
+                type: 'line', data: { labels: last7Days.map(d => d.date ? new Date(d.date).toLocaleDateString('en-US', {weekday: 'short'}) : ''),
+                    datasets: [{ label: 'Entries', data: last7Days.map(d => d.count || 0), borderColor: chartColors.primary, backgroundColor: 'rgba(139, 92, 246, 0.1)', fill: true, tension: 0.4 }]
+                }, options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' } }, y: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' } } } }
+            });
+            const typeArray = data.stats.memory_types || [];
+            const typeData = {};
+            typeArray.forEach(t => { typeData[t.memory_type || t.type || 'unknown'] = t.count || 0; });
+            if (typeChartMini) typeChartMini.destroy();
+            typeChartMini = new Chart(document.getElementById('type-chart-mini'), {
+                type: 'doughnut', data: { labels: Object.keys(typeData), datasets: [{ data: Object.values(typeData), backgroundColor: [chartColors.primary, chartColors.secondary, chartColors.success, chartColors.warning, chartColors.danger, chartColors.info] }] },
+                options: { responsive: true, plugins: { legend: { position: 'right', labels: { color: '#8b949e' } } } }
             });
         }
-    } catch (e) {
-        console.error('Failed to load agents for filter:', e);
-    }
+    } catch (e) { console.error('Error loading mini charts:', e); }
 }
 
-async function reinforceAgentMemory(memoryId) {
+async function loadEmotionalData() {
     try {
-        const response = await fetch(`/tools/consciousness/api/agent-memory/${memoryId}/reinforce`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ importance_boost: 0.1 })
-        });
+        const response = await fetch('/tools/consciousness/activity-stats', {credentials: 'same-origin'});
         const data = await response.json();
-
-        if (data.success) {
-            showToast(`Memory reinforced (count: ${data.memory.reinforcement_count})`, 'success');
-            loadAgentMemories(currentAgentMemoryOffset);
-        } else {
-            showToast(data.error || 'Failed to reinforce', 'error');
+        if (data.success && data.emotional_state) {
+            const es = data.emotional_state;
+            document.getElementById('mood-emoji').textContent = moodEmojis[es.mood] || '🤔';
+            document.getElementById('mood-label').textContent = es.mood || 'neutral';
+            const energy = (es.energy || 0.8) * 100, confidence = (es.confidence || 0.8) * 100, stress = (es.stress_level || 0.3) * 100;
+            document.getElementById('energy-fill').style.width = energy + '%'; document.getElementById('energy-value').textContent = energy.toFixed(0) + '%';
+            document.getElementById('confidence-fill').style.width = confidence + '%'; document.getElementById('confidence-value').textContent = confidence.toFixed(0) + '%';
+            document.getElementById('stress-fill').style.width = stress + '%'; document.getElementById('stress-value').textContent = stress.toFixed(0) + '%';
         }
-    } catch (e) {
-        showToast('Error reinforcing memory', 'error');
-    }
+        const timelineResponse = await fetch('/tools/consciousness/emotions/timeline?days=7', {credentials: 'same-origin'});
+        const timelineData = await timelineResponse.json();
+        if (timelineData.timeline) {
+            if (emotionalTimeline) emotionalTimeline.destroy();
+            emotionalTimeline = new Chart(document.getElementById('emotional-timeline'), {
+                type: 'line', data: { labels: timelineData.timeline.map(t => new Date(t.timestamp || t.date).toLocaleDateString()),
+                    datasets: [{ label: 'Energy', data: timelineData.timeline.map(t => t.energy || t.avg_energy), borderColor: chartColors.success, fill: false, tension: 0.4 },
+                               { label: 'Confidence', data: timelineData.timeline.map(t => t.confidence || t.avg_confidence), borderColor: chartColors.secondary, fill: false, tension: 0.4 }]
+                }, options: { responsive: true, plugins: { legend: { labels: { color: '#8b949e' } } }, scales: { x: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' } }, y: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' }, min: 0, max: 1 } } }
+            });
+        }
+    } catch (e) { console.error('Error loading emotional data:', e); }
 }
 
-async function softDeleteAgentMemory(memoryId) {
-    const reason = prompt('Reason for deletion (IAAE audit):', 'Admin cleanup');
-    if (reason === null) return;
-
+async function loadChartData() {
     try {
-        const response = await fetch(`/tools/consciousness/api/agent-memory/${memoryId}/soft-delete`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ reason: reason })
-        });
+        const response = await fetch('/tools/consciousness/stats', {credentials: 'same-origin'});
         const data = await response.json();
-
-        if (data.success) {
-            showToast('Memory soft-deleted (can be restored)', 'success');
-            loadAgentMemories(currentAgentMemoryOffset);
-        } else {
-            showToast(data.error || 'Failed to delete', 'error');
+        if (data.success && data.stats) {
+            const growthData = data.stats.learning_timeline || [];
+            if (growthChart) growthChart.destroy();
+            growthChart = new Chart(document.getElementById('growth-chart'), { type: 'line', data: { labels: growthData.map(d => d.date ? new Date(d.date).toLocaleDateString() : ''), datasets: [{ label: 'Knowledge Entries', data: growthData.map(d => d.count || 0), borderColor: chartColors.primary, backgroundColor: 'rgba(139, 92, 246, 0.1)', fill: true, tension: 0.4 }] }, options: { responsive: true, plugins: { legend: { labels: { color: '#8b949e' } } }, scales: { x: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' } }, y: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' } } } } });
+            const typeArrayFull = data.stats.memory_types || [];
+            const typeDataFull = {}; typeArrayFull.forEach(t => { typeDataFull[t.memory_type || t.type || 'unknown'] = t.count || 0; });
+            if (typeChart) typeChart.destroy();
+            typeChart = new Chart(document.getElementById('type-chart'), { type: 'pie', data: { labels: Object.keys(typeDataFull), datasets: [{ data: Object.values(typeDataFull), backgroundColor: [chartColors.primary, chartColors.secondary, chartColors.success, chartColors.warning, chartColors.danger, chartColors.info] }] }, options: { responsive: true, plugins: { legend: { position: 'right', labels: { color: '#8b949e' } } } } });
+            const catArray = data.stats.categories || [];
+            const categories = catArray.slice(0, 10).map(c => [c.category || 'unknown', c.count || 0]);
+            if (categoryChart) categoryChart.destroy();
+            categoryChart = new Chart(document.getElementById('category-chart'), { type: 'bar', data: { labels: categories.map(c => c[0]), datasets: [{ label: 'Entries', data: categories.map(c => c[1]), backgroundColor: 'rgba(139, 92, 246, 0.6)', borderColor: chartColors.primary, borderWidth: 1 }] }, options: { responsive: true, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' } }, y: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' } } } } });
+            const impArray = data.stats.importance_distribution || [];
+            const importance = {}; if (Array.isArray(impArray)) { impArray.forEach(i => { importance[i.importance_level || i.level || 'medium'] = i.count || 0; }); } else { Object.assign(importance, impArray); }
+            if (importanceChart) importanceChart.destroy();
+            importanceChart = new Chart(document.getElementById('importance-chart'), { type: 'doughnut', data: { labels: Object.keys(importance), datasets: [{ data: Object.values(importance), backgroundColor: [chartColors.danger, chartColors.warning, chartColors.secondary, chartColors.success] }] }, options: { responsive: true, plugins: { legend: { position: 'right', labels: { color: '#8b949e' } } } } });
         }
-    } catch (e) {
-        showToast('Error deleting memory', 'error');
-    }
+    } catch (e) { console.error('Error loading chart data:', e); }
 }
 
-async function restoreAgentMemory(memoryId) {
+async function loadActivityFeed(type = '') {
+    const feedEl = document.getElementById('activity-feed');
+    feedEl.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
     try {
-        const response = await fetch(`/tools/consciousness/api/agent-memory/${memoryId}/restore`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        });
+        const hours = document.getElementById('feed-hours').value;
+        let url = '/tools/consciousness/activity-feed?hours=' + hours + '&limit=100';
+        if (type) url += '&type=' + type;
+        const response = await fetch(url, {credentials: 'same-origin'});
         const data = await response.json();
+        if (data.success && data.feed) {
+            if (data.feed.length === 0) { feedEl.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--archie-text-muted);">No activity in this time window</div>'; return; }
+            let html = '';
+            data.feed.forEach(item => {
+                const icon = {'knowledge': '📚', 'execution': '▶️', 'improvement': '💡', 'session': '💬', 'emotional': '💜', 'llm_alert': '🚨'}[item.event_type] || '📌';
+                const time = item.created_at ? new Date(item.created_at).toLocaleString() : '';
+                const title = (item.title || item.description || 'Activity').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const desc = (item.description || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                html += '<div class="activity-item"><div class="activity-icon">' + icon + '</div><div class="activity-content"><div class="activity-title">' + title + '<span class="activity-type">' + (item.subtype || item.event_type) + '</span></div><div class="activity-description">' + desc + '</div><div class="activity-time">' + time + '</div></div></div>';
+            });
+            feedEl.innerHTML = html;
+        } else { feedEl.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--archie-red);">Error loading feed</div>'; }
+    } catch (e) { console.error('Error loading activity feed:', e); feedEl.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--archie-red);">Error loading feed</div>'; }
+}
 
-        if (data.success) {
-            showToast('Memory restored successfully', 'success');
-            loadAgentMemories(currentAgentMemoryOffset);
-        } else {
-            showToast(data.error || 'Failed to restore', 'error');
-        }
+async function loadKnowledgeGraph(type) {
+    type = type || 'all';
+    const container = document.getElementById('knowledge-graph');
+    container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+    try {
+        let url = '/tools/consciousness/knowledge/graph';
+        if (type !== 'all') url += '?type=' + type;
+        const response = await fetch(url, {credentials: 'same-origin'});
+        const data = await response.json();
+        if (data.success && data.nodes) { container.innerHTML = ''; renderD3Graph(data.nodes, data.links || [], container); }
+        else { container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--archie-text-muted);">No graph data available</div>'; }
+    } catch (e) { console.error('Error loading knowledge graph:', e); container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--archie-red);">Error loading graph</div>'; }
+}
+
+function renderD3Graph(nodes, links, container) {
+    const width = container.clientWidth, height = 500;
+    const svg = d3.select(container).append('svg').attr('width', width).attr('height', height);
+    const typeColors = { 'vault_note': '#8b5cf6', 'mistake_learned': '#ff6b6b', 'code_snippet': '#00ff41', 'github_file': '#00ffff', 'conversation_memory': '#ffaa00', 'improvement': '#0ea5e9' };
+    const simulation = d3.forceSimulation(nodes).force('link', d3.forceLink(links).id(d => d.id).distance(100)).force('charge', d3.forceManyBody().strength(-200)).force('center', d3.forceCenter(width / 2, height / 2));
+    const link = svg.append('g').selectAll('line').data(links).join('line').attr('stroke', '#30363d').attr('stroke-opacity', 0.6);
+    const node = svg.append('g').selectAll('circle').data(nodes).join('circle').attr('r', d => 5 + (d.importance_score || 0.5) * 10).attr('fill', d => typeColors[d.type] || '#8b949e').call(d3.drag().on('start', dragstarted).on('drag', dragged).on('end', dragended));
+    const tooltip = document.getElementById('graph-tooltip');
+    node.on('mouseover', (event, d) => { tooltip.style.display = 'block'; tooltip.style.left = (event.pageX + 10) + 'px'; tooltip.style.top = (event.pageY + 10) + 'px'; tooltip.innerHTML = '<strong>' + (d.title || d.id) + '</strong><br>Type: ' + d.type + '<br>Importance: ' + (d.importance_score || 0).toFixed(2); }).on('mouseout', () => { tooltip.style.display = 'none'; });
+    simulation.on('tick', () => { link.attr('x1', d => d.source.x).attr('y1', d => d.source.y).attr('x2', d => d.target.x).attr('y2', d => d.target.y); node.attr('cx', d => d.x).attr('cy', d => d.y); });
+    function dragstarted(event) { if (!event.active) simulation.alphaTarget(0.3).restart(); event.subject.fx = event.subject.x; event.subject.fy = event.subject.y; }
+    function dragged(event) { event.subject.fx = event.x; event.subject.fy = event.y; }
+    function dragended(event) { if (!event.active) simulation.alphaTarget(0); event.subject.fx = null; event.subject.fy = null; }
+}
+
+document.querySelectorAll('#tab-graph .filter-btn').forEach(btn => { btn.addEventListener('click', () => { document.querySelectorAll('#tab-graph .filter-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); loadKnowledgeGraph(btn.dataset.type); }); });
+
+async function sendArchieMessage() {
+    const input = document.getElementById('archie-chat-input');
+    const messages = document.getElementById('archie-chat-messages');
+    const typing = document.getElementById('archie-typing');
+    const message = input.value.trim();
+    if (!message) return;
+    const safeMsg = message.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const userDiv = document.createElement('div'); userDiv.className = 'chat-message user';
+    userDiv.innerHTML = '<div class="avatar">👤</div><div class="bubble">' + safeMsg + '</div>';
+    messages.appendChild(userDiv);
+    input.value = ''; messages.scrollTop = messages.scrollHeight; typing.style.display = 'block';
+    try {
+        const response = await fetch('/api/ai/chat', { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({ prompt: message, context: {source: 'consciousness_dashboard', module: 'ARCHIE Consciousness'} }) });
+        const data = await response.json(); typing.style.display = 'none';
+        const reply = (data.response || data.text || data.content || data.message || data.error || 'I apologize, I could not process that request.').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const archieDiv = document.createElement('div'); archieDiv.className = 'chat-message archie';
+        archieDiv.innerHTML = '<div class="avatar">🧠</div><div class="bubble">' + reply + '</div>';
+        messages.appendChild(archieDiv); messages.scrollTop = messages.scrollHeight;
     } catch (e) {
-        showToast('Error restoring memory', 'error');
+        typing.style.display = 'none';
+        const errDiv = document.createElement('div'); errDiv.className = 'chat-message archie';
+        errDiv.innerHTML = '<div class="avatar">⚠️</div><div class="bubble" style="border-color: var(--archie-red-alpha-30); background: var(--archie-red-alpha-10);">Sorry, I encountered an error: ' + e.message + '</div>';
+        messages.appendChild(errDiv); messages.scrollTop = messages.scrollHeight;
     }
 }
 
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-// Initialize - loadStats handles everything including recent activity
-loadStats();
+loadStats(); loadMiniCharts(); setInterval(loadStats, 30000);
 </script>
 {% endblock %}

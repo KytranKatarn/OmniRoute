@@ -241,8 +241,13 @@
 /* Dashboard Grid */
 .dashboard-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    gap: var(--archie-space-5, 1.25rem);
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--archie-space-4, 1rem);
+    max-width: 900px;
+}
+
+@media (max-width: 768px) {
+    .dashboard-grid { grid-template-columns: 1fr; }
 }
 
 /* Chart Container */
@@ -250,7 +255,13 @@
     background: var(--archie-bg-secondary, #0d1117);
     border: 1px solid var(--archie-border-default, #30363d);
     border-radius: var(--archie-radius-lg, 12px);
-    padding: var(--archie-space-5, 1.25rem);
+    padding: var(--archie-space-4, 1rem);
+    max-height: 280px;
+    overflow: hidden;
+}
+
+.chart-container canvas {
+    max-height: 200px !important;
 }
 
 .chart-title {
@@ -409,8 +420,8 @@
             <div class="stat-card"><div class="stat-value" id="stat-mood">-</div><div class="stat-label">Current Mood</div></div>
         </div>
         <div class="dashboard-grid">
-            <div class="chart-container"><div class="chart-title">📈 Knowledge Growth (7 days)</div><canvas id="growth-chart-mini" height="200"></canvas></div>
-            <div class="chart-container"><div class="chart-title">🎯 Knowledge by Type</div><canvas id="type-chart-mini" height="200"></canvas></div>
+            <div class="chart-container"><div class="chart-title">📈 Knowledge Growth (7 days)</div><canvas id="growth-chart-mini" height="160"></canvas></div>
+            <div class="chart-container"><div class="chart-title">🎯 Knowledge by Type</div><canvas id="type-chart-mini" height="160"></canvas></div>
         </div>
         <h3 class="section-title">Quick Access</h3>
         <div class="quick-access-grid">
@@ -445,17 +456,17 @@
             <div class="gauge-container"><div class="gauge-label">🎯 Confidence Level</div><div class="gauge-bar"><div class="gauge-fill" id="confidence-fill" style="width: 0%"></div></div><div class="gauge-value" id="confidence-value">-</div></div>
             <div class="gauge-container"><div class="gauge-label">💫 Stress Level</div><div class="gauge-bar"><div class="gauge-fill" id="stress-fill" style="width: 0%; background: linear-gradient(90deg, var(--archie-green), var(--archie-orange), var(--archie-red));"></div></div><div class="gauge-value" id="stress-value">-</div></div>
         </div>
-        <div class="chart-container" style="margin-top: 1.5rem;"><div class="chart-title">💜 Emotional Timeline (7 days)</div><canvas id="emotional-timeline" height="250"></canvas></div>
+        <div class="chart-container" style="margin-top: 1.5rem; max-width: 900px;"><div class="chart-title">💜 Emotional Timeline (7 days)</div><canvas id="emotional-timeline" height="180"></canvas></div>
     </div>
 
     <div id="tab-charts" class="tab-content">
         <div class="dashboard-grid">
-            <div class="chart-container"><div class="chart-title">📈 Knowledge Growth (30 days)</div><canvas id="growth-chart" height="300"></canvas></div>
-            <div class="chart-container"><div class="chart-title">🎯 Knowledge by Type</div><canvas id="type-chart" height="300"></canvas></div>
+            <div class="chart-container"><div class="chart-title">📈 Knowledge Growth (30 days)</div><canvas id="growth-chart" height="180"></canvas></div>
+            <div class="chart-container"><div class="chart-title">🎯 Knowledge by Type</div><canvas id="type-chart" height="180"></canvas></div>
         </div>
         <div class="dashboard-grid" style="margin-top: 1rem;">
-            <div class="chart-container"><div class="chart-title">📁 Knowledge by Category</div><canvas id="category-chart" height="300"></canvas></div>
-            <div class="chart-container"><div class="chart-title">⭐ Importance Distribution</div><canvas id="importance-chart" height="300"></canvas></div>
+            <div class="chart-container"><div class="chart-title">📁 Knowledge by Category</div><canvas id="category-chart" height="180"></canvas></div>
+            <div class="chart-container"><div class="chart-title">⭐ Importance Distribution</div><canvas id="importance-chart" height="180"></canvas></div>
         </div>
     </div>
 

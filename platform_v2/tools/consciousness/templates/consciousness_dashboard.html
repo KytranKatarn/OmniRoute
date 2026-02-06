@@ -1114,17 +1114,33 @@ async function loadProcessingStatus() {
         const data = await response.json();
 
         if (data.success) {
-            // Service status
-            const embeddingStatus = data.services?.embedding?.status === 'healthy' ? '✅ Online' : '❌ Offline';
-            const analyzerStatus = data.services?.analyzer?.status === 'healthy' ? '✅ Ready' : '⚠️ No API Key';
+            // Service status - show backend info
+            const embeddingStatus = data.services?.embedding?.status === 'healthy'
+                ? '✅ ' + (data.services.embedding.model || 'Online')
+                : '❌ Offline';
+            const analyzer = data.services?.analyzer || {};
+            let analyzerStatus = '❌ Offline';
+            if (analyzer.status === 'healthy') {
+                const backend = analyzer.backend || 'unknown';
+                const model = analyzer.model || 'unknown';
+                analyzerStatus = backend === 'ollama'
+                    ? `✅ ${model} (Local - FREE)`
+                    : `✅ ${model}`;
+            }
             document.getElementById('ai-embedding-status').textContent = embeddingStatus;
             document.getElementById('ai-analyzer-status').textContent = analyzerStatus;
 
-            // Cost status
-            const costToday = data.cost?.estimated_cost_usd || 0;
-            const tokensRemaining = data.cost?.remaining_tokens || 0;
-            document.getElementById('ai-cost-today').textContent = '$' + costToday.toFixed(2);
-            document.getElementById('ai-tokens-remaining').textContent = tokensRemaining.toLocaleString();
+            // Cost status - show FREE if using Ollama
+            const backend = data.services?.analyzer?.backend;
+            if (backend === 'ollama') {
+                document.getElementById('ai-cost-today').textContent = 'FREE (Local)';
+                document.getElementById('ai-tokens-remaining').textContent = '∞';
+            } else {
+                const costToday = data.cost?.estimated_cost_usd || 0;
+                const tokensRemaining = data.cost?.remaining_tokens || 0;
+                document.getElementById('ai-cost-today').textContent = '$' + costToday.toFixed(2);
+                document.getElementById('ai-tokens-remaining').textContent = tokensRemaining.toLocaleString();
+            }
 
             // Backlog
             const backlog = data.backlog || {};
@@ -1132,9 +1148,36 @@ async function loadProcessingStatus() {
             document.getElementById('ai-backlog-github').textContent = (backlog.github || 0).toLocaleString();
             document.getElementById('ai-backlog-embeddings').textContent = (backlog.embeddings_missing || 0).toLocaleString();
             document.getElementById('ai-backlog-total').textContent = (backlog.total || 0).toLocaleString();
+
+            // Also load processing history
+            loadProcessingHistory();
         }
     } catch (e) {
         console.error('Processing status error:', e);
+    }
+}
+
+async function loadProcessingHistory() {
+    try {
+        const response = await fetch('/tools/consciousness/api/processing/history?limit=10', { credentials: 'same-origin' });
+        const data = await response.json();
+        const logEl = document.getElementById('ai-processing-log');
+
+        if (data.success && data.history && data.history.length > 0) {
+            logEl.innerHTML = data.history.map(h => {
+                const status = h.status === 'completed' ? '✅' : '❌';
+                const time = new Date(h.completed_at).toLocaleString();
+                return `<div class="activity-item">
+                    <span style="color: var(--module-accent);">${status} ${h.source_type}</span>
+                    <span style="color: var(--archie-text-muted); margin-left: 0.5rem;">${time}</span>
+                    <br><small>Cards: ${h.cards_created} | Relationships: ${h.relationships_created} | Tokens: ${h.tokens_used?.toLocaleString() || 0}</small>
+                </div>`;
+            }).join('');
+        } else {
+            logEl.innerHTML = '<div class="activity-item" style="color: var(--archie-text-muted);">No processing history yet. Start a batch to see results here.</div>';
+        }
+    } catch (e) {
+        console.error('History load error:', e);
     }
 }
 

@@ -199,8 +199,9 @@ def emotional_state():
 
         cur.execute(
             """
-            SELECT *
-            FROM emotional_state
+            SELECT id, timestamp, current_mood as mood, mood_intensity as energy,
+                   relationship_strength as confidence, user_id, notes
+            FROM archie_emotional_state
             ORDER BY timestamp DESC
             LIMIT 1
         """
@@ -1450,17 +1451,17 @@ def get_emotional_timeline():
             """
             SELECT
                 DATE(timestamp) as date,
-                AVG(CASE WHEN mood = 'happy' THEN 1.0
-                         WHEN mood = 'curious' THEN 0.8
-                         WHEN mood = 'focused' THEN 0.6
-                         WHEN mood = 'neutral' THEN 0.5
-                         WHEN mood = 'confused' THEN 0.3
-                         WHEN mood = 'frustrated' THEN 0.2
+                AVG(CASE WHEN current_mood = 'happy' THEN 1.0
+                         WHEN current_mood = 'curious' THEN 0.8
+                         WHEN current_mood = 'focused' THEN 0.6
+                         WHEN current_mood = 'neutral' THEN 0.5
+                         WHEN current_mood = 'confused' THEN 0.3
+                         WHEN current_mood = 'frustrated' THEN 0.2
                          ELSE 0.5 END) as avg_mood_score,
-                AVG(energy) as avg_energy,
-                AVG(confidence) as avg_confidence,
+                AVG(mood_intensity) as avg_energy,
+                AVG(relationship_strength) as avg_confidence,
                 COUNT(*) as measurement_count
-            FROM emotional_state
+            FROM archie_emotional_state
             WHERE timestamp > NOW() - INTERVAL '%s days'
             GROUP BY DATE(timestamp)
             ORDER BY date DESC
@@ -1473,7 +1474,9 @@ def get_emotional_timeline():
         # Get current emotional state
         cur.execute(
             """
-            SELECT * FROM emotional_state
+            SELECT id, timestamp, current_mood as mood, mood_intensity as energy,
+                   relationship_strength as confidence, user_id, notes
+            FROM archie_emotional_state
             ORDER BY timestamp DESC LIMIT 1
         """
         )
@@ -1973,7 +1976,9 @@ def get_complete_brain_state():
         # Emotional state
         cur.execute(
             """
-            SELECT * FROM emotional_state
+            SELECT id, timestamp, current_mood as mood, mood_intensity as energy,
+                   relationship_strength as confidence, user_id, notes
+            FROM archie_emotional_state
             ORDER BY timestamp DESC LIMIT 1
         """
         )
@@ -2749,12 +2754,12 @@ def get_activity_feed():
                 SELECT
                     id,
                     'emotional' as event_type,
-                    mood as subtype,
-                    energy,
-                    confidence,
+                    current_mood as subtype,
+                    mood_intensity as energy,
+                    relationship_strength as confidence,
                     timestamp as created_at,
-                    'Mood: ' || mood || ' (Energy: ' || ROUND(energy::numeric, 2) || ')' as description
-                FROM emotional_state
+                    'Mood: ' || current_mood || ' (Energy: ' || ROUND(mood_intensity::numeric, 2) || ')' as description
+                FROM archie_emotional_state
                 WHERE timestamp >= NOW() - INTERVAL '%s hours'
                 ORDER BY timestamp DESC
                 LIMIT %s
@@ -2861,8 +2866,9 @@ def get_activity_stats():
         # Get current emotional state
         cur.execute(
             """
-            SELECT mood, energy, confidence, timestamp
-            FROM emotional_state
+            SELECT current_mood as mood, mood_intensity as energy,
+                   relationship_strength as confidence, timestamp
+            FROM archie_emotional_state
             ORDER BY timestamp DESC
             LIMIT 1
         """

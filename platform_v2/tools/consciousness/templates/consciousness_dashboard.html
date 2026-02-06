@@ -416,6 +416,7 @@
         <button class="tab-btn" data-tab="chat">💬 Chat</button>
         <button class="tab-btn" data-tab="emotional">💜 Emotional</button>
         <button class="tab-btn" data-tab="logs">📄 Logs</button>
+        <button class="tab-btn" data-tab="aiprocess">🤖 AI Process</button>
         <button class="tab-btn" data-tab="github">🐙 GitHub</button>
         <button class="tab-btn" data-tab="charts">📈 Charts</button>
         <button class="tab-btn" data-tab="graph">🕸️ Graph</button>
@@ -499,6 +500,106 @@
                     <div style="text-align: center; margin-top: 0.5rem; color: var(--archie-text-muted);" id="log-progress-text">Processing...</div>
                 </div>
                 <div id="log-results" class="activity-feed" style="max-height: 400px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab-aiprocess" class="tab-content">
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">🤖 AI Knowledge Processing</div>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <button class="btn btn-secondary" onclick="loadProcessingStatus()">🔄 Refresh</button>
+                </div>
+            </div>
+            <div class="panel-body">
+                <!-- Service Status -->
+                <div class="stats-grid" style="margin-bottom: 1.5rem;">
+                    <div class="stat-card" style="border-color: var(--archie-border-muted);">
+                        <div class="stat-value" id="ai-embedding-status">-</div>
+                        <div class="stat-label">Embedding Service</div>
+                    </div>
+                    <div class="stat-card" style="border-color: var(--archie-border-muted);">
+                        <div class="stat-value" id="ai-analyzer-status">-</div>
+                        <div class="stat-label">Claude Analyzer</div>
+                    </div>
+                    <div class="stat-card" style="border-color: var(--archie-green-dim);">
+                        <div class="stat-value" id="ai-cost-today">$0.00</div>
+                        <div class="stat-label">Cost Today</div>
+                    </div>
+                    <div class="stat-card" style="border-color: var(--archie-green-dim);">
+                        <div class="stat-value" id="ai-tokens-remaining">-</div>
+                        <div class="stat-label">Tokens Remaining</div>
+                    </div>
+                </div>
+
+                <!-- Processing Backlog -->
+                <h4 style="color: var(--module-accent); margin-bottom: 1rem;">📊 Processing Backlog</h4>
+                <div class="stats-grid" style="margin-bottom: 1.5rem;">
+                    <div class="stat-card">
+                        <div class="stat-value" id="ai-backlog-conversations">-</div>
+                        <div class="stat-label">Conversations</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="ai-backlog-github">-</div>
+                        <div class="stat-label">GitHub Files</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="ai-backlog-embeddings">-</div>
+                        <div class="stat-label">Missing Embeddings</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="ai-backlog-total">-</div>
+                        <div class="stat-label">Total Pending</div>
+                    </div>
+                </div>
+
+                <!-- Batch Processing Form -->
+                <h4 style="color: var(--module-accent); margin-bottom: 1rem;">🚀 Process Batch</h4>
+                <div style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap; margin-bottom: 1rem;">
+                    <div>
+                        <label style="color: var(--archie-text-muted); display: block; margin-bottom: 0.5rem;">Category:</label>
+                        <select id="ai-category" class="form-control" style="width: 180px;">
+                            <option value="conversations">Conversations</option>
+                            <option value="github">GitHub Files</option>
+                            <option value="claude_hooks">Claude Hooks</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="color: var(--archie-text-muted); display: block; margin-bottom: 0.5rem;">Batch Size:</label>
+                        <input type="number" id="ai-batch-size" class="form-control" value="10" min="1" max="50" style="width: 100px;">
+                    </div>
+                    <button class="btn btn-secondary" onclick="estimateAIBatch()">📊 Estimate Cost</button>
+                    <button class="btn btn-primary" onclick="startAIProcessing()">🤖 Process</button>
+                </div>
+
+                <!-- Cost Estimate Display -->
+                <div id="ai-estimate-display" style="display: none; padding: 1rem; background: var(--archie-bg-tertiary); border-radius: 8px; margin-bottom: 1rem;">
+                    <div style="display: flex; gap: 2rem; flex-wrap: wrap;">
+                        <div><span style="color: var(--archie-text-muted);">Est. Tokens:</span> <span id="ai-est-tokens" style="color: var(--archie-green);">-</span></div>
+                        <div><span style="color: var(--archie-text-muted);">Est. Cost:</span> <span id="ai-est-cost" style="color: var(--archie-green);">-</span></div>
+                        <div><span style="color: var(--archie-text-muted);">Within Limit:</span> <span id="ai-est-limit" style="color: var(--archie-green);">-</span></div>
+                    </div>
+                </div>
+
+                <!-- Processing Progress -->
+                <div id="ai-processing-progress" style="display: none; margin: 1rem 0;">
+                    <div class="gauge-bar" style="height: 12px;"><div class="gauge-fill" id="ai-progress-bar" style="width: 0%; background: var(--module-accent);"></div></div>
+                    <div style="text-align: center; margin-top: 0.5rem; color: var(--archie-text-muted);" id="ai-progress-text">Processing...</div>
+                </div>
+
+                <!-- Generate Embeddings Section -->
+                <h4 style="color: var(--module-accent); margin: 1.5rem 0 1rem;">🧬 Generate Embeddings</h4>
+                <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem;">
+                    <label style="color: var(--archie-text-muted);">Batch Size:</label>
+                    <input type="number" id="ai-embed-batch-size" class="form-control" value="50" min="1" max="200" style="width: 100px;">
+                    <button class="btn btn-primary" onclick="generateEmbeddings()">🧬 Generate</button>
+                    <span style="color: var(--archie-text-muted); font-size: 0.85rem;">(Free - uses local Ollama)</span>
+                </div>
+
+                <!-- Processing Log -->
+                <h4 style="color: var(--module-accent); margin: 1.5rem 0 1rem;">📋 Processing Log</h4>
+                <div id="ai-processing-log" class="activity-feed" style="max-height: 300px;"></div>
             </div>
         </div>
     </div>
@@ -610,6 +711,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
         document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
         if (btn.dataset.tab === 'emotional') loadEmotionalData();
         if (btn.dataset.tab === 'logs') loadLogStatus();
+        if (btn.dataset.tab === 'aiprocess') loadProcessingStatus();
         if (btn.dataset.tab === 'github') loadGitHubIndexed();
         if (btn.dataset.tab === 'charts') loadChartData();
         if (btn.dataset.tab === 'graph') loadKnowledgeGraph();
@@ -1003,6 +1105,157 @@ async function ingestLogs(dryRun) {
     }
 
     setTimeout(() => { progressEl.style.display = 'none'; }, 3000);
+}
+
+// AI Processing functions
+async function loadProcessingStatus() {
+    try {
+        const response = await fetch('/tools/consciousness/api/processing/status', { credentials: 'same-origin' });
+        const data = await response.json();
+
+        if (data.success) {
+            // Service status
+            const embeddingStatus = data.services?.embedding?.status === 'healthy' ? '✅ Online' : '❌ Offline';
+            const analyzerStatus = data.services?.analyzer?.status === 'healthy' ? '✅ Ready' : '⚠️ No API Key';
+            document.getElementById('ai-embedding-status').textContent = embeddingStatus;
+            document.getElementById('ai-analyzer-status').textContent = analyzerStatus;
+
+            // Cost status
+            const costToday = data.cost?.estimated_cost_usd || 0;
+            const tokensRemaining = data.cost?.remaining_tokens || 0;
+            document.getElementById('ai-cost-today').textContent = '$' + costToday.toFixed(2);
+            document.getElementById('ai-tokens-remaining').textContent = tokensRemaining.toLocaleString();
+
+            // Backlog
+            const backlog = data.backlog || {};
+            document.getElementById('ai-backlog-conversations').textContent = (backlog.conversations || 0).toLocaleString();
+            document.getElementById('ai-backlog-github').textContent = (backlog.github || 0).toLocaleString();
+            document.getElementById('ai-backlog-embeddings').textContent = (backlog.embeddings_missing || 0).toLocaleString();
+            document.getElementById('ai-backlog-total').textContent = (backlog.total || 0).toLocaleString();
+        }
+    } catch (e) {
+        console.error('Processing status error:', e);
+    }
+}
+
+async function estimateAIBatch() {
+    const category = document.getElementById('ai-category').value;
+    const batchSize = parseInt(document.getElementById('ai-batch-size').value) || 10;
+    const displayEl = document.getElementById('ai-estimate-display');
+
+    try {
+        const response = await fetch('/tools/consciousness/api/processing/estimate', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            credentials: 'same-origin',
+            body: JSON.stringify({ category, batch_size: batchSize })
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            document.getElementById('ai-est-tokens').textContent = (data.estimated_tokens || 0).toLocaleString();
+            document.getElementById('ai-est-cost').textContent = '$' + (data.estimated_cost_usd || 0).toFixed(4);
+            document.getElementById('ai-est-limit').textContent = data.within_daily_limit ? '✅ Yes' : '❌ No';
+            displayEl.style.display = 'block';
+        }
+    } catch (e) {
+        console.error('Estimate error:', e);
+    }
+}
+
+async function startAIProcessing() {
+    const category = document.getElementById('ai-category').value;
+    const batchSize = parseInt(document.getElementById('ai-batch-size').value) || 10;
+    const progressEl = document.getElementById('ai-processing-progress');
+    const progressBar = document.getElementById('ai-progress-bar');
+    const progressText = document.getElementById('ai-progress-text');
+    const logEl = document.getElementById('ai-processing-log');
+
+    progressEl.style.display = 'block';
+    progressBar.style.width = '10%';
+    progressText.textContent = 'Starting AI analysis...';
+
+    try {
+        const response = await fetch('/tools/consciousness/api/processing/start', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            credentials: 'same-origin',
+            body: JSON.stringify({ category, batch_size: batchSize })
+        });
+        const data = await response.json();
+
+        progressBar.style.width = '100%';
+        progressText.textContent = 'Complete!';
+
+        if (data.success) {
+            // Add result to log
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'activity-item';
+            resultDiv.innerHTML = '<span style="color: var(--archie-green);">✅ Batch ' + (data.batch_id || '').substring(0, 8) + '</span> ' +
+                '<span style="color: var(--archie-text-muted);">' + new Date().toLocaleTimeString() + '</span><br>' +
+                'Processed: ' + (data.processed || 0) + ' | Cards: ' + (data.cards_created || 0) +
+                ' | Relationships: ' + (data.relationships_created || 0) +
+                ' | Tokens: ' + (data.total_tokens || 0).toLocaleString();
+            logEl.insertBefore(resultDiv, logEl.firstChild);
+
+            // Add individual log entries
+            if (data.log) {
+                data.log.forEach(entry => {
+                    const entryDiv = document.createElement('div');
+                    entryDiv.className = 'activity-item';
+                    entryDiv.style.fontSize = '0.85rem';
+                    entryDiv.textContent = entry;
+                    logEl.insertBefore(entryDiv, logEl.children[1]);
+                });
+            }
+
+            loadProcessingStatus();
+        } else {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'activity-item';
+            errorDiv.innerHTML = '<span style="color: var(--archie-red);">❌ Error:</span> ' + (data.error || 'Unknown error');
+            logEl.insertBefore(errorDiv, logEl.firstChild);
+        }
+    } catch (e) {
+        progressText.textContent = 'Error';
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'activity-item';
+        errorDiv.innerHTML = '<span style="color: var(--archie-red);">❌ Error:</span> ' + e.message;
+        logEl.insertBefore(errorDiv, logEl.firstChild);
+    }
+
+    setTimeout(() => { progressEl.style.display = 'none'; }, 3000);
+}
+
+async function generateEmbeddings() {
+    const batchSize = parseInt(document.getElementById('ai-embed-batch-size').value) || 50;
+    const logEl = document.getElementById('ai-processing-log');
+
+    const statusDiv = document.createElement('div');
+    statusDiv.className = 'activity-item';
+    statusDiv.innerHTML = '<span style="color: var(--module-accent);">🧬 Generating embeddings...</span>';
+    logEl.insertBefore(statusDiv, logEl.firstChild);
+
+    try {
+        const response = await fetch('/tools/consciousness/api/processing/generate-embeddings', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            credentials: 'same-origin',
+            body: JSON.stringify({ batch_size: batchSize })
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            statusDiv.innerHTML = '<span style="color: var(--archie-green);">✅ Embeddings generated</span> ' +
+                '<span style="color: var(--archie-text-muted);">' + new Date().toLocaleTimeString() + '</span><br>' +
+                'Processed: ' + (data.processed || 0) + ' | Failed: ' + (data.failed || 0);
+            loadProcessingStatus();
+        } else {
+            statusDiv.innerHTML = '<span style="color: var(--archie-red);">❌ Error:</span> ' + (data.error || 'Unknown');
+        }
+    } catch (e) {
+        statusDiv.innerHTML = '<span style="color: var(--archie-red);">❌ Error:</span> ' + e.message;
+    }
 }
 
 // GitHub indexing functions

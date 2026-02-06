@@ -4713,3 +4713,79 @@ def agent_memory_stats():
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# CONVERSATION LOG INGESTION (Phase 81)
+# ============================================================================
+
+
+@consciousness_bp.route("/api/logs/status", methods=["GET"])
+@login_required
+@admin_required
+def log_ingestion_status():
+    """
+    Get status of conversation log ingestion.
+
+    Returns:
+        - snapshots: Count of snapshot JSON files
+        - transcripts: Count of transcript MD files
+        - sessions: Count of unique sessions
+        - ingested: Count of already ingested entries
+    """
+    try:
+        from .log_ingestor import get_ingestion_status
+
+        status = get_ingestion_status()
+        return jsonify(status)
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/logs/ingest", methods=["POST"])
+@login_required
+@admin_required
+def log_ingestion_batch():
+    """
+    Batch ingest conversation logs into knowledge_base.
+
+    Request body:
+        - limit: Max files to process (default 50, max 500)
+        - dry_run: If true, don't actually insert (default false)
+
+    Returns:
+        - processed: Number of files processed
+        - created: Number of new knowledge entries
+        - skipped: Number of already-ingested files
+        - errors: List of errors encountered
+    """
+    try:
+        data = request.get_json() or {}
+        limit = min(data.get("limit", 50), 500)  # Cap at 500
+        dry_run = data.get("dry_run", False)
+
+        from .log_ingestor import batch_ingest_logs
+
+        result = batch_ingest_logs(limit=limit, dry_run=dry_run)
+
+        audit_log(
+            "LOG_INGESTION",
+            {
+                "user_id": current_user.id,
+                "limit": limit,
+                "dry_run": dry_run,
+                "processed": result.get("processed", 0),
+                "created": result.get("created", 0),
+            },
+            success=result.get("success", False),
+        )
+
+        return jsonify(result)
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500

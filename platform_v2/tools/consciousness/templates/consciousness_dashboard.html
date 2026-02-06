@@ -241,13 +241,13 @@
 /* Dashboard Grid */
 .dashboard-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(320px, 420px));
     gap: var(--archie-space-4, 1rem);
     max-width: 900px;
 }
 
 @media (max-width: 768px) {
-    .dashboard-grid { grid-template-columns: 1fr; }
+    .dashboard-grid { grid-template-columns: 1fr; max-width: 100%; }
 }
 
 /* Chart Container */
@@ -256,12 +256,14 @@
     border: 1px solid var(--archie-border-default, #30363d);
     border-radius: var(--archie-radius-lg, 12px);
     padding: var(--archie-space-4, 1rem);
-    max-height: 280px;
+    max-width: 420px;
+    height: 260px;
     overflow: hidden;
 }
 
 .chart-container canvas {
-    max-height: 200px !important;
+    max-height: 180px !important;
+    max-width: 100% !important;
 }
 
 .chart-title {
@@ -343,6 +345,15 @@
 .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
 @keyframes blink { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; } }
 
+/* Voice Controls */
+.voice-toggle-btn { background: var(--archie-bg-tertiary); border: 1px solid var(--archie-border-default); border-radius: var(--archie-radius-md, 8px); padding: var(--archie-space-2, 0.5rem); color: var(--archie-text-muted); cursor: pointer; transition: all 0.2s ease; margin-left: auto; }
+.voice-toggle-btn:hover { border-color: var(--module-accent); color: var(--module-accent); }
+.voice-toggle-btn.active { background: var(--module-accent-alpha-20); border-color: var(--module-accent); color: var(--module-accent); }
+.voice-play-btn { background: transparent; border: 1px solid var(--archie-border-default); border-radius: 50%; width: 28px; height: 28px; font-size: 0.75rem; cursor: pointer; transition: all 0.2s ease; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.voice-play-btn:hover { border-color: var(--module-accent); background: var(--module-accent-alpha-10); }
+.voice-play-btn.playing { border-color: var(--archie-green); background: var(--archie-green-alpha-10); animation: pulse 1s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
 /* Buttons */
 .btn { display: inline-flex; align-items: center; gap: var(--archie-space-2, 0.5rem); padding: var(--archie-space-2, 0.5rem) var(--archie-space-4, 1rem); border-radius: var(--archie-radius-md, 8px); font-family: var(--archie-font-body, 'JetBrains Mono', monospace); font-size: var(--archie-text-sm, 0.875rem); cursor: pointer; transition: all 0.2s ease; text-decoration: none; border: 1px solid transparent; }
 .btn-primary { background: var(--module-accent-alpha-20); border-color: var(--module-accent); color: var(--module-accent); }
@@ -404,6 +415,8 @@
         <button class="tab-btn active" data-tab="overview">📊 Overview</button>
         <button class="tab-btn" data-tab="chat">💬 Chat</button>
         <button class="tab-btn" data-tab="emotional">💜 Emotional</button>
+        <button class="tab-btn" data-tab="logs">📄 Logs</button>
+        <button class="tab-btn" data-tab="github">🐙 GitHub</button>
         <button class="tab-btn" data-tab="charts">📈 Charts</button>
         <button class="tab-btn" data-tab="graph">🕸️ Graph</button>
         <button class="tab-btn" data-tab="feed">📡 Feed</button>
@@ -437,6 +450,7 @@
             <div class="chat-header">
                 <div class="chat-avatar">🧠</div>
                 <div class="chat-info"><h3>A.R.C.H.I.E.</h3><div class="status">Autonomous Reasoning & Cognitive Hub</div></div>
+                <button id="voice-toggle" class="voice-toggle-btn" onclick="toggleVoice()" title="Toggle voice synthesis">🔇 Voice Off</button>
                 <div id="archie-typing" class="typing-indicator" style="display: none;"><span class="typing-dots">Thinking<span>.</span><span>.</span><span>.</span></span></div>
             </div>
             <div id="archie-chat-messages" class="chat-messages">
@@ -457,6 +471,73 @@
             <div class="gauge-container"><div class="gauge-label">💫 Stress Level</div><div class="gauge-bar"><div class="gauge-fill" id="stress-fill" style="width: 0%; background: linear-gradient(90deg, var(--archie-green), var(--archie-orange), var(--archie-red));"></div></div><div class="gauge-value" id="stress-value">-</div></div>
         </div>
         <div class="chart-container" style="margin-top: 1.5rem; max-width: 900px;"><div class="chart-title">💜 Emotional Timeline (7 days)</div><canvas id="emotional-timeline" height="180"></canvas></div>
+    </div>
+
+    <div id="tab-logs" class="tab-content">
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">📄 Conversation Log Ingestion</div>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <button class="btn btn-secondary" onclick="loadLogStatus()">🔄 Refresh</button>
+                </div>
+            </div>
+            <div class="panel-body">
+                <div class="stats-grid" style="margin-bottom: 1.5rem;">
+                    <div class="stat-card"><div class="stat-value" id="log-snapshots">-</div><div class="stat-label">Snapshot Files</div></div>
+                    <div class="stat-card"><div class="stat-value" id="log-transcripts">-</div><div class="stat-label">Transcript Files</div></div>
+                    <div class="stat-card"><div class="stat-value" id="log-sessions">-</div><div class="stat-label">Unique Sessions</div></div>
+                    <div class="stat-card"><div class="stat-value" id="log-ingested">-</div><div class="stat-label">Already Ingested</div></div>
+                </div>
+                <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem;">
+                    <label style="color: var(--archie-text-muted);">Batch Size:</label>
+                    <input type="number" id="log-batch-size" class="form-control" value="50" min="1" max="500" style="width: 100px;">
+                    <button class="btn btn-primary" onclick="ingestLogs(false)">🚀 Ingest Batch</button>
+                    <button class="btn btn-secondary" onclick="ingestLogs(true)">👁️ Dry Run</button>
+                </div>
+                <div id="log-progress" style="display: none; margin: 1rem 0;">
+                    <div class="gauge-bar" style="height: 12px;"><div class="gauge-fill" id="log-progress-bar" style="width: 0%"></div></div>
+                    <div style="text-align: center; margin-top: 0.5rem; color: var(--archie-text-muted);" id="log-progress-text">Processing...</div>
+                </div>
+                <div id="log-results" class="activity-feed" style="max-height: 400px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab-github" class="tab-content">
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">🐙 GitHub Repository Learning</div>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <button class="btn btn-secondary" onclick="loadGitHubIndexed()">🔄 Refresh</button>
+                </div>
+            </div>
+            <div class="panel-body">
+                <div class="stats-grid" style="margin-bottom: 1.5rem;">
+                    <div class="stat-card"><div class="stat-value" id="github-repos">-</div><div class="stat-label">Repositories</div></div>
+                    <div class="stat-card"><div class="stat-value" id="github-files">-</div><div class="stat-label">Indexed Files</div></div>
+                    <div class="stat-card"><div class="stat-value" id="github-code">-</div><div class="stat-label">Code Files</div></div>
+                    <div class="stat-card"><div class="stat-value" id="github-docs">-</div><div class="stat-label">Documentation</div></div>
+                </div>
+                <div style="display: flex; gap: 1rem; align-items: flex-end; margin-bottom: 1rem; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 300px;">
+                        <label style="color: var(--archie-text-muted); display: block; margin-bottom: 0.5rem;">Repository URL:</label>
+                        <input type="text" id="github-repo-url" class="form-control" placeholder="https://github.com/owner/repo">
+                    </div>
+                    <div>
+                        <label style="color: var(--archie-text-muted); display: block; margin-bottom: 0.5rem;">Priority:</label>
+                        <select id="github-priority" class="form-control" style="width: auto;">
+                            <option value="normal">Normal</option>
+                            <option value="high">High</option>
+                            <option value="critical">Critical</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" onclick="indexGitHubRepo()">🚀 Index Repository</button>
+                </div>
+                <div id="github-results" style="display: none; padding: 1rem; background: var(--archie-bg-tertiary); border-radius: 8px; margin-bottom: 1rem;"></div>
+                <h4 class="section-title" style="margin-top: 1.5rem;">Recently Indexed Files</h4>
+                <div id="github-indexed-list" class="activity-feed" style="max-height: 400px;"><div class="loading"><div class="spinner"></div></div></div>
+            </div>
+        </div>
     </div>
 
     <div id="tab-charts" class="tab-content">
@@ -528,6 +609,8 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
         document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
         document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
         if (btn.dataset.tab === 'emotional') loadEmotionalData();
+        if (btn.dataset.tab === 'logs') loadLogStatus();
+        if (btn.dataset.tab === 'github') loadGitHubIndexed();
         if (btn.dataset.tab === 'charts') loadChartData();
         if (btn.dataset.tab === 'graph') loadKnowledgeGraph();
         if (btn.dataset.tab === 'feed') loadActivityFeed();
@@ -692,32 +775,364 @@ function renderD3Graph(nodes, links, container) {
 
 document.querySelectorAll('#tab-graph .filter-btn').forEach(btn => { btn.addEventListener('click', () => { document.querySelectorAll('#tab-graph .filter-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); loadKnowledgeGraph(btn.dataset.type); }); });
 
+let currentConversationId = null;
+
+// Helper to safely create chat message elements
+function createChatMessage(type, content, extras = {}) {
+    const div = document.createElement('div');
+    div.className = 'chat-message ' + type;
+
+    const avatar = document.createElement('div');
+    avatar.className = 'avatar';
+    avatar.textContent = type === 'user' ? '👤' : (extras.error ? '⚠️' : '🧠');
+
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    if (extras.error) {
+        bubble.style.borderColor = 'var(--archie-red-alpha-30)';
+        bubble.style.background = 'var(--archie-red-alpha-10)';
+    }
+    bubble.textContent = content;
+
+    div.appendChild(avatar);
+    div.appendChild(bubble);
+
+    // Add voice button for ARCHIE responses
+    if (type === 'archie' && !extras.error && extras.messageId) {
+        const voiceBtn = document.createElement('button');
+        voiceBtn.className = 'voice-play-btn';
+        voiceBtn.title = 'Play voice';
+        voiceBtn.textContent = '🔊';
+        voiceBtn.dataset.text = content.substring(0, 500);
+        voiceBtn.onclick = function() { playVoice(extras.messageId, this); };
+        div.appendChild(voiceBtn);
+    }
+
+    return div;
+}
+
 async function sendArchieMessage() {
     const input = document.getElementById('archie-chat-input');
     const messages = document.getElementById('archie-chat-messages');
     const typing = document.getElementById('archie-typing');
     const message = input.value.trim();
     if (!message) return;
-    const safeMsg = message.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const userDiv = document.createElement('div'); userDiv.className = 'chat-message user';
-    userDiv.innerHTML = '<div class="avatar">👤</div><div class="bubble">' + safeMsg + '</div>';
-    messages.appendChild(userDiv);
+
+    messages.appendChild(createChatMessage('user', message));
     input.value = ''; messages.scrollTop = messages.scrollHeight; typing.style.display = 'block';
+
     try {
-        const response = await fetch('/api/ai/chat', { method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin', body: JSON.stringify({ prompt: message, context: {source: 'consciousness_dashboard', module: 'ARCHIE Consciousness'} }) });
-        const data = await response.json(); typing.style.display = 'none';
-        const reply = (data.response || data.text || data.content || data.message || data.error || 'I apologize, I could not process that request.').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const archieDiv = document.createElement('div'); archieDiv.className = 'chat-message archie';
-        archieDiv.innerHTML = '<div class="avatar">🧠</div><div class="bubble">' + reply + '</div>';
-        messages.appendChild(archieDiv); messages.scrollTop = messages.scrollHeight;
+        // Use personality-aware archie-chat endpoint instead of generic /api/ai/chat
+        const response = await fetch('/tools/archie-chat/send', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                message: message,
+                conversation_id: currentConversationId
+            })
+        });
+        const data = await response.json();
+        typing.style.display = 'none';
+
+        if (data.success) {
+            currentConversationId = data.conversation_id;
+            const reply = data.response || 'I apologize, I could not process that request.';
+            messages.appendChild(createChatMessage('archie', reply, { messageId: data.message_id || Date.now() }));
+        } else {
+            messages.appendChild(createChatMessage('archie', 'Error: ' + (data.error || 'Unknown error'), { error: true }));
+        }
+        messages.scrollTop = messages.scrollHeight;
     } catch (e) {
         typing.style.display = 'none';
-        const errDiv = document.createElement('div'); errDiv.className = 'chat-message archie';
-        errDiv.innerHTML = '<div class="avatar">⚠️</div><div class="bubble" style="border-color: var(--archie-red-alpha-30); background: var(--archie-red-alpha-10);">Sorry, I encountered an error: ' + e.message + '</div>';
-        messages.appendChild(errDiv); messages.scrollTop = messages.scrollHeight;
+        messages.appendChild(createChatMessage('archie', 'Sorry, I encountered an error: ' + e.message, { error: true }));
+        messages.scrollTop = messages.scrollHeight;
     }
 }
 
-loadStats(); loadMiniCharts(); setInterval(loadStats, 30000);
+// Voice synthesis state
+let voiceEnabled = false;
+let currentAudio = null;
+
+async function loadVoiceConfig() {
+    try {
+        const response = await fetch('/tools/archie-chat/api/voice/config', { credentials: 'same-origin' });
+        const data = await response.json();
+        if (data.success !== false) {
+            voiceEnabled = data.voice_enabled || false;
+            updateVoiceToggle();
+        }
+    } catch (e) { console.log('Voice config not available:', e.message); }
+}
+
+function updateVoiceToggle() {
+    const btn = document.getElementById('voice-toggle');
+    if (voiceEnabled) {
+        btn.textContent = '🔊 Voice On';
+        btn.classList.add('active');
+    } else {
+        btn.textContent = '🔇 Voice Off';
+        btn.classList.remove('active');
+    }
+}
+
+async function toggleVoice() {
+    voiceEnabled = !voiceEnabled;
+    updateVoiceToggle();
+    try {
+        await fetch('/tools/archie-chat/api/voice/config', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            credentials: 'same-origin',
+            body: JSON.stringify({ voice_enabled: voiceEnabled })
+        });
+    } catch (e) { console.log('Failed to save voice config:', e.message); }
+}
+
+async function playVoice(messageId, btn) {
+    const text = btn.dataset.text;
+    if (!text) return;
+
+    // Stop any currently playing audio
+    if (currentAudio) {
+        currentAudio.pause();
+        currentAudio = null;
+        document.querySelectorAll('.voice-play-btn.playing').forEach(b => b.classList.remove('playing'));
+    }
+
+    btn.classList.add('playing');
+    btn.textContent = '⏸';
+
+    try {
+        const response = await fetch('/tools/archie-chat/api/voice/synthesize', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            credentials: 'same-origin',
+            body: JSON.stringify({ text: text, use_cache: true })
+        });
+        const data = await response.json();
+
+        if (data.success && data.audio_base64) {
+            const audio = new Audio('data:audio/wav;base64,' + data.audio_base64);
+            currentAudio = audio;
+            audio.onended = () => {
+                btn.classList.remove('playing');
+                btn.textContent = '🔊';
+                currentAudio = null;
+            };
+            audio.onerror = () => {
+                btn.classList.remove('playing');
+                btn.textContent = '🔊';
+                currentAudio = null;
+            };
+            audio.play();
+        } else {
+            console.log('Voice synthesis unavailable:', data.error || 'Unknown error');
+            btn.classList.remove('playing');
+            btn.textContent = '🔊';
+        }
+    } catch (e) {
+        console.log('Voice synthesis error:', e.message);
+        btn.classList.remove('playing');
+        btn.textContent = '🔊';
+    }
+}
+
+// Log ingestion functions
+async function loadLogStatus() {
+    try {
+        const response = await fetch('/tools/consciousness/api/logs/status', { credentials: 'same-origin' });
+        const data = await response.json();
+        if (data.success) {
+            document.getElementById('log-snapshots').textContent = (data.snapshots || 0).toLocaleString();
+            document.getElementById('log-transcripts').textContent = (data.transcripts || 0).toLocaleString();
+            document.getElementById('log-sessions').textContent = (data.sessions || 0).toLocaleString();
+            document.getElementById('log-ingested').textContent = (data.ingested || 0).toLocaleString();
+        }
+    } catch (e) {
+        console.log('Log status not available:', e.message);
+    }
+}
+
+async function ingestLogs(dryRun) {
+    const batchSize = parseInt(document.getElementById('log-batch-size').value) || 50;
+    const progressEl = document.getElementById('log-progress');
+    const progressBar = document.getElementById('log-progress-bar');
+    const progressText = document.getElementById('log-progress-text');
+    const resultsEl = document.getElementById('log-results');
+
+    progressEl.style.display = 'block';
+    progressBar.style.width = '10%';
+    progressText.textContent = dryRun ? 'Analyzing logs...' : 'Ingesting logs...';
+    resultsEl.textContent = '';
+
+    try {
+        const response = await fetch('/tools/consciousness/api/logs/ingest', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            credentials: 'same-origin',
+            body: JSON.stringify({ limit: batchSize, dry_run: dryRun })
+        });
+        const data = await response.json();
+
+        progressBar.style.width = '100%';
+        progressText.textContent = 'Complete!';
+
+        if (data.success) {
+            const resultDiv = document.createElement('div');
+            resultDiv.style.cssText = 'padding: 1rem; background: var(--archie-green-alpha-10); border: 1px solid var(--archie-green); border-radius: 8px;';
+            resultDiv.textContent = (dryRun ? '[DRY RUN] Would process ' : 'Processed ') +
+                (data.processed || 0) + ' files, created ' + (data.created || 0) + ' memories';
+            if (data.errors && data.errors.length > 0) {
+                resultDiv.textContent += ' (' + data.errors.length + ' errors)';
+            }
+            resultsEl.appendChild(resultDiv);
+            loadLogStatus();
+        } else {
+            const errorDiv = document.createElement('div');
+            errorDiv.style.cssText = 'padding: 1rem; background: var(--archie-red-alpha-10); border: 1px solid var(--archie-red); border-radius: 8px;';
+            errorDiv.textContent = 'Error: ' + (data.error || 'Unknown error');
+            resultsEl.appendChild(errorDiv);
+        }
+    } catch (e) {
+        progressText.textContent = 'Error';
+        const errorDiv = document.createElement('div');
+        errorDiv.style.cssText = 'padding: 1rem; background: var(--archie-red-alpha-10); border: 1px solid var(--archie-red); border-radius: 8px;';
+        errorDiv.textContent = 'Error: ' + e.message;
+        resultsEl.appendChild(errorDiv);
+    }
+
+    setTimeout(() => { progressEl.style.display = 'none'; }, 3000);
+}
+
+// GitHub indexing functions
+async function loadGitHubIndexed() {
+    const listEl = document.getElementById('github-indexed-list');
+    listEl.textContent = '';
+
+    const loadingDiv = document.createElement('div');
+    loadingDiv.className = 'loading';
+    loadingDiv.appendChild(Object.assign(document.createElement('div'), { className: 'spinner' }));
+    listEl.appendChild(loadingDiv);
+
+    try {
+        const response = await fetch('/tools/consciousness/github/indexed', { credentials: 'same-origin' });
+        const data = await response.json();
+        listEl.textContent = '';
+
+        if (data.success && data.files) {
+            // Update stats
+            const repos = new Set(data.files.map(f => f.repo_name || 'unknown'));
+            document.getElementById('github-repos').textContent = repos.size;
+            document.getElementById('github-files').textContent = data.files.length;
+            document.getElementById('github-code').textContent = data.files.filter(f => f.is_code).length;
+            document.getElementById('github-docs').textContent = data.files.filter(f => f.is_documentation).length;
+
+            if (data.files.length === 0) {
+                listEl.textContent = 'No files indexed yet. Add a repository above.';
+                listEl.style.textAlign = 'center';
+                listEl.style.color = 'var(--archie-text-muted)';
+                listEl.style.padding = '2rem';
+            } else {
+                data.files.slice(0, 50).forEach(file => {
+                    const item = document.createElement('div');
+                    item.className = 'activity-item';
+
+                    const icon = document.createElement('div');
+                    icon.className = 'activity-icon';
+                    icon.textContent = file.is_code ? '💻' : (file.is_documentation ? '📄' : '📁');
+
+                    const content = document.createElement('div');
+                    content.className = 'activity-content';
+
+                    const title = document.createElement('div');
+                    title.className = 'activity-title';
+                    title.textContent = file.file_name || file.title || 'Unknown file';
+
+                    const desc = document.createElement('div');
+                    desc.className = 'activity-description';
+                    desc.textContent = file.file_path || '';
+
+                    const time = document.createElement('div');
+                    time.className = 'activity-time';
+                    time.textContent = file.indexed_at ? new Date(file.indexed_at).toLocaleString() : '';
+
+                    content.appendChild(title);
+                    content.appendChild(desc);
+                    content.appendChild(time);
+
+                    item.appendChild(icon);
+                    item.appendChild(content);
+                    listEl.appendChild(item);
+                });
+            }
+        } else {
+            listEl.textContent = 'Error loading indexed files';
+            listEl.style.color = 'var(--archie-red)';
+        }
+    } catch (e) {
+        listEl.textContent = 'Error: ' + e.message;
+        listEl.style.color = 'var(--archie-red)';
+    }
+}
+
+async function indexGitHubRepo() {
+    const urlInput = document.getElementById('github-repo-url');
+    const prioritySelect = document.getElementById('github-priority');
+    const resultsEl = document.getElementById('github-results');
+
+    const repoUrl = urlInput.value.trim();
+    if (!repoUrl) {
+        resultsEl.style.display = 'block';
+        resultsEl.style.color = 'var(--archie-red)';
+        resultsEl.textContent = 'Please enter a repository URL';
+        return;
+    }
+
+    // Parse GitHub URL
+    const match = repoUrl.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+    if (!match) {
+        resultsEl.style.display = 'block';
+        resultsEl.style.color = 'var(--archie-red)';
+        resultsEl.textContent = 'Invalid GitHub URL format. Use: https://github.com/owner/repo';
+        return;
+    }
+
+    const owner = match[1];
+    const repo = match[2].replace('.git', '');
+    const priority = prioritySelect.value;
+
+    resultsEl.style.display = 'block';
+    resultsEl.style.color = 'var(--archie-text-muted)';
+    resultsEl.textContent = 'Indexing ' + owner + '/' + repo + '...';
+
+    try {
+        const response = await fetch('/tools/consciousness/github/index-selective', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                repo_url: repoUrl,
+                priority: priority
+            })
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            resultsEl.style.color = 'var(--archie-green)';
+            resultsEl.textContent = 'Successfully indexed ' + (data.indexed_count || 0) + ' files from ' + owner + '/' + repo;
+            urlInput.value = '';
+            loadGitHubIndexed();
+        } else {
+            resultsEl.style.color = 'var(--archie-red)';
+            resultsEl.textContent = 'Error: ' + (data.error || 'Unknown error');
+        }
+    } catch (e) {
+        resultsEl.style.color = 'var(--archie-red)';
+        resultsEl.textContent = 'Error: ' + e.message;
+    }
+}
+
+loadStats(); loadMiniCharts(); loadVoiceConfig(); setInterval(loadStats, 30000);
 </script>
 {% endblock %}

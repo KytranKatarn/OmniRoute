@@ -29,6 +29,7 @@ services:
   archie_platform:
     build: ./platform_v2
     container_name: archie_platform
+    command: ["gunicorn", "--bind", "0.0.0.0:3000", "--workers", "1", "--threads", "4", "--timeout", "300", "app:app"]
     restart: unless-stopped
     env_file:
       - .env

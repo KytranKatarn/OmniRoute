@@ -24,11 +24,6 @@ function switchChatMode(mode) {
     document.getElementById('dual-chat-container').style.display = mode === 'side-by-side' ? 'flex' : 'none';
     document.getElementById('collab-container').style.display = mode === 'collab' ? 'flex' : 'none';
 
-    // Initialize terminal for side-by-side mode
-    if (mode === 'side-by-side' && !terminal) {
-        initTerminal();
-    }
-
     // Load collab state if switching to collab mode
     if (mode === 'collab') {
         loadCollabLearnings();
@@ -128,10 +123,10 @@ function connectToTtyd() {
 }
 
 function updateClaudeStatus(online) {
-    const statusDot = document.querySelector('.claude-panel .status-dot');
-    if (statusDot) {
-        statusDot.classList.toggle('offline', !online);
-    }
+    const dots = document.querySelectorAll('.claude-panel .status-dot');
+    dots.forEach(function(dot) {
+        dot.classList.toggle('offline', !online);
+    });
 }
 
 function openClaudeTerminal() {

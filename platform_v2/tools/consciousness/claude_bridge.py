@@ -64,6 +64,10 @@ class ClaudeBridge:
             if system_prompt:
                 payload["system_prompt"] = system_prompt
 
+            # Include conversation history for context persistence
+            if self.conversation_history:
+                payload["conversation"] = self.conversation_history
+
             body = json.dumps(payload).encode()
             req = Request(
                 CLAUDE_PROXY_URL,

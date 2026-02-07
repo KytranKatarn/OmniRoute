@@ -155,6 +155,27 @@ class CollaborationEngine:
 
         return session
 
+    def _has_recent_interjection(self, session: CollabSession, since_role: str) -> str:
+        """Check if a user interjected since the last message from since_role.
+
+        Returns the interjection text if found, empty string otherwise.
+        """
+        # Walk backwards through messages to find the most recent user message
+        # that appeared after the last message from since_role
+        found_since = False
+        for msg in reversed(session.messages):
+            if msg.role == since_role:
+                found_since = True
+                break
+            if msg.role == "user" and msg.turn > 0:
+                return msg.content
+        # If we never found since_role, check if there's a user interjection after turn 0
+        if not found_since:
+            for msg in reversed(session.messages):
+                if msg.role == "user" and msg.turn > 0:
+                    return msg.content
+        return ""
+
     async def _get_archie_response(self, session: CollabSession) -> str:
         """Get ARCHIE's response based on conversation so far"""
         archie = self._get_archie()
@@ -164,6 +185,15 @@ class CollaborationEngine:
         # Build context from previous messages
         context = self._build_context(session)
 
+        # Check for user interjection
+        interjection_note = ""
+        interjection = self._has_recent_interjection(session, "archie")
+        if interjection:
+            interjection_note = (
+                "\n\nIMPORTANT: The human operator has interjected with a new point. "
+                "Please directly address their message before continuing the discussion."
+            )
+
         prompt = f"""You are ARCHIE, an AI assistant collaborating with Claude to answer: "{session.topic}"
 
 Previous discussion:
@@ -171,7 +201,7 @@ Previous discussion:
 
 Provide your thoughts, ask Claude clarifying questions, or build on their points.
 Keep response concise (2-3 paragraphs max).
-If you think the topic is fully addressed, say "I think we've covered this well."
+If you think the topic is fully addressed, say "I think we've covered this well."{interjection_note}
 """
 
         try:
@@ -186,12 +216,21 @@ If you think the topic is fully addressed, say "I think we've covered this well.
         """Get Claude's response via CLI"""
         context = self._build_context(session)
 
+        # Check for user interjection
+        interjection_note = ""
+        interjection = self._has_recent_interjection(session, "claude")
+        if interjection:
+            interjection_note = (
+                "\n\nIMPORTANT: The human operator has interjected with a new point. "
+                "Please directly address their message before continuing the discussion."
+            )
+
         message = f"""ARCHIE and I are discussing: "{session.topic}"
 
 Conversation so far:
 {context}
 
-Please respond to ARCHIE's latest point. Be helpful and collaborative.
+Please respond to ARCHIE's latest point. Be helpful and collaborative.{interjection_note}
 """
 
         bridge = self._get_claude()

@@ -144,21 +144,44 @@
     background: var(--accent-primary, #00ff41);
 }
 
-/* Terminal Panel */
-.terminal-container {
-    flex: 1;
-    background: #1a1a2e;
-    overflow: hidden;
+/* Side-by-side chat message styles (reused in both panels) */
+.chat-panel-content .chat-message {
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    border-radius: 8px;
+    animation: fadeIn 0.3s ease;
 }
 
-.terminal-container .xterm {
-    height: 100%;
-    padding: 0.5rem;
+.chat-panel-content .chat-message.archie {
+    background: rgba(139, 92, 246, 0.15);
+    border-left: 3px solid #8b5cf6;
 }
 
-/* Force xterm styles */
-.terminal-container .xterm-viewport {
-    background-color: #1a1a2e !important;
+.chat-panel-content .chat-message.claude {
+    background: rgba(0, 255, 255, 0.1);
+    border-left: 3px solid #00ffff;
+}
+
+.chat-panel-content .chat-message.user {
+    background: rgba(255, 255, 255, 0.05);
+    border-left: 3px solid #888;
+}
+
+.chat-panel-content .chat-message .role {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+    font-size: 0.8rem;
+}
+
+.chat-panel-content .chat-message.archie .role { color: #8b5cf6; }
+.chat-panel-content .chat-message.claude .role { color: #00ffff; }
+.chat-panel-content .chat-message.user .role { color: #888; }
+
+.chat-panel-content .chat-message .content {
+    color: var(--text-primary, #e0e0e0);
+    line-height: 1.5;
+    white-space: pre-wrap;
+    font-size: 0.9rem;
 }
 
 /* Collaboration Mode */

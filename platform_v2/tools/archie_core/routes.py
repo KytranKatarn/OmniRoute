@@ -2,6 +2,7 @@
 A.R.C.H.I.E. Chat Module - Unified Command Interface
 Your single interface for talking to ARCHIE
 """
+
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash
 from flask_login import login_required, current_user
 import psycopg2
@@ -9,159 +10,184 @@ from psycopg2.extras import RealDictCursor
 import os
 import uuid
 import json
-from datetime import datetime
+
 from .ai_chat import ArchieAI
 from .command_interface import get_command_interface
 
-archie_chat_bp = Blueprint('archie_chat', __name__, url_prefix='/tools/archie-chat')
+archie_chat_bp = Blueprint("archie_chat", __name__, url_prefix="/tools/archie-chat")
+
 
 def get_db():
     return psycopg2.connect(
-        host=os.getenv('DB_HOST', 'archie_database'),
-        port=os.getenv('DB_PORT', '5432'),
-        database=os.getenv('DB_NAME', 'archie'),
-        user=os.getenv('DB_USER', 'archie'),
-        password=os.getenv('DB_PASSWORD', '')
+        host=os.getenv("DB_HOST", "archie_database"),
+        port=os.getenv("DB_PORT", "5432"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", ""),
     )
 
-@archie_chat_bp.route('/')
+
+@archie_chat_bp.route("/")
 @login_required
 def index():
     """A.R.C.H.I.E. Chat main page"""
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        
+
         cur.execute("SELECT COUNT(*) as message_count FROM ai_conversations WHERE user_id = %s", (current_user.id,))
         stats = cur.fetchone()
-        
-        cur.execute("""
+
+        cur.execute(
+            """
             SELECT relationship_strength, current_mood
             FROM archie_emotional_state
             WHERE user_id = %s
             ORDER BY timestamp DESC
             LIMIT 1
-        """, (current_user.id,))
+        """,
+            (current_user.id,),
+        )
         emotional_state = cur.fetchone()
-        
-        cur.execute("""
+
+        cur.execute(
+            """
             SELECT conversation_id, message, response, created_at
             FROM ai_conversations
             WHERE user_id = %s
             ORDER BY created_at DESC
             LIMIT 10
-        """, (current_user.id,))
+        """,
+            (current_user.id,),
+        )
         recent_conversations = cur.fetchall()
-        
+
         cur.execute("SELECT * FROM archie_core_identity LIMIT 1")
         archie_identity = cur.fetchone()
-        
+
         cur.close()
         conn.close()
-        
-        return render_template('tools/archie_chat.html',
+
+        return render_template(
+            "tools/archie_chat.html",
             stats=stats,
             emotional_state=emotional_state,
             recent_conversations=recent_conversations,
-            archie_identity=archie_identity
+            archie_identity=archie_identity,
         )
     except Exception as e:
         import traceback
-        traceback.print_exc()
-        flash(f'Error loading chat: {str(e)}', 'error')
-        return redirect(url_for('dashboard'))
 
-@archie_chat_bp.route('/send', methods=['POST'])
+        traceback.print_exc()
+        flash(f"Error loading chat: {str(e)}", "error")
+        return redirect(url_for("dashboard"))
+
+
+@archie_chat_bp.route("/send", methods=["POST"])
 @login_required
 def send_message():
     """Send message to A.R.C.H.I.E."""
     try:
-        message = request.json.get('message')
-        conversation_id = request.json.get('conversation_id') or str(uuid.uuid4())
-        
+        message = request.json.get("message")
+        conversation_id = request.json.get("conversation_id") or str(uuid.uuid4())
+
         if not message:
-            return jsonify({'success': False, 'error': 'No message provided'}), 400
-        
+            return jsonify({"success": False, "error": "No message provided"}), 400
+
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        
-        user_context = {'username': current_user.username}
-        
-        cur.execute("""
+
+        user_context = {"username": current_user.username}
+
+        cur.execute(
+            """
             SELECT relationship_strength, current_mood
             FROM archie_emotional_state
             WHERE user_id = %s
             ORDER BY timestamp DESC
             LIMIT 1
-        """, (current_user.id,))
+        """,
+            (current_user.id,),
+        )
         emotional = cur.fetchone()
         if emotional:
-            user_context['relationship_strength'] = float(emotional['relationship_strength'])
-            user_context['current_mood'] = emotional['current_mood']
-        
-        cur.execute("""
+            user_context["relationship_strength"] = float(emotional["relationship_strength"])
+            user_context["current_mood"] = emotional["current_mood"]
+
+        cur.execute(
+            """
             SELECT content FROM long_term_memory
             WHERE user_id = %s AND memory_type = 'preference'
             ORDER BY importance_score DESC LIMIT 5
-        """, (current_user.id,))
+        """,
+            (current_user.id,),
+        )
         preferences = cur.fetchall()
-        user_context['preferences'] = [p['content'] for p in preferences]
-        
+        user_context["preferences"] = [p["content"] for p in preferences]
+
         ai = ArchieAI()
         response_data = ai.chat(message, user_context, [])
-        
-        if not response_data['success']:
-            return jsonify({
-                'success': False,
-                'error': f"AI unavailable: {response_data.get('error', 'Unknown')}"
-            }), 503
-        
-        response_text = response_data['response']
-        
+
+        if not response_data["success"]:
+            return jsonify({"success": False, "error": f"AI unavailable: {response_data.get('error', 'Unknown')}"}), 503
+
+        response_text = response_data["response"]
+
         # FIXED: Use metadata JSONB field instead of non-existent columns
-        cur.execute("""
-            INSERT INTO ai_conversations 
+        chat_mode = request.json.get("chat_mode", "solo")
+        cur.execute(
+            """
+            INSERT INTO ai_conversations
             (user_id, conversation_id, message, response, model, metadata)
             VALUES (%s, %s, %s, %s, %s, %s)
             RETURNING id
-        """, (
-            current_user.id,
-            conversation_id,
-            message,
-            response_text,
-            response_data['model'],
-            json.dumps({
-                'response_time_ms': response_data['response_time_ms'],
-                'tokens': response_data.get('tokens', 0),
-                'server': response_data.get('server')
-            })
-        ))
-        
-        message_id = cur.fetchone()['id']
+        """,
+            (
+                current_user.id,
+                conversation_id,
+                message,
+                response_text,
+                response_data["model"],
+                json.dumps(
+                    {
+                        "response_time_ms": response_data["response_time_ms"],
+                        "tokens": response_data.get("tokens", 0),
+                        "server": response_data.get("server"),
+                        "chat_mode": chat_mode,
+                    }
+                ),
+            ),
+        )
+
+        message_id = cur.fetchone()["id"]
         conn.commit()
         cur.close()
         conn.close()
-        
-        return jsonify({
-            'success': True,
-            'response': response_text,
-            'conversation_id': conversation_id,
-            'message_id': message_id,
-            'model_used': response_data['model'],
-            'response_time': response_data['response_time_ms']
-        })
+
+        return jsonify(
+            {
+                "success": True,
+                "response": response_text,
+                "conversation_id": conversation_id,
+                "message_id": message_id,
+                "model_used": response_data["model"],
+                "response_time": response_data["response_time_ms"],
+            }
+        )
 
     except Exception as e:
         import traceback
+
         traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # NEW UNIFIED COMMAND INTERFACE (Phase 56)
 # ============================================================================
 
-@archie_chat_bp.route('/api/command', methods=['POST'])
+
+@archie_chat_bp.route("/api/command", methods=["POST"])
 @login_required
 def api_command():
     """
@@ -190,43 +216,43 @@ def api_command():
     """
     try:
         data = request.json or {}
-        message = data.get('message', '').strip()
-        conversation_id = data.get('conversation_id') or str(uuid.uuid4())
+        message = data.get("message", "").strip()
+        conversation_id = data.get("conversation_id") or str(uuid.uuid4())
 
         if not message:
-            return jsonify({
-                'success': False,
-                'error': 'No message provided'
-            }), 400
+            return jsonify({"success": False, "error": "No message provided"}), 400
 
         # Get command interface and process
         interface = get_command_interface()
         result = interface.process_command_sync(
-            user_input=message,
-            user_id=current_user.id,
-            conversation_id=conversation_id
+            user_input=message, user_id=current_user.id, conversation_id=conversation_id
         )
 
         # Also save to ai_conversations for history
         try:
             conn = get_db()
             cur = conn.cursor()
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO ai_conversations
                 (user_id, conversation_id, message, response, model, metadata)
                 VALUES (%s, %s, %s, %s, %s, %s)
-            """, (
-                current_user.id,
-                conversation_id,
-                message,
-                result.get('response', '')[:5000],
-                result.get('execution', {}).get('model', 'command_interface'),
-                json.dumps({
-                    'intent': result.get('intent', {}),
-                    'execution': result.get('execution', {}),
-                    'escalation': result.get('escalation', {})
-                })
-            ))
+            """,
+                (
+                    current_user.id,
+                    conversation_id,
+                    message,
+                    result.get("response", "")[:5000],
+                    result.get("execution", {}).get("model", "command_interface"),
+                    json.dumps(
+                        {
+                            "intent": result.get("intent", {}),
+                            "execution": result.get("execution", {}),
+                            "escalation": result.get("escalation", {}),
+                        }
+                    ),
+                ),
+            )
             conn.commit()
             cur.close()
             conn.close()
@@ -237,75 +263,58 @@ def api_command():
 
     except Exception as e:
         import traceback
+
         traceback.print_exc()
-        return jsonify({
-            'success': False,
-            'error': str(e),
-            'response': f"I encountered an error: {str(e)}"
-        }), 500
+        return jsonify({"success": False, "error": str(e), "response": f"I encountered an error: {str(e)}"}), 500
 
 
-@archie_chat_bp.route('/api/suggestions', methods=['GET'])
+@archie_chat_bp.route("/api/suggestions", methods=["GET"])
 @login_required
 def api_suggestions():
     """Get context-aware command suggestions"""
     try:
         interface = get_command_interface()
         import asyncio
+
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            suggestions = loop.run_until_complete(
-                interface.get_suggestions(current_user.id)
-            )
+            suggestions = loop.run_until_complete(interface.get_suggestions(current_user.id))
         finally:
             loop.close()
 
-        return jsonify({
-            'success': True,
-            'suggestions': suggestions
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'suggestions': [
-                "What's the system status?",
-                "Help me with a coding task",
-                "Show me the team roster"
-            ]
-        })
+        return jsonify({"success": True, "suggestions": suggestions})
+    except Exception:
+        return jsonify(
+            {
+                "success": False,
+                "suggestions": ["What's the system status?", "Help me with a coding task", "Show me the team roster"],
+            }
+        )
 
 
-@archie_chat_bp.route('/api/history', methods=['GET'])
+@archie_chat_bp.route("/api/history", methods=["GET"])
 @login_required
 def api_history():
     """Get command history"""
     try:
-        limit = request.args.get('limit', 20, type=int)
+        limit = request.args.get("limit", 20, type=int)
         interface = get_command_interface()
         import asyncio
+
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            history = loop.run_until_complete(
-                interface.get_command_history(current_user.id, limit)
-            )
+            history = loop.run_until_complete(interface.get_command_history(current_user.id, limit))
         finally:
             loop.close()
 
-        return jsonify({
-            'success': True,
-            'history': history
-        })
+        return jsonify({"success": True, "history": history})
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'history': [],
-            'error': str(e)
-        })
+        return jsonify({"success": False, "history": [], "error": str(e)})
 
 
-@archie_chat_bp.route('/api/status', methods=['GET'])
+@archie_chat_bp.route("/api/status", methods=["GET"])
 @login_required
 def api_status():
     """Get ARCHIE's current status"""
@@ -314,16 +323,20 @@ def api_status():
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get emotional state
-        cur.execute("""
+        cur.execute(
+            """
             SELECT relationship_strength, current_mood, energy_level
             FROM archie_emotional_state
             WHERE user_id = %s
             ORDER BY timestamp DESC LIMIT 1
-        """, (current_user.id,))
+        """,
+            (current_user.id,),
+        )
         emotional = cur.fetchone()
 
         # Get today's command stats
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 COUNT(*) as total_commands,
                 SUM(CASE WHEN success THEN 1 ELSE 0 END) as successful,
@@ -331,85 +344,81 @@ def api_status():
                 AVG(duration_ms) as avg_duration
             FROM archie_command_log
             WHERE user_id = %s AND created_at > CURRENT_DATE
-        """, (current_user.id,))
+        """,
+            (current_user.id,),
+        )
         stats = cur.fetchone()
 
         # Get active workflows
-        cur.execute("""
+        cur.execute(
+            """
             SELECT COUNT(*) as active_workflows
             FROM workflow_queue
             WHERE status IN ('pending', 'running')
-        """)
+        """
+        )
         workflows = cur.fetchone()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'status': {
-                'online': True,
-                'emotional_state': {
-                    'mood': emotional['current_mood'] if emotional else 'neutral',
-                    'relationship': float(emotional['relationship_strength']) if emotional else 0.5,
-                    'energy': float(emotional.get('energy_level', 0.8)) if emotional else 0.8
+        return jsonify(
+            {
+                "success": True,
+                "status": {
+                    "online": True,
+                    "emotional_state": {
+                        "mood": emotional["current_mood"] if emotional else "neutral",
+                        "relationship": float(emotional["relationship_strength"]) if emotional else 0.5,
+                        "energy": float(emotional.get("energy_level", 0.8)) if emotional else 0.8,
+                    },
+                    "today": {
+                        "commands": stats["total_commands"] or 0,
+                        "successful": stats["successful"] or 0,
+                        "escalated": stats["escalated"] or 0,
+                        "avg_response_ms": int(stats["avg_duration"] or 0),
+                    },
+                    "active_workflows": workflows["active_workflows"] or 0,
                 },
-                'today': {
-                    'commands': stats['total_commands'] or 0,
-                    'successful': stats['successful'] or 0,
-                    'escalated': stats['escalated'] or 0,
-                    'avg_response_ms': int(stats['avg_duration'] or 0)
-                },
-                'active_workflows': workflows['active_workflows'] or 0
             }
-        })
+        )
 
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'status': {'online': True, 'error': str(e)}
-        })
+        return jsonify({"success": False, "status": {"online": True, "error": str(e)}})
 
 
 # ============================================
 # Phase 63: Multi-Agent Discussion API
 # ============================================
 
-@archie_chat_bp.route('/api/discussion/start', methods=['POST'])
+
+@archie_chat_bp.route("/api/discussion/start", methods=["POST"])
 @login_required
 def start_discussion():
     """Start a new multi-agent discussion (Phase 63)"""
     try:
         from ai_bridge.team_discussion_engine import TeamDiscussionEngine
+
         engine = TeamDiscussionEngine()
 
         data = request.json
-        topic = data.get('topic', 'Ad-hoc discussion')
-        stations = data.get('stations', [])
+        topic = data.get("topic", "Ad-hoc discussion")
+        stations = data.get("stations", [])
 
-        discussion_id = engine.start_adhoc_discussion(
-            topic=topic,
-            stations=stations,
-            user_id=current_user.id
-        )
+        discussion_id = engine.start_adhoc_discussion(topic=topic, stations=stations, user_id=current_user.id)
 
         if discussion_id:
-            return jsonify({
-                'success': True,
-                'discussion_id': discussion_id,
-                'message': f'Discussion started with topic: {topic}'
-            })
+            return jsonify(
+                {"success": True, "discussion_id": discussion_id, "message": f"Discussion started with topic: {topic}"}
+            )
         else:
-            return jsonify({
-                'success': False,
-                'error': 'Failed to start discussion'
-            }), 500
+            return jsonify({"success": False, "error": "Failed to start discussion"}), 500
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@archie_chat_bp.route('/api/discussion/<int:discussion_id>', methods=['GET'])
+@archie_chat_bp.route("/api/discussion/<int:discussion_id>", methods=["GET"])
 @login_required
 def get_discussion(discussion_id):
     """Get discussion details and messages (Phase 63)"""
@@ -418,7 +427,8 @@ def get_discussion(discussion_id):
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get discussion details
-        cur.execute("""
+        cur.execute(
+            """
             SELECT ad.id, ad.topic, ad.description, ad.status,
                    ad.consensus_reached, ad.consensus_score,
                    ad.started_at, ad.ended_at, ad.metadata,
@@ -426,14 +436,17 @@ def get_discussion(discussion_id):
             FROM agent_discussions ad
             LEFT JOIN agents a ON ad.facilitator_id = a.id
             WHERE ad.id = %s
-        """, (discussion_id,))
+        """,
+            (discussion_id,),
+        )
         discussion = cur.fetchone()
 
         if not discussion:
-            return jsonify({'success': False, 'error': 'Discussion not found'}), 404
+            return jsonify({"success": False, "error": "Discussion not found"}), 404
 
         # Get messages
-        cur.execute("""
+        cur.execute(
+            """
             SELECT adm.id, adm.message, adm.message_type,
                    adm.confidence_score, adm.created_at,
                    a.id as agent_id, a.name as agent_name,
@@ -442,87 +455,79 @@ def get_discussion(discussion_id):
             JOIN agents a ON adm.agent_id = a.id
             WHERE adm.discussion_id = %s
             ORDER BY adm.created_at ASC
-        """, (discussion_id,))
+        """,
+            (discussion_id,),
+        )
         messages = cur.fetchall()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'discussion': dict(discussion),
-            'messages': [dict(m) for m in messages],
-            'participant_count': len(set(m['agent_id'] for m in messages))
-        })
+        return jsonify(
+            {
+                "success": True,
+                "discussion": dict(discussion),
+                "messages": [dict(m) for m in messages],
+                "participant_count": len(set(m["agent_id"] for m in messages)),
+            }
+        )
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@archie_chat_bp.route('/api/discussion/<int:discussion_id>/contribute', methods=['POST'])
+@archie_chat_bp.route("/api/discussion/<int:discussion_id>/contribute", methods=["POST"])
 @login_required
 def add_contribution(discussion_id):
     """Add agent contribution to discussion (Phase 63)"""
     try:
         from ai_bridge.team_discussion_engine import TeamDiscussionEngine
+
         engine = TeamDiscussionEngine()
 
         data = request.json
-        agent_id = data.get('agent_id')
-        message = data.get('message')
-        message_type = data.get('type', 'analysis')
+        agent_id = data.get("agent_id")
+        message = data.get("message")
+        message_type = data.get("type", "analysis")
 
         if not agent_id or not message:
-            return jsonify({
-                'success': False,
-                'error': 'agent_id and message are required'
-            }), 400
+            return jsonify({"success": False, "error": "agent_id and message are required"}), 400
 
         message_id = engine.agent_contribute(
             discussion_id=discussion_id,
             agent_id=agent_id,
             message=message,
             message_type=message_type,
-            confidence_score=data.get('confidence', 0.8)
+            confidence_score=data.get("confidence", 0.8),
         )
 
         if message_id:
-            return jsonify({
-                'success': True,
-                'message_id': message_id
-            })
+            return jsonify({"success": True, "message_id": message_id})
         else:
-            return jsonify({
-                'success': False,
-                'error': 'Failed to add contribution'
-            }), 500
+            return jsonify({"success": False, "error": "Failed to add contribution"}), 500
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@archie_chat_bp.route('/api/discussion/<int:discussion_id>/consensus', methods=['GET'])
+@archie_chat_bp.route("/api/discussion/<int:discussion_id>/consensus", methods=["GET"])
 @login_required
 def get_consensus(discussion_id):
     """Get current consensus status for discussion (Phase 63)"""
     try:
         from ai_bridge.team_discussion_engine import TeamDiscussionEngine
+
         engine = TeamDiscussionEngine()
 
         score, stats = engine.calculate_consensus(discussion_id)
 
-        return jsonify({
-            'success': True,
-            'discussion_id': discussion_id,
-            'consensus_score': score,
-            'stats': stats
-        })
+        return jsonify({"success": True, "discussion_id": discussion_id, "consensus_score": score, "stats": stats})
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@archie_chat_bp.route('/api/discussions/recent', methods=['GET'])
+@archie_chat_bp.route("/api/discussions/recent", methods=["GET"])
 @login_required
 def get_recent_discussions():
     """Get recent multi-agent discussions (Phase 63)"""
@@ -530,9 +535,10 @@ def get_recent_discussions():
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        limit = request.args.get('limit', 10, type=int)
+        limit = request.args.get("limit", 10, type=int)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT ad.id, ad.topic, ad.status,
                    ad.consensus_reached, ad.consensus_score,
                    ad.started_at, ad.ended_at,
@@ -544,26 +550,26 @@ def get_recent_discussions():
             GROUP BY ad.id
             ORDER BY ad.started_at DESC
             LIMIT %s
-        """, (limit,))
+        """,
+            (limit,),
+        )
         discussions = cur.fetchall()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'discussions': [dict(d) for d in discussions]
-        })
+        return jsonify({"success": True, "discussions": [dict(d) for d in discussions]})
 
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================
 # Phase 64: Voice DNA System API
 # ============================================
 
-@archie_chat_bp.route('/api/voice/synthesize', methods=['POST'])
+
+@archie_chat_bp.route("/api/voice/synthesize", methods=["POST"])
 @login_required
 def synthesize_voice():
     """
@@ -594,18 +600,20 @@ def synthesize_voice():
         from ai_bridge.voice_synthesis import get_voice_synthesizer
 
         data = request.json or {}
-        text = data.get('text', '').strip()
-        emotion = data.get('emotion')  # Optional, will auto-detect if not provided
-        method = data.get('method', 'word_cache')  # word_cache or full
+        text = data.get("text", "").strip()
+        emotion = data.get("emotion")  # Optional, will auto-detect if not provided
+        method = data.get("method", "word_cache")  # word_cache or full
 
         if not text:
-            return jsonify({'success': False, 'error': 'No text provided'}), 400
+            return jsonify({"success": False, "error": "No text provided"}), 400
 
         if len(text) > 500:
-            return jsonify({
-                'success': False,
-                'error': 'Text too long (max 500 chars). Consider chunking longer responses.'
-            }), 400
+            return (
+                jsonify(
+                    {"success": False, "error": "Text too long (max 500 chars). Consider chunking longer responses."}
+                ),
+                400,
+            )
 
         synthesizer = get_voice_synthesizer()
 
@@ -614,7 +622,7 @@ def synthesize_voice():
             emotion = synthesizer.get_archie_emotional_state(current_user.id)
 
         # Use word-level caching by default for better efficiency
-        if method == 'word_cache':
+        if method == "word_cache":
             result = synthesizer.synthesize_with_word_cache(text, emotion, current_user.id)
         else:
             result = synthesizer.synthesize(text, emotion, current_user.id)
@@ -623,11 +631,12 @@ def synthesize_voice():
 
     except Exception as e:
         import traceback
+
         traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@archie_chat_bp.route('/api/voice/config', methods=['GET', 'POST'])
+@archie_chat_bp.route("/api/voice/config", methods=["GET", "POST"])
 @login_required
 def voice_config():
     """
@@ -656,31 +665,35 @@ def voice_config():
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        if request.method == 'GET':
-            cur.execute("""
+        if request.method == "GET":
+            cur.execute(
+                """
                 SELECT voice_enabled, auto_play, volume, preferred_speed, preferred_emotion
                 FROM voice_config
                 WHERE user_id = %s
-            """, (current_user.id,))
+            """,
+                (current_user.id,),
+            )
             config = cur.fetchone()
 
             # Return defaults if no config exists
             if not config:
                 config = {
-                    'voice_enabled': True,
-                    'auto_play': False,
-                    'volume': 0.80,
-                    'preferred_speed': 1.00,
-                    'preferred_emotion': None
+                    "voice_enabled": True,
+                    "auto_play": False,
+                    "volume": 0.80,
+                    "preferred_speed": 1.00,
+                    "preferred_emotion": None,
                 }
 
             cur.close()
             conn.close()
-            return jsonify({'success': True, 'config': dict(config)})
+            return jsonify({"success": True, "config": dict(config)})
 
         else:  # POST - Update config
             data = request.json or {}
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO voice_config
                     (user_id, voice_enabled, auto_play, volume, preferred_speed, preferred_emotion)
                 VALUES (%s, %s, %s, %s, %s, %s)
@@ -691,26 +704,29 @@ def voice_config():
                     preferred_speed = EXCLUDED.preferred_speed,
                     preferred_emotion = EXCLUDED.preferred_emotion,
                     updated_at = NOW()
-            """, (
-                current_user.id,
-                data.get('voice_enabled', True),
-                data.get('auto_play', False),
-                min(max(data.get('volume', 0.80), 0.0), 1.0),  # Clamp 0-1
-                min(max(data.get('preferred_speed', 1.00), 0.5), 2.0),  # Clamp 0.5-2
-                data.get('preferred_emotion')
-            ))
+            """,
+                (
+                    current_user.id,
+                    data.get("voice_enabled", True),
+                    data.get("auto_play", False),
+                    min(max(data.get("volume", 0.80), 0.0), 1.0),  # Clamp 0-1
+                    min(max(data.get("preferred_speed", 1.00), 0.5), 2.0),  # Clamp 0.5-2
+                    data.get("preferred_emotion"),
+                ),
+            )
             conn.commit()
             cur.close()
             conn.close()
-            return jsonify({'success': True, 'message': 'Voice configuration updated'})
+            return jsonify({"success": True, "message": "Voice configuration updated"})
 
     except Exception as e:
         import traceback
+
         traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@archie_chat_bp.route('/api/voice/status', methods=['GET'])
+@archie_chat_bp.route("/api/voice/status", methods=["GET"])
 @login_required
 def voice_status():
     """
@@ -737,44 +753,51 @@ def voice_status():
         # Get cache statistics
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 COUNT(*) as cached_phrases,
                 COALESCE(SUM(hit_count), 0) as cache_hits
             FROM voice_word_cache
             WHERE text_hash IS NOT NULL
-        """)
+        """
+        )
         cache_stats = cur.fetchone()
 
         # Get today's generation stats
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 COUNT(*) as today_generations,
                 COUNT(*) FILTER (WHERE cached = TRUE) as today_cache_hits,
                 AVG(generation_time_ms) FILTER (WHERE cached = FALSE)::INTEGER as avg_gen_time
             FROM voice_generation_log
             WHERE created_at > CURRENT_DATE
-        """)
+        """
+        )
         today_stats = cur.fetchone()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'status': {
-                **status,
-                'cached_phrases': cache_stats['cached_phrases'] or 0,
-                'cache_hits': int(cache_stats['cache_hits'] or 0),
-                'today': {
-                    'generations': today_stats['today_generations'] or 0,
-                    'cache_hits': today_stats['today_cache_hits'] or 0,
-                    'avg_generation_ms': today_stats['avg_gen_time'] or 0
-                }
+        return jsonify(
+            {
+                "success": True,
+                "status": {
+                    **status,
+                    "cached_phrases": cache_stats["cached_phrases"] or 0,
+                    "cache_hits": int(cache_stats["cache_hits"] or 0),
+                    "today": {
+                        "generations": today_stats["today_generations"] or 0,
+                        "cache_hits": today_stats["today_cache_hits"] or 0,
+                        "avg_generation_ms": today_stats["avg_gen_time"] or 0,
+                    },
+                },
             }
-        })
+        )
 
     except Exception as e:
         import traceback
+
         traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500

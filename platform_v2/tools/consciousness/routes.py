@@ -4990,6 +4990,167 @@ def list_collab_sessions():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@consciousness_bp.route("/api/chat/history", methods=["GET"])
+@login_required
+def get_chat_history():
+    """
+    Load recent chat history for the current user.
+
+    Returns solo (ARCHIE) and side-by-side messages from ai_conversations,
+    keyed by chat_mode so the frontend can restore them on page load.
+    """
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Get recent solo/side-by-side messages (last 50)
+        cur.execute(
+            """
+            SELECT id, conversation_id, message, response, model,
+                   metadata, created_at
+            FROM ai_conversations
+            WHERE user_id = %s
+            ORDER BY created_at DESC
+            LIMIT 50
+            """,
+            (current_user.id,),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        # Group by conversation_id, most recent conversation first
+        conversations = {}
+        for row in rows:
+            cid = row["conversation_id"]
+            if cid not in conversations:
+                conversations[cid] = []
+            conversations[cid].append(
+                {
+                    "id": row["id"],
+                    "message": row["message"],
+                    "response": row["response"],
+                    "model": row["model"],
+                    "chat_mode": (row["metadata"] or {}).get("chat_mode", "solo"),
+                    "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                }
+            )
+
+        # Get the most recent conversation for solo mode
+        solo_messages = []
+        solo_conversation_id = None
+        for cid, msgs in conversations.items():
+            mode = msgs[0].get("chat_mode", "solo")
+            if mode in ("solo", ""):
+                solo_conversation_id = cid
+                # Reverse so oldest is first
+                solo_messages = list(reversed(msgs))
+                break
+
+        # Get recent side-by-side messages
+        side_messages = []
+        for cid, msgs in conversations.items():
+            for m in msgs:
+                if m.get("chat_mode") == "side-by-side-claude":
+                    side_messages.append(m)
+        side_messages = list(reversed(side_messages[:20]))
+
+        return jsonify(
+            {
+                "success": True,
+                "solo": {
+                    "conversation_id": solo_conversation_id,
+                    "messages": solo_messages,
+                },
+                "side_by_side_claude": side_messages,
+            }
+        )
+
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/claude/chat", methods=["POST"])
+@login_required
+def claude_side_chat():
+    """
+    Send a message to Claude via the CLI proxy (side-by-side mode).
+
+    Request body:
+        - message: The user's message to Claude
+
+    Returns:
+        - response: Claude's reply
+    """
+    import asyncio
+
+    data = request.get_json() or {}
+    message = data.get("message", "").strip()
+
+    if not message:
+        return jsonify({"success": False, "error": "Message required"}), 400
+
+    try:
+        from .claude_bridge import get_claude_bridge
+
+        bridge = get_claude_bridge()
+
+        # Run async send_message in a new event loop
+        loop = asyncio.new_event_loop()
+        try:
+            response = loop.run_until_complete(
+                bridge.send_message(
+                    message,
+                    system_prompt=(
+                        "You are Claude, chatting directly with a human user in a side-by-side "
+                        "interface alongside ARCHIE (another AI). Be helpful, concise, and friendly. "
+                        "Answer the user's questions directly."
+                    ),
+                )
+            )
+        finally:
+            loop.close()
+
+        if response:
+            # Persist Claude side-by-side message to DB
+            try:
+                conn = get_db()
+                cur = conn.cursor()
+                cur.execute(
+                    """
+                    INSERT INTO ai_conversations
+                    (user_id, conversation_id, message, response, model, metadata)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        current_user.id,
+                        data.get("conversation_id", "claude-side-" + str(current_user.id)),
+                        message,
+                        response,
+                        "claude-max-cli",
+                        json.dumps({"chat_mode": "side-by-side-claude"}),
+                    ),
+                )
+                conn.commit()
+                cur.close()
+                conn.close()
+            except Exception as db_err:
+                logger.warning(f"Failed to persist Claude message: {db_err}")
+
+            return jsonify({"success": True, "response": response})
+        else:
+            return jsonify({"success": False, "error": "No response from Claude"}), 502
+
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @consciousness_bp.route("/api/claude/status", methods=["GET"])
 @login_required
 def get_claude_status():

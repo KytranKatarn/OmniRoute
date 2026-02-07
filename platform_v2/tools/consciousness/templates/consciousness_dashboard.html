@@ -43,77 +43,8 @@
     z-index: 0;
 }
 
-/* Module Header */
-.module-header {
-    position: relative;
-    z-index: 10;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: var(--archie-space-4, 1rem) var(--archie-space-6, 1.5rem);
-    background: linear-gradient(180deg, rgba(13, 17, 23, 0.95) 0%, rgba(1, 4, 9, 0.98) 100%);
-    border: 1px solid var(--archie-border-default, #30363d);
-    border-radius: var(--archie-radius-lg, 12px);
-    margin-bottom: var(--archie-space-6, 1.5rem);
-}
+/* Module Header - uses shared admin_ops_nav.html */
 
-.module-header::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 10%;
-    right: 10%;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--module-accent), transparent);
-}
-
-.module-title {
-    display: flex;
-    align-items: center;
-    gap: var(--archie-space-3, 0.75rem);
-}
-
-.module-title h1 {
-    font-family: var(--archie-font-heading, 'Orbitron', sans-serif);
-    font-size: var(--archie-text-2xl, 1.5rem);
-    font-weight: 700;
-    color: var(--module-accent);
-    text-shadow: var(--module-glow);
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    margin: 0;
-}
-
-.module-title .subtitle {
-    font-size: var(--archie-text-xs, 0.75rem);
-    color: var(--archie-text-muted, #6e7681);
-    letter-spacing: 1px;
-}
-
-.module-nav {
-    display: flex;
-    gap: var(--archie-space-2, 0.5rem);
-}
-
-.nav-link {
-    display: flex;
-    align-items: center;
-    gap: var(--archie-space-2, 0.5rem);
-    padding: var(--archie-space-2, 0.5rem) var(--archie-space-4, 1rem);
-    background: var(--archie-bg-tertiary, #161b22);
-    border: 1px solid var(--archie-border-default, #30363d);
-    border-radius: var(--archie-radius-md, 8px);
-    color: var(--archie-text-tertiary, #8b949e);
-    text-decoration: none;
-    font-size: var(--archie-text-sm, 0.875rem);
-    transition: all 0.2s ease;
-}
-
-.nav-link:hover {
-    border-color: var(--archie-green);
-    color: var(--archie-green);
-    background: var(--archie-green-alpha-10);
-}
 
 /* Tab Navigation */
 .tab-nav {
@@ -387,8 +318,6 @@
 
 /* Responsive */
 @media (max-width: 768px) {
-    .module-header { flex-direction: column; gap: var(--archie-space-4, 1rem); text-align: center; }
-    .module-nav { justify-content: center; }
     .tab-nav { justify-content: flex-start; }
 }
 {% endblock %}
@@ -406,18 +335,7 @@
 <script src="{{ url_for('static', filename='js/collaboration.js') }}"></script>
 
 <div class="consciousness-container" data-module="consciousness">
-    <div class="module-header">
-        <div class="module-title">
-            <div>
-                <h1>🧠 A.R.C.H.I.E. CONSCIOUSNESS</h1>
-                <div class="subtitle">Neural Core • Dynamic Learning System • AI COMMAND</div>
-            </div>
-        </div>
-        <div class="module-nav">
-            <a href="{{ url_for('bridge.bridge_dashboard') }}" class="nav-link">🎛️ Bridge</a>
-            <a href="{{ url_for('team_management.index') }}" class="nav-link">👥 Team</a>
-        </div>
-    </div>
+    {% include 'includes/admin_ops_nav.html' %}
 
     <div class="tab-nav">
         <button class="tab-btn active" data-tab="overview">📊 Overview</button>
@@ -513,12 +431,17 @@
                 <div class="chat-panel-header claude">
                     <span class="ai-icon">🤖</span>
                     <div class="ai-info">
-                        <div class="ai-name">Claude CLI</div>
-                        <div class="ai-model">MAX • Opus 4.5</div>
+                        <div class="ai-name">Claude</div>
+                        <div class="ai-model">MAX • Opus 4.6</div>
                     </div>
-                    <span class="status-dot offline"></span>
+                    <span class="status-dot"></span>
                 </div>
-                <div class="terminal-container" id="claude-terminal"></div>
+                <div class="chat-panel-content" id="claude-panel-messages">
+                    <div class="chat-message claude"><div class="role">🤖 Claude</div><div class="content">I'm here alongside ARCHIE. Ask me anything!</div></div>
+                </div>
+                <div class="chat-panel-input">
+                    <textarea placeholder="Message Claude..." rows="2" id="claude-side-input" onkeypress="if(event.key==='Enter' && !event.shiftKey) { event.preventDefault(); sendClaudeSideMessage(); }"></textarea>
+                </div>
             </div>
         </div>
 
@@ -1055,7 +978,8 @@ async function sendArchieMessage() {
             credentials: 'same-origin',
             body: JSON.stringify({
                 message: message,
-                conversation_id: currentConversationId
+                conversation_id: currentConversationId,
+                chat_mode: 'solo'
             })
         });
         const data = await response.json();
@@ -1607,6 +1531,139 @@ async function sendArchieSideMessage() {
     }
 }
 
+// Side-by-side mode: Send message to Claude panel
+async function sendClaudeSideMessage() {
+    const input = document.getElementById('claude-side-input');
+    const message = input.value.trim();
+    if (!message) return;
+
+    const messagesEl = document.getElementById('claude-panel-messages');
+
+    // Add user message
+    const userMsg = document.createElement('div');
+    userMsg.className = 'chat-message user';
+
+    const userRole = document.createElement('div');
+    userRole.className = 'role';
+    userRole.textContent = '\u{1F464} You';
+    userMsg.appendChild(userRole);
+
+    const userContent = document.createElement('div');
+    userContent.className = 'content';
+    userContent.textContent = message;
+    userMsg.appendChild(userContent);
+
+    messagesEl.appendChild(userMsg);
+    input.value = '';
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+
+    // Show typing indicator using safe DOM methods
+    const typingEl = document.createElement('div');
+    typingEl.className = 'chat-message claude typing-msg';
+    const typingRole = document.createElement('div');
+    typingRole.className = 'role';
+    typingRole.textContent = '\u{1F916} Claude';
+    typingEl.appendChild(typingRole);
+    const typingContent = document.createElement('div');
+    typingContent.className = 'content';
+    typingContent.style.opacity = '0.6';
+    typingContent.textContent = 'Thinking...';
+    typingEl.appendChild(typingContent);
+    messagesEl.appendChild(typingEl);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+
+    try {
+        const response = await fetch('/tools/consciousness/api/claude/chat', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ message: message })
+        });
+        const data = await response.json();
+
+        // Remove typing indicator
+        typingEl.remove();
+
+        const claudeMsg = document.createElement('div');
+        claudeMsg.className = 'chat-message claude';
+
+        const claudeRole = document.createElement('div');
+        claudeRole.className = 'role';
+        claudeRole.textContent = '\u{1F916} Claude';
+        claudeMsg.appendChild(claudeRole);
+
+        const claudeContent = document.createElement('div');
+        claudeContent.className = 'content';
+        claudeContent.textContent = data.response || data.error || 'No response';
+        claudeMsg.appendChild(claudeContent);
+
+        messagesEl.appendChild(claudeMsg);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    } catch (e) {
+        typingEl.remove();
+        console.error('Claude error:', e);
+    }
+}
+
 loadStats(); loadMiniCharts(); loadVoiceConfig(); setInterval(loadStats, 30000);
+
+// ═══════════════════════════════════════════════════════════════
+// CHAT HISTORY - Load previous conversations on page init
+// ═══════════════════════════════════════════════════════════════
+
+async function loadChatHistory() {
+    try {
+        const response = await fetch('/tools/consciousness/api/chat/history', { credentials: 'same-origin' });
+        const data = await response.json();
+        if (!data.success) return;
+
+        // Restore solo chat messages
+        if (data.solo && data.solo.messages && data.solo.messages.length > 0) {
+            currentConversationId = data.solo.conversation_id;
+            const messagesEl = document.getElementById('archie-chat-messages');
+            // Keep the welcome message, add history after it
+            data.solo.messages.forEach(function(msg) {
+                messagesEl.appendChild(createChatMessage('user', msg.message));
+                messagesEl.appendChild(createChatMessage('archie', msg.response, { messageId: msg.id }));
+            });
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
+
+        // Restore side-by-side Claude messages
+        if (data.side_by_side_claude && data.side_by_side_claude.length > 0) {
+            const claudeEl = document.getElementById('claude-panel-messages');
+            data.side_by_side_claude.forEach(function(msg) {
+                var userMsg = document.createElement('div');
+                userMsg.className = 'chat-message user';
+                var userRole = document.createElement('div');
+                userRole.className = 'role';
+                userRole.textContent = '\u{1F464} You';
+                userMsg.appendChild(userRole);
+                var userContent = document.createElement('div');
+                userContent.className = 'content';
+                userContent.textContent = msg.message;
+                userMsg.appendChild(userContent);
+                claudeEl.appendChild(userMsg);
+
+                var claudeMsg = document.createElement('div');
+                claudeMsg.className = 'chat-message claude';
+                var claudeRole = document.createElement('div');
+                claudeRole.className = 'role';
+                claudeRole.textContent = '\u{1F916} Claude';
+                claudeMsg.appendChild(claudeRole);
+                var claudeContent = document.createElement('div');
+                claudeContent.className = 'content';
+                claudeContent.textContent = msg.response;
+                claudeMsg.appendChild(claudeContent);
+                claudeEl.appendChild(claudeMsg);
+            });
+            claudeEl.scrollTop = claudeEl.scrollHeight;
+        }
+    } catch (e) {
+        console.log('Chat history load:', e.message);
+    }
+}
+
+// Load chat history on page init
+loadChatHistory();
 </script>
 {% endblock %}

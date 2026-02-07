@@ -44,6 +44,10 @@ class ClaudeProxyHandler(BaseHTTPRequestHandler):
             return
 
         system_prompt = data.get("system_prompt", "").strip()
+        conversation = data.get("conversation", [])
+
+        # Build full prompt with conversation history
+        full_message = self._build_prompt(conversation, message)
 
         # Build claude CLI command
         cmd = ["claude", "-p", "--dangerously-skip-permissions"]
@@ -55,7 +59,7 @@ class ClaudeProxyHandler(BaseHTTPRequestHandler):
         try:
             result = subprocess.run(
                 cmd,
-                input=message,
+                input=full_message,
                 capture_output=True,
                 text=True,
                 timeout=SUBPROCESS_TIMEOUT,
@@ -80,6 +84,25 @@ class ClaudeProxyHandler(BaseHTTPRequestHandler):
         except Exception as e:
             logger.error(f"Unexpected error: {e}")
             self._respond(500, {"success": False, "error": str(e)})
+
+    @staticmethod
+    def _build_prompt(conversation, current_message):
+        """Build a full prompt with conversation history prepended."""
+        if not conversation:
+            return current_message
+
+        lines = []
+        for entry in conversation:
+            role = entry.get("role", "user")
+            content = entry.get("content", "")
+            if role == "assistant":
+                lines.append(f"Assistant: {content}")
+            else:
+                lines.append(f"Human: {content}")
+
+        lines.append(f"Human: {current_message}")
+        lines.append("Assistant:")
+        return "\n\n".join(lines)
 
     def do_GET(self):
         """Health check endpoint"""

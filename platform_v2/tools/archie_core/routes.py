@@ -99,6 +99,7 @@ def send_message():
 
         user_context = {"username": current_user.username}
 
+        # Load user's emotional state (how ARCHIE perceives the user)
         cur.execute(
             """
             SELECT relationship_strength, current_mood
@@ -114,6 +115,41 @@ def send_message():
             user_context["relationship_strength"] = float(emotional["relationship_strength"])
             user_context["current_mood"] = emotional["current_mood"]
 
+        # Load ARCHIE's own emotional state (her feelings)
+        cur.execute(
+            """
+            SELECT current_mood, mood_intensity, energy_level, stress_level
+            FROM agent_emotional_state
+            ORDER BY timestamp DESC
+            LIMIT 1
+        """,
+        )
+        archie_state = cur.fetchone()
+        if archie_state:
+            user_context["archie_mood"] = archie_state["current_mood"]
+            user_context["archie_mood_intensity"] = float(archie_state.get("mood_intensity") or 0.5)
+            user_context["archie_energy"] = float(archie_state.get("energy_level") or 0.8)
+        else:
+            # Fallback: check the archie-specific table
+            cur.execute(
+                """
+                SELECT current_mood, mood_intensity
+                FROM archie_emotional_state
+                WHERE user_id IS NULL OR user_id = 0
+                ORDER BY timestamp DESC
+                LIMIT 1
+            """,
+            )
+            archie_fallback = cur.fetchone()
+            if archie_fallback:
+                user_context["archie_mood"] = archie_fallback["current_mood"]
+                user_context["archie_mood_intensity"] = float(archie_fallback.get("mood_intensity") or 0.5)
+            else:
+                user_context["archie_mood"] = "curious"
+                user_context["archie_mood_intensity"] = 0.7
+                user_context["archie_energy"] = 0.8
+
+        # Load user preferences
         cur.execute(
             """
             SELECT content FROM long_term_memory
@@ -125,8 +161,25 @@ def send_message():
         preferences = cur.fetchall()
         user_context["preferences"] = [p["content"] for p in preferences]
 
+        # Load recent conversation history for continuity
+        cur.execute(
+            """
+            SELECT message, response FROM ai_conversations
+            WHERE user_id = %s AND conversation_id = %s
+            ORDER BY created_at DESC
+            LIMIT 5
+        """,
+            (current_user.id, conversation_id),
+        )
+        history_rows = cur.fetchall()
+        conversation_history = []
+        for row in reversed(history_rows):
+            conversation_history.append({"role": "user", "content": row["message"]})
+            if row["response"]:
+                conversation_history.append({"role": "assistant", "content": row["response"]})
+
         ai = ArchieAI()
-        response_data = ai.chat(message, user_context, [])
+        response_data = ai.chat(message, user_context, conversation_history)
 
         if not response_data["success"]:
             return jsonify({"success": False, "error": f"AI unavailable: {response_data.get('error', 'Unknown')}"}), 503

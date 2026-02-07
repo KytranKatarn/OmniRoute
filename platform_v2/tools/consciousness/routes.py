@@ -4789,3 +4789,221 @@ def log_ingestion_batch():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# AI-TO-AI COLLABORATION (Phase 83 - Dual AI Chat)
+# ============================================================================
+
+
+@consciousness_bp.route("/api/collab/start", methods=["POST"])
+@login_required
+def start_collaboration():
+    """
+    Start a new AI-to-AI collaboration session.
+
+    Request body:
+        - topic: The question/topic for ARCHIE and Claude to discuss
+        - max_turns: Maximum conversation turns (default 10, max 20)
+
+    Returns:
+        - session_id: UUID of the new session
+        - status: Initial session status
+    """
+    try:
+        import threading
+        import asyncio
+        from .collaboration_engine import get_collaboration_engine
+
+        data = request.get_json() or {}
+        topic = data.get("topic", "")
+        max_turns = min(int(data.get("max_turns", 10)), 20)
+
+        if not topic:
+            return jsonify({"success": False, "error": "Topic required"}), 400
+
+        engine = get_collaboration_engine()
+        session = engine.start_session(topic, max_turns)
+
+        # Run collaboration in background
+        def run_async():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(engine.run_collaboration(session.id))
+            finally:
+                loop.close()
+
+        thread = threading.Thread(target=run_async, daemon=True)
+        thread.start()
+
+        audit_log(
+            "COLLAB_START",
+            {
+                "user_id": current_user.id,
+                "session_id": session.id,
+                "topic": topic[:100],
+                "max_turns": max_turns,
+            },
+            success=True,
+        )
+
+        return jsonify({"success": True, "session_id": session.id, "status": session.status.value})
+
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/collab/status/<session_id>", methods=["GET"])
+@login_required
+def get_collaboration_status(session_id):
+    """
+    Get current status of a collaboration session.
+
+    Returns full session data including all messages exchanged.
+    """
+    try:
+        from .collaboration_engine import get_collaboration_engine
+
+        engine = get_collaboration_engine()
+        session = engine.get_session(session_id)
+
+        if not session:
+            return jsonify({"success": False, "error": "Session not found"}), 404
+
+        return jsonify({"success": True, "session": session.to_dict()})
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/collab/pause/<session_id>", methods=["POST"])
+@login_required
+def pause_collaboration(session_id):
+    """Pause a running collaboration session."""
+    from .collaboration_engine import get_collaboration_engine
+
+    engine = get_collaboration_engine()
+    success = engine.pause_session(session_id)
+    return jsonify({"success": success})
+
+
+@consciousness_bp.route("/api/collab/resume/<session_id>", methods=["POST"])
+@login_required
+def resume_collaboration(session_id):
+    """Resume a paused collaboration session."""
+    from .collaboration_engine import get_collaboration_engine
+
+    engine = get_collaboration_engine()
+    success = engine.resume_session(session_id)
+    return jsonify({"success": success})
+
+
+@consciousness_bp.route("/api/collab/stop/<session_id>", methods=["POST"])
+@login_required
+def stop_collaboration(session_id):
+    """Stop a collaboration session early."""
+    from .collaboration_engine import get_collaboration_engine
+
+    engine = get_collaboration_engine()
+    success = engine.stop_session(session_id)
+
+    if success:
+        audit_log(
+            "COLLAB_STOP",
+            {"user_id": current_user.id, "session_id": session_id},
+            success=True,
+        )
+
+    return jsonify({"success": success})
+
+
+@consciousness_bp.route("/api/collab/interject/<session_id>", methods=["POST"])
+@login_required
+def add_interjection(session_id):
+    """
+    Add user message to ongoing collaboration.
+
+    Allows user to interject during AI-to-AI discussion.
+    """
+    data = request.get_json() or {}
+    message = data.get("message", "")
+
+    if not message:
+        return jsonify({"success": False, "error": "Message required"}), 400
+
+    from .collaboration_engine import get_collaboration_engine
+
+    engine = get_collaboration_engine()
+    success = engine.add_interjection(session_id, message)
+    return jsonify({"success": success})
+
+
+@consciousness_bp.route("/api/collab/learnings", methods=["GET"])
+@login_required
+def get_collab_learnings():
+    """
+    Get learning statistics from AI collaborations.
+
+    Returns:
+        - total_learnings: Total knowledge cards from collaborations
+        - learnings_last_week: Cards created in last 7 days
+        - top_topics: Most common topics learned
+        - recent_learnings: Latest 5 learnings
+    """
+    try:
+        from .learning_extractor import get_learning_stats
+
+        stats = get_learning_stats()
+        return jsonify({"success": True, **stats})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/collab/history", methods=["GET"])
+@login_required
+def get_collab_history():
+    """Get history of collaboration sessions."""
+    try:
+        from .learning_extractor import get_collaboration_history
+
+        sessions = get_collaboration_history()
+        return jsonify({"success": True, "sessions": sessions})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/collab/sessions", methods=["GET"])
+@login_required
+def list_collab_sessions():
+    """List all active/recent collaboration sessions in memory."""
+    try:
+        from .collaboration_engine import get_collaboration_engine
+
+        engine = get_collaboration_engine()
+        sessions = engine.list_sessions()
+        return jsonify({"success": True, "sessions": sessions})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/claude/status", methods=["GET"])
+@login_required
+def get_claude_status():
+    """
+    Check Claude CLI and ttyd status.
+
+    Returns:
+        - claude: Claude CLI availability
+        - ttyd: ttyd service status
+    """
+    try:
+        from .claude_bridge import get_claude_bridge
+
+        bridge = get_claude_bridge()
+        return jsonify({"success": True, "claude": bridge.health_check(), "ttyd": bridge.get_ttyd_status()})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500

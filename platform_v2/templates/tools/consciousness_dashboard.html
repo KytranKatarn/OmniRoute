@@ -394,8 +394,16 @@
 {% endblock %}
 
 {% block content %}
+<!-- External Libraries -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+
+<!-- xterm.js for Claude Terminal -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/xterm.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dual-chat.css') }}">
+<script src="{{ url_for('static', filename='js/xterm.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/xterm-addon-fit.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/collaboration.js') }}"></script>
 
 <div class="consciousness-container" data-module="consciousness">
     <div class="module-header">
@@ -447,7 +455,18 @@
     </div>
 
     <div id="tab-chat" class="tab-content">
-        <div class="chat-container">
+        <!-- Chat Mode Tabs -->
+        <div class="chat-mode-tabs">
+            <button class="chat-mode-btn active" data-mode="solo" onclick="switchChatMode('solo')">🧠 ARCHIE Solo</button>
+            <button class="chat-mode-btn" data-mode="side-by-side" onclick="switchChatMode('side-by-side')">👥 Side-by-Side</button>
+            <button class="chat-mode-btn" data-mode="collab" onclick="switchChatMode('collab')">🤝 Collaboration</button>
+            <div style="margin-left: auto; display: flex; align-items: center; gap: 0.5rem;">
+                <span id="claude-cli-status" style="font-size: 0.75rem; color: var(--archie-text-muted);"><span class="status-dot offline"></span> Checking...</span>
+            </div>
+        </div>
+
+        <!-- Solo Mode: Original ARCHIE Chat -->
+        <div id="solo-chat-container" class="chat-container" style="display: flex;">
             <div class="chat-header">
                 <div class="chat-avatar">🧠</div>
                 <div class="chat-info"><h3>A.R.C.H.I.E.</h3><div class="status">Autonomous Reasoning & Cognitive Hub</div></div>
@@ -460,6 +479,108 @@
             <div class="chat-input-area">
                 <input type="text" id="archie-chat-input" class="chat-input" placeholder="Talk to A.R.C.H.I.E...." onkeypress="if(event.key==='Enter') sendArchieMessage()">
                 <button onclick="sendArchieMessage()" class="chat-send-btn">Send</button>
+            </div>
+        </div>
+
+        <!-- Side-by-Side Mode: ARCHIE + Claude Terminal -->
+        <div id="dual-chat-container" class="dual-chat-container" style="display: none;">
+            <!-- ARCHIE Panel -->
+            <div class="chat-panel archie-panel">
+                <div class="chat-panel-header archie">
+                    <span class="ai-icon">🧠</span>
+                    <div class="ai-info">
+                        <div class="ai-name">A.R.C.H.I.E.</div>
+                        <div class="ai-model">Local • qwen2.5:7b</div>
+                    </div>
+                    <span class="status-dot"></span>
+                </div>
+                <div class="chat-panel-content" id="archie-panel-messages">
+                    <div class="chat-message archie"><div class="role">🧠 A.R.C.H.I.E.</div><div class="content">I'm here alongside Claude. Ask us anything!</div></div>
+                </div>
+                <div class="chat-panel-input">
+                    <textarea placeholder="Message ARCHIE..." rows="2" id="archie-side-input" onkeypress="if(event.key==='Enter' && !event.shiftKey) { event.preventDefault(); sendArchieSideMessage(); }"></textarea>
+                </div>
+            </div>
+
+            <!-- Resize Handle -->
+            <div class="resize-handle"></div>
+
+            <!-- Claude Panel -->
+            <div class="chat-panel claude-panel">
+                <div class="chat-panel-header claude">
+                    <span class="ai-icon">🤖</span>
+                    <div class="ai-info">
+                        <div class="ai-name">Claude CLI</div>
+                        <div class="ai-model">MAX • Opus 4.5</div>
+                    </div>
+                    <span class="status-dot offline"></span>
+                </div>
+                <div class="terminal-container" id="claude-terminal"></div>
+            </div>
+        </div>
+
+        <!-- Collaboration Mode: AI-to-AI Discussion -->
+        <div id="collab-container" class="collab-container" style="display: none;">
+            <!-- Start View -->
+            <div id="collab-start-view" class="collab-start-form">
+                <h3>🤝 AI-to-AI Collaboration</h3>
+                <p>Start a discussion between ARCHIE and Claude. They'll work together to solve your question, and ARCHIE will learn from Claude's expertise.</p>
+                <textarea id="collab-topic" placeholder="Enter a topic or question for the AIs to discuss..."></textarea>
+                <div class="collab-settings">
+                    <label>Max Turns:</label>
+                    <input type="number" id="collab-max-turns" value="10" min="2" max="20">
+                </div>
+                <button class="btn-start" onclick="startCollaboration()">Start Collaboration</button>
+
+                <!-- Learning Stats -->
+                <div class="learning-stats-card" style="width: 100%; max-width: 500px; margin-top: 2rem;">
+                    <h4>📚 Learnings from Claude</h4>
+                    <div class="learning-stats-grid">
+                        <div class="learning-stat">
+                            <div class="value" id="learning-total">0</div>
+                            <div class="label">Total Learned</div>
+                        </div>
+                        <div class="learning-stat">
+                            <div class="value" id="learning-week">0</div>
+                            <div class="label">This Week</div>
+                        </div>
+                        <div class="learning-stat">
+                            <div class="value" id="learning-topics" style="font-size: 0.9rem;">-</div>
+                            <div class="label">Top Topics</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active View -->
+            <div id="collab-active-view" style="display: none; flex-direction: column; height: 100%;">
+                <div class="collab-header">
+                    <h3>🤝 Collaboration in Progress</h3>
+                    <button class="btn btn-secondary" onclick="newCollaboration()">+ New</button>
+                </div>
+                <div class="collab-messages" id="collab-messages"></div>
+                <div class="collab-controls">
+                    <span class="turn-counter" id="turn-counter">Turn 0/10</span>
+                    <div class="status-indicator">
+                        <span class="status-dot collab-status-dot active"></span>
+                        <span class="collab-status-text">Active</span>
+                    </div>
+                    <div class="btn-group">
+                        <button id="btn-pause" class="btn-pause" onclick="pauseCollaboration()">⏸️ Pause</button>
+                        <button id="btn-resume" class="btn-resume" onclick="resumeCollaboration()" style="display: none;">▶️ Resume</button>
+                        <button id="btn-stop" class="btn-stop" onclick="stopCollaboration()">🛑 Stop</button>
+                        <button id="btn-interject" class="btn-interject" onclick="showInterjectionModal()">💬 Interject</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Interjection Modal -->
+        <div id="interjection-modal" class="interjection-modal">
+            <textarea id="interjection-text" placeholder="Add your message to the conversation..."></textarea>
+            <div class="btn-row">
+                <button class="btn btn-secondary" onclick="hideInterjectionModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="submitInterjection()">Send</button>
             </div>
         </div>
     </div>
@@ -1426,6 +1547,60 @@ async function indexGitHubRepo() {
     } catch (e) {
         resultsEl.style.color = 'var(--archie-red)';
         resultsEl.textContent = 'Error: ' + e.message;
+    }
+}
+
+// Side-by-side mode: Send message to ARCHIE panel
+async function sendArchieSideMessage() {
+    const input = document.getElementById('archie-side-input');
+    const message = input.value.trim();
+    if (!message) return;
+
+    const messagesEl = document.getElementById('archie-panel-messages');
+
+    // Add user message
+    const userMsg = document.createElement('div');
+    userMsg.className = 'chat-message user';
+
+    const userRole = document.createElement('div');
+    userRole.className = 'role';
+    userRole.textContent = '👤 You';
+    userMsg.appendChild(userRole);
+
+    const userContent = document.createElement('div');
+    userContent.className = 'content';
+    userContent.textContent = message;
+    userMsg.appendChild(userContent);
+
+    messagesEl.appendChild(userMsg);
+    input.value = '';
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+
+    try {
+        const response = await fetch('/tools/archie-chat/send', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ message: message })
+        });
+        const data = await response.json();
+
+        const archieMsg = document.createElement('div');
+        archieMsg.className = 'chat-message archie';
+
+        const archieRole = document.createElement('div');
+        archieRole.className = 'role';
+        archieRole.textContent = '🧠 A.R.C.H.I.E.';
+        archieMsg.appendChild(archieRole);
+
+        const archieContent = document.createElement('div');
+        archieContent.className = 'content';
+        archieContent.textContent = data.response || data.error || 'No response';
+        archieMsg.appendChild(archieContent);
+
+        messagesEl.appendChild(archieMsg);
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    } catch (e) {
+        console.error('ARCHIE error:', e);
     }
 }
 

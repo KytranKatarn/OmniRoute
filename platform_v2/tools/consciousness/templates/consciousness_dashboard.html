@@ -460,7 +460,10 @@
             <button class="chat-mode-btn active" data-mode="solo" onclick="switchChatMode('solo')">🧠 ARCHIE Solo</button>
             <button class="chat-mode-btn" data-mode="side-by-side" onclick="switchChatMode('side-by-side')">👥 Side-by-Side</button>
             <button class="chat-mode-btn" data-mode="collab" onclick="switchChatMode('collab')">🤝 Collaboration</button>
-            <div style="margin-left: auto; display: flex; align-items: center; gap: 0.5rem;">
+            <div style="margin-left: auto; display: flex; align-items: center; gap: 0.75rem;">
+                <button onclick="openClaudeTerminal()" class="btn-ttyd" title="Open Claude CLI in new window">
+                    <span class="ttyd-icon">&#9002;</span> Claude Terminal
+                </button>
                 <span id="claude-cli-status" style="font-size: 0.75rem; color: var(--archie-text-muted);"><span class="status-dot offline"></span> Checking...</span>
             </div>
         </div>

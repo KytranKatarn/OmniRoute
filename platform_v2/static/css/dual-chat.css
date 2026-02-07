@@ -569,6 +569,32 @@
     40% { transform: translateY(-8px); }
 }
 
+/* Claude Terminal Button */
+.btn-ttyd {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.75rem;
+    border: 1px solid #00ffff;
+    border-radius: 6px;
+    background: rgba(0, 255, 255, 0.1);
+    color: #00ffff;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.btn-ttyd:hover {
+    background: rgba(0, 255, 255, 0.25);
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+}
+
+.btn-ttyd .ttyd-icon {
+    font-size: 1rem;
+    line-height: 1;
+}
+
 /* Solo mode adjustments */
 .solo-chat-container {
     height: calc(100vh - 350px);

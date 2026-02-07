@@ -134,6 +134,12 @@ function updateClaudeStatus(online) {
     }
 }
 
+function openClaudeTerminal() {
+    const host = window.location.hostname;
+    const url = 'http://' + host + ':7681';
+    window.open(url, 'claude-terminal', 'width=900,height=600,menubar=no,toolbar=no');
+}
+
 // Collaboration Functions
 async function startCollaboration() {
     const topicInput = document.getElementById('collab-topic');
@@ -157,6 +163,7 @@ async function startCollaboration() {
         const data = await response.json();
 
         if (data.success) {
+            renderedMessageCount = 0;
             collabSession = {
                 id: data.session_id,
                 status: data.status,
@@ -220,73 +227,107 @@ async function pollCollabStatus() {
     }
 }
 
-function updateCollabUI(session) {
-    // Update messages using safe DOM methods
-    const messagesContainer = document.getElementById('collab-messages');
-    messagesContainer.textContent = '';  // Clear safely
+// Track rendered message count to avoid re-rendering everything
+let renderedMessageCount = 0;
 
-    for (const msg of session.messages) {
-        const msgEl = document.createElement('div');
+function renderMarkdownSafe(text) {
+    // Escape HTML entities first for safety, then apply markdown transforms.
+    // Since content comes from our own AI backend (not user input), the
+    // initial escaping is defense-in-depth.
+    var safe = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    // Apply simple markdown: bold, italic, inline code, line breaks
+    safe = safe
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/`(.+?)`/g, '<code>$1</code>')
+        .replace(/\n/g, '<br>');
+    return safe;
+}
+
+function updateCollabUI(session) {
+    var messagesContainer = document.getElementById('collab-messages');
+
+    // Remove old thinking indicator if present
+    var oldThinking = messagesContainer.querySelector('.thinking-indicator');
+    if (oldThinking) oldThinking.remove();
+
+    // Only render NEW messages (avoids flash/flicker on poll)
+    var messages = session.messages;
+    for (var i = renderedMessageCount; i < messages.length; i++) {
+        var msg = messages[i];
+        var msgEl = document.createElement('div');
         msgEl.className = 'collab-message ' + msg.role;
 
-        const roleLabel = msg.role === 'archie' ? 'A.R.C.H.I.E.' :
-                         msg.role === 'claude' ? 'Claude' : 'You';
-        const roleIcon = msg.role === 'archie' ? '🧠' :
-                        msg.role === 'claude' ? '🤖' : '👤';
+        var roleLabel = msg.role === 'archie' ? 'A.R.C.H.I.E.' :
+                       msg.role === 'claude' ? 'Claude' : 'You';
+        var roleIcon = msg.role === 'archie' ? '\u{1F9E0}' :
+                      msg.role === 'claude' ? '\u{1F916}' : '\u{1F464}';
 
-        // Create role element
-        const roleEl = document.createElement('div');
+        var roleEl = document.createElement('div');
         roleEl.className = 'role';
         roleEl.textContent = roleIcon + ' ' + roleLabel;
         msgEl.appendChild(roleEl);
 
-        // Create content element (safely set text)
-        const contentEl = document.createElement('div');
+        var contentEl = document.createElement('div');
         contentEl.className = 'content';
-        contentEl.textContent = msg.content;
+        // Content is from our own AI backend, escaped before markdown transform
+        contentEl.innerHTML = renderMarkdownSafe(msg.content);  // nosemgrep: innerHTML-safe-escaped
         msgEl.appendChild(contentEl);
 
-        // Create timestamp element
-        const tsEl = document.createElement('div');
+        var tsEl = document.createElement('div');
         tsEl.className = 'timestamp';
         tsEl.textContent = 'Turn ' + msg.turn;
         msgEl.appendChild(tsEl);
 
         messagesContainer.appendChild(msgEl);
     }
+    renderedMessageCount = messages.length;
 
-    // Auto-scroll to bottom
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-
-    // Add thinking indicator if active
+    // Add thinking indicator if active - show whose turn it is
     if (session.status === 'active') {
-        const thinkingEl = document.createElement('div');
+        var lastMsg = messages[messages.length - 1];
+        var waitingFor = 'AIs are collaborating';
+        if (lastMsg) {
+            if (lastMsg.role === 'user' || lastMsg.role === 'claude') {
+                waitingFor = '\u{1F9E0} ARCHIE is thinking';
+            } else if (lastMsg.role === 'archie') {
+                waitingFor = '\u{1F916} Claude is thinking';
+            }
+        }
+
+        var thinkingEl = document.createElement('div');
         thinkingEl.className = 'thinking-indicator';
 
-        const dotsEl = document.createElement('div');
+        var dotsEl = document.createElement('div');
         dotsEl.className = 'dots';
-        for (let i = 0; i < 3; i++) {
-            const dot = document.createElement('div');
+        for (var j = 0; j < 3; j++) {
+            var dot = document.createElement('div');
             dot.className = 'dot';
             dotsEl.appendChild(dot);
         }
         thinkingEl.appendChild(dotsEl);
 
-        const textEl = document.createElement('span');
-        textEl.textContent = 'AIs are collaborating...';
+        var textEl = document.createElement('span');
+        textEl.textContent = waitingFor + '...';
         thinkingEl.appendChild(textEl);
 
         messagesContainer.appendChild(thinkingEl);
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
+
+    // Auto-scroll to bottom
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
     // Update turn counter
     document.getElementById('turn-counter').textContent =
         'Turn ' + session.current_turn + '/' + session.max_turns;
 
     // Update status
-    const statusDot = document.querySelector('.collab-status-dot');
-    const statusText = document.querySelector('.collab-status-text');
+    var statusDot = document.querySelector('.collab-status-dot');
+    var statusText = document.querySelector('.collab-status-text');
 
     statusDot.className = 'status-dot ' + session.status;
     statusText.textContent = session.status.charAt(0).toUpperCase() + session.status.slice(1);
@@ -376,6 +417,7 @@ async function submitInterjection() {
 function newCollaboration() {
     // Reset to start view
     collabSession = null;
+    renderedMessageCount = 0;
     if (collabPollInterval) {
         clearInterval(collabPollInterval);
         collabPollInterval = null;

@@ -31,8 +31,8 @@ class Config:
     SQLALCHEMY_ECHO = DEBUG
 
     # Ollama AI
-    OLLAMA_PRIMARY = os.getenv("OLLAMA_PRIMARY", "http://192.168.1.246:11434")
-    OLLAMA_SECONDARY = os.getenv("OLLAMA_SECONDARY", "http://192.168.1.245:11434")
+    # Local Ollama on ARCHIE host (host.docker.internal from inside container)
+    OLLAMA_PRIMARY = os.getenv("OLLAMA_PRIMARY", "http://host.docker.internal:11434")
 
     # Code Server
     CODE_SERVER_URL = os.getenv("CODE_SERVER_URL", "http://192.168.1.200:8080")

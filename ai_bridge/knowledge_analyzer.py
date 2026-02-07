@@ -40,9 +40,7 @@ OLLAMA_MODEL = os.getenv("OLLAMA_ANALYSIS_MODEL", "qwen2.5:7b")
 def _find_ollama_host():
     """Find an Ollama host that has the analysis model"""
     hosts = [
-        "http://192.168.1.200:11434",  # Main server (has qwen2.5:7b)
-        "http://192.168.1.246:11434",
-        "http://192.168.1.245:11434",
+        "http://host.docker.internal:11434",  # Local Ollama on ARCHIE host
     ]
     for host in hosts:
         try:

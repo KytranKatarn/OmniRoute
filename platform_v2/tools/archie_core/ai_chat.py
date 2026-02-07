@@ -13,13 +13,12 @@ class ArchieAI:
     """A.R.C.H.I.E.'s AI brain powered by Ollama"""
 
     def __init__(self):
-        primary = os.getenv("OLLAMA_PRIMARY", "192.168.1.246:11434")
-        secondary = os.getenv("OLLAMA_SECONDARY", "192.168.1.245:11434")
+        # Local Ollama on the ARCHIE host (reached via host.docker.internal from container)
+        primary = os.getenv("OLLAMA_PRIMARY", "host.docker.internal:11434")
         self.primary_url = primary if primary.startswith("http") else f"http://{primary}"
-        self.secondary_url = secondary if secondary.startswith("http") else f"http://{secondary}"
         # Use conversational models for personality-rich chat (not coding models)
         self.model = os.getenv("ARCHIE_CHAT_MODEL", "dolphin3:latest")
-        self.fallback_model = os.getenv("ARCHIE_CHAT_FALLBACK", "llama3.1:8b")
+        self.fallback_model = os.getenv("ARCHIE_CHAT_FALLBACK", "qwen2.5:7b")
 
     def chat(self, message, user_context=None, conversation_history=None):
         """
@@ -50,15 +49,11 @@ class ArchieAI:
         # Add current message
         messages.append({"role": "user", "content": message})
 
-        # Try primary server first
+        # Try primary model on local Ollama
         response = self._call_ollama(self.primary_url, messages, self.model)
 
         if not response["success"]:
-            # Try secondary server
-            response = self._call_ollama(self.secondary_url, messages, self.model)
-
-        if not response["success"]:
-            # Try fallback model on primary
+            # Try fallback model on local Ollama
             response = self._call_ollama(self.primary_url, messages, self.fallback_model)
 
         return response
@@ -196,9 +191,8 @@ You remember people, build relationships over time, and adapt to each person uni
             return {"success": False, "error": str(e), "server": base_url}
 
     def test_connection(self):
-        """Test connection to Ollama servers"""
-        results = {"primary": self._test_server(self.primary_url), "secondary": self._test_server(self.secondary_url)}
-        return results
+        """Test connection to local Ollama"""
+        return {"primary": self._test_server(self.primary_url)}
 
     def _test_server(self, base_url):
         """Test a specific Ollama server"""

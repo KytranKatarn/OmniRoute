@@ -165,7 +165,7 @@ def get_learning_stats() -> dict:
         # Recent learnings
         cur.execute(
             """
-            SELECT title, summary, created_at
+            SELECT title, ai_analysis->>'summary' as summary, created_at
             FROM knowledge_base
             WHERE source_type = 'collaboration'
             ORDER BY created_at DESC

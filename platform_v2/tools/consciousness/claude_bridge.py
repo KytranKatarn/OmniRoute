@@ -1,140 +1,156 @@
 """
-Claude Bridge - Communication layer for Claude CLI
+Claude Bridge - Communication layer for Claude CLI via HTTP proxy
 
 Handles:
-- Sending messages to Claude CLI via ttyd WebSocket
+- Sending messages to Claude via claude-proxy (Claude Max CLI)
 - Capturing Claude's responses
-- Session management
+- Session management for collaborations
+- Health checks for proxy and ttyd services
 """
 
-import asyncio
+import json
 import logging
 import os
-import re
-import subprocess
 from typing import Optional
+from urllib.request import Request, urlopen
+from urllib.error import URLError
 
 logger = logging.getLogger(__name__)
 
-# ttyd configuration
-TTYD_HOST = os.getenv("TTYD_HOST", "localhost")
+# Claude proxy configuration
+CLAUDE_PROXY_URL = os.getenv("CLAUDE_PROXY_URL", "http://host.docker.internal:7682")
+TTYD_HOST = os.getenv("TTYD_HOST", "host.docker.internal")
 TTYD_PORT = int(os.getenv("TTYD_PORT", "7681"))
-TTYD_WS_URL = f"ws://{TTYD_HOST}:{TTYD_PORT}/ws"
+REQUEST_TIMEOUT = 130  # Slightly above proxy's 120s subprocess timeout
 
 
 class ClaudeBridge:
-    """Bridge to Claude CLI via ttyd WebSocket"""
+    """Bridge to Claude via CLI HTTP proxy (uses Max subscription, no API costs)"""
 
     def __init__(self):
-        self.ws = None
         self.connected = False
-        self.response_buffer = ""
+        self.conversation_history = []
 
     async def connect(self) -> bool:
-        """Connect to ttyd WebSocket"""
+        """Check proxy is reachable"""
         try:
-            import websockets
-
-            self.ws = await websockets.connect(TTYD_WS_URL)
-            self.connected = True
-            logger.info("Connected to Claude CLI via ttyd")
-            return True
-        except ImportError:
-            logger.error("websockets package not installed. Run: pip install websockets")
-            return False
+            req = Request(CLAUDE_PROXY_URL, method="GET")
+            resp = urlopen(req, timeout=5)
+            data = json.loads(resp.read())
+            self.connected = data.get("status") == "ok"
+            return self.connected
         except Exception as e:
-            logger.error(f"Failed to connect to ttyd: {e}")
+            logger.error(f"Failed to connect to Claude proxy: {e}")
+            self.connected = False
             return False
 
-    async def send_message(self, message: str) -> Optional[str]:
-        """Send message to Claude and get response"""
-        if not self.connected:
-            await self.connect()
-
-        if not self.ws:
-            return None
-
+    async def send_message(self, message: str, system_prompt: str = None) -> Optional[str]:
+        """Send message to Claude via CLI proxy and get response"""
         try:
-            # Send message to terminal
-            await self.ws.send(message + "\n")
+            # Build request payload
+            payload = {"message": message}
 
-            # Collect response until prompt returns
-            response = await self._collect_response()
-            return response
+            if system_prompt is None:
+                system_prompt = (
+                    "You are Claude, participating in a collaborative discussion "
+                    "with ARCHIE (another AI assistant). Be helpful, insightful, "
+                    "and collaborative. Share your knowledge and perspectives "
+                    "while building on ARCHIE's points. Keep responses focused "
+                    "and concise (2-3 paragraphs max). If you think the topic "
+                    "has been thoroughly addressed, indicate that naturally in "
+                    "your response."
+                )
 
+            if system_prompt:
+                payload["system_prompt"] = system_prompt
+
+            body = json.dumps(payload).encode()
+            req = Request(
+                CLAUDE_PROXY_URL,
+                data=body,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+
+            resp = urlopen(req, timeout=REQUEST_TIMEOUT)
+            data = json.loads(resp.read())
+
+            if data.get("success"):
+                response_text = data["response"]
+                self.conversation_history.append({"role": "user", "content": message})
+                self.conversation_history.append({"role": "assistant", "content": response_text})
+                self.connected = True
+                return response_text
+            else:
+                error = data.get("error", "Unknown error")
+                logger.error(f"Claude proxy returned error: {error}")
+                return None
+
+        except URLError as e:
+            logger.error(f"Cannot reach Claude proxy at {CLAUDE_PROXY_URL}: {e}")
+            self.connected = False
+            return None
         except Exception as e:
-            logger.error(f"Error sending to Claude: {e}")
+            logger.error(f"Error sending to Claude proxy: {e}")
             return None
 
-    async def _collect_response(self, timeout: float = 120.0) -> str:
-        """Collect response from Claude until done"""
-        response = ""
-        try:
-            while True:
-                msg = await asyncio.wait_for(self.ws.recv(), timeout=timeout)
-                response += msg
-
-                # Check for completion indicators
-                if self._is_response_complete(response):
-                    break
-
-        except asyncio.TimeoutError:
-            logger.warning("Claude response timeout")
-
-        return self._clean_response(response)
-
-    def _is_response_complete(self, response: str) -> bool:
-        """Check if Claude has finished responding"""
-        # Look for prompt return or other indicators
-        indicators = ["\n> ", "\n$ ", "\n% ", "claude>"]
-        return any(ind in response[-100:] for ind in indicators)
-
-    def _clean_response(self, response: str) -> str:
-        """Clean terminal escape codes and formatting"""
-        # Remove ANSI escape codes
-        ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
-        clean = ansi_escape.sub("", response)
-        return clean.strip()
+    def clear_history(self):
+        """Clear conversation history for new session"""
+        self.conversation_history = []
 
     async def disconnect(self):
-        """Close WebSocket connection"""
-        if self.ws:
-            await self.ws.close()
-            self.connected = False
+        """Clean up"""
+        self.conversation_history = []
+        self.connected = False
 
     def health_check(self) -> dict:
-        """Check if Claude CLI is available"""
+        """Check if Claude proxy is accessible"""
         try:
-            result = subprocess.run(["which", "claude"], capture_output=True, timeout=5)
-            if result.returncode == 0:
+            req = Request(CLAUDE_PROXY_URL, method="GET")
+            resp = urlopen(req, timeout=5)
+            data = json.loads(resp.read())
+
+            if data.get("status") == "ok":
                 return {
                     "status": "healthy",
-                    "path": result.stdout.decode().strip(),
-                    "ttyd_url": f"http://{TTYD_HOST}:{TTYD_PORT}",
-                }
-            return {"status": "unhealthy", "error": "claude not found"}
-        except Exception as e:
-            return {"status": "unhealthy", "error": str(e)}
-
-    def get_ttyd_status(self) -> dict:
-        """Check if ttyd is running and accessible"""
-        import socket
-
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(2)
-            result = sock.connect_ex((TTYD_HOST, TTYD_PORT))
-            sock.close()
-
-            if result == 0:
-                return {
-                    "status": "running",
-                    "host": TTYD_HOST,
-                    "port": TTYD_PORT,
-                    "url": f"http://{TTYD_HOST}:{TTYD_PORT}",
+                    "method": "Claude CLI proxy (Max subscription)",
+                    "proxy_url": CLAUDE_PROXY_URL,
+                    "note": "Uses Claude Max CLI - no API costs",
                 }
             else:
-                return {"status": "not_running", "error": f"Cannot connect to {TTYD_HOST}:{TTYD_PORT}"}
+                return {"status": "unhealthy", "error": "Proxy returned unexpected response"}
+
+        except Exception as e:
+            return {
+                "status": "unhealthy",
+                "error": f"Cannot reach proxy: {e}",
+                "proxy_url": CLAUDE_PROXY_URL,
+            }
+
+    def get_ttyd_status(self) -> dict:
+        """Check ttyd-claude service on port 7681"""
+        try:
+            url = f"http://{TTYD_HOST}:{TTYD_PORT}"
+            req = Request(url, method="GET")
+            resp = urlopen(req, timeout=5)
+            return {
+                "status": "running",
+                "url": f"http://192.168.1.200:{TTYD_PORT}",
+                "http_code": resp.status,
+            }
+        except URLError as e:
+            # 401 means ttyd is running but requires auth
+            if hasattr(e, "code") and e.code == 401:
+                return {
+                    "status": "running",
+                    "url": f"http://192.168.1.200:{TTYD_PORT}",
+                    "note": "Requires authentication",
+                }
+            return {
+                "status": "not_running",
+                "error": str(e),
+                "url": f"http://192.168.1.200:{TTYD_PORT}",
+            }
         except Exception as e:
             return {"status": "error", "error": str(e)}
 

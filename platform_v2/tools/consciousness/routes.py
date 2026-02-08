@@ -2665,10 +2665,10 @@ def get_activity_feed():
                     ae.id,
                     'execution' as event_type,
                     a.name as agent_name,
-                    ae.task_type as subtype,
+                    ae.task_description as subtype,
                     ae.status,
                     ae.duration_seconds,
-                    ae.token_count,
+                    ae.tokens_used as token_count,
                     ae.cost,
                     ae.started_at as created_at,
                     CASE
@@ -3255,7 +3255,7 @@ def github_index_selective():
                             INSERT INTO knowledge_base (
                                 knowledge_type, title, content, category, file_path,
                                 importance_score, source_type, is_code, is_documentation,
-                                file_extension, metadata, tags, created_at
+                                file_extension, memory_metadata, tags, created_at
                             ) VALUES (
                                 'github_file', %s, %s, %s, %s,
                                 %s, 'github_selective', %s, %s,
@@ -3347,7 +3347,7 @@ def github_indexed_list():
         cur.execute(
             """
             SELECT id, title, file_path, importance_score, has_embedding,
-                   metadata, created_at, updated_at
+                   memory_metadata, created_at, updated_at
             FROM knowledge_base
             WHERE source_type = 'github_selective'
             ORDER BY created_at DESC
@@ -3362,7 +3362,7 @@ def github_indexed_list():
             SELECT
                 COUNT(*) as total,
                 SUM(CASE WHEN has_embedding THEN 1 ELSE 0 END) as with_embeddings,
-                COUNT(DISTINCT (metadata->>'repo')) as repos
+                COUNT(DISTINCT (memory_metadata->>'repo')) as repos
             FROM knowledge_base
             WHERE source_type = 'github_selective'
         """

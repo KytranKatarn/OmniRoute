@@ -192,29 +192,92 @@ def get_memories(view_type):
 @login_required
 @admin_required
 def emotional_state():
-    """Get current emotional state"""
+    """Get current emotional state with rich data from multiple tables"""
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
+        # Main emotional state with extra fields
         cur.execute(
             """
             SELECT id, timestamp, current_mood as mood, mood_intensity as energy,
-                   relationship_strength as confidence, user_id, notes
+                   relationship_strength as confidence, user_id, notes,
+                   mood_context, conversation_tone,
+                   user_happiness_detected, user_stress_detected
             FROM archie_emotional_state
             ORDER BY timestamp DESC
             LIMIT 1
         """
         )
-
         state = cur.fetchone()
+
+        # Agent emotional state (ARCHIE's own feelings)
+        cur.execute(
+            """
+            SELECT current_mood, mood_intensity, energy_level, stress_level,
+                   trigger_event, previous_mood, mood_duration_minutes
+            FROM agent_emotional_state
+            ORDER BY timestamp DESC
+            LIMIT 1
+        """
+        )
+        agent_state = cur.fetchone()
+
+        # Recent mood transitions
+        cur.execute(
+            """
+            SELECT current_mood, previous_mood, trigger_event,
+                   mood_duration_minutes, timestamp
+            FROM agent_emotional_state
+            WHERE previous_mood IS NOT NULL
+            ORDER BY timestamp DESC
+            LIMIT 5
+        """
+        )
+        mood_transitions = cur.fetchall()
+
+        # Recent emotional memories
+        cur.execute(
+            """
+            SELECT event_type, context_summary, user_emotion_detected,
+                   emotional_intensity, relationship_impact, event_timestamp
+            FROM emotional_memory
+            ORDER BY event_timestamp DESC
+            LIMIT 5
+        """
+        )
+        emotional_memories = cur.fetchall()
+
+        # Relationship strength per user
+        cur.execute(
+            """
+            SELECT aes.user_id, u.username,
+                   aes.relationship_strength, aes.current_mood,
+                   aes.timestamp
+            FROM archie_emotional_state aes
+            JOIN users u ON aes.user_id = u.id
+            WHERE aes.user_id IS NOT NULL
+            AND aes.id IN (
+                SELECT MAX(id) FROM archie_emotional_state
+                WHERE user_id IS NOT NULL
+                GROUP BY user_id
+            )
+            ORDER BY aes.relationship_strength DESC
+        """
+        )
+        relationships = cur.fetchall()
+
         cur.close()
         conn.close()
 
-        if state:
-            return jsonify(dict(state))
-        else:
-            return jsonify({"mood": "neutral", "energy": 0.5, "confidence": 0.5})
+        result = dict(state) if state else {"mood": "neutral", "energy": 0.5, "confidence": 0.5}
+        if agent_state:
+            result["agent_state"] = dict(agent_state)
+        result["mood_transitions"] = [dict(t) for t in mood_transitions]
+        result["emotional_memories"] = [dict(m) for m in emotional_memories]
+        result["relationships"] = [dict(r) for r in relationships]
+
+        return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -1438,7 +1501,7 @@ def get_session_detail(session_id):
 @login_required
 @admin_required
 def get_emotional_timeline():
-    """Get ARCHIE's emotional state over time"""
+    """Get ARCHIE's emotional state over time with mood labels and stress data"""
 
     conn = get_db()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -1446,7 +1509,7 @@ def get_emotional_timeline():
     try:
         days = request.args.get("days", 30, type=int)
 
-        # Get emotional state history
+        # Get emotional state history with mood labels
         cur.execute(
             """
             SELECT
@@ -1460,7 +1523,8 @@ def get_emotional_timeline():
                          ELSE 0.5 END) as avg_mood_score,
                 AVG(mood_intensity) as avg_energy,
                 AVG(relationship_strength) as avg_confidence,
-                COUNT(*) as measurement_count
+                COUNT(*) as measurement_count,
+                MODE() WITHIN GROUP (ORDER BY current_mood) as dominant_mood
             FROM archie_emotional_state
             WHERE timestamp > NOW() - INTERVAL '%s days'
             GROUP BY DATE(timestamp)
@@ -1468,8 +1532,30 @@ def get_emotional_timeline():
         """,
             (days,),
         )
-
         timeline = cur.fetchall()
+
+        # Get stress data from agent_emotional_state if available
+        cur.execute(
+            """
+            SELECT
+                DATE(timestamp) as date,
+                AVG(stress_level) as avg_stress,
+                AVG(energy_level) as avg_agent_energy
+            FROM agent_emotional_state
+            WHERE timestamp > NOW() - INTERVAL '%s days'
+            GROUP BY DATE(timestamp)
+            ORDER BY date DESC
+        """,
+            (days,),
+        )
+        stress_data = {str(r["date"]): r for r in cur.fetchall()}
+
+        # Merge stress data into timeline
+        for entry in timeline:
+            date_key = str(entry["date"])
+            if date_key in stress_data:
+                entry["avg_stress"] = stress_data[date_key]["avg_stress"]
+                entry["avg_agent_energy"] = stress_data[date_key]["avg_agent_energy"]
 
         # Get current emotional state
         cur.execute(
@@ -2795,6 +2881,52 @@ def get_activity_feed():
                 event["created_at"] = event["created_at"].isoformat() if event["created_at"] else None
                 activities.append(dict(event))
 
+        # 7. Project activity
+        if not event_type or event_type == "project":
+            cur.execute(
+                """
+                SELECT
+                    id,
+                    'project' as event_type,
+                    activity_type as subtype,
+                    description,
+                    entity_type,
+                    created_at
+                FROM project_activity
+                WHERE created_at >= NOW() - INTERVAL '%s hours'
+                ORDER BY created_at DESC
+                LIMIT %s
+            """,
+                (hours, limit),
+            )
+            project_events = cur.fetchall()
+            for event in project_events:
+                event["created_at"] = event["created_at"].isoformat() if event["created_at"] else None
+                activities.append(dict(event))
+
+        # 8. Work sessions
+        if not event_type or event_type == "work_session":
+            cur.execute(
+                """
+                SELECT
+                    id,
+                    'work_session' as event_type,
+                    session_type as subtype,
+                    focus_description as description,
+                    status,
+                    started_at as created_at
+                FROM work_sessions
+                WHERE started_at >= NOW() - INTERVAL '%s hours'
+                ORDER BY started_at DESC
+                LIMIT %s
+            """,
+                (hours, limit),
+            )
+            session_events = cur.fetchall()
+            for event in session_events:
+                event["created_at"] = event["created_at"].isoformat() if event["created_at"] else None
+                activities.append(dict(event))
+
         cur.close()
         conn.close()
 
@@ -3335,6 +3467,36 @@ def github_index_selective():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@consciousness_bp.route("/github/repositories", methods=["GET"])
+@login_required
+@admin_required
+def github_repositories():
+    """List tracked GitHub repositories with their status"""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            SELECT gr.id, gr.repo_name, gr.repo_type, gr.status, gr.indexed,
+                   gr.indexed_files, gr.cloned_at, gr.updated_at, gr.indexed_at,
+                   (SELECT COUNT(*) FROM knowledge_base kb
+                    WHERE kb.knowledge_type = 'github_file'
+                    AND kb.repo_type = gr.repo_type) as actual_file_count
+            FROM github_repositories gr
+            ORDER BY gr.updated_at DESC
+        """
+        )
+        repos = cur.fetchall()
+
+        cur.close()
+        conn.close()
+
+        return jsonify({"success": True, "repositories": [dict(r) for r in repos], "count": len(repos)})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @consciousness_bp.route("/github/indexed", methods=["GET"])
 @login_required
 @admin_required
@@ -3347,9 +3509,10 @@ def github_indexed_list():
         cur.execute(
             """
             SELECT id, title, file_path, importance_score, has_embedding,
-                   memory_metadata, created_at, updated_at
+                   memory_metadata, created_at, updated_at, knowledge_type,
+                   is_code, is_documentation, repo_type
             FROM knowledge_base
-            WHERE source_type = 'github_selective'
+            WHERE source_type = 'github_selective' OR knowledge_type = 'github_file'
             ORDER BY created_at DESC
             LIMIT 100
         """
@@ -3362,9 +3525,11 @@ def github_indexed_list():
             SELECT
                 COUNT(*) as total,
                 SUM(CASE WHEN has_embedding THEN 1 ELSE 0 END) as with_embeddings,
-                COUNT(DISTINCT (memory_metadata->>'repo')) as repos
+                COUNT(DISTINCT COALESCE(repo_type, memory_metadata->>'repo')) as repos,
+                SUM(CASE WHEN is_code THEN 1 ELSE 0 END) as code_files,
+                SUM(CASE WHEN is_documentation THEN 1 ELSE 0 END) as docs
             FROM knowledge_base
-            WHERE source_type = 'github_selective'
+            WHERE source_type = 'github_selective' OR knowledge_type = 'github_file'
         """
         )
         stats = cur.fetchone()
@@ -3372,7 +3537,15 @@ def github_indexed_list():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "items": [dict(i) for i in items], "stats": dict(stats) if stats else {}})
+        items_list = [dict(i) for i in items]
+        return jsonify(
+            {
+                "success": True,
+                "items": items_list,
+                "files": items_list,  # Alias for frontend compatibility
+                "stats": dict(stats) if stats else {},
+            }
+        )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -3401,6 +3574,36 @@ def github_search_semantic():
 
         return jsonify({"success": True, "results": github_results, "count": len(github_results)})
 
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/chat-volume", methods=["GET"])
+@login_required
+@admin_required
+def get_chat_volume():
+    """Get chat conversation volume per day for last 30 days"""
+    try:
+        days = request.args.get("days", 30, type=int)
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            SELECT DATE(created_at) as date, COUNT(*) as count
+            FROM ai_conversations
+            WHERE created_at >= NOW() - INTERVAL '%s days'
+            GROUP BY DATE(created_at)
+            ORDER BY date ASC
+        """,
+            (days,),
+        )
+        volume = cur.fetchall()
+
+        cur.close()
+        conn.close()
+
+        return jsonify({"success": True, "volume": [dict(v) for v in volume]})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 

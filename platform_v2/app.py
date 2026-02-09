@@ -1788,6 +1788,7 @@ def init_consciousness_scheduler(flask_app):
             daily_self_reflection,
             weekly_memory_consolidation,
         )
+        from tools.consciousness.log_ingestor import batch_ingest_logs
 
         scheduler = BackgroundScheduler()
 
@@ -1827,9 +1828,27 @@ def init_consciousness_scheduler(flask_app):
             replace_existing=True,
         )
 
+        # Auto-ingest conversation logs every 30 minutes
+        def scheduled_log_ingestion():
+            with flask_app.app_context():
+                try:
+                    result = batch_ingest_logs(limit=100)
+                    if result.get("created", 0) > 0:
+                        logger.info(f"Auto-ingested {result['created']} conversation logs")
+                except Exception as e:
+                    logger.error(f"Scheduled log ingestion failed: {e}")
+
+        scheduler.add_job(
+            scheduled_log_ingestion,
+            trigger=IntervalTrigger(minutes=30),
+            id="auto_log_ingestion",
+            name="Auto Log Ingestion",
+            replace_existing=True,
+        )
+
         scheduler.start()
         flask_app.config["CONSCIOUSNESS_SCHEDULER"] = scheduler
-        logger.info("Consciousness scheduler started with 4 scheduled tasks")
+        logger.info("Consciousness scheduler started with 5 scheduled tasks")
 
         return scheduler
 

@@ -519,6 +519,36 @@
             <div class="gauge-container"><div class="gauge-label">💫 Stress Level</div><div class="gauge-bar"><div class="gauge-fill" id="stress-fill" style="width: 0%; background: linear-gradient(90deg, var(--archie-green), var(--archie-orange), var(--archie-red));"></div></div><div class="gauge-value" id="stress-value">-</div></div>
         </div>
         <div class="chart-container" style="margin-top: 1.5rem; max-width: 900px;"><div class="chart-title">💜 Emotional Timeline (7 days)</div><canvas id="emotional-timeline" height="180"></canvas></div>
+
+        <!-- Mood Trigger Log -->
+        <div class="panel" style="margin-top: 1.5rem;">
+            <div class="panel-header"><div class="panel-title">🔄 Recent Mood Changes</div></div>
+            <div class="panel-body">
+                <div id="mood-transitions" class="activity-feed" style="max-height: 250px;">
+                    <div style="text-align: center; color: var(--archie-text-muted); padding: 1rem;">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Relationship Strength -->
+        <div class="panel" style="margin-top: 1rem;">
+            <div class="panel-header"><div class="panel-title">💛 Relationship Strength</div></div>
+            <div class="panel-body">
+                <div id="relationship-list" style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                    <div style="color: var(--archie-text-muted);">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Emotional Memories -->
+        <div class="panel" style="margin-top: 1rem;">
+            <div class="panel-header"><div class="panel-title">🧠 Recent Emotional Memories</div></div>
+            <div class="panel-body">
+                <div id="emotional-memories" class="activity-feed" style="max-height: 250px;">
+                    <div style="text-align: center; color: var(--archie-text-muted); padding: 1rem;">Loading...</div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div id="tab-logs" class="tab-content">
@@ -666,6 +696,13 @@
                     <div class="stat-card"><div class="stat-value" id="github-code">-</div><div class="stat-label">Code Files</div></div>
                     <div class="stat-card"><div class="stat-value" id="github-docs">-</div><div class="stat-label">Documentation</div></div>
                 </div>
+
+                <!-- Repository Browser -->
+                <h4 class="section-title" style="margin-bottom: 0.75rem;">📂 Tracked Repositories</h4>
+                <div id="github-repo-list" style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
+                    <div style="color: var(--archie-text-muted); padding: 0.5rem;">Loading repositories...</div>
+                </div>
+
                 <div style="display: flex; gap: 1rem; align-items: flex-end; margin-bottom: 1rem; flex-wrap: wrap;">
                     <div style="flex: 1; min-width: 300px;">
                         <label style="color: var(--archie-text-muted); display: block; margin-bottom: 0.5rem;">Repository URL:</label>
@@ -696,6 +733,10 @@
         <div class="dashboard-grid" style="margin-top: 1rem;">
             <div class="chart-container"><div class="chart-title">📁 Knowledge by Category</div><canvas id="category-chart" height="180"></canvas></div>
             <div class="chart-container"><div class="chart-title">⭐ Importance Distribution</div><canvas id="importance-chart" height="180"></canvas></div>
+        </div>
+        <div class="dashboard-grid" style="margin-top: 1rem;">
+            <div class="chart-container"><div class="chart-title">💜 Emotional Timeline (30 days)</div><canvas id="emotional-chart-full" height="180"></canvas></div>
+            <div class="chart-container"><div class="chart-title">💬 Chat Volume (30 days)</div><canvas id="chat-volume-chart" height="180"></canvas></div>
         </div>
     </div>
 
@@ -732,6 +773,8 @@
                     <button class="filter-btn" data-type="execution">▶️ Executions</button>
                     <button class="filter-btn" data-type="improvement">💡 Improvements</button>
                     <button class="filter-btn" data-type="session">💬 Sessions</button>
+                    <button class="filter-btn" data-type="project">📋 Projects</button>
+                    <button class="filter-btn" data-type="work_session">🔨 Work</button>
                     <button class="filter-btn" data-type="llm_alert">🚨 Alerts</button>
                 </div>
                 <div class="activity-feed" id="activity-feed"><div class="loading"><div class="spinner"></div></div></div>
@@ -759,7 +802,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
         if (btn.dataset.tab === 'emotional') loadEmotionalData();
         if (btn.dataset.tab === 'logs') loadLogStatus();
         if (btn.dataset.tab === 'aiprocess') loadProcessingStatus();
-        if (btn.dataset.tab === 'github') loadGitHubIndexed();
+        if (btn.dataset.tab === 'github') { loadGitHubRepos(); loadGitHubIndexed(); }
         if (btn.dataset.tab === 'charts') loadChartData();
         if (btn.dataset.tab === 'graph') loadKnowledgeGraph();
         if (btn.dataset.tab === 'feed') loadActivityFeed();
@@ -774,7 +817,7 @@ document.querySelectorAll('#feed-filters .filter-btn').forEach(btn => {
     });
 });
 
-let growthChartMini, typeChartMini, growthChart, typeChart, categoryChart, importanceChart, emotionalTimeline;
+let growthChartMini, typeChartMini, growthChart, typeChart, categoryChart, importanceChart, emotionalTimeline, emotionalChartFull, chatVolumeChart;
 const chartColors = { primary: '#8b5cf6', secondary: '#00ffff', success: '#00ff41', warning: '#ffaa00', danger: '#ff6b6b', info: '#0ea5e9' };
 const moodEmojis = { 'happy': '😊', 'curious': '🤔', 'focused': '🎯', 'neutral': '😐', 'confused': '😕', 'frustrated': '😤', 'supportive': '💜', 'excited': '🎉' };
 
@@ -818,27 +861,126 @@ async function loadMiniCharts() {
     } catch (e) { console.error('Error loading mini charts:', e); }
 }
 
+function escHtml(str) { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
+
 async function loadEmotionalData() {
     try {
-        const response = await fetch('/tools/consciousness/activity-stats', {credentials: 'same-origin'});
-        const data = await response.json();
-        if (data.success && data.emotional_state) {
-            const es = data.emotional_state;
-            document.getElementById('mood-emoji').textContent = moodEmojis[es.mood] || '🤔';
-            document.getElementById('mood-label').textContent = es.mood || 'neutral';
-            const energy = (es.energy || 0.8) * 100, confidence = (es.confidence || 0.8) * 100, stress = (es.stress_level || 0.3) * 100;
-            document.getElementById('energy-fill').style.width = energy + '%'; document.getElementById('energy-value').textContent = energy.toFixed(0) + '%';
-            document.getElementById('confidence-fill').style.width = confidence + '%'; document.getElementById('confidence-value').textContent = confidence.toFixed(0) + '%';
-            document.getElementById('stress-fill').style.width = stress + '%'; document.getElementById('stress-value').textContent = stress.toFixed(0) + '%';
+        // Fetch rich emotional state data
+        const stateResponse = await fetch('/tools/consciousness/emotional-state', {credentials: 'same-origin'});
+        const stateData = await stateResponse.json();
+
+        if (stateData.mood) {
+            document.getElementById('mood-emoji').textContent = moodEmojis[stateData.mood] || '🤔';
+            document.getElementById('mood-label').textContent = stateData.mood || 'neutral';
+
+            const agentState = stateData.agent_state || {};
+            const energy = (agentState.energy_level || stateData.energy || 0.8) * 100;
+            const confidence = (stateData.confidence || 0.8) * 100;
+            const stress = (agentState.stress_level || 0.3) * 100;
+
+            document.getElementById('energy-fill').style.width = energy + '%';
+            document.getElementById('energy-value').textContent = energy.toFixed(0) + '%';
+            document.getElementById('confidence-fill').style.width = confidence + '%';
+            document.getElementById('confidence-value').textContent = confidence.toFixed(0) + '%';
+            document.getElementById('stress-fill').style.width = stress + '%';
+            document.getElementById('stress-value').textContent = stress.toFixed(0) + '%';
         }
+
+        // Render mood transitions using DOM methods
+        const transEl = document.getElementById('mood-transitions');
+        transEl.textContent = '';
+        if (stateData.mood_transitions && stateData.mood_transitions.length > 0) {
+            stateData.mood_transitions.forEach(t => {
+                const prev = moodEmojis[t.previous_mood] || '?';
+                const curr = moodEmojis[t.current_mood] || '?';
+                const item = document.createElement('div'); item.className = 'activity-item';
+                const iconEl = document.createElement('div'); iconEl.className = 'activity-icon'; iconEl.textContent = prev + ' → ' + curr;
+                const content = document.createElement('div'); content.className = 'activity-content';
+                const titleEl = document.createElement('div'); titleEl.className = 'activity-title';
+                titleEl.textContent = (t.previous_mood || '?') + ' → ' + (t.current_mood || '?');
+                if (t.mood_duration_minutes) { const badge = document.createElement('span'); badge.className = 'activity-type'; badge.textContent = t.mood_duration_minutes + ' min'; titleEl.appendChild(badge); }
+                const descEl = document.createElement('div'); descEl.className = 'activity-description';
+                descEl.textContent = t.trigger_event ? t.trigger_event.substring(0, 80) : 'No trigger recorded';
+                const timeEl = document.createElement('div'); timeEl.className = 'activity-time';
+                timeEl.textContent = t.timestamp ? new Date(t.timestamp).toLocaleString() : '';
+                content.appendChild(titleEl); content.appendChild(descEl); content.appendChild(timeEl);
+                item.appendChild(iconEl); item.appendChild(content); transEl.appendChild(item);
+            });
+        } else {
+            transEl.textContent = 'No mood transitions recorded yet';
+            transEl.style.textAlign = 'center'; transEl.style.color = 'var(--archie-text-muted)'; transEl.style.padding = '1rem';
+        }
+
+        // Render relationships using DOM methods
+        const relEl = document.getElementById('relationship-list');
+        relEl.textContent = '';
+        if (stateData.relationships && stateData.relationships.length > 0) {
+            stateData.relationships.forEach(r => {
+                const strength = ((r.relationship_strength || 0.5) * 100).toFixed(0);
+                const color = strength >= 70 ? 'var(--archie-green)' : strength >= 40 ? 'var(--archie-orange)' : 'var(--archie-red)';
+                const card = document.createElement('div');
+                card.style.cssText = 'background: var(--archie-bg-tertiary); border-radius: 8px; padding: 0.75rem 1rem; min-width: 150px; text-align: center;';
+                const nameEl = document.createElement('div');
+                nameEl.style.cssText = 'font-size: 1.1rem; font-weight: 600; color: var(--archie-text-primary);';
+                nameEl.textContent = '👤 ' + (r.username || 'User ' + r.user_id);
+                const barOuter = document.createElement('div'); barOuter.className = 'gauge-bar'; barOuter.style.cssText = 'margin: 0.5rem 0; height: 8px;';
+                const barInner = document.createElement('div'); barInner.className = 'gauge-fill'; barInner.style.cssText = 'width: ' + strength + '%; background: ' + color + ';';
+                barOuter.appendChild(barInner);
+                const valEl = document.createElement('div');
+                valEl.style.cssText = 'color: ' + color + '; font-size: 0.85rem;';
+                valEl.textContent = strength + '% ' + (moodEmojis[r.current_mood] || '');
+                card.appendChild(nameEl); card.appendChild(barOuter); card.appendChild(valEl); relEl.appendChild(card);
+            });
+        } else {
+            relEl.textContent = 'No relationship data yet';
+            relEl.style.color = 'var(--archie-text-muted)';
+        }
+
+        // Render emotional memories using DOM methods
+        const memEl = document.getElementById('emotional-memories');
+        memEl.textContent = '';
+        if (stateData.emotional_memories && stateData.emotional_memories.length > 0) {
+            stateData.emotional_memories.forEach(m => {
+                const icon = {'positive': '😊', 'negative': '😞', 'neutral': '😐', 'curious': '🤔'}[m.user_emotion_detected] || '💭';
+                const item = document.createElement('div'); item.className = 'activity-item';
+                const iconEl = document.createElement('div'); iconEl.className = 'activity-icon'; iconEl.textContent = icon;
+                const content = document.createElement('div'); content.className = 'activity-content';
+                const titleEl = document.createElement('div'); titleEl.className = 'activity-title';
+                titleEl.textContent = m.event_type || 'event';
+                const intensity = m.emotional_intensity ? ' (' + (m.emotional_intensity * 100).toFixed(0) + '% intensity)' : '';
+                if (m.user_emotion_detected || intensity) { const badge = document.createElement('span'); badge.className = 'activity-type'; badge.textContent = (m.user_emotion_detected || '') + intensity; titleEl.appendChild(badge); }
+                const descEl = document.createElement('div'); descEl.className = 'activity-description';
+                descEl.textContent = (m.context_summary || '').substring(0, 200);
+                const timeEl = document.createElement('div'); timeEl.className = 'activity-time';
+                timeEl.textContent = m.event_timestamp ? new Date(m.event_timestamp).toLocaleString() : '';
+                content.appendChild(titleEl); content.appendChild(descEl); content.appendChild(timeEl);
+                item.appendChild(iconEl); item.appendChild(content); memEl.appendChild(item);
+            });
+        } else {
+            memEl.textContent = 'No emotional memories yet';
+            memEl.style.textAlign = 'center'; memEl.style.color = 'var(--archie-text-muted)'; memEl.style.padding = '1rem';
+        }
+
+        // Fetch and render timeline with stress data
         const timelineResponse = await fetch('/tools/consciousness/emotions/timeline?days=7', {credentials: 'same-origin'});
         const timelineData = await timelineResponse.json();
         if (timelineData.timeline) {
+            const datasets = [
+                { label: 'Mood Score', data: timelineData.timeline.map(t => t.avg_mood_score), borderColor: chartColors.primary, fill: false, tension: 0.4 },
+                { label: 'Energy', data: timelineData.timeline.map(t => t.avg_energy || t.energy), borderColor: chartColors.success, fill: false, tension: 0.4 },
+                { label: 'Confidence', data: timelineData.timeline.map(t => t.avg_confidence || t.confidence), borderColor: chartColors.secondary, fill: false, tension: 0.4 }
+            ];
+            if (timelineData.timeline.some(t => t.avg_stress !== undefined && t.avg_stress !== null)) {
+                datasets.push({ label: 'Stress', data: timelineData.timeline.map(t => t.avg_stress), borderColor: chartColors.danger, borderDash: [5, 5], fill: false, tension: 0.4 });
+            }
             if (emotionalTimeline) emotionalTimeline.destroy();
             emotionalTimeline = new Chart(document.getElementById('emotional-timeline'), {
-                type: 'line', data: { labels: timelineData.timeline.map(t => new Date(t.timestamp || t.date).toLocaleDateString()),
-                    datasets: [{ label: 'Energy', data: timelineData.timeline.map(t => t.energy || t.avg_energy), borderColor: chartColors.success, fill: false, tension: 0.4 },
-                               { label: 'Confidence', data: timelineData.timeline.map(t => t.confidence || t.avg_confidence), borderColor: chartColors.secondary, fill: false, tension: 0.4 }]
+                type: 'line', data: {
+                    labels: timelineData.timeline.map(t => {
+                        const label = new Date(t.timestamp || t.date).toLocaleDateString();
+                        return t.dominant_mood ? label + ' ' + (moodEmojis[t.dominant_mood] || '') : label;
+                    }),
+                    datasets: datasets
                 }, options: { responsive: true, plugins: { legend: { labels: { color: '#8b949e' } } }, scales: { x: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' } }, y: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' }, min: 0, max: 1 } } }
             });
         }
@@ -866,6 +1008,32 @@ async function loadChartData() {
             if (importanceChart) importanceChart.destroy();
             importanceChart = new Chart(document.getElementById('importance-chart'), { type: 'doughnut', data: { labels: Object.keys(importance), datasets: [{ data: Object.values(importance), backgroundColor: [chartColors.danger, chartColors.warning, chartColors.secondary, chartColors.success] }] }, options: { responsive: true, plugins: { legend: { position: 'right', labels: { color: '#8b949e' } } } } });
         }
+        // Load emotional timeline chart (30 days)
+        try {
+            const emoResp = await fetch('/tools/consciousness/emotions/timeline?days=30', {credentials: 'same-origin'});
+            const emoData = await emoResp.json();
+            if (emoData.timeline && emoData.timeline.length > 0) {
+                if (emotionalChartFull) emotionalChartFull.destroy();
+                const emoDatasets = [
+                    { label: 'Mood', data: emoData.timeline.map(t => t.avg_mood_score), borderColor: chartColors.primary, fill: false, tension: 0.4 },
+                    { label: 'Energy', data: emoData.timeline.map(t => t.avg_energy), borderColor: chartColors.success, fill: false, tension: 0.4 },
+                    { label: 'Confidence', data: emoData.timeline.map(t => t.avg_confidence), borderColor: chartColors.secondary, fill: false, tension: 0.4 }
+                ];
+                if (emoData.timeline.some(t => t.avg_stress !== undefined && t.avg_stress !== null)) {
+                    emoDatasets.push({ label: 'Stress', data: emoData.timeline.map(t => t.avg_stress), borderColor: chartColors.danger, borderDash: [5, 5], fill: false, tension: 0.4 });
+                }
+                emotionalChartFull = new Chart(document.getElementById('emotional-chart-full'), { type: 'line', data: { labels: emoData.timeline.map(t => new Date(t.date).toLocaleDateString()), datasets: emoDatasets }, options: { responsive: true, plugins: { legend: { labels: { color: '#8b949e' } } }, scales: { x: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' } }, y: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' }, min: 0, max: 1 } } } });
+            }
+        } catch (e) { console.error('Error loading emotional chart:', e); }
+        // Load chat volume chart
+        try {
+            const chatResp = await fetch('/tools/consciousness/api/chat-volume?days=30', {credentials: 'same-origin'});
+            const chatData = await chatResp.json();
+            if (chatData.success && chatData.volume && chatData.volume.length > 0) {
+                if (chatVolumeChart) chatVolumeChart.destroy();
+                chatVolumeChart = new Chart(document.getElementById('chat-volume-chart'), { type: 'bar', data: { labels: chatData.volume.map(v => new Date(v.date).toLocaleDateString()), datasets: [{ label: 'Conversations', data: chatData.volume.map(v => v.count), backgroundColor: 'rgba(139, 92, 246, 0.5)', borderColor: chartColors.primary, borderWidth: 1 }] }, options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' } }, y: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' }, beginAtZero: true } } } });
+            }
+        } catch (e) { console.error('Error loading chat volume:', e); }
     } catch (e) { console.error('Error loading chart data:', e); }
 }
 
@@ -882,7 +1050,7 @@ async function loadActivityFeed(type = '') {
             if (data.feed.length === 0) { feedEl.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--archie-text-muted);">No activity in this time window</div>'; return; }
             let html = '';
             data.feed.forEach(item => {
-                const icon = {'knowledge': '📚', 'execution': '▶️', 'improvement': '💡', 'session': '💬', 'emotional': '💜', 'llm_alert': '🚨'}[item.event_type] || '📌';
+                const icon = {'knowledge': '📚', 'execution': '▶️', 'improvement': '💡', 'session': '💬', 'emotional': '💜', 'llm_alert': '🚨', 'project': '📋', 'work_session': '🔨'}[item.event_type] || '📌';
                 const time = item.created_at ? new Date(item.created_at).toLocaleString() : '';
                 const title = (item.title || item.description || 'Activity').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                 const desc = (item.description || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -1349,6 +1517,41 @@ async function generateEmbeddings() {
     }
 }
 
+// GitHub repo browser
+async function loadGitHubRepos() {
+    const listEl = document.getElementById('github-repo-list');
+    try {
+        const response = await fetch('/tools/consciousness/github/repositories', {credentials: 'same-origin'});
+        const data = await response.json();
+        listEl.textContent = '';
+        if (data.success && data.repositories && data.repositories.length > 0) {
+            data.repositories.forEach(repo => {
+                const card = document.createElement('div');
+                card.style.cssText = 'background: var(--archie-bg-tertiary); border: 1px solid var(--archie-border-muted); border-radius: 8px; padding: 0.75rem 1rem; min-width: 200px; flex: 1; max-width: 300px;';
+                const name = document.createElement('div');
+                name.style.cssText = 'font-weight: 600; color: var(--archie-text-primary); margin-bottom: 0.25rem; font-size: 0.9rem;';
+                name.textContent = repo.repo_name || 'Unknown';
+                const statusBadge = document.createElement('span');
+                const isCloned = repo.status === 'cloned' || repo.status === 'indexed';
+                statusBadge.style.cssText = 'display: inline-block; padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.7rem; margin-left: 0.5rem; background: ' + (isCloned ? 'var(--archie-green-dim)' : 'var(--archie-orange)') + '; color: ' + (isCloned ? 'var(--archie-green)' : 'var(--archie-orange)') + ';';
+                statusBadge.textContent = repo.status || 'unknown';
+                name.appendChild(statusBadge);
+                const details = document.createElement('div');
+                details.style.cssText = 'color: var(--archie-text-muted); font-size: 0.8rem;';
+                const fileCount = repo.actual_file_count || repo.indexed_files || 0;
+                details.textContent = fileCount + ' files | ' + (repo.repo_type || 'unknown');
+                const updated = document.createElement('div');
+                updated.style.cssText = 'color: var(--archie-text-muted); font-size: 0.75rem; margin-top: 0.25rem;';
+                updated.textContent = repo.indexed_at ? 'Indexed: ' + new Date(repo.indexed_at).toLocaleDateString() : 'Not yet indexed';
+                card.appendChild(name); card.appendChild(details); card.appendChild(updated); listEl.appendChild(card);
+            });
+        } else {
+            listEl.textContent = 'No repositories tracked yet';
+            listEl.style.color = 'var(--archie-text-muted)';
+        }
+    } catch (e) { console.error('Error loading repos:', e); listEl.textContent = 'Error loading repositories'; }
+}
+
 // GitHub indexing functions
 async function loadGitHubIndexed() {
     const listEl = document.getElementById('github-indexed-list');
@@ -1364,21 +1567,23 @@ async function loadGitHubIndexed() {
         const data = await response.json();
         listEl.textContent = '';
 
-        if (data.success && data.files) {
-            // Update stats
-            const repos = new Set(data.files.map(f => f.repo_name || 'unknown'));
-            document.getElementById('github-repos').textContent = repos.size;
-            document.getElementById('github-files').textContent = data.files.length;
-            document.getElementById('github-code').textContent = data.files.filter(f => f.is_code).length;
-            document.getElementById('github-docs').textContent = data.files.filter(f => f.is_documentation).length;
+        const files = data.files || data.items || [];
+        if (data.success) {
+            // Update stats from backend (covers all matching entries, not just first 100)
+            if (data.stats) {
+                document.getElementById('github-repos').textContent = data.stats.repos || 0;
+                document.getElementById('github-files').textContent = data.stats.total || 0;
+                document.getElementById('github-code').textContent = data.stats.code_files || 0;
+                document.getElementById('github-docs').textContent = data.stats.docs || 0;
+            }
 
-            if (data.files.length === 0) {
+            if (files.length === 0) {
                 listEl.textContent = 'No files indexed yet. Add a repository above.';
                 listEl.style.textAlign = 'center';
                 listEl.style.color = 'var(--archie-text-muted)';
                 listEl.style.padding = '2rem';
             } else {
-                data.files.slice(0, 50).forEach(file => {
+                files.slice(0, 50).forEach(file => {
                     const item = document.createElement('div');
                     item.className = 'activity-item';
 
@@ -1392,6 +1597,12 @@ async function loadGitHubIndexed() {
                     const title = document.createElement('div');
                     title.className = 'activity-title';
                     title.textContent = file.file_name || file.title || 'Unknown file';
+                    if (file.repo_type) {
+                        const badge = document.createElement('span');
+                        badge.className = 'activity-type';
+                        badge.textContent = file.repo_type;
+                        title.appendChild(badge);
+                    }
 
                     const desc = document.createElement('div');
                     desc.className = 'activity-description';
@@ -1399,7 +1610,8 @@ async function loadGitHubIndexed() {
 
                     const time = document.createElement('div');
                     time.className = 'activity-time';
-                    time.textContent = file.indexed_at ? new Date(file.indexed_at).toLocaleString() : '';
+                    const dateField = file.indexed_at || file.created_at;
+                    time.textContent = dateField ? new Date(dateField).toLocaleString() : '';
 
                     content.appendChild(title);
                     content.appendChild(desc);

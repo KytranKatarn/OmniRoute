@@ -358,6 +358,11 @@ def start_processing():
         # Log to processing log table
         _log_batch_processing(batch_id, category, results)
 
+        # Auto-generate embeddings for processed items that don't have them
+        if results["processed"] > 0:
+            embed_results = _auto_embed_processed_items([item[0] for item in items[: results["processed"]]])
+            results["embeddings_generated"] = embed_results.get("processed", 0)
+
         return jsonify(results)
 
     except Exception as e:
@@ -430,6 +435,62 @@ def _log_batch_processing(batch_id: str, category: str, results: dict):
         conn.close()
     except Exception as e:
         logger.error(f"Failed to log batch: {e}")
+
+
+def _auto_embed_processed_items(item_ids: list) -> dict:
+    """Generate embeddings for a list of knowledge_base IDs after processing"""
+    results = {"processed": 0, "failed": 0}
+    if not item_ids:
+        return results
+
+    try:
+        from ai_bridge.embedding_service import generate_embedding
+
+        conn = get_db()
+        cur = conn.cursor()
+
+        for item_id in item_ids:
+            try:
+                cur.execute(
+                    """
+                    SELECT title, content FROM knowledge_base
+                    WHERE id = %s AND embedding IS NULL
+                    AND content IS NOT NULL AND LENGTH(content) > 50
+                    """,
+                    (item_id,),
+                )
+                row = cur.fetchone()
+                if not row:
+                    continue
+
+                title, content = row
+                text = f"{title or ''}. {content[:2000]}"
+                embedding = generate_embedding(text)
+
+                if embedding:
+                    cur.execute(
+                        """
+                        UPDATE knowledge_base
+                        SET embedding = %s, embedding_generated_at = NOW()
+                        WHERE id = %s
+                        """,
+                        (embedding, item_id),
+                    )
+                    results["processed"] += 1
+                else:
+                    results["failed"] += 1
+            except Exception as e:
+                logger.error(f"Auto-embed for {item_id} failed: {e}")
+                results["failed"] += 1
+
+        conn.commit()
+        cur.close()
+        conn.close()
+        logger.info(f"Auto-embedded {results['processed']}/{len(item_ids)} items")
+    except Exception as e:
+        logger.error(f"Auto-embed batch failed: {e}")
+
+    return results
 
 
 @processing_bp.route("/generate-embeddings", methods=["POST"])

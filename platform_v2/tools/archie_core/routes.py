@@ -14,6 +14,23 @@ import json
 from .ai_chat import ArchieAI
 from .command_interface import get_command_interface
 
+import sys
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Add ai_bridge to path for emotional intelligence
+sys.path.insert(
+    0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "ai_bridge")
+)
+try:
+    from emotional_intelligence import analyze_sentiment, analyze_trust_impact
+
+    EMOTIONAL_INTELLIGENCE_AVAILABLE = True
+except ImportError:
+    EMOTIONAL_INTELLIGENCE_AVAILABLE = False
+    logger.warning("Emotional intelligence module not available")
+
 archie_chat_bp = Blueprint("archie_chat", __name__, url_prefix="/tools/archie-chat")
 
 
@@ -217,6 +234,13 @@ def send_message():
         cur.close()
         conn.close()
 
+        # Analyze emotional content and update state (non-blocking)
+        if EMOTIONAL_INTELLIGENCE_AVAILABLE:
+            try:
+                _update_emotional_state(message, response_text, current_user.id)
+            except Exception as emo_err:
+                logger.error(f"Emotional intelligence update failed: {emo_err}")
+
         return jsonify(
             {
                 "success": True,
@@ -233,6 +257,106 @@ def send_message():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+def _update_emotional_state(user_message, ai_response, user_id):
+    """Analyze conversation and update ARCHIE's emotional state"""
+    # Analyze the user's message sentiment
+    sentiment = analyze_sentiment(user_message)
+    trust = analyze_trust_impact(user_message, ai_response)
+
+    # Map sentiment to mood
+    mood_map = {
+        "positive": "happy",
+        "negative": "concerned",
+        "neutral": "focused",
+    }
+    tone_mood_map = {
+        "curious": "curious",
+        "enthusiastic": "excited",
+        "frustrated": "supportive",
+        "uncertain": "focused",
+    }
+    new_mood = tone_mood_map.get(sentiment.get("tone"), mood_map.get(sentiment["sentiment"], "neutral"))
+
+    # Calculate mood intensity from sentiment confidence
+    mood_intensity = max(0.3, min(0.95, sentiment.get("confidence", 0.5)))
+
+    # Calculate relationship strength adjustment
+    trust_delta = trust.get("trust_delta", 0.0)
+
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+
+    try:
+        # Get current relationship strength for this user
+        cur.execute(
+            """
+            SELECT relationship_strength FROM archie_emotional_state
+            WHERE user_id = %s ORDER BY timestamp DESC LIMIT 1
+        """,
+            (user_id,),
+        )
+        current = cur.fetchone()
+        current_strength = float(current["relationship_strength"]) if current else 0.5
+
+        # Apply trust delta (clamped 0.1 to 0.99)
+        new_strength = max(0.1, min(0.99, current_strength + trust_delta))
+
+        # Insert new emotional state record
+        cur.execute(
+            """
+            INSERT INTO archie_emotional_state
+                (current_mood, mood_intensity, conversation_tone,
+                 user_happiness_detected, user_stress_detected,
+                 relationship_strength, user_id, notes, mood_context)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """,
+            (
+                new_mood,
+                mood_intensity,
+                sentiment.get("tone", "neutral"),
+                1.0 if sentiment["sentiment"] == "positive" else 0.0,
+                1.0 if sentiment.get("user_emotion") == "frustrated" else 0.0,
+                new_strength,
+                user_id,
+                f"Auto-detected: {sentiment['sentiment']} ({sentiment.get('tone', 'neutral')})",
+                json.dumps(
+                    {
+                        "sentiment": sentiment,
+                        "trust": trust,
+                        "auto_generated": True,
+                    }
+                ),
+            ),
+        )
+
+        # Also store in emotional_memory for history
+        cur.execute(
+            """
+            INSERT INTO emotional_memory
+                (user_id, event_type, emotional_intensity, context_summary,
+                 user_emotion_detected, relationship_impact, importance_score)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """,
+            (
+                user_id,
+                "conversation",
+                mood_intensity,
+                f"User sentiment: {sentiment['sentiment']}, tone: {sentiment.get('tone', 'neutral')}",
+                sentiment.get("user_emotion", "calm"),
+                trust_delta,
+                0.3 if sentiment["sentiment"] == "neutral" else 0.6,
+            ),
+        )
+
+        conn.commit()
+    except Exception as e:
+        logger.error(f"Failed to update emotional state: {e}")
+        conn.rollback()
+    finally:
+        cur.close()
+        conn.close()
 
 
 # ============================================================================

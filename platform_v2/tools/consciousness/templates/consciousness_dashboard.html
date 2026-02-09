@@ -123,6 +123,14 @@
     box-shadow: 0 0 20px var(--module-accent-alpha-20);
 }
 
+.stat-card[onclick]:hover .stat-label {
+    color: var(--archie-accent, var(--module-accent));
+}
+
+.stat-card[onclick]:hover {
+    transform: translateY(-1px);
+}
+
 .stat-value {
     font-family: var(--archie-font-heading, 'Orbitron', sans-serif);
     font-size: var(--archie-text-2xl, 1.5rem);
@@ -686,15 +694,24 @@
             <div class="panel-header">
                 <div class="panel-title">🐙 GitHub Repository Learning</div>
                 <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <button class="btn btn-primary" onclick="scanDependencies()" id="btn-scan-deps">🔍 Scan Dependencies</button>
                     <button class="btn btn-secondary" onclick="loadGitHubIndexed()">🔄 Refresh</button>
                 </div>
             </div>
             <div class="panel-body">
                 <div class="stats-grid" style="margin-bottom: 1.5rem;">
-                    <div class="stat-card"><div class="stat-value" id="github-repos">-</div><div class="stat-label">Repositories</div></div>
-                    <div class="stat-card"><div class="stat-value" id="github-files">-</div><div class="stat-label">Indexed Files</div></div>
-                    <div class="stat-card"><div class="stat-value" id="github-code">-</div><div class="stat-label">Code Files</div></div>
-                    <div class="stat-card"><div class="stat-value" id="github-docs">-</div><div class="stat-label">Documentation</div></div>
+                    <div class="stat-card" onclick="showRepoManager()" style="cursor:pointer;" title="Click to manage repositories"><div class="stat-value" id="github-repos">-</div><div class="stat-label">Repositories</div></div>
+                    <div class="stat-card" onclick="showIndexedByRepo()" style="cursor:pointer;" title="Click to see per-repo breakdown"><div class="stat-value" id="github-files">-</div><div class="stat-label">Indexed Files</div></div>
+                    <div class="stat-card" onclick="showFileList('code')" style="cursor:pointer;" title="Click to browse code files"><div class="stat-value" id="github-code">-</div><div class="stat-label">Code Files</div></div>
+                    <div class="stat-card" onclick="showFileList('docs')" style="cursor:pointer;" title="Click to browse documentation"><div class="stat-value" id="github-docs">-</div><div class="stat-label">Documentation</div></div>
+                </div>
+
+                <!-- Dependency Security Stats -->
+                <div class="stats-grid" style="margin-bottom: 1.5rem;" id="dep-stats-row">
+                    <div class="stat-card" style="border-left: 3px solid var(--archie-red, #f44); cursor:pointer;" onclick="scrollToDepFilter('critical')" title="Click to filter Critical"><div class="stat-value" id="dep-critical" style="color: var(--archie-red, #f44);">-</div><div class="stat-label">Critical Vulns</div></div>
+                    <div class="stat-card" style="border-left: 3px solid var(--archie-orange, #fa0); cursor:pointer;" onclick="scrollToDepFilter('high')" title="Click to filter High"><div class="stat-value" id="dep-high" style="color: var(--archie-orange, #fa0);">-</div><div class="stat-label">High Severity</div></div>
+                    <div class="stat-card" style="border-left: 3px solid var(--archie-blue, #4af); cursor:pointer;" onclick="scrollToDepFilter('')" title="Click to show all updates"><div class="stat-value" id="dep-updates">-</div><div class="stat-label">Updates Available</div></div>
+                    <div class="stat-card" style="cursor:pointer;" onclick="scanDependencies()" title="Click to run new scan"><div class="stat-value" id="dep-last-scan" style="font-size: 0.9rem;">-</div><div class="stat-label">Last Scan</div></div>
                 </div>
 
                 <!-- Repository Browser -->
@@ -719,8 +736,33 @@
                     <button class="btn btn-primary" onclick="indexGitHubRepo()">🚀 Index Repository</button>
                 </div>
                 <div id="github-results" style="display: none; padding: 1rem; background: var(--archie-bg-tertiary); border-radius: 8px; margin-bottom: 1rem;"></div>
+                <!-- Upgrade Suggestions -->
+                <div id="dep-suggestions-section" style="margin-top: 1.5rem; margin-bottom: 1.5rem; display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                        <h4 class="section-title" style="margin: 0;">🛡️ Upgrade Suggestions</h4>
+                        <div id="dep-filters" style="display: flex; gap: 0.25rem;">
+                            <button class="btn btn-secondary dep-filter-btn active" data-severity="" onclick="filterDeps(this)" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">All</button>
+                            <button class="btn btn-secondary dep-filter-btn" data-severity="critical" onclick="filterDeps(this)" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">🔴 Critical</button>
+                            <button class="btn btn-secondary dep-filter-btn" data-severity="high" onclick="filterDeps(this)" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">🟠 High</button>
+                            <button class="btn btn-secondary dep-filter-btn" data-severity="medium" onclick="filterDeps(this)" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">🟡 Medium</button>
+                            <button class="btn btn-secondary dep-filter-btn" data-severity="low" onclick="filterDeps(this)" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">🟢 Low</button>
+                        </div>
+                    </div>
+                    <div id="dep-suggestions-list" class="activity-feed" style="max-height: 400px; overflow-y: auto;"></div>
+                </div>
+
                 <h4 class="section-title" style="margin-top: 1.5rem;">Recently Indexed Files</h4>
                 <div id="github-indexed-list" class="activity-feed" style="max-height: 400px;"><div class="loading"><div class="spinner"></div></div></div>
+            </div>
+        </div>
+        <!-- GitHub Stat Modal -->
+        <div class="modal-overlay" id="github-stat-modal" style="display: none;">
+            <div class="modal" style="max-width: 700px;">
+                <div class="modal-header">
+                    <h3 class="modal-title" id="github-stat-modal-title">Detail</h3>
+                    <button class="modal-close" onclick="closeGitHubStatModal()">&times;</button>
+                </div>
+                <div class="modal-body" id="github-stat-modal-body" style="max-height: 60vh; overflow-y: auto;"></div>
             </div>
         </div>
     </div>
@@ -802,7 +844,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
         if (btn.dataset.tab === 'emotional') loadEmotionalData();
         if (btn.dataset.tab === 'logs') loadLogStatus();
         if (btn.dataset.tab === 'aiprocess') loadProcessingStatus();
-        if (btn.dataset.tab === 'github') { loadGitHubRepos(); loadGitHubIndexed(); }
+        if (btn.dataset.tab === 'github') { loadGitHubRepos(); loadGitHubIndexed(); loadDependencyReport(); }
         if (btn.dataset.tab === 'charts') loadChartData();
         if (btn.dataset.tab === 'graph') loadKnowledgeGraph();
         if (btn.dataset.tab === 'feed') loadActivityFeed();
@@ -1515,6 +1557,305 @@ async function generateEmbeddings() {
     } catch (e) {
         statusDiv.innerHTML = '<span style="color: var(--archie-red);">❌ Error:</span> ' + e.message;
     }
+}
+
+// Dependency scanner functions
+async function loadDependencyReport() {
+    try {
+        const response = await fetch('/tools/consciousness/github/dependency-report', {credentials: 'same-origin'});
+        const data = await response.json();
+        if (!data.success) return;
+
+        const s = data.summary || {};
+        document.getElementById('dep-critical').textContent = s.critical_count || 0;
+        document.getElementById('dep-high').textContent = s.high_count || 0;
+        document.getElementById('dep-updates').textContent = s.updates_available || 0;
+        document.getElementById('dep-last-scan').textContent = s.last_scan ? new Date(s.last_scan).toLocaleDateString() : 'Never';
+
+        // Show suggestions section if there are any results
+        if (s.total_suggestions > 0) {
+            document.getElementById('dep-suggestions-section').style.display = 'block';
+            loadUpgradeSuggestions();
+        }
+    } catch (e) { console.error('Error loading dependency report:', e); }
+}
+
+async function loadUpgradeSuggestions(severity) {
+    const listEl = document.getElementById('dep-suggestions-list');
+    listEl.textContent = 'Loading...';
+    listEl.style.color = 'var(--archie-text-muted)';
+
+    try {
+        let url = '/tools/consciousness/github/upgrade-suggestions?limit=50';
+        if (severity) url += '&severity=' + encodeURIComponent(severity);
+
+        const response = await fetch(url, {credentials: 'same-origin'});
+        const data = await response.json();
+        listEl.textContent = '';
+        listEl.style.color = '';
+
+        if (!data.success || !data.suggestions || data.suggestions.length === 0) {
+            listEl.textContent = 'No upgrade suggestions found.';
+            listEl.style.textAlign = 'center';
+            listEl.style.color = 'var(--archie-text-muted)';
+            listEl.style.padding = '1rem';
+            return;
+        }
+
+        data.suggestions.forEach(s => {
+            const meta = s.memory_metadata || {};
+            const item = document.createElement('div');
+            item.className = 'activity-item';
+
+            const icon = document.createElement('div');
+            icon.className = 'activity-icon';
+            const sevEmoji = {'critical': '🔴', 'high': '🟠', 'medium': '🟡', 'low': '🟢'};
+            icon.textContent = sevEmoji[meta.severity] || '⚪';
+
+            const content = document.createElement('div');
+            content.className = 'activity-content';
+
+            const title = document.createElement('div');
+            title.className = 'activity-title';
+            title.textContent = meta.package || s.title;
+
+            // Severity badge
+            const sevBadge = document.createElement('span');
+            const sevColors = {'critical': '#f44', 'high': '#fa0', 'medium': '#fd0', 'low': '#4c8'};
+            sevBadge.style.cssText = 'display: inline-block; padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.7rem; margin-left: 0.5rem; background: ' + (sevColors[meta.severity] || '#888') + '22; color: ' + (sevColors[meta.severity] || '#888') + ';';
+            sevBadge.textContent = (meta.severity || 'unknown').toUpperCase();
+            title.appendChild(sevBadge);
+
+            // Ecosystem badge
+            const ecoBadge = document.createElement('span');
+            ecoBadge.className = 'activity-type';
+            ecoBadge.textContent = meta.ecosystem || '';
+            title.appendChild(ecoBadge);
+
+            const desc = document.createElement('div');
+            desc.className = 'activity-description';
+            let descText = '';
+            if (meta.has_update) descText += meta.current_version + ' \u2192 ' + meta.latest_version;
+            if (meta.vulnerability_count > 0) descText += (descText ? ' | ' : '') + meta.vulnerability_count + ' vuln(s)';
+            if (meta.deprecated) descText += (descText ? ' | ' : '') + 'DEPRECATED';
+            desc.textContent = descText;
+
+            const source = document.createElement('div');
+            source.className = 'activity-time';
+            source.textContent = meta.scan_source || '';
+
+            content.appendChild(title);
+            content.appendChild(desc);
+            content.appendChild(source);
+            item.appendChild(icon);
+            item.appendChild(content);
+            listEl.appendChild(item);
+        });
+    } catch (e) {
+        console.error('Error loading suggestions:', e);
+        listEl.textContent = 'Error loading suggestions';
+    }
+}
+
+function filterDeps(btn) {
+    document.querySelectorAll('.dep-filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const severity = btn.dataset.severity;
+    loadUpgradeSuggestions(severity || undefined);
+}
+
+// ── GitHub Stat Card Interactive Functions ──
+// Note: innerHTML used here is safe - all data comes from our own DB via admin-only endpoints,
+// not from user input. Repo names/file paths are from our own GitHub indexing pipeline.
+function openGitHubStatModal(title, bodyHtml) {
+    document.getElementById('github-stat-modal-title').textContent = title;
+    document.getElementById('github-stat-modal-body').innerHTML = bodyHtml;
+    const modal = document.getElementById('github-stat-modal');
+    modal.style.display = 'flex';
+    modal.addEventListener('click', function handler(e) {
+        if (e.target === modal) { closeGitHubStatModal(); modal.removeEventListener('click', handler); }
+    });
+}
+
+function closeGitHubStatModal() {
+    document.getElementById('github-stat-modal').style.display = 'none';
+}
+
+function escHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+}
+
+async function showRepoManager() {
+    openGitHubStatModal('Manage Repositories', '<div class="loading"><div class="spinner"></div></div>');
+    try {
+        const resp = await fetch('/tools/consciousness/github/repositories', {credentials: 'same-origin'});
+        const data = await resp.json();
+        if (!data.success) { document.getElementById('github-stat-modal-body').textContent = 'Error: ' + (data.error || 'Unknown'); return; }
+        const repos = data.repositories || [];
+        if (repos.length === 0) {
+            document.getElementById('github-stat-modal-body').innerHTML = '<p style="color:var(--archie-text-muted);text-align:center;padding:2rem;">No repositories tracked yet. Add one using the form below.</p>';
+            return;
+        }
+        let html = '<table style="width:100%;border-collapse:collapse;font-size:0.9rem;">';
+        html += '<thead><tr style="border-bottom:1px solid var(--archie-border-muted);color:var(--archie-text-muted);text-align:left;">';
+        html += '<th style="padding:0.5rem;">Repository</th><th style="padding:0.5rem;">Status</th><th style="padding:0.5rem;">Files</th><th style="padding:0.5rem;"></th></tr></thead><tbody>';
+        repos.forEach(r => {
+            const isGood = r.status === 'cloned' || r.status === 'indexed';
+            const statusColor = isGood ? 'var(--archie-green, #4f4)' : 'var(--archie-orange, #fa0)';
+            const files = r.actual_file_count || r.indexed_files || 0;
+            html += '<tr style="border-bottom:1px solid var(--archie-border-muted);">';
+            html += '<td style="padding:0.5rem;color:var(--archie-text-primary);font-weight:600;">' + escHtml(r.repo_name || 'Unknown') + '<br><span style="font-weight:400;font-size:0.8rem;color:var(--archie-text-muted);">' + escHtml(r.repo_type || '') + '</span></td>';
+            html += '<td style="padding:0.5rem;"><span style="color:' + statusColor + ';font-size:0.85rem;">' + escHtml(r.status || 'unknown') + '</span></td>';
+            html += '<td style="padding:0.5rem;">' + files + '</td>';
+            html += '<td style="padding:0.5rem;"><button class="btn btn-secondary" style="padding:0.2rem 0.5rem;font-size:0.8rem;color:var(--archie-red,#f44);" onclick="previewRepoRemoval(' + r.id + ')">Remove</button></td>';
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+        document.getElementById('github-stat-modal-body').innerHTML = html;
+    } catch (e) {
+        document.getElementById('github-stat-modal-body').textContent = 'Error loading repositories: ' + e.message;
+    }
+}
+
+async function previewRepoRemoval(repoId) {
+    try {
+        const resp = await fetch('/tools/consciousness/github/repositories/' + repoId + '?preview=true', {method: 'DELETE', credentials: 'same-origin'});
+        const data = await resp.json();
+        if (!data.success) { alert('Error: ' + (data.error || 'Unknown')); return; }
+        const impact = data.impact || {};
+        const repo = data.repo || {};
+        const msg = 'Remove "' + (repo.repo_name || 'this repo') + '"?\n\nThis will delete:\n'
+            + '\u2022 ' + (impact.total || 0) + ' indexed files\n'
+            + '\u2022 ' + (impact.code_files || 0) + ' code files\n'
+            + '\u2022 ' + (impact.doc_files || 0) + ' documentation files\n\n'
+            + 'This action cannot be undone.';
+        if (!confirm(msg)) return;
+        const delResp = await fetch('/tools/consciousness/github/repositories/' + repoId, {method: 'DELETE', credentials: 'same-origin'});
+        const delData = await delResp.json();
+        if (delData.success) {
+            showRepoManager();
+            loadGitHubRepos();
+            loadGitHubIndexed();
+        } else {
+            alert('Delete failed: ' + (delData.error || 'Unknown'));
+        }
+    } catch (e) {
+        alert('Error: ' + e.message);
+    }
+}
+
+async function showIndexedByRepo() {
+    openGitHubStatModal('Indexed Files by Repository', '<div class="loading"><div class="spinner"></div></div>');
+    try {
+        const resp = await fetch('/tools/consciousness/github/repositories', {credentials: 'same-origin'});
+        const data = await resp.json();
+        if (!data.success) { document.getElementById('github-stat-modal-body').textContent = 'Error'; return; }
+        const repos = data.repositories || [];
+        const totalFiles = repos.reduce((s, r) => s + (r.actual_file_count || r.indexed_files || 0), 0);
+        let html = '<div style="margin-bottom:1rem;color:var(--archie-text-muted);font-size:0.9rem;">Total: <strong style="color:var(--archie-text-primary);">' + totalFiles + '</strong> files across <strong style="color:var(--archie-text-primary);">' + repos.length + '</strong> repositories</div>';
+        repos.forEach(r => {
+            const files = r.actual_file_count || r.indexed_files || 0;
+            const pct = totalFiles > 0 ? Math.round((files / totalFiles) * 100) : 0;
+            html += '<div style="margin-bottom:0.75rem;">';
+            html += '<div style="display:flex;justify-content:space-between;margin-bottom:0.25rem;font-size:0.9rem;">';
+            html += '<span style="color:var(--archie-text-primary);font-weight:600;">' + escHtml(r.repo_name || 'Unknown') + '</span>';
+            html += '<span style="color:var(--archie-text-muted);">' + files + ' files (' + pct + '%)</span></div>';
+            html += '<div style="background:var(--archie-bg-tertiary);border-radius:4px;height:8px;overflow:hidden;">';
+            html += '<div style="background:var(--archie-accent, #6c5ce7);height:100%;width:' + pct + '%;border-radius:4px;transition:width 0.3s;"></div></div></div>';
+        });
+        document.getElementById('github-stat-modal-body').innerHTML = html;
+    } catch (e) {
+        document.getElementById('github-stat-modal-body').textContent = 'Error: ' + e.message;
+    }
+}
+
+async function showFileList(type) {
+    const label = type === 'code' ? 'Code Files' : 'Documentation Files';
+    const icon = type === 'code' ? '\uD83D\uDCBB' : '\uD83D\uDCC4';
+    openGitHubStatModal(icon + ' ' + label, '<div class="loading"><div class="spinner"></div></div>');
+    try {
+        const resp = await fetch('/tools/consciousness/github/indexed?file_type=' + type, {credentials: 'same-origin'});
+        const data = await resp.json();
+        if (!data.success) { document.getElementById('github-stat-modal-body').textContent = 'Error'; return; }
+        const files = data.files || data.items || [];
+        if (files.length === 0) {
+            document.getElementById('github-stat-modal-body').innerHTML = '<p style="color:var(--archie-text-muted);text-align:center;padding:2rem;">No ' + escHtml(label.toLowerCase()) + ' found.</p>';
+            return;
+        }
+        // Group by repo_type
+        const grouped = {};
+        files.forEach(f => {
+            const repo = f.repo_type || 'unknown';
+            if (!grouped[repo]) grouped[repo] = [];
+            grouped[repo].push(f);
+        });
+        let html = '<div style="color:var(--archie-text-muted);font-size:0.9rem;margin-bottom:1rem;">' + files.length + ' ' + escHtml(label.toLowerCase()) + ' found</div>';
+        Object.keys(grouped).sort().forEach(repo => {
+            html += '<div style="margin-bottom:1rem;">';
+            html += '<div style="font-weight:600;color:var(--archie-accent,#6c5ce7);margin-bottom:0.5rem;font-size:0.9rem;">\uD83D\uDCC2 ' + escHtml(repo) + ' <span style="color:var(--archie-text-muted);font-weight:400;">(' + grouped[repo].length + ')</span></div>';
+            grouped[repo].forEach(f => {
+                const name = f.file_path || f.title || 'Unknown';
+                const shortName = name.split('/').pop();
+                const dir = name.substring(0, name.length - shortName.length);
+                html += '<div style="padding:0.25rem 0 0.25rem 1rem;font-size:0.85rem;color:var(--archie-text-secondary);border-left:2px solid var(--archie-border-muted);">';
+                html += '<span style="color:var(--archie-text-muted);">' + escHtml(dir) + '</span><strong>' + escHtml(shortName) + '</strong></div>';
+            });
+            html += '</div>';
+        });
+        document.getElementById('github-stat-modal-body').innerHTML = html;
+    } catch (e) {
+        document.getElementById('github-stat-modal-body').textContent = 'Error: ' + e.message;
+    }
+}
+
+function scrollToDepFilter(severity) {
+    const section = document.getElementById('dep-suggestions-section');
+    section.style.display = 'block';
+    if (severity) {
+        const btn = document.querySelector('.dep-filter-btn[data-severity="' + severity + '"]');
+        if (btn) filterDeps(btn);
+    } else {
+        const allBtn = document.querySelector('.dep-filter-btn[data-severity=""]');
+        if (allBtn) filterDeps(allBtn);
+    }
+    section.scrollIntoView({behavior: 'smooth', block: 'start'});
+}
+
+async function scanDependencies() {
+    const btn = document.getElementById('btn-scan-deps');
+    const origText = btn.textContent;
+    btn.textContent = '\u23F3 Scanning...';
+    btn.disabled = true;
+
+    try {
+        const response = await fetch('/tools/consciousness/github/scan-dependencies', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({include_platform: true}),
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            btn.textContent = '\u2705 Done!';
+            loadDependencyReport();
+            const msg = data.scans_performed + ' files scanned, ' + data.entries_created + ' suggestions, ' + data.total_vulnerabilities + ' vulns';
+            const resultsDiv = document.getElementById('github-results');
+            resultsDiv.style.display = 'block';
+            resultsDiv.textContent = 'Scan Complete: ' + msg;
+            setTimeout(() => { resultsDiv.style.display = 'none'; }, 8000);
+        } else {
+            btn.textContent = '\u274C Failed';
+            alert('Scan failed: ' + (data.error || 'Unknown error'));
+        }
+    } catch (e) {
+        btn.textContent = '\u274C Error';
+        console.error('Scan error:', e);
+    }
+
+    setTimeout(() => { btn.textContent = origText; btn.disabled = false; }, 3000);
 }
 
 // GitHub repo browser

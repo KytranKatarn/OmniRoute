@@ -15,9 +15,16 @@ from functools import wraps
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
+import base64
 import json
+import logging
 import os
+import re
 import sys
+
+import requests
+
+logger = logging.getLogger(__name__)
 
 # Add platform root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
@@ -3497,24 +3504,86 @@ def github_repositories():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@consciousness_bp.route("/github/indexed", methods=["GET"])
+@consciousness_bp.route("/github/repositories/<int:repo_id>", methods=["DELETE"])
 @login_required
 @admin_required
-def github_indexed_list():
-    """List all selectively indexed GitHub content"""
+def github_repository_delete(repo_id):
+    """Delete a tracked repository and its indexed files. Use ?preview=true for impact summary."""
+    preview = request.args.get("preview", "").lower() == "true"
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
+        # Get repo info
+        cur.execute("SELECT id, repo_name, repo_type FROM github_repositories WHERE id = %s", (repo_id,))
+        repo = cur.fetchone()
+        if not repo:
+            cur.close()
+            conn.close()
+            return jsonify({"success": False, "error": "Repository not found"}), 404
+
+        repo = dict(repo)
+        repo_type = repo["repo_type"]
+
+        # Get impact: count files that would be deleted
         cur.execute(
             """
+            SELECT COUNT(*) as total,
+                   SUM(CASE WHEN is_code THEN 1 ELSE 0 END) as code_files,
+                   SUM(CASE WHEN is_documentation THEN 1 ELSE 0 END) as doc_files
+            FROM knowledge_base
+            WHERE knowledge_type = 'github_file' AND repo_type = %s
+            """,
+            (repo_type,),
+        )
+        impact = dict(cur.fetchone())
+
+        if preview:
+            cur.close()
+            conn.close()
+            return jsonify({"success": True, "preview": True, "repo": repo, "impact": impact})
+
+        # Actually delete
+        cur.execute(
+            "DELETE FROM knowledge_base WHERE knowledge_type = 'github_file' AND repo_type = %s",
+            (repo_type,),
+        )
+        deleted_files = cur.rowcount
+        cur.execute("DELETE FROM github_repositories WHERE id = %s", (repo_id,))
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({"success": True, "deleted_files": deleted_files, "repo_name": repo["repo_name"]})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/github/indexed", methods=["GET"])
+@login_required
+@admin_required
+def github_indexed_list():
+    """List all selectively indexed GitHub content. Optional ?file_type=code|docs to filter."""
+    file_type = request.args.get("file_type", "").lower()
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        base_where = "(source_type = 'github_selective' OR knowledge_type = 'github_file')"
+        if file_type == "code":
+            base_where += " AND is_code = true"
+        elif file_type == "docs":
+            base_where += " AND is_documentation = true"
+
+        cur.execute(
+            f"""
             SELECT id, title, file_path, importance_score, has_embedding,
                    memory_metadata, created_at, updated_at, knowledge_type,
                    is_code, is_documentation, repo_type
             FROM knowledge_base
-            WHERE source_type = 'github_selective' OR knowledge_type = 'github_file'
+            WHERE {base_where}
             ORDER BY created_at DESC
-            LIMIT 100
+            LIMIT 200
         """
         )
         items = cur.fetchall()
@@ -3573,6 +3642,371 @@ def github_search_semantic():
         ]
 
         return jsonify({"success": True, "results": github_results, "count": len(github_results)})
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# DEPENDENCY SCANNER ENDPOINTS
+# ============================================================================
+
+
+def _store_dependency_scan(cursor, scan_result):
+    """Store scan results as upgrade_suggestion entries in knowledge_base.
+
+    Only stores packages that have updates OR vulnerabilities.
+    Deletes old suggestions for same package+source before inserting.
+    """
+    source = scan_result.get("source", "unknown")
+    stored = 0
+
+    for dep in scan_result.get("dependencies", []):
+        has_vulns = bool(dep.get("vulnerabilities"))
+        has_update = dep.get("has_update", False)
+        is_deprecated = bool(dep.get("deprecated"))
+
+        if not has_update and not has_vulns and not is_deprecated:
+            continue
+
+        pkg = dep["package"]
+        ecosystem = dep["ecosystem"]
+
+        # Determine severity and importance score
+        severities = [v["severity"] for v in dep.get("vulnerabilities", [])]
+        if "CRITICAL" in severities:
+            severity = "critical"
+            importance = 0.95
+        elif "HIGH" in severities:
+            severity = "high"
+            importance = 0.90
+        elif "MEDIUM" in severities:
+            severity = "medium"
+            importance = 0.80
+        elif is_deprecated:
+            severity = "high"
+            importance = 0.85
+        else:
+            severity = "low"
+            importance = 0.75
+
+        # Build markdown content
+        lines = [f"## {pkg} ({ecosystem})"]
+        lines.append(f"**Source:** {source}")
+        if dep["current_version"]:
+            lines.append(f"**Current:** {dep['current_version']}")
+        if dep["latest_version"]:
+            lines.append(f"**Latest:** {dep['latest_version']}")
+        if is_deprecated:
+            lines.append(f"**DEPRECATED:** {dep['deprecated']}")
+        if has_vulns:
+            lines.append(f"\n### Vulnerabilities ({len(dep['vulnerabilities'])})")
+            for v in dep["vulnerabilities"]:
+                lines.append(f"- **{v['severity']}** [{v['id']}]: {v.get('summary', '')}")
+                if v.get("patched_version"):
+                    lines.append(f"  - Patched in: {v['patched_version']}")
+
+        content = "\n".join(lines)
+        # Include source in title to avoid unique constraint collisions across repos
+        source_label = source.split("/")[-1] if "/" in source else source
+        title = (
+            f"[{severity.upper()}] {pkg} {dep['current_version']} → {dep['latest_version']} ({source_label})"
+            if has_update
+            else f"[{severity.upper()}] {pkg} - vulnerability ({source_label})"
+        )
+
+        metadata = json.dumps(
+            {
+                "severity": severity,
+                "ecosystem": ecosystem,
+                "package": pkg,
+                "current_version": dep["current_version"],
+                "latest_version": dep["latest_version"],
+                "has_update": has_update,
+                "deprecated": dep.get("deprecated"),
+                "vulnerability_count": len(dep.get("vulnerabilities", [])),
+                "vulnerabilities": dep.get("vulnerabilities", []),
+                "scan_source": source,
+                "scanned_at": scan_result.get("scanned_at"),
+            }
+        )
+
+        # Delete old suggestion for same package+source
+        cursor.execute(
+            """DELETE FROM knowledge_base
+               WHERE knowledge_type = 'upgrade_suggestion'
+                 AND memory_metadata->>'package' = %s
+                 AND memory_metadata->>'scan_source' = %s""",
+            (pkg, source),
+        )
+
+        cursor.execute(
+            """INSERT INTO knowledge_base
+               (title, content, knowledge_type, source_type, primary_category,
+                importance_score, memory_metadata, created_at)
+               VALUES (%s, %s, 'upgrade_suggestion', 'dependency_scan', 'dependency_security',
+                       %s, %s, NOW())""",
+            (title, content, importance, metadata),
+        )
+        stored += 1
+
+    return stored
+
+
+@consciousness_bp.route("/github/scan-dependencies", methods=["POST"])
+@login_required
+@admin_required
+def github_scan_dependencies():
+    """Scan GitHub repos for dependency updates and vulnerabilities."""
+    from .dependency_scanner import DependencyScanner
+
+    data = request.get_json() or {}
+    repo_id = data.get("repo_id")
+    include_platform = data.get("include_platform", True)
+
+    # Load GitHub token from env or file
+    github_token = os.getenv("GITHUB_TOKEN")
+    if not github_token:
+        try:
+            with open("/mnt/archie_brain/secrets/api/github_token.txt", "r") as f:
+                github_token = f.read().strip()
+        except FileNotFoundError:
+            pass
+
+    scanner = DependencyScanner(github_token=github_token)
+    results_summary = {
+        "scans_performed": 0,
+        "entries_created": 0,
+        "total_updates": 0,
+        "total_vulnerabilities": 0,
+        "critical_count": 0,
+        "scan_details": [],
+    }
+
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Get repos to scan
+        if repo_id:
+            cur.execute(
+                "SELECT id, repo_name FROM github_repositories WHERE id = %s",
+                (repo_id,),
+            )
+        else:
+            cur.execute("SELECT id, repo_name FROM github_repositories WHERE status IN ('cloned', 'indexed')")
+        repos = cur.fetchall()
+
+        dep_files = ["package.json", "requirements.txt"]
+
+        for repo in repos:
+            repo_name = repo["repo_name"]
+            # repo_name is already in owner/repo format
+            owner_repo = repo_name
+
+            headers = {}
+            if github_token:
+                headers["Authorization"] = f"Bearer {github_token}"
+                headers["Accept"] = "application/vnd.github.v3+json"
+
+            for dep_file in dep_files:
+                try:
+                    resp = requests.get(
+                        f"https://api.github.com/repos/{owner_repo}/contents/{dep_file}",
+                        headers=headers,
+                        timeout=10,
+                    )
+                    if resp.status_code != 200:
+                        continue
+
+                    file_data = resp.json()
+                    content = base64.b64decode(file_data.get("content", "")).decode("utf-8")
+
+                    scan = scanner.scan_dependency_file(content, dep_file, owner_repo)
+                    cur.execute("SAVEPOINT dep_scan")
+                    stored = _store_dependency_scan(cur, scan)
+                    cur.execute("RELEASE SAVEPOINT dep_scan")
+
+                    results_summary["scans_performed"] += 1
+                    results_summary["entries_created"] += stored
+                    results_summary["total_updates"] += scan.get("updates_available", 0)
+                    results_summary["total_vulnerabilities"] += scan.get("vulnerabilities_found", 0)
+                    results_summary["critical_count"] += scan.get("critical_count", 0)
+                    results_summary["scan_details"].append(
+                        {
+                            "source": owner_repo,
+                            "file": dep_file,
+                            "packages": scan.get("packages_scanned", 0),
+                            "updates": scan.get("updates_available", 0),
+                            "vulnerabilities": scan.get("vulnerabilities_found", 0),
+                        }
+                    )
+                except Exception as e:
+                    cur.execute("ROLLBACK TO SAVEPOINT dep_scan")
+                    logger.warning(f"Failed to scan {owner_repo}/{dep_file}: {e}")
+
+        # Scan local platform requirements.txt if requested
+        if include_platform:
+            try:
+                local_path = os.path.join(
+                    os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "requirements.txt"
+                )
+                with open(local_path, "r") as f:
+                    content = f.read()
+
+                scan = scanner.scan_dependency_file(content, "requirements.txt", "local/platform_v2")
+                cur.execute("SAVEPOINT local_scan")
+                stored = _store_dependency_scan(cur, scan)
+                cur.execute("RELEASE SAVEPOINT local_scan")
+
+                results_summary["scans_performed"] += 1
+                results_summary["entries_created"] += stored
+                results_summary["total_updates"] += scan.get("updates_available", 0)
+                results_summary["total_vulnerabilities"] += scan.get("vulnerabilities_found", 0)
+                results_summary["critical_count"] += scan.get("critical_count", 0)
+                results_summary["scan_details"].append(
+                    {
+                        "source": "local/platform_v2",
+                        "file": "requirements.txt",
+                        "packages": scan.get("packages_scanned", 0),
+                        "updates": scan.get("updates_available", 0),
+                        "vulnerabilities": scan.get("vulnerabilities_found", 0),
+                    }
+                )
+            except Exception as e:
+                cur.execute("ROLLBACK TO SAVEPOINT local_scan")
+                logger.warning(f"Failed to scan local requirements.txt: {e}")
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({"success": True, **results_summary})
+
+    except Exception as e:
+        logger.error(f"Dependency scan failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/github/dependency-report", methods=["GET"])
+@login_required
+@admin_required
+def github_dependency_report():
+    """Get summary report of dependency scan results."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            SELECT
+                COUNT(*) as total_suggestions,
+                COUNT(*) FILTER (WHERE memory_metadata->>'severity' = 'critical') as critical_count,
+                COUNT(*) FILTER (WHERE memory_metadata->>'severity' = 'high') as high_count,
+                COUNT(*) FILTER (WHERE memory_metadata->>'severity' = 'medium') as medium_count,
+                COUNT(*) FILTER (WHERE memory_metadata->>'severity' = 'low') as low_count,
+                COUNT(*) FILTER (WHERE (memory_metadata->>'has_update')::boolean = true) as updates_available,
+                COUNT(*) FILTER (WHERE (memory_metadata->>'vulnerability_count')::int > 0) as with_vulnerabilities,
+                MAX(created_at) as last_scan
+            FROM knowledge_base
+            WHERE knowledge_type = 'upgrade_suggestion'
+        """
+        )
+        summary = dict(cur.fetchone())
+
+        # Group by ecosystem
+        cur.execute(
+            """
+            SELECT
+                memory_metadata->>'ecosystem' as ecosystem,
+                COUNT(*) as count
+            FROM knowledge_base
+            WHERE knowledge_type = 'upgrade_suggestion'
+            GROUP BY memory_metadata->>'ecosystem'
+        """
+        )
+        by_ecosystem = [dict(r) for r in cur.fetchall()]
+
+        # Group by source
+        cur.execute(
+            """
+            SELECT
+                memory_metadata->>'scan_source' as source,
+                COUNT(*) as count,
+                COUNT(*) FILTER (WHERE memory_metadata->>'severity' IN ('critical', 'high')) as urgent
+            FROM knowledge_base
+            WHERE knowledge_type = 'upgrade_suggestion'
+            GROUP BY memory_metadata->>'scan_source'
+            ORDER BY urgent DESC
+        """
+        )
+        by_source = [dict(r) for r in cur.fetchall()]
+
+        cur.close()
+        conn.close()
+
+        return jsonify(
+            {
+                "success": True,
+                "summary": summary,
+                "by_ecosystem": by_ecosystem,
+                "by_source": by_source,
+            }
+        )
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/github/upgrade-suggestions", methods=["GET"])
+@login_required
+@admin_required
+def github_upgrade_suggestions():
+    """List upgrade suggestions with optional filters."""
+    severity = request.args.get("severity")
+    ecosystem = request.args.get("ecosystem")
+    source = request.args.get("source")
+    limit = request.args.get("limit", 50, type=int)
+
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        conditions = ["knowledge_type = 'upgrade_suggestion'"]
+        params = []
+
+        if severity:
+            conditions.append("memory_metadata->>'severity' = %s")
+            params.append(severity)
+        if ecosystem:
+            conditions.append("memory_metadata->>'ecosystem' = %s")
+            params.append(ecosystem)
+        if source:
+            conditions.append("memory_metadata->>'scan_source' = %s")
+            params.append(source)
+
+        where = " AND ".join(conditions)
+        params.append(limit)
+
+        cur.execute(
+            f"""SELECT id, title, content, importance_score, memory_metadata, created_at
+                FROM knowledge_base
+                WHERE {where}
+                ORDER BY importance_score DESC, created_at DESC
+                LIMIT %s""",
+            params,
+        )
+        suggestions = []
+        for row in cur.fetchall():
+            r = dict(row)
+            if isinstance(r.get("memory_metadata"), str):
+                r["memory_metadata"] = json.loads(r["memory_metadata"])
+            suggestions.append(r)
+
+        cur.close()
+        conn.close()
+
+        return jsonify({"success": True, "suggestions": suggestions, "count": len(suggestions)})
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

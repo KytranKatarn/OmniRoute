@@ -694,6 +694,7 @@
             <div class="panel-header">
                 <div class="panel-title">🐙 GitHub Repository Learning</div>
                 <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <button class="btn btn-primary" onclick="reindexAllRepos()" id="btn-reindex-all">📥 Re-Index All</button>
                     <button class="btn btn-primary" onclick="scanDependencies()" id="btn-scan-deps">🔍 Scan Dependencies</button>
                     <button class="btn btn-secondary" onclick="loadGitHubIndexed()">🔄 Refresh</button>
                 </div>
@@ -1700,7 +1701,7 @@ async function showRepoManager() {
         }
         let html = '<table style="width:100%;border-collapse:collapse;font-size:0.9rem;">';
         html += '<thead><tr style="border-bottom:1px solid var(--archie-border-muted);color:var(--archie-text-muted);text-align:left;">';
-        html += '<th style="padding:0.5rem;">Repository</th><th style="padding:0.5rem;">Status</th><th style="padding:0.5rem;">Files</th><th style="padding:0.5rem;"></th></tr></thead><tbody>';
+        html += '<th style="padding:0.5rem;">Repository</th><th style="padding:0.5rem;">Status</th><th style="padding:0.5rem;">Files</th><th style="padding:0.5rem;text-align:right;">Actions</th></tr></thead><tbody>';
         repos.forEach(r => {
             const isGood = r.status === 'cloned' || r.status === 'indexed';
             const statusColor = isGood ? 'var(--archie-green, #4f4)' : 'var(--archie-orange, #fa0)';
@@ -1709,7 +1710,7 @@ async function showRepoManager() {
             html += '<td style="padding:0.5rem;color:var(--archie-text-primary);font-weight:600;">' + escHtml(r.repo_name || 'Unknown') + '<br><span style="font-weight:400;font-size:0.8rem;color:var(--archie-text-muted);">' + escHtml(r.repo_type || '') + '</span></td>';
             html += '<td style="padding:0.5rem;"><span style="color:' + statusColor + ';font-size:0.85rem;">' + escHtml(r.status || 'unknown') + '</span></td>';
             html += '<td style="padding:0.5rem;">' + files + '</td>';
-            html += '<td style="padding:0.5rem;"><button class="btn btn-secondary" style="padding:0.2rem 0.5rem;font-size:0.8rem;color:var(--archie-red,#f44);" onclick="previewRepoRemoval(' + r.id + ')">Remove</button></td>';
+            html += '<td style="padding:0.5rem;text-align:right;white-space:nowrap;"><button class="btn btn-secondary" style="padding:0.2rem 0.5rem;font-size:0.8rem;" onclick="reindexSingleRepo(' + r.id + ',this)" title="Re-index this repo">📥 Re-Index</button> <button class="btn btn-secondary" style="padding:0.2rem 0.5rem;font-size:0.8rem;color:var(--archie-red,#f44);" onclick="previewRepoRemoval(' + r.id + ')">Remove</button></td>';
             html += '</tr>';
         });
         html += '</tbody></table>';
@@ -1743,6 +1744,50 @@ async function previewRepoRemoval(repoId) {
         }
     } catch (e) {
         alert('Error: ' + e.message);
+    }
+}
+
+async function reindexAllRepos() {
+    const btn = document.getElementById('btn-reindex-all');
+    const origText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '⏳ Re-Indexing...';
+    try {
+        const resp = await fetch('/tools/consciousness/github/reindex-all', {method: 'POST', credentials: 'same-origin'});
+        const data = await resp.json();
+        if (data.success) {
+            let msg = 'Re-indexed ' + data.total_indexed + ' files across ' + data.total_repos + ' repos.';
+            if (data.errors && data.errors.length > 0) msg += '\n' + data.errors.length + ' errors occurred.';
+            alert(msg);
+            loadGitHubIndexed();
+        } else {
+            alert('Error: ' + (data.error || 'Unknown'));
+        }
+    } catch (e) {
+        alert('Re-index failed: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = origText;
+    }
+}
+
+async function reindexSingleRepo(repoId, btnEl) {
+    const origText = btnEl ? btnEl.textContent : '';
+    if (btnEl) { btnEl.disabled = true; btnEl.textContent = '⏳...'; }
+    try {
+        const resp = await fetch('/tools/consciousness/github/reindex/' + repoId, {method: 'POST', credentials: 'same-origin'});
+        const data = await resp.json();
+        if (data.success) {
+            alert('Re-indexed ' + data.indexed + ' files from ' + data.repo);
+            showRepoManager();
+            loadGitHubIndexed();
+        } else {
+            alert('Error: ' + (data.error || 'Unknown'));
+        }
+    } catch (e) {
+        alert('Re-index failed: ' + e.message);
+    } finally {
+        if (btnEl) { btnEl.disabled = false; btnEl.textContent = origText; }
     }
 }
 

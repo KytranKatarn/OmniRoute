@@ -3288,6 +3288,100 @@ def save_conversation():
 # GITHUB LEARNING INTEGRATION
 # ============================================================================
 
+# Extensions worth downloading and indexing
+INDEXABLE_CODE_EXT = {
+    ".py",
+    ".js",
+    ".ts",
+    ".jsx",
+    ".tsx",
+    ".java",
+    ".cpp",
+    ".c",
+    ".h",
+    ".hpp",
+    ".go",
+    ".rs",
+    ".rb",
+    ".sh",
+    ".bash",
+    ".sql",
+    ".php",
+    ".swift",
+    ".kt",
+    ".scala",
+    ".vue",
+    ".svelte",
+    ".lua",
+    ".r",
+    ".cs",
+}
+INDEXABLE_DOC_EXT = {".md", ".txt", ".rst", ".adoc"}
+INDEXABLE_CONFIG_EXT = {".json", ".yaml", ".yml", ".toml", ".ini", ".conf", ".env"}
+INDEXABLE_WEB_EXT = {".html", ".css", ".scss", ".less"}
+INDEXABLE_EXT = INDEXABLE_CODE_EXT | INDEXABLE_DOC_EXT | INDEXABLE_CONFIG_EXT | INDEXABLE_WEB_EXT
+
+SKIP_DIRS = {
+    "node_modules",
+    ".git",
+    "__pycache__",
+    "venv",
+    ".venv",
+    "env",
+    ".env",
+    "dist",
+    "build",
+    "coverage",
+    ".tox",
+    "target",
+    ".idea",
+    ".vscode",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".eggs",
+    "egg-info",
+    ".next",
+    ".nuxt",
+    "vendor",
+    "bower_components",
+    ".gradle",
+    ".mvn",
+}
+
+SKIP_FILES = {
+    "package-lock.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+    "composer.lock",
+    "Gemfile.lock",
+    "Cargo.lock",
+    "poetry.lock",
+    "Pipfile.lock",
+}
+
+MAX_FILE_SIZE = 500_000  # 500 KB per file
+MAX_CONTENT_STORE = 100_000  # 100 KB stored in DB
+MAX_FILES_PER_REPO = 500  # cap per repo
+
+
+def _get_github_headers():
+    """Return (headers_dict, has_token) for GitHub API requests."""
+    github_token = None
+    try:
+        token_path = "/mnt/archie_brain/secrets/api/github_token.txt"
+        if os.path.exists(token_path):
+            with open(token_path, "r") as f:
+                github_token = f.read().strip()
+    except Exception:
+        pass
+    if not github_token:
+        github_token = os.environ.get("GITHUB_TOKEN")
+
+    headers = {"Accept": "application/vnd.github.v3+json"}
+    if github_token:
+        headers["Authorization"] = f"token {github_token}"
+    return headers, bool(github_token)
+
 
 @consciousness_bp.route("/github/index-selective", methods=["POST"])
 @login_required
@@ -3314,37 +3408,54 @@ def github_index_selective():
         parts = repo_url.replace("https://", "").replace("http://", "").replace("github.com/", "").split("/")
         owner = parts[0]
         repo = parts[1].replace(".git", "")
-    except:
+    except Exception:
         return jsonify({"success": False, "error": "Invalid GitHub URL format"}), 400
 
     # Priority mapping
     priority_scores = {"high": 0.95, "medium": 0.85, "low": 0.75}
     importance = priority_scores.get(priority, 0.85)
 
-    # Get GitHub token if available
-    github_token = None
-    try:
-        token_path = "/mnt/archie_brain/secrets/api/github_token.txt"
-        if os.path.exists(token_path):
-            with open(token_path, "r") as f:
-                github_token = f.read().strip()
-    except:
-        pass
+    headers, _has_token = _get_github_headers()
 
-    headers = {"Accept": "application/vnd.github.v3+json"}
-    if github_token:
-        headers["Authorization"] = f"token {github_token}"
+    # If no paths specified, use the recursive tree API for full repo index
+    if not paths:
+        try:
+            # Look up repo_type from github_repositories
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                "SELECT repo_type FROM github_repositories WHERE repo_name LIKE %s LIMIT 1",
+                (f"%{owner}/{repo}%",),
+            )
+            row = cur.fetchone()
+            repo_type = row["repo_type"] if row else repo.lower()
+            cur.close()
+            conn.close()
 
+            indexed_count, errors, skipped = _reindex_repo_via_tree(owner, repo, repo_type, importance)
+            return jsonify(
+                {
+                    "success": True,
+                    "indexed_count": indexed_count,
+                    "repo": f"{owner}/{repo}",
+                    "priority": priority,
+                    "skipped": skipped,
+                    "errors": errors if errors else None,
+                }
+            )
+        except Exception as e:
+            import traceback
+
+            traceback.print_exc()
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    # Paths specified — use Contents API for targeted indexing
     indexed_count = 0
     errors = []
 
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        # If no paths specified, get root contents
-        if not paths:
-            paths = [""]
 
         for path in paths:
             path = path.strip().strip("/")
@@ -3365,38 +3476,32 @@ def github_index_selective():
 
             for item in contents:
                 if item.get("type") == "file":
-                    # Fetch file content
                     file_url = item.get("download_url")
                     if not file_url:
                         continue
 
                     try:
-                        file_response = requests.get(file_url, headers=headers, timeout=30)
+                        file_response = requests.get(file_url, timeout=30)
                         if file_response.status_code != 200:
                             continue
 
                         file_content = file_response.text
-                        file_path = item.get("path", "")
+                        file_path_val = item.get("path", "")
                         file_name = item.get("name", "")
 
-                        # Skip binary/large files
-                        if len(file_content) > 500000:  # 500KB limit
+                        if len(file_content) > MAX_FILE_SIZE:
                             continue
 
-                        # Determine file type
                         ext = os.path.splitext(file_name)[1].lower()
-                        is_code = ext in [".py", ".js", ".ts", ".go", ".rs", ".java", ".c", ".cpp", ".h"]
-                        is_doc = ext in [".md", ".txt", ".rst", ".adoc"]
 
-                        # Insert or update in knowledge_base
                         cur.execute(
                             """
                             INSERT INTO knowledge_base (
                                 knowledge_type, title, content, category, file_path,
-                                importance_score, source_type, is_code, is_documentation,
-                                file_extension, memory_metadata, tags, created_at
+                                importance_score, source_type, file_name, file_extension,
+                                memory_metadata, tags, repo_type, created_at
                             ) VALUES (
-                                'github_file', %s, %s, %s, %s,
+                                'github_file', %s, %s, 'github', %s,
                                 %s, 'github_selective', %s, %s,
                                 %s, %s, %s, NOW()
                             )
@@ -3409,12 +3514,10 @@ def github_index_selective():
                         """,
                             (
                                 file_name,
-                                file_content[:100000],  # Truncate very long files
-                                "code" if is_code else "documentation" if is_doc else "github",
-                                f"{owner}/{repo}/{file_path}",
+                                file_content[:MAX_CONTENT_STORE],
+                                f"{owner}/{repo}/{file_path_val}",
                                 importance,
-                                is_code,
-                                is_doc,
+                                file_name,
                                 ext,
                                 json.dumps(
                                     {
@@ -3426,32 +3529,20 @@ def github_index_selective():
                                     }
                                 ),
                                 ["github", "selective", owner, repo, priority],
+                                repo.lower(),
                             ),
                         )
 
                         result = cur.fetchone()
                         if result:
-                            kb_id = result["id"]
                             indexed_count += 1
-
-                            # Generate embedding
-                            try:
-                                from .memory_service import store_embedding
-
-                                store_embedding("knowledge_base", kb_id, file_content[:10000])
-                                cur.execute(
-                                    """
-                                    UPDATE knowledge_base
-                                    SET has_embedding = TRUE, embedding_generated_at = NOW()
-                                    WHERE id = %s
-                                """,
-                                    (kb_id,),
-                                )
-                            except Exception as e:
-                                print(f"Embedding error for {file_name}: {e}")
 
                     except Exception as file_err:
                         errors.append(f"Error processing {item.get('name')}: {str(file_err)}")
+
+                elif item.get("type") == "dir":
+                    # Recurse into directories
+                    paths.append(item.get("path", ""))
 
         conn.commit()
         cur.close()
@@ -3464,6 +3555,274 @@ def github_index_selective():
                 "repo": f"{owner}/{repo}",
                 "priority": priority,
                 "errors": errors if errors else None,
+            }
+        )
+
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+def _reindex_repo_via_tree(owner, repo, repo_type, importance=0.85):
+    """
+    Recursively index a GitHub repo using the Tree API (1 API call for full tree).
+    Downloads content via raw.githubusercontent.com (no API quota).
+    Returns (indexed_count, errors, skipped_count).
+    """
+    import requests
+    import time
+
+    headers, _has_token = _get_github_headers()
+    errors = []
+
+    # 1. Get default branch
+    repo_api = f"https://api.github.com/repos/{owner}/{repo}"
+    resp = requests.get(repo_api, headers=headers, timeout=30)
+    if resp.status_code != 200:
+        raise Exception(f"Failed to fetch repo info for {owner}/{repo}: {resp.status_code}")
+    default_branch = resp.json().get("default_branch", "main")
+
+    # 2. Get full tree recursively (1 API call)
+    tree_url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{default_branch}?recursive=1"
+    resp = requests.get(tree_url, headers=headers, timeout=60)
+    if resp.status_code != 200:
+        raise Exception(f"Failed to fetch tree for {owner}/{repo}: {resp.status_code}")
+    tree_data = resp.json()
+    all_items = tree_data.get("tree", [])
+
+    # 3. Filter blobs only, skip unwanted dirs/files, only indexable extensions
+    candidates = []
+    for item in all_items:
+        if item.get("type") != "blob":
+            continue
+        path = item.get("path", "")
+        size = item.get("size", 0)
+        filename = os.path.basename(path)
+        ext = os.path.splitext(filename)[1].lower()
+
+        # Skip by extension
+        if ext not in INDEXABLE_EXT:
+            continue
+
+        # Skip by size
+        if size > MAX_FILE_SIZE:
+            continue
+
+        # Skip by directory
+        path_parts = path.split("/")
+        if any(part in SKIP_DIRS for part in path_parts[:-1]):
+            continue
+
+        # Skip by filename
+        if filename in SKIP_FILES:
+            continue
+
+        candidates.append((path, filename, ext, size))
+
+    # 4. Sort by priority: README first, then code, then docs, then config
+    def sort_key(item):
+        _path, fname, ext, _size = item
+        if fname.lower().startswith("readme"):
+            return (0, _path)
+        if ext in INDEXABLE_CODE_EXT:
+            return (1, _path)
+        if ext in INDEXABLE_DOC_EXT:
+            return (2, _path)
+        return (3, _path)
+
+    candidates.sort(key=sort_key)
+    candidates = candidates[:MAX_FILES_PER_REPO]
+
+    # 5. Delete old entries for this repo
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute(
+        "DELETE FROM knowledge_base WHERE knowledge_type = 'github_file' AND repo_type = %s",
+        (repo_type,),
+    )
+    deleted = cur.rowcount
+    conn.commit()
+
+    # 6. Download and insert each file
+    indexed_count = 0
+    skipped_count = 0
+    raw_base = f"https://raw.githubusercontent.com/{owner}/{repo}/{default_branch}"
+
+    for path, filename, ext, size in candidates:
+        try:
+            raw_url = f"{raw_base}/{path}"
+            file_resp = requests.get(raw_url, timeout=30)
+            if file_resp.status_code != 200:
+                errors.append(f"Download failed ({file_resp.status_code}): {path}")
+                skipped_count += 1
+                continue
+
+            content = file_resp.text
+            if len(content) > MAX_FILE_SIZE:
+                skipped_count += 1
+                continue
+
+            # Use repo-qualified title to avoid unique constraint collisions
+            title = f"{owner}/{repo}: {path}"
+
+            cur.execute("SAVEPOINT sp_file")
+            cur.execute(
+                """
+                INSERT INTO knowledge_base (
+                    knowledge_type, title, content, category, file_path,
+                    importance_score, source_type, file_name, file_extension,
+                    memory_metadata, tags, repo_type, created_at
+                ) VALUES (
+                    'github_file', %s, %s, 'github', %s,
+                    %s, 'github_tree', %s, %s,
+                    %s, %s, %s, NOW()
+                )
+                """,
+                (
+                    title,
+                    content[:MAX_CONTENT_STORE],
+                    f"{owner}/{repo}/{path}",
+                    importance,
+                    filename,
+                    ext,
+                    json.dumps(
+                        {
+                            "repo": f"{owner}/{repo}",
+                            "branch": default_branch,
+                            "size": size,
+                        }
+                    ),
+                    ["github", owner, repo, repo_type],
+                    repo_type,
+                ),
+            )
+            cur.execute("RELEASE SAVEPOINT sp_file")
+            indexed_count += 1
+
+            # Polite delay between downloads
+            if indexed_count % 10 == 0:
+                time.sleep(0.05)
+
+        except Exception as file_err:
+            cur.execute("ROLLBACK TO SAVEPOINT sp_file")
+            errors.append(f"Error: {path}: {str(file_err)}")
+            skipped_count += 1
+
+    conn.commit()
+
+    # 7. Update github_repositories row
+    cur.execute(
+        """
+        UPDATE github_repositories
+        SET indexed = true, indexed_files = %s, indexed_at = NOW(),
+            status = 'indexed', updated_at = NOW()
+        WHERE repo_type = %s
+        """,
+        (indexed_count, repo_type),
+    )
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return indexed_count, errors, skipped_count
+
+
+@consciousness_bp.route("/github/reindex-all", methods=["POST"])
+@login_required
+@admin_required
+def github_reindex_all():
+    """Re-index all tracked repositories using the Tree API."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT id, repo_name, repo_type FROM github_repositories ORDER BY id")
+        repos = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        results = []
+        total_indexed = 0
+        total_errors = []
+
+        for repo_row in repos:
+            repo_name = repo_row["repo_name"]
+            repo_type = repo_row["repo_type"]
+            try:
+                parts = repo_name.split("/")
+                owner = parts[0]
+                repo = parts[1]
+                indexed, errs, skipped = _reindex_repo_via_tree(owner, repo, repo_type)
+                total_indexed += indexed
+                total_errors.extend(errs)
+                results.append(
+                    {
+                        "repo": repo_name,
+                        "repo_type": repo_type,
+                        "indexed": indexed,
+                        "skipped": skipped,
+                        "errors": len(errs),
+                    }
+                )
+            except Exception as e:
+                results.append(
+                    {
+                        "repo": repo_name,
+                        "repo_type": repo_type,
+                        "indexed": 0,
+                        "error": str(e),
+                    }
+                )
+                total_errors.append(f"{repo_name}: {str(e)}")
+
+        return jsonify(
+            {
+                "success": True,
+                "total_indexed": total_indexed,
+                "total_repos": len(repos),
+                "results": results,
+                "errors": total_errors if total_errors else None,
+            }
+        )
+
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/github/reindex/<int:repo_id>", methods=["POST"])
+@login_required
+@admin_required
+def github_reindex_single(repo_id):
+    """Re-index a single tracked repository using the Tree API."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT id, repo_name, repo_type FROM github_repositories WHERE id = %s", (repo_id,))
+        repo_row = cur.fetchone()
+        cur.close()
+        conn.close()
+
+        if not repo_row:
+            return jsonify({"success": False, "error": "Repository not found"}), 404
+
+        repo_name = repo_row["repo_name"]
+        repo_type = repo_row["repo_type"]
+        parts = repo_name.split("/")
+        owner = parts[0]
+        repo = parts[1]
+
+        indexed, errs, skipped = _reindex_repo_via_tree(owner, repo, repo_type)
+        return jsonify(
+            {
+                "success": True,
+                "repo": repo_name,
+                "indexed": indexed,
+                "skipped": skipped,
+                "errors": errs if errs else None,
             }
         )
 
@@ -3594,7 +3953,7 @@ def github_indexed_list():
             SELECT
                 COUNT(*) as total,
                 SUM(CASE WHEN has_embedding THEN 1 ELSE 0 END) as with_embeddings,
-                COUNT(DISTINCT COALESCE(repo_type, memory_metadata->>'repo')) as repos,
+                (SELECT COUNT(*) FROM github_repositories) as repos,
                 SUM(CASE WHEN is_code THEN 1 ELSE 0 END) as code_files,
                 SUM(CASE WHEN is_documentation THEN 1 ELSE 0 END) as docs
             FROM knowledge_base

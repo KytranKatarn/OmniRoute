@@ -293,6 +293,17 @@
 .voice-play-btn.playing { border-color: var(--archie-green); background: var(--archie-green-alpha-10); animation: pulse 1s infinite; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
 
+/* Message Actions (copy + reactions) */
+.bubble-wrapper { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.msg-actions { display: flex; gap: 4px; margin-top: 4px; opacity: 0; transition: opacity 0.2s; align-items: center; }
+.chat-message:hover .msg-actions, .chat-message .msg-actions.has-reactions { opacity: 1; }
+.msg-action-btn { background: transparent; border: 1px solid transparent; border-radius: 12px; padding: 2px 8px; font-size: 0.75rem; cursor: pointer; color: var(--archie-text-muted); transition: all 0.15s; min-width: 32px; min-height: 28px; display: inline-flex; align-items: center; justify-content: center; gap: 2px; }
+.msg-action-btn:hover { border-color: var(--archie-border-default); background: var(--archie-bg-secondary); }
+.msg-action-btn.active { border-color: var(--module-accent); background: var(--module-accent-alpha-10); color: var(--module-accent); }
+.msg-action-btn.copied { color: var(--archie-green); }
+.msg-actions .voice-play-btn { width: auto; min-width: 32px; min-height: 28px; border-radius: 12px; font-size: 0.75rem; }
+@media (hover: none) { .msg-actions { opacity: 1; } }
+
 /* Buttons */
 .btn { display: inline-flex; align-items: center; gap: var(--archie-space-2, 0.5rem); padding: var(--archie-space-2, 0.5rem) var(--archie-space-4, 1rem); border-radius: var(--archie-radius-md, 8px); font-family: var(--archie-font-body, 'JetBrains Mono', monospace); font-size: var(--archie-text-sm, 0.875rem); cursor: pointer; transition: all 0.2s ease; text-decoration: none; border: 1px solid transparent; }
 .btn-primary { background: var(--module-accent-alpha-20); border-color: var(--module-accent); color: var(--module-accent); }
@@ -694,6 +705,7 @@
             <div class="panel-header">
                 <div class="panel-title">🐙 GitHub Repository Learning</div>
                 <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <button class="btn btn-primary" onclick="reindexAllRepos()" id="btn-reindex-all">📥 Re-Index All</button>
                     <button class="btn btn-primary" onclick="scanDependencies()" id="btn-scan-deps">🔍 Scan Dependencies</button>
                     <button class="btn btn-secondary" onclick="loadGitHubIndexed()">🔄 Refresh</button>
                 </div>
@@ -1143,7 +1155,10 @@ function createChatMessage(type, content, extras = {}) {
 
     const avatar = document.createElement('div');
     avatar.className = 'avatar';
-    avatar.textContent = type === 'user' ? '👤' : (extras.error ? '⚠️' : '🧠');
+    avatar.textContent = type === 'user' ? '\u{1F464}' : (extras.error ? '\u26A0\uFE0F' : '\u{1F9E0}');
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'bubble-wrapper';
 
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
@@ -1152,22 +1167,113 @@ function createChatMessage(type, content, extras = {}) {
         bubble.style.background = 'var(--archie-red-alpha-10)';
     }
     bubble.textContent = content;
+    wrapper.appendChild(bubble);
 
-    div.appendChild(avatar);
-    div.appendChild(bubble);
+    // Action buttons row
+    const actions = document.createElement('div');
+    actions.className = 'msg-actions';
 
-    // Add voice button for ARCHIE responses
+    // Copy button (all messages)
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'msg-action-btn copy-btn';
+    copyBtn.title = 'Copy';
+    copyBtn.textContent = '\u{1F4CB}';
+    copyBtn.onclick = function() { copyMessageText(this); };
+    actions.appendChild(copyBtn);
+
+    // Reaction buttons (ARCHIE messages only, non-error, with messageId)
     if (type === 'archie' && !extras.error && extras.messageId) {
-        const voiceBtn = document.createElement('button');
+        var thumbsUp = document.createElement('button');
+        thumbsUp.className = 'msg-action-btn react-btn';
+        thumbsUp.dataset.reaction = 'thumbs_up';
+        thumbsUp.dataset.msgId = extras.messageId;
+        thumbsUp.title = 'Good response';
+        thumbsUp.textContent = '\u{1F44D}';
+        thumbsUp.onclick = function() { toggleReaction(this); };
+        actions.appendChild(thumbsUp);
+
+        var thumbsDown = document.createElement('button');
+        thumbsDown.className = 'msg-action-btn react-btn';
+        thumbsDown.dataset.reaction = 'thumbs_down';
+        thumbsDown.dataset.msgId = extras.messageId;
+        thumbsDown.title = 'Not helpful';
+        thumbsDown.textContent = '\u{1F44E}';
+        thumbsDown.onclick = function() { toggleReaction(this); };
+        actions.appendChild(thumbsDown);
+
+        // Voice button (moved into actions bar)
+        var voiceBtn = document.createElement('button');
         voiceBtn.className = 'voice-play-btn';
         voiceBtn.title = 'Play voice';
-        voiceBtn.textContent = '🔊';
+        voiceBtn.textContent = '\u{1F50A}';
         voiceBtn.dataset.text = content.substring(0, 500);
         voiceBtn.onclick = function() { playVoice(extras.messageId, this); };
-        div.appendChild(voiceBtn);
+        actions.appendChild(voiceBtn);
     }
 
+    wrapper.appendChild(actions);
+    div.appendChild(avatar);
+    div.appendChild(wrapper);
+
     return div;
+}
+
+function copyMessageText(btn) {
+    var bubble = btn.closest('.bubble-wrapper').querySelector('.bubble');
+    var text = bubble.textContent || bubble.innerText;
+    navigator.clipboard.writeText(text).then(function() {
+        btn.textContent = '\u2705';
+        btn.classList.add('copied');
+        setTimeout(function() {
+            btn.textContent = '\u{1F4CB}';
+            btn.classList.remove('copied');
+        }, 1500);
+    }).catch(function() {
+        // Fallback for older browsers
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        btn.textContent = '\u2705';
+        btn.classList.add('copied');
+        setTimeout(function() {
+            btn.textContent = '\u{1F4CB}';
+            btn.classList.remove('copied');
+        }, 1500);
+    });
+}
+
+async function toggleReaction(btn) {
+    var msgId = btn.dataset.msgId;
+    var reaction = btn.dataset.reaction;
+    try {
+        var resp = await fetch('/tools/archie-chat/api/chat/react', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            credentials: 'same-origin',
+            body: JSON.stringify({message_id: parseInt(msgId), reaction: reaction})
+        });
+        var data = await resp.json();
+        if (data.success) {
+            if (data.action === 'added') {
+                btn.classList.add('active');
+                btn.closest('.msg-actions').classList.add('has-reactions');
+            } else {
+                btn.classList.remove('active');
+                // Check if any reactions still active
+                var actionsDiv = btn.closest('.msg-actions');
+                if (!actionsDiv.querySelector('.react-btn.active')) {
+                    actionsDiv.classList.remove('has-reactions');
+                }
+            }
+        }
+    } catch (e) {
+        console.error('Reaction error:', e);
+    }
 }
 
 async function sendArchieMessage() {
@@ -1700,7 +1806,7 @@ async function showRepoManager() {
         }
         let html = '<table style="width:100%;border-collapse:collapse;font-size:0.9rem;">';
         html += '<thead><tr style="border-bottom:1px solid var(--archie-border-muted);color:var(--archie-text-muted);text-align:left;">';
-        html += '<th style="padding:0.5rem;">Repository</th><th style="padding:0.5rem;">Status</th><th style="padding:0.5rem;">Files</th><th style="padding:0.5rem;"></th></tr></thead><tbody>';
+        html += '<th style="padding:0.5rem;">Repository</th><th style="padding:0.5rem;">Status</th><th style="padding:0.5rem;">Files</th><th style="padding:0.5rem;text-align:right;">Actions</th></tr></thead><tbody>';
         repos.forEach(r => {
             const isGood = r.status === 'cloned' || r.status === 'indexed';
             const statusColor = isGood ? 'var(--archie-green, #4f4)' : 'var(--archie-orange, #fa0)';
@@ -1709,7 +1815,7 @@ async function showRepoManager() {
             html += '<td style="padding:0.5rem;color:var(--archie-text-primary);font-weight:600;">' + escHtml(r.repo_name || 'Unknown') + '<br><span style="font-weight:400;font-size:0.8rem;color:var(--archie-text-muted);">' + escHtml(r.repo_type || '') + '</span></td>';
             html += '<td style="padding:0.5rem;"><span style="color:' + statusColor + ';font-size:0.85rem;">' + escHtml(r.status || 'unknown') + '</span></td>';
             html += '<td style="padding:0.5rem;">' + files + '</td>';
-            html += '<td style="padding:0.5rem;"><button class="btn btn-secondary" style="padding:0.2rem 0.5rem;font-size:0.8rem;color:var(--archie-red,#f44);" onclick="previewRepoRemoval(' + r.id + ')">Remove</button></td>';
+            html += '<td style="padding:0.5rem;text-align:right;white-space:nowrap;"><button class="btn btn-secondary" style="padding:0.2rem 0.5rem;font-size:0.8rem;" onclick="reindexSingleRepo(' + r.id + ',this)" title="Re-index this repo">📥 Re-Index</button> <button class="btn btn-secondary" style="padding:0.2rem 0.5rem;font-size:0.8rem;color:var(--archie-red,#f44);" onclick="previewRepoRemoval(' + r.id + ')">Remove</button></td>';
             html += '</tr>';
         });
         html += '</tbody></table>';
@@ -1743,6 +1849,50 @@ async function previewRepoRemoval(repoId) {
         }
     } catch (e) {
         alert('Error: ' + e.message);
+    }
+}
+
+async function reindexAllRepos() {
+    const btn = document.getElementById('btn-reindex-all');
+    const origText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '⏳ Re-Indexing...';
+    try {
+        const resp = await fetch('/tools/consciousness/github/reindex-all', {method: 'POST', credentials: 'same-origin'});
+        const data = await resp.json();
+        if (data.success) {
+            let msg = 'Re-indexed ' + data.total_indexed + ' files across ' + data.total_repos + ' repos.';
+            if (data.errors && data.errors.length > 0) msg += '\n' + data.errors.length + ' errors occurred.';
+            alert(msg);
+            loadGitHubIndexed();
+        } else {
+            alert('Error: ' + (data.error || 'Unknown'));
+        }
+    } catch (e) {
+        alert('Re-index failed: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = origText;
+    }
+}
+
+async function reindexSingleRepo(repoId, btnEl) {
+    const origText = btnEl ? btnEl.textContent : '';
+    if (btnEl) { btnEl.disabled = true; btnEl.textContent = '⏳...'; }
+    try {
+        const resp = await fetch('/tools/consciousness/github/reindex/' + repoId, {method: 'POST', credentials: 'same-origin'});
+        const data = await resp.json();
+        if (data.success) {
+            alert('Re-indexed ' + data.indexed + ' files from ' + data.repo);
+            showRepoManager();
+            loadGitHubIndexed();
+        } else {
+            alert('Error: ' + (data.error || 'Unknown'));
+        }
+    } catch (e) {
+        alert('Re-index failed: ' + e.message);
+    } finally {
+        if (btnEl) { btnEl.disabled = false; btnEl.textContent = origText; }
     }
 }
 

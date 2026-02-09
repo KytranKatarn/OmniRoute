@@ -978,3 +978,53 @@ def voice_status():
 
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+
+    @archie_chat_bp.route("/api/chat/react", methods=["POST"])
+    @login_required
+    def chat_react():
+        """Toggle a reaction on a chat message"""
+        try:
+            data = request.json or {}
+            message_id = data.get("message_id")
+            reaction = data.get("reaction")
+
+            if not message_id or not reaction:
+                return jsonify({"success": False, "error": "Missing message_id or reaction"}), 400
+
+            allowed_reactions = {"thumbs_up", "thumbs_down", "heart", "laugh"}
+            if reaction not in allowed_reactions:
+                return jsonify({"success": False, "error": "Invalid reaction"}), 400
+
+            user_id = current_user.id if hasattr(current_user, "id") else 2
+
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Check if reaction already exists (toggle behavior)
+            cur.execute(
+                "SELECT id FROM chat_reactions WHERE message_id = %s AND user_id = %s AND reaction = %s",
+                (message_id, user_id, reaction),
+            )
+            existing = cur.fetchone()
+
+            if existing:
+                cur.execute("DELETE FROM chat_reactions WHERE id = %s", (existing["id"],))
+                action = "removed"
+            else:
+                cur.execute(
+                    "INSERT INTO chat_reactions (message_id, user_id, reaction) VALUES (%s, %s, %s)",
+                    (message_id, user_id, reaction),
+                )
+                action = "added"
+
+            conn.commit()
+            cur.close()
+            conn.close()
+
+            return jsonify({"success": True, "action": action, "reaction": reaction})
+
+        except Exception as e:
+            import traceback
+
+            traceback.print_exc()
+            return jsonify({"success": False, "error": str(e)}), 500

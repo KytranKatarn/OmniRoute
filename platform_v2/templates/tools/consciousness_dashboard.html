@@ -2371,44 +2371,66 @@ async function estimateAIBatch() {
 }
 
 async function startAIProcessing() {
-    const category = document.getElementById('ai-category').value;
-    const batchSize = parseInt(document.getElementById('ai-batch-size').value) || 10;
-    const progressEl = document.getElementById('ai-processing-progress');
-    const progressBar = document.getElementById('ai-progress-bar');
-    const progressText = document.getElementById('ai-progress-text');
-    const logEl = document.getElementById('ai-processing-log');
+    var category = document.getElementById('ai-category').value;
+    var batchSize = parseInt(document.getElementById('ai-batch-size').value) || 10;
+    var progressEl = document.getElementById('ai-processing-progress');
+    var progressBar = document.getElementById('ai-progress-bar');
+    var progressText = document.getElementById('ai-progress-text');
+    var logEl = document.getElementById('ai-processing-log');
+    var btn = event && event.target ? event.target : null;
+
+    // Disable button during processing
+    if (btn) { btn.disabled = true; btn.textContent = 'Processing...'; }
 
     progressEl.style.display = 'block';
-    progressBar.style.width = '10%';
-    progressText.textContent = 'Starting AI analysis...';
+    progressBar.style.width = '15%';
+    progressBar.style.transition = 'width 0.5s ease';
+    progressText.textContent = 'Warming up model...';
+
+    // Animate progress bar while waiting (each entry takes ~10-20s)
+    var startTime = Date.now();
+    var timerInterval = setInterval(function() {
+        var elapsed = Math.round((Date.now() - startTime) / 1000);
+        var estimatedTotal = batchSize * 15; // ~15s per item
+        var pct = Math.min(90, Math.round((elapsed / estimatedTotal) * 90) + 15);
+        progressBar.style.width = pct + '%';
+        progressText.textContent = 'Analyzing ' + batchSize + ' ' + category + '... (' + elapsed + 's)';
+    }, 1000);
 
     try {
-        const response = await fetch('/tools/consciousness/api/processing/start', {
+        var response = await fetch('/tools/consciousness/api/processing/start', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             credentials: 'same-origin',
-            body: JSON.stringify({ category, batch_size: batchSize })
+            body: JSON.stringify({ category: category, batch_size: batchSize })
         });
-        const data = await response.json();
+        var data = await response.json();
+        clearInterval(timerInterval);
+        var elapsed = Math.round((Date.now() - startTime) / 1000);
 
         progressBar.style.width = '100%';
-        progressText.textContent = 'Complete!';
 
-        if (data.success) {
+        if (data.success && data.processed > 0) {
+            progressBar.style.background = 'var(--archie-green)';
+            progressText.textContent = 'Done! ' + data.processed + ' processed, ' + (data.cards_created || 0) + ' cards created (' + elapsed + 's)';
+
             // Add result to log
-            const resultDiv = document.createElement('div');
+            var resultDiv = document.createElement('div');
             resultDiv.className = 'activity-item';
-            resultDiv.innerHTML = '<span style="color: var(--archie-green);">✅ Batch ' + (data.batch_id || '').substring(0, 8) + '</span> ' +
-                '<span style="color: var(--archie-text-muted);">' + new Date().toLocaleTimeString() + '</span><br>' +
-                'Processed: ' + (data.processed || 0) + ' | Cards: ' + (data.cards_created || 0) +
-                ' | Relationships: ' + (data.relationships_created || 0) +
-                ' | Tokens: ' + (data.total_tokens || 0).toLocaleString();
+            resultDiv.style.borderLeft = '3px solid var(--archie-green)';
+            resultDiv.style.paddingLeft = '0.75rem';
+            var resultText = document.createElement('div');
+            resultText.textContent = '\u2705 Batch ' + (data.batch_id || '').substring(0, 8) + ' \u00b7 ' + new Date().toLocaleTimeString();
+            resultText.style.color = 'var(--archie-green)';
+            var resultDetail = document.createElement('small');
+            resultDetail.textContent = 'Processed: ' + (data.processed || 0) + ' | Cards: ' + (data.cards_created || 0) + ' | Relationships: ' + (data.relationships_created || 0) + ' | Tokens: ' + (data.total_tokens || 0).toLocaleString();
+            resultDiv.appendChild(resultText);
+            resultDiv.appendChild(resultDetail);
             logEl.insertBefore(resultDiv, logEl.firstChild);
 
-            // Add individual log entries
             if (data.log) {
-                data.log.forEach(entry => {
-                    const entryDiv = document.createElement('div');
+                data.log.forEach(function(entry) {
+                    var entryDiv = document.createElement('div');
                     entryDiv.className = 'activity-item';
                     entryDiv.style.fontSize = '0.85rem';
                     entryDiv.textContent = entry;
@@ -2417,52 +2439,76 @@ async function startAIProcessing() {
             }
 
             loadProcessingStatus();
+        } else if (data.success && data.processed === 0) {
+            progressText.textContent = data.message || 'No items to process';
         } else {
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'activity-item';
-            errorDiv.innerHTML = '<span style="color: var(--archie-red);">❌ Error:</span> ' + (data.error || 'Unknown error');
-            logEl.insertBefore(errorDiv, logEl.firstChild);
+            progressBar.style.background = 'var(--archie-red, #f85149)';
+            progressText.textContent = 'Error: ' + (data.error || 'Unknown error');
         }
     } catch (e) {
-        progressText.textContent = 'Error';
-        const errorDiv = document.createElement('div');
-        errorDiv.className = 'activity-item';
-        errorDiv.innerHTML = '<span style="color: var(--archie-red);">❌ Error:</span> ' + e.message;
-        logEl.insertBefore(errorDiv, logEl.firstChild);
+        clearInterval(timerInterval);
+        progressBar.style.width = '100%';
+        progressBar.style.background = 'var(--archie-red, #f85149)';
+        progressText.textContent = 'Error: ' + e.message;
     }
 
-    setTimeout(() => { progressEl.style.display = 'none'; }, 3000);
+    if (btn) { btn.disabled = false; btn.textContent = 'Process Batch'; }
+    setTimeout(function() {
+        progressEl.style.display = 'none';
+        progressBar.style.background = 'var(--module-accent)';
+    }, 5000);
 }
 
 async function generateEmbeddings() {
-    const batchSize = parseInt(document.getElementById('ai-embed-batch-size').value) || 50;
-    const logEl = document.getElementById('ai-processing-log');
+    var batchSize = parseInt(document.getElementById('ai-embed-batch-size').value) || 200;
+    var logEl = document.getElementById('ai-processing-log');
+    var btn = event && event.target ? event.target : null;
 
-    const statusDiv = document.createElement('div');
+    if (btn) { btn.disabled = true; btn.textContent = 'Generating...'; }
+
+    var statusDiv = document.createElement('div');
     statusDiv.className = 'activity-item';
-    statusDiv.innerHTML = '<span style="color: var(--module-accent);">🧬 Generating embeddings...</span>';
+    statusDiv.style.borderLeft = '3px solid var(--module-accent)';
+    statusDiv.style.paddingLeft = '0.75rem';
+    statusDiv.textContent = 'Generating embeddings for ' + batchSize + ' entries...';
+    statusDiv.style.color = 'var(--module-accent)';
     logEl.insertBefore(statusDiv, logEl.firstChild);
 
+    var startTime = Date.now();
+    var timerInterval = setInterval(function() {
+        var elapsed = Math.round((Date.now() - startTime) / 1000);
+        statusDiv.textContent = 'Generating embeddings for ' + batchSize + ' entries... (' + elapsed + 's)';
+    }, 1000);
+
     try {
-        const response = await fetch('/tools/consciousness/api/processing/generate-embeddings', {
+        var response = await fetch('/tools/consciousness/api/processing/generate-embeddings', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             credentials: 'same-origin',
             body: JSON.stringify({ batch_size: batchSize })
         });
-        const data = await response.json();
+        var data = await response.json();
+        clearInterval(timerInterval);
+        var elapsed = Math.round((Date.now() - startTime) / 1000);
 
         if (data.success) {
-            statusDiv.innerHTML = '<span style="color: var(--archie-green);">✅ Embeddings generated</span> ' +
-                '<span style="color: var(--archie-text-muted);">' + new Date().toLocaleTimeString() + '</span><br>' +
-                'Processed: ' + (data.processed || 0) + ' | Failed: ' + (data.failed || 0);
+            statusDiv.style.borderLeftColor = 'var(--archie-green)';
+            statusDiv.style.color = 'var(--archie-green)';
+            statusDiv.textContent = '\u2705 Embeddings: ' + (data.processed || 0) + ' generated, ' + (data.failed || 0) + ' failed (' + elapsed + 's)';
             loadProcessingStatus();
         } else {
-            statusDiv.innerHTML = '<span style="color: var(--archie-red);">❌ Error:</span> ' + (data.error || 'Unknown');
+            statusDiv.style.borderLeftColor = 'var(--archie-red, #f85149)';
+            statusDiv.style.color = 'var(--archie-red, #f85149)';
+            statusDiv.textContent = '\u274c Error: ' + (data.error || 'Unknown');
         }
     } catch (e) {
-        statusDiv.innerHTML = '<span style="color: var(--archie-red);">❌ Error:</span> ' + e.message;
+        clearInterval(timerInterval);
+        statusDiv.style.borderLeftColor = 'var(--archie-red, #f85149)';
+        statusDiv.style.color = 'var(--archie-red, #f85149)';
+        statusDiv.textContent = '\u274c Error: ' + e.message;
     }
+
+    if (btn) { btn.disabled = false; btn.textContent = 'Generate Embeddings'; }
 }
 
 // Dependency scanner functions

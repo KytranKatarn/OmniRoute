@@ -1117,6 +1117,27 @@
                             <option value="high">High</option>
                         </select>
                     </div>
+                    <div class="voice-form-group" style="flex: 1;">
+                        <label>Language</label>
+                        <select id="preview-language" class="form-control">
+                            <option value="en" selected>English</option>
+                            <option value="fr">French (Quebecois)</option>
+                            <option value="es">Spanish</option>
+                            <option value="de">German</option>
+                            <option value="it">Italian</option>
+                            <option value="pt">Portuguese</option>
+                            <option value="pl">Polish</option>
+                            <option value="tr">Turkish</option>
+                            <option value="ru">Russian</option>
+                            <option value="nl">Dutch</option>
+                            <option value="cs">Czech</option>
+                            <option value="ar">Arabic</option>
+                            <option value="zh-cn">Chinese</option>
+                            <option value="ja">Japanese</option>
+                            <option value="hu">Hungarian</option>
+                            <option value="ko">Korean</option>
+                        </select>
+                    </div>
                 </div>
 
                 <div style="display: flex; gap: 0.75rem; align-items: center;">
@@ -1135,9 +1156,11 @@
         <div id="voice-sub-cache" class="voice-subtab-content">
             <div class="voice-panel">
                 <h3>Voice Cache Browser</h3>
+                <!-- Agent Group Summary -->
+                <div id="cache-agent-groups" style="margin-bottom: 1rem;"></div>
                 <div class="voice-form-row">
                     <div class="voice-form-group">
-                        <label>Filter by Engine</label>
+                        <label>Engine</label>
                         <select id="cache-engine-filter" onchange="loadVoiceCache()">
                             <option value="">All Engines</option>
                             <option value="kokoro">Kokoro-82M</option>
@@ -1145,13 +1168,31 @@
                         </select>
                     </div>
                     <div class="voice-form-group">
-                        <label>Filter by Emotion</label>
+                        <label>Language</label>
+                        <select id="cache-language-filter" onchange="loadVoiceCache()">
+                            <option value="">All Languages</option>
+                            <option value="en">English</option>
+                            <option value="fr">French</option>
+                            <option value="es">Spanish</option>
+                            <option value="de">German</option>
+                            <option value="it">Italian</option>
+                            <option value="pt">Portuguese</option>
+                        </select>
+                    </div>
+                    <div class="voice-form-group">
+                        <label>Emotion</label>
                         <select id="cache-emotion-filter" onchange="loadVoiceCache()">
                             <option value="">All Emotions</option>
                         </select>
                     </div>
                     <div class="voice-form-group">
-                        <label>Sort By</label>
+                        <label>Agent</label>
+                        <select id="cache-agent-filter" onchange="loadVoiceCache()">
+                            <option value="">All Agents</option>
+                        </select>
+                    </div>
+                    <div class="voice-form-group">
+                        <label>Sort</label>
                         <select id="cache-sort" onchange="loadVoiceCache()">
                             <option value="hits">Most Hits</option>
                             <option value="recent">Most Recent</option>
@@ -1160,7 +1201,7 @@
                     </div>
                 </div>
                 <table class="cache-table" id="voice-cache-table">
-                    <thead><tr><th>Word/Phrase</th><th>Engine</th><th>Emotion</th><th>Hits</th><th>Size</th><th>Last Used</th></tr></thead>
+                    <thead><tr><th>Word/Phrase</th><th>Agent</th><th>Engine</th><th>Lang</th><th>Emotion</th><th>Hits</th><th>Size</th><th>Last Used</th></tr></thead>
                     <tbody></tbody>
                 </table>
                 <div class="cache-pagination" id="cache-pagination"></div>
@@ -1191,6 +1232,27 @@
                         <select id="profile-engine" class="form-control" onchange="onProfileEngineChange()">
                             <option value="kokoro" selected>Kokoro-82M</option>
                             <option value="xtts_v2">Coqui XTTS v2</option>
+                        </select>
+                    </div>
+                    <div class="voice-form-group">
+                        <label>Language</label>
+                        <select id="profile-language" class="form-control">
+                            <option value="en" selected>English</option>
+                            <option value="fr">French (Quebecois)</option>
+                            <option value="es">Spanish</option>
+                            <option value="de">German</option>
+                            <option value="it">Italian</option>
+                            <option value="pt">Portuguese</option>
+                            <option value="pl">Polish</option>
+                            <option value="tr">Turkish</option>
+                            <option value="ru">Russian</option>
+                            <option value="nl">Dutch</option>
+                            <option value="cs">Czech</option>
+                            <option value="ar">Arabic</option>
+                            <option value="zh-cn">Chinese</option>
+                            <option value="ja">Japanese</option>
+                            <option value="hu">Hungarian</option>
+                            <option value="ko">Korean</option>
                         </select>
                     </div>
                 </div>
@@ -2244,8 +2306,14 @@ async function loadProcessingStatus() {
                 embSvc.status === 'healthy' ? '\u2705 ' + (embSvc.model || 'Online') : '\u274c Offline';
 
             var anlSvc = data.services && data.services.analyzer ? data.services.analyzer : {};
-            document.getElementById('ai-analyzer-status').textContent =
-                anlSvc.status === 'healthy' ? '\u2705 ' + (anlSvc.model || 'Online') : '\u274c Offline';
+            var anlLabel = '\u274c Offline';
+            if (anlSvc.status === 'healthy') {
+                anlLabel = '\u2705 ' + (anlSvc.model || 'Online');
+                if (anlSvc.tiered && anlSvc.fast_model) {
+                    anlLabel += ' + ' + anlSvc.fast_model.split(':')[0];
+                }
+            }
+            document.getElementById('ai-analyzer-status').textContent = anlLabel;
 
             // Backlog
             var bl = data.backlog || {};
@@ -3444,6 +3512,7 @@ async function previewVoice() {
 
     var engine = document.getElementById('preview-engine').value;
     var blendVal = document.getElementById('preview-blend').value.trim();
+    var language = document.getElementById('preview-language').value;
 
     try {
         var body = {
@@ -3454,7 +3523,8 @@ async function previewVoice() {
             warmth: parseFloat(document.getElementById('preview-warmth').value),
             emotion: document.getElementById('preview-emotion').value,
             quality: document.getElementById('preview-quality').value,
-            engine: engine
+            engine: engine,
+            language: language
         };
         if (blendVal && engine === 'kokoro') body.voice_blend = blendVal;
 
@@ -3472,7 +3542,9 @@ async function previewVoice() {
             audio.src = url;
             document.getElementById('preview-audio-container').style.display = 'block';
             audio.play();
-            status.textContent = 'Generated in ' + d.generation_time_ms + 'ms (' + engine + ')';
+            var usedEngine = (d.parameters_used && d.parameters_used.engine) || engine;
+            var langLabel = language !== 'en' ? ' / ' + language.toUpperCase() : '';
+            status.textContent = 'Generated in ' + d.generation_time_ms + 'ms (' + usedEngine + langLabel + ')';
         } else {
             status.textContent = 'Error: ' + (d.error || 'Unknown error');
         }
@@ -3488,6 +3560,7 @@ function applyPreviewToProfile() {
     showNewProfileForm();
     document.getElementById('profile-form-title').textContent = 'New Voice Profile (from Preview)';
     document.getElementById('profile-engine').value = document.getElementById('preview-engine').value;
+    document.getElementById('profile-language').value = document.getElementById('preview-language').value;
     onProfileEngineChange();
     document.getElementById('profile-speaker').value = document.getElementById('preview-speaker').value;
     document.getElementById('profile-emotion').value = document.getElementById('preview-emotion').value;
@@ -3525,33 +3598,88 @@ async function loadVoiceCache(page) {
     var emotion = document.getElementById('cache-emotion-filter').value;
     var sort = document.getElementById('cache-sort').value;
     var engineF = document.getElementById('cache-engine-filter').value;
+    var langF = document.getElementById('cache-language-filter').value;
+    var agentF = document.getElementById('cache-agent-filter').value;
     var url = '/tools/consciousness/api/voice/cache?page=' + currentCachePage + '&per_page=25&sort=' + sort;
     if (emotion) url += '&emotion=' + encodeURIComponent(emotion);
     if (engineF) url += '&engine=' + encodeURIComponent(engineF);
+    if (langF) url += '&language=' + encodeURIComponent(langF);
+    if (agentF) url += '&agent_id=' + encodeURIComponent(agentF);
 
     try {
         var r = await fetch(url);
         var d = await r.json();
         if (!d.success) return;
 
+        // Render agent group summary cards
+        var groupsDiv = document.getElementById('cache-agent-groups');
+        groupsDiv.textContent = '';
+        var agentSel = document.getElementById('cache-agent-filter');
+        var currentAgentVal = agentSel.value;
+        agentSel.textContent = '';
+        var allOpt = document.createElement('option'); allOpt.value = ''; allOpt.textContent = 'All Agents'; agentSel.appendChild(allOpt);
+
+        if (d.agent_groups && d.agent_groups.length > 0) {
+            var groupRow = document.createElement('div');
+            groupRow.style.cssText = 'display:flex;gap:0.5rem;flex-wrap:wrap;';
+            d.agent_groups.forEach(function(g) {
+                if (g.agent_id) {
+                    var opt = document.createElement('option');
+                    opt.value = g.agent_id;
+                    opt.textContent = g.agent_name + ' (' + g.word_count + ')';
+                    agentSel.appendChild(opt);
+                }
+                var card = document.createElement('div');
+                var totalMB = g.total_size ? (g.total_size / 1048576).toFixed(1) : '0.0';
+                card.style.cssText = 'padding:0.5rem 0.75rem;border-radius:6px;background:var(--archie-card-bg);border:1px solid var(--archie-border);cursor:pointer;font-size:0.8rem;min-width:120px;';
+                var cardTitle = document.createElement('div');
+                cardTitle.style.cssText = 'font-weight:600;color:var(--archie-text)';
+                cardTitle.textContent = g.agent_name || 'No Agent';
+                card.appendChild(cardTitle);
+                var cardMeta = document.createElement('div');
+                cardMeta.style.cssText = 'color:var(--archie-text-muted);font-size:0.7rem';
+                cardMeta.textContent = g.word_count + ' words \u00b7 ' + totalMB + ' MB \u00b7 ' + (g.total_hits || 0) + ' hits';
+                card.appendChild(cardMeta);
+                card.onclick = (function(aid) { return function() {
+                    document.getElementById('cache-agent-filter').value = aid || '';
+                    loadVoiceCache();
+                }; })(g.agent_id);
+                groupRow.appendChild(card);
+            });
+            groupsDiv.appendChild(groupRow);
+        }
+        agentSel.value = currentAgentVal;
+
+        var langLabels = {en:'EN',fr:'FR',es:'ES',de:'DE',it:'IT',pt:'PT',pl:'PL',tr:'TR',ru:'RU',nl:'NL',cs:'CS',ar:'AR','zh-cn':'ZH',ja:'JA',hu:'HU',ko:'KO'};
+
         var tbody = document.querySelector('#voice-cache-table tbody');
         tbody.textContent = '';
         (d.entries || []).forEach(function(e) {
             var tr = document.createElement('tr');
             var td1 = document.createElement('td'); td1.textContent = e.word_text || '';
+            var tdAgent = document.createElement('td');
+            tdAgent.style.cssText = 'font-size:0.75rem;color:var(--archie-text-muted)';
+            tdAgent.textContent = e.agent_name || '-';
             var td2 = document.createElement('td');
             var badge = document.createElement('span');
             badge.style.cssText = 'padding:0.1rem 0.4rem;border-radius:3px;font-size:0.7rem;' +
                 (e.engine === 'kokoro' ? 'background:#8b5cf620;color:#a78bfa' : 'background:#00ffff15;color:#00cccc');
             badge.textContent = e.engine === 'kokoro' ? 'Kokoro' : 'XTTS';
             td2.appendChild(badge);
+            var tdLang = document.createElement('td');
+            var langBadge = document.createElement('span');
+            var lang = e.language || 'en';
+            langBadge.style.cssText = 'padding:0.1rem 0.35rem;border-radius:3px;font-size:0.65rem;' +
+                (lang === 'en' ? 'background:#ffffff10;color:#888' : 'background:#f5a62320;color:#f5a623');
+            langBadge.textContent = langLabels[lang] || lang.toUpperCase();
+            tdLang.appendChild(langBadge);
             var td3 = document.createElement('td'); td3.textContent = e.emotion_context || '';
             var td4 = document.createElement('td'); td4.textContent = e.hit_count || 0;
             var size = e.audio_size ? (e.audio_size > 1048576 ? (e.audio_size / 1048576).toFixed(1) + ' MB' : (e.audio_size / 1024).toFixed(0) + ' KB') : '-';
             var td5 = document.createElement('td'); td5.textContent = size;
             var lastUsed = e.last_used ? new Date(e.last_used).toLocaleDateString() : '-';
             var td6 = document.createElement('td'); td6.textContent = lastUsed;
-            tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3); tr.appendChild(td4); tr.appendChild(td5); tr.appendChild(td6);
+            tr.appendChild(td1); tr.appendChild(tdAgent); tr.appendChild(td2); tr.appendChild(tdLang); tr.appendChild(td3); tr.appendChild(td4); tr.appendChild(td5); tr.appendChild(td6);
             tbody.appendChild(tr);
         });
 
@@ -3662,13 +3790,22 @@ async function loadVoiceProfiles() {
             info.appendChild(sub);
             header.appendChild(info);
 
-            // Engine badge
+            // Engine + Language badges
+            var badgeWrap = document.createElement('div');
+            badgeWrap.style.cssText = 'display:flex;gap:0.3rem;align-items:center;margin-left:auto;';
             var engineBadge = document.createElement('span');
             var isKokoro = (p.engine || 'xtts_v2') === 'kokoro';
-            engineBadge.style.cssText = 'padding:0.15rem 0.5rem;border-radius:4px;font-size:0.65rem;margin-left:auto;' +
+            engineBadge.style.cssText = 'padding:0.15rem 0.5rem;border-radius:4px;font-size:0.65rem;' +
                 (isKokoro ? 'background:#8b5cf620;color:#a78bfa' : 'background:#00ffff15;color:#00cccc');
             engineBadge.textContent = isKokoro ? 'Kokoro' : 'XTTS v2';
-            header.appendChild(engineBadge);
+            badgeWrap.appendChild(engineBadge);
+            var profLang = p.language || 'en';
+            var langBadge = document.createElement('span');
+            langBadge.style.cssText = 'padding:0.15rem 0.4rem;border-radius:4px;font-size:0.65rem;' +
+                (profLang === 'en' ? 'background:#ffffff10;color:#888' : 'background:#f5a62320;color:#f5a623');
+            langBadge.textContent = profLang.toUpperCase();
+            badgeWrap.appendChild(langBadge);
+            header.appendChild(badgeWrap);
             card.appendChild(header);
 
             // Params
@@ -3707,7 +3844,7 @@ async function loadVoiceProfiles() {
                 return function() {
                     editVoiceProfile(pp.id, pp.agent_id, pp.profile_name, pp.speaker,
                         pp.speed || 1, pp.pitch_shift || 1, pp.warmth || 0.8,
-                        pp.default_emotion || 'neutral', pp.engine || 'xtts_v2', pp.voice_blend || '');
+                        pp.default_emotion || 'neutral', pp.engine || 'xtts_v2', pp.voice_blend || '', pp.language || 'en');
                 };
             })(p);
             actions.appendChild(editBtn);
@@ -3733,6 +3870,7 @@ function showNewProfileForm() {
     document.getElementById('profile-agent').value = '';
     document.getElementById('profile-name').value = 'Default';
     document.getElementById('profile-engine').value = 'kokoro';
+    document.getElementById('profile-language').value = 'en';
     onProfileEngineChange();
     document.getElementById('profile-speed').value = '1.00';
     document.getElementById('profile-speed-val').textContent = '1.00';
@@ -3748,12 +3886,13 @@ function hideProfileForm() {
     document.getElementById('profile-audio-container').style.display = 'none';
 }
 
-function editVoiceProfile(id, agentId, name, speaker, speed, pitch, warmth, emotion, engine, blend) {
+function editVoiceProfile(id, agentId, name, speaker, speed, pitch, warmth, emotion, engine, blend, language) {
     document.getElementById('agent-profile-form').style.display = 'block';
     document.getElementById('profile-form-title').textContent = 'Edit Voice Profile';
     document.getElementById('profile-agent').value = agentId;
     document.getElementById('profile-name').value = name;
     document.getElementById('profile-engine').value = engine || 'kokoro';
+    document.getElementById('profile-language').value = language || 'en';
     onProfileEngineChange();
     document.getElementById('profile-speaker').value = speaker;
     document.getElementById('profile-emotion').value = emotion;
@@ -3782,7 +3921,8 @@ async function saveAgentProfile() {
             pitch_shift: parseFloat(document.getElementById('profile-pitch').value),
             warmth: parseFloat(document.getElementById('profile-warmth').value),
             default_emotion: document.getElementById('profile-emotion').value,
-            engine: engine
+            engine: engine,
+            language: document.getElementById('profile-language').value
         };
         if (blendVal && engine === 'kokoro') body.voice_blend = blendVal;
 

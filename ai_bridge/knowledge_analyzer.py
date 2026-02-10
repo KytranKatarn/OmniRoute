@@ -31,10 +31,18 @@ logger = logging.getLogger(__name__)
 # Configuration
 CLAUDE_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 CLAUDE_MODEL = "claude-sonnet-4-20250514"
-MAX_CONTENT_LENGTH = 50000  # Characters to send to LLM
 
 # Ollama configuration (fallback when no Claude API key)
 OLLAMA_MODEL = os.getenv("OLLAMA_ANALYSIS_MODEL", "qwen2.5:7b")
+# Fast model for short entries (disabled by default — model swapping crashes on small-VRAM GPUs)
+# Set OLLAMA_FAST_MODEL=tinyllama:latest to enable on systems with >=16GB VRAM
+OLLAMA_FAST_MODEL = os.getenv("OLLAMA_FAST_MODEL", "")
+
+# Content limits tuned to model context windows
+# qwen2.5:7b runs at num_ctx=8192 → ~6K tokens usable for content after prompt+output overhead
+MAX_CONTENT_LENGTH = 12000   # chars for primary model
+FAST_CONTENT_LENGTH = 4000   # chars for fast model (if enabled)
+FAST_MODEL_THRESHOLD = 2000  # entries under this many chars use the fast model
 
 # Determine Ollama host - prefer server with qwen model
 def _find_ollama_host():
@@ -199,12 +207,42 @@ Focus on:
 Return ONLY valid JSON."""
 
 
+def _smart_truncate(content: str, max_chars: int) -> str:
+    """Intelligently truncate content preserving the most valuable parts.
+
+    For conversations: keeps beginning (topic setup) and end (solutions/conclusions).
+    For code: keeps beginning (imports, class defs) and end (key implementations).
+    """
+    if len(content) <= max_chars:
+        return content
+
+    # Reserve 30% for the beginning, 50% for the end, 20% for the separator
+    head_budget = int(max_chars * 0.30)
+    tail_budget = int(max_chars * 0.50)
+
+    head = content[:head_budget]
+    tail = content[-tail_budget:]
+
+    # Try to cut at paragraph/line boundaries for cleaner breaks
+    last_newline = head.rfind('\n')
+    if last_newline > head_budget * 0.7:
+        head = head[:last_newline]
+
+    first_newline = tail.find('\n')
+    if first_newline > 0 and first_newline < tail_budget * 0.3:
+        tail = tail[first_newline + 1:]
+
+    skipped = len(content) - len(head) - len(tail)
+    return head + f"\n\n[... {skipped:,} chars skipped ...]\n\n" + tail
+
+
 class KnowledgeAnalyzer:
     """Analyzes content using Claude API or Ollama to extract knowledge"""
 
     def __init__(self, api_key: str = CLAUDE_API_KEY, backend: str = ANALYZER_BACKEND):
         self.api_key = api_key
         self._client = None
+        self._fast_model_available = None  # cached availability check
 
         # Determine backend
         if backend == "auto":
@@ -228,35 +266,69 @@ class KnowledgeAnalyzer:
         return self._client
 
     def warmup(self) -> bool:
-        """Warm up Ollama model to avoid cold-start crashes"""
+        """Warm up Ollama model to avoid cold-start crashes.
+
+        Ollama 0.15.x has a bug where the first API call after model eviction
+        crashes with 'exit status 2'. This method retries up to 3 times.
+        """
         if self.backend != "ollama":
             return True
-        try:
-            resp = requests.post(
-                f"{OLLAMA_HOST}/api/generate",
-                json={"model": OLLAMA_MODEL, "prompt": "hi", "stream": False, "options": {"num_predict": 1}},
-                timeout=30,
-            )
-            return resp.status_code == 200
-        except Exception as e:
-            logger.warning(f"Ollama warmup failed: {e}")
-            return False
+        import time
+        for attempt in range(3):
+            try:
+                resp = requests.post(
+                    f"{OLLAMA_HOST}/api/generate",
+                    json={"model": OLLAMA_MODEL, "prompt": "hi", "stream": False, "options": {"num_predict": 1}},
+                    timeout=60,
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if data.get("response") is not None and "error" not in data:
+                        logger.info(f"Ollama warmup succeeded on attempt {attempt + 1}")
+                        return True
+                    if "error" in data:
+                        logger.warning(f"Ollama warmup attempt {attempt + 1}: {data['error']}")
+                else:
+                    logger.warning(f"Ollama warmup attempt {attempt + 1}: HTTP {resp.status_code}")
+            except Exception as e:
+                logger.warning(f"Ollama warmup attempt {attempt + 1}: {e}")
+            time.sleep(3)
+        logger.error("Ollama warmup failed after 3 attempts")
+        return False
 
     def health_check(self) -> dict:
-        """Check if analyzer is ready"""
+        """Check if analyzer is ready, including GPU info"""
         if self.backend == "ollama":
-            # Check Ollama availability
             try:
                 resp = requests.get(f"{OLLAMA_HOST}/api/tags", timeout=5)
                 if resp.status_code == 200:
                     models = [m["name"] for m in resp.json().get("models", [])]
                     if any(OLLAMA_MODEL in m for m in models):
-                        return {
+                        result = {
                             "status": "healthy",
                             "backend": "ollama",
                             "model": OLLAMA_MODEL,
                             "host": OLLAMA_HOST,
+                            "fast_model": OLLAMA_FAST_MODEL if self._is_fast_model_available() else None,
+                            "tiered": self._is_fast_model_available(),
                         }
+                        # Check running models for GPU info
+                        try:
+                            ps_resp = requests.get(f"{OLLAMA_HOST}/api/ps", timeout=3)
+                            if ps_resp.status_code == 200:
+                                running = ps_resp.json().get("models", [])
+                                gpu_info = []
+                                for m in running:
+                                    gpu_info.append({
+                                        "name": m.get("name"),
+                                        "size": m.get("size"),
+                                        "processor": m.get("size_vram", 0) > 0 and "GPU" or "CPU",
+                                    })
+                                if gpu_info:
+                                    result["running_models"] = gpu_info
+                        except Exception:
+                            pass
+                        return result
                     return {
                         "status": "unhealthy",
                         "backend": "ollama",
@@ -276,7 +348,45 @@ class KnowledgeAnalyzer:
         except Exception as e:
             return {"status": "unhealthy", "backend": "claude", "error": str(e)}
 
-    def _call_llm(self, prompt: str, max_tokens: int = 4000) -> tuple:
+    def _is_fast_model_available(self) -> bool:
+        """Check if the fast model is configured and available.
+
+        Disabled by default — model swapping can crash Ollama on small-VRAM GPUs (e.g. 8GB).
+        Enable by setting OLLAMA_FAST_MODEL env var.
+        """
+        if not OLLAMA_FAST_MODEL:
+            return False
+        if self._fast_model_available is not None:
+            return self._fast_model_available
+        try:
+            resp = requests.get(f"{OLLAMA_HOST}/api/tags", timeout=3)
+            if resp.status_code == 200:
+                models = [m["name"] for m in resp.json().get("models", [])]
+                self._fast_model_available = any(OLLAMA_FAST_MODEL.split(":")[0] in m for m in models)
+            else:
+                self._fast_model_available = False
+        except Exception:
+            self._fast_model_available = False
+        return self._fast_model_available
+
+    def _select_model(self, content_length: int) -> tuple:
+        """Select the best model based on content size.
+
+        Returns:
+            tuple: (model_name, num_ctx, max_content_chars)
+        """
+        if self.backend != "ollama":
+            return (CLAUDE_MODEL, None, MAX_CONTENT_LENGTH)
+
+        # Short entries → fast model (tinyllama) for speed
+        if content_length <= FAST_MODEL_THRESHOLD and self._is_fast_model_available():
+            logger.info(f"Using fast model {OLLAMA_FAST_MODEL} for {content_length} char entry")
+            return (OLLAMA_FAST_MODEL, 4096, FAST_CONTENT_LENGTH)
+
+        # Everything else → primary model with expanded context
+        return (OLLAMA_MODEL, 8192, MAX_CONTENT_LENGTH)
+
+    def _call_llm(self, prompt: str, max_tokens: int = 4000, model: str = None, num_ctx: int = None) -> tuple:
         """
         Call LLM (Claude or Ollama) with prompt.
 
@@ -284,10 +394,10 @@ class KnowledgeAnalyzer:
             tuple: (response_text, input_tokens, output_tokens, elapsed_ms)
         """
         if self.backend == "ollama":
-            return self._call_ollama(prompt, max_tokens)
+            return self._call_ollama(prompt, max_tokens, model=model, num_ctx=num_ctx)
         return self._call_claude(prompt, max_tokens)
 
-    def _call_ollama(self, prompt: str, max_tokens: int = 4000) -> tuple:
+    def _call_ollama(self, prompt: str, max_tokens: int = 4000, model: str = None, num_ctx: int = None) -> tuple:
         """
         Call Ollama API with prompt.
 
@@ -296,26 +406,35 @@ class KnowledgeAnalyzer:
         """
         import time
 
+        model = model or OLLAMA_MODEL
+        options = {
+            "num_predict": max_tokens,
+            "temperature": 0.3,
+        }
+        if num_ctx:
+            options["num_ctx"] = num_ctx
+
         start = time.time()
         try:
             response = requests.post(
                 f"{OLLAMA_HOST}/api/generate",
                 json={
-                    "model": OLLAMA_MODEL,
+                    "model": model,
                     "prompt": prompt,
                     "stream": False,
-                    "options": {
-                        "num_predict": max_tokens,
-                        "temperature": 0.3,  # Lower for more consistent JSON
-                    },
+                    "options": options,
                 },
-                timeout=300,  # 5 minute timeout for analysis (Ollama is slower)
+                timeout=300,
             )
             response.raise_for_status()
             data = response.json()
             elapsed = int((time.time() - start) * 1000)
 
-            # Ollama provides token counts in response
+            logger.info(
+                f"Ollama [{model}] prompt={data.get('prompt_eval_count', 0)} "
+                f"gen={data.get('eval_count', 0)} time={elapsed}ms"
+            )
+
             return (
                 data.get("response", ""),
                 data.get("prompt_eval_count", 0),
@@ -323,7 +442,7 @@ class KnowledgeAnalyzer:
                 elapsed,
             )
         except Exception as e:
-            logger.error(f"Ollama API error: {e}")
+            logger.error(f"Ollama API error ({model}): {e}")
             raise
 
     def _call_claude(self, prompt: str, max_tokens: int = 4000) -> tuple:
@@ -399,9 +518,12 @@ class KnowledgeAnalyzer:
 
         metadata = metadata or {}
 
-        # Truncate if too long
-        if len(content) > MAX_CONTENT_LENGTH:
-            content = content[:MAX_CONTENT_LENGTH] + "\n\n[... truncated ...]"
+        # Select model based on content size
+        orig_len = len(content)
+        model, num_ctx, max_chars = self._select_model(orig_len)
+
+        # Smart truncation to fit model context
+        content = _smart_truncate(content, max_chars)
 
         prompt = CONVERSATION_ANALYSIS_PROMPT.format(
             content=content,
@@ -410,8 +532,13 @@ class KnowledgeAnalyzer:
             date=metadata.get("date", datetime.now().isoformat()),
         )
 
+        # Scale output budget by content size (less content = fewer cards needed)
+        max_tokens = 1500 if orig_len < 3000 else 2500 if orig_len < 10000 else 4000
+
         try:
-            response, input_tokens, output_tokens, elapsed = self._call_llm(prompt)
+            response, input_tokens, output_tokens, elapsed = self._call_llm(
+                prompt, max_tokens=max_tokens, model=model, num_ctx=num_ctx
+            )
             data = self._parse_json_response(response)
 
             # Parse cards
@@ -496,16 +623,24 @@ class KnowledgeAnalyzer:
             }
             language = language_map.get(ext, "Unknown")
 
-        # Truncate if too long
-        if len(content) > MAX_CONTENT_LENGTH:
-            content = content[:MAX_CONTENT_LENGTH] + "\n\n# [... truncated ...]"
+        # Select model based on content size
+        orig_len = len(content)
+        model, num_ctx, max_chars = self._select_model(orig_len)
+
+        # Smart truncation to fit model context
+        content = _smart_truncate(content, max_chars)
 
         prompt = CODE_ANALYSIS_PROMPT.format(
             filename=filename, language=language, content=content
         )
 
+        # Scale output budget by content size
+        max_tokens = 1500 if orig_len < 3000 else 2500 if orig_len < 10000 else 4000
+
         try:
-            response, input_tokens, output_tokens, elapsed = self._call_llm(prompt)
+            response, input_tokens, output_tokens, elapsed = self._call_llm(
+                prompt, max_tokens=max_tokens, model=model, num_ctx=num_ctx
+            )
             data = self._parse_json_response(response)
 
             # Parse cards

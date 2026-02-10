@@ -1094,6 +1094,36 @@ try:
 except Exception as e:
     print(f"[A.R.C.H.I.E.] Warning: Failed to start Git poller: {e}")
 
+
+# ============================================================================
+# KOKORO TTS WARMUP - Pre-load pipeline to avoid cold start delay
+# ============================================================================
+def _warmup_kokoro():
+    """Background warmup of Kokoro TTS pipeline so first user request is fast."""
+    import threading
+
+    def _do_warmup():
+        try:
+            import sys
+
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+            from ai_bridge.voice_synthesis import KokoroEngine
+
+            if KokoroEngine.check_available():
+                engine = KokoroEngine()
+                engine._get_pipeline("af_heart")  # Load American English pipeline
+                logger.info("Kokoro TTS pipeline warmed up successfully")
+            else:
+                logger.info("Kokoro TTS not available, skipping warmup")
+        except Exception as e:
+            logger.warning(f"Kokoro warmup skipped: {e}")
+
+    t = threading.Thread(target=_do_warmup, daemon=True, name="kokoro-warmup")
+    t.start()
+
+
+_warmup_kokoro()
+
 # ============================================================================
 # SANDBOX MODE CONTEXT PROCESSOR
 # ============================================================================
@@ -1846,9 +1876,102 @@ def init_consciousness_scheduler(flask_app):
             replace_existing=True,
         )
 
+        # Weekly dependency scan on Sundays at 4 AM
+        def scheduled_dependency_scan():
+            with flask_app.app_context():
+                try:
+                    import re
+                    import base64
+                    import json
+                    import psycopg2
+                    from psycopg2.extras import RealDictCursor
+                    from tools.consciousness.dependency_scanner import DependencyScanner
+                    from tools.consciousness.routes import _store_dependency_scan
+
+                    # Load GitHub token from env or file
+                    github_token = os.getenv("GITHUB_TOKEN")
+                    if not github_token:
+                        try:
+                            with open("/mnt/archie_brain/secrets/api/github_token.txt", "r") as f:
+                                github_token = f.read().strip()
+                        except FileNotFoundError:
+                            pass
+
+                    scanner = DependencyScanner(github_token=github_token)
+
+                    import os
+
+                    conn = psycopg2.connect(
+                        host=os.getenv("DB_HOST", "archie_database"),
+                        database=os.getenv("DB_NAME", "archie"),
+                        user=os.getenv("DB_USER", "archie"),
+                        password=os.getenv("DB_PASSWORD", "archiepass"),
+                    )
+                    cur = conn.cursor(cursor_factory=RealDictCursor)
+
+                    cur.execute("SELECT id, repo_name FROM github_repositories WHERE status IN ('cloned', 'indexed')")
+                    repos = cur.fetchall()
+
+                    total_scans = 0
+                    total_entries = 0
+                    headers = {}
+                    if github_token:
+                        headers["Authorization"] = f"Bearer {github_token}"
+                        headers["Accept"] = "application/vnd.github.v3+json"
+
+                    import requests
+
+                    for repo in repos:
+                        # repo_name is already in owner/repo format
+                        owner_repo = repo["repo_name"]
+
+                        for dep_file in ["package.json", "requirements.txt"]:
+                            try:
+                                resp = requests.get(
+                                    f"https://api.github.com/repos/{owner_repo}/contents/{dep_file}",
+                                    headers=headers,
+                                    timeout=10,
+                                )
+                                if resp.status_code != 200:
+                                    continue
+                                content = base64.b64decode(resp.json().get("content", "")).decode("utf-8")
+                                scan = scanner.scan_dependency_file(content, dep_file, owner_repo)
+                                total_entries += _store_dependency_scan(cur, scan)
+                                total_scans += 1
+                            except Exception as e:
+                                logger.warning(f"Scheduled scan failed for {owner_repo}/{dep_file}: {e}")
+
+                    # Local platform requirements.txt
+                    try:
+                        with open("/app/requirements.txt", "r") as f:
+                            content = f.read()
+                        scan = scanner.scan_dependency_file(content, "requirements.txt", "local/platform_v2")
+                        total_entries += _store_dependency_scan(cur, scan)
+                        total_scans += 1
+                    except Exception as e:
+                        logger.warning(f"Scheduled scan failed for local requirements: {e}")
+
+                    conn.commit()
+                    cur.close()
+                    conn.close()
+                    logger.info(
+                        f"Weekly dependency scan complete: {total_scans} files scanned, {total_entries} suggestions stored"
+                    )
+
+                except Exception as e:
+                    logger.error(f"Scheduled dependency scan failed: {e}")
+
+        scheduler.add_job(
+            scheduled_dependency_scan,
+            trigger=CronTrigger(day_of_week="sun", hour=4, minute=0),
+            id="weekly_dependency_scan",
+            name="Weekly Dependency Scan",
+            replace_existing=True,
+        )
+
         scheduler.start()
         flask_app.config["CONSCIOUSNESS_SCHEDULER"] = scheduler
-        logger.info("Consciousness scheduler started with 5 scheduled tasks")
+        logger.info("Consciousness scheduler started with 6 scheduled tasks")
 
         return scheduler
 

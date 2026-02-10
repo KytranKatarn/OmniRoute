@@ -117,6 +117,99 @@ def get_phoneme_extractor() -> PhonemeExtractor:
     return _phoneme_extractor
 
 
+class KokoroEngine:
+    """Kokoro-82M TTS engine — fast, multi-voice, supports blending"""
+    ENGINE_NAME = 'kokoro'
+
+    VOICES = {
+        'American English Female': [
+            'af_alloy', 'af_aoede', 'af_bella', 'af_heart', 'af_jessica',
+            'af_kore', 'af_nicole', 'af_nova', 'af_river', 'af_sarah', 'af_sky'
+        ],
+        'American English Male': [
+            'am_adam', 'am_echo', 'am_eric', 'am_fenrir', 'am_liam',
+            'am_michael', 'am_onyx', 'am_puck', 'am_santa'
+        ],
+        'British English Female': ['bf_alice', 'bf_emma', 'bf_isabella', 'bf_lily'],
+        'British English Male': ['bm_daniel', 'bm_fable', 'bm_george', 'bm_lewis'],
+    }
+    DEFAULT_VOICE = 'af_heart'
+
+    def __init__(self):
+        self._pipelines = {}  # lang_code -> KPipeline
+        self._loaded = False
+        self._available = None  # None = unchecked, True/False = checked
+
+    @staticmethod
+    def check_available():
+        """Check if kokoro package is installed"""
+        try:
+            import kokoro  # noqa: F401
+            return True
+        except ImportError:
+            return False
+
+    def _get_pipeline(self, voice):
+        """Get or create pipeline for the voice's language"""
+        if self._available is None:
+            self._available = self.check_available()
+        if not self._available:
+            raise ImportError("Kokoro package not installed. Run: pip install kokoro>=0.9.4")
+
+        lang = 'b' if (voice or '').startswith('b') else 'a'
+        if lang not in self._pipelines:
+            from kokoro import KPipeline
+            self._pipelines[lang] = KPipeline(lang_code=lang)
+            self._loaded = True
+        return self._pipelines[lang]
+
+    def synthesize_to_wav(self, text, voice=None, speed=1.0, voice_blend=None):
+        """Synthesize text to WAV bytes (24kHz)
+
+        voice_blend: Comma-separated voice names for blending.
+            Kokoro averages the voice tensors equally.
+            Weight annotations (e.g. 'af_bella:60,am_adam:40') are accepted
+            but stripped — Kokoro only supports equal-weight blending.
+        """
+        import numpy as np
+        import soundfile as sf
+
+        if voice_blend:
+            # Strip weight annotations: "af_bella:60,am_adam:40" -> "af_bella,am_adam"
+            parts = [v.split(':')[0].strip() for v in voice_blend.split(',') if v.strip()]
+            voice = ','.join(parts) if parts else voice or self.DEFAULT_VOICE
+        else:
+            voice = voice or self.DEFAULT_VOICE
+        pipeline = self._get_pipeline(voice)
+
+        chunks = []
+        for gs, ps, audio in pipeline(text, voice=voice, speed=speed):
+            chunks.append(audio)
+
+        if not chunks:
+            raise RuntimeError("Kokoro produced no audio")
+
+        full_audio = np.concatenate(chunks)
+        buf = io.BytesIO()
+        sf.write(buf, full_audio, 24000, format='WAV')
+        return buf.getvalue()
+
+    def get_speakers(self):
+        """Return flat list of all voice IDs"""
+        voices = []
+        for group in self.VOICES.values():
+            voices.extend(group)
+        return voices
+
+    def get_speakers_grouped(self):
+        """Return voices grouped by category"""
+        return dict(self.VOICES)
+
+    @property
+    def is_loaded(self):
+        return self._loaded
+
+
 class VoiceSynthesizer:
     """Voice synthesis with emotion modulation for A.R.C.H.I.E."""
 
@@ -125,6 +218,30 @@ class VoiceSynthesizer:
 
     # Fallback if Ana Florence not available
     FALLBACK_SPEAKERS = ["Annmarie Nele", "Suad Qasim", "Tammie Ema"]
+
+    # Quality presets for XTTS v2 inference
+    # These kwargs are passed through tts_to_file → model.inference
+    # Lower temperature = more stable/consistent output
+    # Higher repetition_penalty = less stuttering
+    # Lower top_p/top_k = more predictable, cleaner audio
+    QUALITY_PRESETS = {
+        'standard': {
+            # Default XTTS v2 settings — fast, good enough for real-time
+            'temperature': 0.75,
+            'top_k': 50,
+            'top_p': 0.85,
+            'repetition_penalty': 10.0,
+        },
+        'high': {
+            # Lower temperature for more stable, cleaner synthesis
+            # Tighter sampling for less random artifacts
+            # Better for pre-generation where speed doesn't matter
+            'temperature': 0.35,
+            'top_k': 30,
+            'top_p': 0.65,
+            'repetition_penalty': 12.0,
+        },
+    }
 
     # Emotion-to-voice parameter mapping
     # speed: 0.5-2.0 (1.0 = normal)
@@ -153,6 +270,7 @@ class VoiceSynthesizer:
         self.tts = None
         self._available_speakers = []
         self._model_loaded = False
+        self._kokoro = None  # Lazy-loaded KokoroEngine
 
         if not lazy_init:
             self._init_tts()
@@ -193,8 +311,16 @@ class VoiceSynthesizer:
             print(f"[VoiceDNA] TTS initialization failed: {e}")
             self.tts = None
 
+    def _get_kokoro(self):
+        """Get or create lazy-loaded KokoroEngine"""
+        if self._kokoro is None:
+            self._kokoro = KokoroEngine()
+        return self._kokoro
+
     def synthesize(self, text: str, emotion: str = 'neutral',
-                   user_id: Optional[int] = None) -> Dict[str, Any]:
+                   user_id: Optional[int] = None,
+                   quality: str = 'standard',
+                   engine: str = 'kokoro') -> Dict[str, Any]:
         """
         Generate speech from text with emotion modulation.
 
@@ -202,33 +328,25 @@ class VoiceSynthesizer:
             text: Text to synthesize (max 500 chars)
             emotion: Emotional tone ('excited', 'curious', 'empathetic', etc.)
             user_id: User ID for logging and personalization
+            quality: Quality preset ('standard' or 'high')
+            engine: TTS engine ('kokoro' or 'xtts_v2')
 
         Returns:
             Dict with success, audio_base64, cached, emotion, parameters
         """
-        # Lazy load TTS on first use
-        if not self._model_loaded:
-            self._init_tts()
-
-        if not self.tts:
-            return {
-                'success': False,
-                'error': 'TTS not available. Install with: pip install TTS>=0.22.0'
-            }
-
         # Validate input
         if not text or not text.strip():
             return {'success': False, 'error': 'No text provided'}
 
         text = text.strip()
         if len(text) > 500:
-            text = text[:500]  # Truncate to max length
+            text = text[:500]
 
-        # Check cache first
-        cache_key = self._get_cache_key(text, emotion)
+        # Check cache first (engine-scoped key)
+        cache_key = self._get_cache_key(text, emotion, engine=engine)
         cached_audio = self._check_cache(cache_key)
         if cached_audio:
-            self._log_generation(user_id, len(text), emotion, cached=True, time_ms=0)
+            self._log_generation(user_id, len(text), emotion, cached=True, time_ms=0, engine=engine)
             return {
                 'success': True,
                 'audio_base64': cached_audio,
@@ -239,44 +357,41 @@ class VoiceSynthesizer:
         # Get voice parameters for emotion
         params = self.EMOTION_VOICE_MAP.get(emotion, self.EMOTION_VOICE_MAP['neutral'])
 
-        # Select speaker
-        speaker = self._select_speaker()
-
         start_time = time.time()
 
         try:
-            # Generate audio with XTTS v2
-            # Note: tts_to_file expects a file path, so we use a temp file
-            import tempfile
+            if engine == 'kokoro':
+                kokoro = self._get_kokoro()
+                audio_bytes = kokoro.synthesize_to_wav(text, speed=params['speed'])
+                audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
+                speaker = KokoroEngine.DEFAULT_VOICE
+            else:
+                # XTTS v2 path
+                if not self._model_loaded:
+                    self._init_tts()
+                if not self.tts:
+                    return {'success': False, 'error': 'TTS not available. Install with: pip install TTS>=0.22.0'}
 
-            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
-                temp_path = temp_file.name
+                speaker = self._select_speaker()
+                import tempfile
+                with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
+                    temp_path = temp_file.name
 
-            self.tts.tts_to_file(
-                text=text,
-                speaker=speaker,
-                language="en",
-                file_path=temp_path,
-                speed=params['speed']
-            )
+                quality_kwargs = self.QUALITY_PRESETS.get(quality, self.QUALITY_PRESETS['standard'])
+                self.tts.tts_to_file(
+                    text=text, speaker=speaker, language="en",
+                    file_path=temp_path, speed=params['speed'], **quality_kwargs
+                )
 
-            # Read generated audio
-            with open(temp_path, 'rb') as f:
-                audio_bytes = f.read()
-
-            # Clean up temp file
-            os.unlink(temp_path)
-
-            # Encode to base64 for web playback
-            audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
+                with open(temp_path, 'rb') as f:
+                    audio_bytes = f.read()
+                os.unlink(temp_path)
+                audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
 
             generation_time = int((time.time() - start_time) * 1000)
 
-            # Cache the result
-            self._save_to_cache(cache_key, text, emotion, audio_base64, params, generation_time)
-
-            # Log generation
-            self._log_generation(user_id, len(text), emotion, cached=False, time_ms=generation_time)
+            self._save_to_cache(cache_key, text, emotion, audio_base64, params, generation_time, engine=engine)
+            self._log_generation(user_id, len(text), emotion, cached=False, time_ms=generation_time, engine=engine)
 
             return {
                 'success': True,
@@ -285,11 +400,12 @@ class VoiceSynthesizer:
                 'emotion': emotion,
                 'parameters': params,
                 'speaker': speaker,
+                'engine': engine,
                 'generation_time_ms': generation_time
             }
 
         except Exception as e:
-            print(f"[VoiceDNA] Synthesis error: {e}")
+            print(f"[VoiceDNA] Synthesis error ({engine}): {e}")
             return {'success': False, 'error': str(e)}
 
     def _select_speaker(self) -> str:
@@ -309,10 +425,15 @@ class VoiceSynthesizer:
         # Use first available
         return self._available_speakers[0] if self._available_speakers else self.DEFAULT_SPEAKER
 
-    def _get_cache_key(self, text: str, emotion: str) -> str:
-        """Generate cache key from text and emotion"""
-        speaker = self._select_speaker()
-        content = f"{text}|{emotion}|{speaker}"
+    def _get_cache_key(self, text: str, emotion: str, engine: str = 'kokoro') -> str:
+        """Generate cache key from text, emotion, and engine.
+        Text is lowercased to ensure pregen cache hits match runtime synthesis."""
+        normalized = text.lower().strip()
+        if engine == 'kokoro':
+            content = f"kokoro|{normalized}|{emotion}|{KokoroEngine.DEFAULT_VOICE}"
+        else:
+            speaker = self._select_speaker()
+            content = f"xtts_v2|{normalized}|{emotion}|{speaker}"
         return hashlib.sha256(content.encode()).hexdigest()[:32]
 
     def _check_cache(self, cache_key: str) -> Optional[str]:
@@ -351,32 +472,34 @@ class VoiceSynthesizer:
             return None
 
     def _save_to_cache(self, cache_key: str, text: str, emotion: str,
-                       audio_base64: str, params: dict, duration_ms: int):
+                       audio_base64: str, params: dict, duration_ms: int,
+                       engine: str = 'kokoro'):
         """Save generated audio to cache"""
         try:
             conn = self._get_db()
             cur = conn.cursor()
 
-            # Using correct column names: word_text, phoneme_sequence, full_audio_cache
             cur.execute("""
                 INSERT INTO voice_word_cache
-                (word_text, phoneme_sequence, full_audio_cache, text_hash, emotion_context, voice_parameters, duration_ms, hit_count, usage_count, last_used)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, 0, 0, NOW())
+                (word_text, phoneme_sequence, full_audio_cache, text_hash, emotion_context, voice_parameters, duration_ms, hit_count, usage_count, last_used, engine)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 0, 0, NOW(), %s)
                 ON CONFLICT (text_hash) WHERE text_hash IS NOT NULL DO UPDATE
                 SET full_audio_cache = EXCLUDED.full_audio_cache,
                     hit_count = COALESCE(voice_word_cache.hit_count, 0) + 1,
                     usage_count = COALESCE(voice_word_cache.usage_count, 0) + 1,
                     last_used = NOW(),
                     emotion_context = EXCLUDED.emotion_context,
-                    voice_parameters = EXCLUDED.voice_parameters
+                    voice_parameters = EXCLUDED.voice_parameters,
+                    engine = EXCLUDED.engine
             """, (
-                text[:100],  # Truncate for word_text column
-                json.dumps([]),  # phoneme_sequence as empty JSON array
-                audio_base64.encode('utf-8'),  # Store as bytes
+                text[:100],
+                json.dumps([]),
+                audio_base64.encode('utf-8'),
                 cache_key,
                 emotion,
                 json.dumps(params),
-                duration_ms
+                duration_ms,
+                engine
             ))
 
             conn.commit()
@@ -387,7 +510,8 @@ class VoiceSynthesizer:
             print(f"[VoiceDNA] Cache save error: {e}")
 
     def _log_generation(self, user_id: Optional[int], text_length: int,
-                        emotion: str, cached: bool, time_ms: int):
+                        emotion: str, cached: bool, time_ms: int,
+                        engine: str = None):
         """Log voice generation for analytics"""
         try:
             conn = self._get_db()
@@ -395,9 +519,9 @@ class VoiceSynthesizer:
 
             cur.execute("""
                 INSERT INTO voice_generation_log
-                (user_id, text_length, emotion, cached, generation_time_ms)
-                VALUES (%s, %s, %s, %s, %s)
-            """, (user_id, text_length, emotion, cached, time_ms))
+                (user_id, text_length, emotion, cached, generation_time_ms, engine)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (user_id, text_length, emotion, cached, time_ms, engine))
 
             conn.commit()
             cur.close()
@@ -496,10 +620,16 @@ class VoiceSynthesizer:
 
     def get_status(self) -> Dict[str, Any]:
         """Get voice synthesis system status"""
+        kokoro_installed = KokoroEngine.check_available()
+        kokoro_loaded = self._kokoro is not None and self._kokoro.is_loaded
         return {
-            'tts_available': self.tts is not None,
-            'model_loaded': self._model_loaded,
-            'engine': 'Coqui TTS (XTTS v2)' if self.tts else 'Not initialized',
+            'tts_available': self.tts is not None or kokoro_installed,
+            'model_loaded': self._model_loaded or kokoro_loaded,
+            'engines': {
+                'kokoro': {'available': kokoro_installed, 'loaded': kokoro_loaded, 'voices': 28},
+                'xtts_v2': {'available': self.tts is not None, 'loaded': self._model_loaded, 'voices': len(self._available_speakers) or 32}
+            },
+            'default_engine': 'kokoro',
             'speaker': self._select_speaker() if self._available_speakers else self.DEFAULT_SPEAKER,
             'available_speakers': len(self._available_speakers),
             'supported_emotions': list(self.EMOTION_VOICE_MAP.keys())
@@ -509,13 +639,15 @@ class VoiceSynthesizer:
     # Phoneme-Based Word Caching System
     # ========================================
 
-    def synthesize_word(self, word: str, emotion: str = 'neutral') -> Optional[bytes]:
+    def synthesize_word(self, word: str, emotion: str = 'neutral',
+                        quality: str = 'standard') -> Optional[bytes]:
         """
         Synthesize a single word and return raw audio bytes.
 
         Args:
             word: Single word to synthesize
             emotion: Emotional tone
+            quality: Quality preset ('standard' or 'high')
 
         Returns:
             Raw WAV audio bytes or None on failure
@@ -528,6 +660,7 @@ class VoiceSynthesizer:
 
         params = self.EMOTION_VOICE_MAP.get(emotion, self.EMOTION_VOICE_MAP['neutral'])
         speaker = self._select_speaker()
+        quality_kwargs = self.QUALITY_PRESETS.get(quality, self.QUALITY_PRESETS['standard'])
 
         try:
             import tempfile
@@ -540,7 +673,8 @@ class VoiceSynthesizer:
                 speaker=speaker,
                 language="en",
                 file_path=temp_path,
-                speed=params['speed']
+                speed=params['speed'],
+                **quality_kwargs
             )
 
             with open(temp_path, 'rb') as f:
@@ -834,6 +968,334 @@ class VoiceSynthesizer:
             out_wav.writeframes(all_frames)
 
         return output.getvalue()
+
+
+    # ========================================
+    # Voice Management API Methods
+    # ========================================
+
+    XTTS_SPEAKERS = [
+        "Claribel Dervla", "Daisy Studious", "Gracie Wise", "Tammie Ema",
+        "Alison Dietlinde", "Ana Florence", "Annmarie Nele", "Asya Anara",
+        "Brenda Stern", "Gitta Nikolina", "Henriette Usha", "Sofia Hellen",
+        "Tamaru Naoko", "Tanja Adelina", "Vjollca Johnnie", "Andrew Chipper",
+        "Badr Odhiambo", "Dionisio Schuyler", "Royston Min", "Viktor Eka",
+        "Abrahan Mack", "Adde Michal", "Baldur Sanjin", "Craig Gutsy",
+        "Damien Black", "Gilberto Mathias", "Ilkin Urbano", "Kazuhiko Atallah",
+        "Ludvig Milivoj", "Suad Qasim", "Torcull Diarmuid", "Viktor Menelaos"
+    ]
+
+    def get_available_speakers(self, engine: str = None):
+        """
+        Return available speakers, optionally filtered by engine.
+
+        Args:
+            engine: 'kokoro', 'xtts_v2', or None for both grouped
+        """
+        if engine == 'kokoro':
+            try:
+                return self._get_kokoro().get_speakers()
+            except ImportError:
+                return []
+        elif engine == 'xtts_v2':
+            if not self._model_loaded:
+                self._init_tts()
+            if self._available_speakers:
+                return list(self._available_speakers)
+            return list(self.XTTS_SPEAKERS)
+        else:
+            # Return both grouped
+            try:
+                kokoro_speakers = self._get_kokoro().get_speakers_grouped()
+            except ImportError:
+                kokoro_speakers = {}
+            return {
+                'kokoro': kokoro_speakers,
+                'xtts_v2': self.XTTS_SPEAKERS
+            }
+
+    def synthesize_with_params(self, text: str, speaker: str = 'Ana Florence',
+                                speed: float = 1.0, pitch_shift: float = 1.0,
+                                warmth: float = 0.8, emotion: str = 'neutral',
+                                quality: str = 'standard',
+                                engine: str = 'kokoro',
+                                voice_blend: str = None) -> Dict[str, Any]:
+        """
+        Generate speech with explicit parameters for preview. No caching.
+
+        Args:
+            text: Text to synthesize (max 500 chars)
+            speaker: Speaker name
+            speed: Speed multiplier (0.50-2.00)
+            pitch_shift: Pitch shift (0.80-1.20) — XTTS only
+            warmth: Warmth parameter (0.00-1.00) — XTTS only
+            emotion: Emotion label (for metadata only)
+            quality: Quality preset ('standard' or 'high')
+            engine: TTS engine ('kokoro' or 'xtts_v2')
+            voice_blend: Kokoro voice blend string (e.g. 'af_bella:60,am_adam:40')
+
+        Returns:
+            Dict with success, audio_base64, generation_time_ms, parameters_used
+        """
+        if not text or not text.strip():
+            return {'success': False, 'error': 'No text provided'}
+
+        text = text.strip()[:500]
+        speed = max(0.50, min(2.00, speed))
+
+        start_time = time.time()
+
+        try:
+            if engine == 'kokoro':
+                kokoro = self._get_kokoro()
+                audio_bytes = kokoro.synthesize_to_wav(
+                    text, voice=speaker, speed=speed, voice_blend=voice_blend
+                )
+                audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
+            else:
+                # XTTS v2 path
+                if not self._model_loaded:
+                    self._init_tts()
+                if not self.tts:
+                    return {'success': False, 'error': 'TTS not available'}
+
+                pitch_shift = max(0.80, min(1.20, pitch_shift))
+                warmth = max(0.00, min(1.00, warmth))
+
+                available = self.get_available_speakers(engine='xtts_v2')
+                if speaker not in available:
+                    speaker = self.DEFAULT_SPEAKER
+
+                import tempfile
+                with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
+                    temp_path = temp_file.name
+
+                quality_kwargs = self.QUALITY_PRESETS.get(quality, self.QUALITY_PRESETS['standard'])
+                self.tts.tts_to_file(
+                    text=text, speaker=speaker, language="en",
+                    file_path=temp_path, speed=speed, **quality_kwargs
+                )
+
+                with open(temp_path, 'rb') as f:
+                    audio_bytes = f.read()
+                os.unlink(temp_path)
+                audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
+
+            generation_time = int((time.time() - start_time) * 1000)
+
+            return {
+                'success': True,
+                'audio_base64': audio_base64,
+                'generation_time_ms': generation_time,
+                'parameters_used': {
+                    'speaker': speaker,
+                    'speed': speed,
+                    'pitch_shift': pitch_shift,
+                    'warmth': warmth,
+                    'emotion': emotion,
+                    'quality': quality,
+                    'engine': engine,
+                    'voice_blend': voice_blend
+                }
+            }
+
+        except Exception as e:
+            print(f"[VoiceDNA] Preview synthesis error ({engine}): {e}")
+            return {'success': False, 'error': str(e)}
+
+    def synthesize_for_agent(self, text: str, agent_id: int,
+                              emotion: str = 'neutral',
+                              user_id: Optional[int] = None,
+                              quality: str = 'standard') -> Dict[str, Any]:
+        """
+        Synthesize speech using an agent's voice profile.
+        Falls back to defaults if no profile exists.
+        """
+        # Load agent's voice profile
+        profile = self._get_agent_profile(agent_id)
+
+        if profile:
+            speaker = profile.get('speaker', self.DEFAULT_SPEAKER)
+            engine = profile.get('engine', 'kokoro')
+            voice_blend = profile.get('voice_blend')
+            base_params = {
+                'speed': float(profile.get('speed', 1.0)),
+                'pitch_shift': float(profile.get('pitch_shift', 1.0)),
+                'warmth': float(profile.get('warmth', 0.8))
+            }
+            overrides = profile.get('emotion_overrides', {})
+            if emotion in overrides:
+                base_params.update(overrides[emotion])
+
+            default_emotion = profile.get('default_emotion', 'neutral')
+            if emotion == 'neutral' and default_emotion != 'neutral':
+                emotion = default_emotion
+        else:
+            speaker = self.DEFAULT_SPEAKER
+            engine = 'kokoro'
+            voice_blend = None
+            base_params = self.EMOTION_VOICE_MAP.get(emotion, self.EMOTION_VOICE_MAP['neutral'])
+
+        if not text or not text.strip():
+            return {'success': False, 'error': 'No text provided'}
+
+        text = text.strip()[:500]
+
+        # Check agent-specific cache (engine-scoped)
+        cache_key = self._get_agent_cache_key(text, emotion, agent_id, engine=engine)
+        cached_audio = self._check_agent_cache(cache_key, agent_id)
+        if cached_audio:
+            self._log_generation(user_id, len(text), emotion, cached=True, time_ms=0, engine=engine)
+            return {
+                'success': True,
+                'audio_base64': cached_audio,
+                'cached': True,
+                'emotion': emotion,
+                'agent_id': agent_id
+            }
+
+        start_time = time.time()
+
+        try:
+            if engine == 'kokoro':
+                kokoro = self._get_kokoro()
+                audio_bytes = kokoro.synthesize_to_wav(
+                    text, voice=speaker, speed=base_params.get('speed', 1.0),
+                    voice_blend=voice_blend
+                )
+                audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
+            else:
+                if not self._model_loaded:
+                    self._init_tts()
+                if not self.tts:
+                    return {'success': False, 'error': 'TTS not available'}
+
+                import tempfile
+                with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_file:
+                    temp_path = temp_file.name
+
+                quality_kwargs = self.QUALITY_PRESETS.get(quality, self.QUALITY_PRESETS['standard'])
+                self.tts.tts_to_file(
+                    text=text, speaker=speaker, language="en",
+                    file_path=temp_path, speed=base_params.get('speed', 1.0),
+                    **quality_kwargs
+                )
+
+                with open(temp_path, 'rb') as f:
+                    audio_bytes = f.read()
+                os.unlink(temp_path)
+                audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
+
+            generation_time = int((time.time() - start_time) * 1000)
+
+            self._save_agent_cache(cache_key, text, emotion, audio_base64,
+                                   base_params, generation_time, agent_id, engine=engine)
+            self._log_generation(user_id, len(text), emotion, cached=False, time_ms=generation_time, engine=engine)
+
+            return {
+                'success': True,
+                'audio_base64': audio_base64,
+                'cached': False,
+                'emotion': emotion,
+                'agent_id': agent_id,
+                'speaker': speaker,
+                'engine': engine,
+                'generation_time_ms': generation_time,
+                'parameters': base_params
+            }
+
+        except Exception as e:
+            print(f"[VoiceDNA] Agent synthesis error ({engine}): {e}")
+            return {'success': False, 'error': str(e)}
+
+    def _get_agent_profile(self, agent_id: int) -> Optional[Dict[str, Any]]:
+        """Load agent's voice profile from DB"""
+        try:
+            conn = self._get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute("""
+                SELECT speaker, speed, pitch_shift, warmth, default_emotion,
+                       emotion_overrides, engine, voice_blend
+                FROM agent_voice_profiles
+                WHERE agent_id = %s AND is_active = TRUE
+            """, (agent_id,))
+            result = cur.fetchone()
+            cur.close()
+            conn.close()
+            return dict(result) if result else None
+        except Exception as e:
+            print(f"[VoiceDNA] Profile load error: {e}")
+            return None
+
+    def _get_agent_cache_key(self, text: str, emotion: str, agent_id: int,
+                              engine: str = 'kokoro') -> str:
+        """Generate cache key scoped to agent and engine"""
+        content = f"{engine}|agent:{agent_id}|{text}|{emotion}"
+        return hashlib.sha256(content.encode()).hexdigest()[:32]
+
+    def _check_agent_cache(self, cache_key: str, agent_id: int) -> Optional[str]:
+        """Check voice cache for agent-specific audio"""
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE voice_word_cache
+                SET hit_count = COALESCE(hit_count, 0) + 1,
+                    usage_count = COALESCE(usage_count, 0) + 1,
+                    last_used = NOW()
+                WHERE text_hash = %s AND (agent_id = %s OR agent_id IS NULL)
+                RETURNING full_audio_cache
+            """, (cache_key, agent_id))
+            result = cur.fetchone()
+            conn.commit()
+            cur.close()
+            conn.close()
+
+            if result and result[0]:
+                cached = result[0]
+                if isinstance(cached, (bytes, memoryview)):
+                    return cached.decode('utf-8') if isinstance(cached, bytes) else bytes(cached).decode('utf-8')
+                return cached
+            return None
+        except Exception as e:
+            print(f"[VoiceDNA] Agent cache check error: {e}")
+            return None
+
+    def _save_agent_cache(self, cache_key: str, text: str, emotion: str,
+                          audio_base64: str, params: dict, duration_ms: int,
+                          agent_id: int, engine: str = 'kokoro'):
+        """Save audio to cache with agent_id and engine"""
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO voice_word_cache
+                (word_text, phoneme_sequence, full_audio_cache, text_hash, emotion_context,
+                 voice_parameters, duration_ms, hit_count, usage_count, last_used, agent_id, engine)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 0, 0, NOW(), %s, %s)
+                ON CONFLICT (text_hash) WHERE text_hash IS NOT NULL DO UPDATE
+                SET full_audio_cache = EXCLUDED.full_audio_cache,
+                    hit_count = COALESCE(voice_word_cache.hit_count, 0) + 1,
+                    usage_count = COALESCE(voice_word_cache.usage_count, 0) + 1,
+                    last_used = NOW(),
+                    agent_id = EXCLUDED.agent_id,
+                    engine = EXCLUDED.engine
+            """, (
+                text[:100],
+                json.dumps([]),
+                audio_base64.encode('utf-8'),
+                cache_key,
+                emotion,
+                json.dumps(params),
+                duration_ms,
+                agent_id,
+                engine
+            ))
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            print(f"[VoiceDNA] Agent cache save error: {e}")
 
 
 # Singleton instance with lazy loading

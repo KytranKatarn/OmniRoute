@@ -1,6 +1,6 @@
 # A.R.C.H.I.E. Platform
 
-**Version**: 5.25.0 | **Host**: 192.168.1.200 | **Status**: Operational
+**Version**: 5.27.0 | **Host**: 192.168.1.200 | **Status**: Operational
 
 ---
 

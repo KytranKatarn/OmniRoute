@@ -3199,11 +3199,11 @@ def get_activity_stats():
         )
         kb_breakdown = [dict(r) for r in cur.fetchall()]
 
-        # Embedding coverage
+        # Embedding coverage (use actual embedding column, not has_embedding flag)
         cur.execute(
             """
             SELECT COUNT(*) as total,
-                   COALESCE(SUM(CASE WHEN has_embedding THEN 1 ELSE 0 END), 0) as with_embeddings
+                   COALESCE(SUM(CASE WHEN embedding IS NOT NULL THEN 1 ELSE 0 END), 0) as with_embeddings
             FROM knowledge_base
         """
         )
@@ -3228,7 +3228,8 @@ def get_activity_stats():
                 (SELECT COUNT(*) FROM ai_conversations) as conversations,
                 (SELECT COUNT(*) FROM long_term_memory) as memories,
                 (SELECT COUNT(*) FROM conversation_sessions) as claude_sessions,
-                (SELECT COUNT(*) FROM improvement_conversations) as improvement_conversations
+                (SELECT COUNT(*) FROM improvement_conversations) as improvement_conversations,
+                (SELECT COUNT(*) FROM knowledge_base WHERE source_type = 'conversation_log') as ingested_logs
         """
         )
         conv_row = cur.fetchone()
@@ -3373,6 +3374,7 @@ def get_activity_stats():
             "memories": conv_row["memories"] if conv_row else 0,
             "claude_sessions": conv_row["claude_sessions"] if conv_row else 0,
             "improvement_conversations": conv_row["improvement_conversations"] if conv_row else 0,
+            "ingested_logs": conv_row["ingested_logs"] if conv_row else 0,
             "search_status": search_status,
             "kb_growth_7d": kb_growth,
             "combined_growth_7d": combined_growth_7d,
@@ -4338,7 +4340,7 @@ def github_indexed_list():
             """
             SELECT
                 COUNT(*) as total,
-                SUM(CASE WHEN has_embedding THEN 1 ELSE 0 END) as with_embeddings,
+                SUM(CASE WHEN embedding IS NOT NULL THEN 1 ELSE 0 END) as with_embeddings,
                 (SELECT COUNT(*) FROM github_repositories) as repos,
                 SUM(CASE WHEN is_code THEN 1 ELSE 0 END) as code_files,
                 SUM(CASE WHEN is_documentation THEN 1 ELSE 0 END) as docs
@@ -6629,6 +6631,16 @@ def voice_dashboard():
         )
         active_jobs = [dict(r) for r in cur.fetchall()]
 
+        # Engine breakdown
+        cur.execute(
+            """
+            SELECT COALESCE(engine, 'xtts_v2') as engine, COUNT(*) as count
+            FROM voice_word_cache
+            GROUP BY COALESCE(engine, 'xtts_v2')
+        """
+        )
+        engine_breakdown = {r["engine"]: r["count"] for r in cur.fetchall()}
+
         cur.close()
         conn.close()
 
@@ -6647,6 +6659,7 @@ def voice_dashboard():
                 "top_emotions": top_emotions,
                 "top_words": top_words,
                 "active_jobs": active_jobs,
+                "engine_breakdown": engine_breakdown,
             }
         )
 
@@ -6659,22 +6672,28 @@ def voice_dashboard():
 @login_required
 @admin_required
 def voice_speakers():
-    """List all speakers, emotions, and parameter ranges"""
+    """List all speakers grouped by engine, emotions, and parameter ranges"""
     try:
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
         from ai_bridge.voice_synthesis import get_voice_synthesizer
 
         synth = get_voice_synthesizer()
-        speakers = synth.get_available_speakers()
+        all_speakers = synth.get_available_speakers()  # Returns both grouped
         emotions = list(synth.EMOTION_VOICE_MAP.keys())
         emotion_presets = {k: {pk: float(pv) for pk, pv in v.items()} for k, v in synth.EMOTION_VOICE_MAP.items()}
 
         return jsonify(
             {
                 "success": True,
-                "speakers": speakers,
+                "engines": ["kokoro", "xtts_v2"],
+                "default_engine": "kokoro",
+                "speakers": all_speakers,
                 "emotions": emotions,
                 "emotion_presets": emotion_presets,
+                "engine_capabilities": {
+                    "kokoro": {"speed": True, "pitch_shift": False, "warmth": False, "voice_blend": True},
+                    "xtts_v2": {"speed": True, "pitch_shift": True, "warmth": True, "voice_blend": False},
+                },
                 "parameter_ranges": {
                     "speed": {"min": 0.50, "max": 2.00, "default": 1.00, "step": 0.05},
                     "pitch_shift": {"min": 0.80, "max": 1.20, "default": 1.00, "step": 0.01},
@@ -6696,20 +6715,26 @@ def voice_preview():
     try:
         data = request.get_json()
         text = data.get("text", "Hello, I am ARCHIE. How can I help you today?")
-        speaker = data.get("speaker", "Ana Florence")
+        speaker = data.get("speaker", "af_heart")
         speed = float(data.get("speed", 1.0))
         pitch_shift = float(data.get("pitch_shift", 1.0))
         warmth = float(data.get("warmth", 0.8))
         emotion = data.get("emotion", "neutral")
         quality = data.get("quality", "standard")
+        engine = data.get("engine", "kokoro")
+        voice_blend = data.get("voice_blend", None)
         if quality not in ("standard", "high"):
             quality = "standard"
+        if engine not in ("kokoro", "xtts_v2"):
+            engine = "kokoro"
 
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
         from ai_bridge.voice_synthesis import get_voice_synthesizer
 
         synth = get_voice_synthesizer()
-        result = synth.synthesize_with_params(text, speaker, speed, pitch_shift, warmth, emotion, quality)
+        result = synth.synthesize_with_params(
+            text, speaker, speed, pitch_shift, warmth, emotion, quality, engine=engine, voice_blend=voice_blend
+        )
 
         return jsonify(result)
 
@@ -6755,6 +6780,9 @@ def voice_profiles_list():
                 d["created_at"] = d["created_at"].isoformat()
             if d.get("updated_at"):
                 d["updated_at"] = d["updated_at"].isoformat()
+            # Ensure engine defaults
+            if not d.get("engine"):
+                d["engine"] = "xtts_v2"
             profiles.append(d)
 
         cur.execute(
@@ -6785,12 +6813,17 @@ def voice_profile_save():
         data = request.get_json()
         agent_id = data.get("agent_id")
         profile_name = data.get("profile_name", "Default")
-        speaker = data.get("speaker", "Ana Florence")
+        speaker = data.get("speaker", "af_heart")
         speed = float(data.get("speed", 1.0))
         pitch_shift = float(data.get("pitch_shift", 1.0))
         warmth = float(data.get("warmth", 0.8))
         default_emotion = data.get("default_emotion", "neutral")
         emotion_overrides = data.get("emotion_overrides", {})
+        engine = data.get("engine", "kokoro")
+        voice_blend = data.get("voice_blend", None)
+
+        if engine not in ("kokoro", "xtts_v2"):
+            engine = "kokoro"
 
         if not agent_id:
             return jsonify({"success": False, "error": "agent_id required"}), 400
@@ -6802,8 +6835,8 @@ def voice_profile_save():
             """
             INSERT INTO agent_voice_profiles
             (agent_id, profile_name, speaker, speed, pitch_shift, warmth,
-             default_emotion, emotion_overrides, created_by)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+             default_emotion, emotion_overrides, created_by, engine, voice_blend)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (agent_id) DO UPDATE SET
                 profile_name = EXCLUDED.profile_name,
                 speaker = EXCLUDED.speaker,
@@ -6812,6 +6845,8 @@ def voice_profile_save():
                 warmth = EXCLUDED.warmth,
                 default_emotion = EXCLUDED.default_emotion,
                 emotion_overrides = EXCLUDED.emotion_overrides,
+                engine = EXCLUDED.engine,
+                voice_blend = EXCLUDED.voice_blend,
                 updated_at = NOW()
             RETURNING id
         """,
@@ -6825,6 +6860,8 @@ def voice_profile_save():
                 default_emotion,
                 json.dumps(emotion_overrides),
                 current_user.id,
+                engine,
+                voice_blend,
             ),
         )
         result = cur.fetchone()
@@ -6873,6 +6910,7 @@ def voice_cache_list():
         emotion = request.args.get("emotion", "")
         sort = request.args.get("sort", "hits")
         agent_id = request.args.get("agent_id", "")
+        engine_filter = request.args.get("engine", "")
 
         offset = (page - 1) * per_page
 
@@ -6888,6 +6926,9 @@ def voice_cache_list():
         if agent_id:
             conditions.append("agent_id = %s")
             params.append(int(agent_id))
+        if engine_filter:
+            conditions.append("COALESCE(engine, 'xtts_v2') = %s")
+            params.append(engine_filter)
 
         where = " AND ".join(conditions)
 
@@ -6904,6 +6945,7 @@ def voice_cache_list():
             f"""
             SELECT word_id, word_text, emotion_context, hit_count, usage_count,
                    duration_ms, last_used, agent_id,
+                   COALESCE(engine, 'xtts_v2') as engine,
                    LENGTH(full_audio_cache) as audio_size
             FROM voice_word_cache
             WHERE {where}
@@ -6952,8 +6994,11 @@ def voice_pregen_start():
         agent_id = data.get("agent_id")
         custom_phrases = data.get("custom_phrases", [])
         quality = data.get("quality", "high")
+        engine = data.get("engine", "kokoro")
         if quality not in ("standard", "high"):
             quality = "high"
+        if engine not in ("kokoro", "xtts_v2"):
+            engine = "kokoro"
 
         from .voice_pregen import start_pregen_job
 
@@ -6964,6 +7009,7 @@ def voice_pregen_start():
             agent_id=agent_id,
             custom_phrases=custom_phrases,
             quality=quality,
+            engine=engine,
         )
 
         return jsonify({"success": True, "job_id": job_id})

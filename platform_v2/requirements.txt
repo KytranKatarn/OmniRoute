@@ -73,6 +73,10 @@ torchaudio>=2.0.0,<2.6.0
 # Pin transformers for TTS compatibility (BeamSearchScorer removed in 4.45+)
 transformers>=4.38.0,<4.45.0
 
+# Kokoro TTS (Phase 79: Dual-engine voice)
+kokoro>=0.9.4
+soundfile>=0.12.0
+
 # Google Drive cloud backup
 google-api-python-client>=2.100.0
 google-auth>=2.23.0

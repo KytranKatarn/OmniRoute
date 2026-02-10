@@ -985,8 +985,8 @@
                 <div class="stat-card"><div class="stat-value" id="vs-hits">--</div><div class="stat-label">Cache Hits</div></div>
                 <div class="stat-card"><div class="stat-value" id="vs-hitrate">--</div><div class="stat-label">Hit Rate</div></div>
                 <div class="stat-card"><div class="stat-value" id="vs-storage">--</div><div class="stat-label">Storage</div></div>
-                <div class="stat-card"><div class="stat-value" id="vs-today">--</div><div class="stat-label">Today Gens</div></div>
-                <div class="stat-card"><div class="stat-value" id="vs-avgtime">--</div><div class="stat-label">Avg Gen Time</div></div>
+                <div class="stat-card"><div class="stat-value" id="vs-kokoro-cached">--</div><div class="stat-label">Kokoro Cached</div></div>
+                <div class="stat-card"><div class="stat-value" id="vs-xtts-cached">--</div><div class="stat-label">XTTS Cached</div></div>
             </div>
 
             <div class="dashboard-grid">
@@ -1003,6 +1003,13 @@
             <div class="voice-panel">
                 <h3>Pre-generation</h3>
                 <div class="voice-form-row">
+                    <div class="voice-form-group">
+                        <label>Engine</label>
+                        <select id="pregen-engine">
+                            <option value="kokoro" selected>Kokoro-82M (Fast)</option>
+                            <option value="xtts_v2">Coqui XTTS v2</option>
+                        </select>
+                    </div>
                     <div class="voice-form-group">
                         <label>Job Type</label>
                         <select id="pregen-type">
@@ -1053,6 +1060,13 @@
                 <h3>Voice Workshop</h3>
                 <div class="voice-form-row">
                     <div class="voice-form-group">
+                        <label>Engine</label>
+                        <select id="preview-engine" class="form-control" onchange="onEngineChange()">
+                            <option value="kokoro" selected>Kokoro-82M (Fast, 28 voices)</option>
+                            <option value="xtts_v2">Coqui XTTS v2 (32 speakers)</option>
+                        </select>
+                    </div>
+                    <div class="voice-form-group">
                         <label>Speaker</label>
                         <select id="preview-speaker" class="form-control"></select>
                     </div>
@@ -1064,16 +1078,23 @@
                     </div>
                 </div>
 
+                <div class="voice-form-row" id="preview-blend-row">
+                    <div class="voice-form-group" style="flex: 1;">
+                        <label>Voice Blend <span style="color:var(--archie-text-muted);font-size:0.7rem">(Kokoro only)</span></label>
+                        <input type="text" id="preview-blend" class="form-control" placeholder="e.g. af_bella:60,am_adam:40" value="">
+                    </div>
+                </div>
+
                 <div class="voice-control">
                     <label>Speed <span class="slider-val" id="preview-speed-val">1.00</span></label>
                     <input type="range" class="voice-slider" id="preview-speed" min="0.50" max="2.00" step="0.05" value="1.00" oninput="updateSliderDisplay('speed')">
                 </div>
-                <div class="voice-control">
-                    <label>Pitch <span class="slider-val" id="preview-pitch-val">1.00</span></label>
+                <div class="voice-control" id="preview-pitch-control">
+                    <label>Pitch <span class="slider-val" id="preview-pitch-val">1.00</span> <span class="xtts-only-badge" style="font-size:0.65rem;color:var(--archie-text-muted)">(XTTS only)</span></label>
                     <input type="range" class="voice-slider" id="preview-pitch" min="0.80" max="1.20" step="0.01" value="1.00" oninput="updateSliderDisplay('pitch')">
                 </div>
-                <div class="voice-control">
-                    <label>Warmth <span class="slider-val" id="preview-warmth-val">0.80</span></label>
+                <div class="voice-control" id="preview-warmth-control">
+                    <label>Warmth <span class="slider-val" id="preview-warmth-val">0.80</span> <span class="xtts-only-badge" style="font-size:0.65rem;color:var(--archie-text-muted)">(XTTS only)</span></label>
                     <input type="range" class="voice-slider" id="preview-warmth" min="0.00" max="1.00" step="0.05" value="0.80" oninput="updateSliderDisplay('warmth')">
                 </div>
 
@@ -1109,6 +1130,14 @@
                 <h3>Voice Cache Browser</h3>
                 <div class="voice-form-row">
                     <div class="voice-form-group">
+                        <label>Filter by Engine</label>
+                        <select id="cache-engine-filter" onchange="loadVoiceCache()">
+                            <option value="">All Engines</option>
+                            <option value="kokoro">Kokoro-82M</option>
+                            <option value="xtts_v2">XTTS v2</option>
+                        </select>
+                    </div>
+                    <div class="voice-form-group">
                         <label>Filter by Emotion</label>
                         <select id="cache-emotion-filter" onchange="loadVoiceCache()">
                             <option value="">All Emotions</option>
@@ -1124,7 +1153,7 @@
                     </div>
                 </div>
                 <table class="cache-table" id="voice-cache-table">
-                    <thead><tr><th>Word/Phrase</th><th>Emotion</th><th>Hits</th><th>Size</th><th>Last Used</th></tr></thead>
+                    <thead><tr><th>Word/Phrase</th><th>Engine</th><th>Emotion</th><th>Hits</th><th>Size</th><th>Last Used</th></tr></thead>
                     <tbody></tbody>
                 </table>
                 <div class="cache-pagination" id="cache-pagination"></div>
@@ -1150,6 +1179,13 @@
                         <label>Profile Name</label>
                         <input type="text" id="profile-name" class="form-control" value="Default" placeholder="Profile name...">
                     </div>
+                    <div class="voice-form-group">
+                        <label>Engine</label>
+                        <select id="profile-engine" class="form-control" onchange="onProfileEngineChange()">
+                            <option value="kokoro" selected>Kokoro-82M</option>
+                            <option value="xtts_v2">Coqui XTTS v2</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="voice-form-row">
                     <div class="voice-form-group">
@@ -1161,15 +1197,21 @@
                         <select id="profile-emotion" class="form-control"></select>
                     </div>
                 </div>
+                <div class="voice-form-row" id="profile-blend-row">
+                    <div class="voice-form-group" style="flex: 1;">
+                        <label>Voice Blend <span style="color:var(--archie-text-muted);font-size:0.7rem">(Kokoro only)</span></label>
+                        <input type="text" id="profile-blend" class="form-control" placeholder="e.g. af_bella:60,am_adam:40" value="">
+                    </div>
+                </div>
                 <div class="voice-control">
                     <label>Speed <span class="slider-val" id="profile-speed-val">1.00</span></label>
                     <input type="range" class="voice-slider" id="profile-speed" min="0.50" max="2.00" step="0.05" value="1.00" oninput="updateProfileSlider('speed')">
                 </div>
-                <div class="voice-control">
+                <div class="voice-control" id="profile-pitch-control">
                     <label>Pitch <span class="slider-val" id="profile-pitch-val">1.00</span></label>
                     <input type="range" class="voice-slider" id="profile-pitch" min="0.80" max="1.20" step="0.01" value="1.00" oninput="updateProfileSlider('pitch')">
                 </div>
-                <div class="voice-control">
+                <div class="voice-control" id="profile-warmth-control">
                     <label>Warmth <span class="slider-val" id="profile-warmth-val">0.80</span></label>
                     <input type="range" class="voice-slider" id="profile-warmth" min="0.00" max="1.00" step="0.05" value="0.80" oninput="updateProfileSlider('warmth')">
                 </div>
@@ -3081,9 +3123,10 @@ loadChatHistory();
 // VOICE TAB - Management Functions
 // ═══════════════════════════════════════════════════════════════
 
-var voiceSpeakers = [];
+var voiceSpeakers = {};  // engine-grouped: {kokoro: {group: [...]}, xtts_v2: [...]}
 var voiceEmotions = [];
 var voiceEmotionPresets = {};
+var voiceEngineCapabilities = {};
 var voiceSpeakersLoaded = false;
 var currentCachePage = 1;
 var activePregenJobId = null;
@@ -3111,10 +3154,13 @@ async function loadVoiceDashboard() {
         document.getElementById('vs-hits').textContent = d.total_hits.toLocaleString();
         document.getElementById('vs-hitrate').textContent = d.hit_rate + '%';
         document.getElementById('vs-storage').textContent = d.storage_mb + ' MB';
-        document.getElementById('vs-today').textContent = d.today_gens;
-        document.getElementById('vs-avgtime').textContent = d.avg_gen_ms ? (d.avg_gen_ms + 'ms') : 'N/A';
 
-        // Top emotions table - safe DOM construction
+        // Engine breakdown
+        var eb = d.engine_breakdown || {};
+        document.getElementById('vs-kokoro-cached').textContent = (eb.kokoro || 0).toLocaleString();
+        document.getElementById('vs-xtts-cached').textContent = (eb.xtts_v2 || 0).toLocaleString();
+
+        // Top emotions table
         var tbody = document.querySelector('#voice-emotions-table tbody');
         tbody.textContent = '';
         (d.top_emotions || []).forEach(function(e) {
@@ -3126,7 +3172,7 @@ async function loadVoiceDashboard() {
             tbody.appendChild(tr);
         });
 
-        // Top words table - safe DOM construction
+        // Top words table
         var wbody = document.querySelector('#voice-words-table tbody');
         wbody.textContent = '';
         (d.top_words || []).forEach(function(w) {
@@ -3149,21 +3195,13 @@ async function loadVoiceSpeakers() {
         var r = await fetch('/tools/consciousness/api/voice/speakers');
         var d = await r.json();
         if (!d.success) return;
-        voiceSpeakers = d.speakers || [];
+        voiceSpeakers = d.speakers || {};
         voiceEmotions = d.emotions || [];
         voiceEmotionPresets = d.emotion_presets || {};
+        voiceEngineCapabilities = d.engine_capabilities || {};
         voiceSpeakersLoaded = true;
 
-        // Populate preview dropdowns
-        var speakerSel = document.getElementById('preview-speaker');
-        speakerSel.textContent = '';
-        voiceSpeakers.forEach(function(s) {
-            var opt = document.createElement('option');
-            opt.value = s; opt.textContent = s;
-            if (s === 'Ana Florence') opt.selected = true;
-            speakerSel.appendChild(opt);
-        });
-
+        // Populate emotion dropdowns
         var emotionSel = document.getElementById('preview-emotion');
         emotionSel.textContent = '';
         voiceEmotions.forEach(function(e) {
@@ -3171,10 +3209,15 @@ async function loadVoiceSpeakers() {
             opt.value = e; opt.textContent = e.charAt(0).toUpperCase() + e.slice(1);
             emotionSel.appendChild(opt);
         });
-
-        // Populate profile dropdowns
-        populateSelectFrom('profile-speaker', voiceSpeakers, 'Ana Florence');
         populateSelectFrom('profile-emotion', voiceEmotions);
+
+        // Populate speakers for default engine (kokoro)
+        populateSpeakerDropdown('preview-speaker', 'kokoro');
+        populateSpeakerDropdown('profile-speaker', 'kokoro');
+
+        // Apply initial engine state
+        onEngineChange();
+        onProfileEngineChange();
 
         // Populate cache emotion filter
         var cacheFilter = document.getElementById('cache-emotion-filter');
@@ -3187,6 +3230,75 @@ async function loadVoiceSpeakers() {
         }
     } catch (e) {
         console.error('Voice speakers error:', e);
+    }
+}
+
+function populateSpeakerDropdown(selectId, engine) {
+    var sel = document.getElementById(selectId);
+    if (!sel) return;
+    sel.textContent = '';
+    if (engine === 'kokoro') {
+        var grouped = voiceSpeakers.kokoro || {};
+        Object.keys(grouped).forEach(function(groupName) {
+            var optgroup = document.createElement('optgroup');
+            optgroup.label = groupName;
+            (grouped[groupName] || []).forEach(function(v) {
+                var opt = document.createElement('option');
+                opt.value = v; opt.textContent = v;
+                if (v === 'af_heart') opt.selected = true;
+                optgroup.appendChild(opt);
+            });
+            sel.appendChild(optgroup);
+        });
+    } else {
+        var speakers = voiceSpeakers.xtts_v2 || [];
+        speakers.forEach(function(s) {
+            var opt = document.createElement('option');
+            opt.value = s; opt.textContent = s;
+            if (s === 'Ana Florence') opt.selected = true;
+            sel.appendChild(opt);
+        });
+    }
+}
+
+function onEngineChange() {
+    var engine = document.getElementById('preview-engine').value;
+    populateSpeakerDropdown('preview-speaker', engine);
+    var caps = voiceEngineCapabilities[engine] || {};
+    // Toggle pitch/warmth controls
+    var pitchCtrl = document.getElementById('preview-pitch-control');
+    var warmthCtrl = document.getElementById('preview-warmth-control');
+    var blendRow = document.getElementById('preview-blend-row');
+    if (pitchCtrl) {
+        pitchCtrl.style.opacity = caps.pitch_shift ? '1' : '0.4';
+        document.getElementById('preview-pitch').disabled = !caps.pitch_shift;
+    }
+    if (warmthCtrl) {
+        warmthCtrl.style.opacity = caps.warmth ? '1' : '0.4';
+        document.getElementById('preview-warmth').disabled = !caps.warmth;
+    }
+    if (blendRow) {
+        blendRow.style.display = caps.voice_blend ? 'flex' : 'none';
+    }
+}
+
+function onProfileEngineChange() {
+    var engine = document.getElementById('profile-engine').value;
+    populateSpeakerDropdown('profile-speaker', engine);
+    var caps = voiceEngineCapabilities[engine] || {};
+    var pitchCtrl = document.getElementById('profile-pitch-control');
+    var warmthCtrl = document.getElementById('profile-warmth-control');
+    var blendRow = document.getElementById('profile-blend-row');
+    if (pitchCtrl) {
+        pitchCtrl.style.opacity = caps.pitch_shift ? '1' : '0.4';
+        document.getElementById('profile-pitch').disabled = !caps.pitch_shift;
+    }
+    if (warmthCtrl) {
+        warmthCtrl.style.opacity = caps.warmth ? '1' : '0.4';
+        document.getElementById('profile-warmth').disabled = !caps.warmth;
+    }
+    if (blendRow) {
+        blendRow.style.display = caps.voice_blend ? 'flex' : 'none';
     }
 }
 
@@ -3235,19 +3347,26 @@ async function previewVoice() {
     document.getElementById('save-profile-btn').style.display = 'none';
     document.getElementById('preview-audio-container').style.display = 'none';
 
+    var engine = document.getElementById('preview-engine').value;
+    var blendVal = document.getElementById('preview-blend').value.trim();
+
     try {
+        var body = {
+            text: document.getElementById('preview-text').value,
+            speaker: document.getElementById('preview-speaker').value,
+            speed: parseFloat(document.getElementById('preview-speed').value),
+            pitch_shift: parseFloat(document.getElementById('preview-pitch').value),
+            warmth: parseFloat(document.getElementById('preview-warmth').value),
+            emotion: document.getElementById('preview-emotion').value,
+            quality: document.getElementById('preview-quality').value,
+            engine: engine
+        };
+        if (blendVal && engine === 'kokoro') body.voice_blend = blendVal;
+
         var r = await fetch('/tools/consciousness/api/voice/preview', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                text: document.getElementById('preview-text').value,
-                speaker: document.getElementById('preview-speaker').value,
-                speed: parseFloat(document.getElementById('preview-speed').value),
-                pitch_shift: parseFloat(document.getElementById('preview-pitch').value),
-                warmth: parseFloat(document.getElementById('preview-warmth').value),
-                emotion: document.getElementById('preview-emotion').value,
-                quality: document.getElementById('preview-quality').value
-            })
+            body: JSON.stringify(body)
         });
         var d = await r.json();
         if (d.success && d.audio_base64) {
@@ -3258,7 +3377,7 @@ async function previewVoice() {
             audio.src = url;
             document.getElementById('preview-audio-container').style.display = 'block';
             audio.play();
-            status.textContent = 'Generated in ' + d.generation_time_ms + 'ms';
+            status.textContent = 'Generated in ' + d.generation_time_ms + 'ms (' + engine + ')';
             document.getElementById('save-profile-btn').style.display = 'inline-flex';
         } else {
             status.textContent = 'Error: ' + (d.error || 'Unknown error');
@@ -3273,6 +3392,8 @@ async function previewVoice() {
 function showSaveProfileDialog() {
     switchVoiceTab('agents');
     showNewProfileForm();
+    document.getElementById('profile-engine').value = document.getElementById('preview-engine').value;
+    onProfileEngineChange();
     document.getElementById('profile-speaker').value = document.getElementById('preview-speaker').value;
     document.getElementById('profile-emotion').value = document.getElementById('preview-emotion').value;
     document.getElementById('profile-speed').value = document.getElementById('preview-speed').value;
@@ -3281,14 +3402,17 @@ function showSaveProfileDialog() {
     document.getElementById('profile-pitch-val').textContent = document.getElementById('preview-pitch-val').textContent;
     document.getElementById('profile-warmth').value = document.getElementById('preview-warmth').value;
     document.getElementById('profile-warmth-val').textContent = document.getElementById('preview-warmth-val').textContent;
+    document.getElementById('profile-blend').value = document.getElementById('preview-blend').value;
 }
 
 async function loadVoiceCache(page) {
     currentCachePage = page || 1;
     var emotion = document.getElementById('cache-emotion-filter').value;
     var sort = document.getElementById('cache-sort').value;
+    var engineF = document.getElementById('cache-engine-filter').value;
     var url = '/tools/consciousness/api/voice/cache?page=' + currentCachePage + '&per_page=25&sort=' + sort;
     if (emotion) url += '&emotion=' + encodeURIComponent(emotion);
+    if (engineF) url += '&engine=' + encodeURIComponent(engineF);
 
     try {
         var r = await fetch(url);
@@ -3300,13 +3424,19 @@ async function loadVoiceCache(page) {
         (d.entries || []).forEach(function(e) {
             var tr = document.createElement('tr');
             var td1 = document.createElement('td'); td1.textContent = e.word_text || '';
-            var td2 = document.createElement('td'); td2.textContent = e.emotion_context || '';
-            var td3 = document.createElement('td'); td3.textContent = e.hit_count || 0;
+            var td2 = document.createElement('td');
+            var badge = document.createElement('span');
+            badge.style.cssText = 'padding:0.1rem 0.4rem;border-radius:3px;font-size:0.7rem;' +
+                (e.engine === 'kokoro' ? 'background:#8b5cf620;color:#a78bfa' : 'background:#00ffff15;color:#00cccc');
+            badge.textContent = e.engine === 'kokoro' ? 'Kokoro' : 'XTTS';
+            td2.appendChild(badge);
+            var td3 = document.createElement('td'); td3.textContent = e.emotion_context || '';
+            var td4 = document.createElement('td'); td4.textContent = e.hit_count || 0;
             var size = e.audio_size ? (e.audio_size > 1048576 ? (e.audio_size / 1048576).toFixed(1) + ' MB' : (e.audio_size / 1024).toFixed(0) + ' KB') : '-';
-            var td4 = document.createElement('td'); td4.textContent = size;
+            var td5 = document.createElement('td'); td5.textContent = size;
             var lastUsed = e.last_used ? new Date(e.last_used).toLocaleDateString() : '-';
-            var td5 = document.createElement('td'); td5.textContent = lastUsed;
-            tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3); tr.appendChild(td4); tr.appendChild(td5);
+            var td6 = document.createElement('td'); td6.textContent = lastUsed;
+            tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3); tr.appendChild(td4); tr.appendChild(td5); tr.appendChild(td6);
             tbody.appendChild(tr);
         });
 
@@ -3378,6 +3508,14 @@ async function loadVoiceProfiles() {
             sub.textContent = p.profile_name + ' \u00b7 ' + p.speaker;
             info.appendChild(sub);
             header.appendChild(info);
+
+            // Engine badge
+            var engineBadge = document.createElement('span');
+            var isKokoro = (p.engine || 'xtts_v2') === 'kokoro';
+            engineBadge.style.cssText = 'padding:0.15rem 0.5rem;border-radius:4px;font-size:0.65rem;margin-left:auto;' +
+                (isKokoro ? 'background:#8b5cf620;color:#a78bfa' : 'background:#00ffff15;color:#00cccc');
+            engineBadge.textContent = isKokoro ? 'Kokoro' : 'XTTS v2';
+            header.appendChild(engineBadge);
             card.appendChild(header);
 
             // Params
@@ -3401,7 +3539,9 @@ async function loadVoiceProfiles() {
             // Meta
             var meta = document.createElement('div');
             meta.style.cssText = 'font-size:0.75rem;color:var(--archie-text-muted)';
-            meta.textContent = (p.cached_words || 0) + ' cached words \u00b7 ' + (p.default_emotion || 'neutral');
+            var metaText = (p.cached_words || 0) + ' cached words \u00b7 ' + (p.default_emotion || 'neutral');
+            if (p.voice_blend) metaText += ' \u00b7 blend: ' + p.voice_blend;
+            meta.textContent = metaText;
             card.appendChild(meta);
 
             // Actions
@@ -3413,7 +3553,8 @@ async function loadVoiceProfiles() {
             editBtn.onclick = (function(pp) {
                 return function() {
                     editVoiceProfile(pp.id, pp.agent_id, pp.profile_name, pp.speaker,
-                        pp.speed || 1, pp.pitch_shift || 1, pp.warmth || 0.8, pp.default_emotion || 'neutral');
+                        pp.speed || 1, pp.pitch_shift || 1, pp.warmth || 0.8,
+                        pp.default_emotion || 'neutral', pp.engine || 'xtts_v2', pp.voice_blend || '');
                 };
             })(p);
             actions.appendChild(editBtn);
@@ -3438,12 +3579,15 @@ function showNewProfileForm() {
     document.getElementById('profile-form-title').textContent = 'New Voice Profile';
     document.getElementById('profile-agent').value = '';
     document.getElementById('profile-name').value = 'Default';
+    document.getElementById('profile-engine').value = 'kokoro';
+    onProfileEngineChange();
     document.getElementById('profile-speed').value = '1.00';
     document.getElementById('profile-speed-val').textContent = '1.00';
     document.getElementById('profile-pitch').value = '1.00';
     document.getElementById('profile-pitch-val').textContent = '1.00';
     document.getElementById('profile-warmth').value = '0.80';
     document.getElementById('profile-warmth-val').textContent = '0.80';
+    document.getElementById('profile-blend').value = '';
 }
 
 function hideProfileForm() {
@@ -3451,11 +3595,13 @@ function hideProfileForm() {
     document.getElementById('profile-audio-container').style.display = 'none';
 }
 
-function editVoiceProfile(id, agentId, name, speaker, speed, pitch, warmth, emotion) {
+function editVoiceProfile(id, agentId, name, speaker, speed, pitch, warmth, emotion, engine, blend) {
     document.getElementById('agent-profile-form').style.display = 'block';
     document.getElementById('profile-form-title').textContent = 'Edit Voice Profile';
     document.getElementById('profile-agent').value = agentId;
     document.getElementById('profile-name').value = name;
+    document.getElementById('profile-engine').value = engine || 'kokoro';
+    onProfileEngineChange();
     document.getElementById('profile-speaker').value = speaker;
     document.getElementById('profile-emotion').value = emotion;
     document.getElementById('profile-speed').value = speed;
@@ -3464,25 +3610,33 @@ function editVoiceProfile(id, agentId, name, speaker, speed, pitch, warmth, emot
     document.getElementById('profile-pitch-val').textContent = pitch.toFixed(2);
     document.getElementById('profile-warmth').value = warmth;
     document.getElementById('profile-warmth-val').textContent = warmth.toFixed(2);
+    document.getElementById('profile-blend').value = blend || '';
 }
 
 async function saveAgentProfile() {
     var agentId = document.getElementById('profile-agent').value;
     if (!agentId) { alert('Please select an agent'); return; }
 
+    var engine = document.getElementById('profile-engine').value;
+    var blendVal = document.getElementById('profile-blend').value.trim();
+
     try {
+        var body = {
+            agent_id: parseInt(agentId),
+            profile_name: document.getElementById('profile-name').value,
+            speaker: document.getElementById('profile-speaker').value,
+            speed: parseFloat(document.getElementById('profile-speed').value),
+            pitch_shift: parseFloat(document.getElementById('profile-pitch').value),
+            warmth: parseFloat(document.getElementById('profile-warmth').value),
+            default_emotion: document.getElementById('profile-emotion').value,
+            engine: engine
+        };
+        if (blendVal && engine === 'kokoro') body.voice_blend = blendVal;
+
         var r = await fetch('/tools/consciousness/api/voice/profiles', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                agent_id: parseInt(agentId),
-                profile_name: document.getElementById('profile-name').value,
-                speaker: document.getElementById('profile-speaker').value,
-                speed: parseFloat(document.getElementById('profile-speed').value),
-                pitch_shift: parseFloat(document.getElementById('profile-pitch').value),
-                warmth: parseFloat(document.getElementById('profile-warmth').value),
-                default_emotion: document.getElementById('profile-emotion').value
-            })
+            body: JSON.stringify(body)
         });
         var d = await r.json();
         if (d.success) {
@@ -3499,18 +3653,24 @@ async function saveAgentProfile() {
 async function previewAgentVoice() {
     var container = document.getElementById('profile-audio-container');
     container.style.display = 'none';
+    var engine = document.getElementById('profile-engine').value;
+    var blendVal = document.getElementById('profile-blend').value.trim();
     try {
+        var body = {
+            text: 'Hello, this is my voice profile preview.',
+            speaker: document.getElementById('profile-speaker').value,
+            speed: parseFloat(document.getElementById('profile-speed').value),
+            pitch_shift: parseFloat(document.getElementById('profile-pitch').value),
+            warmth: parseFloat(document.getElementById('profile-warmth').value),
+            emotion: document.getElementById('profile-emotion').value,
+            engine: engine
+        };
+        if (blendVal && engine === 'kokoro') body.voice_blend = blendVal;
+
         var r = await fetch('/tools/consciousness/api/voice/preview', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                text: 'Hello, this is my voice profile preview.',
-                speaker: document.getElementById('profile-speaker').value,
-                speed: parseFloat(document.getElementById('profile-speed').value),
-                pitch_shift: parseFloat(document.getElementById('profile-pitch').value),
-                warmth: parseFloat(document.getElementById('profile-warmth').value),
-                emotion: document.getElementById('profile-emotion').value
-            })
+            body: JSON.stringify(body)
         });
         var d = await r.json();
         if (d.success && d.audio_base64) {
@@ -3562,7 +3722,8 @@ async function startPregen() {
                 job_type: document.getElementById('pregen-type').value,
                 word_count: parseInt(document.getElementById('pregen-count').value),
                 emotions: emotions,
-                quality: document.getElementById('pregen-quality').value
+                quality: document.getElementById('pregen-quality').value,
+                engine: document.getElementById('pregen-engine').value
             })
         });
         var d = await r.json();
@@ -3600,6 +3761,8 @@ function pollPregenJob(jobId) {
             }
         } catch (e) {
             clearInterval(interval);
+            activePregenJobId = null;
+            document.getElementById('pregen-status-text').textContent = 'Error polling job status: ' + e.message;
         }
     }, 3000);
 }

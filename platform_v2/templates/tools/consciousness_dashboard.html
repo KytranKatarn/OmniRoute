@@ -724,99 +724,106 @@
     <div id="tab-aiprocess" class="tab-content">
         <div class="panel">
             <div class="panel-header">
-                <div class="panel-title">🤖 AI Knowledge Processing</div>
+                <div class="panel-title">AI Knowledge Processing</div>
                 <div style="display: flex; gap: 0.5rem; align-items: center;">
-                    <button class="btn btn-secondary" onclick="loadProcessingStatus()">🔄 Refresh</button>
+                    <span style="background: var(--archie-green-alpha-10, rgba(0,255,65,0.1)); color: var(--archie-green); padding: 0.25rem 0.75rem; border-radius: 999px; font-size: 0.8rem; border: 1px solid var(--archie-green-dim, #1a7f33);">All services local (free)</span>
+                    <button class="btn btn-secondary" onclick="loadProcessingStatus()">Refresh</button>
                 </div>
             </div>
             <div class="panel-body">
-                <!-- Service Status -->
+                <!-- Service + Coverage Stats -->
                 <div class="stats-grid" style="margin-bottom: 1.5rem;">
                     <div class="stat-card" style="border-color: var(--archie-border-muted);">
-                        <div class="stat-value" id="ai-embedding-status">-</div>
+                        <div class="stat-value" id="ai-embedding-status" style="font-size: 1rem;">-</div>
                         <div class="stat-label">Embedding Service</div>
                     </div>
                     <div class="stat-card" style="border-color: var(--archie-border-muted);">
-                        <div class="stat-value" id="ai-analyzer-status">-</div>
-                        <div class="stat-label">Claude Analyzer</div>
+                        <div class="stat-value" id="ai-analyzer-status" style="font-size: 1rem;">-</div>
+                        <div class="stat-label">Analyzer Service</div>
                     </div>
-                    <div class="stat-card" style="border-color: var(--archie-green-dim);">
-                        <div class="stat-value" id="ai-cost-today">$0.00</div>
-                        <div class="stat-label">Cost Today</div>
+                    <div class="stat-card" id="ai-embed-coverage-card">
+                        <div class="stat-value" id="ai-embed-coverage-pct">-</div>
+                        <div class="stat-label">Embedding Coverage</div>
+                        <div class="gauge-bar" style="height: 6px; margin-top: 0.5rem;"><div class="gauge-fill" id="ai-embed-coverage-bar" style="width: 0%; background: var(--module-accent);"></div></div>
+                        <div class="stat-subtitle" id="ai-embed-coverage-detail" style="margin-top: 0.25rem;">-</div>
                     </div>
-                    <div class="stat-card" style="border-color: var(--archie-green-dim);">
-                        <div class="stat-value" id="ai-tokens-remaining">-</div>
-                        <div class="stat-label">Tokens Remaining</div>
-                    </div>
-                </div>
-
-                <!-- Processing Backlog -->
-                <h4 style="color: var(--module-accent); margin-bottom: 1rem;">📊 Processing Backlog</h4>
-                <div class="stats-grid" style="margin-bottom: 1.5rem;">
-                    <div class="stat-card">
-                        <div class="stat-value" id="ai-backlog-conversations">-</div>
-                        <div class="stat-label">Conversations</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="ai-backlog-github">-</div>
-                        <div class="stat-label">GitHub Files</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="ai-backlog-embeddings">-</div>
-                        <div class="stat-label">Missing Embeddings</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="ai-backlog-total">-</div>
-                        <div class="stat-label">Total Pending</div>
+                    <div class="stat-card" id="ai-analysis-coverage-card">
+                        <div class="stat-value" id="ai-analysis-coverage-pct">-</div>
+                        <div class="stat-label">Analysis Coverage</div>
+                        <div class="gauge-bar" style="height: 6px; margin-top: 0.5rem;"><div class="gauge-fill" id="ai-analysis-coverage-bar" style="width: 0%; background: var(--archie-cyan, #22d3ee);"></div></div>
+                        <div class="stat-subtitle" id="ai-analysis-coverage-detail" style="margin-top: 0.25rem;">-</div>
                     </div>
                 </div>
 
-                <!-- Batch Processing Form -->
-                <h4 style="color: var(--module-accent); margin-bottom: 1rem;">🚀 Process Batch</h4>
-                <div style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap; margin-bottom: 1rem;">
-                    <div>
-                        <label style="color: var(--archie-text-muted); display: block; margin-bottom: 0.5rem;">Category:</label>
-                        <select id="ai-category" class="form-control" style="width: 180px;">
-                            <option value="conversations">Conversations</option>
-                            <option value="github">GitHub Files</option>
-                            <option value="claude_hooks">Claude Hooks</option>
-                        </select>
+                <!-- Embedding Coverage by Type -->
+                <h4 style="color: var(--module-accent); margin-bottom: 1rem;">Embedding Coverage by Type</h4>
+                <div id="ai-coverage-table" style="margin-bottom: 1.5rem;">
+                    <div style="color: var(--archie-text-muted); padding: 1rem;">Loading coverage data...</div>
+                </div>
+
+                <!-- Backlog Summary -->
+                <h4 style="color: var(--module-accent); margin-bottom: 1rem;">Processing Backlog</h4>
+                <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
+                    <div style="flex: 1; min-width: 120px; padding: 0.75rem; background: var(--archie-bg-tertiary); border-radius: 8px; text-align: center;">
+                        <div style="color: var(--archie-text-muted); font-size: 0.8rem;">Conversations</div>
+                        <div style="color: var(--archie-text-primary); font-size: 1.1rem; font-weight: 600;" id="ai-backlog-conversations">-</div>
                     </div>
-                    <div>
-                        <label style="color: var(--archie-text-muted); display: block; margin-bottom: 0.5rem;">Batch Size:</label>
-                        <input type="number" id="ai-batch-size" class="form-control" value="10" min="1" max="50" style="width: 100px;">
+                    <div style="flex: 1; min-width: 120px; padding: 0.75rem; background: var(--archie-bg-tertiary); border-radius: 8px; text-align: center;">
+                        <div style="color: var(--archie-text-muted); font-size: 0.8rem;">GitHub Files</div>
+                        <div style="color: var(--archie-text-primary); font-size: 1.1rem; font-weight: 600;" id="ai-backlog-github">-</div>
                     </div>
-                    <button class="btn btn-secondary" onclick="estimateAIBatch()">📊 Estimate Cost</button>
-                    <button class="btn btn-primary" onclick="startAIProcessing()">🤖 Process</button>
-                </div>
-
-                <!-- Cost Estimate Display -->
-                <div id="ai-estimate-display" style="display: none; padding: 1rem; background: var(--archie-bg-tertiary); border-radius: 8px; margin-bottom: 1rem;">
-                    <div style="display: flex; gap: 2rem; flex-wrap: wrap;">
-                        <div><span style="color: var(--archie-text-muted);">Est. Tokens:</span> <span id="ai-est-tokens" style="color: var(--archie-green);">-</span></div>
-                        <div><span style="color: var(--archie-text-muted);">Est. Cost:</span> <span id="ai-est-cost" style="color: var(--archie-green);">-</span></div>
-                        <div><span style="color: var(--archie-text-muted);">Within Limit:</span> <span id="ai-est-limit" style="color: var(--archie-green);">-</span></div>
+                    <div style="flex: 1; min-width: 120px; padding: 0.75rem; background: var(--archie-bg-tertiary); border-radius: 8px; text-align: center;">
+                        <div style="color: var(--archie-text-muted); font-size: 0.8rem;">Claude Hooks</div>
+                        <div style="color: var(--archie-text-primary); font-size: 1.1rem; font-weight: 600;" id="ai-backlog-hooks">-</div>
+                    </div>
+                    <div style="flex: 1; min-width: 120px; padding: 0.75rem; background: var(--archie-bg-tertiary); border-radius: 8px; text-align: center;">
+                        <div style="color: var(--archie-text-muted); font-size: 0.8rem;">Missing Embeddings</div>
+                        <div style="color: var(--archie-text-primary); font-size: 1.1rem; font-weight: 600;" id="ai-backlog-embeddings">-</div>
                     </div>
                 </div>
 
-                <!-- Processing Progress -->
-                <div id="ai-processing-progress" style="display: none; margin: 1rem 0;">
-                    <div class="gauge-bar" style="height: 12px;"><div class="gauge-fill" id="ai-progress-bar" style="width: 0%; background: var(--module-accent);"></div></div>
-                    <div style="text-align: center; margin-top: 0.5rem; color: var(--archie-text-muted);" id="ai-progress-text">Processing...</div>
-                </div>
+                <!-- Collapsible Manual Processing -->
+                <details style="margin-bottom: 1rem;">
+                    <summary style="color: var(--module-accent); cursor: pointer; padding: 0.75rem; background: var(--archie-bg-tertiary); border-radius: 8px; font-weight: 600;">Manual Processing Controls</summary>
+                    <div style="padding: 1rem; border: 1px solid var(--archie-border-default); border-top: none; border-radius: 0 0 8px 8px;">
+                        <!-- AI Analysis Batch -->
+                        <h4 style="color: var(--module-accent); margin-bottom: 1rem;">AI Analysis</h4>
+                        <div style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap; margin-bottom: 1rem;">
+                            <div>
+                                <label style="color: var(--archie-text-muted); display: block; margin-bottom: 0.5rem;">Category:</label>
+                                <select id="ai-category" class="form-control" style="width: 180px;">
+                                    <option value="conversations">Conversations</option>
+                                    <option value="github">GitHub Files</option>
+                                    <option value="claude_hooks">Claude Hooks</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="color: var(--archie-text-muted); display: block; margin-bottom: 0.5rem;">Batch Size:</label>
+                                <input type="number" id="ai-batch-size" class="form-control" value="10" min="1" max="50" style="width: 100px;">
+                            </div>
+                            <button class="btn btn-primary" onclick="startAIProcessing()">Process Batch</button>
+                        </div>
 
-                <!-- Generate Embeddings Section -->
-                <h4 style="color: var(--module-accent); margin: 1.5rem 0 1rem;">🧬 Generate Embeddings</h4>
-                <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem;">
-                    <label style="color: var(--archie-text-muted);">Batch Size:</label>
-                    <input type="number" id="ai-embed-batch-size" class="form-control" value="50" min="1" max="200" style="width: 100px;">
-                    <button class="btn btn-primary" onclick="generateEmbeddings()">🧬 Generate</button>
-                    <span style="color: var(--archie-text-muted); font-size: 0.85rem;">(Free - uses local Ollama)</span>
-                </div>
+                        <!-- Processing Progress -->
+                        <div id="ai-processing-progress" style="display: none; margin: 1rem 0;">
+                            <div class="gauge-bar" style="height: 12px;"><div class="gauge-fill" id="ai-progress-bar" style="width: 0%; background: var(--module-accent);"></div></div>
+                            <div style="text-align: center; margin-top: 0.5rem; color: var(--archie-text-muted);" id="ai-progress-text">Processing...</div>
+                        </div>
 
-                <!-- Processing Log -->
-                <h4 style="color: var(--module-accent); margin: 1.5rem 0 1rem;">📋 Processing Log</h4>
-                <div id="ai-processing-log" class="activity-feed" style="max-height: 300px;"></div>
+                        <!-- Generate Embeddings -->
+                        <h4 style="color: var(--module-accent); margin: 1.5rem 0 1rem;">Embedding Generation</h4>
+                        <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem;">
+                            <label style="color: var(--archie-text-muted);">Batch Size:</label>
+                            <input type="number" id="ai-embed-batch-size" class="form-control" value="200" min="1" max="200" style="width: 100px;">
+                            <button class="btn btn-primary" onclick="generateEmbeddings()">Generate Embeddings</button>
+                            <span style="color: var(--archie-text-muted); font-size: 0.85rem;">(local Ollama nomic-embed-text)</span>
+                        </div>
+
+                        <!-- Processing Log -->
+                        <h4 style="color: var(--module-accent); margin: 1.5rem 0 1rem;">Processing Log</h4>
+                        <div id="ai-processing-log" class="activity-feed" style="max-height: 300px;"></div>
+                    </div>
+                </details>
             </div>
         </div>
     </div>
@@ -1299,12 +1306,13 @@ async function loadStats() {
             // Text Searchable (KB + LTM support text search; show embedding coverage separately)
             const ss = overview.search_status || {};
             const textSearchable = ss.text_searchable || 0;
+            const kbTotal = ss.kb_total || 0;
+            const ltmCount = textSearchable - kbTotal;
             document.getElementById('stat-searchable').textContent = textSearchable.toLocaleString();
             const kbEmbedded = ss.kb_embedded || 0;
-            const kbTotal = ss.kb_total || 0;
             const embedPct = kbTotal > 0 ? Math.round((kbEmbedded / kbTotal) * 100) : 0;
             document.getElementById('stat-searchable-subtitle').textContent =
-                embedPct + '% of KB vector-embedded (' + kbEmbedded.toLocaleString() + '/' + kbTotal.toLocaleString() + ')';
+                kbTotal.toLocaleString() + ' KB + ' + ltmCount + ' mem \u00b7 ' + embedPct + '% embedded';
 
             // Self-Knowledge
             const sk = overview.self_knowledge || {};
@@ -2224,48 +2232,90 @@ async function ingestLogs(dryRun) {
 // AI Processing functions
 async function loadProcessingStatus() {
     try {
-        const response = await fetch('/tools/consciousness/api/processing/status', { credentials: 'same-origin' });
-        const data = await response.json();
+        var statusRes = await fetch('/tools/consciousness/api/processing/status', { credentials: 'same-origin' });
+        var coverageRes = await fetch('/tools/consciousness/api/processing/embedding-coverage', { credentials: 'same-origin' });
+        var data = await statusRes.json();
+        var coverage = await coverageRes.json();
 
         if (data.success) {
-            // Service status - show backend info
-            const embeddingStatus = data.services?.embedding?.status === 'healthy'
-                ? '✅ ' + (data.services.embedding.model || 'Online')
-                : '❌ Offline';
-            const analyzer = data.services?.analyzer || {};
-            let analyzerStatus = '❌ Offline';
-            if (analyzer.status === 'healthy') {
-                const backend = analyzer.backend || 'unknown';
-                const model = analyzer.model || 'unknown';
-                analyzerStatus = backend === 'ollama'
-                    ? `✅ ${model} (Local - FREE)`
-                    : `✅ ${model}`;
-            }
-            document.getElementById('ai-embedding-status').textContent = embeddingStatus;
-            document.getElementById('ai-analyzer-status').textContent = analyzerStatus;
+            // Service status
+            var embSvc = data.services && data.services.embedding ? data.services.embedding : {};
+            document.getElementById('ai-embedding-status').textContent =
+                embSvc.status === 'healthy' ? '\u2705 ' + (embSvc.model || 'Online') : '\u274c Offline';
 
-            // Cost status - show FREE if using Ollama
-            const backend = data.services?.analyzer?.backend;
-            if (backend === 'ollama') {
-                document.getElementById('ai-cost-today').textContent = 'FREE (Local)';
-                document.getElementById('ai-tokens-remaining').textContent = '∞';
-            } else {
-                const costToday = data.cost?.estimated_cost_usd || 0;
-                const tokensRemaining = data.cost?.remaining_tokens || 0;
-                document.getElementById('ai-cost-today').textContent = '$' + costToday.toFixed(2);
-                document.getElementById('ai-tokens-remaining').textContent = tokensRemaining.toLocaleString();
-            }
+            var anlSvc = data.services && data.services.analyzer ? data.services.analyzer : {};
+            document.getElementById('ai-analyzer-status').textContent =
+                anlSvc.status === 'healthy' ? '\u2705 ' + (anlSvc.model || 'Online') : '\u274c Offline';
 
             // Backlog
-            const backlog = data.backlog || {};
-            document.getElementById('ai-backlog-conversations').textContent = (backlog.conversations || 0).toLocaleString();
-            document.getElementById('ai-backlog-github').textContent = (backlog.github || 0).toLocaleString();
-            document.getElementById('ai-backlog-embeddings').textContent = (backlog.embeddings_missing || 0).toLocaleString();
-            document.getElementById('ai-backlog-total').textContent = (backlog.total || 0).toLocaleString();
-
-            // Also load processing history
-            loadProcessingHistory();
+            var bl = data.backlog || {};
+            document.getElementById('ai-backlog-conversations').textContent = (bl.conversations || 0).toLocaleString();
+            document.getElementById('ai-backlog-github').textContent = (bl.github || 0).toLocaleString();
+            document.getElementById('ai-backlog-hooks').textContent = (bl.claude_hooks || 0).toLocaleString();
+            document.getElementById('ai-backlog-embeddings').textContent = (bl.embeddings_missing || 0).toLocaleString();
         }
+
+        if (coverage.success) {
+            var totals = coverage.totals || {};
+            var embedPct = totals.total > 0 ? Math.round((totals.embedded / totals.total) * 100) : 0;
+            var analysisPct = totals.total > 0 ? Math.round((totals.analyzed / totals.total) * 100) : 0;
+
+            // Embedding coverage card
+            var embedColor = embedPct >= 75 ? 'var(--archie-green)' : embedPct >= 30 ? 'var(--archie-yellow, #f0c040)' : 'var(--archie-red, #f85149)';
+            document.getElementById('ai-embed-coverage-pct').textContent = embedPct + '%';
+            document.getElementById('ai-embed-coverage-pct').style.color = embedColor;
+            document.getElementById('ai-embed-coverage-bar').style.width = embedPct + '%';
+            document.getElementById('ai-embed-coverage-bar').style.background = embedColor;
+            document.getElementById('ai-embed-coverage-detail').textContent =
+                totals.embedded.toLocaleString() + ' / ' + totals.total.toLocaleString() + ' entries';
+
+            // Analysis coverage card
+            var anlColor = analysisPct >= 50 ? 'var(--archie-green)' : analysisPct >= 20 ? 'var(--archie-yellow, #f0c040)' : 'var(--archie-red, #f85149)';
+            document.getElementById('ai-analysis-coverage-pct').textContent = analysisPct + '%';
+            document.getElementById('ai-analysis-coverage-pct').style.color = anlColor;
+            document.getElementById('ai-analysis-coverage-bar').style.width = analysisPct + '%';
+            document.getElementById('ai-analysis-coverage-bar').style.background = anlColor;
+            document.getElementById('ai-analysis-coverage-detail').textContent =
+                totals.analyzed.toLocaleString() + ' / ' + totals.total.toLocaleString() + ' entries';
+
+            // Coverage by type table (safe DOM construction)
+            var types = coverage.types || [];
+            var tableEl = document.getElementById('ai-coverage-table');
+            tableEl.textContent = '';
+            if (types.length > 0) {
+                var grid = document.createElement('div');
+                grid.style.cssText = 'display: grid; gap: 0.5rem;';
+                types.forEach(function(t) {
+                    var pct = t.total > 0 ? Math.round((t.embedded / t.total) * 100) : 0;
+                    var barColor = pct >= 75 ? 'var(--archie-green)' : pct >= 30 ? 'var(--archie-yellow, #f0c040)' : 'var(--archie-red, #f85149)';
+                    var row = document.createElement('div');
+                    row.style.cssText = 'display: grid; grid-template-columns: 160px 1fr 80px; align-items: center; gap: 0.75rem; padding: 0.5rem 0.75rem; background: var(--archie-bg-tertiary); border-radius: 6px;';
+
+                    var label = document.createElement('span');
+                    label.style.cssText = 'color: var(--archie-text-secondary); font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;';
+                    label.textContent = t.source_type || '(none)';
+
+                    var barWrap = document.createElement('div');
+                    barWrap.style.cssText = 'position: relative; height: 8px; background: var(--archie-bg-primary); border-radius: 4px; overflow: hidden;';
+                    var barFill = document.createElement('div');
+                    barFill.style.cssText = 'height: 100%; border-radius: 4px; transition: width 0.5s ease; width: ' + pct + '%; background: ' + barColor + ';';
+                    barWrap.appendChild(barFill);
+
+                    var stat = document.createElement('span');
+                    stat.style.cssText = 'color: var(--archie-text-muted); font-size: 0.8rem; text-align: right;';
+                    stat.textContent = t.embedded + '/' + t.total + ' (' + pct + '%)';
+
+                    row.appendChild(label);
+                    row.appendChild(barWrap);
+                    row.appendChild(stat);
+                    grid.appendChild(row);
+                });
+                tableEl.appendChild(grid);
+            }
+        }
+
+        // Also load processing history
+        loadProcessingHistory();
     } catch (e) {
         console.error('Processing status error:', e);
     }

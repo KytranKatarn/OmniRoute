@@ -471,7 +471,7 @@ def _auto_embed_processed_items(item_ids: list) -> dict:
                     cur.execute(
                         """
                         UPDATE knowledge_base
-                        SET embedding = %s, embedding_generated_at = NOW()
+                        SET embedding = %s, has_embedding = true, embedding_generated_at = NOW()
                         WHERE id = %s
                         """,
                         (embedding, item_id),
@@ -532,7 +532,7 @@ def generate_embeddings():
                     cur.execute(
                         """
                         UPDATE knowledge_base
-                        SET embedding = %s, embedding_generated_at = NOW()
+                        SET embedding = %s, has_embedding = true, embedding_generated_at = NOW()
                         WHERE id = %s
                         """,
                         (embedding, item_id),
@@ -554,6 +554,62 @@ def generate_embeddings():
 
     except Exception as e:
         logger.error(f"Embedding generation failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@processing_bp.route("/embedding-coverage", methods=["GET"])
+def get_embedding_coverage():
+    """Get embedding coverage broken down by source_type"""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+
+        cur.execute(
+            """
+            SELECT source_type,
+                   COUNT(*) as total,
+                   COALESCE(SUM(CASE WHEN embedding IS NOT NULL THEN 1 ELSE 0 END), 0) as embedded,
+                   COALESCE(SUM(CASE WHEN ai_analysis IS NOT NULL THEN 1 ELSE 0 END), 0) as analyzed
+            FROM knowledge_base
+            GROUP BY source_type
+            ORDER BY total DESC
+            """
+        )
+        rows = cur.fetchall()
+
+        types = []
+        total_all = 0
+        embedded_all = 0
+        analyzed_all = 0
+        for row in rows:
+            types.append(
+                {
+                    "source_type": row[0],
+                    "total": row[1],
+                    "embedded": row[2],
+                    "analyzed": row[3],
+                }
+            )
+            total_all += row[1]
+            embedded_all += row[2]
+            analyzed_all += row[3]
+
+        cur.close()
+        conn.close()
+
+        return jsonify(
+            {
+                "success": True,
+                "types": types,
+                "totals": {
+                    "total": total_all,
+                    "embedded": embedded_all,
+                    "analyzed": analyzed_all,
+                },
+            }
+        )
+    except Exception as e:
+        logger.error(f"Embedding coverage failed: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 

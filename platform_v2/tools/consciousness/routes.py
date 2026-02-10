@@ -719,6 +719,102 @@ def get_stats():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@consciousness_bp.route("/charts-data", methods=["GET"])
+@login_required
+@admin_required
+def get_charts_data():
+    """Provide chart-ready data from ALL knowledge sources for the Charts tab"""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # 1. Combined knowledge growth (30 days, all sources, daily)
+        cur.execute(
+            """
+            SELECT d.date::date as date,
+                COALESCE(kb.cnt, 0) as knowledge_base,
+                COALESCE(ltm.cnt, 0) as memories,
+                COALESCE(tri.cnt, 0) as triage,
+                COALESCE(bp.cnt, 0) as blueprints
+            FROM generate_series(NOW() - INTERVAL '30 days', NOW(), '1 day') d(date)
+            LEFT JOIN (SELECT DATE(created_at) dt, COUNT(*) cnt FROM knowledge_base GROUP BY dt) kb ON d.date::date = kb.dt
+            LEFT JOIN (SELECT DATE(created_at) dt, COUNT(*) cnt FROM long_term_memory GROUP BY dt) ltm ON d.date::date = ltm.dt
+            LEFT JOIN (SELECT DATE(created_at) dt, COUNT(*) cnt FROM triage_extractions GROUP BY dt) tri ON d.date::date = tri.dt
+            LEFT JOIN (SELECT DATE(created_at) dt, COUNT(*) cnt FROM blueprint_tasks GROUP BY dt) bp ON d.date::date = bp.dt
+            ORDER BY d.date
+        """
+        )
+        combined_growth = []
+        for r in cur.fetchall():
+            row = dict(r)
+            row["date"] = str(row["date"])
+            row["total"] = row["knowledge_base"] + row["memories"] + row["triage"] + row["blueprints"]
+            combined_growth.append(row)
+
+        # 2. Knowledge type breakdown (from knowledge_base — richest source)
+        cur.execute(
+            """
+            SELECT knowledge_type, COUNT(*) as count
+            FROM knowledge_base GROUP BY knowledge_type ORDER BY count DESC
+        """
+        )
+        kb_type_breakdown = [{"type": r["knowledge_type"], "count": r["count"]} for r in cur.fetchall()]
+
+        # 3. LTM category breakdown
+        cur.execute(
+            """
+            SELECT category, COUNT(*) as count
+            FROM long_term_memory WHERE category IS NOT NULL
+            GROUP BY category ORDER BY count DESC LIMIT 10
+        """
+        )
+        ltm_categories = [dict(r) for r in cur.fetchall()]
+
+        # 4. Importance distribution (from long_term_memory)
+        cur.execute(
+            """
+            SELECT CASE WHEN importance_score >= 0.8 THEN 'Critical'
+                        WHEN importance_score >= 0.6 THEN 'High'
+                        WHEN importance_score >= 0.4 THEN 'Medium'
+                        ELSE 'Low' END as level, COUNT(*) as count
+            FROM long_term_memory GROUP BY level ORDER BY MIN(importance_score) DESC
+        """
+        )
+        importance = [dict(r) for r in cur.fetchall()]
+
+        # 5. Embedding coverage by knowledge type
+        cur.execute(
+            """
+            SELECT knowledge_type,
+                COUNT(*) as total,
+                SUM(CASE WHEN has_embedding THEN 1 ELSE 0 END) as embedded
+            FROM knowledge_base GROUP BY knowledge_type ORDER BY total DESC
+        """
+        )
+        embedding_coverage = [
+            {"type": r["knowledge_type"], "total": r["total"], "embedded": r["embedded"]} for r in cur.fetchall()
+        ]
+
+        cur.close()
+        conn.close()
+
+        return jsonify(
+            {
+                "success": True,
+                "combined_growth": combined_growth,
+                "kb_type_breakdown": kb_type_breakdown,
+                "ltm_categories": ltm_categories,
+                "importance": importance,
+                "embedding_coverage": embedding_coverage,
+            }
+        )
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @consciousness_bp.route("/search", methods=["POST"])
 @login_required
 @admin_required
@@ -3079,6 +3175,29 @@ def get_activity_stats():
         )
         kb_growth = [{"date": str(r["date"]), "count": r["count"]} for r in cur.fetchall()]
 
+        # Combined knowledge growth (7 days, all sources) for Overview stacked chart
+        cur.execute(
+            """
+            SELECT d.date::date as date,
+                COALESCE(kb.cnt, 0) as knowledge_base,
+                COALESCE(ltm.cnt, 0) as memories,
+                COALESCE(tri.cnt, 0) as triage,
+                COALESCE(bp.cnt, 0) as blueprints
+            FROM generate_series(NOW() - INTERVAL '7 days', NOW(), '1 day') d(date)
+            LEFT JOIN (SELECT DATE(created_at) dt, COUNT(*) cnt FROM knowledge_base WHERE created_at >= NOW() - INTERVAL '7 days' GROUP BY dt) kb ON d.date::date = kb.dt
+            LEFT JOIN (SELECT DATE(created_at) dt, COUNT(*) cnt FROM long_term_memory WHERE created_at >= NOW() - INTERVAL '7 days' GROUP BY dt) ltm ON d.date::date = ltm.dt
+            LEFT JOIN (SELECT DATE(created_at) dt, COUNT(*) cnt FROM triage_extractions WHERE created_at >= NOW() - INTERVAL '7 days' GROUP BY dt) tri ON d.date::date = tri.dt
+            LEFT JOIN (SELECT DATE(created_at) dt, COUNT(*) cnt FROM blueprint_tasks WHERE created_at >= NOW() - INTERVAL '7 days' GROUP BY dt) bp ON d.date::date = bp.dt
+            ORDER BY d.date
+        """
+        )
+        combined_growth_7d = []
+        for r in cur.fetchall():
+            row = dict(r)
+            row["date"] = str(row["date"])
+            row["total"] = row["knowledge_base"] + row["memories"] + row["triage"] + row["blueprints"]
+            combined_growth_7d.append(row)
+
         # Full knowledge footprint — all knowledge-bearing tables
         cur.execute(
             """
@@ -3163,6 +3282,7 @@ def get_activity_stats():
             "conversations": conv_row["conversations"] if conv_row else 0,
             "memories": conv_row["memories"] if conv_row else 0,
             "kb_growth_7d": kb_growth,
+            "combined_growth_7d": combined_growth_7d,
             "self_knowledge": {
                 "total": self_knowledge_total,
                 "modules": module_count,

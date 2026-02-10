@@ -357,9 +357,77 @@
 /* Section Titles */
 .section-title { font-family: var(--archie-font-heading, 'Orbitron', sans-serif); font-size: var(--archie-text-sm, 0.875rem); color: var(--module-accent); text-transform: uppercase; letter-spacing: 2px; margin: var(--archie-space-6, 1.5rem) 0 var(--archie-space-4, 1rem) 0; }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   VOICE TAB STYLES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Voice Sub-tabs */
+.voice-subtabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; padding: 0.4rem; background: var(--archie-bg-secondary, #0d1117); border: 1px solid var(--archie-border-default, #30363d); border-radius: 10px; }
+.voice-subtab-btn { padding: 0.5rem 1rem; background: transparent; border: 1px solid transparent; border-radius: 6px; color: var(--archie-text-tertiary, #8b949e); font-family: var(--archie-font-body); font-size: 0.8rem; cursor: pointer; transition: all 0.2s ease; }
+.voice-subtab-btn:hover { color: var(--module-accent); background: var(--module-accent-alpha-10); }
+.voice-subtab-btn.active { background: var(--module-accent-alpha-20); border-color: var(--module-accent); color: var(--module-accent); }
+.voice-subtab-content { display: none; }
+.voice-subtab-content.active { display: block; animation: fadeIn 0.3s ease; }
+
+/* Voice Panel */
+.voice-panel { background: var(--archie-bg-secondary, #0d1117); border: 1px solid var(--archie-border-default, #30363d); border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; }
+.voice-panel h3 { font-family: var(--archie-font-heading); font-size: 0.9rem; color: var(--module-accent); text-transform: uppercase; letter-spacing: 1px; margin: 0 0 1rem 0; }
+
+/* Slider Controls */
+.voice-control { margin-bottom: 1rem; }
+.voice-control label { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: var(--archie-text-secondary); margin-bottom: 0.4rem; }
+.voice-control label .slider-val { color: var(--module-accent); font-family: var(--archie-font-heading); font-weight: 700; }
+.voice-slider { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; background: var(--archie-bg-tertiary, #161b22); border-radius: 3px; outline: none; }
+.voice-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; background: var(--module-accent); border-radius: 50%; cursor: pointer; box-shadow: 0 0 8px var(--module-accent-alpha-30); transition: box-shadow 0.2s ease; }
+.voice-slider::-webkit-slider-thumb:hover { box-shadow: 0 0 14px var(--module-accent-alpha-30), 0 0 28px var(--module-accent-alpha-20); }
+.voice-slider::-moz-range-thumb { width: 18px; height: 18px; background: var(--module-accent); border-radius: 50%; cursor: pointer; border: none; }
+
+/* Voice Profile Cards */
+.voice-profile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; }
+.voice-profile-card { background: var(--archie-bg-secondary, #0d1117); border: 1px solid var(--archie-border-default, #30363d); border-radius: 12px; padding: 1.25rem; transition: all 0.2s ease; }
+.voice-profile-card:hover { border-color: var(--module-accent); box-shadow: 0 0 20px var(--module-accent-alpha-20); }
+.voice-profile-card .profile-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+.voice-profile-card .profile-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--module-accent-alpha-20); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+.voice-profile-card .profile-name { font-family: var(--archie-font-heading); font-size: 0.9rem; color: var(--archie-text-secondary); }
+.voice-profile-card .profile-params { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin: 0.75rem 0; }
+.voice-profile-card .profile-params .param { text-align: center; }
+.voice-profile-card .profile-params .param-val { font-family: var(--archie-font-heading); font-size: 0.85rem; color: var(--module-accent); }
+.voice-profile-card .profile-params .param-label { font-size: 0.65rem; color: var(--archie-text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.voice-profile-card .profile-actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+
+/* Audio Preview */
+.voice-audio-container { margin: 1rem 0; padding: 1rem; background: var(--archie-bg-tertiary, #161b22); border-radius: 8px; }
+.voice-audio-container audio { width: 100%; }
+.voice-gen-status { font-size: 0.8rem; color: var(--archie-text-muted); margin-top: 0.5rem; }
+
+/* Progress Bar */
+.pregen-progress { margin: 1rem 0; }
+.pregen-bar { height: 8px; background: var(--archie-bg-tertiary, #161b22); border-radius: 4px; overflow: hidden; }
+.pregen-bar-fill { height: 100%; background: linear-gradient(90deg, var(--module-accent), var(--module-accent-bright, #a78bfa)); border-radius: 4px; transition: width 0.5s ease; }
+.pregen-status { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--archie-text-muted); margin-top: 0.3rem; }
+
+/* Cache Table */
+.cache-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.cache-table th { text-align: left; padding: 0.5rem 0.75rem; color: var(--archie-text-muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid var(--archie-border-default); }
+.cache-table td { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--archie-border-default, #30363d); color: var(--archie-text-secondary); }
+.cache-table tr:hover td { background: var(--module-accent-alpha-10); }
+.cache-pagination { display: flex; justify-content: center; gap: 0.5rem; margin-top: 1rem; }
+.cache-pagination button { padding: 0.3rem 0.7rem; background: var(--archie-bg-tertiary); border: 1px solid var(--archie-border-default); border-radius: 4px; color: var(--archie-text-tertiary); cursor: pointer; font-size: 0.75rem; }
+.cache-pagination button.active, .cache-pagination button:hover { border-color: var(--module-accent); color: var(--module-accent); }
+
+/* Voice Form Layout */
+.voice-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+.voice-form-row.full { grid-template-columns: 1fr; }
+.voice-form-group { display: flex; flex-direction: column; gap: 0.3rem; }
+.voice-form-group label { font-size: 0.75rem; color: var(--archie-text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.voice-form-group select { background: var(--archie-bg-primary, #010409); border: 1px solid var(--archie-border-default); border-radius: 8px; padding: 0.6rem 0.75rem; color: var(--archie-text-secondary); font-family: var(--archie-font-body); font-size: 0.85rem; }
+.voice-form-group select:focus { outline: none; border-color: var(--module-accent); }
+
 /* Responsive */
 @media (max-width: 768px) {
     .tab-nav { justify-content: flex-start; }
+    .voice-form-row { grid-template-columns: 1fr; }
+    .voice-profile-grid { grid-template-columns: 1fr; }
 }
 {% endblock %}
 
@@ -389,6 +457,7 @@
         <button class="tab-btn" data-tab="graph">🕸️ Graph</button>
         <button class="tab-btn" data-tab="feed">📡 Feed</button>
         <button class="tab-btn" data-tab="tools">🔧 Tools</button>
+        <button class="tab-btn" data-tab="voice">🎙 Voice</button>
     </div>
 
     <div id="tab-overview" class="tab-content active">
@@ -809,11 +878,11 @@
 
     <div id="tab-charts" class="tab-content">
         <div class="dashboard-grid">
-            <div class="chart-container"><div class="chart-title">📈 Knowledge Growth (30 days)</div><canvas id="growth-chart" height="180"></canvas></div>
-            <div class="chart-container"><div class="chart-title">🎯 Knowledge by Type</div><canvas id="type-chart" height="180"></canvas></div>
+            <div class="chart-container"><div class="chart-title">📈 Knowledge Growth (30 days) — All Sources</div><canvas id="growth-chart" height="180"></canvas></div>
+            <div class="chart-container"><div class="chart-title">🎯 Knowledge Types</div><canvas id="type-chart" height="180"></canvas></div>
         </div>
         <div class="dashboard-grid" style="margin-top: 1rem;">
-            <div class="chart-container"><div class="chart-title">📁 Knowledge by Category</div><canvas id="category-chart" height="180"></canvas></div>
+            <div class="chart-container"><div class="chart-title">🔗 Embedding Coverage by Type</div><canvas id="embedding-chart" height="180"></canvas></div>
             <div class="chart-container"><div class="chart-title">⭐ Importance Distribution</div><canvas id="importance-chart" height="180"></canvas></div>
         </div>
         <div class="dashboard-grid" style="margin-top: 1rem;">
@@ -872,6 +941,215 @@
             <div class="quick-card"><h3>🔍 Search Knowledge</h3><p>Search across all knowledge entries</p><form action="{{ url_for('consciousness.search_knowledge') }}" method="post"><input type="text" name="query" placeholder="Search knowledge base..." class="form-control"><button type="submit" class="btn btn-primary" style="margin-top: 0.5rem;">Search</button></form></div>
         </div>
     </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <!-- VOICE TAB -->
+    <!-- ═══════════════════════════════════════════════════════════════════ -->
+    <div id="tab-voice" class="tab-content">
+        <!-- Voice Sub-tabs -->
+        <div class="voice-subtabs">
+            <button class="voice-subtab-btn active" onclick="switchVoiceTab('dashboard')">📊 Dashboard</button>
+            <button class="voice-subtab-btn" onclick="switchVoiceTab('preview')">🎧 Preview</button>
+            <button class="voice-subtab-btn" onclick="switchVoiceTab('cache')">💾 Cache</button>
+            <button class="voice-subtab-btn" onclick="switchVoiceTab('agents')">🤖 Agents</button>
+        </div>
+
+        <!-- Dashboard Sub-tab -->
+        <div id="voice-sub-dashboard" class="voice-subtab-content active">
+            <div class="stats-grid" id="voice-stats-grid">
+                <div class="stat-card"><div class="stat-value" id="vs-cached">--</div><div class="stat-label">Cached Words</div></div>
+                <div class="stat-card"><div class="stat-value" id="vs-hits">--</div><div class="stat-label">Cache Hits</div></div>
+                <div class="stat-card"><div class="stat-value" id="vs-hitrate">--</div><div class="stat-label">Hit Rate</div></div>
+                <div class="stat-card"><div class="stat-value" id="vs-storage">--</div><div class="stat-label">Storage</div></div>
+                <div class="stat-card"><div class="stat-value" id="vs-today">--</div><div class="stat-label">Today Gens</div></div>
+                <div class="stat-card"><div class="stat-value" id="vs-avgtime">--</div><div class="stat-label">Avg Gen Time</div></div>
+            </div>
+
+            <div class="dashboard-grid">
+                <div class="panel">
+                    <div class="panel-header"><span class="panel-title">Top Emotions</span></div>
+                    <div class="panel-body"><table class="cache-table" id="voice-emotions-table"><thead><tr><th>Emotion</th><th>Cached</th><th>Hits</th></tr></thead><tbody></tbody></table></div>
+                </div>
+                <div class="panel">
+                    <div class="panel-header"><span class="panel-title">Most-Used Words</span></div>
+                    <div class="panel-body"><table class="cache-table" id="voice-words-table"><thead><tr><th>Word</th><th>Emotion</th><th>Hits</th><th>Gen Time</th></tr></thead><tbody></tbody></table></div>
+                </div>
+            </div>
+
+            <div class="voice-panel">
+                <h3>Pre-generation</h3>
+                <div class="voice-form-row">
+                    <div class="voice-form-group">
+                        <label>Job Type</label>
+                        <select id="pregen-type">
+                            <option value="manual">Manual (Top English Words)</option>
+                            <option value="auto_conversation">Auto (From Conversations)</option>
+                        </select>
+                    </div>
+                    <div class="voice-form-group">
+                        <label>Word Count</label>
+                        <select id="pregen-count">
+                            <option value="50">50 words</option>
+                            <option value="100" selected>100 words</option>
+                            <option value="200">200 words</option>
+                            <option value="500">500 words</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="voice-form-row full">
+                    <div class="voice-form-group">
+                        <label>Emotions</label>
+                        <div class="filter-group" id="pregen-emotions">
+                            <button class="filter-btn active" data-emotion="neutral" onclick="togglePregenEmotion(this)">neutral</button>
+                            <button class="filter-btn" data-emotion="excited" onclick="togglePregenEmotion(this)">excited</button>
+                            <button class="filter-btn" data-emotion="curious" onclick="togglePregenEmotion(this)">curious</button>
+                            <button class="filter-btn" data-emotion="empathetic" onclick="togglePregenEmotion(this)">empathetic</button>
+                            <button class="filter-btn" data-emotion="gentle" onclick="togglePregenEmotion(this)">gentle</button>
+                        </div>
+                    </div>
+                </div>
+                <button class="btn btn-primary" onclick="startPregen()">Start Pre-generation</button>
+                <div id="pregen-progress" class="pregen-progress" style="display: none;">
+                    <div class="pregen-bar"><div class="pregen-bar-fill" id="pregen-bar-fill" style="width: 0%"></div></div>
+                    <div class="pregen-status"><span id="pregen-status-text">Starting...</span><span id="pregen-pct">0%</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Preview Sub-tab -->
+        <div id="voice-sub-preview" class="voice-subtab-content">
+            <div class="voice-panel">
+                <h3>Voice Workshop</h3>
+                <div class="voice-form-row">
+                    <div class="voice-form-group">
+                        <label>Speaker</label>
+                        <select id="preview-speaker" class="form-control"></select>
+                    </div>
+                    <div class="voice-form-group">
+                        <label>Emotion Preset</label>
+                        <select id="preview-emotion" class="form-control" onchange="applyEmotionPreset()">
+                            <option value="neutral">Neutral</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="voice-control">
+                    <label>Speed <span class="slider-val" id="preview-speed-val">1.00</span></label>
+                    <input type="range" class="voice-slider" id="preview-speed" min="0.50" max="2.00" step="0.05" value="1.00" oninput="updateSliderDisplay('speed')">
+                </div>
+                <div class="voice-control">
+                    <label>Pitch <span class="slider-val" id="preview-pitch-val">1.00</span></label>
+                    <input type="range" class="voice-slider" id="preview-pitch" min="0.80" max="1.20" step="0.01" value="1.00" oninput="updateSliderDisplay('pitch')">
+                </div>
+                <div class="voice-control">
+                    <label>Warmth <span class="slider-val" id="preview-warmth-val">0.80</span></label>
+                    <input type="range" class="voice-slider" id="preview-warmth" min="0.00" max="1.00" step="0.05" value="0.80" oninput="updateSliderDisplay('warmth')">
+                </div>
+
+                <div class="voice-form-row full">
+                    <div class="voice-form-group">
+                        <label>Preview Text</label>
+                        <input type="text" id="preview-text" class="form-control" value="Hello, I am ARCHIE. How can I help you today?" placeholder="Enter text to preview...">
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 0.75rem; align-items: center;">
+                    <button class="btn btn-primary" id="preview-btn" onclick="previewVoice()">Preview</button>
+                    <button class="btn btn-secondary" id="save-profile-btn" onclick="showSaveProfileDialog()" style="display: none;">Save as Profile</button>
+                    <span id="preview-gen-status" class="voice-gen-status"></span>
+                </div>
+
+                <div id="preview-audio-container" class="voice-audio-container" style="display: none;">
+                    <audio id="preview-audio" controls></audio>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cache Sub-tab -->
+        <div id="voice-sub-cache" class="voice-subtab-content">
+            <div class="voice-panel">
+                <h3>Voice Cache Browser</h3>
+                <div class="voice-form-row">
+                    <div class="voice-form-group">
+                        <label>Filter by Emotion</label>
+                        <select id="cache-emotion-filter" onchange="loadVoiceCache()">
+                            <option value="">All Emotions</option>
+                        </select>
+                    </div>
+                    <div class="voice-form-group">
+                        <label>Sort By</label>
+                        <select id="cache-sort" onchange="loadVoiceCache()">
+                            <option value="hits">Most Hits</option>
+                            <option value="recent">Most Recent</option>
+                            <option value="largest">Largest Size</option>
+                        </select>
+                    </div>
+                </div>
+                <table class="cache-table" id="voice-cache-table">
+                    <thead><tr><th>Word/Phrase</th><th>Emotion</th><th>Hits</th><th>Size</th><th>Last Used</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+                <div class="cache-pagination" id="cache-pagination"></div>
+            </div>
+        </div>
+
+        <!-- Agents Sub-tab -->
+        <div id="voice-sub-agents" class="voice-subtab-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h3 class="section-title" style="margin: 0;">Agent Voice Profiles</h3>
+                <button class="btn btn-primary" onclick="showNewProfileForm()">+ New Profile</button>
+            </div>
+
+            <!-- New/Edit Profile Form (hidden by default) -->
+            <div id="agent-profile-form" class="voice-panel" style="display: none;">
+                <h3 id="profile-form-title">New Voice Profile</h3>
+                <div class="voice-form-row">
+                    <div class="voice-form-group">
+                        <label>Agent</label>
+                        <select id="profile-agent" class="form-control"></select>
+                    </div>
+                    <div class="voice-form-group">
+                        <label>Profile Name</label>
+                        <input type="text" id="profile-name" class="form-control" value="Default" placeholder="Profile name...">
+                    </div>
+                </div>
+                <div class="voice-form-row">
+                    <div class="voice-form-group">
+                        <label>Speaker</label>
+                        <select id="profile-speaker" class="form-control"></select>
+                    </div>
+                    <div class="voice-form-group">
+                        <label>Default Emotion</label>
+                        <select id="profile-emotion" class="form-control"></select>
+                    </div>
+                </div>
+                <div class="voice-control">
+                    <label>Speed <span class="slider-val" id="profile-speed-val">1.00</span></label>
+                    <input type="range" class="voice-slider" id="profile-speed" min="0.50" max="2.00" step="0.05" value="1.00" oninput="updateProfileSlider('speed')">
+                </div>
+                <div class="voice-control">
+                    <label>Pitch <span class="slider-val" id="profile-pitch-val">1.00</span></label>
+                    <input type="range" class="voice-slider" id="profile-pitch" min="0.80" max="1.20" step="0.01" value="1.00" oninput="updateProfileSlider('pitch')">
+                </div>
+                <div class="voice-control">
+                    <label>Warmth <span class="slider-val" id="profile-warmth-val">0.80</span></label>
+                    <input type="range" class="voice-slider" id="profile-warmth" min="0.00" max="1.00" step="0.05" value="0.80" oninput="updateProfileSlider('warmth')">
+                </div>
+                <div style="display: flex; gap: 0.75rem;">
+                    <button class="btn btn-primary" onclick="saveAgentProfile()">Save Profile</button>
+                    <button class="btn btn-secondary" onclick="previewAgentVoice()">Preview</button>
+                    <button class="btn btn-secondary" onclick="hideProfileForm()">Cancel</button>
+                </div>
+                <div id="profile-audio-container" class="voice-audio-container" style="display: none;">
+                    <audio id="profile-audio" controls></audio>
+                </div>
+            </div>
+
+            <div class="voice-profile-grid" id="voice-profiles-grid">
+                <div class="loading"><div class="spinner"></div></div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -888,6 +1166,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
         if (btn.dataset.tab === 'charts') loadChartData();
         if (btn.dataset.tab === 'graph') loadKnowledgeGraph();
         if (btn.dataset.tab === 'feed') loadActivityFeed();
+        if (btn.dataset.tab === 'voice') loadVoiceDashboard();
     });
 });
 
@@ -899,11 +1178,19 @@ document.querySelectorAll('#feed-filters .filter-btn').forEach(btn => {
     });
 });
 
-let growthChartMini, typeChartMini, growthChart, typeChart, categoryChart, importanceChart, emotionalTimeline, emotionalChartFull, chatVolumeChart;
+let growthChartMini, typeChartMini, growthChart, typeChart, embeddingChart, importanceChart, emotionalTimeline, emotionalChartFull, chatVolumeChart;
 const chartColors = { primary: '#8b5cf6', secondary: '#00ffff', success: '#00ff41', warning: '#ffaa00', danger: '#ff6b6b', info: '#0ea5e9' };
 const moodEmojis = { 'happy': '😊', 'curious': '🤔', 'focused': '🎯', 'neutral': '😐', 'confused': '😕', 'frustrated': '😤', 'supportive': '💜', 'excited': '🎉' };
 
 function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
+
+function parseChartDate(d) {
+    if (!d) return new Date();
+    // YYYY-MM-DD format: append T00:00:00 to avoid timezone shift
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return new Date(d + 'T00:00:00');
+    // Already a full datetime string (Flask default or ISO)
+    return new Date(d);
+}
 
 function buildSourceSubtitle(sources) {
     if (!sources || !sources.length) return '';
@@ -981,14 +1268,38 @@ async function loadStats() {
 
 function loadMiniChartsFromOverview(overview) {
     try {
-        // Growth chart from knowledge_base 7-day data
-        const growthData = overview.kb_growth_7d || [];
+        // Growth chart from combined 7-day data (all sources, stacked bar)
+        const growthData = overview.combined_growth_7d || overview.kb_growth_7d || [];
+        const isCombined = !!overview.combined_growth_7d;
         if (growthChartMini) growthChartMini.destroy();
-        growthChartMini = new Chart(document.getElementById('growth-chart-mini'), {
-            type: 'line', data: { labels: growthData.map(d => d.date ? new Date(d.date + 'T00:00:00').toLocaleDateString('en-US', {weekday: 'short'}) : ''),
-                datasets: [{ label: 'Entries', data: growthData.map(d => d.count || 0), borderColor: chartColors.primary, backgroundColor: 'rgba(139, 92, 246, 0.1)', fill: true, tension: 0.4 }]
-            }, options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' } }, y: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' } } } }
-        });
+        if (isCombined) {
+            growthChartMini = new Chart(document.getElementById('growth-chart-mini'), {
+                type: 'bar',
+                data: {
+                    labels: growthData.map(d => d.date ? new Date(d.date + 'T00:00:00').toLocaleDateString('en-US', {weekday: 'short'}) : ''),
+                    datasets: [
+                        { label: 'KB', data: growthData.map(d => d.knowledge_base || 0), backgroundColor: 'rgba(139, 92, 246, 0.7)' },
+                        { label: 'Triage', data: growthData.map(d => d.triage || 0), backgroundColor: 'rgba(0, 255, 255, 0.5)' },
+                        { label: 'Blueprints', data: growthData.map(d => d.blueprints || 0), backgroundColor: 'rgba(0, 255, 65, 0.5)' },
+                        { label: 'Memories', data: growthData.map(d => d.memories || 0), backgroundColor: 'rgba(255, 170, 0, 0.5)' }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: true, labels: { color: '#8b949e', font: { size: 10 }, boxWidth: 12 } } },
+                    scales: {
+                        x: { stacked: true, grid: { color: '#21262d' }, ticks: { color: '#8b949e' } },
+                        y: { stacked: true, grid: { color: '#21262d' }, ticks: { color: '#8b949e' }, beginAtZero: true }
+                    }
+                }
+            });
+        } else {
+            growthChartMini = new Chart(document.getElementById('growth-chart-mini'), {
+                type: 'line', data: { labels: growthData.map(d => d.date ? new Date(d.date + 'T00:00:00').toLocaleDateString('en-US', {weekday: 'short'}) : ''),
+                    datasets: [{ label: 'Entries', data: growthData.map(d => d.count || 0), borderColor: chartColors.primary, backgroundColor: 'rgba(139, 92, 246, 0.1)', fill: true, tension: 0.4 }]
+                }, options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' } }, y: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' } } } }
+            });
+        }
 
         // Composition doughnut from full footprint sources
         const sources = overview.footprint_sources || [];
@@ -1136,28 +1447,98 @@ async function loadEmotionalData() {
 
 async function loadChartData() {
     try {
-        const response = await fetch('/tools/consciousness/stats', {credentials: 'same-origin'});
-        const data = await response.json();
-        if (data.success && data.stats) {
-            const growthData = data.stats.learning_timeline || [];
+        // Fetch all chart data in parallel
+        const [chartsResp, emoResp, chatResp] = await Promise.all([
+            fetch('/tools/consciousness/charts-data', {credentials: 'same-origin'}),
+            fetch('/tools/consciousness/emotions/timeline?days=30', {credentials: 'same-origin'}),
+            fetch('/tools/consciousness/api/chat-volume?days=30', {credentials: 'same-origin'})
+        ]);
+        const chartsData = await chartsResp.json();
+
+        if (chartsData.success) {
+            // 1. Knowledge Growth — Stacked area (all sources, 30 days)
+            const growth = chartsData.combined_growth || [];
+            const growthLabels = growth.map(d => {
+                const dt = new Date(d.date + 'T00:00:00');
+                return (dt.getMonth()+1) + '/' + dt.getDate();
+            });
             if (growthChart) growthChart.destroy();
-            growthChart = new Chart(document.getElementById('growth-chart'), { type: 'line', data: { labels: growthData.map(d => d.date ? new Date(d.date).toLocaleDateString() : ''), datasets: [{ label: 'Knowledge Entries', data: growthData.map(d => d.count || 0), borderColor: chartColors.primary, backgroundColor: 'rgba(139, 92, 246, 0.1)', fill: true, tension: 0.4 }] }, options: { responsive: true, plugins: { legend: { labels: { color: '#8b949e' } } }, scales: { x: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' } }, y: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' } } } } });
-            const typeArrayFull = data.stats.memory_types || [];
-            const typeDataFull = {}; typeArrayFull.forEach(t => { typeDataFull[t.memory_type || t.type || 'unknown'] = t.count || 0; });
+            growthChart = new Chart(document.getElementById('growth-chart'), {
+                type: 'line',
+                data: {
+                    labels: growthLabels,
+                    datasets: [
+                        { label: 'Knowledge Base', data: growth.map(d => d.knowledge_base), borderColor: chartColors.primary, backgroundColor: 'rgba(139, 92, 246, 0.3)', fill: true, tension: 0.4 },
+                        { label: 'Triage', data: growth.map(d => d.triage), borderColor: chartColors.secondary, backgroundColor: 'rgba(0, 255, 255, 0.2)', fill: true, tension: 0.4 },
+                        { label: 'Blueprints', data: growth.map(d => d.blueprints), borderColor: chartColors.success, backgroundColor: 'rgba(0, 255, 65, 0.2)', fill: true, tension: 0.4 },
+                        { label: 'Memories', data: growth.map(d => d.memories), borderColor: chartColors.warning, backgroundColor: 'rgba(255, 170, 0, 0.2)', fill: true, tension: 0.4 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { labels: { color: '#8b949e' } } },
+                    scales: {
+                        x: { grid: { color: '#21262d' }, ticks: { color: '#8b949e', maxRotation: 45 } },
+                        y: { stacked: true, grid: { color: '#21262d' }, ticks: { color: '#8b949e' }, beginAtZero: true }
+                    }
+                }
+            });
+
+            // 2. Knowledge Types — Doughnut from knowledge_base types
+            const kbTypes = chartsData.kb_type_breakdown || [];
+            const typeColors = [chartColors.primary, chartColors.secondary, chartColors.success, chartColors.warning, chartColors.danger, chartColors.info, '#e879f9', '#34d399', '#f472b6', '#fbbf24'];
             if (typeChart) typeChart.destroy();
-            typeChart = new Chart(document.getElementById('type-chart'), { type: 'pie', data: { labels: Object.keys(typeDataFull), datasets: [{ data: Object.values(typeDataFull), backgroundColor: [chartColors.primary, chartColors.secondary, chartColors.success, chartColors.warning, chartColors.danger, chartColors.info] }] }, options: { responsive: true, plugins: { legend: { position: 'right', labels: { color: '#8b949e' } } } } });
-            const catArray = data.stats.categories || [];
-            const categories = catArray.slice(0, 10).map(c => [c.category || 'unknown', c.count || 0]);
-            if (categoryChart) categoryChart.destroy();
-            categoryChart = new Chart(document.getElementById('category-chart'), { type: 'bar', data: { labels: categories.map(c => c[0]), datasets: [{ label: 'Entries', data: categories.map(c => c[1]), backgroundColor: 'rgba(139, 92, 246, 0.6)', borderColor: chartColors.primary, borderWidth: 1 }] }, options: { responsive: true, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' } }, y: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' } } } } });
-            const impArray = data.stats.importance_distribution || [];
-            const importance = {}; if (Array.isArray(impArray)) { impArray.forEach(i => { importance[i.importance_level || i.level || 'medium'] = i.count || 0; }); } else { Object.assign(importance, impArray); }
+            typeChart = new Chart(document.getElementById('type-chart'), {
+                type: 'doughnut',
+                data: {
+                    labels: kbTypes.map(t => t.type || 'unknown'),
+                    datasets: [{ data: kbTypes.map(t => t.count), backgroundColor: typeColors.slice(0, kbTypes.length) }]
+                },
+                options: { responsive: true, plugins: { legend: { position: 'right', labels: { color: '#8b949e', font: { size: 11 } } } } }
+            });
+
+            // 3. Embedding Coverage — Horizontal bar (embedded vs not-embedded)
+            const embedData = chartsData.embedding_coverage || [];
+            const embedLabels = embedData.map(e => e.type || 'unknown');
+            const embedDone = embedData.map(e => e.embedded || 0);
+            const embedMissing = embedData.map(e => (e.total || 0) - (e.embedded || 0));
+            if (embeddingChart) embeddingChart.destroy();
+            embeddingChart = new Chart(document.getElementById('embedding-chart'), {
+                type: 'bar',
+                data: {
+                    labels: embedLabels,
+                    datasets: [
+                        { label: 'Embedded', data: embedDone, backgroundColor: 'rgba(139, 92, 246, 0.7)', borderColor: chartColors.primary, borderWidth: 1 },
+                        { label: 'Not Embedded', data: embedMissing, backgroundColor: 'rgba(110, 118, 129, 0.4)', borderColor: '#6e7681', borderWidth: 1 }
+                    ]
+                },
+                options: {
+                    responsive: true, indexAxis: 'y',
+                    plugins: { legend: { labels: { color: '#8b949e' } } },
+                    scales: {
+                        x: { stacked: true, grid: { color: '#21262d' }, ticks: { color: '#8b949e' } },
+                        y: { stacked: true, grid: { color: '#21262d' }, ticks: { color: '#8b949e', font: { size: 10 } } }
+                    }
+                }
+            });
+
+            // 4. Importance Distribution — Doughnut from LTM
+            const impArray = chartsData.importance || [];
+            const importance = {};
+            impArray.forEach(i => { importance[i.level || 'Medium'] = i.count || 0; });
             if (importanceChart) importanceChart.destroy();
-            importanceChart = new Chart(document.getElementById('importance-chart'), { type: 'doughnut', data: { labels: Object.keys(importance), datasets: [{ data: Object.values(importance), backgroundColor: [chartColors.danger, chartColors.warning, chartColors.secondary, chartColors.success] }] }, options: { responsive: true, plugins: { legend: { position: 'right', labels: { color: '#8b949e' } } } } });
+            importanceChart = new Chart(document.getElementById('importance-chart'), {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(importance),
+                    datasets: [{ data: Object.values(importance), backgroundColor: [chartColors.danger, chartColors.warning, chartColors.secondary, chartColors.success] }]
+                },
+                options: { responsive: true, plugins: { legend: { position: 'right', labels: { color: '#8b949e' } } } }
+            });
         }
-        // Load emotional timeline chart (30 days)
+
+        // 5. Emotional Timeline (30 days)
         try {
-            const emoResp = await fetch('/tools/consciousness/emotions/timeline?days=30', {credentials: 'same-origin'});
             const emoData = await emoResp.json();
             if (emoData.timeline && emoData.timeline.length > 0) {
                 if (emotionalChartFull) emotionalChartFull.destroy();
@@ -1169,16 +1550,44 @@ async function loadChartData() {
                 if (emoData.timeline.some(t => t.avg_stress !== undefined && t.avg_stress !== null)) {
                     emoDatasets.push({ label: 'Stress', data: emoData.timeline.map(t => t.avg_stress), borderColor: chartColors.danger, borderDash: [5, 5], fill: false, tension: 0.4 });
                 }
-                emotionalChartFull = new Chart(document.getElementById('emotional-chart-full'), { type: 'line', data: { labels: emoData.timeline.map(t => new Date(t.date).toLocaleDateString()), datasets: emoDatasets }, options: { responsive: true, plugins: { legend: { labels: { color: '#8b949e' } } }, scales: { x: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' } }, y: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' }, min: 0, max: 1 } } } });
+                emotionalChartFull = new Chart(document.getElementById('emotional-chart-full'), {
+                    type: 'line',
+                    data: {
+                        labels: emoData.timeline.map(t => { const dt = parseChartDate(t.date); return (dt.getMonth()+1) + '/' + dt.getDate(); }),
+                        datasets: emoDatasets
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: { legend: { labels: { color: '#8b949e' } } },
+                        scales: {
+                            x: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' } },
+                            y: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' }, min: 0, max: 1 }
+                        }
+                    }
+                });
             }
         } catch (e) { console.error('Error loading emotional chart:', e); }
-        // Load chat volume chart
+
+        // 6. Chat Volume (30 days)
         try {
-            const chatResp = await fetch('/tools/consciousness/api/chat-volume?days=30', {credentials: 'same-origin'});
             const chatData = await chatResp.json();
             if (chatData.success && chatData.volume && chatData.volume.length > 0) {
                 if (chatVolumeChart) chatVolumeChart.destroy();
-                chatVolumeChart = new Chart(document.getElementById('chat-volume-chart'), { type: 'bar', data: { labels: chatData.volume.map(v => new Date(v.date).toLocaleDateString()), datasets: [{ label: 'Conversations', data: chatData.volume.map(v => v.count), backgroundColor: 'rgba(139, 92, 246, 0.5)', borderColor: chartColors.primary, borderWidth: 1 }] }, options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' } }, y: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' }, beginAtZero: true } } } });
+                chatVolumeChart = new Chart(document.getElementById('chat-volume-chart'), {
+                    type: 'bar',
+                    data: {
+                        labels: chatData.volume.map(v => { const dt = parseChartDate(v.date); return (dt.getMonth()+1) + '/' + dt.getDate(); }),
+                        datasets: [{ label: 'Conversations', data: chatData.volume.map(v => v.count), backgroundColor: 'rgba(139, 92, 246, 0.5)', borderColor: chartColors.primary, borderWidth: 1 }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' } },
+                            y: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' }, beginAtZero: true }
+                        }
+                    }
+                });
             }
         } catch (e) { console.error('Error loading chat volume:', e); }
     } catch (e) { console.error('Error loading chart data:', e); }
@@ -2477,5 +2886,530 @@ async function loadChatHistory() {
 
 // Load chat history on page init
 loadChatHistory();
+
+// ═══════════════════════════════════════════════════════════════
+// VOICE TAB - Management Functions
+// ═══════════════════════════════════════════════════════════════
+
+var voiceSpeakers = [];
+var voiceEmotions = [];
+var voiceEmotionPresets = {};
+var voiceSpeakersLoaded = false;
+var currentCachePage = 1;
+var activePregenJobId = null;
+
+// Reuse existing escHtml from line 1290 for XSS-safe HTML generation
+var voiceEscHtml = typeof escHtml === 'function' ? escHtml : function(str) { var d = document.createElement('div'); d.textContent = str; return d.innerHTML; };
+
+function switchVoiceTab(tab) {
+    document.querySelectorAll('.voice-subtab-btn').forEach(function(b) { b.classList.remove('active'); });
+    document.querySelectorAll('.voice-subtab-content').forEach(function(c) { c.classList.remove('active'); });
+    document.querySelector('.voice-subtab-btn[onclick*="' + tab + '"]').classList.add('active');
+    document.getElementById('voice-sub-' + tab).classList.add('active');
+    if (tab === 'dashboard') loadVoiceDashboard();
+    if (tab === 'preview') loadVoiceSpeakers();
+    if (tab === 'cache') loadVoiceCache();
+    if (tab === 'agents') { loadVoiceSpeakers(); loadVoiceProfiles(); }
+}
+
+async function loadVoiceDashboard() {
+    try {
+        var r = await fetch('/tools/consciousness/api/voice/dashboard');
+        var d = await r.json();
+        if (!d.success) return;
+        document.getElementById('vs-cached').textContent = d.cached_words;
+        document.getElementById('vs-hits').textContent = d.total_hits.toLocaleString();
+        document.getElementById('vs-hitrate').textContent = d.hit_rate + '%';
+        document.getElementById('vs-storage').textContent = d.storage_mb + ' MB';
+        document.getElementById('vs-today').textContent = d.today_gens;
+        document.getElementById('vs-avgtime').textContent = d.avg_gen_ms ? (d.avg_gen_ms + 'ms') : 'N/A';
+
+        // Top emotions table - safe DOM construction
+        var tbody = document.querySelector('#voice-emotions-table tbody');
+        tbody.textContent = '';
+        (d.top_emotions || []).forEach(function(e) {
+            var tr = document.createElement('tr');
+            var td1 = document.createElement('td'); td1.textContent = e.emotion_context || 'unknown';
+            var td2 = document.createElement('td'); td2.textContent = e.count;
+            var td3 = document.createElement('td'); td3.textContent = e.hits || 0;
+            tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
+            tbody.appendChild(tr);
+        });
+
+        // Top words table - safe DOM construction
+        var wbody = document.querySelector('#voice-words-table tbody');
+        wbody.textContent = '';
+        (d.top_words || []).forEach(function(w) {
+            var tr = document.createElement('tr');
+            var td1 = document.createElement('td'); td1.textContent = w.word_text || '';
+            var td2 = document.createElement('td'); td2.textContent = w.emotion_context || '';
+            var td3 = document.createElement('td'); td3.textContent = w.hit_count;
+            var td4 = document.createElement('td'); td4.textContent = w.duration_ms ? w.duration_ms + 'ms' : '-';
+            tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3); tr.appendChild(td4);
+            wbody.appendChild(tr);
+        });
+    } catch (e) {
+        console.error('Voice dashboard error:', e);
+    }
+}
+
+async function loadVoiceSpeakers() {
+    if (voiceSpeakersLoaded) return;
+    try {
+        var r = await fetch('/tools/consciousness/api/voice/speakers');
+        var d = await r.json();
+        if (!d.success) return;
+        voiceSpeakers = d.speakers || [];
+        voiceEmotions = d.emotions || [];
+        voiceEmotionPresets = d.emotion_presets || {};
+        voiceSpeakersLoaded = true;
+
+        // Populate preview dropdowns
+        var speakerSel = document.getElementById('preview-speaker');
+        speakerSel.textContent = '';
+        voiceSpeakers.forEach(function(s) {
+            var opt = document.createElement('option');
+            opt.value = s; opt.textContent = s;
+            if (s === 'Ana Florence') opt.selected = true;
+            speakerSel.appendChild(opt);
+        });
+
+        var emotionSel = document.getElementById('preview-emotion');
+        emotionSel.textContent = '';
+        voiceEmotions.forEach(function(e) {
+            var opt = document.createElement('option');
+            opt.value = e; opt.textContent = e.charAt(0).toUpperCase() + e.slice(1);
+            emotionSel.appendChild(opt);
+        });
+
+        // Populate profile dropdowns
+        populateSelectFrom('profile-speaker', voiceSpeakers, 'Ana Florence');
+        populateSelectFrom('profile-emotion', voiceEmotions);
+
+        // Populate cache emotion filter
+        var cacheFilter = document.getElementById('cache-emotion-filter');
+        if (cacheFilter && cacheFilter.options.length <= 1) {
+            voiceEmotions.forEach(function(e) {
+                var opt = document.createElement('option');
+                opt.value = e; opt.textContent = e;
+                cacheFilter.appendChild(opt);
+            });
+        }
+    } catch (e) {
+        console.error('Voice speakers error:', e);
+    }
+}
+
+function populateSelectFrom(id, items, defaultVal) {
+    var sel = document.getElementById(id);
+    if (!sel) return;
+    sel.textContent = '';
+    items.forEach(function(item) {
+        var opt = document.createElement('option');
+        opt.value = item; opt.textContent = item;
+        if (item === defaultVal) opt.selected = true;
+        sel.appendChild(opt);
+    });
+}
+
+function updateSliderDisplay(param) {
+    var slider = document.getElementById('preview-' + param);
+    var display = document.getElementById('preview-' + param + '-val');
+    display.textContent = parseFloat(slider.value).toFixed(2);
+}
+
+function updateProfileSlider(param) {
+    var slider = document.getElementById('profile-' + param);
+    var display = document.getElementById('profile-' + param + '-val');
+    display.textContent = parseFloat(slider.value).toFixed(2);
+}
+
+function applyEmotionPreset() {
+    var emotion = document.getElementById('preview-emotion').value;
+    var preset = voiceEmotionPresets[emotion];
+    if (!preset) return;
+    document.getElementById('preview-speed').value = preset.speed;
+    document.getElementById('preview-speed-val').textContent = preset.speed.toFixed(2);
+    document.getElementById('preview-pitch').value = preset.pitch_shift;
+    document.getElementById('preview-pitch-val').textContent = preset.pitch_shift.toFixed(2);
+    document.getElementById('preview-warmth').value = preset.warmth;
+    document.getElementById('preview-warmth-val').textContent = preset.warmth.toFixed(2);
+}
+
+async function previewVoice() {
+    var btn = document.getElementById('preview-btn');
+    var status = document.getElementById('preview-gen-status');
+    btn.disabled = true;
+    btn.textContent = 'Generating...';
+    status.textContent = 'Synthesizing audio...';
+    document.getElementById('save-profile-btn').style.display = 'none';
+    document.getElementById('preview-audio-container').style.display = 'none';
+
+    try {
+        var r = await fetch('/tools/consciousness/api/voice/preview', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                text: document.getElementById('preview-text').value,
+                speaker: document.getElementById('preview-speaker').value,
+                speed: parseFloat(document.getElementById('preview-speed').value),
+                pitch_shift: parseFloat(document.getElementById('preview-pitch').value),
+                warmth: parseFloat(document.getElementById('preview-warmth').value),
+                emotion: document.getElementById('preview-emotion').value
+            })
+        });
+        var d = await r.json();
+        if (d.success && d.audio_base64) {
+            var audioBytes = Uint8Array.from(atob(d.audio_base64), function(c) { return c.charCodeAt(0); });
+            var blob = new Blob([audioBytes], { type: 'audio/wav' });
+            var url = URL.createObjectURL(blob);
+            var audio = document.getElementById('preview-audio');
+            audio.src = url;
+            document.getElementById('preview-audio-container').style.display = 'block';
+            audio.play();
+            status.textContent = 'Generated in ' + d.generation_time_ms + 'ms';
+            document.getElementById('save-profile-btn').style.display = 'inline-flex';
+        } else {
+            status.textContent = 'Error: ' + (d.error || 'Unknown error');
+        }
+    } catch (e) {
+        status.textContent = 'Error: ' + e.message;
+    }
+    btn.disabled = false;
+    btn.textContent = 'Preview';
+}
+
+function showSaveProfileDialog() {
+    switchVoiceTab('agents');
+    showNewProfileForm();
+    document.getElementById('profile-speaker').value = document.getElementById('preview-speaker').value;
+    document.getElementById('profile-emotion').value = document.getElementById('preview-emotion').value;
+    document.getElementById('profile-speed').value = document.getElementById('preview-speed').value;
+    document.getElementById('profile-speed-val').textContent = document.getElementById('preview-speed-val').textContent;
+    document.getElementById('profile-pitch').value = document.getElementById('preview-pitch').value;
+    document.getElementById('profile-pitch-val').textContent = document.getElementById('preview-pitch-val').textContent;
+    document.getElementById('profile-warmth').value = document.getElementById('preview-warmth').value;
+    document.getElementById('profile-warmth-val').textContent = document.getElementById('preview-warmth-val').textContent;
+}
+
+async function loadVoiceCache(page) {
+    currentCachePage = page || 1;
+    var emotion = document.getElementById('cache-emotion-filter').value;
+    var sort = document.getElementById('cache-sort').value;
+    var url = '/tools/consciousness/api/voice/cache?page=' + currentCachePage + '&per_page=25&sort=' + sort;
+    if (emotion) url += '&emotion=' + encodeURIComponent(emotion);
+
+    try {
+        var r = await fetch(url);
+        var d = await r.json();
+        if (!d.success) return;
+
+        var tbody = document.querySelector('#voice-cache-table tbody');
+        tbody.textContent = '';
+        (d.entries || []).forEach(function(e) {
+            var tr = document.createElement('tr');
+            var td1 = document.createElement('td'); td1.textContent = e.word_text || '';
+            var td2 = document.createElement('td'); td2.textContent = e.emotion_context || '';
+            var td3 = document.createElement('td'); td3.textContent = e.hit_count || 0;
+            var size = e.audio_size ? (e.audio_size > 1048576 ? (e.audio_size / 1048576).toFixed(1) + ' MB' : (e.audio_size / 1024).toFixed(0) + ' KB') : '-';
+            var td4 = document.createElement('td'); td4.textContent = size;
+            var lastUsed = e.last_used ? new Date(e.last_used).toLocaleDateString() : '-';
+            var td5 = document.createElement('td'); td5.textContent = lastUsed;
+            tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3); tr.appendChild(td4); tr.appendChild(td5);
+            tbody.appendChild(tr);
+        });
+
+        // Pagination
+        var pag = document.getElementById('cache-pagination');
+        pag.textContent = '';
+        if (d.pages > 1) {
+            for (var i = 1; i <= d.pages; i++) {
+                var pbtn = document.createElement('button');
+                pbtn.textContent = i;
+                if (i === d.page) pbtn.className = 'active';
+                pbtn.onclick = (function(p) { return function() { loadVoiceCache(p); }; })(i);
+                pag.appendChild(pbtn);
+            }
+        }
+    } catch (e) {
+        console.error('Voice cache error:', e);
+    }
+}
+
+async function loadVoiceProfiles() {
+    try {
+        var r = await fetch('/tools/consciousness/api/voice/profiles');
+        var d = await r.json();
+        if (!d.success) return;
+
+        var grid = document.getElementById('voice-profiles-grid');
+        grid.textContent = '';
+
+        // Populate agent dropdown in form
+        var agentSel = document.getElementById('profile-agent');
+        agentSel.textContent = '';
+        var defaultOpt = document.createElement('option');
+        defaultOpt.value = ''; defaultOpt.textContent = 'Select Agent...';
+        agentSel.appendChild(defaultOpt);
+        (d.agents || []).forEach(function(a) {
+            var opt = document.createElement('option');
+            opt.value = a.id; opt.textContent = a.name + (a.first_name ? ' (' + a.first_name + ')' : '');
+            agentSel.appendChild(opt);
+        });
+
+        if (d.profiles.length === 0) {
+            var emptyMsg = document.createElement('div');
+            emptyMsg.style.cssText = 'color: var(--archie-text-muted); padding: 2rem; text-align: center;';
+            emptyMsg.textContent = 'No voice profiles yet. Click "+ New Profile" to create one.';
+            grid.appendChild(emptyMsg);
+            return;
+        }
+
+        d.profiles.forEach(function(p) {
+            var card = document.createElement('div');
+            card.className = 'voice-profile-card';
+
+            // Header
+            var header = document.createElement('div');
+            header.className = 'profile-header';
+            var avatar = document.createElement('div');
+            avatar.className = 'profile-avatar';
+            avatar.textContent = '🤖';
+            header.appendChild(avatar);
+
+            var info = document.createElement('div');
+            var nameEl = document.createElement('div');
+            nameEl.className = 'profile-name';
+            nameEl.textContent = p.agent_name || 'Unknown Agent';
+            info.appendChild(nameEl);
+            var sub = document.createElement('div');
+            sub.style.cssText = 'font-size:0.7rem;color:var(--archie-text-muted)';
+            sub.textContent = p.profile_name + ' \u00b7 ' + p.speaker;
+            info.appendChild(sub);
+            header.appendChild(info);
+            card.appendChild(header);
+
+            // Params
+            var params = document.createElement('div');
+            params.className = 'profile-params';
+            [['Speed', p.speed || 1], ['Pitch', p.pitch_shift || 1], ['Warmth', p.warmth || 0.8]].forEach(function(pair) {
+                var param = document.createElement('div');
+                param.className = 'param';
+                var val = document.createElement('div');
+                val.className = 'param-val';
+                val.textContent = pair[1].toFixed(2);
+                param.appendChild(val);
+                var lbl = document.createElement('div');
+                lbl.className = 'param-label';
+                lbl.textContent = pair[0];
+                param.appendChild(lbl);
+                params.appendChild(param);
+            });
+            card.appendChild(params);
+
+            // Meta
+            var meta = document.createElement('div');
+            meta.style.cssText = 'font-size:0.75rem;color:var(--archie-text-muted)';
+            meta.textContent = (p.cached_words || 0) + ' cached words \u00b7 ' + (p.default_emotion || 'neutral');
+            card.appendChild(meta);
+
+            // Actions
+            var actions = document.createElement('div');
+            actions.className = 'profile-actions';
+            var editBtn = document.createElement('button');
+            editBtn.className = 'btn btn-secondary';
+            editBtn.textContent = 'Edit';
+            editBtn.onclick = (function(pp) {
+                return function() {
+                    editVoiceProfile(pp.id, pp.agent_id, pp.profile_name, pp.speaker,
+                        pp.speed || 1, pp.pitch_shift || 1, pp.warmth || 0.8, pp.default_emotion || 'neutral');
+                };
+            })(p);
+            actions.appendChild(editBtn);
+
+            var delBtn = document.createElement('button');
+            delBtn.className = 'btn btn-secondary';
+            delBtn.style.color = '#f85149';
+            delBtn.textContent = 'Delete';
+            delBtn.onclick = (function(pid) { return function() { deleteVoiceProfile(pid); }; })(p.id);
+            actions.appendChild(delBtn);
+            card.appendChild(actions);
+
+            grid.appendChild(card);
+        });
+    } catch (e) {
+        console.error('Voice profiles error:', e);
+    }
+}
+
+function showNewProfileForm() {
+    document.getElementById('agent-profile-form').style.display = 'block';
+    document.getElementById('profile-form-title').textContent = 'New Voice Profile';
+    document.getElementById('profile-agent').value = '';
+    document.getElementById('profile-name').value = 'Default';
+    document.getElementById('profile-speed').value = '1.00';
+    document.getElementById('profile-speed-val').textContent = '1.00';
+    document.getElementById('profile-pitch').value = '1.00';
+    document.getElementById('profile-pitch-val').textContent = '1.00';
+    document.getElementById('profile-warmth').value = '0.80';
+    document.getElementById('profile-warmth-val').textContent = '0.80';
+}
+
+function hideProfileForm() {
+    document.getElementById('agent-profile-form').style.display = 'none';
+    document.getElementById('profile-audio-container').style.display = 'none';
+}
+
+function editVoiceProfile(id, agentId, name, speaker, speed, pitch, warmth, emotion) {
+    document.getElementById('agent-profile-form').style.display = 'block';
+    document.getElementById('profile-form-title').textContent = 'Edit Voice Profile';
+    document.getElementById('profile-agent').value = agentId;
+    document.getElementById('profile-name').value = name;
+    document.getElementById('profile-speaker').value = speaker;
+    document.getElementById('profile-emotion').value = emotion;
+    document.getElementById('profile-speed').value = speed;
+    document.getElementById('profile-speed-val').textContent = speed.toFixed(2);
+    document.getElementById('profile-pitch').value = pitch;
+    document.getElementById('profile-pitch-val').textContent = pitch.toFixed(2);
+    document.getElementById('profile-warmth').value = warmth;
+    document.getElementById('profile-warmth-val').textContent = warmth.toFixed(2);
+}
+
+async function saveAgentProfile() {
+    var agentId = document.getElementById('profile-agent').value;
+    if (!agentId) { alert('Please select an agent'); return; }
+
+    try {
+        var r = await fetch('/tools/consciousness/api/voice/profiles', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                agent_id: parseInt(agentId),
+                profile_name: document.getElementById('profile-name').value,
+                speaker: document.getElementById('profile-speaker').value,
+                speed: parseFloat(document.getElementById('profile-speed').value),
+                pitch_shift: parseFloat(document.getElementById('profile-pitch').value),
+                warmth: parseFloat(document.getElementById('profile-warmth').value),
+                default_emotion: document.getElementById('profile-emotion').value
+            })
+        });
+        var d = await r.json();
+        if (d.success) {
+            hideProfileForm();
+            loadVoiceProfiles();
+        } else {
+            alert('Error: ' + (d.error || 'Unknown'));
+        }
+    } catch (e) {
+        alert('Error: ' + e.message);
+    }
+}
+
+async function previewAgentVoice() {
+    var container = document.getElementById('profile-audio-container');
+    container.style.display = 'none';
+    try {
+        var r = await fetch('/tools/consciousness/api/voice/preview', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                text: 'Hello, this is my voice profile preview.',
+                speaker: document.getElementById('profile-speaker').value,
+                speed: parseFloat(document.getElementById('profile-speed').value),
+                pitch_shift: parseFloat(document.getElementById('profile-pitch').value),
+                warmth: parseFloat(document.getElementById('profile-warmth').value),
+                emotion: document.getElementById('profile-emotion').value
+            })
+        });
+        var d = await r.json();
+        if (d.success && d.audio_base64) {
+            var audioBytes = Uint8Array.from(atob(d.audio_base64), function(c) { return c.charCodeAt(0); });
+            var blob = new Blob([audioBytes], { type: 'audio/wav' });
+            var url = URL.createObjectURL(blob);
+            document.getElementById('profile-audio').src = url;
+            container.style.display = 'block';
+            document.getElementById('profile-audio').play();
+        }
+    } catch (e) {
+        console.error('Profile preview error:', e);
+    }
+}
+
+async function deleteVoiceProfile(id) {
+    if (!confirm('Delete this voice profile?')) return;
+    try {
+        var r = await fetch('/tools/consciousness/api/voice/profiles/' + id, { method: 'DELETE' });
+        var d = await r.json();
+        if (d.success) loadVoiceProfiles();
+    } catch (e) {
+        console.error('Delete profile error:', e);
+    }
+}
+
+function togglePregenEmotion(btn) {
+    btn.classList.toggle('active');
+}
+
+async function startPregen() {
+    var emotions = [];
+    document.querySelectorAll('#pregen-emotions .filter-btn.active').forEach(function(b) {
+        emotions.push(b.dataset.emotion);
+    });
+    if (emotions.length === 0) emotions = ['neutral'];
+
+    var progressEl = document.getElementById('pregen-progress');
+    progressEl.style.display = 'block';
+    document.getElementById('pregen-bar-fill').style.width = '0%';
+    document.getElementById('pregen-pct').textContent = '0%';
+    document.getElementById('pregen-status-text').textContent = 'Starting...';
+
+    try {
+        var r = await fetch('/tools/consciousness/api/voice/pregen', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                job_type: document.getElementById('pregen-type').value,
+                word_count: parseInt(document.getElementById('pregen-count').value),
+                emotions: emotions
+            })
+        });
+        var d = await r.json();
+        if (d.success) {
+            activePregenJobId = d.job_id;
+            pollPregenJob(d.job_id);
+        } else {
+            document.getElementById('pregen-status-text').textContent = 'Error: ' + (d.error || 'Unknown');
+        }
+    } catch (e) {
+        document.getElementById('pregen-status-text').textContent = 'Error: ' + e.message;
+    }
+}
+
+function pollPregenJob(jobId) {
+    var interval = setInterval(async function() {
+        try {
+            var r = await fetch('/tools/consciousness/api/voice/pregen/' + jobId);
+            var d = await r.json();
+            if (!d.success) { clearInterval(interval); return; }
+            var job = d.job;
+            document.getElementById('pregen-bar-fill').style.width = job.progress_pct + '%';
+            document.getElementById('pregen-pct').textContent = job.progress_pct + '%';
+            document.getElementById('pregen-status-text').textContent = job.completed_words + '/' + job.total_words + ' words (' + job.failed_words + ' failed)';
+
+            if (job.status === 'completed' || job.status === 'failed') {
+                clearInterval(interval);
+                activePregenJobId = null;
+                if (job.status === 'completed') {
+                    document.getElementById('pregen-status-text').textContent = 'Completed: ' + job.completed_words + ' words cached';
+                    loadVoiceDashboard();
+                } else {
+                    document.getElementById('pregen-status-text').textContent = 'Failed: ' + (job.error_message || 'Unknown error');
+                }
+            }
+        } catch (e) {
+            clearInterval(interval);
+        }
+    }, 3000);
+}
 </script>
 {% endblock %}

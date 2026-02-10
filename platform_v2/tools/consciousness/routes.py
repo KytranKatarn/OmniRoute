@@ -6899,6 +6899,37 @@ def voice_profile_delete(profile_id):
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@consciousness_bp.route("/api/voice/profiles/<int:profile_id>/agent-name", methods=["PATCH"])
+@login_required
+@admin_required
+def voice_profile_rename_agent(profile_id):
+    """Rename the agent associated with a voice profile"""
+    try:
+        data = request.get_json()
+        new_name = (data.get("name") or "").strip()
+        if not new_name:
+            return jsonify({"success": False, "error": "Name is required"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT agent_id FROM agent_voice_profiles WHERE id = %s", (profile_id,))
+        row = cur.fetchone()
+        if not row:
+            cur.close()
+            conn.close()
+            return jsonify({"success": False, "error": "Profile not found"}), 404
+
+        cur.execute("UPDATE agents SET name = %s WHERE id = %s", (new_name, row[0]))
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"success": True})
+
+    except Exception as e:
+        logger.error(f"Voice agent rename error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @consciousness_bp.route("/api/voice/cache", methods=["GET"])
 @login_required
 @admin_required

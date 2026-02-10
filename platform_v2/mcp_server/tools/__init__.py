@@ -13,11 +13,11 @@ Tools are organized by category:
 - advanced: Workflows, rate limits, audit, health (12 tools)
 - claude: Claude Code integration (10 tools)
 - project: Unified project management (12 tools)
-- consciousness: Self-awareness tools (3 tools)
+- consciousness: Self-awareness & processing tools (5 tools)
 - work: Work session context tracking (6 tools)
 - ai_command: AI Command operations - performance, ethics, health (6 tools)
 
-Total: 76 tools
+Total: 78 tools
 """
 
 from typing import Dict, List, Callable, Any

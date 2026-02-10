@@ -439,7 +439,7 @@ MODULES: List[ModuleDefinition] = [
     ModuleDefinition(
         id="consciousness",
         name="Consciousness",
-        description="Knowledge analytics • Memory insights<br>Team awareness • Learning management",
+        description="Knowledge analytics • AI processing & embeddings<br>Emotional intelligence • Memory insights",
         icon="brain",
         category=ModuleCategory.AI_COMMAND,
         route="/tools/consciousness",

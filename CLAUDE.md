@@ -1,6 +1,6 @@
 # A.R.C.H.I.E. Platform
 
-**Version**: 5.27.0 | **Host**: 192.168.1.200 | **Status**: Operational
+**Version**: 5.28.0 | **Host**: 192.168.1.200 | **Status**: Operational
 
 ---
 
@@ -19,16 +19,17 @@
 | Dev HQ | http://192.168.1.200:3000/dev-hq |
 | Docs | `knowledge_base` table → Dev HQ Knowledge tab or MCP `search_knowledge` |
 | Modules | `/mnt/archie_brain/platform_v2/tools/` (50 modules) |
-| MCP Tools | 69 tools via `.mcp.json` |
+| MCP Tools | 78 tools via `.mcp.json` |
 | Projects | `unified_projects` table → MCP `get_projects` / `create_task` |
 
 ## Architecture (5 Systems)
 
-1. **Knowledge Base** - `knowledge_base` table (3,390+ entries)
+1. **Knowledge Base** - `knowledge_base` table (6,000+ entries, 99% embedded)
 2. **AI Bridge** - `/ai_bridge/archie_bridge.py` (multi-model router)
 3. **Module System** - Flask Blueprints in `/platform_v2/tools/`
 4. **Dev HQ** - Development command center (`/dev-hq`), projects, knowledge, schema, integrations
-5. **Improvement Workflow** - Scan → Proposal → Sandbox → Deploy
+5. **Consciousness** - Knowledge analytics, AI processing, embedding coverage, emotional intelligence
+6. **Improvement Workflow** - Scan → Proposal → Sandbox → Deploy
 
 ## Source of Truth
 
@@ -49,6 +50,8 @@ platform_v2/module_registry.py  - Module definitions
 platform_v2/rbac.py             - Permissions
 platform_v2/database.py         - DB connection
 ai_bridge/archie_bridge.py      - AI routing
+ai_bridge/knowledge_analyzer.py - Knowledge extraction (Ollama qwen2.5:7b)
+ai_bridge/embedding_service.py  - Vector embeddings (nomic-embed-text)
 ```
 
 ## Common Errors

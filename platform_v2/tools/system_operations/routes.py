@@ -3255,7 +3255,12 @@ def api_storage_preflight():
                 pass
 
         # Check 2: Stale mount detection (device path doesn't exist but mount is active)
-        if device and mountpoint:
+        # NOTE: This check runs inside the Docker container where LVM device symlinks
+        # (e.g. /dev/ubuntu-vg/ubuntu-lv) are NOT visible. Skip the os.path.exists()
+        # check for LVM paths since the actual operations run on the host via the
+        # command queue where devices are accessible.
+        is_lvm_device = device and (device.startswith("/dev/mapper/") or len(device.split("/")) >= 4)
+        if device and mountpoint and not is_lvm_device:
             try:
                 # Check if device path exists
                 device_exists = os.path.exists(device)

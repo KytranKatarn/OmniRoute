@@ -334,7 +334,13 @@ def update_job_progress(job_id: int, completed: int, failed: int = 0, status: st
 
 
 def run_pregen_job(
-    job_id: int, words: list, emotions: list, agent_id: int = None, quality: str = "high", engine: str = "kokoro"
+    job_id: int,
+    words: list,
+    emotions: list,
+    agent_id: int = None,
+    quality: str = "high",
+    engine: str = "kokoro",
+    language: str = "en",
 ):
     """
     Background worker function for pre-generation.
@@ -379,15 +385,21 @@ def run_pregen_job(
     # Default voice for cache key generation
     default_voice = KokoroEngine.DEFAULT_VOICE if engine == "kokoro" else "Ana Florence"
 
+    # Kokoro is English-only; auto-route non-English to XTTS v2
+    effective_engine = engine
+    if language != "en" and engine == "kokoro":
+        effective_engine = "xtts_v2"
+
     for emotion in emotions:
         cached_hashes = get_cached_words(emotion, agent_id)
 
         for word in words:
-            # Generate hash matching the engine-scoped cache key format
+            # Generate hash matching the engine+language-scoped cache key format
             if agent_id:
-                content = f"{engine}|agent:{agent_id}|{word}|{emotion}"
+                content = f"{effective_engine}|{language}|agent:{agent_id}|{word}|{emotion}"
             else:
-                content = f"{engine}|{word}|{emotion}|{default_voice}"
+                eff_voice = KokoroEngine.DEFAULT_VOICE if effective_engine == "kokoro" else "Ana Florence"
+                content = f"{effective_engine}|{language}|{word}|{emotion}|{eff_voice}"
             word_hash = hashlib.sha256(content.encode()).hexdigest()[:32]
 
             if word_hash in cached_hashes:
@@ -396,12 +408,16 @@ def run_pregen_job(
                     update_job_progress(job_id, completed, failed)
                 continue
 
-            # Synthesize with engine and quality setting
+            # Synthesize with engine, quality, and language
             try:
                 if agent_id:
-                    result = synthesizer.synthesize_for_agent(word, agent_id, emotion, quality=quality)
+                    result = synthesizer.synthesize_for_agent(
+                        word, agent_id, emotion, quality=quality, language=language
+                    )
                 else:
-                    result = synthesizer.synthesize(word, emotion, quality=quality, engine=engine)
+                    result = synthesizer.synthesize(
+                        word, emotion, quality=quality, engine=effective_engine, language=language
+                    )
 
                 if result.get("success"):
                     completed += 1
@@ -433,6 +449,7 @@ def start_pregen_job(
     custom_phrases: list = None,
     quality: str = "high",
     engine: str = "kokoro",
+    language: str = "en",
 ) -> int:
     """
     Start a pre-generation job. Returns job ID.
@@ -445,6 +462,7 @@ def start_pregen_job(
         custom_phrases: Optional additional phrases to include
         quality: Quality preset ('standard' or 'high', default 'high')
         engine: TTS engine ('kokoro' or 'xtts_v2', default 'kokoro')
+        language: Language code ('en', 'fr', etc., default 'en')
 
     Returns:
         Job ID
@@ -483,11 +501,11 @@ def start_pregen_job(
         cur = conn.cursor()
         cur.execute(
             """
-            INSERT INTO voice_pregen_jobs (agent_id, status, job_type, total_words, engine)
-            VALUES (%s, 'pending', %s, %s, %s)
+            INSERT INTO voice_pregen_jobs (agent_id, status, job_type, total_words, engine, language)
+            VALUES (%s, 'pending', %s, %s, %s, %s)
             RETURNING id
         """,
-            (agent_id, job_type, len(words) * len(emotions), engine),
+            (agent_id, job_type, len(words) * len(emotions), engine, language),
         )
         job_id = cur.fetchone()[0]
         conn.commit()
@@ -500,7 +518,7 @@ def start_pregen_job(
     # Start background thread
     thread = threading.Thread(
         target=run_pregen_job,
-        args=(job_id, words, emotions, agent_id, quality, engine),
+        args=(job_id, words, emotions, agent_id, quality, engine, language),
         daemon=True,
         name=f"voice-pregen-{job_id}",
     )

@@ -6723,17 +6723,46 @@ def voice_preview():
         quality = data.get("quality", "standard")
         engine = data.get("engine", "kokoro")
         voice_blend = data.get("voice_blend", None)
+        language = data.get("language", "en")
         if quality not in ("standard", "high"):
             quality = "standard"
         if engine not in ("kokoro", "xtts_v2"):
             engine = "kokoro"
+        if language not in (
+            "en",
+            "fr",
+            "es",
+            "de",
+            "it",
+            "pt",
+            "pl",
+            "tr",
+            "ru",
+            "nl",
+            "cs",
+            "ar",
+            "zh-cn",
+            "ja",
+            "hu",
+            "ko",
+        ):
+            language = "en"
 
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
         from ai_bridge.voice_synthesis import get_voice_synthesizer
 
         synth = get_voice_synthesizer()
         result = synth.synthesize_with_params(
-            text, speaker, speed, pitch_shift, warmth, emotion, quality, engine=engine, voice_blend=voice_blend
+            text,
+            speaker,
+            speed,
+            pitch_shift,
+            warmth,
+            emotion,
+            quality,
+            engine=engine,
+            voice_blend=voice_blend,
+            language=language,
         )
 
         return jsonify(result)
@@ -6821,9 +6850,29 @@ def voice_profile_save():
         emotion_overrides = data.get("emotion_overrides", {})
         engine = data.get("engine", "kokoro")
         voice_blend = data.get("voice_blend", None)
+        language = data.get("language", "en")
 
         if engine not in ("kokoro", "xtts_v2"):
             engine = "kokoro"
+        if language not in (
+            "en",
+            "fr",
+            "es",
+            "de",
+            "it",
+            "pt",
+            "pl",
+            "tr",
+            "ru",
+            "nl",
+            "cs",
+            "ar",
+            "zh-cn",
+            "ja",
+            "hu",
+            "ko",
+        ):
+            language = "en"
 
         if not agent_id:
             return jsonify({"success": False, "error": "agent_id required"}), 400
@@ -6835,8 +6884,8 @@ def voice_profile_save():
             """
             INSERT INTO agent_voice_profiles
             (agent_id, profile_name, speaker, speed, pitch_shift, warmth,
-             default_emotion, emotion_overrides, created_by, engine, voice_blend)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             default_emotion, emotion_overrides, created_by, engine, voice_blend, language)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (agent_id) DO UPDATE SET
                 profile_name = EXCLUDED.profile_name,
                 speaker = EXCLUDED.speaker,
@@ -6847,6 +6896,7 @@ def voice_profile_save():
                 emotion_overrides = EXCLUDED.emotion_overrides,
                 engine = EXCLUDED.engine,
                 voice_blend = EXCLUDED.voice_blend,
+                language = EXCLUDED.language,
                 updated_at = NOW()
             RETURNING id
         """,
@@ -6862,6 +6912,7 @@ def voice_profile_save():
                 current_user.id,
                 engine,
                 voice_blend,
+                language,
             ),
         )
         result = cur.fetchone()
@@ -6934,7 +6985,7 @@ def voice_profile_rename_agent(profile_id):
 @login_required
 @admin_required
 def voice_cache_list():
-    """Paginated cache entries with filters"""
+    """Paginated cache entries with filters + agent group summaries"""
     try:
         page = int(request.args.get("page", 1))
         per_page = int(request.args.get("per_page", 25))
@@ -6942,43 +6993,50 @@ def voice_cache_list():
         sort = request.args.get("sort", "hits")
         agent_id = request.args.get("agent_id", "")
         engine_filter = request.args.get("engine", "")
+        language_filter = request.args.get("language", "")
 
         offset = (page - 1) * per_page
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        conditions = ["text_hash IS NOT NULL"]
+        conditions = ["c.text_hash IS NOT NULL"]
         params = []
 
         if emotion:
-            conditions.append("emotion_context = %s")
+            conditions.append("c.emotion_context = %s")
             params.append(emotion)
         if agent_id:
-            conditions.append("agent_id = %s")
+            conditions.append("c.agent_id = %s")
             params.append(int(agent_id))
         if engine_filter:
-            conditions.append("COALESCE(engine, 'xtts_v2') = %s")
+            conditions.append("COALESCE(c.engine, 'xtts_v2') = %s")
             params.append(engine_filter)
+        if language_filter:
+            conditions.append("COALESCE(c.language, 'en') = %s")
+            params.append(language_filter)
 
         where = " AND ".join(conditions)
 
-        order = "hit_count DESC"
+        order = "c.hit_count DESC"
         if sort == "recent":
-            order = "last_used DESC NULLS LAST"
+            order = "c.last_used DESC NULLS LAST"
         elif sort == "largest":
-            order = "LENGTH(full_audio_cache) DESC NULLS LAST"
+            order = "LENGTH(c.full_audio_cache) DESC NULLS LAST"
 
-        cur.execute(f"SELECT COUNT(*) as total FROM voice_word_cache WHERE {where}", params)
+        cur.execute(f"SELECT COUNT(*) as total FROM voice_word_cache c WHERE {where}", params)
         total = cur.fetchone()["total"]
 
         cur.execute(
             f"""
-            SELECT word_id, word_text, emotion_context, hit_count, usage_count,
-                   duration_ms, last_used, agent_id,
-                   COALESCE(engine, 'xtts_v2') as engine,
-                   LENGTH(full_audio_cache) as audio_size
-            FROM voice_word_cache
+            SELECT c.word_id, c.word_text, c.emotion_context, c.hit_count, c.usage_count,
+                   c.duration_ms, c.last_used, c.agent_id,
+                   COALESCE(c.engine, 'xtts_v2') as engine,
+                   COALESCE(c.language, 'en') as language,
+                   LENGTH(c.full_audio_cache) as audio_size,
+                   a.name as agent_name
+            FROM voice_word_cache c
+            LEFT JOIN agents a ON c.agent_id = a.id
             WHERE {where}
             ORDER BY {order}
             LIMIT %s OFFSET %s
@@ -6993,6 +7051,26 @@ def voice_cache_list():
                 d["last_used"] = d["last_used"].isoformat()
             entries.append(d)
 
+        # Agent group summaries (always return for cache overview)
+        cur.execute(
+            """
+            SELECT c.agent_id,
+                   COALESCE(a.name, 'No Agent') as agent_name,
+                   COUNT(*) as word_count,
+                   COALESCE(SUM(LENGTH(c.full_audio_cache)), 0) as total_size,
+                   COALESCE(SUM(c.hit_count), 0) as total_hits
+            FROM voice_word_cache c
+            LEFT JOIN agents a ON c.agent_id = a.id
+            WHERE c.text_hash IS NOT NULL
+            GROUP BY c.agent_id, a.name
+            ORDER BY word_count DESC
+        """
+        )
+        agent_groups = []
+        for row in cur.fetchall():
+            d = dict(row)
+            agent_groups.append(d)
+
         cur.close()
         conn.close()
 
@@ -7004,6 +7082,7 @@ def voice_cache_list():
                 "page": page,
                 "per_page": per_page,
                 "pages": (total + per_page - 1) // per_page,
+                "agent_groups": agent_groups,
             }
         )
 
@@ -7026,10 +7105,30 @@ def voice_pregen_start():
         custom_phrases = data.get("custom_phrases", [])
         quality = data.get("quality", "high")
         engine = data.get("engine", "kokoro")
+        language = data.get("language", "en")
         if quality not in ("standard", "high"):
             quality = "high"
         if engine not in ("kokoro", "xtts_v2"):
             engine = "kokoro"
+        if language not in (
+            "en",
+            "fr",
+            "es",
+            "de",
+            "it",
+            "pt",
+            "pl",
+            "tr",
+            "ru",
+            "nl",
+            "cs",
+            "ar",
+            "zh-cn",
+            "ja",
+            "hu",
+            "ko",
+        ):
+            language = "en"
 
         from .voice_pregen import start_pregen_job
 
@@ -7041,6 +7140,7 @@ def voice_pregen_start():
             custom_phrases=custom_phrases,
             quality=quality,
             engine=engine,
+            language=language,
         )
 
         return jsonify({"success": True, "job_id": job_id})

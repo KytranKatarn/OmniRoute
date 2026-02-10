@@ -423,11 +423,110 @@
 .voice-form-group select { background: var(--archie-bg-primary, #010409); border: 1px solid var(--archie-border-default); border-radius: 8px; padding: 0.6rem 0.75rem; color: var(--archie-text-secondary); font-family: var(--archie-font-body); font-size: 0.85rem; }
 .voice-form-group select:focus { outline: none; border-color: var(--module-accent); }
 
-/* Responsive */
+.card-pregen-section { display:none; margin-top:0.75rem; padding-top:0.75rem; border-top:1px solid var(--archie-border-default,#30363d); }
+.card-pregen-section.open { display:block; animation:fadeIn 0.3s ease; }
+.card-pregen-section .voice-form-group select { font-size:0.85rem; }
+.card-pregen-section .pregen-progress { margin-top:0.5rem; }
+.card-pregen-section .filter-btn { font-size:0.75rem; padding:0.2rem 0.5rem; }
+
+/* ===== Brain Map ===== */
+.brain-controls { display: flex; gap: 0.75rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
+.brain-view-toggle { display: flex; gap: 0; background: var(--archie-bg-secondary); border: 1px solid var(--archie-border-default); border-radius: 8px; overflow: hidden; }
+.brain-toggle-btn { padding: 0.5rem 1rem; background: transparent; border: none; color: var(--archie-text-muted); cursor: pointer; font-size: 0.85rem; font-family: inherit; transition: all 0.2s; }
+.brain-toggle-btn.active { background: var(--module-accent); color: #fff; }
+.brain-type-filters { display: flex; gap: 0.4rem; flex-wrap: wrap; flex: 1; min-width: 0; }
+.brain-filter-btn { padding: 0.3rem 0.6rem; background: var(--archie-bg-secondary); border: 1px solid var(--archie-border-default); border-radius: 6px; color: var(--archie-text-muted); cursor: pointer; font-size: 0.75rem; font-family: inherit; transition: all 0.2s; white-space: nowrap; }
+.brain-filter-btn:hover { border-color: var(--module-accent); color: var(--archie-text-secondary); background: var(--module-accent-alpha-10); }
+.brain-filter-btn.active { background: var(--module-accent-alpha-20); border-color: var(--module-accent); color: var(--module-accent-bright, #a78bfa); }
+.brain-filter-count { font-size: 0.65rem; opacity: 0.6; margin-left: 0.2rem; }
+
+.brain-map-container { width: 100%; height: 600px; border: 1px solid var(--archie-border-default); border-radius: var(--archie-radius-lg, 12px); overflow: hidden; position: relative; background: var(--archie-bg-primary); }
+.brain-map-container svg { display: block; }
+
+.brain-tooltip { display: none; position: absolute; background: var(--archie-bg-secondary); border: 1px solid var(--module-accent); padding: 0.6rem 0.8rem; border-radius: 8px; color: var(--archie-text-secondary); font-size: 0.8rem; pointer-events: none; z-index: 1000; max-width: 240px; line-height: 1.4; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+body.light-mode .brain-tooltip { box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+
+.brain-stats-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin-top: 1rem; }
+.brain-stat-card { background: var(--archie-bg-secondary); border: 1px solid var(--archie-border-default); border-radius: var(--archie-radius-md, 10px); padding: 0.8rem 1rem; text-align: center; }
+.brain-stat-value { font-size: 1.4rem; font-weight: 700; color: var(--module-accent); }
+.brain-stat-label { font-size: 0.7rem; color: var(--archie-text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 0.2rem; }
+
+.brain-detail-panel { margin-top: 1rem; background: var(--archie-bg-secondary); border: 1px solid var(--archie-border-default); border-radius: var(--archie-radius-lg, 12px); max-height: 400px; overflow: hidden; display: flex; flex-direction: column; }
+.brain-detail-header { display: flex; justify-content: space-between; align-items: center; padding: 0.8rem 1rem; border-bottom: 1px solid var(--archie-border-default); }
+.brain-detail-header h3 { margin: 0; font-size: 1rem; color: var(--archie-text-secondary); }
+.brain-detail-close { background: none; border: none; color: var(--archie-text-muted); font-size: 1.2rem; cursor: pointer; padding: 0.2rem 0.5rem; }
+.brain-detail-close:hover { color: var(--archie-text-secondary); }
+.brain-detail-body { overflow-y: auto; flex: 1; padding: 0.5rem; }
+
+.brain-entries { display: flex; flex-direction: column; gap: 0.4rem; }
+.brain-entry { padding: 0.6rem 0.8rem; border-radius: 8px; background: var(--module-accent-alpha-10, rgba(139,92,246,0.05)); border: 1px solid transparent; transition: all 0.2s; }
+.brain-entry:hover { border-color: var(--archie-border-default); background: var(--module-accent-alpha-20, rgba(139,92,246,0.1)); }
+.brain-entry-title { font-size: 0.85rem; color: var(--archie-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.brain-entry-meta { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.3rem; font-size: 0.7rem; color: var(--archie-text-muted); }
+.brain-entry-cat { background: var(--module-accent-alpha-10); padding: 0.1rem 0.4rem; border-radius: 4px; }
+.brain-entry-embed { color: var(--archie-green, #00ff41); font-weight: 700; }
+.brain-imp-bar { height: 3px; background: var(--archie-border-default); border-radius: 2px; margin-top: 0.3rem; overflow: hidden; }
+.brain-imp-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
+
+/* Brain Map SVG hover effects */
+.brain-region-group { transition: filter 0.2s; }
+.brain-region-group:hover { filter: url(#brain-glow) brightness(1.2); }
+.brain-category-group { transition: opacity 0.2s; }
+.brain-category-group:hover { opacity: 1 !important; }
+
+/* Brain Map Animations */
+@keyframes brainPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+}
+.brain-center-node { animation: brainPulse 3s ease-in-out infinite; transform-origin: center; }
+.brain-core-aura { animation: brainPulse 3s ease-in-out infinite; opacity: 0.4; }
+
+@keyframes neuralSignal {
+    0% { stroke-dashoffset: 20; }
+    100% { stroke-dashoffset: 0; }
+}
+.brain-pathway { animation: neuralSignal 2s linear infinite; }
+
+/* Light mode brain map adaptations */
+body.light-mode .brain-map-container { background: #f8f9fb; }
+body.light-mode .brain-filter-btn.active { color: var(--module-accent); }
+
+/* Responsive — Galaxy Fold 5 open (920px) */
+@media (max-width: 920px) {
+    .brain-stats-bar { grid-template-columns: repeat(2, 1fr); }
+    .brain-map-container { height: 480px; }
+    .brain-type-filters { gap: 0.3rem; }
+    .brain-filter-btn { font-size: 0.7rem; padding: 0.25rem 0.5rem; }
+}
+
+/* Responsive — Tablet / mid-size (768px) */
 @media (max-width: 768px) {
     .tab-nav { justify-content: flex-start; }
+    .brain-stats-bar { grid-template-columns: repeat(2, 1fr); }
+    .brain-map-container { height: 400px; }
+    .brain-controls { gap: 0.5rem; }
+    .brain-stat-value { font-size: 1.2rem; }
+    .brain-stat-label { font-size: 0.65rem; }
+    .brain-detail-panel { max-height: 300px; }
     .voice-form-row { grid-template-columns: 1fr; }
     .voice-profile-grid { grid-template-columns: 1fr; }
+}
+
+/* Responsive — Galaxy Fold 5 closed / small phones (480px) */
+@media (max-width: 480px) {
+    .brain-controls { flex-direction: column; align-items: stretch; }
+    .brain-view-toggle { align-self: flex-start; }
+    .brain-type-filters { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; padding-bottom: 0.3rem; }
+    .brain-map-container { height: 320px; border-radius: 8px; }
+    .brain-stats-bar { grid-template-columns: repeat(2, 1fr); gap: 0.5rem; }
+    .brain-stat-card { padding: 0.5rem; }
+    .brain-stat-value { font-size: 1.1rem; }
+    .brain-stat-label { font-size: 0.6rem; }
+    .brain-detail-panel { max-height: 250px; border-radius: 8px; }
+    .brain-detail-header { padding: 0.6rem 0.75rem; }
+    .brain-filter-btn { font-size: 0.65rem; padding: 0.2rem 0.4rem; }
+    .brain-toggle-btn { padding: 0.4rem 0.75rem; font-size: 0.8rem; }
 }
 {% endblock %}
 
@@ -450,13 +549,10 @@
         <button class="tab-btn active" data-tab="overview">📊 Overview</button>
         <button class="tab-btn" data-tab="chat">💬 Chat</button>
         <button class="tab-btn" data-tab="emotional">💜 Emotional</button>
-        <button class="tab-btn" data-tab="logs">📄 Logs</button>
-        <button class="tab-btn" data-tab="aiprocess">🤖 AI Process</button>
+        <button class="tab-btn" data-tab="processing">⚙️ Processing</button>
         <button class="tab-btn" data-tab="github">🐙 GitHub</button>
-        <button class="tab-btn" data-tab="charts">📈 Charts</button>
-        <button class="tab-btn" data-tab="graph">🕸️ Graph</button>
+        <button class="tab-btn" data-tab="brain">🧠 Brain Map</button>
         <button class="tab-btn" data-tab="feed">📡 Feed</button>
-        <button class="tab-btn" data-tab="tools">🔧 Tools</button>
         <button class="tab-btn" data-tab="voice">🎙 Voice</button>
     </div>
 
@@ -478,13 +574,6 @@
         <div class="dashboard-grid">
             <div class="chart-container"><div class="chart-title">📈 Knowledge Growth (7 days)</div><canvas id="growth-chart-mini" height="160"></canvas></div>
             <div class="chart-container"><div class="chart-title">🎯 Knowledge Sources</div><canvas id="type-chart-mini" height="160"></canvas></div>
-        </div>
-        <h3 class="section-title">Quick Access</h3>
-        <div class="quick-access-grid">
-            <div class="quick-card"><h3>📚 Memory Management</h3><p>View and manage conversation memories</p><a href="{{ url_for('consciousness.memory') }}" class="btn btn-primary">View Memories</a></div>
-            <div class="quick-card"><h3>👥 Team Awareness</h3><p>Agent directory and performance tracking</p><a href="{{ url_for('consciousness.team_awareness') }}" class="btn btn-primary">View Team</a></div>
-            <div class="quick-card"><h3>📊 Full Analytics</h3><p>Detailed knowledge growth and usage metrics</p><a href="{{ url_for('consciousness.analytics') }}" class="btn btn-primary">View Analytics</a></div>
-            <div class="quick-card"><h3>🔍 Search Knowledge</h3><p>Search across all knowledge entries</p><form action="{{ url_for('consciousness.search_knowledge') }}" method="post"><input type="text" name="query" placeholder="Search knowledge base..." class="form-control"><button type="submit" class="btn btn-primary" style="margin-top: 0.5rem;">Search</button></form></div>
         </div>
     </div>
 
@@ -691,68 +780,97 @@
         </div>
     </div>
 
-    <div id="tab-logs" class="tab-content">
-        <div class="panel">
-            <div class="panel-header">
-                <div class="panel-title">📄 Conversation Log Ingestion</div>
-                <div style="display: flex; gap: 0.5rem; align-items: center;">
-                    <button class="btn btn-secondary" onclick="loadLogStatus()">🔄 Refresh</button>
-                </div>
-            </div>
-            <div class="panel-body">
-                <div class="stats-grid" style="margin-bottom: 1.5rem;">
-                    <div class="stat-card"><div class="stat-value" id="log-snapshots">-</div><div class="stat-label">Snapshot Files</div></div>
-                    <div class="stat-card"><div class="stat-value" id="log-transcripts">-</div><div class="stat-label">Transcript Files</div></div>
-                    <div class="stat-card"><div class="stat-value" id="log-sessions">-</div><div class="stat-label">Unique Sessions</div></div>
-                    <div class="stat-card"><div class="stat-value" id="log-ingested">-</div><div class="stat-label">Already Ingested</div></div>
-                </div>
-                <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem;">
-                    <label style="color: var(--archie-text-muted);">Batch Size:</label>
-                    <input type="number" id="log-batch-size" class="form-control" value="50" min="1" max="500" style="width: 100px;">
-                    <button class="btn btn-primary" onclick="ingestLogs(false)">🚀 Ingest Batch</button>
-                    <button class="btn btn-secondary" onclick="ingestLogs(true)">👁️ Dry Run</button>
-                </div>
-                <div id="log-progress" style="display: none; margin: 1rem 0;">
-                    <div class="gauge-bar" style="height: 12px;"><div class="gauge-fill" id="log-progress-bar" style="width: 0%"></div></div>
-                    <div style="text-align: center; margin-top: 0.5rem; color: var(--archie-text-muted);" id="log-progress-text">Processing...</div>
-                </div>
-                <div id="log-results" class="activity-feed" style="max-height: 400px;"></div>
-            </div>
-        </div>
-    </div>
-
-    <div id="tab-aiprocess" class="tab-content">
+    <div id="tab-processing" class="tab-content">
         <div class="panel">
             <div class="panel-header">
                 <div class="panel-title">AI Knowledge Processing</div>
                 <div style="display: flex; gap: 0.5rem; align-items: center;">
                     <span style="background: var(--archie-green-alpha-10, rgba(0,255,65,0.1)); color: var(--archie-green); padding: 0.25rem 0.75rem; border-radius: 999px; font-size: 0.8rem; border: 1px solid var(--archie-green-dim, #1a7f33);">All services local (free)</span>
-                    <button class="btn btn-secondary" onclick="loadProcessingStatus()">Refresh</button>
+                    <button class="btn btn-secondary" onclick="loadProcessingStatus(); loadLogStatus();">Refresh</button>
                 </div>
             </div>
             <div class="panel-body">
-                <!-- Service + Coverage Stats -->
-                <div class="stats-grid" style="margin-bottom: 1.5rem;">
-                    <div class="stat-card" style="border-color: var(--archie-border-muted);">
-                        <div class="stat-value" id="ai-embedding-status" style="font-size: 1rem;">-</div>
-                        <div class="stat-label">Embedding Service</div>
+                <!-- Processing Backlog — paired toggle cards -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                    <!-- LEFT: AI Analysis (Conversations + Analysis Coverage) -->
+                    <div style="background: var(--archie-bg-tertiary); border-radius: 12px; border: 1px solid var(--archie-border-default); overflow: hidden;">
+                        <div style="padding: 0.5rem 0.75rem; background: var(--archie-bg-primary); display: flex; align-items: center; gap: 0.5rem; border-bottom: 1px solid var(--archie-border-default);">
+                            <span style="font-size: 0.85rem;">🧠</span>
+                            <span style="color: var(--archie-cyan, #22d3ee); font-size: 0.8rem; font-weight: 600;">AI Analysis</span>
+                            <span style="margin-left: auto; font-size: 0.7rem; color: var(--archie-text-muted);" id="ai-analyzer-status">-</span>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0;">
+                            <div class="backlog-card" id="backlog-card-conversations" style="padding: 0.75rem 0.5rem; text-align: center; border-right: 1px solid var(--archie-border-default); transition: background 0.3s;">
+                                <div style="color: var(--archie-text-muted); font-size: 0.7rem;">Backlog</div>
+                                <div style="color: var(--archie-text-primary); font-size: 1.4rem; font-weight: 700; margin: 0.15rem 0;" id="ai-backlog-conversations">-</div>
+                                <div style="font-size: 0.65rem; color: var(--archie-text-muted); min-height: 1em; margin-bottom: 0.3rem;" id="backlog-status-conversations"></div>
+                            </div>
+                            <div class="backlog-card" id="backlog-card-analysis-coverage" style="padding: 0.75rem 0.5rem; text-align: center; transition: background 0.3s;">
+                                <div style="color: var(--archie-text-muted); font-size: 0.7rem;">Coverage</div>
+                                <div style="color: var(--archie-cyan, #22d3ee); font-size: 1.4rem; font-weight: 700; margin: 0.15rem 0;" id="ai-analysis-coverage-pct">-</div>
+                                <div class="gauge-bar" style="height: 4px; margin-bottom: 0.15rem;"><div class="gauge-fill" id="ai-analysis-coverage-bar" style="width: 0%; background: var(--archie-cyan, #22d3ee);"></div></div>
+                                <div style="font-size: 0.65rem; color: var(--archie-text-muted); min-height: 1em;" id="ai-analysis-coverage-detail">-</div>
+                            </div>
+                        </div>
+                        <div style="padding: 0.5rem 0.75rem; border-top: 1px solid var(--archie-border-default);">
+                            <button class="btn btn-secondary backlog-toggle" onclick="toggleBacklogProcessing('conversations', this)" style="width: 100%; font-size: 0.8rem; padding: 0.35rem 0;">Start Analysis</button>
+                        </div>
                     </div>
-                    <div class="stat-card" style="border-color: var(--archie-border-muted);">
-                        <div class="stat-value" id="ai-analyzer-status" style="font-size: 1rem;">-</div>
-                        <div class="stat-label">Analyzer Service</div>
+
+                    <!-- RIGHT: Embeddings (Missing + Embedding Coverage) -->
+                    <div style="background: var(--archie-bg-tertiary); border-radius: 12px; border: 1px solid var(--archie-border-default); overflow: hidden;">
+                        <div style="padding: 0.5rem 0.75rem; background: var(--archie-bg-primary); display: flex; align-items: center; gap: 0.5rem; border-bottom: 1px solid var(--archie-border-default);">
+                            <span style="font-size: 0.85rem;">📐</span>
+                            <span style="color: var(--module-accent); font-size: 0.8rem; font-weight: 600;">Embeddings</span>
+                            <span style="margin-left: auto; font-size: 0.7rem; color: var(--archie-text-muted);" id="ai-embedding-status">-</span>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0;">
+                            <div class="backlog-card" id="backlog-card-embeddings" style="padding: 0.75rem 0.5rem; text-align: center; border-right: 1px solid var(--archie-border-default); transition: background 0.3s;">
+                                <div style="color: var(--archie-text-muted); font-size: 0.7rem;">Missing</div>
+                                <div style="color: var(--archie-text-primary); font-size: 1.4rem; font-weight: 700; margin: 0.15rem 0;" id="ai-backlog-embeddings">-</div>
+                                <div style="font-size: 0.65rem; color: var(--archie-text-muted); min-height: 1em; margin-bottom: 0.3rem;" id="backlog-status-embeddings"></div>
+                            </div>
+                            <div class="backlog-card" id="backlog-card-embed-coverage" style="padding: 0.75rem 0.5rem; text-align: center; transition: background 0.3s;">
+                                <div style="color: var(--archie-text-muted); font-size: 0.7rem;">Coverage</div>
+                                <div style="color: var(--module-accent); font-size: 1.4rem; font-weight: 700; margin: 0.15rem 0;" id="ai-embed-coverage-pct">-</div>
+                                <div class="gauge-bar" style="height: 4px; margin-bottom: 0.15rem;"><div class="gauge-fill" id="ai-embed-coverage-bar" style="width: 0%; background: var(--module-accent);"></div></div>
+                                <div style="font-size: 0.65rem; color: var(--archie-text-muted); min-height: 1em;" id="ai-embed-coverage-detail">-</div>
+                            </div>
+                        </div>
+                        <div style="padding: 0.5rem 0.75rem; border-top: 1px solid var(--archie-border-default);">
+                            <button class="btn btn-secondary backlog-toggle" onclick="toggleBacklogProcessing('embeddings', this)" style="width: 100%; font-size: 0.8rem; padding: 0.35rem 0;">Start Embedding</button>
+                        </div>
                     </div>
-                    <div class="stat-card" id="ai-embed-coverage-card">
-                        <div class="stat-value" id="ai-embed-coverage-pct">-</div>
-                        <div class="stat-label">Embedding Coverage</div>
-                        <div class="gauge-bar" style="height: 6px; margin-top: 0.5rem;"><div class="gauge-fill" id="ai-embed-coverage-bar" style="width: 0%; background: var(--module-accent);"></div></div>
-                        <div class="stat-subtitle" id="ai-embed-coverage-detail" style="margin-top: 0.25rem;">-</div>
+                </div>
+
+                <!-- Secondary: GitHub + Hooks -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                    <div class="backlog-card" id="backlog-card-github" style="padding: 0.75rem; background: var(--archie-bg-tertiary); border-radius: 10px; border: 1px solid var(--archie-border-default); display: flex; align-items: center; gap: 0.75rem; transition: border-color 0.3s, box-shadow 0.3s;">
+                        <div style="flex: 1;">
+                            <div style="color: var(--archie-text-muted); font-size: 0.75rem;">GitHub Files</div>
+                            <div style="display: flex; align-items: baseline; gap: 0.5rem;">
+                                <span style="color: var(--archie-text-primary); font-size: 1.2rem; font-weight: 700;" id="ai-backlog-github">-</span>
+                                <span style="font-size: 0.65rem; color: var(--archie-text-muted);" id="backlog-status-github"></span>
+                            </div>
+                        </div>
+                        <button class="btn btn-secondary backlog-toggle" onclick="toggleBacklogProcessing('github', this)" style="font-size: 0.75rem; padding: 0.3rem 0.75rem; white-space: nowrap;">Start</button>
                     </div>
-                    <div class="stat-card" id="ai-analysis-coverage-card">
-                        <div class="stat-value" id="ai-analysis-coverage-pct">-</div>
-                        <div class="stat-label">Analysis Coverage</div>
-                        <div class="gauge-bar" style="height: 6px; margin-top: 0.5rem;"><div class="gauge-fill" id="ai-analysis-coverage-bar" style="width: 0%; background: var(--archie-cyan, #22d3ee);"></div></div>
-                        <div class="stat-subtitle" id="ai-analysis-coverage-detail" style="margin-top: 0.25rem;">-</div>
+                    <div class="backlog-card" id="backlog-card-hooks" style="padding: 0.75rem; background: var(--archie-bg-tertiary); border-radius: 10px; border: 1px solid var(--archie-border-default); display: flex; align-items: center; gap: 0.75rem; transition: border-color 0.3s, box-shadow 0.3s;">
+                        <div style="flex: 1;">
+                            <div style="color: var(--archie-text-muted); font-size: 0.75rem;">Claude Hooks</div>
+                            <div style="display: flex; align-items: baseline; gap: 0.5rem;">
+                                <span style="color: var(--archie-text-primary); font-size: 1.2rem; font-weight: 700;" id="ai-backlog-hooks">-</span>
+                                <span style="font-size: 0.65rem; color: var(--archie-text-muted);" id="backlog-status-hooks"></span>
+                            </div>
+                        </div>
+                        <button class="btn btn-secondary backlog-toggle" onclick="toggleBacklogProcessing('claude_hooks', this)" style="font-size: 0.75rem; padding: 0.3rem 0.75rem; white-space: nowrap;">Start</button>
                     </div>
+                </div>
+
+                <!-- Shared progress feedback -->
+                <div id="ai-processing-progress" style="display: none; margin: 0 0 1rem;">
+                    <div class="gauge-bar" style="height: 8px;"><div class="gauge-fill" id="ai-progress-bar" style="width: 0%; background: var(--module-accent);"></div></div>
+                    <div style="text-align: center; margin-top: 0.4rem; color: var(--archie-text-muted); font-size: 0.8rem;" id="ai-progress-text">Processing...</div>
                 </div>
 
                 <!-- Embedding Coverage by Type -->
@@ -761,66 +879,79 @@
                     <div style="color: var(--archie-text-muted); padding: 1rem;">Loading coverage data...</div>
                 </div>
 
-                <!-- Backlog Summary -->
-                <h4 style="color: var(--module-accent); margin-bottom: 1rem;">Processing Backlog</h4>
-                <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
-                    <div style="flex: 1; min-width: 120px; padding: 0.75rem; background: var(--archie-bg-tertiary); border-radius: 8px; text-align: center;">
-                        <div style="color: var(--archie-text-muted); font-size: 0.8rem;">Conversations</div>
-                        <div style="color: var(--archie-text-primary); font-size: 1.1rem; font-weight: 600;" id="ai-backlog-conversations">-</div>
-                    </div>
-                    <div style="flex: 1; min-width: 120px; padding: 0.75rem; background: var(--archie-bg-tertiary); border-radius: 8px; text-align: center;">
-                        <div style="color: var(--archie-text-muted); font-size: 0.8rem;">GitHub Files</div>
-                        <div style="color: var(--archie-text-primary); font-size: 1.1rem; font-weight: 600;" id="ai-backlog-github">-</div>
-                    </div>
-                    <div style="flex: 1; min-width: 120px; padding: 0.75rem; background: var(--archie-bg-tertiary); border-radius: 8px; text-align: center;">
-                        <div style="color: var(--archie-text-muted); font-size: 0.8rem;">Claude Hooks</div>
-                        <div style="color: var(--archie-text-primary); font-size: 1.1rem; font-weight: 600;" id="ai-backlog-hooks">-</div>
-                    </div>
-                    <div style="flex: 1; min-width: 120px; padding: 0.75rem; background: var(--archie-bg-tertiary); border-radius: 8px; text-align: center;">
-                        <div style="color: var(--archie-text-muted); font-size: 0.8rem;">Missing Embeddings</div>
-                        <div style="color: var(--archie-text-primary); font-size: 1.1rem; font-weight: 600;" id="ai-backlog-embeddings">-</div>
-                    </div>
-                </div>
-
-                <!-- Collapsible Manual Processing -->
+                <!-- Collapsible Log Ingestion -->
                 <details style="margin-bottom: 1rem;">
-                    <summary style="color: var(--module-accent); cursor: pointer; padding: 0.75rem; background: var(--archie-bg-tertiary); border-radius: 8px; font-weight: 600;">Manual Processing Controls</summary>
+                    <summary style="color: var(--module-accent); cursor: pointer; padding: 0.75rem; background: var(--archie-bg-tertiary); border-radius: 8px; font-weight: 600;">📄 Log Ingestion</summary>
                     <div style="padding: 1rem; border: 1px solid var(--archie-border-default); border-top: none; border-radius: 0 0 8px 8px;">
-                        <!-- AI Analysis Batch -->
-                        <h4 style="color: var(--module-accent); margin-bottom: 1rem;">AI Analysis</h4>
-                        <div style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap; margin-bottom: 1rem;">
-                            <div>
-                                <label style="color: var(--archie-text-muted); display: block; margin-bottom: 0.5rem;">Category:</label>
-                                <select id="ai-category" class="form-control" style="width: 180px;">
-                                    <option value="conversations">Conversations</option>
-                                    <option value="github">GitHub Files</option>
-                                    <option value="claude_hooks">Claude Hooks</option>
-                                </select>
+                        <div class="stats-grid" style="margin-bottom: 1.5rem;">
+                            <div class="stat-card"><div class="stat-value" id="log-snapshots">-</div><div class="stat-label">Snapshot Files</div></div>
+                            <div class="stat-card"><div class="stat-value" id="log-transcripts">-</div><div class="stat-label">Transcript Files</div></div>
+                            <div class="stat-card"><div class="stat-value" id="log-sessions">-</div><div class="stat-label">Unique Sessions</div></div>
+                            <div class="stat-card"><div class="stat-value" id="log-ingested">-</div><div class="stat-label">Already Ingested</div></div>
+                        </div>
+                        <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; padding: 0.75rem; background: var(--archie-bg-primary); border-radius: 8px; border: 1px solid var(--archie-border-default);">
+                            <label style="color: var(--archie-text-muted); font-size: 0.85rem; white-space: nowrap;">Batch Size</label>
+                            <input type="number" id="log-batch-size" class="form-control" value="50" min="1" max="500" style="width: 80px;">
+                            <div style="flex: 1;"></div>
+                            <button class="btn btn-primary" onclick="ingestLogs(false)" style="white-space: nowrap;">🚀 Ingest Batch</button>
+                            <button class="btn btn-secondary" onclick="ingestLogs(true)" style="white-space: nowrap;">👁️ Dry Run</button>
+                        </div>
+                        <div id="log-progress" style="display: none; margin: 1rem 0;">
+                            <div class="gauge-bar" style="height: 12px;"><div class="gauge-fill" id="log-progress-bar" style="width: 0%"></div></div>
+                            <div style="text-align: center; margin-top: 0.5rem; color: var(--archie-text-muted);" id="log-progress-text">Processing...</div>
+                        </div>
+                        <div id="log-results" class="activity-feed" style="max-height: 400px;"></div>
+                    </div>
+                </details>
+
+                <!-- Collapsible Advanced Controls -->
+                <details style="margin-bottom: 1rem;">
+                    <summary style="color: var(--module-accent); cursor: pointer; padding: 0.75rem; background: var(--archie-bg-tertiary); border-radius: 8px; font-weight: 600;">Advanced Processing Controls</summary>
+                    <div style="padding: 1rem; border: 1px solid var(--archie-border-default); border-top: none; border-radius: 0 0 8px 8px;">
+                        <!-- AI Analysis — card-style -->
+                        <div style="padding: 1rem; background: var(--archie-bg-primary); border-radius: 8px; border: 1px solid var(--archie-border-default); margin-bottom: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
+                                <span style="font-size: 1.1rem;">🧠</span>
+                                <h4 style="color: var(--module-accent); margin: 0; font-size: 0.95rem;">AI Analysis</h4>
+                                <span style="color: var(--archie-text-muted); font-size: 0.75rem; margin-left: auto;">Ollama qwen2.5:7b</span>
                             </div>
-                            <div>
-                                <label style="color: var(--archie-text-muted); display: block; margin-bottom: 0.5rem;">Batch Size:</label>
-                                <input type="number" id="ai-batch-size" class="form-control" value="10" min="1" max="50" style="width: 100px;">
+                            <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <label style="color: var(--archie-text-muted); font-size: 0.85rem;">Category</label>
+                                    <select id="ai-category" class="form-control" style="width: 160px;">
+                                        <option value="conversations">Conversations</option>
+                                        <option value="github">GitHub Files</option>
+                                        <option value="claude_hooks">Claude Hooks</option>
+                                    </select>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <label style="color: var(--archie-text-muted); font-size: 0.85rem;">Batch</label>
+                                    <input type="number" id="ai-batch-size" class="form-control" value="10" min="1" max="50" style="width: 70px;">
+                                </div>
+                                <div style="flex: 1;"></div>
+                                <button class="btn btn-primary" onclick="startAIProcessing()" style="white-space: nowrap;">Process Batch</button>
                             </div>
-                            <button class="btn btn-primary" onclick="startAIProcessing()">Process Batch</button>
                         </div>
 
-                        <!-- Processing Progress -->
-                        <div id="ai-processing-progress" style="display: none; margin: 1rem 0;">
-                            <div class="gauge-bar" style="height: 12px;"><div class="gauge-fill" id="ai-progress-bar" style="width: 0%; background: var(--module-accent);"></div></div>
-                            <div style="text-align: center; margin-top: 0.5rem; color: var(--archie-text-muted);" id="ai-progress-text">Processing...</div>
-                        </div>
-
-                        <!-- Generate Embeddings -->
-                        <h4 style="color: var(--module-accent); margin: 1.5rem 0 1rem;">Embedding Generation</h4>
-                        <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem;">
-                            <label style="color: var(--archie-text-muted);">Batch Size:</label>
-                            <input type="number" id="ai-embed-batch-size" class="form-control" value="200" min="1" max="200" style="width: 100px;">
-                            <button class="btn btn-primary" onclick="generateEmbeddings()">Generate Embeddings</button>
-                            <span style="color: var(--archie-text-muted); font-size: 0.85rem;">(local Ollama nomic-embed-text)</span>
+                        <!-- Embedding Generation — card-style -->
+                        <div style="padding: 1rem; background: var(--archie-bg-primary); border-radius: 8px; border: 1px solid var(--archie-border-default); margin-bottom: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
+                                <span style="font-size: 1.1rem;">📐</span>
+                                <h4 style="color: var(--module-accent); margin: 0; font-size: 0.95rem;">Embedding Generation</h4>
+                                <span style="color: var(--archie-text-muted); font-size: 0.75rem; margin-left: auto;">Ollama nomic-embed-text</span>
+                            </div>
+                            <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <label style="color: var(--archie-text-muted); font-size: 0.85rem;">Batch</label>
+                                    <input type="number" id="ai-embed-batch-size" class="form-control" value="200" min="1" max="200" style="width: 80px;">
+                                </div>
+                                <div style="flex: 1;"></div>
+                                <button class="btn btn-primary" onclick="generateEmbeddings()" style="white-space: nowrap;">Generate Embeddings</button>
+                            </div>
                         </div>
 
                         <!-- Processing Log -->
-                        <h4 style="color: var(--module-accent); margin: 1.5rem 0 1rem;">Processing Log</h4>
+                        <h4 style="color: var(--module-accent); margin: 0.5rem 0 0.75rem; font-size: 0.95rem;">Processing Log</h4>
                         <div id="ai-processing-log" class="activity-feed" style="max-height: 300px;"></div>
                     </div>
                 </details>
@@ -831,7 +962,10 @@
     <div id="tab-github" class="tab-content">
         <div class="panel">
             <div class="panel-header">
-                <div class="panel-title">🐙 GitHub Repository Learning</div>
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <div class="panel-title">🐙 GitHub Repository Learning</div>
+                    <span id="github-auth-badge" style="font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 4px; background: var(--archie-bg-tertiary); color: var(--archie-text-muted);"></span>
+                </div>
                 <div style="display: flex; gap: 0.5rem; align-items: center;">
                     <button class="btn btn-primary" onclick="reindexAllRepos()" id="btn-reindex-all">📥 Re-Index All</button>
                     <button class="btn btn-primary" onclick="scanDependencies()" id="btn-scan-deps">🔍 Scan Dependencies</button>
@@ -839,11 +973,12 @@
                 </div>
             </div>
             <div class="panel-body">
-                <div class="stats-grid" style="margin-bottom: 1.5rem;">
+                <div class="stats-grid" style="margin-bottom: 1.5rem; grid-template-columns: repeat(5, 1fr);">
                     <div class="stat-card" onclick="showRepoManager()" style="cursor:pointer;" title="Click to manage repositories"><div class="stat-value" id="github-repos">-</div><div class="stat-label">Repositories</div></div>
                     <div class="stat-card" onclick="showIndexedByRepo()" style="cursor:pointer;" title="Click to see per-repo breakdown"><div class="stat-value" id="github-files">-</div><div class="stat-label">Indexed Files</div></div>
-                    <div class="stat-card" onclick="showFileList('code')" style="cursor:pointer;" title="Click to browse code files"><div class="stat-value" id="github-code">-</div><div class="stat-label">Code Files</div></div>
-                    <div class="stat-card" onclick="showFileList('docs')" style="cursor:pointer;" title="Click to browse documentation"><div class="stat-value" id="github-docs">-</div><div class="stat-label">Documentation</div></div>
+                    <div class="stat-card" onclick="showFileList('code')" style="cursor:pointer;" title="Click to browse code files"><div class="stat-value" id="github-code">-</div><div class="stat-label">Code</div></div>
+                    <div class="stat-card" onclick="showFileList('docs')" style="cursor:pointer;" title="Click to browse documentation"><div class="stat-value" id="github-docs">-</div><div class="stat-label">Docs</div></div>
+                    <div class="stat-card" onclick="showFileList('config')" style="cursor:pointer;" title="Click to browse config files"><div class="stat-value" id="github-config">-</div><div class="stat-label">Config</div></div>
                 </div>
 
                 <!-- Dependency Security Stats -->
@@ -868,9 +1003,9 @@
                     <div>
                         <label style="color: var(--archie-text-muted); display: block; margin-bottom: 0.5rem;">Priority:</label>
                         <select id="github-priority" class="form-control" style="width: auto;">
-                            <option value="normal">Normal</option>
-                            <option value="high">High</option>
-                            <option value="critical">Critical</option>
+                            <option value="medium">Medium</option>
+                            <option value="high" selected>High</option>
+                            <option value="low">Low</option>
                         </select>
                     </div>
                     <button class="btn btn-primary" onclick="indexGitHubRepo()">🚀 Index Repository</button>
@@ -891,8 +1026,18 @@
                     <div id="dep-suggestions-list" class="activity-feed" style="max-height: 400px; overflow-y: auto;"></div>
                 </div>
 
-                <h4 class="section-title" style="margin-top: 1.5rem;">Recently Indexed Files</h4>
-                <div id="github-indexed-list" class="activity-feed" style="max-height: 400px;"><div class="loading"><div class="spinner"></div></div></div>
+                <!-- Semantic Search -->
+                <div style="margin-top: 1.5rem; margin-bottom: 1rem; display: flex; gap: 0.5rem; align-items: center;">
+                    <input type="text" id="github-search-input" class="form-control" placeholder="Semantic search across indexed files..." style="flex: 1;" onkeydown="if(event.key==='Enter')searchGitHubFiles()">
+                    <button class="btn btn-primary" onclick="searchGitHubFiles()" id="btn-github-search">🔍 Search</button>
+                </div>
+                <div id="github-search-results" style="display: none; padding: 1rem; background: var(--archie-bg-tertiary); border-radius: 8px; margin-bottom: 1rem; max-height: 400px; overflow-y: auto;"></div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h4 class="section-title" style="margin: 0;">Recently Indexed Files</h4>
+                    <span id="github-file-count" style="color: var(--archie-text-muted); font-size: 0.8rem;"></span>
+                </div>
+                <div id="github-indexed-list" class="activity-feed" style="max-height: 600px;"><div class="loading"><div class="spinner"></div></div></div>
             </div>
         </div>
         <!-- GitHub Stat Modal -->
@@ -907,34 +1052,54 @@
         </div>
     </div>
 
-    <div id="tab-charts" class="tab-content">
-        <div class="dashboard-grid">
-            <div class="chart-container"><div class="chart-title">📈 Knowledge Growth (30 days) — All Sources</div><canvas id="growth-chart" height="180"></canvas></div>
-            <div class="chart-container"><div class="chart-title">🎯 Knowledge Types</div><canvas id="type-chart" height="180"></canvas></div>
+    <div id="tab-brain" class="tab-content">
+        <!-- Controls bar -->
+        <div class="brain-controls">
+            <div class="brain-view-toggle">
+                <button class="brain-toggle-btn active" data-view="map" onclick="toggleBrainView('map')">🧠 Map</button>
+                <button class="brain-toggle-btn" data-view="charts" onclick="toggleBrainView('charts')">📈 Charts</button>
+            </div>
+            <div class="brain-type-filters" id="brain-type-filters"></div>
         </div>
-        <div class="dashboard-grid" style="margin-top: 1rem;">
-            <div class="chart-container"><div class="chart-title">🔗 Embedding Coverage by Type</div><canvas id="embedding-chart" height="180"></canvas></div>
-            <div class="chart-container"><div class="chart-title">⭐ Importance Distribution</div><canvas id="importance-chart" height="180"></canvas></div>
-        </div>
-        <div class="dashboard-grid" style="margin-top: 1rem;">
-            <div class="chart-container"><div class="chart-title">💜 Emotional Timeline (30 days)</div><canvas id="emotional-chart-full" height="180"></canvas></div>
-            <div class="chart-container"><div class="chart-title">💬 Chat Volume (30 days)</div><canvas id="chat-volume-chart" height="180"></canvas></div>
-        </div>
-    </div>
 
-    <div id="tab-graph" class="tab-content">
-        <div class="panel">
-            <div class="panel-header"><div class="panel-title">🕸️ Knowledge Graph Visualization</div></div>
-            <div class="panel-body">
-                <div class="filter-group">
-                    <button class="filter-btn active" data-type="all">All Types</button>
-                    <button class="filter-btn" data-type="vault_note">Vault Notes</button>
-                    <button class="filter-btn" data-type="mistake_learned">Mistakes</button>
-                    <button class="filter-btn" data-type="code_snippet">Code</button>
-                    <button class="filter-btn" data-type="github_file">GitHub</button>
+        <!-- Brain Map SVG -->
+        <div id="brain-map-section">
+            <div class="brain-map-container" id="brain-map-svg">
+                <div class="loading"><div class="spinner"></div></div>
+            </div>
+            <div id="brain-tooltip" class="brain-tooltip"></div>
+
+            <!-- Stats bar -->
+            <div class="brain-stats-bar" id="brain-stats-bar">
+                <div class="brain-stat-card"><div class="brain-stat-value" id="brain-stat-total">-</div><div class="brain-stat-label">Total Entries</div></div>
+                <div class="brain-stat-card"><div class="brain-stat-value" id="brain-stat-embedded">-</div><div class="brain-stat-label">Embedded</div></div>
+                <div class="brain-stat-card"><div class="brain-stat-value" id="brain-stat-types">-</div><div class="brain-stat-label">Types</div></div>
+                <div class="brain-stat-card"><div class="brain-stat-value" id="brain-stat-growth">-</div><div class="brain-stat-label">7-Day Growth</div></div>
+            </div>
+
+            <!-- Detail panel -->
+            <div class="brain-detail-panel" id="brain-detail-panel" style="display:none;">
+                <div class="brain-detail-header">
+                    <h3 id="brain-detail-title">Region</h3>
+                    <button class="brain-detail-close" onclick="closeBrainDetail()">&times;</button>
                 </div>
-                <div id="knowledge-graph"></div>
-                <div id="graph-tooltip" style="display:none; position:absolute; background:var(--archie-bg-secondary); border:1px solid var(--module-accent); padding:0.5rem; border-radius:4px; color:var(--archie-text-secondary); font-size:0.85rem; pointer-events:none; z-index:1000;"></div>
+                <div class="brain-detail-body" id="brain-detail-body"></div>
+            </div>
+        </div>
+
+        <!-- Charts sub-view (hidden by default) -->
+        <div id="brain-charts-section" style="display:none;">
+            <div class="dashboard-grid">
+                <div class="chart-container"><div class="chart-title">📈 Knowledge Growth (30 days) — All Sources</div><canvas id="growth-chart" height="180"></canvas></div>
+                <div class="chart-container"><div class="chart-title">🎯 Knowledge Types</div><canvas id="type-chart" height="180"></canvas></div>
+            </div>
+            <div class="dashboard-grid" style="margin-top: 1rem;">
+                <div class="chart-container"><div class="chart-title">🔗 Embedding Coverage by Type</div><canvas id="embedding-chart" height="180"></canvas></div>
+                <div class="chart-container"><div class="chart-title">⭐ Importance Distribution</div><canvas id="importance-chart" height="180"></canvas></div>
+            </div>
+            <div class="dashboard-grid" style="margin-top: 1rem;">
+                <div class="chart-container"><div class="chart-title">💜 Emotional Timeline (30 days)</div><canvas id="emotional-chart-full" height="180"></canvas></div>
+                <div class="chart-container"><div class="chart-title">💬 Chat Volume (30 days)</div><canvas id="chat-volume-chart" height="180"></canvas></div>
             </div>
         </div>
     </div>
@@ -944,7 +1109,7 @@
             <div class="panel-header">
                 <div class="panel-title">📡 Live Activity Feed</div>
                 <div style="display: flex; gap: 0.5rem; align-items: center;">
-                    <select id="feed-hours" class="form-control" style="width: auto;"><option value="1">Last Hour</option><option value="6">Last 6 Hours</option><option value="24" selected>Last 24 Hours</option></select>
+                    <select id="feed-hours" class="form-control" style="width: auto;"><option value="1">Last Hour</option><option value="6">Last 6 Hours</option><option value="24" selected>Last 24 Hours</option><option value="168">Last 7 Days</option></select>
                     <button class="btn btn-secondary" onclick="loadActivityFeed()">🔄 Refresh</button>
                 </div>
             </div>
@@ -952,24 +1117,13 @@
                 <div class="filter-group" id="feed-filters">
                     <button class="filter-btn active" data-type="">All</button>
                     <button class="filter-btn" data-type="knowledge">📚 Knowledge</button>
-                    <button class="filter-btn" data-type="execution">▶️ Executions</button>
-                    <button class="filter-btn" data-type="improvement">💡 Improvements</button>
                     <button class="filter-btn" data-type="session">💬 Sessions</button>
+                    <button class="filter-btn" data-type="emotional">💜 Emotional</button>
                     <button class="filter-btn" data-type="project">📋 Projects</button>
-                    <button class="filter-btn" data-type="work_session">🔨 Work</button>
-                    <button class="filter-btn" data-type="llm_alert">🚨 Alerts</button>
                 </div>
+                <div id="feed-stats" style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; padding: 0.5rem 0; margin-bottom: 0.5rem; font-size: 0.85rem;"></div>
                 <div class="activity-feed" id="activity-feed"><div class="loading"><div class="spinner"></div></div></div>
             </div>
-        </div>
-    </div>
-
-    <div id="tab-tools" class="tab-content">
-        <div class="quick-access-grid">
-            <div class="quick-card"><h3>📚 Memory Management</h3><p>View and manage conversation memories</p><a href="{{ url_for('consciousness.memory') }}" class="btn btn-primary">View Memories</a></div>
-            <div class="quick-card"><h3>👥 Team Awareness</h3><p>Agent directory and performance tracking</p><a href="{{ url_for('consciousness.team_awareness') }}" class="btn btn-primary">View Team</a></div>
-            <div class="quick-card"><h3>📊 Full Analytics</h3><p>Detailed knowledge growth and usage metrics</p><a href="{{ url_for('consciousness.analytics') }}" class="btn btn-primary">View Analytics</a></div>
-            <div class="quick-card"><h3>🔍 Search Knowledge</h3><p>Search across all knowledge entries</p><form action="{{ url_for('consciousness.search_knowledge') }}" method="post"><input type="text" name="query" placeholder="Search knowledge base..." class="form-control"><button type="submit" class="btn btn-primary" style="margin-top: 0.5rem;">Search</button></form></div>
         </div>
     </div>
 
@@ -980,9 +1134,7 @@
         <!-- Voice Sub-tabs -->
         <div class="voice-subtabs">
             <button class="voice-subtab-btn active" onclick="switchVoiceTab('dashboard')">📊 Dashboard</button>
-            <button class="voice-subtab-btn" onclick="switchVoiceTab('preview')">🎧 Preview</button>
-            <button class="voice-subtab-btn" onclick="switchVoiceTab('cache')">💾 Cache</button>
-            <button class="voice-subtab-btn" onclick="switchVoiceTab('agents')">🤖 Agents</button>
+            <button class="voice-subtab-btn" onclick="switchVoiceTab('profiles')">🤖 Profiles</button>
         </div>
 
         <!-- Dashboard Sub-tab -->
@@ -996,169 +1148,11 @@
                 <div class="stat-card"><div class="stat-value" id="vs-xtts-cached">--</div><div class="stat-label">XTTS Cached</div></div>
             </div>
 
-            <div class="dashboard-grid">
-                <div class="panel">
-                    <div class="panel-header"><span class="panel-title">Top Emotions</span></div>
-                    <div class="panel-body"><table class="cache-table" id="voice-emotions-table"><thead><tr><th>Emotion</th><th>Cached</th><th>Hits</th></tr></thead><tbody></tbody></table></div>
-                </div>
-                <div class="panel">
-                    <div class="panel-header"><span class="panel-title">Most-Used Words</span></div>
-                    <div class="panel-body"><table class="cache-table" id="voice-words-table"><thead><tr><th>Word</th><th>Emotion</th><th>Hits</th><th>Gen Time</th></tr></thead><tbody></tbody></table></div>
-                </div>
-            </div>
-
-            <div class="voice-panel">
-                <h3>Pre-generation</h3>
-                <div class="voice-form-row">
-                    <div class="voice-form-group">
-                        <label>Engine</label>
-                        <select id="pregen-engine">
-                            <option value="kokoro" selected>Kokoro-82M (Fast)</option>
-                            <option value="xtts_v2">Coqui XTTS v2</option>
-                        </select>
-                    </div>
-                    <div class="voice-form-group">
-                        <label>Job Type</label>
-                        <select id="pregen-type">
-                            <option value="manual">Manual (Top English Words)</option>
-                            <option value="auto_conversation">Auto (From Conversations)</option>
-                        </select>
-                    </div>
-                    <div class="voice-form-group">
-                        <label>Word Count</label>
-                        <select id="pregen-count">
-                            <option value="50">50 words</option>
-                            <option value="100" selected>100 words</option>
-                            <option value="200">200 words</option>
-                            <option value="500">500 words</option>
-                        </select>
-                    </div>
-                    <div class="voice-form-group">
-                        <label>Quality</label>
-                        <select id="pregen-quality">
-                            <option value="high" selected>High (slower, cleaner audio)</option>
-                            <option value="standard">Standard (faster)</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="voice-form-row full">
-                    <div class="voice-form-group">
-                        <label>Emotions</label>
-                        <div class="filter-group" id="pregen-emotions">
-                            <button class="filter-btn active" data-emotion="neutral" onclick="togglePregenEmotion(this)">neutral</button>
-                            <button class="filter-btn" data-emotion="excited" onclick="togglePregenEmotion(this)">excited</button>
-                            <button class="filter-btn" data-emotion="curious" onclick="togglePregenEmotion(this)">curious</button>
-                            <button class="filter-btn" data-emotion="empathetic" onclick="togglePregenEmotion(this)">empathetic</button>
-                            <button class="filter-btn" data-emotion="gentle" onclick="togglePregenEmotion(this)">gentle</button>
-                        </div>
-                    </div>
-                </div>
-                <button class="btn btn-primary" onclick="startPregen()">Start Pre-generation</button>
-                <div id="pregen-progress" class="pregen-progress" style="display: none;">
-                    <div class="pregen-bar"><div class="pregen-bar-fill" id="pregen-bar-fill" style="width: 0%"></div></div>
-                    <div class="pregen-status"><span id="pregen-status-text">Starting...</span><span id="pregen-pct">0%</span></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Preview Sub-tab -->
-        <div id="voice-sub-preview" class="voice-subtab-content">
-            <div class="voice-panel">
-                <h3>Voice Workshop</h3>
-                <div class="voice-form-row">
-                    <div class="voice-form-group">
-                        <label>Engine</label>
-                        <select id="preview-engine" class="form-control" onchange="onEngineChange()">
-                            <option value="kokoro" selected>Kokoro-82M (Fast, 28 voices)</option>
-                            <option value="xtts_v2">Coqui XTTS v2 (32 speakers)</option>
-                        </select>
-                    </div>
-                    <div class="voice-form-group">
-                        <label>Speaker</label>
-                        <select id="preview-speaker" class="form-control"></select>
-                    </div>
-                    <div class="voice-form-group">
-                        <label>Emotion Preset</label>
-                        <select id="preview-emotion" class="form-control" onchange="applyEmotionPreset()">
-                            <option value="neutral">Neutral</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="voice-form-row" id="preview-blend-row">
-                    <div class="voice-form-group" style="flex: 1;">
-                        <label>Voice Blend <span style="color:var(--archie-text-muted);font-size:0.7rem">(Kokoro only)</span></label>
-                        <input type="text" id="preview-blend" class="form-control" placeholder="e.g. af_bella:60,am_adam:40" value="">
-                    </div>
-                </div>
-
-                <div class="voice-control">
-                    <label>Speed <span class="slider-val" id="preview-speed-val">1.00</span></label>
-                    <input type="range" class="voice-slider" id="preview-speed" min="0.50" max="2.00" step="0.05" value="1.00" oninput="updateSliderDisplay('speed')">
-                </div>
-                <div class="voice-control" id="preview-pitch-control">
-                    <label>Pitch <span class="slider-val" id="preview-pitch-val">1.00</span> <span class="xtts-only-badge" style="font-size:0.65rem;color:var(--archie-text-muted)">(XTTS only)</span></label>
-                    <input type="range" class="voice-slider" id="preview-pitch" min="0.80" max="1.20" step="0.01" value="1.00" oninput="updateSliderDisplay('pitch')">
-                </div>
-                <div class="voice-control" id="preview-warmth-control">
-                    <label>Warmth <span class="slider-val" id="preview-warmth-val">0.80</span> <span class="xtts-only-badge" style="font-size:0.65rem;color:var(--archie-text-muted)">(XTTS only)</span></label>
-                    <input type="range" class="voice-slider" id="preview-warmth" min="0.00" max="1.00" step="0.05" value="0.80" oninput="updateSliderDisplay('warmth')">
-                </div>
-
-                <div class="voice-form-row">
-                    <div class="voice-form-group" style="flex: 3;">
-                        <label>Preview Text</label>
-                        <input type="text" id="preview-text" class="form-control" value="Hello, I am ARCHIE. How can I help you today?" placeholder="Enter text to preview...">
-                    </div>
-                    <div class="voice-form-group" style="flex: 1;">
-                        <label>Quality</label>
-                        <select id="preview-quality" class="form-control">
-                            <option value="standard" selected>Standard</option>
-                            <option value="high">High</option>
-                        </select>
-                    </div>
-                    <div class="voice-form-group" style="flex: 1;">
-                        <label>Language</label>
-                        <select id="preview-language" class="form-control">
-                            <option value="en" selected>English</option>
-                            <option value="fr">French (Quebecois)</option>
-                            <option value="es">Spanish</option>
-                            <option value="de">German</option>
-                            <option value="it">Italian</option>
-                            <option value="pt">Portuguese</option>
-                            <option value="pl">Polish</option>
-                            <option value="tr">Turkish</option>
-                            <option value="ru">Russian</option>
-                            <option value="nl">Dutch</option>
-                            <option value="cs">Czech</option>
-                            <option value="ar">Arabic</option>
-                            <option value="zh-cn">Chinese</option>
-                            <option value="ja">Japanese</option>
-                            <option value="hu">Hungarian</option>
-                            <option value="ko">Korean</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div style="display: flex; gap: 0.75rem; align-items: center;">
-                    <button class="btn btn-primary" id="preview-btn" onclick="previewVoice()">Preview</button>
-                    <button class="btn btn-secondary" onclick="applyPreviewToProfile()">Apply to Agent</button>
-                    <span id="preview-gen-status" class="voice-gen-status"></span>
-                </div>
-
-                <div id="preview-audio-container" class="voice-audio-container" style="display: none;">
-                    <audio id="preview-audio" controls></audio>
-                </div>
-            </div>
-        </div>
-
-        <!-- Cache Sub-tab -->
-        <div id="voice-sub-cache" class="voice-subtab-content">
             <div class="voice-panel">
                 <h3>Voice Cache Browser</h3>
                 <!-- Agent Group Summary -->
                 <div id="cache-agent-groups" style="margin-bottom: 1rem;"></div>
-                <div class="voice-form-row">
+                <div class="voice-form-row" style="grid-template-columns: repeat(5, 1fr);">
                     <div class="voice-form-group">
                         <label>Engine</label>
                         <select id="cache-engine-filter" onchange="loadVoiceCache()">
@@ -1208,8 +1202,8 @@
             </div>
         </div>
 
-        <!-- Agents Sub-tab -->
-        <div id="voice-sub-agents" class="voice-subtab-content">
+        <!-- Profiles Sub-tab -->
+        <div id="voice-sub-profiles" class="voice-subtab-content">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                 <h3 class="section-title" style="margin: 0;">Agent Voice Profiles</h3>
                 <button class="btn btn-primary" onclick="showNewProfileForm()">+ New Profile</button>
@@ -1309,11 +1303,9 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
         document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
         document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
         if (btn.dataset.tab === 'emotional') loadEmotionalData();
-        if (btn.dataset.tab === 'logs') loadLogStatus();
-        if (btn.dataset.tab === 'aiprocess') loadProcessingStatus();
-        if (btn.dataset.tab === 'github') { loadGitHubRepos(); loadGitHubIndexed(); loadDependencyReport(); }
-        if (btn.dataset.tab === 'charts') loadChartData();
-        if (btn.dataset.tab === 'graph') loadKnowledgeGraph();
+        if (btn.dataset.tab === 'processing') { loadProcessingStatus(); loadLogStatus(); }
+        if (btn.dataset.tab === 'github') { loadGitHubAuthStatus(); loadGitHubRepos(); loadGitHubIndexed(); loadDependencyReport(); }
+        if (btn.dataset.tab === 'brain') loadBrainMap();
         if (btn.dataset.tab === 'feed') loadActivityFeed();
         if (btn.dataset.tab === 'voice') loadVoiceDashboard();
     });
@@ -1897,7 +1889,9 @@ async function loadChartData() {
 
 async function loadActivityFeed(type = '') {
     const feedEl = document.getElementById('activity-feed');
+    const statsEl = document.getElementById('feed-stats');
     feedEl.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+    statsEl.innerHTML = '';
     try {
         const hours = document.getElementById('feed-hours').value;
         let url = '/tools/consciousness/activity-feed?hours=' + hours + '&limit=100';
@@ -1905,50 +1899,462 @@ async function loadActivityFeed(type = '') {
         const response = await fetch(url, {credentials: 'same-origin'});
         const data = await response.json();
         if (data.success && data.feed) {
+            // Summary stats header
+            const tc = data.type_counts || {};
+            const total = data.count || data.feed.length;
+            const badgeColors = {'knowledge': '#8b5cf6', 'session': '#0ea5e9', 'emotional': '#e879f9', 'project': '#f59e0b'};
+            const badgeLabels = {'knowledge': '📚 Knowledge', 'session': '💬 Sessions', 'emotional': '💜 Mood', 'project': '📋 Projects'};
+            let statsHtml = '<span style="color: var(--archie-text-muted);">' + total + ' events</span>';
+            for (const [k, label] of Object.entries(badgeLabels)) {
+                if (tc[k]) statsHtml += '<span style="background: ' + badgeColors[k] + '22; color: ' + badgeColors[k] + '; padding: 0.15rem 0.5rem; border-radius: 9999px; font-size: 0.8rem;">' + label + ': ' + tc[k] + '</span>';
+            }
+            statsEl.innerHTML = statsHtml;
+
             if (data.feed.length === 0) { feedEl.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--archie-text-muted);">No activity in this time window</div>'; return; }
+            const sourceColors = {'mcp_tool': '#0ea5e9', 'conversation_log': '#f59e0b', 'github_selective': '#00ff41', 'github_file': '#00ffff', 'manual': '#e879f9', 'vault_note': '#8b5cf6', 'code_snippet': '#00ff41', 'imported': '#a3a3a3'};
             let html = '';
             data.feed.forEach(item => {
-                const icon = {'knowledge': '📚', 'execution': '▶️', 'improvement': '💡', 'session': '💬', 'emotional': '💜', 'llm_alert': '🚨', 'project': '📋', 'work_session': '🔨'}[item.event_type] || '📌';
+                const icon = {'knowledge': '📚', 'session': '💬', 'emotional': '💜', 'project': '📋'}[item.event_type] || '📌';
                 const time = item.created_at ? new Date(item.created_at).toLocaleString() : '';
                 const title = (item.title || item.description || 'Activity').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                 const desc = (item.description || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                html += '<div class="activity-item"><div class="activity-icon">' + icon + '</div><div class="activity-content"><div class="activity-title">' + title + '<span class="activity-type">' + (item.subtype || item.event_type) + '</span></div><div class="activity-description">' + desc + '</div><div class="activity-time">' + time + '</div></div></div>';
+                let meta = '';
+                if (item.event_type === 'knowledge') {
+                    const st = (item.source_type || '').replace(/[^a-z_]/g, '');
+                    const sc = sourceColors[st] || '#6b7280';
+                    meta = '<span style="background: ' + sc + '22; color: ' + sc + '; padding: 0.1rem 0.4rem; border-radius: 9999px; font-size: 0.75rem; margin-left: 0.25rem;">' + st.replace(/_/g, ' ') + '</span>';
+                    if (item.importance_score && item.importance_score >= 0.7) meta += '<span style="color: #f59e0b; font-size: 0.75rem; margin-left: 0.25rem;" title="High importance">★</span>';
+                } else if (item.event_type === 'emotional') {
+                    const intensity = parseFloat(item.mood_intensity) || 0;
+                    const moodColor = intensity >= 0.7 ? '#00ff41' : intensity >= 0.4 ? '#f59e0b' : '#ff6b6b';
+                    meta = '<span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ' + moodColor + '; margin-left: 0.4rem;" title="Intensity: ' + (intensity * 100).toFixed(0) + '%"></span>';
+                } else if (item.event_type === 'session' && item.productivity_score) {
+                    meta = '<span style="color: var(--archie-text-muted); font-size: 0.75rem; margin-left: 0.25rem;">⚡' + parseFloat(item.productivity_score).toFixed(1) + '</span>';
+                }
+                html += '<div class="activity-item"><div class="activity-icon">' + icon + '</div><div class="activity-content"><div class="activity-title">' + title + '<span class="activity-type">' + (item.subtype || item.event_type) + '</span>' + meta + '</div><div class="activity-description">' + desc + '</div><div class="activity-time">' + time + '</div></div></div>';
             });
             feedEl.innerHTML = html;
         } else { feedEl.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--archie-red);">Error loading feed</div>'; }
     } catch (e) { console.error('Error loading activity feed:', e); feedEl.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--archie-red);">Error loading feed</div>'; }
 }
 
-async function loadKnowledgeGraph(type) {
-    type = type || 'all';
-    const container = document.getElementById('knowledge-graph');
-    container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+// ========== Brain Map ==========
+const brainTypeColors = {
+    'vault_note': '#8b5cf6', 'mistake_learned': '#ff6b6b', 'code_snippet': '#00ff41',
+    'github_file': '#00ffff', 'conversation_memory': '#ffaa00', 'improvement': '#0ea5e9',
+    'technical_docs': '#e879f9', 'learning_data': '#34d399', 'project_context': '#f59e0b',
+    'decision': '#6366f1', 'knowledge_card': '#818cf8', 'upgrade_suggestion': '#f472b6',
+    'api_endpoint': '#38bdf8', 'system_info': '#a3a3a3'
+};
+// Light mode color variants (darker for contrast)
+const brainTypeColorsLight = {
+    'vault_note': '#7c3aed', 'mistake_learned': '#dc2626', 'code_snippet': '#16a34a',
+    'github_file': '#0891b2', 'conversation_memory': '#d97706', 'improvement': '#0284c7',
+    'technical_docs': '#c026d3', 'learning_data': '#059669', 'project_context': '#ca8a04',
+    'decision': '#4f46e5', 'knowledge_card': '#6366f1', 'upgrade_suggestion': '#db2777',
+    'api_endpoint': '#0284c7', 'system_info': '#737373'
+};
+function getBrainColor(type) {
+    const isLight = document.body.classList.contains('light-mode');
+    return (isLight ? brainTypeColorsLight : brainTypeColors)[type] || (isLight ? '#737373' : '#8b949e');
+}
+let brainMapData = null;
+let brainSimulation = null;
+let brainChartsLoaded = false;
+let activeBrainFilter = null;
+
+async function loadBrainMap() {
+    const container = document.getElementById('brain-map-svg');
+    container.textContent = '';
+    const loader = document.createElement('div');
+    loader.className = 'loading';
+    const spinner = document.createElement('div');
+    spinner.className = 'spinner';
+    loader.appendChild(spinner);
+    container.appendChild(loader);
     try {
-        let url = '/tools/consciousness/knowledge/graph';
-        if (type !== 'all') url += '?type=' + type;
+        const response = await fetch('/tools/consciousness/brain-map/data', {credentials: 'same-origin'});
+        const data = await response.json();
+        if (data.success) {
+            brainMapData = data;
+            renderBrainMap(data);
+            updateBrainStats(data.stats);
+            buildBrainFilters(data.regions);
+        } else {
+            container.textContent = 'Error loading brain map';
+        }
+    } catch (e) {
+        console.error('Brain map error:', e);
+        container.textContent = 'Error loading brain map';
+    }
+}
+
+function renderBrainMap(data) {
+    const container = document.getElementById('brain-map-svg');
+    container.textContent = '';
+    const width = container.clientWidth || 900;
+    const height = container.clientHeight || 600;
+    const isLight = document.body.classList.contains('light-mode');
+
+    // Theme-aware colors
+    const bgGradStart = isLight ? '#f0f0f5' : '#0d1117';
+    const bgGradEnd = isLight ? '#e8e8f0' : '#010409';
+    const textColor = isLight ? '#374151' : '#c9d1d9';
+    const textMuted = isLight ? '#9ca3af' : '#8b949e';
+    const lineColor = isLight ? '#d1d5db' : '#30363d';
+    const accentColor = isLight ? '#7c3aed' : '#8b5cf6';
+    const glowBlur = isLight ? '2' : '3';
+    const coreGlowBlur = isLight ? '3' : '6';
+
+    const svg = d3.select(container).append('svg')
+        .attr('width', width).attr('height', height)
+        .attr('viewBox', `0 0 ${width} ${height}`)
+        .style('background', `radial-gradient(ellipse at center, ${bgGradStart} 0%, ${bgGradEnd} 100%)`);
+
+    const g = svg.append('g');
+
+    // Zoom
+    const zoom = d3.zoom().scaleExtent([0.3, 3]).on('zoom', (event) => g.attr('transform', event.transform));
+    svg.call(zoom);
+
+    // Build nodes: center + regions + categories
+    const nodes = [];
+    const links = [];
+
+    // Logarithmic radius scaling: prevents large counts from dominating
+    const counts = data.regions.map(r => r.count);
+    const maxLog = Math.log(Math.max(...counts, 1) + 1);
+    function regionRadius(count) {
+        return Math.min(45, 16 + (Math.log(count + 1) / maxLog) * 28);
+    }
+    function catRadius(count) {
+        return Math.min(20, 5 + (Math.log(count + 1) / maxLog) * 14);
+    }
+
+    // Center node
+    const coreR = Math.min(32, width * 0.035);
+    nodes.push({ id: 'archie-core', label: 'A.R.C.H.I.E.', type: 'core', radius: coreR, count: data.stats.total, fx: width / 2, fy: height / 2 });
+
+    // Region nodes
+    data.regions.forEach((region) => {
+        const rId = 'region-' + region.type;
+        const radius = regionRadius(region.count);
+        nodes.push({ id: rId, label: region.label, type: region.type, radius, count: region.count, avg_importance: region.avg_importance, growth_7d: region.growth_7d, isRegion: true, categories: region.categories });
+        links.push({ source: 'archie-core', target: rId, strength: 0.5, isSpine: true });
+
+        // Category nodes (top 6 to reduce clutter)
+        region.categories.slice(0, 6).forEach((cat, ci) => {
+            const cId = 'cat-' + region.type + '-' + ci;
+            const cR = catRadius(cat.count);
+            nodes.push({ id: cId, label: cat.name, type: region.type, radius: cR, count: cat.count, avg_importance: cat.avg_importance, isCategory: true, parentType: region.type, categoryName: cat.name });
+            links.push({ source: rId, target: cId, strength: 0.3 });
+        });
+    });
+
+    // Inter-type connections (neural pathways)
+    data.connections.forEach(conn => {
+        links.push({ source: 'region-' + conn.source, target: 'region-' + conn.target, strength: conn.strength, isNeural: true });
+    });
+
+    // SVG filters
+    const defs = svg.append('defs');
+    const glow = defs.append('filter').attr('id', 'brain-glow').attr('x', '-50%').attr('y', '-50%').attr('width', '200%').attr('height', '200%');
+    glow.append('feGaussianBlur').attr('stdDeviation', glowBlur).attr('result', 'coloredBlur');
+    const fm = glow.append('feMerge');
+    fm.append('feMergeNode').attr('in', 'coloredBlur');
+    fm.append('feMergeNode').attr('in', 'SourceGraphic');
+
+    const coreGlow = defs.append('filter').attr('id', 'core-glow').attr('x', '-50%').attr('y', '-50%').attr('width', '200%').attr('height', '200%');
+    coreGlow.append('feGaussianBlur').attr('stdDeviation', coreGlowBlur).attr('result', 'coloredBlur');
+    const cm = coreGlow.append('feMerge');
+    cm.append('feMergeNode').attr('in', 'coloredBlur');
+    cm.append('feMergeNode').attr('in', 'SourceGraphic');
+
+    // Responsive force distances
+    const spineDistance = Math.min(160, width * 0.17);
+    const catDistance = Math.min(60, width * 0.065);
+
+    // Simulation
+    brainSimulation = d3.forceSimulation(nodes)
+        .force('link', d3.forceLink(links).id(d => d.id).distance(d => d.isSpine ? spineDistance : (d.isNeural ? spineDistance * 1.4 : catDistance)).strength(d => d.isNeural ? 0.08 : 0.4))
+        .force('charge', d3.forceManyBody().strength(d => d.id === 'archie-core' ? -500 : (d.isRegion ? -250 : -60)))
+        .force('collision', d3.forceCollide().radius(d => d.radius + 6))
+        .force('radial', d3.forceRadial(d => d.id === 'archie-core' ? 0 : (d.isRegion ? spineDistance : spineDistance * 1.5), width / 2, height / 2).strength(d => d.id === 'archie-core' ? 1 : (d.isRegion ? 0.35 : 0.12)))
+        .force('bounds', () => {
+            nodes.forEach(d => {
+                if (d.id === 'archie-core') return;
+                const pad = d.radius + 10;
+                d.x = Math.max(pad, Math.min(width - pad, d.x));
+                d.y = Math.max(pad, Math.min(height - pad, d.y));
+            });
+        })
+        .alphaDecay(0.025);
+
+    // Neural pathway links
+    const neuralLinks = g.append('g').selectAll('path')
+        .data(links.filter(l => l.isNeural))
+        .join('path')
+        .attr('class', 'brain-pathway')
+        .attr('fill', 'none')
+        .attr('stroke', accentColor)
+        .attr('stroke-opacity', d => Math.min(d.strength * 0.7, 0.5))
+        .attr('stroke-width', d => 1 + d.strength * 1.5)
+        .attr('stroke-dasharray', '6 4');
+
+    // Spine links (core to regions)
+    const spineLinks = g.append('g').selectAll('line')
+        .data(links.filter(l => l.isSpine))
+        .join('line')
+        .attr('stroke', lineColor)
+        .attr('stroke-opacity', 0.3)
+        .attr('stroke-width', 1.5);
+
+    // Category links
+    const catLinks = g.append('g').selectAll('line')
+        .data(links.filter(l => !l.isSpine && !l.isNeural))
+        .join('line')
+        .attr('stroke', lineColor)
+        .attr('stroke-opacity', 0.15)
+        .attr('stroke-width', 0.8);
+
+    // Node groups
+    const nodeGroups = g.append('g').selectAll('g')
+        .data(nodes)
+        .join('g')
+        .attr('class', d => d.id === 'archie-core' ? 'brain-core-group' : (d.isRegion ? 'brain-region-group' : 'brain-category-group'))
+        .style('cursor', 'pointer')
+        .call(d3.drag()
+            .on('start', (event, d) => { if (!event.active) brainSimulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+            .on('drag', (event, d) => { d.fx = event.x; d.fy = event.y; })
+            .on('end', (event, d) => { if (!event.active) brainSimulation.alphaTarget(0); if (d.id !== 'archie-core') { d.fx = null; d.fy = null; } })
+        );
+
+    // Core node — text label instead of emoji for cross-platform rendering
+    nodeGroups.filter(d => d.id === 'archie-core').each(function(d) {
+        const el = d3.select(this);
+        el.append('circle').attr('r', d.radius + 8).attr('fill', accentColor).attr('fill-opacity', 0.12).attr('class', 'brain-core-aura');
+        el.append('circle').attr('r', d.radius).attr('fill', accentColor).attr('filter', 'url(#core-glow)').attr('class', 'brain-center-node');
+        el.append('text').text('A').attr('text-anchor', 'middle').attr('dominant-baseline', 'central').attr('fill', '#fff').attr('font-size', (d.radius * 0.7) + 'px').attr('font-weight', '900').attr('font-family', 'system-ui, sans-serif');
+        el.append('text').text('A.R.C.H.I.E.').attr('text-anchor', 'middle').attr('dy', d.radius + 14).attr('fill', textColor).attr('font-size', '10px').attr('font-weight', '600');
+    });
+
+    // Region nodes
+    nodeGroups.filter(d => d.isRegion).each(function(d) {
+        const el = d3.select(this);
+        const color = getBrainColor(d.type);
+        el.append('circle').attr('r', d.radius + 4).attr('fill', color).attr('fill-opacity', isLight ? 0.1 : 0.15).attr('class', 'brain-region-aura');
+        el.append('circle').attr('r', d.radius).attr('fill', color).attr('fill-opacity', isLight ? 0.85 : 0.8).attr('stroke', color).attr('stroke-width', 2).attr('filter', 'url(#brain-glow)').attr('class', 'brain-region');
+        el.append('text').text(d.count.toLocaleString()).attr('text-anchor', 'middle').attr('dominant-baseline', 'central').attr('fill', '#fff').attr('font-size', Math.max(9, d.radius * 0.45) + 'px').attr('font-weight', '700');
+        el.append('text').text(d.label).attr('text-anchor', 'middle').attr('dy', d.radius + 13).attr('fill', textColor).attr('font-size', '9px').attr('font-weight', '500');
+    });
+
+    // Category nodes
+    nodeGroups.filter(d => d.isCategory).each(function(d) {
+        const el = d3.select(this);
+        const color = getBrainColor(d.type);
+        el.append('circle').attr('r', d.radius).attr('fill', color).attr('fill-opacity', isLight ? 0.25 : 0.4).attr('stroke', color).attr('stroke-opacity', 0.5).attr('stroke-width', 1);
+        if (d.radius > 10) {
+            el.append('text').text(d.label.length > 12 ? d.label.slice(0, 11) + '\u2026' : d.label).attr('text-anchor', 'middle').attr('dy', d.radius + 10).attr('fill', textMuted).attr('font-size', '8px');
+        }
+    });
+
+    // Tooltip
+    const tooltip = document.getElementById('brain-tooltip');
+    nodeGroups.on('mouseover', (event, d) => {
+        if (d.id === 'archie-core') return;
+        tooltip.textContent = '';
+        const strong = document.createElement('strong');
+        strong.textContent = d.label;
+        tooltip.appendChild(strong);
+        tooltip.appendChild(document.createElement('br'));
+        tooltip.appendChild(document.createTextNode('Entries: ' + d.count.toLocaleString()));
+        if (d.avg_importance != null) {
+            tooltip.appendChild(document.createElement('br'));
+            tooltip.appendChild(document.createTextNode('Avg Importance: ' + d.avg_importance.toFixed(2)));
+        }
+        if (d.growth_7d != null) {
+            tooltip.appendChild(document.createElement('br'));
+            tooltip.appendChild(document.createTextNode('7-Day Growth: +' + d.growth_7d));
+        }
+        tooltip.style.display = 'block';
+        tooltip.style.left = (event.pageX + 12) + 'px';
+        tooltip.style.top = (event.pageY - 10) + 'px';
+    }).on('mousemove', (event) => {
+        tooltip.style.left = (event.pageX + 12) + 'px';
+        tooltip.style.top = (event.pageY - 10) + 'px';
+    }).on('mouseout', () => {
+        tooltip.style.display = 'none';
+    });
+
+    // Click: drill down
+    nodeGroups.on('click', (event, d) => {
+        event.stopPropagation();
+        if (d.id === 'archie-core') return;
+        if (d.isRegion) drillDownRegion(d.type, null, d.label);
+        else if (d.isCategory) drillDownRegion(d.parentType, d.categoryName, d.label);
+    });
+
+    // Tick — with boundary clamping
+    brainSimulation.on('tick', () => {
+        neuralLinks.attr('d', d => {
+            const dx = d.target.x - d.source.x, dy = d.target.y - d.source.y;
+            const dr = Math.sqrt(dx * dx + dy * dy) * 0.8;
+            return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
+        });
+        spineLinks.attr('x1', d => d.source.x).attr('y1', d => d.source.y).attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+        catLinks.attr('x1', d => d.source.x).attr('y1', d => d.source.y).attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+        nodeGroups.attr('transform', d => `translate(${d.x},${d.y})`);
+    });
+}
+
+function updateBrainStats(stats) {
+    document.getElementById('brain-stat-total').textContent = stats.total.toLocaleString();
+    const pct = stats.total > 0 ? Math.round(stats.embedded / stats.total * 100) : 0;
+    document.getElementById('brain-stat-embedded').textContent = pct + '%';
+    document.getElementById('brain-stat-types').textContent = stats.types;
+    document.getElementById('brain-stat-growth').textContent = '+' + stats.growth_7d;
+}
+
+function buildBrainFilters(regions) {
+    const container = document.getElementById('brain-type-filters');
+    container.textContent = '';
+    regions.forEach(r => {
+        const btn = document.createElement('button');
+        btn.className = 'brain-filter-btn';
+        btn.dataset.type = r.type;
+        btn.style.borderColor = getBrainColor(r.type);
+        const labelText = document.createTextNode(r.label + ' ');
+        const countSpan = document.createElement('span');
+        countSpan.className = 'brain-filter-count';
+        countSpan.textContent = r.count;
+        btn.appendChild(labelText);
+        btn.appendChild(countSpan);
+        btn.onclick = () => {
+            if (activeBrainFilter === r.type) {
+                activeBrainFilter = null;
+                btn.classList.remove('active');
+                highlightBrainRegion(null);
+            } else {
+                container.querySelectorAll('.brain-filter-btn').forEach(b => b.classList.remove('active'));
+                activeBrainFilter = r.type;
+                btn.classList.add('active');
+                highlightBrainRegion(r.type);
+            }
+        };
+        container.appendChild(btn);
+    });
+}
+
+function highlightBrainRegion(type) {
+    const svg = d3.select('#brain-map-svg svg');
+    if (!type) {
+        svg.selectAll('.brain-region-group, .brain-category-group').style('opacity', 1);
+        svg.selectAll('.brain-pathway, line').style('opacity', null);
+        return;
+    }
+    svg.selectAll('.brain-region-group').style('opacity', d => d.type === type ? 1 : 0.15);
+    svg.selectAll('.brain-category-group').style('opacity', d => d.type === type ? 1 : 0.08);
+}
+
+async function drillDownRegion(type, category, label) {
+    const panel = document.getElementById('brain-detail-panel');
+    const body = document.getElementById('brain-detail-body');
+    const title = document.getElementById('brain-detail-title');
+    title.textContent = label || type;
+    body.textContent = '';
+    const loader = document.createElement('div');
+    loader.className = 'loading';
+    const sp = document.createElement('div');
+    sp.className = 'spinner';
+    loader.appendChild(sp);
+    body.appendChild(loader);
+    panel.style.display = 'block';
+
+    try {
+        let url = '/tools/consciousness/brain-map/drill-down?type=' + encodeURIComponent(type) + '&limit=50';
+        if (category) url += '&category=' + encodeURIComponent(category);
         const response = await fetch(url, {credentials: 'same-origin'});
         const data = await response.json();
-        if (data.success && data.nodes) { container.innerHTML = ''; renderD3Graph(data.nodes, data.links || [], container); }
-        else { container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--archie-text-muted);">No graph data available</div>'; }
-    } catch (e) { console.error('Error loading knowledge graph:', e); container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--archie-red);">Error loading graph</div>'; }
+        if (data.success && data.entries.length > 0) {
+            body.textContent = '';
+            const entriesDiv = document.createElement('div');
+            entriesDiv.className = 'brain-entries';
+            data.entries.forEach(e => {
+                const imp = e.importance || 0;
+                const impPct = Math.round(imp * 100);
+                const impColor = imp >= 0.8 ? '#ff6b6b' : (imp >= 0.5 ? '#ffaa00' : '#00ff41');
+
+                const entry = document.createElement('div');
+                entry.className = 'brain-entry';
+
+                const titleEl = document.createElement('div');
+                titleEl.className = 'brain-entry-title';
+                titleEl.textContent = e.title || 'Untitled';
+                entry.appendChild(titleEl);
+
+                const meta = document.createElement('div');
+                meta.className = 'brain-entry-meta';
+                if (e.created_at) {
+                    const dateSpan = document.createElement('span');
+                    dateSpan.className = 'brain-entry-date';
+                    dateSpan.textContent = new Date(e.created_at).toLocaleDateString();
+                    meta.appendChild(dateSpan);
+                }
+                if (e.category) {
+                    const catSpan = document.createElement('span');
+                    catSpan.className = 'brain-entry-cat';
+                    catSpan.textContent = e.category;
+                    meta.appendChild(catSpan);
+                }
+                if (e.has_embedding) {
+                    const embedSpan = document.createElement('span');
+                    embedSpan.className = 'brain-entry-embed';
+                    embedSpan.title = 'Embedded';
+                    embedSpan.textContent = '\u2713';
+                    meta.appendChild(embedSpan);
+                }
+                entry.appendChild(meta);
+
+                const barDiv = document.createElement('div');
+                barDiv.className = 'brain-imp-bar';
+                const fillDiv = document.createElement('div');
+                fillDiv.className = 'brain-imp-fill';
+                fillDiv.style.width = impPct + '%';
+                fillDiv.style.background = impColor;
+                barDiv.appendChild(fillDiv);
+                entry.appendChild(barDiv);
+
+                entriesDiv.appendChild(entry);
+            });
+            body.appendChild(entriesDiv);
+        } else {
+            body.textContent = 'No entries found';
+            body.style.padding = '1rem';
+            body.style.textAlign = 'center';
+        }
+    } catch (e) {
+        console.error('Drill-down error:', e);
+        body.textContent = 'Error loading entries';
+    }
 }
 
-function renderD3Graph(nodes, links, container) {
-    const width = container.clientWidth, height = 500;
-    const svg = d3.select(container).append('svg').attr('width', width).attr('height', height);
-    const typeColors = { 'vault_note': '#8b5cf6', 'mistake_learned': '#ff6b6b', 'code_snippet': '#00ff41', 'github_file': '#00ffff', 'conversation_memory': '#ffaa00', 'improvement': '#0ea5e9' };
-    const simulation = d3.forceSimulation(nodes).force('link', d3.forceLink(links).id(d => d.id).distance(100)).force('charge', d3.forceManyBody().strength(-200)).force('center', d3.forceCenter(width / 2, height / 2));
-    const link = svg.append('g').selectAll('line').data(links).join('line').attr('stroke', '#30363d').attr('stroke-opacity', 0.6);
-    const node = svg.append('g').selectAll('circle').data(nodes).join('circle').attr('r', d => 5 + (d.importance_score || 0.5) * 10).attr('fill', d => typeColors[d.type] || '#8b949e').call(d3.drag().on('start', dragstarted).on('drag', dragged).on('end', dragended));
-    const tooltip = document.getElementById('graph-tooltip');
-    node.on('mouseover', (event, d) => { tooltip.style.display = 'block'; tooltip.style.left = (event.pageX + 10) + 'px'; tooltip.style.top = (event.pageY + 10) + 'px'; tooltip.innerHTML = '<strong>' + (d.title || d.id) + '</strong><br>Type: ' + d.type + '<br>Importance: ' + (d.importance_score || 0).toFixed(2); }).on('mouseout', () => { tooltip.style.display = 'none'; });
-    simulation.on('tick', () => { link.attr('x1', d => d.source.x).attr('y1', d => d.source.y).attr('x2', d => d.target.x).attr('y2', d => d.target.y); node.attr('cx', d => d.x).attr('cy', d => d.y); });
-    function dragstarted(event) { if (!event.active) simulation.alphaTarget(0.3).restart(); event.subject.fx = event.subject.x; event.subject.fy = event.subject.y; }
-    function dragged(event) { event.subject.fx = event.x; event.subject.fy = event.y; }
-    function dragended(event) { if (!event.active) simulation.alphaTarget(0); event.subject.fx = null; event.subject.fy = null; }
+function closeBrainDetail() {
+    document.getElementById('brain-detail-panel').style.display = 'none';
 }
 
-document.querySelectorAll('#tab-graph .filter-btn').forEach(btn => { btn.addEventListener('click', () => { document.querySelectorAll('#tab-graph .filter-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); loadKnowledgeGraph(btn.dataset.type); }); });
+function toggleBrainView(mode) {
+    document.querySelectorAll('.brain-toggle-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('.brain-toggle-btn[data-view="' + mode + '"]').classList.add('active');
+
+    if (mode === 'map') {
+        document.getElementById('brain-map-section').style.display = '';
+        document.getElementById('brain-charts-section').style.display = 'none';
+    } else {
+        document.getElementById('brain-map-section').style.display = 'none';
+        document.getElementById('brain-charts-section').style.display = '';
+        if (!brainChartsLoaded) { brainChartsLoaded = true; loadChartData(); }
+    }
+}
 
 let currentConversationId = null;
 
@@ -2134,7 +2540,7 @@ async function loadVoiceConfig() {
             voiceEnabled = data.voice_enabled || false;
             updateVoiceToggle();
         }
-    } catch (e) { console.log('Voice config not available:', e.message); }
+    } catch (e) { console.debug('Voice config not available:', e.message); }
 }
 
 function updateVoiceToggle() {
@@ -2158,7 +2564,7 @@ async function toggleVoice() {
             credentials: 'same-origin',
             body: JSON.stringify({ voice_enabled: voiceEnabled })
         });
-    } catch (e) { console.log('Failed to save voice config:', e.message); }
+    } catch (e) { console.debug('Failed to save voice config:', e.message); }
 }
 
 async function playVoice(messageId, btn) {
@@ -2213,12 +2619,12 @@ async function playVoice(messageId, btn) {
                 URL.revokeObjectURL(url);
             }
         } else {
-            console.log('Voice synthesis unavailable:', data.error || 'Unknown error');
+            console.debug('Voice synthesis unavailable:', data.error || 'Unknown error');
             btn.classList.remove('playing');
             btn.textContent = '\u{1F50A}';
         }
     } catch (e) {
-        console.log('Voice synthesis error:', e.message);
+        console.debug('Voice synthesis error:', e.message);
         btn.classList.remove('playing');
         btn.textContent = '\u{1F50A}';
     }
@@ -2236,7 +2642,7 @@ async function loadLogStatus() {
             document.getElementById('log-ingested').textContent = (data.ingested || 0).toLocaleString();
         }
     } catch (e) {
-        console.log('Log status not available:', e.message);
+        console.debug('Log status not available:', e.message);
     }
 }
 
@@ -2579,6 +2985,207 @@ async function generateEmbeddings() {
     if (btn) { btn.disabled = false; btn.textContent = 'Generate Embeddings'; }
 }
 
+// --- Backlog toggle processing (1-by-1 loop with server lock) ---
+var backlogActive = {};
+var backlogSession = {};  // type -> session_id from server lock
+var _lockPollTimer = null;
+
+// Button label map
+var _btnLabels = { conversations: 'Analysis', embeddings: 'Embedding', github: 'Processing', claude_hooks: 'Processing' };
+
+function getBacklogCards(type) {
+    var cardKey = type === 'claude_hooks' ? 'hooks' : type;
+    var cards = [document.getElementById('backlog-card-' + cardKey)];
+    if (type === 'embeddings') cards.push(document.getElementById('backlog-card-embed-coverage'));
+    if (type === 'conversations') cards.push(document.getElementById('backlog-card-analysis-coverage'));
+    return cards.filter(Boolean);
+}
+
+function getBacklogStatus(type) {
+    var cardKey = type === 'claude_hooks' ? 'hooks' : type;
+    return document.getElementById('backlog-status-' + cardKey);
+}
+
+function findToggleBtn(type) {
+    // Find the toggle button for a type — it's on the parent card group
+    var cardKey = type === 'claude_hooks' ? 'hooks' : type;
+    var card = document.getElementById('backlog-card-' + cardKey);
+    if (!card) return null;
+    // Walk up to find the .backlog-toggle — could be on card itself or a sibling container
+    var parent = card.closest('[style*="border-radius: 12px"]') || card;
+    return parent.querySelector('.backlog-toggle') || card.querySelector('.backlog-toggle');
+}
+
+function setToggleBtn(type, text, active, disabled) {
+    var btn = findToggleBtn(type);
+    if (!btn) return;
+    btn.textContent = text;
+    btn.disabled = !!disabled;
+    if (active) { btn.classList.remove('btn-secondary'); btn.classList.add('btn-primary'); }
+    else { btn.classList.remove('btn-primary'); btn.classList.add('btn-secondary'); }
+}
+
+function setCardGlow(type, on) {
+    var cards = getBacklogCards(type);
+    cards.forEach(function(card) {
+        var parent = card.closest('[style*="border-radius: 12px"]') || card;
+        if (on) {
+            parent.style.borderColor = 'var(--module-accent)';
+            parent.style.boxShadow = '0 0 12px var(--module-accent-alpha-20, rgba(139,92,246,0.2))';
+        } else {
+            parent.style.borderColor = 'var(--archie-border-default)';
+            parent.style.boxShadow = 'none';
+        }
+    });
+}
+
+async function toggleBacklogProcessing(type, btn) {
+    var statusEl = getBacklogStatus(type);
+    var label = _btnLabels[type] || 'Processing';
+
+    if (backlogActive[type]) {
+        // Stop — release server lock
+        backlogActive[type] = false;
+        setToggleBtn(type, 'Stopping...', true, true);
+        return;
+    }
+
+    // Try to acquire server lock first
+    try {
+        var lockRes = await fetch('/tools/consciousness/api/processing/lock/acquire', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin',
+            body: JSON.stringify({ type: type })
+        });
+        var lockData = await lockRes.json();
+        if (!lockData.success) {
+            if (statusEl) { statusEl.textContent = 'Busy (another session)'; statusEl.style.color = 'var(--archie-yellow, #ffaa00)'; }
+            return;
+        }
+        backlogSession[type] = lockData.session;
+    } catch (e) {
+        if (statusEl) { statusEl.textContent = 'Lock error'; statusEl.style.color = 'var(--archie-red, #f85149)'; }
+        return;
+    }
+
+    // Start
+    backlogActive[type] = true;
+    setToggleBtn(type, 'Stop ' + label, true, false);
+    setCardGlow(type, true);
+
+    var processed = 0;
+    var errors = 0;
+    var cardKey = type === 'claude_hooks' ? 'hooks' : type;
+
+    while (backlogActive[type]) {
+        if (statusEl) { statusEl.textContent = 'Processing #' + (processed + 1) + '...'; statusEl.style.color = 'var(--module-accent)'; }
+
+        try {
+            var response, data;
+            if (type === 'embeddings') {
+                response = await fetch('/tools/consciousness/api/processing/generate-embeddings', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin',
+                    body: JSON.stringify({ batch_size: 50 })
+                });
+                data = await response.json();
+                if (data.success && data.processed > 0) {
+                    processed += data.processed;
+                    if (statusEl) { statusEl.textContent = processed + ' embedded'; statusEl.style.color = 'var(--archie-green)'; }
+                } else {
+                    if (statusEl) { statusEl.textContent = processed + ' done — clear'; statusEl.style.color = 'var(--archie-green)'; }
+                    break;
+                }
+            } else {
+                response = await fetch('/tools/consciousness/api/processing/start', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin',
+                    body: JSON.stringify({ category: type, batch_size: 1 })
+                });
+                data = await response.json();
+                if (data.success && data.processed > 0) {
+                    processed++;
+                    var cards = data.cards_created || 0;
+                    if (statusEl) { statusEl.textContent = processed + ' analyzed (' + cards + ' cards)'; statusEl.style.color = 'var(--archie-green)'; }
+                } else if (data.success && data.processed === 0) {
+                    if (statusEl) { statusEl.textContent = processed + ' done — clear'; statusEl.style.color = 'var(--archie-green)'; }
+                    break;
+                } else {
+                    errors++;
+                    if (statusEl) { statusEl.textContent = 'Error #' + errors; statusEl.style.color = 'var(--archie-red, #f85149)'; }
+                    if (errors >= 3) break;
+                    await new Promise(function(r) { setTimeout(r, 3000); });
+                    continue;
+                }
+            }
+
+            // Update count live
+            var countEl = document.getElementById('ai-backlog-' + cardKey);
+            if (countEl) {
+                var current = parseInt(countEl.textContent.replace(/,/g, '')) || 0;
+                if (current > 0) {
+                    var decrement = type === 'embeddings' ? (data.processed || 0) : 1;
+                    countEl.textContent = Math.max(0, current - decrement).toLocaleString();
+                }
+            }
+
+            // Heartbeat to keep server lock alive
+            fetch('/tools/consciousness/api/processing/lock/heartbeat', {
+                method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin',
+                body: JSON.stringify({ type: type, session: backlogSession[type], processed: processed })
+            }).catch(function() {});
+
+            await new Promise(function(r) { setTimeout(r, 500); });
+
+        } catch (e) {
+            errors++;
+            if (statusEl) { statusEl.textContent = 'Network error (' + errors + ')'; statusEl.style.color = 'var(--archie-red, #f85149)'; }
+            if (errors >= 3) break;
+            await new Promise(function(r) { setTimeout(r, 5000); });
+        }
+    }
+
+    // Release server lock
+    fetch('/tools/consciousness/api/processing/lock/release', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin',
+        body: JSON.stringify({ type: type, session: backlogSession[type] || '' })
+    }).catch(function() {});
+
+    backlogActive[type] = false;
+    delete backlogSession[type];
+    setToggleBtn(type, 'Start ' + label, false, false);
+    setCardGlow(type, false);
+    loadProcessingStatus();
+}
+
+// Poll server lock status to sync across tabs
+function pollLockStatus() {
+    fetch('/tools/consciousness/api/processing/lock/status', { credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (!data.success) return;
+            var types = ['conversations', 'embeddings', 'github', 'claude_hooks'];
+            types.forEach(function(type) {
+                var remote = data.active[type];
+                var statusEl = getBacklogStatus(type);
+                var label = _btnLabels[type] || 'Processing';
+                if (remote && !backlogActive[type]) {
+                    // Another session is running this type
+                    setToggleBtn(type, 'Busy', false, true);
+                    setCardGlow(type, true);
+                    if (statusEl) { statusEl.textContent = remote.processed + ' processed (' + remote.elapsed + 's)'; statusEl.style.color = 'var(--archie-yellow, #ffaa00)'; }
+                } else if (!remote && !backlogActive[type]) {
+                    // Nobody running — ensure button is idle
+                    setToggleBtn(type, 'Start ' + label, false, false);
+                    setCardGlow(type, false);
+                }
+            });
+        })
+        .catch(function() {});
+}
+// Poll every 5 seconds when on Processing tab
+_lockPollTimer = setInterval(function() {
+    var activeTab = document.querySelector('.tab-btn.active');
+    if (activeTab && activeTab.dataset.tab === 'processing') pollLockStatus();
+}, 5000);
+
 // Dependency scanner functions
 async function loadDependencyReport() {
     try {
@@ -2701,12 +3308,6 @@ function closeGitHubStatModal() {
     document.getElementById('github-stat-modal').style.display = 'none';
 }
 
-function escHtml(str) {
-    const d = document.createElement('div');
-    d.textContent = str;
-    return d.innerHTML;
-}
-
 async function showRepoManager() {
     openGitHubStatModal('Manage Repositories', '<div class="loading"><div class="spinner"></div></div>');
     try {
@@ -2743,26 +3344,58 @@ async function previewRepoRemoval(repoId) {
     try {
         const resp = await fetch('/tools/consciousness/github/repositories/' + repoId + '?preview=true', {method: 'DELETE', credentials: 'same-origin'});
         const data = await resp.json();
-        if (!data.success) { alert('Error: ' + (data.error || 'Unknown')); return; }
+        if (!data.success) { openGitHubStatModal('Error', ''); document.getElementById('github-stat-modal-body').textContent = data.error || 'Unknown error'; return; }
         const impact = data.impact || {};
         const repo = data.repo || {};
-        const msg = 'Remove "' + (repo.repo_name || 'this repo') + '"?\n\nThis will delete:\n'
-            + '\u2022 ' + (impact.total || 0) + ' indexed files\n'
-            + '\u2022 ' + (impact.code_files || 0) + ' code files\n'
-            + '\u2022 ' + (impact.doc_files || 0) + ' documentation files\n\n'
-            + 'This action cannot be undone.';
-        if (!confirm(msg)) return;
-        const delResp = await fetch('/tools/consciousness/github/repositories/' + repoId, {method: 'DELETE', credentials: 'same-origin'});
-        const delData = await delResp.json();
-        if (delData.success) {
-            showRepoManager();
-            loadGitHubRepos();
-            loadGitHubIndexed();
-        } else {
-            alert('Delete failed: ' + (delData.error || 'Unknown'));
-        }
+        const repoName = repo.repo_name || 'this repo';
+        const body = document.createElement('div');
+        const warning = document.createElement('div');
+        warning.style.cssText = 'padding:1rem;background:rgba(255,68,68,0.1);border:1px solid var(--archie-red,#f44);border-radius:8px;margin-bottom:1rem;';
+        warning.textContent = 'This will permanently delete all indexed data for this repository.';
+        body.appendChild(warning);
+        const list = document.createElement('div');
+        list.style.cssText = 'margin-bottom:1.5rem;font-size:0.9rem;color:var(--archie-text-primary);';
+        list.textContent = '';
+        var items = [
+            (impact.total || 0) + ' indexed files',
+            (impact.code_files || 0) + ' code files',
+            (impact.doc_files || 0) + ' documentation files'
+        ];
+        items.forEach(function(txt) {
+            var li = document.createElement('div');
+            li.style.cssText = 'padding:0.25rem 0;';
+            li.textContent = '\u2022 ' + txt;
+            list.appendChild(li);
+        });
+        body.appendChild(list);
+        const btnRow = document.createElement('div');
+        btnRow.style.cssText = 'display:flex;gap:0.75rem;justify-content:flex-end;';
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'btn btn-secondary';
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.onclick = closeGitHubStatModal;
+        const confirmBtn = document.createElement('button');
+        confirmBtn.className = 'btn btn-primary';
+        confirmBtn.style.cssText = 'background:var(--archie-red,#f44);border-color:var(--archie-red,#f44);';
+        confirmBtn.textContent = 'Remove Repository';
+        confirmBtn.onclick = async function() {
+            confirmBtn.disabled = true; confirmBtn.textContent = 'Removing...';
+            try {
+                const delResp = await fetch('/tools/consciousness/github/repositories/' + repoId, {method: 'DELETE', credentials: 'same-origin'});
+                const delData = await delResp.json();
+                closeGitHubStatModal();
+                if (delData.success) { loadGitHubRepos(); loadGitHubIndexed(); }
+            } catch (err) { confirmBtn.textContent = 'Error'; }
+        };
+        btnRow.appendChild(cancelBtn); btnRow.appendChild(confirmBtn);
+        body.appendChild(btnRow);
+        openGitHubStatModal('Remove ' + repoName + '?', '');
+        var modalBody = document.getElementById('github-stat-modal-body');
+        modalBody.textContent = '';
+        modalBody.appendChild(body);
     } catch (e) {
-        alert('Error: ' + e.message);
+        openGitHubStatModal('Error', '');
+        document.getElementById('github-stat-modal-body').textContent = 'Error: ' + e.message;
     }
 }
 
@@ -2775,9 +3408,39 @@ async function reindexAllRepos() {
         const resp = await fetch('/tools/consciousness/github/reindex-all', {method: 'POST', credentials: 'same-origin'});
         const data = await resp.json();
         if (data.success) {
-            let msg = 'Re-indexed ' + data.total_indexed + ' files across ' + data.total_repos + ' repos.';
-            if (data.errors && data.errors.length > 0) msg += '\n' + data.errors.length + ' errors occurred.';
-            alert(msg);
+            const body = document.createElement('div');
+            const summary = document.createElement('div');
+            summary.style.cssText = 'font-size:1rem;color:var(--archie-text-primary);margin-bottom:1rem;';
+            summary.textContent = 'Re-indexed ' + data.total_indexed + ' files across ' + data.total_repos + ' repos.';
+            body.appendChild(summary);
+            if (data.results) {
+                data.results.forEach(function(r) {
+                    var row = document.createElement('div');
+                    row.style.cssText = 'display:flex;justify-content:space-between;padding:0.3rem 0;font-size:0.85rem;border-bottom:1px solid var(--archie-border-muted);';
+                    var name = document.createElement('span');
+                    name.style.color = 'var(--archie-text-primary)';
+                    name.textContent = r.repo;
+                    var info = document.createElement('span');
+                    info.style.color = 'var(--archie-text-muted)';
+                    var txt = r.indexed + ' files';
+                    if (r.capped_at) txt += ' (capped at ' + r.capped_at + '/' + r.total_found + ')';
+                    if (r.errors > 0) txt += ', ' + r.errors + ' errors';
+                    info.textContent = txt;
+                    row.appendChild(name); row.appendChild(info);
+                    body.appendChild(row);
+                });
+            }
+            if (data.errors && data.errors.length > 0) {
+                var errDiv = document.createElement('div');
+                errDiv.style.cssText = 'margin-top:1rem;color:var(--archie-orange);font-size:0.85rem;';
+                errDiv.textContent = data.errors.length + ' errors occurred during indexing.';
+                body.appendChild(errDiv);
+            }
+            openGitHubStatModal('Re-Index Complete', '');
+            var modalBody = document.getElementById('github-stat-modal-body');
+            modalBody.textContent = '';
+            modalBody.appendChild(body);
+            loadGitHubRepos();
             loadGitHubIndexed();
         } else {
             alert('Error: ' + (data.error || 'Unknown'));
@@ -2836,8 +3499,8 @@ async function showIndexedByRepo() {
 }
 
 async function showFileList(type) {
-    const label = type === 'code' ? 'Code Files' : 'Documentation Files';
-    const icon = type === 'code' ? '\uD83D\uDCBB' : '\uD83D\uDCC4';
+    const label = type === 'code' ? 'Code Files' : type === 'config' ? 'Config Files' : 'Documentation Files';
+    const icon = type === 'code' ? '\uD83D\uDCBB' : type === 'config' ? '\u2699\uFE0F' : '\uD83D\uDCC4';
     openGitHubStatModal(icon + ' ' + label, '<div class="loading"><div class="spinner"></div></div>');
     try {
         const resp = await fetch('/tools/consciousness/github/indexed?file_type=' + type, {credentials: 'same-origin'});
@@ -2922,6 +3585,110 @@ async function scanDependencies() {
     setTimeout(() => { btn.textContent = origText; btn.disabled = false; }, 3000);
 }
 
+// GitHub auth status
+async function loadGitHubAuthStatus() {
+    const badge = document.getElementById('github-auth-badge');
+    if (!badge) return;
+    try {
+        const resp = await fetch('/tools/consciousness/github/auth-status', {credentials: 'same-origin'});
+        const data = await resp.json();
+        if (data.authenticated) {
+            badge.style.background = 'var(--archie-green-dim, rgba(0,255,65,0.1))';
+            badge.style.color = 'var(--archie-green, #0f0)';
+            badge.textContent = data.rate_remaining + '/' + data.rate_limit + ' API calls';
+            badge.title = data.message;
+        } else {
+            badge.style.background = 'var(--archie-orange-dim, rgba(255,170,0,0.1))';
+            badge.style.color = 'var(--archie-orange, #fa0)';
+            badge.textContent = 'No Token';
+            badge.title = data.message || 'No GitHub token configured';
+        }
+    } catch (e) { badge.textContent = ''; }
+}
+
+// GitHub semantic search
+async function searchGitHubFiles() {
+    const input = document.getElementById('github-search-input');
+    const resultsEl = document.getElementById('github-search-results');
+    const btn = document.getElementById('btn-github-search');
+    const query = input.value.trim();
+    if (!query) return;
+
+    btn.disabled = true; btn.textContent = '...';
+    resultsEl.style.display = 'block';
+    resultsEl.textContent = '';
+    const spinner = document.createElement('div');
+    spinner.className = 'loading';
+    spinner.appendChild(Object.assign(document.createElement('div'), {className: 'spinner'}));
+    resultsEl.appendChild(spinner);
+
+    try {
+        const resp = await fetch('/tools/consciousness/github/search-semantic', {
+            method: 'POST', credentials: 'same-origin',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({query: query, limit: 20})
+        });
+        const data = await resp.json();
+        resultsEl.textContent = '';
+        if (data.success && data.results && data.results.length > 0) {
+            const header = document.createElement('div');
+            header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;';
+            const hText = document.createElement('span');
+            hText.style.cssText = 'color:var(--archie-text-muted);font-size:0.85rem;';
+            hText.textContent = data.results.length + ' results for "' + query + '"';
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'btn btn-secondary';
+            closeBtn.style.cssText = 'padding:0.15rem 0.5rem;font-size:0.75rem;';
+            closeBtn.textContent = 'Close';
+            closeBtn.onclick = function() { resultsEl.style.display = 'none'; };
+            header.appendChild(hText); header.appendChild(closeBtn);
+            resultsEl.appendChild(header);
+
+            data.results.forEach(function(r) {
+                const row = document.createElement('div');
+                row.style.cssText = 'padding:0.5rem;border-bottom:1px solid var(--archie-border-muted);font-size:0.85rem;';
+                const top = document.createElement('div');
+                top.style.cssText = 'display:flex;justify-content:space-between;';
+                const titleEl = document.createElement('span');
+                titleEl.style.cssText = 'color:var(--archie-text-primary);font-weight:600;';
+                titleEl.textContent = r.title || r.file_name || '';
+                top.appendChild(titleEl);
+                if (r.similarity != null) {
+                    const sim = document.createElement('span');
+                    sim.style.cssText = 'color:var(--archie-accent,#6c5ce7);font-size:0.75rem;';
+                    sim.textContent = (r.similarity * 100).toFixed(0) + '% match';
+                    top.appendChild(sim);
+                }
+                row.appendChild(top);
+                const pathEl = document.createElement('div');
+                pathEl.style.cssText = 'color:var(--archie-text-muted);font-size:0.8rem;';
+                pathEl.textContent = r.file_path || '';
+                row.appendChild(pathEl);
+                if (r.snippet) {
+                    const snipEl = document.createElement('div');
+                    snipEl.style.cssText = 'color:var(--archie-text-secondary);font-size:0.8rem;margin-top:0.25rem;white-space:pre-wrap;max-height:80px;overflow:hidden;';
+                    snipEl.textContent = r.snippet;
+                    row.appendChild(snipEl);
+                }
+                resultsEl.appendChild(row);
+            });
+        } else if (data.success) {
+            resultsEl.textContent = 'No results found for "' + query + '"';
+            resultsEl.style.textAlign = 'center';
+            resultsEl.style.padding = '1rem';
+            resultsEl.style.color = 'var(--archie-text-muted)';
+        } else {
+            resultsEl.textContent = data.error || 'Search failed';
+            resultsEl.style.color = 'var(--archie-red)';
+        }
+    } catch (e) {
+        resultsEl.textContent = 'Search error: ' + e.message;
+        resultsEl.style.color = 'var(--archie-red)';
+    } finally {
+        btn.disabled = false; btn.textContent = '🔍 Search';
+    }
+}
+
 // GitHub repo browser
 async function loadGitHubRepos() {
     const listEl = document.getElementById('github-repo-list');
@@ -2934,7 +3701,7 @@ async function loadGitHubRepos() {
                 const card = document.createElement('div');
                 card.style.cssText = 'background: var(--archie-bg-tertiary); border: 1px solid var(--archie-border-muted); border-radius: 8px; padding: 0.75rem 1rem; min-width: 200px; flex: 1; max-width: 300px;';
                 const name = document.createElement('div');
-                name.style.cssText = 'font-weight: 600; color: var(--archie-text-primary); margin-bottom: 0.25rem; font-size: 0.9rem;';
+                name.style.cssText = 'font-weight: 600; color: var(--archie-text-primary); margin-bottom: 0.25rem; font-size: 0.9rem; padding-right: 1.5rem;';
                 name.textContent = repo.repo_name || 'Unknown';
                 const statusBadge = document.createElement('span');
                 const isCloned = repo.status === 'cloned' || repo.status === 'indexed';
@@ -2948,13 +3715,28 @@ async function loadGitHubRepos() {
                 const updated = document.createElement('div');
                 updated.style.cssText = 'color: var(--archie-text-muted); font-size: 0.75rem; margin-top: 0.25rem;';
                 updated.textContent = repo.indexed_at ? 'Indexed: ' + new Date(repo.indexed_at).toLocaleDateString() : 'Not yet indexed';
-                card.appendChild(name); card.appendChild(details); card.appendChild(updated); listEl.appendChild(card);
+                // Action buttons row
+                const actions = document.createElement('div');
+                actions.style.cssText = 'display: flex; gap: 0.25rem; margin-top: 0.5rem; border-top: 1px solid var(--archie-border-muted); padding-top: 0.5rem;';
+                const btnReindex = document.createElement('button');
+                btnReindex.className = 'btn btn-secondary';
+                btnReindex.style.cssText = 'padding: 0.15rem 0.4rem; font-size: 0.7rem; flex: 1;';
+                btnReindex.textContent = '📥 Re-Index';
+                btnReindex.onclick = function() { reindexSingleRepo(repo.id, btnReindex); };
+                const btnRemove = document.createElement('button');
+                btnRemove.className = 'btn btn-secondary';
+                btnRemove.style.cssText = 'padding: 0.15rem 0.4rem; font-size: 0.7rem; color: var(--archie-red, #f44);';
+                btnRemove.textContent = '✕ Remove';
+                btnRemove.title = 'Remove repository';
+                btnRemove.onclick = function() { previewRepoRemoval(repo.id); };
+                actions.appendChild(btnReindex); actions.appendChild(btnRemove);
+                card.appendChild(name); card.appendChild(details); card.appendChild(updated); card.appendChild(actions); listEl.appendChild(card);
             });
         } else {
             listEl.textContent = 'No repositories tracked yet';
             listEl.style.color = 'var(--archie-text-muted)';
         }
-    } catch (e) { console.error('Error loading repos:', e); listEl.textContent = 'Error loading repositories'; }
+    } catch (e) { listEl.textContent = 'Error loading repositories'; }
 }
 
 // GitHub indexing functions
@@ -2980,6 +3762,15 @@ async function loadGitHubIndexed() {
                 document.getElementById('github-files').textContent = data.stats.total || 0;
                 document.getElementById('github-code').textContent = data.stats.code_files || 0;
                 document.getElementById('github-docs').textContent = data.stats.docs || 0;
+                document.getElementById('github-config').textContent = data.stats.config_files || 0;
+            }
+
+            const totalCount = data.stats ? (data.stats.total || 0) : files.length;
+            const countEl = document.getElementById('github-file-count');
+            if (countEl) {
+                countEl.textContent = files.length < totalCount
+                    ? 'Showing ' + files.length + ' of ' + totalCount + ' files'
+                    : totalCount + ' files';
             }
 
             if (files.length === 0) {
@@ -2988,13 +3779,13 @@ async function loadGitHubIndexed() {
                 listEl.style.color = 'var(--archie-text-muted)';
                 listEl.style.padding = '2rem';
             } else {
-                files.slice(0, 50).forEach(file => {
+                files.forEach(file => {
                     const item = document.createElement('div');
                     item.className = 'activity-item';
 
                     const icon = document.createElement('div');
                     icon.className = 'activity-icon';
-                    icon.textContent = file.is_code ? '💻' : (file.is_documentation ? '📄' : '📁');
+                    icon.textContent = file.is_code ? '💻' : file.is_documentation ? '📄' : file.is_configuration ? '⚙️' : '📁';
 
                     const content = document.createElement('div');
                     content.className = 'activity-content';
@@ -3041,6 +3832,7 @@ async function indexGitHubRepo() {
     const urlInput = document.getElementById('github-repo-url');
     const prioritySelect = document.getElementById('github-priority');
     const resultsEl = document.getElementById('github-results');
+    const indexBtn = document.querySelector('[onclick="indexGitHubRepo()"]');
 
     const repoUrl = urlInput.value.trim();
     if (!repoUrl) {
@@ -3063,6 +3855,7 @@ async function indexGitHubRepo() {
     const repo = match[2].replace('.git', '');
     const priority = prioritySelect.value;
 
+    if (indexBtn) { indexBtn.disabled = true; indexBtn.textContent = '⏳ Indexing...'; }
     resultsEl.style.display = 'block';
     resultsEl.style.color = 'var(--archie-text-muted)';
     resultsEl.textContent = 'Indexing ' + owner + '/' + repo + '...';
@@ -3081,8 +3874,12 @@ async function indexGitHubRepo() {
 
         if (data.success) {
             resultsEl.style.color = 'var(--archie-green)';
-            resultsEl.textContent = 'Successfully indexed ' + (data.indexed_count || 0) + ' files from ' + owner + '/' + repo;
+            let msg = 'Indexed ' + (data.indexed_count || 0) + ' files from ' + owner + '/' + repo;
+            if (data.capped_at) msg += ' (capped at ' + data.capped_at + ', repo has ' + data.total_found + ' indexable files)';
+            if (data.skipped) msg += ', ' + data.skipped + ' skipped';
+            resultsEl.textContent = msg;
             urlInput.value = '';
+            loadGitHubRepos();
             loadGitHubIndexed();
         } else {
             resultsEl.style.color = 'var(--archie-red)';
@@ -3091,6 +3888,8 @@ async function indexGitHubRepo() {
     } catch (e) {
         resultsEl.style.color = 'var(--archie-red)';
         resultsEl.textContent = 'Error: ' + e.message;
+    } finally {
+        if (indexBtn) { indexBtn.disabled = false; indexBtn.textContent = '🚀 Index Repository'; }
     }
 }
 
@@ -3276,7 +4075,7 @@ async function loadChatHistory() {
             claudeEl.scrollTop = claudeEl.scrollHeight;
         }
     } catch (e) {
-        console.log('Chat history load:', e.message);
+        console.debug('Chat history load:', e.message);
     }
 }
 
@@ -3293,7 +4092,7 @@ var voiceEmotionPresets = {};
 var voiceEngineCapabilities = {};
 var voiceSpeakersLoaded = false;
 var currentCachePage = 1;
-var activePregenJobId = null;
+var cardPregenData = {};
 
 // Reuse existing escHtml from line 1290 for XSS-safe HTML generation
 var voiceEscHtml = typeof escHtml === 'function' ? escHtml : function(str) { var d = document.createElement('div'); d.textContent = str; return d.innerHTML; };
@@ -3304,9 +4103,7 @@ function switchVoiceTab(tab) {
     document.querySelector('.voice-subtab-btn[onclick*="' + tab + '"]').classList.add('active');
     document.getElementById('voice-sub-' + tab).classList.add('active');
     if (tab === 'dashboard') loadVoiceDashboard();
-    if (tab === 'preview') loadVoiceSpeakers();
-    if (tab === 'cache') loadVoiceCache();
-    if (tab === 'agents') { loadVoiceSpeakers(); loadVoiceProfiles(); }
+    if (tab === 'profiles') { loadVoiceSpeakers(); loadVoiceProfiles(); }
 }
 
 async function loadVoiceDashboard() {
@@ -3324,30 +4121,9 @@ async function loadVoiceDashboard() {
         document.getElementById('vs-kokoro-cached').textContent = (eb.kokoro || 0).toLocaleString();
         document.getElementById('vs-xtts-cached').textContent = (eb.xtts_v2 || 0).toLocaleString();
 
-        // Top emotions table
-        var tbody = document.querySelector('#voice-emotions-table tbody');
-        tbody.textContent = '';
-        (d.top_emotions || []).forEach(function(e) {
-            var tr = document.createElement('tr');
-            var td1 = document.createElement('td'); td1.textContent = e.emotion_context || 'unknown';
-            var td2 = document.createElement('td'); td2.textContent = e.count;
-            var td3 = document.createElement('td'); td3.textContent = e.hits || 0;
-            tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3);
-            tbody.appendChild(tr);
-        });
-
-        // Top words table
-        var wbody = document.querySelector('#voice-words-table tbody');
-        wbody.textContent = '';
-        (d.top_words || []).forEach(function(w) {
-            var tr = document.createElement('tr');
-            var td1 = document.createElement('td'); td1.textContent = w.word_text || '';
-            var td2 = document.createElement('td'); td2.textContent = w.emotion_context || '';
-            var td3 = document.createElement('td'); td3.textContent = w.hit_count;
-            var td4 = document.createElement('td'); td4.textContent = w.duration_ms ? w.duration_ms + 'ms' : '-';
-            tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3); tr.appendChild(td4);
-            wbody.appendChild(tr);
-        });
+        // Load speakers (for cache emotion filter) and cache browser
+        loadVoiceSpeakers();
+        loadVoiceCache();
     } catch (e) {
         console.error('Voice dashboard error:', e);
     }
@@ -3366,21 +4142,12 @@ async function loadVoiceSpeakers() {
         voiceSpeakersLoaded = true;
 
         // Populate emotion dropdowns
-        var emotionSel = document.getElementById('preview-emotion');
-        emotionSel.textContent = '';
-        voiceEmotions.forEach(function(e) {
-            var opt = document.createElement('option');
-            opt.value = e; opt.textContent = e.charAt(0).toUpperCase() + e.slice(1);
-            emotionSel.appendChild(opt);
-        });
         populateSelectFrom('profile-emotion', voiceEmotions);
 
         // Populate speakers for default engine (kokoro)
-        populateSpeakerDropdown('preview-speaker', 'kokoro');
         populateSpeakerDropdown('profile-speaker', 'kokoro');
 
         // Apply initial engine state
-        onEngineChange();
         onProfileEngineChange();
 
         // Populate cache emotion filter
@@ -3425,27 +4192,6 @@ function populateSpeakerDropdown(selectId, engine) {
     }
 }
 
-function onEngineChange() {
-    var engine = document.getElementById('preview-engine').value;
-    populateSpeakerDropdown('preview-speaker', engine);
-    var caps = voiceEngineCapabilities[engine] || {};
-    // Toggle pitch/warmth controls
-    var pitchCtrl = document.getElementById('preview-pitch-control');
-    var warmthCtrl = document.getElementById('preview-warmth-control');
-    var blendRow = document.getElementById('preview-blend-row');
-    if (pitchCtrl) {
-        pitchCtrl.style.opacity = caps.pitch_shift ? '1' : '0.4';
-        document.getElementById('preview-pitch').disabled = !caps.pitch_shift;
-    }
-    if (warmthCtrl) {
-        warmthCtrl.style.opacity = caps.warmth ? '1' : '0.4';
-        document.getElementById('preview-warmth').disabled = !caps.warmth;
-    }
-    if (blendRow) {
-        blendRow.style.display = caps.voice_blend ? 'flex' : 'none';
-    }
-}
-
 function onProfileEngineChange() {
     var engine = document.getElementById('profile-engine').value;
     populateSpeakerDropdown('profile-speaker', engine);
@@ -3478,99 +4224,10 @@ function populateSelectFrom(id, items, defaultVal) {
     });
 }
 
-function updateSliderDisplay(param) {
-    var slider = document.getElementById('preview-' + param);
-    var display = document.getElementById('preview-' + param + '-val');
-    display.textContent = parseFloat(slider.value).toFixed(2);
-}
-
 function updateProfileSlider(param) {
     var slider = document.getElementById('profile-' + param);
     var display = document.getElementById('profile-' + param + '-val');
     display.textContent = parseFloat(slider.value).toFixed(2);
-}
-
-function applyEmotionPreset() {
-    var emotion = document.getElementById('preview-emotion').value;
-    var preset = voiceEmotionPresets[emotion];
-    if (!preset) return;
-    document.getElementById('preview-speed').value = preset.speed;
-    document.getElementById('preview-speed-val').textContent = preset.speed.toFixed(2);
-    document.getElementById('preview-pitch').value = preset.pitch_shift;
-    document.getElementById('preview-pitch-val').textContent = preset.pitch_shift.toFixed(2);
-    document.getElementById('preview-warmth').value = preset.warmth;
-    document.getElementById('preview-warmth-val').textContent = preset.warmth.toFixed(2);
-}
-
-async function previewVoice() {
-    var btn = document.getElementById('preview-btn');
-    var status = document.getElementById('preview-gen-status');
-    btn.disabled = true;
-    btn.textContent = 'Generating...';
-    status.textContent = 'Synthesizing audio...';
-    document.getElementById('preview-audio-container').style.display = 'none';
-
-    var engine = document.getElementById('preview-engine').value;
-    var blendVal = document.getElementById('preview-blend').value.trim();
-    var language = document.getElementById('preview-language').value;
-
-    try {
-        var body = {
-            text: document.getElementById('preview-text').value,
-            speaker: document.getElementById('preview-speaker').value,
-            speed: parseFloat(document.getElementById('preview-speed').value),
-            pitch_shift: parseFloat(document.getElementById('preview-pitch').value),
-            warmth: parseFloat(document.getElementById('preview-warmth').value),
-            emotion: document.getElementById('preview-emotion').value,
-            quality: document.getElementById('preview-quality').value,
-            engine: engine,
-            language: language
-        };
-        if (blendVal && engine === 'kokoro') body.voice_blend = blendVal;
-
-        var r = await fetch('/tools/consciousness/api/voice/preview', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(body)
-        });
-        var d = await r.json();
-        if (d.success && d.audio_base64) {
-            var audioBytes = Uint8Array.from(atob(d.audio_base64), function(c) { return c.charCodeAt(0); });
-            var blob = new Blob([audioBytes], { type: 'audio/wav' });
-            var url = URL.createObjectURL(blob);
-            var audio = document.getElementById('preview-audio');
-            audio.src = url;
-            document.getElementById('preview-audio-container').style.display = 'block';
-            audio.play();
-            var usedEngine = (d.parameters_used && d.parameters_used.engine) || engine;
-            var langLabel = language !== 'en' ? ' / ' + language.toUpperCase() : '';
-            status.textContent = 'Generated in ' + d.generation_time_ms + 'ms (' + usedEngine + langLabel + ')';
-        } else {
-            status.textContent = 'Error: ' + (d.error || 'Unknown error');
-        }
-    } catch (e) {
-        status.textContent = 'Error: ' + e.message;
-    }
-    btn.disabled = false;
-    btn.textContent = 'Preview';
-}
-
-function applyPreviewToProfile() {
-    switchVoiceTab('agents');
-    showNewProfileForm();
-    document.getElementById('profile-form-title').textContent = 'New Voice Profile (from Preview)';
-    document.getElementById('profile-engine').value = document.getElementById('preview-engine').value;
-    document.getElementById('profile-language').value = document.getElementById('preview-language').value;
-    onProfileEngineChange();
-    document.getElementById('profile-speaker').value = document.getElementById('preview-speaker').value;
-    document.getElementById('profile-emotion').value = document.getElementById('preview-emotion').value;
-    document.getElementById('profile-speed').value = document.getElementById('preview-speed').value;
-    document.getElementById('profile-speed-val').textContent = document.getElementById('preview-speed-val').textContent;
-    document.getElementById('profile-pitch').value = document.getElementById('preview-pitch').value;
-    document.getElementById('profile-pitch-val').textContent = document.getElementById('preview-pitch-val').textContent;
-    document.getElementById('profile-warmth').value = document.getElementById('preview-warmth').value;
-    document.getElementById('profile-warmth-val').textContent = document.getElementById('preview-warmth-val').textContent;
-    document.getElementById('profile-blend').value = document.getElementById('preview-blend').value;
 }
 
 async function renameAgent(profileId, newName) {
@@ -3855,7 +4512,134 @@ async function loadVoiceProfiles() {
             delBtn.textContent = 'Delete';
             delBtn.onclick = (function(pid) { return function() { deleteVoiceProfile(pid); }; })(p.id);
             actions.appendChild(delBtn);
+
+            var pregenBtn = document.createElement('button');
+            pregenBtn.className = 'btn btn-secondary';
+            pregenBtn.textContent = '\u26A1 Pre-gen';
+            pregenBtn.onclick = (function(pid) { return function() { toggleCardPregen(pid); }; })(p.id);
+            actions.appendChild(pregenBtn);
             card.appendChild(actions);
+
+            // Store pregen data for this profile
+            cardPregenData[p.id] = { agent_id: p.agent_id, language: p.language || 'en', engine: p.engine || 'xtts_v2', speaker: p.speaker || 'default' };
+
+            // Card pregen collapsible section
+            var pregenSection = document.createElement('div');
+            pregenSection.className = 'card-pregen-section';
+            pregenSection.id = 'card-pregen-' + p.id;
+
+            var pgRow1 = document.createElement('div');
+            pgRow1.className = 'voice-form-row';
+            pgRow1.style.marginBottom = '0.5rem';
+
+            var pgGroup1 = document.createElement('div');
+            pgGroup1.className = 'voice-form-group';
+            var pgLabel1 = document.createElement('label'); pgLabel1.textContent = 'Job Type';
+            var pgSel1 = document.createElement('select');
+            pgSel1.id = 'card-pregen-type-' + p.id;
+            var pgOpt1a = document.createElement('option'); pgOpt1a.value = 'manual'; pgOpt1a.textContent = 'Manual (Top Words)'; pgSel1.appendChild(pgOpt1a);
+            var pgOpt1b = document.createElement('option'); pgOpt1b.value = 'auto_conversation'; pgOpt1b.textContent = 'Auto (From Conversations)'; pgSel1.appendChild(pgOpt1b);
+            pgGroup1.appendChild(pgLabel1); pgGroup1.appendChild(pgSel1);
+
+            var pgGroup2 = document.createElement('div');
+            pgGroup2.className = 'voice-form-group';
+            var pgLabel2 = document.createElement('label'); pgLabel2.textContent = 'Word Count';
+            var pgSel2 = document.createElement('select');
+            pgSel2.id = 'card-pregen-count-' + p.id;
+            [['50','50 words'],['100','100 words'],['200','200 words'],['500','500 words']].forEach(function(pair) {
+                var o = document.createElement('option'); o.value = pair[0]; o.textContent = pair[1];
+                if (pair[0] === '100') o.selected = true;
+                pgSel2.appendChild(o);
+            });
+            pgGroup2.appendChild(pgLabel2); pgGroup2.appendChild(pgSel2);
+
+            var pgGroup3 = document.createElement('div');
+            pgGroup3.className = 'voice-form-group';
+            var pgLabel3 = document.createElement('label'); pgLabel3.textContent = 'Quality';
+            var pgSel3 = document.createElement('select');
+            pgSel3.id = 'card-pregen-quality-' + p.id;
+            var pgOpt3a = document.createElement('option'); pgOpt3a.value = 'high'; pgOpt3a.selected = true; pgOpt3a.textContent = 'High (slower, cleaner)'; pgSel3.appendChild(pgOpt3a);
+            var pgOpt3b = document.createElement('option'); pgOpt3b.value = 'standard'; pgOpt3b.textContent = 'Standard (faster)'; pgSel3.appendChild(pgOpt3b);
+            pgGroup3.appendChild(pgLabel3); pgGroup3.appendChild(pgSel3);
+
+            pgRow1.appendChild(pgGroup1); pgRow1.appendChild(pgGroup2); pgRow1.appendChild(pgGroup3);
+            pregenSection.appendChild(pgRow1);
+
+            // Emotion toggles
+            var pgEmotionWrap = document.createElement('div');
+            pgEmotionWrap.style.marginBottom = '0.5rem';
+            var pgEmLabel = document.createElement('label');
+            pgEmLabel.style.cssText = 'font-size:0.75rem;color:var(--archie-text-muted);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:0.3rem';
+            pgEmLabel.textContent = 'Emotions';
+            pgEmotionWrap.appendChild(pgEmLabel);
+            var pgEmGroup = document.createElement('div');
+            pgEmGroup.className = 'filter-group';
+            pgEmGroup.id = 'card-pregen-emotions-' + p.id;
+            ['neutral','excited','curious','empathetic','gentle'].forEach(function(em, idx) {
+                var emBtn = document.createElement('button');
+                emBtn.className = 'filter-btn' + (idx === 0 ? ' active' : '');
+                emBtn.dataset.emotion = em;
+                emBtn.textContent = em;
+                emBtn.onclick = function() { this.classList.toggle('active'); };
+                pgEmGroup.appendChild(emBtn);
+            });
+            pgEmotionWrap.appendChild(pgEmGroup);
+            pregenSection.appendChild(pgEmotionWrap);
+
+            // Profile info badges (read-only)
+            var pgBadges = document.createElement('div');
+            pgBadges.style.cssText = 'display:flex;gap:0.4rem;align-items:center;margin-bottom:0.5rem;flex-wrap:wrap;';
+            var isK = (p.engine || 'xtts_v2') === 'kokoro';
+            var pLang = p.language || 'en';
+            [
+                { text: isK ? 'Kokoro' : 'XTTS v2', bg: isK ? '#8b5cf620' : '#00ffff15', fg: isK ? '#a78bfa' : '#00cccc' },
+                { text: pLang.toUpperCase(), bg: pLang === 'en' ? '#ffffff10' : '#f5a62320', fg: pLang === 'en' ? '#888' : '#f5a623' },
+                { text: p.speaker || 'default', bg: '#ffffff10', fg: '#888' }
+            ].forEach(function(b) {
+                var span = document.createElement('span');
+                span.style.cssText = 'padding:0.15rem 0.5rem;border-radius:4px;font-size:0.7rem;background:' + b.bg + ';color:' + b.fg;
+                span.textContent = b.text;
+                pgBadges.appendChild(span);
+            });
+            pregenSection.appendChild(pgBadges);
+
+            // Start button + progress bar
+            var pgStartBtn = document.createElement('button');
+            pgStartBtn.className = 'btn btn-primary';
+            pgStartBtn.id = 'card-pregen-start-' + p.id;
+            pgStartBtn.textContent = 'Start Pre-generation';
+            pgStartBtn.onclick = (function(pid) { return function() { startCardPregen(pid); }; })(p.id);
+            pregenSection.appendChild(pgStartBtn);
+
+            var pgProgress = document.createElement('div');
+            pgProgress.className = 'pregen-progress';
+            pgProgress.id = 'card-pregen-progress-' + p.id;
+            pgProgress.style.display = 'none';
+
+            var pgBar = document.createElement('div');
+            pgBar.className = 'pregen-bar';
+            var pgBarFill = document.createElement('div');
+            pgBarFill.className = 'pregen-bar-fill';
+            pgBarFill.id = 'card-pregen-bar-' + p.id;
+            pgBarFill.style.width = '0%';
+            pgBar.appendChild(pgBarFill);
+            pgProgress.appendChild(pgBar);
+
+            var pgStatusRow = document.createElement('div');
+            pgStatusRow.className = 'pregen-status';
+            var pgStatusText = document.createElement('span');
+            pgStatusText.id = 'card-pregen-status-' + p.id;
+            pgStatusText.textContent = 'Starting...';
+            var pgPct = document.createElement('span');
+            pgPct.id = 'card-pregen-pct-' + p.id;
+            pgPct.textContent = '0%';
+            pgStatusRow.appendChild(pgStatusText);
+            pgStatusRow.appendChild(pgPct);
+            pgProgress.appendChild(pgStatusRow);
+
+            pregenSection.appendChild(pgProgress);
+
+            card.appendChild(pregenSection);
 
             grid.appendChild(card);
         });
@@ -3990,72 +4774,80 @@ async function deleteVoiceProfile(id) {
     }
 }
 
-function togglePregenEmotion(btn) {
-    btn.classList.toggle('active');
+// Card-scoped pre-generation functions
+function toggleCardPregen(profileId) {
+    var section = document.getElementById('card-pregen-' + profileId);
+    if (section) section.classList.toggle('open');
 }
 
-async function startPregen() {
+async function startCardPregen(profileId) {
+    var data = cardPregenData[profileId];
+    if (!data) return;
+
     var emotions = [];
-    document.querySelectorAll('#pregen-emotions .filter-btn.active').forEach(function(b) {
+    document.querySelectorAll('#card-pregen-emotions-' + profileId + ' .filter-btn.active').forEach(function(b) {
         emotions.push(b.dataset.emotion);
     });
     if (emotions.length === 0) emotions = ['neutral'];
 
-    var progressEl = document.getElementById('pregen-progress');
+    var progressEl = document.getElementById('card-pregen-progress-' + profileId);
     progressEl.style.display = 'block';
-    document.getElementById('pregen-bar-fill').style.width = '0%';
-    document.getElementById('pregen-pct').textContent = '0%';
-    document.getElementById('pregen-status-text').textContent = 'Starting...';
+    document.getElementById('card-pregen-bar-' + profileId).style.width = '0%';
+    document.getElementById('card-pregen-pct-' + profileId).textContent = '0%';
+    document.getElementById('card-pregen-status-' + profileId).textContent = 'Starting...';
+    document.getElementById('card-pregen-start-' + profileId).disabled = true;
 
     try {
         var r = await fetch('/tools/consciousness/api/voice/pregen', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({
-                job_type: document.getElementById('pregen-type').value,
-                word_count: parseInt(document.getElementById('pregen-count').value),
+                agent_id: parseInt(data.agent_id),
+                language: data.language,
+                job_type: document.getElementById('card-pregen-type-' + profileId).value,
+                word_count: parseInt(document.getElementById('card-pregen-count-' + profileId).value),
                 emotions: emotions,
-                quality: document.getElementById('pregen-quality').value,
-                engine: document.getElementById('pregen-engine').value
+                quality: document.getElementById('card-pregen-quality-' + profileId).value
             })
         });
         var d = await r.json();
         if (d.success) {
-            activePregenJobId = d.job_id;
-            pollPregenJob(d.job_id);
+            pollCardPregenJob(d.job_id, profileId);
         } else {
-            document.getElementById('pregen-status-text').textContent = 'Error: ' + (d.error || 'Unknown');
+            document.getElementById('card-pregen-status-' + profileId).textContent = 'Error: ' + (d.error || 'Unknown');
+            document.getElementById('card-pregen-start-' + profileId).disabled = false;
         }
     } catch (e) {
-        document.getElementById('pregen-status-text').textContent = 'Error: ' + e.message;
+        document.getElementById('card-pregen-status-' + profileId).textContent = 'Error: ' + e.message;
+        document.getElementById('card-pregen-start-' + profileId).disabled = false;
     }
 }
 
-function pollPregenJob(jobId) {
+function pollCardPregenJob(jobId, profileId) {
     var interval = setInterval(async function() {
         try {
             var r = await fetch('/tools/consciousness/api/voice/pregen/' + jobId);
             var d = await r.json();
             if (!d.success) { clearInterval(interval); return; }
             var job = d.job;
-            document.getElementById('pregen-bar-fill').style.width = job.progress_pct + '%';
-            document.getElementById('pregen-pct').textContent = job.progress_pct + '%';
-            document.getElementById('pregen-status-text').textContent = job.completed_words + '/' + job.total_words + ' words (' + job.failed_words + ' failed)';
+            document.getElementById('card-pregen-bar-' + profileId).style.width = job.progress_pct + '%';
+            document.getElementById('card-pregen-pct-' + profileId).textContent = job.progress_pct + '%';
+            document.getElementById('card-pregen-status-' + profileId).textContent = job.completed_words + '/' + job.total_words + ' words (' + job.failed_words + ' failed)';
 
             if (job.status === 'completed' || job.status === 'failed') {
                 clearInterval(interval);
-                activePregenJobId = null;
+                document.getElementById('card-pregen-start-' + profileId).disabled = false;
                 if (job.status === 'completed') {
-                    document.getElementById('pregen-status-text').textContent = 'Completed: ' + job.completed_words + ' words cached';
-                    loadVoiceDashboard();
+                    document.getElementById('card-pregen-status-' + profileId).textContent = 'Completed: ' + job.completed_words + ' words cached';
+                    loadVoiceProfiles();
                 } else {
-                    document.getElementById('pregen-status-text').textContent = 'Failed: ' + (job.error_message || 'Unknown error');
+                    document.getElementById('card-pregen-status-' + profileId).textContent = 'Failed: ' + (job.error_message || 'Unknown error');
                 }
             }
         } catch (e) {
             clearInterval(interval);
-            activePregenJobId = null;
-            document.getElementById('pregen-status-text').textContent = 'Error polling job status: ' + e.message;
+            document.getElementById('card-pregen-start-' + profileId).disabled = false;
+            document.getElementById('card-pregen-status-' + profileId).textContent = 'Poll error: ' + e.message;
         }
     }, 3000);
 }

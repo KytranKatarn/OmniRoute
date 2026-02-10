@@ -6,7 +6,7 @@ Phase 65: Unified Project Management - COMPLETE
 
 This package contains tool implementations for the MCP server.
 Tools are organized by category:
-- knowledge: Memory and knowledge base operations (6 tools)
+- knowledge: Memory and knowledge base operations (9 tools)
 - creation: Project and content creation (5 tools)
 - business: Business operations (CRM, invoicing, etc.) (7 tools)
 - admin: System administration (9 tools)
@@ -17,7 +17,7 @@ Tools are organized by category:
 - work: Work session context tracking (6 tools)
 - ai_command: AI Command operations - performance, ethics, health (6 tools)
 
-Total: 78 tools
+Total: 80 tools
 """
 
 from typing import Dict, List, Callable, Any

@@ -32,6 +32,109 @@ processing_bp = Blueprint(
 # Conversation logs directory
 CONVERSATION_LOGS_DIR = "/mnt/archie_brain/conversation_logs"
 
+# --- Server-side processing lock ---
+import threading
+import time as _time
+
+_processing_lock = threading.Lock()
+_active_jobs = {}  # type -> { "session": str, "started": float, "processed": int }
+
+# Lock timeout: if a job hasn't been refreshed in 120s, consider it stale
+_LOCK_TIMEOUT = 120
+
+
+def _cleanup_stale_locks():
+    """Remove locks that haven't been refreshed recently"""
+    now = _time.time()
+    stale = [t for t, j in _active_jobs.items() if now - j.get("heartbeat", j["started"]) > _LOCK_TIMEOUT]
+    for t in stale:
+        del _active_jobs[t]
+
+
+@processing_bp.route("/lock/status", methods=["GET"])
+def get_lock_status():
+    """Check which processing types are currently locked"""
+    with _processing_lock:
+        _cleanup_stale_locks()
+        return jsonify(
+            {
+                "success": True,
+                "active": {
+                    t: {
+                        "session": j["session"],
+                        "processed": j["processed"],
+                        "elapsed": round(_time.time() - j["started"]),
+                    }
+                    for t, j in _active_jobs.items()
+                },
+            }
+        )
+
+
+@processing_bp.route("/lock/acquire", methods=["POST"])
+def acquire_lock():
+    """Acquire a processing lock for a type. Returns session_id on success."""
+    data = request.get_json() or {}
+    proc_type = data.get("type", "")
+    if not proc_type:
+        return jsonify({"success": False, "error": "type required"}), 400
+
+    with _processing_lock:
+        _cleanup_stale_locks()
+        if proc_type in _active_jobs:
+            existing = _active_jobs[proc_type]
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "busy",
+                        "session": existing["session"],
+                        "processed": existing["processed"],
+                        "elapsed": round(_time.time() - existing["started"]),
+                    }
+                ),
+                409,
+            )
+
+        session_id = str(uuid.uuid4())[:8]
+        _active_jobs[proc_type] = {
+            "session": session_id,
+            "started": _time.time(),
+            "heartbeat": _time.time(),
+            "processed": 0,
+        }
+        return jsonify({"success": True, "session": session_id})
+
+
+@processing_bp.route("/lock/heartbeat", methods=["POST"])
+def heartbeat_lock():
+    """Keep a lock alive + update processed count"""
+    data = request.get_json() or {}
+    proc_type = data.get("type", "")
+    session_id = data.get("session", "")
+
+    with _processing_lock:
+        job = _active_jobs.get(proc_type)
+        if not job or job["session"] != session_id:
+            return jsonify({"success": False, "error": "no matching lock"}), 404
+        job["heartbeat"] = _time.time()
+        job["processed"] = data.get("processed", job["processed"])
+        return jsonify({"success": True})
+
+
+@processing_bp.route("/lock/release", methods=["POST"])
+def release_lock():
+    """Release a processing lock"""
+    data = request.get_json() or {}
+    proc_type = data.get("type", "")
+    session_id = data.get("session", "")
+
+    with _processing_lock:
+        job = _active_jobs.get(proc_type)
+        if job and job["session"] == session_id:
+            del _active_jobs[proc_type]
+        return jsonify({"success": True})
+
 
 def get_db():
     """Get database connection"""
@@ -144,13 +247,14 @@ def _get_backlog_counts() -> dict:
         )
         counts["claude_hooks"] = cur.fetchone()[0]
 
-        # Count entries missing embeddings
+        # Count entries missing embeddings (exclude archived archie_v1)
         cur.execute(
             """
             SELECT COUNT(*) FROM knowledge_base
             WHERE embedding IS NULL
             AND content IS NOT NULL
             AND LENGTH(content) > 50
+            AND source_type != 'archie_v1'
             """
         )
         counts["embeddings_missing"] = cur.fetchone()[0]
@@ -573,12 +677,12 @@ def get_embedding_coverage():
 
         cur.execute(
             """
-            SELECT source_type,
+            SELECT COALESCE(NULLIF(source_type, ''), 'uncategorized') as source_type,
                    COUNT(*) as total,
                    COALESCE(SUM(CASE WHEN embedding IS NOT NULL THEN 1 ELSE 0 END), 0) as embedded,
                    COALESCE(SUM(CASE WHEN ai_analysis IS NOT NULL THEN 1 ELSE 0 END), 0) as analyzed
             FROM knowledge_base
-            GROUP BY source_type
+            GROUP BY COALESCE(NULLIF(source_type, ''), 'uncategorized')
             ORDER BY total DESC
             """
         )
@@ -597,9 +701,11 @@ def get_embedding_coverage():
                     "analyzed": row[3],
                 }
             )
-            total_all += row[1]
-            embedded_all += row[2]
-            analyzed_all += row[3]
+            # Exclude archived legacy entries from global coverage metrics
+            if row[0] != "archie_v1":
+                total_all += row[1]
+                embedded_all += row[2]
+                analyzed_all += row[3]
 
         cur.close()
         conn.close()

@@ -1313,19 +1313,20 @@ async def get_knowledge_processing_status_handler(arguments: Dict[str, Any]) -> 
         return {"success": False, "error": "DB offline"}
 
     try:
-        # Overall counts
+        # Overall counts (exclude archived archie_v1 from global metrics)
         cur.execute(
             """
             SELECT COUNT(*) as total,
                    COALESCE(SUM(CASE WHEN embedding IS NOT NULL THEN 1 ELSE 0 END), 0) as embedded,
                    COALESCE(SUM(CASE WHEN ai_analysis IS NOT NULL THEN 1 ELSE 0 END), 0) as analyzed
             FROM knowledge_base
+            WHERE source_type != 'archie_v1'
         """
         )
         row = cur.fetchone()
         total, embedded, analyzed = row[0], row[1], row[2]
 
-        # Backlog by source type
+        # Backlog by source type (exclude archived)
         cur.execute(
             """
             SELECT source_type,
@@ -1334,6 +1335,7 @@ async def get_knowledge_processing_status_handler(arguments: Dict[str, Any]) -> 
                    SUM(CASE WHEN ai_analysis IS NOT NULL THEN 1 ELSE 0 END) as analyzed
             FROM knowledge_base
             WHERE ai_analysis IS NULL AND content IS NOT NULL AND LENGTH(content) > 100
+            AND source_type != 'archie_v1'
             GROUP BY source_type
             ORDER BY COUNT(*) DESC
             LIMIT 10

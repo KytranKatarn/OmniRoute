@@ -1,6 +1,6 @@
 # A.R.C.H.I.E. Platform
 
-**Version**: 5.28.0 | **Host**: 192.168.1.200 | **Status**: Operational
+**Version**: 5.29.0 | **Host**: 192.168.1.200 | **Status**: Operational
 
 ---
 
@@ -24,7 +24,7 @@
 
 ## Architecture (5 Systems)
 
-1. **Knowledge Base** - `knowledge_base` table (6,000+ entries, 99% embedded)
+1. **Knowledge Base** - `knowledge_base` table (~5,000 active entries, 100% embedded; ~1,100 archived as `archie_v1`)
 2. **AI Bridge** - `/ai_bridge/archie_bridge.py` (multi-model router)
 3. **Module System** - Flask Blueprints in `/platform_v2/tools/`
 4. **Dev HQ** - Development command center (`/dev-hq`), projects, knowledge, schema, integrations

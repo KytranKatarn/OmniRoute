@@ -2717,6 +2717,236 @@ def get_knowledge_graph():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@consciousness_bp.route("/brain-map/data", methods=["GET"])
+@login_required
+@admin_required
+def get_brain_map_data():
+    """Hierarchical brain map data: knowledge types → categories with inter-type similarity."""
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        # Get regions: knowledge_type → categories with counts and importance
+        cur.execute(
+            """
+            SELECT knowledge_type,
+                   COALESCE(category, 'uncategorized') as category,
+                   COUNT(*) as count,
+                   ROUND(AVG(importance_score)::numeric, 3) as avg_importance
+            FROM knowledge_base
+            WHERE knowledge_type IS NOT NULL
+            GROUP BY knowledge_type, COALESCE(category, 'uncategorized')
+            ORDER BY knowledge_type, count DESC
+        """
+        )
+        rows = cur.fetchall()
+
+        # Build region hierarchy — consolidate knowledge_card_* subtypes
+        region_map = {}
+        for r in rows:
+            kt = r["knowledge_type"]
+            # Group all knowledge_card_* variants into one region
+            if kt.startswith("knowledge_card"):
+                kt = "knowledge_card"
+            if kt not in region_map:
+                region_map[kt] = {
+                    "type": kt,
+                    "categories": [],
+                    "total_count": 0,
+                    "importance_sum": 0,
+                    "importance_n": 0,
+                }
+            region_map[kt]["categories"].append(
+                {"name": r["category"], "count": r["count"], "avg_importance": float(r["avg_importance"] or 0)}
+            )
+            region_map[kt]["total_count"] += r["count"]
+            region_map[kt]["importance_sum"] += float(r["avg_importance"] or 0) * r["count"]
+            region_map[kt]["importance_n"] += r["count"]
+
+        # Growth last 7 days per type (with same grouping)
+        cur.execute(
+            """
+            SELECT CASE WHEN knowledge_type LIKE 'knowledge_card%%' THEN 'knowledge_card'
+                        ELSE knowledge_type END as grouped_type,
+                   COUNT(*) as growth
+            FROM knowledge_base
+            WHERE created_at >= NOW() - INTERVAL '7 days'
+              AND knowledge_type IS NOT NULL
+            GROUP BY grouped_type
+        """
+        )
+        growth_map = {r["grouped_type"]: r["growth"] for r in cur.fetchall()}
+
+        # Pretty labels
+        label_map = {
+            "vault_note": "Vault Notes",
+            "mistake_learned": "Mistakes Learned",
+            "code_snippet": "Code Snippets",
+            "github_file": "GitHub Files",
+            "conversation_memory": "Conversations",
+            "improvement": "Improvements",
+            "technical_docs": "Technical Docs",
+            "learning_data": "Learning Data",
+            "project_context": "Project Context",
+            "decision": "Decisions",
+            "knowledge_card": "Knowledge Cards",
+            "upgrade_suggestion": "Upgrade Suggestions",
+            "api_endpoint": "API Endpoints",
+            "system_info": "System Info",
+        }
+
+        regions = []
+        for kt, rm in region_map.items():
+            avg_imp = round(rm["importance_sum"] / rm["importance_n"], 3) if rm["importance_n"] else 0
+            regions.append(
+                {
+                    "type": kt,
+                    "label": label_map.get(kt, kt.replace("_", " ").title()),
+                    "count": rm["total_count"],
+                    "categories": rm["categories"][:15],  # Top 15 categories
+                    "avg_importance": avg_imp,
+                    "growth_7d": growth_map.get(kt, 0),
+                }
+            )
+        regions.sort(key=lambda x: x["count"], reverse=True)
+
+        # Inter-type connections via pgvector cosine similarity
+        # Sample one representative entry per type and compute pairwise similarity
+        connections = []
+        type_list = [r["type"] for r in regions if r["count"] > 0]
+        if len(type_list) >= 2:
+            # Get one well-embedded representative per type
+            placeholders = ",".join(["%s"] * len(type_list))
+            cur.execute(
+                f"""
+                SELECT DISTINCT ON (knowledge_type) id, knowledge_type
+                FROM knowledge_base
+                WHERE knowledge_type IN ({placeholders})
+                  AND embedding IS NOT NULL
+                  AND importance_score IS NOT NULL
+                ORDER BY knowledge_type, importance_score DESC
+            """,
+                type_list,
+            )
+            reps = cur.fetchall()
+
+            if len(reps) >= 2:
+                rep_ids = {r["knowledge_type"]: r["id"] for r in reps}
+                # Compute pairwise cosine similarity
+                pairs = []
+                type_keys = list(rep_ids.keys())
+                for i in range(len(type_keys)):
+                    for j in range(i + 1, len(type_keys)):
+                        pairs.append((type_keys[i], type_keys[j], rep_ids[type_keys[i]], rep_ids[type_keys[j]]))
+
+                for src_type, tgt_type, src_id, tgt_id in pairs:
+                    cur.execute(
+                        """
+                        SELECT 1 - (a.embedding <=> b.embedding) as similarity
+                        FROM knowledge_base a, knowledge_base b
+                        WHERE a.id = %s AND b.id = %s
+                    """,
+                        (src_id, tgt_id),
+                    )
+                    row = cur.fetchone()
+                    if row and row["similarity"] is not None:
+                        sim = round(float(row["similarity"]), 3)
+                        if sim > 0.5:  # Only strong connections
+                            connections.append({"source": src_type, "target": tgt_type, "strength": sim})
+
+        connections.sort(key=lambda x: x["strength"], reverse=True)
+        connections = connections[:15]  # Top 15 only to reduce visual clutter
+
+        # Overall stats
+        cur.execute(
+            """
+            SELECT COUNT(*) as total,
+                   COUNT(CASE WHEN embedding IS NOT NULL THEN 1 END) as embedded,
+                   COUNT(CASE WHEN created_at >= NOW() - INTERVAL '7 days' THEN 1 END) as growth_7d
+            FROM knowledge_base
+        """
+        )
+        stats_row = cur.fetchone()
+        stats = {
+            "total": stats_row["total"],
+            "embedded": stats_row["embedded"],
+            "types": len(regions),
+            "growth_7d": stats_row["growth_7d"],
+        }
+
+        return jsonify({"success": True, "regions": regions, "connections": connections, "stats": stats})
+
+    except Exception as e:
+        logger.error(f"Brain map data error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/brain-map/drill-down", methods=["GET"])
+@login_required
+@admin_required
+def get_brain_map_drill_down():
+    """Drill down into a brain region — returns individual knowledge entries."""
+    knowledge_type = request.args.get("type")
+    category = request.args.get("category")
+    limit = request.args.get("limit", 50, type=int)
+
+    if not knowledge_type:
+        return jsonify({"success": False, "error": "type parameter required"}), 400
+
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        # Handle grouped knowledge_card type
+        if knowledge_type == "knowledge_card":
+            type_condition = "knowledge_type LIKE 'knowledge_card%%'"
+            params = []
+        else:
+            type_condition = "knowledge_type = %s"
+            params = [knowledge_type]
+
+        query = (
+            """
+            SELECT id, title, importance_score, created_at,
+                   CASE WHEN embedding IS NOT NULL THEN true ELSE false END as has_embedding,
+                   tags, category
+            FROM knowledge_base
+            WHERE """
+            + type_condition
+        )
+
+        if category:
+            query += " AND COALESCE(category, 'uncategorized') = %s"
+            params.append(category)
+
+        query += " ORDER BY importance_score DESC NULLS LAST, created_at DESC LIMIT %s"
+        params.append(limit)
+
+        cur.execute(query, params)
+        entries = cur.fetchall()
+
+        # Serialize
+        result = []
+        for e in entries:
+            result.append(
+                {
+                    "id": e["id"],
+                    "title": e["title"],
+                    "importance": float(e["importance_score"]) if e["importance_score"] else 0,
+                    "created_at": e["created_at"].isoformat() if e["created_at"] else None,
+                    "has_embedding": e["has_embedding"],
+                    "tags": e["tags"],
+                    "category": e["category"],
+                }
+            )
+
+        return jsonify(
+            {"success": True, "entries": result, "count": len(result), "type": knowledge_type, "category": category}
+        )
+
+    except Exception as e:
+        logger.error(f"Brain map drill-down error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @consciousness_bp.route("/knowledge/<int:knowledge_id>/backlinks", methods=["GET"])
 @login_required
 @admin_required
@@ -2903,6 +3133,7 @@ def get_activity_feed():
                     END as description
                 FROM knowledge_base
                 WHERE created_at >= NOW() - INTERVAL '%s hours'
+                AND source_type != 'archie_v1'
                 ORDER BY created_at DESC
                 LIMIT %s
             """,
@@ -2913,69 +3144,75 @@ def get_activity_feed():
                 event["created_at"] = event["created_at"].isoformat() if event["created_at"] else None
                 activities.append(dict(event))
 
-        # 2. Recent agent executions
+        # 2. Recent agent executions (currently 0 rows — wrapped for resilience)
         if not event_type or event_type == "execution":
-            cur.execute(
-                """
-                SELECT
-                    ae.id,
-                    'execution' as event_type,
-                    a.name as agent_name,
-                    ae.task_description as subtype,
-                    ae.status,
-                    ae.duration_seconds,
-                    ae.tokens_used as token_count,
-                    ae.cost,
-                    ae.started_at as created_at,
-                    CASE
-                        WHEN ae.status = 'completed' THEN 'Task completed successfully'
-                        WHEN ae.status = 'failed' THEN 'Task failed'
-                        ELSE 'Task ' || ae.status
-                    END as description
-                FROM agent_executions ae
-                JOIN agents a ON ae.agent_id = a.id
-                WHERE ae.started_at >= NOW() - INTERVAL '%s hours'
-                ORDER BY ae.started_at DESC
-                LIMIT %s
-            """,
-                (hours, limit),
-            )
-            execution_events = cur.fetchall()
-            for event in execution_events:
-                event["created_at"] = event["created_at"].isoformat() if event["created_at"] else None
-                activities.append(dict(event))
+            try:
+                cur.execute(
+                    """
+                    SELECT
+                        ae.id,
+                        'execution' as event_type,
+                        a.name as agent_name,
+                        ae.task_description as subtype,
+                        ae.status,
+                        ae.duration_seconds,
+                        ae.tokens_used as token_count,
+                        ae.cost,
+                        ae.started_at as created_at,
+                        CASE
+                            WHEN ae.status = 'completed' THEN 'Task completed successfully'
+                            WHEN ae.status = 'failed' THEN 'Task failed'
+                            ELSE 'Task ' || ae.status
+                        END as description
+                    FROM agent_executions ae
+                    JOIN agents a ON ae.agent_id = a.id
+                    WHERE ae.started_at >= NOW() - INTERVAL '%s hours'
+                    ORDER BY ae.started_at DESC
+                    LIMIT %s
+                """,
+                    (hours, limit),
+                )
+                execution_events = cur.fetchall()
+                for event in execution_events:
+                    event["created_at"] = event["created_at"].isoformat() if event["created_at"] else None
+                    activities.append(dict(event))
+            except Exception:
+                conn.rollback()
 
-        # 3. Recent improvement proposals
+        # 3. Recent improvement proposals (currently 0 rows — wrapped for resilience)
         if not event_type or event_type == "improvement":
-            cur.execute(
-                """
-                SELECT
-                    id,
-                    'improvement' as event_type,
-                    title,
-                    status as subtype,
-                    priority,
-                    complexity,
-                    created_at,
-                    CASE
-                        WHEN status = 'proposed' THEN 'New improvement proposed'
-                        WHEN status = 'approved' THEN 'Improvement approved'
-                        WHEN status = 'in_progress' THEN 'Improvement in progress'
-                        WHEN status = 'completed' THEN 'Improvement completed'
-                        WHEN status = 'rejected' THEN 'Improvement rejected'
-                        ELSE 'Improvement ' || status
-                    END as description
-                FROM improvement_proposals
-                WHERE created_at >= NOW() - INTERVAL '%s hours'
-                ORDER BY created_at DESC
-                LIMIT %s
-            """,
-                (hours, limit),
-            )
-            improvement_events = cur.fetchall()
-            for event in improvement_events:
-                event["created_at"] = event["created_at"].isoformat() if event["created_at"] else None
-                activities.append(dict(event))
+            try:
+                cur.execute(
+                    """
+                    SELECT
+                        id,
+                        'improvement' as event_type,
+                        title,
+                        status as subtype,
+                        priority,
+                        complexity,
+                        proposed_at as created_at,
+                        CASE
+                            WHEN status = 'proposed' THEN 'New improvement proposed'
+                            WHEN status = 'approved' THEN 'Improvement approved'
+                            WHEN status = 'in_progress' THEN 'Improvement in progress'
+                            WHEN status = 'completed' THEN 'Improvement completed'
+                            WHEN status = 'rejected' THEN 'Improvement rejected'
+                            ELSE 'Improvement ' || status
+                        END as description
+                    FROM improvement_proposals
+                    WHERE proposed_at >= NOW() - INTERVAL '%s hours'
+                    ORDER BY proposed_at DESC
+                    LIMIT %s
+                """,
+                    (hours, limit),
+                )
+                improvement_events = cur.fetchall()
+                for event in improvement_events:
+                    event["created_at"] = event["created_at"].isoformat() if event["created_at"] else None
+                    activities.append(dict(event))
+            except Exception:
+                conn.rollback()
 
         # 4. Recent conversation sessions (Claude Code ingests)
         if not event_type or event_type == "session":
@@ -3011,6 +3248,7 @@ def get_activity_feed():
                     id,
                     'emotional' as event_type,
                     current_mood as subtype,
+                    mood_intensity,
                     mood_intensity as energy,
                     relationship_strength as confidence,
                     timestamp as created_at,
@@ -3027,75 +3265,84 @@ def get_activity_feed():
                 event["created_at"] = event["created_at"].isoformat() if event["created_at"] else None
                 activities.append(dict(event))
 
-        # 6. LLM alerts (from Phase 27)
+        # 6. LLM alerts (currently 0 rows — wrapped for resilience)
         if not event_type or event_type == "llm_alert":
-            cur.execute(
-                """
-                SELECT
-                    id,
-                    'llm_alert' as event_type,
-                    alert_type as subtype,
-                    severity,
-                    message as description,
-                    acknowledged,
-                    created_at
-                FROM llm_alerts
-                WHERE created_at >= NOW() - INTERVAL '%s hours'
-                ORDER BY created_at DESC
-                LIMIT %s
-            """,
-                (hours, limit),
-            )
-            llm_events = cur.fetchall()
-            for event in llm_events:
-                event["created_at"] = event["created_at"].isoformat() if event["created_at"] else None
-                activities.append(dict(event))
+            try:
+                cur.execute(
+                    """
+                    SELECT
+                        id,
+                        'llm_alert' as event_type,
+                        alert_type as subtype,
+                        severity,
+                        message as description,
+                        acknowledged,
+                        created_at
+                    FROM llm_alerts
+                    WHERE created_at >= NOW() - INTERVAL '%s hours'
+                    ORDER BY created_at DESC
+                    LIMIT %s
+                """,
+                    (hours, limit),
+                )
+                llm_events = cur.fetchall()
+                for event in llm_events:
+                    event["created_at"] = event["created_at"].isoformat() if event["created_at"] else None
+                    activities.append(dict(event))
+            except Exception:
+                conn.rollback()
 
-        # 7. Project activity
+        # 7. Project activity (currently 0 rows — wrapped for resilience)
         if not event_type or event_type == "project":
-            cur.execute(
-                """
-                SELECT
-                    id,
-                    'project' as event_type,
-                    activity_type as subtype,
-                    description,
-                    entity_type,
-                    created_at
-                FROM project_activity
-                WHERE created_at >= NOW() - INTERVAL '%s hours'
-                ORDER BY created_at DESC
-                LIMIT %s
-            """,
-                (hours, limit),
-            )
-            project_events = cur.fetchall()
-            for event in project_events:
-                event["created_at"] = event["created_at"].isoformat() if event["created_at"] else None
-                activities.append(dict(event))
+            try:
+                cur.execute(
+                    """
+                    SELECT
+                        id,
+                        'project' as event_type,
+                        activity_type as subtype,
+                        description,
+                        entity_type,
+                        created_at
+                    FROM project_activity
+                    WHERE created_at >= NOW() - INTERVAL '%s hours'
+                    ORDER BY created_at DESC
+                    LIMIT %s
+                """,
+                    (hours, limit),
+                )
+                project_events = cur.fetchall()
+                for event in project_events:
+                    event["created_at"] = event["created_at"].isoformat() if event["created_at"] else None
+                    activities.append(dict(event))
+            except Exception:
+                conn.rollback()
 
-        # 8. Work sessions
+        # 8. Work sessions (currently 0 rows — wrapped for resilience)
         if not event_type or event_type == "work_session":
-            cur.execute(
-                """
-                SELECT
-                    id,
-                    'work_session' as event_type,
-                    session_type as subtype,
-                    focus_description as description,
-                    status,
-                    started_at as created_at
-                FROM work_sessions
-                WHERE started_at >= NOW() - INTERVAL '%s hours'
-                ORDER BY started_at DESC
-                LIMIT %s
-            """,
-                (hours, limit),
-            )
-            session_events = cur.fetchall()
-            for event in session_events:
-                event["created_at"] = event["created_at"].isoformat() if event["created_at"] else None
-                activities.append(dict(event))
+            try:
+                cur.execute(
+                    """
+                    SELECT
+                        id,
+                        'work_session' as event_type,
+                        session_type as subtype,
+                        focus_description as description,
+                        status,
+                        started_at as created_at
+                    FROM work_sessions
+                    WHERE started_at >= NOW() - INTERVAL '%s hours'
+                    ORDER BY started_at DESC
+                    LIMIT %s
+                """,
+                    (hours, limit),
+                )
+                work_events = cur.fetchall()
+                for event in work_events:
+                    event["created_at"] = event["created_at"].isoformat() if event["created_at"] else None
+                    activities.append(dict(event))
+            except Exception:
+                conn.rollback()
 
         cur.close()
         conn.close()
@@ -3746,6 +3993,60 @@ def _get_github_headers():
     return headers, bool(github_token)
 
 
+def _check_rate_limit(response):
+    """Check GitHub API response for rate limiting. Returns (is_limited, message)."""
+    if response.status_code == 403:
+        remaining = response.headers.get("X-RateLimit-Remaining", "")
+        if remaining == "0":
+            reset_ts = int(response.headers.get("X-RateLimit-Reset", 0))
+            if reset_ts:
+                import datetime as _dt
+
+                reset_time = _dt.datetime.fromtimestamp(reset_ts).strftime("%H:%M:%S")
+                return True, f"GitHub API rate limit exceeded. Resets at {reset_time}"
+            return True, "GitHub API rate limit exceeded. Try again later."
+    if response.status_code == 401:
+        return True, "GitHub authentication failed. Check your token."
+    return False, ""
+
+
+@consciousness_bp.route("/github/auth-status", methods=["GET"])
+@login_required
+def github_auth_status():
+    """Check GitHub token validity and rate limit status."""
+    import requests
+
+    headers, has_token = _get_github_headers()
+    if not has_token:
+        return jsonify(
+            {
+                "success": True,
+                "authenticated": False,
+                "rate_limit": 60,
+                "rate_remaining": None,
+                "message": "No token configured — 60 requests/hour limit",
+            }
+        )
+    try:
+        resp = requests.get("https://api.github.com/rate_limit", headers=headers, timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            core = data.get("resources", {}).get("core", {})
+            return jsonify(
+                {
+                    "success": True,
+                    "authenticated": True,
+                    "rate_limit": core.get("limit", 5000),
+                    "rate_remaining": core.get("remaining", 0),
+                    "rate_reset": core.get("reset", 0),
+                    "message": f"Authenticated — {core.get('remaining', 0)}/{core.get('limit', 5000)} requests remaining",
+                }
+            )
+        return jsonify({"success": True, "authenticated": False, "message": f"Token invalid (HTTP {resp.status_code})"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
 @consciousness_bp.route("/github/index-selective", methods=["POST"])
 @login_required
 @admin_required
@@ -3795,7 +4096,9 @@ def github_index_selective():
             cur.close()
             conn.close()
 
-            indexed_count, errors, skipped = _reindex_repo_via_tree(owner, repo, repo_type, importance)
+            indexed_count, errors, skipped, total_found, was_capped = _reindex_repo_via_tree(
+                owner, repo, repo_type, importance
+            )
             return jsonify(
                 {
                     "success": True,
@@ -3803,6 +4106,8 @@ def github_index_selective():
                     "repo": f"{owner}/{repo}",
                     "priority": priority,
                     "skipped": skipped,
+                    "total_found": total_found,
+                    "capped_at": MAX_FILES_PER_REPO if was_capped else None,
                     "errors": errors if errors else None,
                 }
             )
@@ -3827,8 +4132,13 @@ def github_index_selective():
             api_url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
             response = requests.get(api_url, headers=headers, timeout=30)
 
+            is_limited, limit_msg = _check_rate_limit(response)
+            if is_limited:
+                errors.append(limit_msg)
+                break  # Stop all indexing on rate limit
+
             if response.status_code != 200:
-                errors.append(f"Failed to fetch {path}: {response.status_code}")
+                errors.append(f"Failed to fetch {path}: HTTP {response.status_code}")
                 continue
 
             contents = response.json()
@@ -3943,15 +4253,21 @@ def _reindex_repo_via_tree(owner, repo, repo_type, importance=0.85):
     # 1. Get default branch
     repo_api = f"https://api.github.com/repos/{owner}/{repo}"
     resp = requests.get(repo_api, headers=headers, timeout=30)
+    is_limited, limit_msg = _check_rate_limit(resp)
+    if is_limited:
+        raise Exception(limit_msg)
     if resp.status_code != 200:
-        raise Exception(f"Failed to fetch repo info for {owner}/{repo}: {resp.status_code}")
+        raise Exception(f"Failed to fetch repo info for {owner}/{repo}: HTTP {resp.status_code}")
     default_branch = resp.json().get("default_branch", "main")
 
     # 2. Get full tree recursively (1 API call)
     tree_url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{default_branch}?recursive=1"
     resp = requests.get(tree_url, headers=headers, timeout=60)
+    is_limited, limit_msg = _check_rate_limit(resp)
+    if is_limited:
+        raise Exception(limit_msg)
     if resp.status_code != 200:
-        raise Exception(f"Failed to fetch tree for {owner}/{repo}: {resp.status_code}")
+        raise Exception(f"Failed to fetch tree for {owner}/{repo}: HTTP {resp.status_code}")
     tree_data = resp.json()
     all_items = tree_data.get("tree", [])
 
@@ -3996,6 +4312,8 @@ def _reindex_repo_via_tree(owner, repo, repo_type, importance=0.85):
         return (3, _path)
 
     candidates.sort(key=sort_key)
+    total_candidates = len(candidates)
+    capped = total_candidates > MAX_FILES_PER_REPO
     candidates = candidates[:MAX_FILES_PER_REPO]
 
     # 5. Delete old entries for this repo (and their embeddings)
@@ -4114,7 +4432,7 @@ def _reindex_repo_via_tree(owner, repo, repo_type, importance=0.85):
     cur.close()
     conn.close()
 
-    return indexed_count, errors, skipped_count
+    return indexed_count, errors, skipped_count, total_candidates, capped
 
 
 @consciousness_bp.route("/github/reindex-all", methods=["POST"])
@@ -4141,7 +4459,7 @@ def github_reindex_all():
                 parts = repo_name.split("/")
                 owner = parts[0]
                 repo = parts[1]
-                indexed, errs, skipped = _reindex_repo_via_tree(owner, repo, repo_type)
+                indexed, errs, skipped, total_found, was_capped = _reindex_repo_via_tree(owner, repo, repo_type)
                 total_indexed += indexed
                 total_errors.extend(errs)
                 results.append(
@@ -4150,6 +4468,8 @@ def github_reindex_all():
                         "repo_type": repo_type,
                         "indexed": indexed,
                         "skipped": skipped,
+                        "total_found": total_found,
+                        "capped_at": MAX_FILES_PER_REPO if was_capped else None,
                         "errors": len(errs),
                     }
                 )
@@ -4203,13 +4523,15 @@ def github_reindex_single(repo_id):
         owner = parts[0]
         repo = parts[1]
 
-        indexed, errs, skipped = _reindex_repo_via_tree(owner, repo, repo_type)
+        indexed, errs, skipped, total_found, was_capped = _reindex_repo_via_tree(owner, repo, repo_type)
         return jsonify(
             {
                 "success": True,
                 "repo": repo_name,
                 "indexed": indexed,
                 "skipped": skipped,
+                "total_found": total_found,
+                "capped_at": MAX_FILES_PER_REPO if was_capped else None,
                 "errors": errs if errs else None,
             }
         )
@@ -4321,6 +4643,8 @@ def github_indexed_list():
             base_where += " AND is_code = true"
         elif file_type == "docs":
             base_where += " AND is_documentation = true"
+        elif file_type == "config":
+            base_where += " AND is_configuration = true"
 
         cur.execute(
             f"""
@@ -4343,7 +4667,8 @@ def github_indexed_list():
                 SUM(CASE WHEN embedding IS NOT NULL THEN 1 ELSE 0 END) as with_embeddings,
                 (SELECT COUNT(*) FROM github_repositories) as repos,
                 SUM(CASE WHEN is_code THEN 1 ELSE 0 END) as code_files,
-                SUM(CASE WHEN is_documentation THEN 1 ELSE 0 END) as docs
+                SUM(CASE WHEN is_documentation THEN 1 ELSE 0 END) as docs,
+                SUM(CASE WHEN is_configuration THEN 1 ELSE 0 END) as config_files
             FROM knowledge_base
             WHERE source_type = 'github_selective' OR knowledge_type = 'github_file'
         """
@@ -6791,11 +7116,11 @@ def voice_profiles_list():
             FROM agent_voice_profiles p
             LEFT JOIN agents a ON p.agent_id = a.id
             LEFT JOIN (
-                SELECT agent_id, COUNT(*) as cached_count
+                SELECT agent_id, COALESCE(language, 'en') as lang, COUNT(*) as cached_count
                 FROM voice_word_cache
                 WHERE agent_id IS NOT NULL
-                GROUP BY agent_id
-            ) cache ON cache.agent_id = p.agent_id
+                GROUP BY agent_id, COALESCE(language, 'en')
+            ) cache ON cache.agent_id = p.agent_id AND cache.lang = p.language
             ORDER BY p.created_at DESC
         """
         )
@@ -6837,7 +7162,7 @@ def voice_profiles_list():
 @login_required
 @admin_required
 def voice_profile_save():
-    """Create or update agent voice profile (upsert on agent_id)"""
+    """Create or update agent voice profile (upsert on agent_id + language)"""
     try:
         data = request.get_json()
         agent_id = data.get("agent_id")
@@ -6886,7 +7211,7 @@ def voice_profile_save():
             (agent_id, profile_name, speaker, speed, pitch_shift, warmth,
              default_emotion, emotion_overrides, created_by, engine, voice_blend, language)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (agent_id) DO UPDATE SET
+            ON CONFLICT (agent_id, language) DO UPDATE SET
                 profile_name = EXCLUDED.profile_name,
                 speaker = EXCLUDED.speaker,
                 speed = EXCLUDED.speed,
@@ -6896,7 +7221,6 @@ def voice_profile_save():
                 emotion_overrides = EXCLUDED.emotion_overrides,
                 engine = EXCLUDED.engine,
                 voice_blend = EXCLUDED.voice_blend,
-                language = EXCLUDED.language,
                 updated_at = NOW()
             RETURNING id
         """,
@@ -7104,13 +7428,11 @@ def voice_pregen_start():
         agent_id = data.get("agent_id")
         custom_phrases = data.get("custom_phrases", [])
         quality = data.get("quality", "high")
-        engine = data.get("engine", "kokoro")
         language = data.get("language", "en")
         if quality not in ("standard", "high"):
             quality = "high"
-        if engine not in ("kokoro", "xtts_v2"):
-            engine = "kokoro"
-        if language not in (
+
+        VALID_LANGUAGES = (
             "en",
             "fr",
             "es",
@@ -7127,8 +7449,28 @@ def voice_pregen_start():
             "ja",
             "hu",
             "ko",
-        ):
+        )
+        if language not in VALID_LANGUAGES:
             language = "en"
+
+        # Look up agent's voice profile for engine/language
+        engine = data.get("engine", "kokoro")
+        if agent_id:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                "SELECT engine, language FROM agent_voice_profiles WHERE agent_id = %s AND language = %s",
+                (agent_id, language),
+            )
+            profile = cur.fetchone()
+            cur.close()
+            conn.close()
+            if not profile:
+                return jsonify({"success": False, "error": "Agent has no voice profile for language: " + language}), 400
+            engine = profile["engine"] or "kokoro"
+
+        if engine not in ("kokoro", "xtts_v2"):
+            engine = "kokoro"
 
         from .voice_pregen import start_pregen_job
 

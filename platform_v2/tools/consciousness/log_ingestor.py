@@ -343,22 +343,26 @@ def get_ingestion_status() -> dict:
             if len(parts) >= 3:
                 status["sessions"].add(f"{parts[2]}_{parts[3] if len(parts) > 3 else ''}")
 
-    # Count ingested entries
+    # Count ingested entries and last ingestion time
     try:
         conn = get_db()
         cur = conn.cursor()
         cur.execute(
             """
-            SELECT COUNT(*) FROM knowledge_base
+            SELECT COUNT(*) as cnt, MAX(created_at) as last_ingested
+            FROM knowledge_base
             WHERE source_type = 'conversation_log'
             """
         )
-        status["ingested"] = cur.fetchone()[0]
+        row = cur.fetchone()
+        status["ingested"] = row[0]
+        status["last_ingested_at"] = row[1].isoformat() if row[1] else None
         cur.close()
         conn.close()
     except Exception as e:
         status["db_error"] = str(e)
 
     status["sessions"] = len(status["sessions"])
+    status["total_files"] = status["snapshots"] + status["transcripts"] + status["session_ends"]
     status["success"] = True
     return status

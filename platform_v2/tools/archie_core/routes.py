@@ -798,11 +798,9 @@ def synthesize_voice():
         if not emotion:
             emotion = synthesizer.get_archie_emotional_state(current_user.id)
 
-        # Use word-level caching by default for better efficiency
-        if method == "word_cache":
-            result = synthesizer.synthesize_with_word_cache(text, emotion, current_user.id)
-        else:
-            result = synthesizer.synthesize(text, emotion, current_user.id)
+        # ARCHIE agent_id=2 — use agent profile for voice settings + cache tagging
+        ARCHIE_AGENT_ID = 2
+        result = synthesizer.synthesize_for_agent(text, ARCHIE_AGENT_ID, emotion, user_id=current_user.id)
 
         return jsonify(result)
 

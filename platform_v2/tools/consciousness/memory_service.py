@@ -22,19 +22,19 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Configuration
-OLLAMA_URL = os.getenv('OLLAMA_URL', 'http://192.168.1.246:11434')
-EMBEDDING_MODEL = os.getenv('EMBEDDING_MODEL', 'nomic-embed-text')
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://host.docker.internal:11434")
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
 EMBEDDING_DIMENSION = 1536  # nomic-embed-text dimension
 
 
 def get_db_connection():
     """Get database connection"""
     return psycopg2.connect(
-        host=os.getenv('DB_HOST', 'archie_database'),
-        port=os.getenv('DB_PORT', '5432'),
-        database=os.getenv('DB_NAME', 'archie'),
-        user=os.getenv('DB_USER', 'archie'),
-        password=os.getenv('DB_PASSWORD', '')
+        host=os.getenv("DB_HOST", "archie_database"),
+        port=os.getenv("DB_PORT", "5432"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", ""),
     )
 
 
@@ -42,21 +42,19 @@ def get_db_connection():
 # EMBEDDING GENERATION
 # =============================================================================
 
+
 def generate_embedding(text: str) -> Optional[List[float]]:
     """Generate embedding for text using Ollama"""
     try:
         response = requests.post(
             f"{OLLAMA_URL}/api/embeddings",
-            json={
-                "model": EMBEDDING_MODEL,
-                "prompt": text[:8000]  # Limit text length
-            },
-            timeout=30
+            json={"model": EMBEDDING_MODEL, "prompt": text[:8000]},  # Limit text length
+            timeout=30,
         )
 
         if response.status_code == 200:
             data = response.json()
-            return data.get('embedding')
+            return data.get("embedding")
         else:
             logger.error(f"Embedding generation failed: {response.status_code}")
             return None
@@ -77,7 +75,8 @@ def store_embedding(source_type: str, source_id: int, content: str) -> bool:
 
     try:
         # Store as REAL[] since pgvector may not be available
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO memory_embeddings (source_type, source_id, embedding, content_preview, embedding_model)
             VALUES (%s, %s, %s, %s, %s)
             ON CONFLICT (source_type, source_id)
@@ -85,7 +84,9 @@ def store_embedding(source_type: str, source_id: int, content: str) -> bool:
                 embedding = EXCLUDED.embedding,
                 content_preview = EXCLUDED.content_preview,
                 updated_at = NOW()
-        """, (source_type, source_id, embedding, content[:500], EMBEDDING_MODEL))
+        """,
+            (source_type, source_id, embedding, content[:500], EMBEDDING_MODEL),
+        )
 
         conn.commit()
         return True
@@ -119,11 +120,9 @@ def cosine_similarity(a: List[float], b: List[float]) -> float:
 # SEMANTIC SEARCH
 # =============================================================================
 
+
 def semantic_search(
-    query: str,
-    source_types: Optional[List[str]] = None,
-    limit: int = 10,
-    min_similarity: float = 0.5
+    query: str, source_types: Optional[List[str]] = None, limit: int = 10, min_similarity: float = 0.5
 ) -> List[Dict]:
     """Search memories by semantic similarity"""
 
@@ -139,38 +138,45 @@ def semantic_search(
     try:
         # Get all embeddings (in production, use vector index)
         if source_types:
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT source_type, source_id, embedding, content_preview
                 FROM memory_embeddings
                 WHERE source_type = ANY(%s)
-            """, (source_types,))
+            """,
+                (source_types,),
+            )
         else:
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT source_type, source_id, embedding, content_preview
                 FROM memory_embeddings
-            """)
+            """
+            )
 
         rows = cur.fetchall()
 
         # Calculate similarities
         results = []
         for row in rows:
-            if row['embedding']:
-                similarity = cosine_similarity(query_embedding, row['embedding'])
+            if row["embedding"]:
+                similarity = cosine_similarity(query_embedding, row["embedding"])
                 if similarity >= min_similarity:
-                    results.append({
-                        'source_type': row['source_type'],
-                        'source_id': row['source_id'],
-                        'content_preview': row['content_preview'],
-                        'similarity': round(similarity, 4)
-                    })
+                    results.append(
+                        {
+                            "source_type": row["source_type"],
+                            "source_id": row["source_id"],
+                            "content_preview": row["content_preview"],
+                            "similarity": round(similarity, 4),
+                        }
+                    )
 
         # Sort by similarity
-        results.sort(key=lambda x: x['similarity'], reverse=True)
+        results.sort(key=lambda x: x["similarity"], reverse=True)
 
         # Fetch full content for top results
         for result in results[:limit]:
-            full_content = get_memory_content(result['source_type'], result['source_id'])
+            full_content = get_memory_content(result["source_type"], result["source_id"])
             result.update(full_content)
 
         return results[:limit]
@@ -184,11 +190,7 @@ def semantic_search(
         conn.close()
 
 
-def text_search(
-    query: str,
-    source_types: Optional[List[str]] = None,
-    limit: int = 10
-) -> List[Dict]:
+def text_search(query: str, source_types: Optional[List[str]] = None, limit: int = 10) -> List[Dict]:
     """Fallback text search when embeddings unavailable"""
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -197,50 +199,60 @@ def text_search(
 
     try:
         # Search knowledge_base
-        if not source_types or 'knowledge_base' in source_types:
-            cur.execute("""
+        if not source_types or "knowledge_base" in source_types:
+            cur.execute(
+                """
                 SELECT id, title, content, importance, entry_type, tags, source_type
                 FROM knowledge_base
                 WHERE content ILIKE %s OR title ILIKE %s
                 ORDER BY importance DESC
                 LIMIT %s
-            """, (f'%{query}%', f'%{query}%', limit))
+            """,
+                (f"%{query}%", f"%{query}%", limit),
+            )
 
             for row in cur.fetchall():
-                results.append({
-                    'source_type': 'knowledge_base',
-                    'source_id': row['id'],
-                    'title': row['title'],
-                    'content': row['content'][:500],
-                    'importance': float(row['importance']) if row['importance'] else 0.5,
-                    'entry_type': row['entry_type'],
-                    'tags': row['tags'] or [],
-                    'similarity': 0.7  # Placeholder for text match
-                })
+                results.append(
+                    {
+                        "source_type": "knowledge_base",
+                        "source_id": row["id"],
+                        "title": row["title"],
+                        "content": row["content"][:500],
+                        "importance": float(row["importance"]) if row["importance"] else 0.5,
+                        "entry_type": row["entry_type"],
+                        "tags": row["tags"] or [],
+                        "similarity": 0.7,  # Placeholder for text match
+                    }
+                )
 
         # Search long_term_memory
-        if not source_types or 'long_term_memory' in source_types:
-            cur.execute("""
+        if not source_types or "long_term_memory" in source_types:
+            cur.execute(
+                """
                 SELECT id, memory_type, category, content, importance_score, tags
                 FROM long_term_memory
                 WHERE content ILIKE %s
                 ORDER BY importance_score DESC
                 LIMIT %s
-            """, (f'%{query}%', limit))
+            """,
+                (f"%{query}%", limit),
+            )
 
             for row in cur.fetchall():
-                results.append({
-                    'source_type': 'long_term_memory',
-                    'source_id': row['id'],
-                    'title': f"{row['memory_type']}: {row['category'] or 'General'}",
-                    'content': row['content'][:500] if row['content'] else '',
-                    'importance': float(row['importance_score']) if row['importance_score'] else 0.5,
-                    'tags': row['tags'] or [],
-                    'similarity': 0.6
-                })
+                results.append(
+                    {
+                        "source_type": "long_term_memory",
+                        "source_id": row["id"],
+                        "title": f"{row['memory_type']}: {row['category'] or 'General'}",
+                        "content": row["content"][:500] if row["content"] else "",
+                        "importance": float(row["importance_score"]) if row["importance_score"] else 0.5,
+                        "tags": row["tags"] or [],
+                        "similarity": 0.6,
+                    }
+                )
 
         # Sort by importance
-        results.sort(key=lambda x: x.get('importance', 0), reverse=True)
+        results.sort(key=lambda x: x.get("importance", 0), reverse=True)
 
         return results[:limit]
 
@@ -259,29 +271,38 @@ def get_memory_content(source_type: str, source_id: int) -> Dict:
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
-        if source_type == 'knowledge_base':
-            cur.execute("""
+        if source_type == "knowledge_base":
+            cur.execute(
+                """
                 SELECT id, title, content, importance, entry_type, tags,
                        source_type, source_id as ref_id, created_at
                 FROM knowledge_base WHERE id = %s
-            """, (source_id,))
+            """,
+                (source_id,),
+            )
 
-        elif source_type == 'long_term_memory':
-            cur.execute("""
+        elif source_type == "long_term_memory":
+            cur.execute(
+                """
                 SELECT id, memory_type as title, content, importance_score as importance,
                        category as entry_type, tags, source_module, created_at
                 FROM long_term_memory WHERE id = %s
-            """, (source_id,))
+            """,
+                (source_id,),
+            )
 
-        elif source_type == 'agent_memory':
-            cur.execute("""
+        elif source_type == "agent_memory":
+            cur.execute(
+                """
                 SELECT am.id, am.memory_type as title, am.content,
                        am.importance_score as importance, am.emotional_valence,
                        a.name as agent_name, am.created_at
                 FROM agent_memory am
                 LEFT JOIN agents a ON am.agent_id = a.id
                 WHERE am.id = %s
-            """, (source_id,))
+            """,
+                (source_id,),
+            )
 
         else:
             return {}
@@ -302,31 +323,40 @@ def get_memory_content(source_type: str, source_id: int) -> Dict:
 # MEMORY COLLECTIONS
 # =============================================================================
 
+
 def create_collection(
     name: str,
     description: str = None,
     user_id: int = None,
     agent_id: int = None,
-    collection_type: str = 'manual',
+    collection_type: str = "manual",
     filter_criteria: dict = None,
     icon: str = None,
-    color: str = None
+    color: str = None,
 ) -> Optional[int]:
     """Create a new memory collection"""
     conn = get_db_connection()
     cur = conn.cursor()
 
     try:
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO memory_collections
             (name, description, user_id, agent_id, collection_type, filter_criteria, icon, color)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
-        """, (
-            name, description, user_id, agent_id, collection_type,
-            json.dumps(filter_criteria) if filter_criteria else None,
-            icon, color
-        ))
+        """,
+            (
+                name,
+                description,
+                user_id,
+                agent_id,
+                collection_type,
+                json.dumps(filter_criteria) if filter_criteria else None,
+                icon,
+                color,
+            ),
+        )
 
         collection_id = cur.fetchone()[0]
         conn.commit()
@@ -349,25 +379,32 @@ def get_collections(user_id: int = None, agent_id: int = None) -> List[Dict]:
 
     try:
         if user_id:
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT c.*, COUNT(ci.id) as item_count
                 FROM memory_collections c
                 LEFT JOIN memory_collection_items ci ON c.id = ci.collection_id
                 WHERE c.user_id = %s OR c.is_private = FALSE
                 GROUP BY c.id
                 ORDER BY c.is_pinned DESC, c.updated_at DESC
-            """, (user_id,))
+            """,
+                (user_id,),
+            )
         elif agent_id:
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT c.*, COUNT(ci.id) as item_count
                 FROM memory_collections c
                 LEFT JOIN memory_collection_items ci ON c.id = ci.collection_id
                 WHERE c.agent_id = %s
                 GROUP BY c.id
                 ORDER BY c.is_pinned DESC, c.updated_at DESC
-            """, (agent_id,))
+            """,
+                (agent_id,),
+            )
         else:
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT c.*, COUNT(ci.id) as item_count
                 FROM memory_collections c
                 LEFT JOIN memory_collection_items ci ON c.id = ci.collection_id
@@ -375,7 +412,8 @@ def get_collections(user_id: int = None, agent_id: int = None) -> List[Dict]:
                 GROUP BY c.id
                 ORDER BY c.is_pinned DESC, c.updated_at DESC
                 LIMIT 50
-            """)
+            """
+            )
 
         return [dict(row) for row in cur.fetchall()]
 
@@ -389,11 +427,7 @@ def get_collections(user_id: int = None, agent_id: int = None) -> List[Dict]:
 
 
 def add_to_collection(
-    collection_id: int,
-    memory_type: str,
-    memory_id: int,
-    notes: str = None,
-    added_by: int = None
+    collection_id: int, memory_type: str, memory_id: int, notes: str = None, added_by: int = None
 ) -> bool:
     """Add a memory to a collection"""
     conn = get_db_connection()
@@ -401,26 +435,35 @@ def add_to_collection(
 
     try:
         # Get current max position
-        cur.execute("""
+        cur.execute(
+            """
             SELECT COALESCE(MAX(position), 0) + 1
             FROM memory_collection_items
             WHERE collection_id = %s
-        """, (collection_id,))
+        """,
+            (collection_id,),
+        )
         position = cur.fetchone()[0]
 
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO memory_collection_items
             (collection_id, memory_type, memory_id, position, notes, added_by)
             VALUES (%s, %s, %s, %s, %s, %s)
             ON CONFLICT (collection_id, memory_type, memory_id) DO UPDATE
             SET notes = EXCLUDED.notes
-        """, (collection_id, memory_type, memory_id, position, notes, added_by))
+        """,
+            (collection_id, memory_type, memory_id, position, notes, added_by),
+        )
 
         # Update collection timestamp
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE memory_collections SET updated_at = NOW()
             WHERE id = %s
-        """, (collection_id,))
+        """,
+            (collection_id,),
+        )
 
         conn.commit()
         return True
@@ -441,20 +484,23 @@ def get_collection_items(collection_id: int) -> List[Dict]:
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
-        cur.execute("""
+        cur.execute(
+            """
             SELECT ci.*, u.username as added_by_name
             FROM memory_collection_items ci
             LEFT JOIN users u ON ci.added_by = u.id
             WHERE ci.collection_id = %s
             ORDER BY ci.position
-        """, (collection_id,))
+        """,
+            (collection_id,),
+        )
 
         items = []
         for row in cur.fetchall():
             item = dict(row)
             # Fetch full content
-            content = get_memory_content(item['memory_type'], item['memory_id'])
-            item['memory'] = content
+            content = get_memory_content(item["memory_type"], item["memory_id"])
+            item["memory"] = content
             items.append(item)
 
         return items
@@ -472,22 +518,24 @@ def get_collection_items(collection_id: int) -> List[Dict]:
 # MEMORY ASSOCIATIONS
 # =============================================================================
 
+
 def create_association(
     source_type: str,
     source_id: int,
     target_type: str,
     target_id: int,
-    association_type: str = 'related',
+    association_type: str = "related",
     strength: float = 0.5,
     is_bidirectional: bool = True,
-    created_by: str = 'system'
+    created_by: str = "system",
 ) -> bool:
     """Create an association between two memories"""
     conn = get_db_connection()
     cur = conn.cursor()
 
     try:
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO memory_associations
             (source_type, source_id, target_type, target_id, association_type, strength, is_bidirectional, created_by)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
@@ -495,7 +543,9 @@ def create_association(
             DO UPDATE SET
                 strength = GREATEST(memory_associations.strength, EXCLUDED.strength),
                 association_type = EXCLUDED.association_type
-        """, (source_type, source_id, target_type, target_id, association_type, strength, is_bidirectional, created_by))
+        """,
+            (source_type, source_id, target_type, target_id, association_type, strength, is_bidirectional, created_by),
+        )
 
         conn.commit()
         return True
@@ -516,7 +566,8 @@ def get_related_memories(memory_type: str, memory_id: int, limit: int = 10) -> L
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 CASE WHEN source_type = %s AND source_id = %s THEN target_type ELSE source_type END as related_type,
                 CASE WHEN source_type = %s AND source_id = %s THEN target_id ELSE source_id END as related_id,
@@ -527,17 +578,15 @@ def get_related_memories(memory_type: str, memory_id: int, limit: int = 10) -> L
                OR (target_type = %s AND target_id = %s AND is_bidirectional = TRUE)
             ORDER BY strength DESC
             LIMIT %s
-        """, (
-            memory_type, memory_id, memory_type, memory_id,
-            memory_type, memory_id, memory_type, memory_id,
-            limit
-        ))
+        """,
+            (memory_type, memory_id, memory_type, memory_id, memory_type, memory_id, memory_type, memory_id, limit),
+        )
 
         results = []
         for row in cur.fetchall():
             item = dict(row)
-            content = get_memory_content(item['related_type'], item['related_id'])
-            item['memory'] = content
+            content = get_memory_content(item["related_type"], item["related_id"])
+            item["memory"] = content
             results.append(item)
 
         return results
@@ -555,25 +604,23 @@ def find_similar_memories(memory_type: str, memory_id: int, threshold: float = 0
     """Find similar memories using embeddings and create associations"""
     # Get the source memory content
     content = get_memory_content(memory_type, memory_id)
-    if not content.get('content'):
+    if not content.get("content"):
         return []
 
     # Search for similar
-    similar = semantic_search(
-        content['content'],
-        limit=10,
-        min_similarity=threshold
-    )
+    similar = semantic_search(content["content"], limit=10, min_similarity=threshold)
 
     # Create associations for similar memories
     for match in similar:
-        if match['source_type'] != memory_type or match['source_id'] != memory_id:
+        if match["source_type"] != memory_type or match["source_id"] != memory_id:
             create_association(
-                memory_type, memory_id,
-                match['source_type'], match['source_id'],
-                association_type='related',
-                strength=match['similarity'],
-                created_by='embedding_similarity'
+                memory_type,
+                memory_id,
+                match["source_type"],
+                match["source_id"],
+                association_type="related",
+                strength=match["similarity"],
+                created_by="embedding_similarity",
             )
 
     return similar
@@ -583,9 +630,10 @@ def find_similar_memories(memory_type: str, memory_id: int, threshold: float = 0
 # MEMORY COLLECTION POINTS (Auto-capture)
 # =============================================================================
 
+
 def record_memory(
     content: str,
-    memory_type: str = 'observation',
+    memory_type: str = "observation",
     category: str = None,
     importance: float = 0.5,
     tags: List[str] = None,
@@ -593,7 +641,7 @@ def record_memory(
     agent_id: int = None,
     source_module: str = None,
     metadata: dict = None,
-    generate_embedding: bool = True
+    generate_embedding: bool = True,
 ) -> Optional[int]:
     """Record a new memory with optional embedding"""
     conn = get_db_connection()
@@ -602,27 +650,42 @@ def record_memory(
     try:
         if agent_id:
             # Store in agent_memory
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO agent_memory
                 (agent_id, memory_type, content, importance_score, source_module, context)
                 VALUES (%s, %s, %s, %s, %s, %s)
                 RETURNING id
-            """, (agent_id, memory_type, content, importance, source_module, json.dumps(metadata) if metadata else None))
+            """,
+                (agent_id, memory_type, content, importance, source_module, json.dumps(metadata) if metadata else None),
+            )
 
             memory_id = cur.fetchone()[0]
-            source = 'agent_memory'
+            source = "agent_memory"
 
         else:
             # Store in long_term_memory
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO long_term_memory
                 (user_id, memory_type, category, content, importance_score, tags, source_module, metadata)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
-            """, (user_id, memory_type, category, content, importance, tags, source_module, json.dumps(metadata) if metadata else None))
+            """,
+                (
+                    user_id,
+                    memory_type,
+                    category,
+                    content,
+                    importance,
+                    tags,
+                    source_module,
+                    json.dumps(metadata) if metadata else None,
+                ),
+            )
 
             memory_id = cur.fetchone()[0]
-            source = 'long_term_memory'
+            source = "long_term_memory"
 
         conn.commit()
 
@@ -631,7 +694,7 @@ def record_memory(
             store_embedding(source, memory_id, content)
 
         # Log the access
-        log_memory_access(source, memory_id, 'create', 'system')
+        log_memory_access(source, memory_id, "create", "system")
 
         return memory_id
 
@@ -648,22 +711,24 @@ def record_memory(
 def log_memory_access(
     memory_type: str,
     memory_id: int,
-    access_type: str = 'read',
-    accessor_type: str = 'system',
+    access_type: str = "read",
+    accessor_type: str = "system",
     accessor_id: int = None,
-    context: dict = None
+    context: dict = None,
 ):
     """Log memory access for analytics"""
     conn = get_db_connection()
     cur = conn.cursor()
 
     try:
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO memory_access_log
             (memory_type, memory_id, access_type, accessor_type, accessor_id, context)
             VALUES (%s, %s, %s, %s, %s, %s)
-        """, (memory_type, memory_id, access_type, accessor_type, accessor_id,
-              json.dumps(context) if context else None))
+        """,
+            (memory_type, memory_id, access_type, accessor_type, accessor_id, json.dumps(context) if context else None),
+        )
 
         conn.commit()
 
@@ -679,6 +744,7 @@ def log_memory_access(
 # =============================================================================
 # DECAY AND REINFORCEMENT
 # =============================================================================
+
 
 def apply_decay() -> int:
     """Apply memory decay (call periodically)"""
@@ -726,6 +792,7 @@ def reinforce_memory(memory_type: str, memory_id: int, boost: float = 0.05) -> O
 # STATISTICS
 # =============================================================================
 
+
 def get_memory_stats() -> Dict:
     """Get memory system statistics"""
     conn = get_db_connection()
@@ -735,7 +802,8 @@ def get_memory_stats() -> Dict:
         stats = {}
 
         # Count by type
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 (SELECT COUNT(*) FROM knowledge_base) as knowledge_base,
                 (SELECT COUNT(*) FROM long_term_memory) as long_term_memory,
@@ -743,21 +811,25 @@ def get_memory_stats() -> Dict:
                 (SELECT COUNT(*) FROM memory_embeddings) as embeddings,
                 (SELECT COUNT(*) FROM memory_collections) as collections,
                 (SELECT COUNT(*) FROM memory_associations) as associations
-        """)
+        """
+        )
         counts = cur.fetchone()
-        stats['counts'] = dict(counts)
+        stats["counts"] = dict(counts)
 
         # Recent activity
-        cur.execute("""
+        cur.execute(
+            """
             SELECT access_type, COUNT(*) as count
             FROM memory_access_log
             WHERE accessed_at > NOW() - INTERVAL '24 hours'
             GROUP BY access_type
-        """)
-        stats['recent_activity'] = {row['access_type']: row['count'] for row in cur.fetchall()}
+        """
+        )
+        stats["recent_activity"] = {row["access_type"]: row["count"] for row in cur.fetchall()}
 
         # Importance distribution
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 CASE
                     WHEN importance_score >= 0.8 THEN 'high'
@@ -767,19 +839,22 @@ def get_memory_stats() -> Dict:
                 COUNT(*) as count
             FROM long_term_memory
             GROUP BY level
-        """)
-        stats['importance_distribution'] = {row['level']: row['count'] for row in cur.fetchall()}
+        """
+        )
+        stats["importance_distribution"] = {row["level"]: row["count"] for row in cur.fetchall()}
 
         # Top accessed memories
-        cur.execute("""
+        cur.execute(
+            """
             SELECT memory_type, memory_id, COUNT(*) as access_count
             FROM memory_access_log
             WHERE accessed_at > NOW() - INTERVAL '7 days'
             GROUP BY memory_type, memory_id
             ORDER BY access_count DESC
             LIMIT 5
-        """)
-        stats['top_accessed'] = [dict(row) for row in cur.fetchall()]
+        """
+        )
+        stats["top_accessed"] = [dict(row) for row in cur.fetchall()]
 
         return stats
 

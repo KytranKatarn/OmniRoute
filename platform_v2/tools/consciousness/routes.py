@@ -3635,9 +3635,17 @@ def _reindex_repo_via_tree(owner, repo, repo_type, importance=0.85):
     candidates.sort(key=sort_key)
     candidates = candidates[:MAX_FILES_PER_REPO]
 
-    # 5. Delete old entries for this repo
+    # 5. Delete old entries for this repo (and their embeddings)
     conn = get_db()
     cur = conn.cursor(cursor_factory=RealDictCursor)
+    cur.execute(
+        """DELETE FROM memory_embeddings WHERE source_type = 'knowledge_base'
+           AND source_id IN (
+               SELECT id FROM knowledge_base
+               WHERE knowledge_type = 'github_file' AND repo_type = %s
+           )""",
+        (repo_type,),
+    )
     cur.execute(
         "DELETE FROM knowledge_base WHERE knowledge_type = 'github_file' AND repo_type = %s",
         (repo_type,),
@@ -3679,6 +3687,7 @@ def _reindex_repo_via_tree(owner, repo, repo_type, importance=0.85):
                     %s, 'github_tree', %s, %s,
                     %s, %s, %s, NOW()
                 )
+                RETURNING id
                 """,
                 (
                     title,
@@ -3698,8 +3707,24 @@ def _reindex_repo_via_tree(owner, repo, repo_type, importance=0.85):
                     repo_type,
                 ),
             )
+            row = cur.fetchone()
+            kb_id = row["id"] if row else None
             cur.execute("RELEASE SAVEPOINT sp_file")
             indexed_count += 1
+
+            # Generate embedding (non-critical)
+            if kb_id:
+                try:
+                    from .memory_service import store_embedding
+
+                    embed_text = f"{filename}\n\n{content[:8000]}"
+                    if store_embedding("knowledge_base", kb_id, embed_text):
+                        cur.execute(
+                            "UPDATE knowledge_base SET has_embedding = TRUE, embedding_generated_at = NOW() WHERE id = %s",
+                            (kb_id,),
+                        )
+                except Exception as embed_err:
+                    pass  # Embedding failure is non-critical
 
             # Polite delay between downloads
             if indexed_count % 10 == 0:

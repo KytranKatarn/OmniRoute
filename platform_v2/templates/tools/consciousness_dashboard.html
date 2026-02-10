@@ -636,6 +636,8 @@
             <div class="gauge-container" id="stress-container"><div class="gauge-label">💫 Stress Level</div><div class="gauge-bar"><div class="gauge-fill" id="stress-fill" style="width: 0%; background: linear-gradient(90deg, var(--archie-green), var(--archie-orange), var(--archie-red));"></div></div><div class="gauge-value" id="stress-value">-</div></div>
         </div>
 
+        <div class="chart-container" style="margin-top: 1.5rem;"><div class="chart-title">💜 Emotional Timeline (7 days)</div><canvas id="emotional-timeline" height="180"></canvas></div>
+
         <!-- Mood Distribution + Sentiment Doughnuts -->
         <div style="display: flex; gap: 1rem; margin-top: 1.5rem; flex-wrap: wrap;">
             <div class="chart-container" style="flex: 1; min-width: 250px; max-width: 350px;">
@@ -657,8 +659,6 @@
                 </div>
             </div>
         </div>
-
-        <div class="chart-container" style="margin-top: 1.5rem; max-width: 900px;"><div class="chart-title">💜 Emotional Timeline (7 days)</div><canvas id="emotional-timeline" height="180"></canvas></div>
 
         <!-- Mood Trigger Log -->
         <div class="panel" style="margin-top: 1.5rem;">
@@ -1019,6 +1019,13 @@
                             <option value="500">500 words</option>
                         </select>
                     </div>
+                    <div class="voice-form-group">
+                        <label>Quality</label>
+                        <select id="pregen-quality">
+                            <option value="high" selected>High (slower, cleaner audio)</option>
+                            <option value="standard">Standard (faster)</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="voice-form-row full">
                     <div class="voice-form-group">
@@ -1070,10 +1077,17 @@
                     <input type="range" class="voice-slider" id="preview-warmth" min="0.00" max="1.00" step="0.05" value="0.80" oninput="updateSliderDisplay('warmth')">
                 </div>
 
-                <div class="voice-form-row full">
-                    <div class="voice-form-group">
+                <div class="voice-form-row">
+                    <div class="voice-form-group" style="flex: 3;">
                         <label>Preview Text</label>
                         <input type="text" id="preview-text" class="form-control" value="Hello, I am ARCHIE. How can I help you today?" placeholder="Enter text to preview...">
+                    </div>
+                    <div class="voice-form-group" style="flex: 1;">
+                        <label>Quality</label>
+                        <select id="preview-quality" class="form-control">
+                            <option value="standard" selected>Standard</option>
+                            <option value="high">High</option>
+                        </select>
                     </div>
                 </div>
 
@@ -3231,7 +3245,8 @@ async function previewVoice() {
                 speed: parseFloat(document.getElementById('preview-speed').value),
                 pitch_shift: parseFloat(document.getElementById('preview-pitch').value),
                 warmth: parseFloat(document.getElementById('preview-warmth').value),
-                emotion: document.getElementById('preview-emotion').value
+                emotion: document.getElementById('preview-emotion').value,
+                quality: document.getElementById('preview-quality').value
             })
         });
         var d = await r.json();
@@ -3546,7 +3561,8 @@ async function startPregen() {
             body: JSON.stringify({
                 job_type: document.getElementById('pregen-type').value,
                 word_count: parseInt(document.getElementById('pregen-count').value),
-                emotions: emotions
+                emotions: emotions,
+                quality: document.getElementById('pregen-quality').value
             })
         });
         var d = await r.json();

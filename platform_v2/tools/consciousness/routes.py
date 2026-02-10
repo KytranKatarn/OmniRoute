@@ -582,7 +582,7 @@ def get_stats():
             FROM long_term_memory
             WHERE created_at >= NOW() - INTERVAL '30 days'
             GROUP BY DATE(created_at)
-            ORDER BY date DESC
+            ORDER BY date ASC
         """
         )
         learning_timeline = cur.fetchall()
@@ -1509,7 +1509,7 @@ def knowledge_growth():
             FROM knowledge_base
             WHERE created_at > NOW() - INTERVAL '30 days'
             GROUP BY DATE(created_at), knowledge_type
-            ORDER BY date DESC
+            ORDER BY date ASC
         """
         )
 
@@ -1698,7 +1698,7 @@ def get_emotional_timeline():
             FROM archie_emotional_state
             WHERE timestamp > NOW() - INTERVAL '%s days'
             GROUP BY DATE(timestamp)
-            ORDER BY date DESC
+            ORDER BY date ASC
         """,
             (days,),
         )
@@ -1714,7 +1714,7 @@ def get_emotional_timeline():
             FROM agent_emotional_state
             WHERE timestamp > NOW() - INTERVAL '%s days'
             GROUP BY DATE(timestamp)
-            ORDER BY date DESC
+            ORDER BY date ASC
         """,
             (days,),
         )
@@ -1774,7 +1774,7 @@ def get_memory_growth():
             FROM knowledge_base
             WHERE created_at > NOW() - INTERVAL '%s days'
             GROUP BY DATE(created_at), knowledge_type
-            ORDER BY date DESC, entries_added DESC
+            ORDER BY date ASC, entries_added DESC
         """,
             (days,),
         )
@@ -1792,7 +1792,7 @@ def get_memory_growth():
             WHERE created_at > NOW() - INTERVAL '%s days'
               AND category IS NOT NULL
             GROUP BY DATE(created_at), category
-            ORDER BY date DESC, entries_added DESC
+            ORDER BY date ASC, entries_added DESC
         """,
             (days,),
         )
@@ -1964,7 +1964,7 @@ def get_learning_patterns():
             FROM knowledge_base
             WHERE created_at > NOW() - INTERVAL '30 days'
             GROUP BY DATE(created_at)
-            ORDER BY date DESC
+            ORDER BY date ASC
         """
         )
 
@@ -6701,12 +6701,15 @@ def voice_preview():
         pitch_shift = float(data.get("pitch_shift", 1.0))
         warmth = float(data.get("warmth", 0.8))
         emotion = data.get("emotion", "neutral")
+        quality = data.get("quality", "standard")
+        if quality not in ("standard", "high"):
+            quality = "standard"
 
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
         from ai_bridge.voice_synthesis import get_voice_synthesizer
 
         synth = get_voice_synthesizer()
-        result = synth.synthesize_with_params(text, speaker, speed, pitch_shift, warmth, emotion)
+        result = synth.synthesize_with_params(text, speaker, speed, pitch_shift, warmth, emotion, quality)
 
         return jsonify(result)
 
@@ -6948,6 +6951,9 @@ def voice_pregen_start():
         emotions = data.get("emotions", ["neutral"])
         agent_id = data.get("agent_id")
         custom_phrases = data.get("custom_phrases", [])
+        quality = data.get("quality", "high")
+        if quality not in ("standard", "high"):
+            quality = "high"
 
         from .voice_pregen import start_pregen_job
 
@@ -6957,6 +6963,7 @@ def voice_pregen_start():
             emotions=emotions,
             agent_id=agent_id,
             custom_phrases=custom_phrases,
+            quality=quality,
         )
 
         return jsonify({"success": True, "job_id": job_id})

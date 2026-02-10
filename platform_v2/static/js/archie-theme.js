@@ -27,29 +27,15 @@
 
         if (saved === 'light') {
             document.body.classList.add('light-mode');
-        } else if (saved === 'dark') {
+        } else {
+            // Default to dark mode (ARCHIE's native theme)
             document.body.classList.remove('light-mode');
-        } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
-            // No saved preference, use system preference
-            document.body.classList.add('light-mode');
         }
 
         updateThemeIcon();
 
-        // Listen for system theme changes
-        if (window.matchMedia) {
-            window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', (e) => {
-                // Only auto-switch if no user preference saved
-                if (!localStorage.getItem(THEME_KEY)) {
-                    if (e.matches) {
-                        document.body.classList.add('light-mode');
-                    } else {
-                        document.body.classList.remove('light-mode');
-                    }
-                    updateThemeIcon();
-                }
-            });
-        }
+        // Listen for system theme changes (only if user explicitly chose to follow system)
+        // ARCHIE defaults to dark, so we don't auto-follow system preference
     }
 
     /**

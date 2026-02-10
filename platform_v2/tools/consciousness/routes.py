@@ -3079,11 +3079,83 @@ def get_activity_stats():
         )
         kb_growth = [{"date": str(r["date"]), "count": r["count"]} for r in cur.fetchall()]
 
+        # Full knowledge footprint — all knowledge-bearing tables
+        cur.execute(
+            """
+            SELECT
+                (SELECT COUNT(*) FROM long_term_memory) as ltm,
+                (SELECT COUNT(*) FROM archie_codebase_knowledge) as codebase_knowledge,
+                (SELECT COUNT(*) FROM triage_extractions) as triage,
+                (SELECT COUNT(*) FROM blueprint_tasks) as blueprint_tasks,
+                (SELECT COUNT(*) FROM blueprint_phases) as blueprint_phases,
+                (SELECT COUNT(*) FROM emotional_memory) as emotional_memories,
+                (SELECT COUNT(*) FROM project_decisions) as decisions,
+                (SELECT COUNT(*) FROM roadmap_items) as roadmap_items,
+                (SELECT COUNT(*) FROM archie_personality) as personality_traits,
+                (SELECT COUNT(*) FROM archie_core_identity) as core_identity,
+                (SELECT COUNT(*) FROM archie_scripts) as scripts,
+                (SELECT COUNT(*) FROM archie_complexity_patterns) as complexity_patterns
+        """
+        )
+        fp = dict(cur.fetchone())
+
+        # Count platform modules from filesystem
+        import os
+
+        tools_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+        try:
+            module_count = len(
+                [
+                    d
+                    for d in os.listdir(tools_dir)
+                    if os.path.isdir(os.path.join(tools_dir, d)) and not d.startswith("_") and not d.startswith(".")
+                ]
+            )
+        except Exception:
+            module_count = 0
+
+        kb_total = embed_row["total"] if embed_row else 0
+        footprint_total = (
+            kb_total
+            + fp["ltm"]
+            + fp["codebase_knowledge"]
+            + fp["triage"]
+            + fp["blueprint_tasks"]
+            + fp["blueprint_phases"]
+            + fp["emotional_memories"]
+            + fp["decisions"]
+            + fp["roadmap_items"]
+        )
+
+        footprint_sources = []
+        source_map = [
+            ("Knowledge Base", kb_total),
+            ("Triage Insights", fp["triage"]),
+            ("Blueprints", fp["blueprint_tasks"] + fp["blueprint_phases"]),
+            ("Long-term Memories", fp["ltm"]),
+            ("Codebase Knowledge", fp["codebase_knowledge"]),
+            ("Emotional Memories", fp["emotional_memories"]),
+            ("Decisions & Roadmap", fp["decisions"] + fp["roadmap_items"]),
+        ]
+        for name, count in source_map:
+            if count > 0:
+                footprint_sources.append({"name": name, "count": count})
+
+        self_knowledge_total = (
+            module_count
+            + fp["codebase_knowledge"]
+            + fp["personality_traits"]
+            + fp["core_identity"]
+            + fp["scripts"]
+            + fp["complexity_patterns"]
+        )
+
         overview = {
-            "kb_total": embed_row["total"] if embed_row else 0,
+            "kb_total": kb_total,
             "kb_breakdown": [{"type": r["knowledge_type"], "count": r["count"]} for r in kb_breakdown],
-            "embeddings_total": embed_row["total"] if embed_row else 0,
             "embeddings_done": embed_row["with_embeddings"] if embed_row else 0,
+            "footprint_total": footprint_total,
+            "footprint_sources": footprint_sources,
             "github_repos": github_row["github_repos"] if github_row else 0,
             "github_files": github_row["github_files"] if github_row else 0,
             "github_code": github_row["github_code"] if github_row else 0,
@@ -3091,6 +3163,15 @@ def get_activity_stats():
             "conversations": conv_row["conversations"] if conv_row else 0,
             "memories": conv_row["memories"] if conv_row else 0,
             "kb_growth_7d": kb_growth,
+            "self_knowledge": {
+                "total": self_knowledge_total,
+                "modules": module_count,
+                "codebase_entries": fp["codebase_knowledge"],
+                "personality_traits": fp["personality_traits"],
+                "core_identity": fp["core_identity"],
+                "scripts": fp["scripts"],
+                "complexity_patterns": fp["complexity_patterns"],
+            },
         }
 
         cur.close()
@@ -6255,4 +6336,454 @@ def get_claude_status():
         bridge = get_claude_bridge()
         return jsonify({"success": True, "claude": bridge.health_check(), "ttyd": bridge.get_ttyd_status()})
     except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# VOICE MANAGEMENT ROUTES
+# ============================================================================
+
+
+@consciousness_bp.route("/api/voice/dashboard", methods=["GET"])
+@login_required
+@admin_required
+def voice_dashboard():
+    """Aggregated voice stats: cached words, hit rate, storage, today's gens"""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            SELECT
+                COUNT(*) as cached_words,
+                COALESCE(SUM(hit_count), 0) as total_hits,
+                COALESCE(SUM(usage_count), 0) as total_usage,
+                COALESCE(SUM(LENGTH(full_audio_cache)), 0) as storage_bytes,
+                COALESCE(AVG(duration_ms) FILTER (WHERE duration_ms > 0), 0)::INTEGER as avg_gen_ms
+            FROM voice_word_cache
+        """
+        )
+        cache_stats = dict(cur.fetchone())
+
+        cur.execute(
+            """
+            SELECT
+                COUNT(*) as today_gens,
+                COUNT(*) FILTER (WHERE cached = TRUE) as today_cache_hits,
+                COALESCE(AVG(generation_time_ms) FILTER (WHERE cached = FALSE), 0)::INTEGER as today_avg_ms
+            FROM voice_generation_log
+            WHERE created_at::date = CURRENT_DATE
+        """
+        )
+        today = dict(cur.fetchone())
+
+        total_requests = cache_stats["total_hits"] + cache_stats["cached_words"]
+        hit_rate = round(100.0 * cache_stats["total_hits"] / max(total_requests, 1), 1)
+
+        cur.execute(
+            """
+            SELECT emotion_context, COUNT(*) as count,
+                   SUM(hit_count) as hits
+            FROM voice_word_cache
+            WHERE emotion_context IS NOT NULL
+            GROUP BY emotion_context
+            ORDER BY count DESC
+            LIMIT 10
+        """
+        )
+        top_emotions = [dict(r) for r in cur.fetchall()]
+
+        cur.execute(
+            """
+            SELECT word_text, emotion_context, hit_count, duration_ms
+            FROM voice_word_cache
+            WHERE hit_count > 0
+            ORDER BY hit_count DESC
+            LIMIT 20
+        """
+        )
+        top_words = [dict(r) for r in cur.fetchall()]
+
+        cur.execute(
+            """
+            SELECT id, status, job_type, total_words, completed_words, failed_words
+            FROM voice_pregen_jobs
+            WHERE status IN ('pending', 'running')
+            ORDER BY created_at DESC
+            LIMIT 5
+        """
+        )
+        active_jobs = [dict(r) for r in cur.fetchall()]
+
+        cur.close()
+        conn.close()
+
+        return jsonify(
+            {
+                "success": True,
+                "cached_words": cache_stats["cached_words"],
+                "total_hits": cache_stats["total_hits"],
+                "hit_rate": hit_rate,
+                "storage_bytes": cache_stats["storage_bytes"],
+                "storage_mb": round(cache_stats["storage_bytes"] / (1024 * 1024), 2),
+                "avg_gen_ms": cache_stats["avg_gen_ms"],
+                "today_gens": today["today_gens"],
+                "today_cache_hits": today["today_cache_hits"],
+                "today_avg_ms": today["today_avg_ms"],
+                "top_emotions": top_emotions,
+                "top_words": top_words,
+                "active_jobs": active_jobs,
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Voice dashboard error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/voice/speakers", methods=["GET"])
+@login_required
+@admin_required
+def voice_speakers():
+    """List all speakers, emotions, and parameter ranges"""
+    try:
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        from ai_bridge.voice_synthesis import get_voice_synthesizer
+
+        synth = get_voice_synthesizer()
+        speakers = synth.get_available_speakers()
+        emotions = list(synth.EMOTION_VOICE_MAP.keys())
+        emotion_presets = {k: {pk: float(pv) for pk, pv in v.items()} for k, v in synth.EMOTION_VOICE_MAP.items()}
+
+        return jsonify(
+            {
+                "success": True,
+                "speakers": speakers,
+                "emotions": emotions,
+                "emotion_presets": emotion_presets,
+                "parameter_ranges": {
+                    "speed": {"min": 0.50, "max": 2.00, "default": 1.00, "step": 0.05},
+                    "pitch_shift": {"min": 0.80, "max": 1.20, "default": 1.00, "step": 0.01},
+                    "warmth": {"min": 0.00, "max": 1.00, "default": 0.80, "step": 0.05},
+                },
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Voice speakers error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/voice/preview", methods=["POST"])
+@login_required
+@admin_required
+def voice_preview():
+    """Generate preview audio with custom params (no save to profile)"""
+    try:
+        data = request.get_json()
+        text = data.get("text", "Hello, I am ARCHIE. How can I help you today?")
+        speaker = data.get("speaker", "Ana Florence")
+        speed = float(data.get("speed", 1.0))
+        pitch_shift = float(data.get("pitch_shift", 1.0))
+        warmth = float(data.get("warmth", 0.8))
+        emotion = data.get("emotion", "neutral")
+
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        from ai_bridge.voice_synthesis import get_voice_synthesizer
+
+        synth = get_voice_synthesizer()
+        result = synth.synthesize_with_params(text, speaker, speed, pitch_shift, warmth, emotion)
+
+        return jsonify(result)
+
+    except Exception as e:
+        logger.error(f"Voice preview error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/voice/profiles", methods=["GET"])
+@login_required
+@admin_required
+def voice_profiles_list():
+    """List all agent voice profiles with cached word counts"""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            SELECT p.*,
+                   a.name as agent_name,
+                   a.first_name as agent_first_name,
+                   a.avatar_url as agent_avatar,
+                   COALESCE(cache.cached_count, 0) as cached_words
+            FROM agent_voice_profiles p
+            LEFT JOIN agents a ON p.agent_id = a.id
+            LEFT JOIN (
+                SELECT agent_id, COUNT(*) as cached_count
+                FROM voice_word_cache
+                WHERE agent_id IS NOT NULL
+                GROUP BY agent_id
+            ) cache ON cache.agent_id = p.agent_id
+            ORDER BY p.created_at DESC
+        """
+        )
+        profiles = []
+        for row in cur.fetchall():
+            d = dict(row)
+            for k in ("speed", "pitch_shift", "warmth"):
+                if d.get(k) is not None:
+                    d[k] = float(d[k])
+            if d.get("created_at"):
+                d["created_at"] = d["created_at"].isoformat()
+            if d.get("updated_at"):
+                d["updated_at"] = d["updated_at"].isoformat()
+            profiles.append(d)
+
+        cur.execute(
+            """
+            SELECT id, name, first_name, avatar_url
+            FROM agents WHERE status = 'active'
+            ORDER BY name
+        """
+        )
+        agents = [dict(r) for r in cur.fetchall()]
+
+        cur.close()
+        conn.close()
+
+        return jsonify({"success": True, "profiles": profiles, "agents": agents})
+
+    except Exception as e:
+        logger.error(f"Voice profiles list error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/voice/profiles", methods=["POST"])
+@login_required
+@admin_required
+def voice_profile_save():
+    """Create or update agent voice profile (upsert on agent_id)"""
+    try:
+        data = request.get_json()
+        agent_id = data.get("agent_id")
+        profile_name = data.get("profile_name", "Default")
+        speaker = data.get("speaker", "Ana Florence")
+        speed = float(data.get("speed", 1.0))
+        pitch_shift = float(data.get("pitch_shift", 1.0))
+        warmth = float(data.get("warmth", 0.8))
+        default_emotion = data.get("default_emotion", "neutral")
+        emotion_overrides = data.get("emotion_overrides", {})
+
+        if not agent_id:
+            return jsonify({"success": False, "error": "agent_id required"}), 400
+
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            INSERT INTO agent_voice_profiles
+            (agent_id, profile_name, speaker, speed, pitch_shift, warmth,
+             default_emotion, emotion_overrides, created_by)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (agent_id) DO UPDATE SET
+                profile_name = EXCLUDED.profile_name,
+                speaker = EXCLUDED.speaker,
+                speed = EXCLUDED.speed,
+                pitch_shift = EXCLUDED.pitch_shift,
+                warmth = EXCLUDED.warmth,
+                default_emotion = EXCLUDED.default_emotion,
+                emotion_overrides = EXCLUDED.emotion_overrides,
+                updated_at = NOW()
+            RETURNING id
+        """,
+            (
+                agent_id,
+                profile_name,
+                speaker,
+                speed,
+                pitch_shift,
+                warmth,
+                default_emotion,
+                json.dumps(emotion_overrides),
+                current_user.id,
+            ),
+        )
+        result = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({"success": True, "profile_id": result["id"]})
+
+    except Exception as e:
+        logger.error(f"Voice profile save error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/voice/profiles/<int:profile_id>", methods=["DELETE"])
+@login_required
+@admin_required
+def voice_profile_delete(profile_id):
+    """Delete a voice profile"""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM agent_voice_profiles WHERE id = %s", (profile_id,))
+        deleted = cur.rowcount
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        if deleted:
+            return jsonify({"success": True})
+        return jsonify({"success": False, "error": "Profile not found"}), 404
+
+    except Exception as e:
+        logger.error(f"Voice profile delete error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/voice/cache", methods=["GET"])
+@login_required
+@admin_required
+def voice_cache_list():
+    """Paginated cache entries with filters"""
+    try:
+        page = int(request.args.get("page", 1))
+        per_page = int(request.args.get("per_page", 25))
+        emotion = request.args.get("emotion", "")
+        sort = request.args.get("sort", "hits")
+        agent_id = request.args.get("agent_id", "")
+
+        offset = (page - 1) * per_page
+
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        conditions = ["text_hash IS NOT NULL"]
+        params = []
+
+        if emotion:
+            conditions.append("emotion_context = %s")
+            params.append(emotion)
+        if agent_id:
+            conditions.append("agent_id = %s")
+            params.append(int(agent_id))
+
+        where = " AND ".join(conditions)
+
+        order = "hit_count DESC"
+        if sort == "recent":
+            order = "last_used DESC NULLS LAST"
+        elif sort == "largest":
+            order = "LENGTH(full_audio_cache) DESC NULLS LAST"
+
+        cur.execute(f"SELECT COUNT(*) as total FROM voice_word_cache WHERE {where}", params)
+        total = cur.fetchone()["total"]
+
+        cur.execute(
+            f"""
+            SELECT word_id, word_text, emotion_context, hit_count, usage_count,
+                   duration_ms, last_used, agent_id,
+                   LENGTH(full_audio_cache) as audio_size
+            FROM voice_word_cache
+            WHERE {where}
+            ORDER BY {order}
+            LIMIT %s OFFSET %s
+        """,
+            params + [per_page, offset],
+        )
+
+        entries = []
+        for row in cur.fetchall():
+            d = dict(row)
+            if d.get("last_used"):
+                d["last_used"] = d["last_used"].isoformat()
+            entries.append(d)
+
+        cur.close()
+        conn.close()
+
+        return jsonify(
+            {
+                "success": True,
+                "entries": entries,
+                "total": total,
+                "page": page,
+                "per_page": per_page,
+                "pages": (total + per_page - 1) // per_page,
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Voice cache list error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/voice/pregen", methods=["POST"])
+@login_required
+@admin_required
+def voice_pregen_start():
+    """Start a pre-generation job"""
+    try:
+        data = request.get_json()
+        job_type = data.get("job_type", "manual")
+        word_count = int(data.get("word_count", 100))
+        emotions = data.get("emotions", ["neutral"])
+        agent_id = data.get("agent_id")
+        custom_phrases = data.get("custom_phrases", [])
+
+        from .voice_pregen import start_pregen_job
+
+        job_id = start_pregen_job(
+            job_type=job_type,
+            word_count=word_count,
+            emotions=emotions,
+            agent_id=agent_id,
+            custom_phrases=custom_phrases,
+        )
+
+        return jsonify({"success": True, "job_id": job_id})
+
+    except Exception as e:
+        logger.error(f"Voice pregen start error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/voice/pregen/<int:job_id>", methods=["GET"])
+@login_required
+@admin_required
+def voice_pregen_status(job_id):
+    """Poll pre-gen job progress"""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT id, agent_id, status, job_type, total_words, completed_words,
+                   failed_words, started_at, completed_at, error_message
+            FROM voice_pregen_jobs WHERE id = %s
+        """,
+            (job_id,),
+        )
+        job = cur.fetchone()
+        cur.close()
+        conn.close()
+
+        if not job:
+            return jsonify({"success": False, "error": "Job not found"}), 404
+
+        d = dict(job)
+        for k in ("started_at", "completed_at"):
+            if d.get(k):
+                d[k] = d[k].isoformat()
+
+        d["progress_pct"] = round(100.0 * d["completed_words"] / max(d["total_words"], 1), 1)
+        return jsonify({"success": True, "job": d})
+
+    except Exception as e:
+        logger.error(f"Voice pregen status error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500

@@ -357,9 +357,77 @@
 /* Section Titles */
 .section-title { font-family: var(--archie-font-heading, 'Orbitron', sans-serif); font-size: var(--archie-text-sm, 0.875rem); color: var(--module-accent); text-transform: uppercase; letter-spacing: 2px; margin: var(--archie-space-6, 1.5rem) 0 var(--archie-space-4, 1rem) 0; }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   VOICE TAB STYLES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Voice Sub-tabs */
+.voice-subtabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; padding: 0.4rem; background: var(--archie-bg-secondary, #0d1117); border: 1px solid var(--archie-border-default, #30363d); border-radius: 10px; }
+.voice-subtab-btn { padding: 0.5rem 1rem; background: transparent; border: 1px solid transparent; border-radius: 6px; color: var(--archie-text-tertiary, #8b949e); font-family: var(--archie-font-body); font-size: 0.8rem; cursor: pointer; transition: all 0.2s ease; }
+.voice-subtab-btn:hover { color: var(--module-accent); background: var(--module-accent-alpha-10); }
+.voice-subtab-btn.active { background: var(--module-accent-alpha-20); border-color: var(--module-accent); color: var(--module-accent); }
+.voice-subtab-content { display: none; }
+.voice-subtab-content.active { display: block; animation: fadeIn 0.3s ease; }
+
+/* Voice Panel */
+.voice-panel { background: var(--archie-bg-secondary, #0d1117); border: 1px solid var(--archie-border-default, #30363d); border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; }
+.voice-panel h3 { font-family: var(--archie-font-heading); font-size: 0.9rem; color: var(--module-accent); text-transform: uppercase; letter-spacing: 1px; margin: 0 0 1rem 0; }
+
+/* Slider Controls */
+.voice-control { margin-bottom: 1rem; }
+.voice-control label { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: var(--archie-text-secondary); margin-bottom: 0.4rem; }
+.voice-control label .slider-val { color: var(--module-accent); font-family: var(--archie-font-heading); font-weight: 700; }
+.voice-slider { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; background: var(--archie-bg-tertiary, #161b22); border-radius: 3px; outline: none; }
+.voice-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; background: var(--module-accent); border-radius: 50%; cursor: pointer; box-shadow: 0 0 8px var(--module-accent-alpha-30); transition: box-shadow 0.2s ease; }
+.voice-slider::-webkit-slider-thumb:hover { box-shadow: 0 0 14px var(--module-accent-alpha-30), 0 0 28px var(--module-accent-alpha-20); }
+.voice-slider::-moz-range-thumb { width: 18px; height: 18px; background: var(--module-accent); border-radius: 50%; cursor: pointer; border: none; }
+
+/* Voice Profile Cards */
+.voice-profile-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; }
+.voice-profile-card { background: var(--archie-bg-secondary, #0d1117); border: 1px solid var(--archie-border-default, #30363d); border-radius: 12px; padding: 1.25rem; transition: all 0.2s ease; }
+.voice-profile-card:hover { border-color: var(--module-accent); box-shadow: 0 0 20px var(--module-accent-alpha-20); }
+.voice-profile-card .profile-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+.voice-profile-card .profile-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--module-accent-alpha-20); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+.voice-profile-card .profile-name { font-family: var(--archie-font-heading); font-size: 0.9rem; color: var(--archie-text-secondary); }
+.voice-profile-card .profile-params { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin: 0.75rem 0; }
+.voice-profile-card .profile-params .param { text-align: center; }
+.voice-profile-card .profile-params .param-val { font-family: var(--archie-font-heading); font-size: 0.85rem; color: var(--module-accent); }
+.voice-profile-card .profile-params .param-label { font-size: 0.65rem; color: var(--archie-text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.voice-profile-card .profile-actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+
+/* Audio Preview */
+.voice-audio-container { margin: 1rem 0; padding: 1rem; background: var(--archie-bg-tertiary, #161b22); border-radius: 8px; }
+.voice-audio-container audio { width: 100%; }
+.voice-gen-status { font-size: 0.8rem; color: var(--archie-text-muted); margin-top: 0.5rem; }
+
+/* Progress Bar */
+.pregen-progress { margin: 1rem 0; }
+.pregen-bar { height: 8px; background: var(--archie-bg-tertiary, #161b22); border-radius: 4px; overflow: hidden; }
+.pregen-bar-fill { height: 100%; background: linear-gradient(90deg, var(--module-accent), var(--module-accent-bright, #a78bfa)); border-radius: 4px; transition: width 0.5s ease; }
+.pregen-status { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--archie-text-muted); margin-top: 0.3rem; }
+
+/* Cache Table */
+.cache-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.cache-table th { text-align: left; padding: 0.5rem 0.75rem; color: var(--archie-text-muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid var(--archie-border-default); }
+.cache-table td { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--archie-border-default, #30363d); color: var(--archie-text-secondary); }
+.cache-table tr:hover td { background: var(--module-accent-alpha-10); }
+.cache-pagination { display: flex; justify-content: center; gap: 0.5rem; margin-top: 1rem; }
+.cache-pagination button { padding: 0.3rem 0.7rem; background: var(--archie-bg-tertiary); border: 1px solid var(--archie-border-default); border-radius: 4px; color: var(--archie-text-tertiary); cursor: pointer; font-size: 0.75rem; }
+.cache-pagination button.active, .cache-pagination button:hover { border-color: var(--module-accent); color: var(--module-accent); }
+
+/* Voice Form Layout */
+.voice-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+.voice-form-row.full { grid-template-columns: 1fr; }
+.voice-form-group { display: flex; flex-direction: column; gap: 0.3rem; }
+.voice-form-group label { font-size: 0.75rem; color: var(--archie-text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.voice-form-group select { background: var(--archie-bg-primary, #010409); border: 1px solid var(--archie-border-default); border-radius: 8px; padding: 0.6rem 0.75rem; color: var(--archie-text-secondary); font-family: var(--archie-font-body); font-size: 0.85rem; }
+.voice-form-group select:focus { outline: none; border-color: var(--module-accent); }
+
 /* Responsive */
 @media (max-width: 768px) {
     .tab-nav { justify-content: flex-start; }
+    .voice-form-row { grid-template-columns: 1fr; }
+    .voice-profile-grid { grid-template-columns: 1fr; }
 }
 {% endblock %}
 
@@ -389,26 +457,27 @@
         <button class="tab-btn" data-tab="graph">🕸️ Graph</button>
         <button class="tab-btn" data-tab="feed">📡 Feed</button>
         <button class="tab-btn" data-tab="tools">🔧 Tools</button>
+        <button class="tab-btn" data-tab="voice">🎙 Voice</button>
     </div>
 
     <div id="tab-overview" class="tab-content active">
         <div class="stats-row-label">Knowledge</div>
         <div class="stats-grid">
-            <div class="stat-card"><div class="stat-value" id="stat-kb-total">-</div><div class="stat-label">Knowledge Base</div><div class="stat-subtitle" id="stat-kb-subtitle">Loading...</div></div>
+            <div class="stat-card"><div class="stat-value" id="stat-footprint">-</div><div class="stat-label">Total Knowledge</div><div class="stat-subtitle" id="stat-footprint-subtitle">Loading...</div></div>
             <div class="stat-card"><div class="stat-value" id="stat-github">-</div><div class="stat-label">GitHub Indexed</div><div class="stat-subtitle" id="stat-github-subtitle">Loading...</div></div>
-            <div class="stat-card"><div class="stat-value" id="stat-embeddings">-</div><div class="stat-label">Embeddings</div><div class="stat-subtitle" id="stat-embeddings-subtitle">Loading...</div></div>
-            <div class="stat-card"><div class="stat-value" id="stat-conversations">-</div><div class="stat-label">Conversations</div><div class="stat-subtitle" id="stat-conversations-subtitle">Loading...</div></div>
+            <div class="stat-card"><div class="stat-value" id="stat-searchable">-</div><div class="stat-label">Searchable</div><div class="stat-subtitle" id="stat-searchable-subtitle">Loading...</div></div>
+            <div class="stat-card"><div class="stat-value" id="stat-self-knowledge">-</div><div class="stat-label">Self-Knowledge</div><div class="stat-subtitle" id="stat-self-knowledge-subtitle">Loading...</div></div>
         </div>
         <div class="stats-row-label">System Status</div>
         <div class="stats-grid">
             <div class="stat-card"><div class="stat-value" id="stat-mood">-</div><div class="stat-label">Current Mood</div></div>
-            <div class="stat-card"><div class="stat-value" id="stat-agents">-</div><div class="stat-label">Active Agents</div></div>
+            <div class="stat-card"><div class="stat-value" id="stat-conversations">-</div><div class="stat-label">Conversations</div><div class="stat-subtitle" id="stat-conversations-subtitle">Loading...</div></div>
             <div class="stat-card"><div class="stat-value" id="stat-llm-health">-</div><div class="stat-label">LLM Models</div></div>
-            <div class="stat-card"><div class="stat-value" id="stat-improvements">-</div><div class="stat-label">Improvements</div></div>
+            <div class="stat-card"><div class="stat-value" id="stat-agents">-</div><div class="stat-label">Active Agents</div></div>
         </div>
         <div class="dashboard-grid">
             <div class="chart-container"><div class="chart-title">📈 Knowledge Growth (7 days)</div><canvas id="growth-chart-mini" height="160"></canvas></div>
-            <div class="chart-container"><div class="chart-title">🎯 Knowledge by Type</div><canvas id="type-chart-mini" height="160"></canvas></div>
+            <div class="chart-container"><div class="chart-title">🎯 Knowledge Sources</div><canvas id="type-chart-mini" height="160"></canvas></div>
         </div>
         <h3 class="section-title">Quick Access</h3>
         <div class="quick-access-grid">
@@ -905,13 +974,11 @@ const moodEmojis = { 'happy': '😊', 'curious': '🤔', 'focused': '🎯', 'neu
 
 function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
 
-function buildKbSubtitle(breakdown) {
-    if (!breakdown || !breakdown.length) return '';
-    const top3 = breakdown.slice(0, 3);
-    return top3.map(b => {
-        const count = (b.count || 0).toLocaleString();
-        const label = (b.type || 'unknown').replace(/_/g, ' ');
-        return count + ' ' + label;
+function buildSourceSubtitle(sources) {
+    if (!sources || !sources.length) return '';
+    const top3 = sources.slice(0, 3);
+    return top3.map(s => {
+        return (s.count || 0).toLocaleString() + ' ' + s.name;
     }).join(' · ');
 }
 
@@ -922,29 +989,48 @@ async function loadStats() {
         if (data.success) {
             const overview = data.overview || {};
 
-            // Knowledge cards
-            document.getElementById('stat-kb-total').textContent = (overview.kb_total || 0).toLocaleString();
-            document.getElementById('stat-kb-subtitle').textContent = buildKbSubtitle(overview.kb_breakdown);
+            // Total Knowledge Footprint
+            document.getElementById('stat-footprint').textContent = (overview.footprint_total || 0).toLocaleString();
+            document.getElementById('stat-footprint-subtitle').textContent = buildSourceSubtitle(overview.footprint_sources);
 
+            // GitHub Indexed
             document.getElementById('stat-github').textContent = (overview.github_files || 0).toLocaleString();
             document.getElementById('stat-github-subtitle').textContent =
                 (overview.github_code || 0) + ' code · ' + (overview.github_docs || 0) + ' docs · ' + (overview.github_repos || 0) + ' repos';
 
-            const embedTotal = overview.embeddings_total || 0;
+            // Searchable (embedding gap against full footprint)
+            const footprintTotal = overview.footprint_total || 0;
             const embedDone = overview.embeddings_done || 0;
-            const embedPct = embedTotal > 0 ? Math.round((embedDone / embedTotal) * 100) : 0;
-            document.getElementById('stat-embeddings').textContent = embedPct + '%';
-            document.getElementById('stat-embeddings-subtitle').textContent =
-                embedDone.toLocaleString() + ' of ' + embedTotal.toLocaleString() + ' searchable';
+            const searchPct = footprintTotal > 0 ? Math.round((embedDone / footprintTotal) * 100) : 0;
+            document.getElementById('stat-searchable').textContent = searchPct + '%';
+            document.getElementById('stat-searchable-subtitle').textContent =
+                embedDone.toLocaleString() + ' of ' + footprintTotal.toLocaleString() + ' embedded';
 
-            document.getElementById('stat-conversations').textContent = (overview.conversations || 0).toLocaleString();
-            document.getElementById('stat-conversations-subtitle').textContent =
-                (overview.memories || 0) + ' memories extracted';
+            // Self-Knowledge
+            const sk = overview.self_knowledge || {};
+            document.getElementById('stat-self-knowledge').textContent = (sk.total || 0).toLocaleString();
+            const skParts = [];
+            if (sk.modules > 0) skParts.push(sk.modules + ' modules');
+            if (sk.codebase_entries > 0) skParts.push(sk.codebase_entries + ' codebase');
+            if (sk.personality_traits > 0) skParts.push(sk.personality_traits + ' traits');
+            if (sk.scripts > 0) skParts.push(sk.scripts + ' scripts');
+            document.getElementById('stat-self-knowledge-subtitle').textContent = skParts.join(' · ');
 
             // System status cards
             const mood = (data.emotional_state && data.emotional_state.mood) || 'neutral';
             const emoji = moodEmojis[mood] || '🤔';
             document.getElementById('stat-mood').textContent = emoji + ' ' + capitalize(mood);
+
+            document.getElementById('stat-conversations').textContent = (overview.conversations || 0).toLocaleString();
+            document.getElementById('stat-conversations-subtitle').textContent =
+                (overview.memories || 0) + ' memories · ' + (data.stats.knowledge_24h || 0) + ' new today';
+
+            const llm = data.llm_health || {};
+            let llmParts = [];
+            if (llm.online > 0) llmParts.push(llm.online + ' online');
+            if (llm.degraded > 0) llmParts.push(llm.degraded + ' degraded');
+            if (llm.offline > 0) llmParts.push(llm.offline + ' offline');
+            document.getElementById('stat-llm-health').textContent = llmParts.length > 0 ? llmParts.join(' · ') : 'No models';
 
             const agentsActive = data.stats.agents_active || 0;
             const agentEl = document.getElementById('stat-agents');
@@ -954,23 +1040,6 @@ async function loadStats() {
             } else {
                 agentEl.textContent = 'None active';
                 agentEl.classList.add('muted');
-            }
-
-            const llm = data.llm_health || {};
-            let llmParts = [];
-            if (llm.online > 0) llmParts.push(llm.online + ' online');
-            if (llm.degraded > 0) llmParts.push(llm.degraded + ' degraded');
-            if (llm.offline > 0) llmParts.push(llm.offline + ' offline');
-            document.getElementById('stat-llm-health').textContent = llmParts.length > 0 ? llmParts.join(' · ') : 'No models';
-
-            const improvTotal = data.stats.improvements_total || 0;
-            const improvEl = document.getElementById('stat-improvements');
-            if (improvTotal > 0) {
-                improvEl.textContent = improvTotal;
-                improvEl.classList.remove('muted');
-            } else {
-                improvEl.textContent = 'No proposals';
-                improvEl.classList.add('muted');
             }
 
             // Update mini charts from overview data (avoids extra /stats call)
@@ -990,14 +1059,14 @@ function loadMiniChartsFromOverview(overview) {
             }, options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' } }, y: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' } } } }
         });
 
-        // Composition doughnut from knowledge_type breakdown
-        const breakdown = overview.kb_breakdown || [];
-        const typeLabels = breakdown.map(b => (b.type || 'unknown').replace(/_/g, ' '));
-        const typeCounts = breakdown.map(b => b.count || 0);
+        // Composition doughnut from full footprint sources
+        const sources = overview.footprint_sources || [];
+        const sourceLabels = sources.map(s => s.name);
+        const sourceCounts = sources.map(s => s.count || 0);
         const colors = [chartColors.primary, chartColors.secondary, chartColors.success, chartColors.warning, chartColors.danger, chartColors.info, '#e879f9', '#34d399'];
         if (typeChartMini) typeChartMini.destroy();
         typeChartMini = new Chart(document.getElementById('type-chart-mini'), {
-            type: 'doughnut', data: { labels: typeLabels, datasets: [{ data: typeCounts, backgroundColor: colors.slice(0, typeLabels.length) }] },
+            type: 'doughnut', data: { labels: sourceLabels, datasets: [{ data: sourceCounts, backgroundColor: colors.slice(0, sourceLabels.length) }] },
             options: { responsive: true, plugins: { legend: { position: 'right', labels: { color: '#8b949e', font: { size: 11 } } } } }
         });
     } catch (e) { console.error('Error loading mini charts:', e); }

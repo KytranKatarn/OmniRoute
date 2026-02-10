@@ -2007,6 +2007,8 @@ let voiceConfig = {
     volume: 0.8
 };
 let currentAudio = null;
+let audioQueue = [];
+let currentVoiceButton = null;
 let voiceSystemReady = false;
 
 // Load voice config on page load
@@ -2077,26 +2079,18 @@ function base64ToBlob(base64, mimeType) {
     }
 }
 
-// Play voice for text
+// Play voice for text (with chunked support for long messages)
 async function playVoice(text, buttonElement) {
     if (!voiceConfig.enabled) {
         showToast('Voice is disabled. Click the speaker icon to enable.', 'warning');
         return;
     }
 
-    // Stop any currently playing audio
-    if (currentAudio) {
-        currentAudio.pause();
-        currentAudio = null;
-        // Reset any playing buttons
-        document.querySelectorAll('.voice-btn.playing').forEach(b => {
-            b.classList.remove('playing');
-            const icon = b.querySelector('i');
-            if (icon) icon.setAttribute('data-lucide', 'volume-2');
-        });
-    }
+    // Stop any currently playing audio and clear queue
+    stopVoice();
 
     const btn = buttonElement;
+    currentVoiceButton = btn;
     btn.classList.add('loading');
     btn.classList.remove('error');
     const icon = btn.querySelector('i');
@@ -2106,74 +2100,66 @@ async function playVoice(text, buttonElement) {
     }
 
     try {
-        // Limit text to 500 chars
-        const synthesizeText = text.substring(0, 500);
+        const textLength = text.length;
 
-        const response = await fetch('/tools/archie-chat/api/voice/synthesize', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: synthesizeText })
-        });
+        if (textLength <= 500) {
+            // Short text — use original single-chunk endpoint
+            const response = await fetch('/tools/archie-chat/api/voice/synthesize', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: text })
+            });
 
-        const data = await response.json();
+            const data = await response.json();
 
-        if (data.success && data.audio_base64) {
-            // Create audio from base64
-            const audioBlob = base64ToBlob(data.audio_base64, 'audio/wav');
-            if (!audioBlob) {
-                throw new Error('Failed to decode audio');
+            if (data.success && data.audio_base64) {
+                const audioBlob = base64ToBlob(data.audio_base64, 'audio/wav');
+                if (!audioBlob) throw new Error('Failed to decode audio');
+                audioQueue = [URL.createObjectURL(audioBlob)];
+            } else {
+                throw new Error(data.error || 'Voice synthesis failed');
             }
-
-            const audioUrl = URL.createObjectURL(audioBlob);
-            currentAudio = new Audio(audioUrl);
-            currentAudio.volume = voiceConfig.volume;
-
-            // Update button state
-            btn.classList.remove('loading');
-            btn.classList.add('playing');
-            if (icon) {
-                icon.setAttribute('data-lucide', 'pause');
-                if (typeof lucide !== 'undefined') lucide.createIcons();
-            }
-
-            // Handle audio end
-            currentAudio.onended = () => {
-                btn.classList.remove('playing');
-                if (icon) {
-                    icon.setAttribute('data-lucide', 'volume-2');
-                    if (typeof lucide !== 'undefined') lucide.createIcons();
-                }
-                currentAudio = null;
-                URL.revokeObjectURL(audioUrl);
-            };
-
-            // Handle audio error
-            currentAudio.onerror = () => {
-                btn.classList.remove('loading', 'playing');
-                btn.classList.add('error');
-                if (icon) {
-                    icon.setAttribute('data-lucide', 'volume-x');
-                    if (typeof lucide !== 'undefined') lucide.createIcons();
-                }
-                currentAudio = null;
-                showToast('Audio playback failed', 'error');
-            };
-
-            await currentAudio.play();
-
-            // Show cached indicator if applicable
-            if (data.cached) {
-                showToast('Playing cached audio', 'success');
-            }
-
         } else {
-            throw new Error(data.error || 'Voice synthesis failed');
+            // Long text — use chunked endpoint (up to 2000 chars)
+            const truncated = text.substring(0, 2000);
+            const response = await fetch('/tools/archie-chat/api/voice/synthesize_chunked', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: truncated })
+            });
+
+            const data = await response.json();
+
+            if (data.success && data.chunks && data.chunks.length > 0) {
+                audioQueue = [];
+                for (const chunk of data.chunks) {
+                    const blob = base64ToBlob(chunk.audio_base64, 'audio/wav');
+                    if (blob) {
+                        audioQueue.push(URL.createObjectURL(blob));
+                    }
+                }
+                if (audioQueue.length === 0) throw new Error('Failed to decode audio chunks');
+            } else {
+                throw new Error(data.error || 'Chunked synthesis failed');
+            }
         }
+
+        // Start playback
+        btn.classList.remove('loading');
+        btn.classList.add('playing');
+        if (icon) {
+            icon.setAttribute('data-lucide', 'pause');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        playNextChunk(btn);
 
     } catch (e) {
         console.error('Voice synthesis error:', e);
         btn.classList.remove('loading');
         btn.classList.add('error');
+        currentVoiceButton = null;
+        const icon = btn.querySelector('i');
         if (icon) {
             icon.setAttribute('data-lucide', 'volume-x');
             if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -2182,22 +2168,69 @@ async function playVoice(text, buttonElement) {
     }
 }
 
-// Stop current audio
+// Play next chunk from the audio queue
+function playNextChunk(btn) {
+    if (audioQueue.length === 0) {
+        // All chunks played
+        btn.classList.remove('playing');
+        currentVoiceButton = null;
+        const icon = btn.querySelector('i');
+        if (icon) {
+            icon.setAttribute('data-lucide', 'volume-2');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+        currentAudio = null;
+        return;
+    }
+
+    const audioUrl = audioQueue.shift();
+    currentAudio = new Audio(audioUrl);
+    currentAudio.volume = voiceConfig.volume;
+
+    currentAudio.onended = () => {
+        URL.revokeObjectURL(audioUrl);
+        currentAudio = null;
+        playNextChunk(btn);
+    };
+
+    currentAudio.onerror = () => {
+        URL.revokeObjectURL(audioUrl);
+        currentAudio = null;
+        // Try next chunk on error
+        playNextChunk(btn);
+    };
+
+    currentAudio.play().catch(() => {
+        URL.revokeObjectURL(audioUrl);
+        currentAudio = null;
+        playNextChunk(btn);
+    });
+}
+
+// Stop current audio and clear queue
 function stopVoice() {
+    // Clear pending queue and revoke URLs
+    audioQueue.forEach(url => URL.revokeObjectURL(url));
+    audioQueue = [];
+
     if (currentAudio) {
+        currentAudio.onended = null;
+        currentAudio.onerror = null;
         currentAudio.pause();
         currentAudio = null;
-
-        // Reset all playing buttons
-        document.querySelectorAll('.voice-btn.playing').forEach(btn => {
-            btn.classList.remove('playing');
-            const icon = btn.querySelector('i');
-            if (icon) {
-                icon.setAttribute('data-lucide', 'volume-2');
-            }
-        });
-        if (typeof lucide !== 'undefined') lucide.createIcons();
     }
+
+    currentVoiceButton = null;
+
+    // Reset all playing buttons
+    document.querySelectorAll('.voice-btn.playing, .voice-btn.loading').forEach(btn => {
+        btn.classList.remove('playing', 'loading');
+        const icon = btn.querySelector('i');
+        if (icon) {
+            icon.setAttribute('data-lucide', 'volume-2');
+        }
+    });
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 // Add voice button to a message element

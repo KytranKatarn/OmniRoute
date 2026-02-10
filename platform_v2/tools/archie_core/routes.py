@@ -811,6 +811,43 @@ def synthesize_voice():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@archie_chat_bp.route("/api/voice/synthesize_chunked", methods=["POST"])
+@login_required
+def synthesize_voice_chunked():
+    """
+    Synthesize long text as sentence-boundary chunks (up to 2000 chars).
+    Returns array of audio chunks for sequential playback.
+    """
+    try:
+        from ai_bridge.voice_synthesis import get_voice_synthesizer
+
+        data = request.json or {}
+        text = data.get("text", "").strip()
+        emotion = data.get("emotion")
+
+        if not text:
+            return jsonify({"success": False, "error": "No text provided"}), 400
+
+        if len(text) > 2000:
+            return jsonify({"success": False, "error": "Text too long (max 2000 chars)"}), 400
+
+        synthesizer = get_voice_synthesizer()
+
+        if not emotion:
+            emotion = synthesizer.get_archie_emotional_state(current_user.id)
+
+        ARCHIE_AGENT_ID = 2
+        result = synthesizer.synthesize_for_agent_chunked(text, ARCHIE_AGENT_ID, emotion, user_id=current_user.id)
+
+        return jsonify(result)
+
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @archie_chat_bp.route("/api/voice/config", methods=["GET", "POST"])
 @login_required
 def voice_config():

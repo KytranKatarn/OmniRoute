@@ -23,6 +23,63 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 
 
+def normalize_text_for_tts(text: str) -> str:
+    """Normalize text for natural TTS pronunciation."""
+    # ARCHIE acronym — case-insensitive
+    text = re.sub(r'A\.R\.C\.H\.I\.E\.?', 'ARCHIE', text, flags=re.IGNORECASE)
+    # Titles (careful: "Dr." ends with period that could be sentence boundary)
+    text = re.sub(r'\bDr\.(?=\s)', 'Doctor', text)
+    text = re.sub(r'\bMr\.(?=\s)', 'Mister', text)
+    text = re.sub(r'\bMrs\.(?=\s)', 'Missus', text)
+    text = re.sub(r'\bMs\.(?=\s)', 'Miss', text)
+    # Common abbreviations
+    text = re.sub(r'\betc\.', 'etcetera', text, flags=re.IGNORECASE)
+    text = re.sub(r'\bi\.e\.', 'that is', text, flags=re.IGNORECASE)
+    text = re.sub(r'\be\.g\.', 'for example', text, flags=re.IGNORECASE)
+    text = re.sub(r'\bvs\.', 'versus', text, flags=re.IGNORECASE)
+    # Strip markdown emphasis (*bold*, _italic_)
+    text = re.sub(r'\*{1,2}([^*]+)\*{1,2}', r'\1', text)
+    text = re.sub(r'_{1,2}([^_]+)_{1,2}', r'\1', text)
+    # Strip markdown headers
+    text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
+    # Strip bullet points
+    text = re.sub(r'^[-*]\s+', '', text, flags=re.MULTILINE)
+    return text
+
+
+def split_into_sentences(text: str, max_chunk: int = 500) -> list:
+    """Split text into sentence-boundary chunks, each <=max_chunk chars."""
+    # Split on sentence-ending punctuation followed by space
+    parts = re.split(r'([.!?]+)\s+', text)
+    # Rejoin punctuation with preceding sentence
+    sentences = []
+    for i in range(0, len(parts), 2):
+        s = parts[i]
+        if i + 1 < len(parts):
+            s += parts[i + 1]
+        s = s.strip()
+        if s:
+            sentences.append(s)
+    # Batch small sentences together up to max_chunk
+    chunks = []
+    current = ""
+    for s in sentences:
+        if len(s) > max_chunk:
+            if current:
+                chunks.append(current)
+                current = ""
+            chunks.append(s[:max_chunk])
+        elif len(current) + len(s) + 1 <= max_chunk:
+            current = (current + " " + s).strip()
+        else:
+            if current:
+                chunks.append(current)
+            current = s
+    if current:
+        chunks.append(current)
+    return chunks if chunks else [text[:max_chunk]]
+
+
 class PhonemeExtractor:
     """
     Extract IPA phonemes from text using gruut.
@@ -359,7 +416,7 @@ class VoiceSynthesizer:
         if not text or not text.strip():
             return {'success': False, 'error': 'No text provided'}
 
-        text = text.strip()
+        text = normalize_text_for_tts(text.strip())
         if len(text) > 500:
             text = text[:500]
 
@@ -1186,7 +1243,9 @@ class VoiceSynthesizer:
         if not text or not text.strip():
             return {'success': False, 'error': 'No text provided'}
 
-        text = text.strip()[:500]
+        text = normalize_text_for_tts(text.strip())
+        if len(text) > 500:
+            text = text[:500]
 
         # Check agent-specific cache (engine+language-scoped)
         cache_key = self._get_agent_cache_key(text, emotion, agent_id, engine=engine, language=language)
@@ -1255,6 +1314,57 @@ class VoiceSynthesizer:
             print(f"[VoiceDNA] Agent synthesis error ({engine}): {e}")
             return {'success': False, 'error': str(e)}
 
+    def synthesize_for_agent_chunked(self, text: str, agent_id: int,
+                                      emotion: str = 'neutral',
+                                      user_id: Optional[int] = None,
+                                      quality: str = 'standard',
+                                      language: str = None) -> Dict[str, Any]:
+        """
+        Synthesize long text by splitting into sentence-boundary chunks.
+        Each chunk is synthesized and cached individually via synthesize_for_agent().
+
+        Accepts up to 2000 chars. Returns array of audio chunks for sequential playback.
+        """
+        if not text or not text.strip():
+            return {'success': False, 'error': 'No text provided'}
+
+        text = normalize_text_for_tts(text.strip())
+        if len(text) > 2000:
+            text = text[:2000]
+
+        # Split into sentence-boundary chunks (each <= 500 chars)
+        chunks = split_into_sentences(text, max_chunk=500)
+
+        results = []
+        for i, chunk_text in enumerate(chunks):
+            result = self.synthesize_for_agent(
+                text=chunk_text,
+                agent_id=agent_id,
+                emotion=emotion,
+                user_id=user_id,
+                quality=quality,
+                language=language
+            )
+            if result.get('success'):
+                results.append({
+                    'audio_base64': result['audio_base64'],
+                    'cached': result.get('cached', False),
+                    'chunk_index': i,
+                    'chunk_text': chunk_text[:80]
+                })
+            else:
+                print(f"[VoiceDNA] Chunk {i} failed: {result.get('error')}")
+
+        if not results:
+            return {'success': False, 'error': 'All chunks failed to synthesize'}
+
+        return {
+            'success': True,
+            'chunks': results,
+            'total_chunks': len(chunks),
+            'synthesized_chunks': len(results)
+        }
+
     def _get_agent_profile(self, agent_id: int) -> Optional[Dict[str, Any]]:
         """Load agent's voice profile from DB"""
         try:
@@ -1276,8 +1386,10 @@ class VoiceSynthesizer:
 
     def _get_agent_cache_key(self, text: str, emotion: str, agent_id: int,
                               engine: str = 'kokoro', language: str = 'en') -> str:
-        """Generate cache key scoped to agent, engine, and language"""
-        content = f"{engine}|{language}|agent:{agent_id}|{text}|{emotion}"
+        """Generate cache key scoped to agent, engine, and language.
+        Text is lowercased to match _get_cache_key behavior and maximize cache hits."""
+        normalized = text.lower().strip()
+        content = f"{engine}|{language}|agent:{agent_id}|{normalized}|{emotion}"
         return hashlib.sha256(content.encode()).hexdigest()[:32]
 
     def _check_agent_cache(self, cache_key: str, agent_id: int) -> Optional[str]:

@@ -149,7 +149,7 @@ def check_already_ingested(cur, file_hash: str) -> bool:
     cur.execute(
         """
         SELECT id FROM knowledge_base
-        WHERE metadata->>'file_hash' = %s
+        WHERE memory_metadata->>'file_hash' = %s
         LIMIT 1
         """,
         (file_hash,),
@@ -157,13 +157,14 @@ def check_already_ingested(cur, file_hash: str) -> bool:
     return cur.fetchone() is not None
 
 
-def ingest_log_file(filepath: str, dry_run: bool = False) -> dict:
+def ingest_log_file(filepath: str, dry_run: bool = False, conn=None) -> dict:
     """
     Process and ingest a single log file into knowledge_base.
 
     Args:
         filepath: Path to log file
         dry_run: If True, don't actually insert, just report
+        conn: Optional shared DB connection (caller manages lifecycle)
 
     Returns:
         dict with success status and details
@@ -194,13 +195,16 @@ def ingest_log_file(filepath: str, dry_run: bool = False) -> dict:
         }
 
     try:
-        conn = get_db()
+        owns_conn = conn is None
+        if owns_conn:
+            conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Check if already ingested
         if check_already_ingested(cur, file_hash):
             cur.close()
-            conn.close()
+            if owns_conn:
+                conn.close()
             return {"success": True, "skipped": True, "reason": "already_ingested"}
 
         # Prepare metadata
@@ -210,13 +214,14 @@ def ingest_log_file(filepath: str, dry_run: bool = False) -> dict:
         metadata["ingested_at"] = datetime.now().isoformat()
         metadata["log_type"] = parsed.get("type")
 
-        # Generate title
+        # Generate title (use filename for uniqueness)
+        session_id = parsed.get("session_id") or "unknown"
         if parsed.get("type") == "snapshot":
-            title = f"Session Snapshot: {parsed.get('session_id', 'unknown')[:8]}"
+            title = f"Session Snapshot: {filename}"
         elif parsed.get("type") == "transcript":
             title = f"Conversation Transcript: {filename}"
         else:
-            title = f"Session End: {parsed.get('session_id', 'unknown')[:8]}"
+            title = f"Session End: {filename}"
 
         # Calculate importance (snapshots with more messages = more important)
         message_count = parsed.get("message_count", 0) or 0
@@ -226,7 +231,7 @@ def ingest_log_file(filepath: str, dry_run: bool = False) -> dict:
         cur.execute(
             """
             INSERT INTO knowledge_base
-                (title, content, knowledge_type, source_type, category, importance_score, metadata, tags)
+                (title, content, knowledge_type, source_type, category, importance_score, memory_metadata, tags)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
             """,
@@ -245,7 +250,8 @@ def ingest_log_file(filepath: str, dry_run: bool = False) -> dict:
         result = cur.fetchone()
         conn.commit()
         cur.close()
-        conn.close()
+        if owns_conn:
+            conn.close()
 
         return {
             "success": True,
@@ -259,12 +265,12 @@ def ingest_log_file(filepath: str, dry_run: bool = False) -> dict:
         return {"success": False, "error": str(e), "filename": filename}
 
 
-def batch_ingest_logs(limit: int = 100, dry_run: bool = False) -> dict:
+def batch_ingest_logs(limit: int = 5000, dry_run: bool = False) -> dict:
     """
     Batch ingest conversation log files.
 
     Args:
-        limit: Maximum number of files to process
+        limit: Maximum number of files to process (default 5000)
         dry_run: If True, don't actually insert
 
     Returns:
@@ -291,18 +297,23 @@ def batch_ingest_logs(limit: int = 100, dry_run: bool = False) -> dict:
     # Sort by priority, then by filename (newest first)
     files.sort(key=lambda x: (x[0], x[1]), reverse=False)
 
-    # Process up to limit files
-    for priority, filepath in files[:limit]:
-        result = ingest_log_file(filepath, dry_run=dry_run)
-        results["processed"] += 1
+    # Share a single DB connection across all files
+    conn = None if dry_run else get_db()
+    try:
+        for priority, filepath in files[:limit]:
+            result = ingest_log_file(filepath, dry_run=dry_run, conn=conn)
+            results["processed"] += 1
 
-        if result.get("success"):
-            if result.get("created") or result.get("would_create"):
-                results["created"] += 1
-            elif result.get("skipped"):
-                results["skipped"] += 1
-        else:
-            results["errors"].append({"file": os.path.basename(filepath), "error": result.get("error")})
+            if result.get("success"):
+                if result.get("created") or result.get("would_create"):
+                    results["created"] += 1
+                elif result.get("skipped"):
+                    results["skipped"] += 1
+            else:
+                results["errors"].append({"file": os.path.basename(filepath), "error": result.get("error")})
+    finally:
+        if conn:
+            conn.close()
 
     results["success"] = True
     return results

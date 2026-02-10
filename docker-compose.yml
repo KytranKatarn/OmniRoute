@@ -31,6 +31,13 @@ services:
     container_name: archie_platform
     command: ["gunicorn", "--bind", "0.0.0.0:3000", "--workers", "1", "--threads", "4", "--timeout", "300", "app:app"]
     restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     env_file:
       - .env
     environment:

@@ -295,12 +295,12 @@
 
 /* Message Actions (copy + reactions) */
 .bubble-wrapper { display: flex; flex-direction: column; min-width: 0; flex: 1; }
-.msg-actions { display: flex; gap: 4px; margin-top: 4px; opacity: 0; transition: opacity 0.2s; align-items: center; }
+.msg-actions { display: flex; gap: 4px; margin-top: 6px; opacity: 0.5; transition: opacity 0.2s; align-items: center; }
 .chat-message:hover .msg-actions, .chat-message .msg-actions.has-reactions { opacity: 1; }
-.msg-action-btn { background: transparent; border: 1px solid transparent; border-radius: 12px; padding: 2px 8px; font-size: 0.75rem; cursor: pointer; color: var(--archie-text-muted); transition: all 0.15s; min-width: 32px; min-height: 28px; display: inline-flex; align-items: center; justify-content: center; gap: 2px; }
-.msg-action-btn:hover { border-color: var(--archie-border-default); background: var(--archie-bg-secondary); }
+.msg-action-btn { background: transparent; border: 1px solid var(--archie-border-default); border-radius: 12px; padding: 2px 8px; font-size: 0.75rem; cursor: pointer; color: var(--archie-text-muted); transition: all 0.15s; min-width: 32px; min-height: 28px; display: inline-flex; align-items: center; justify-content: center; gap: 2px; }
+.msg-action-btn:hover { border-color: var(--module-accent); background: var(--archie-bg-secondary); color: var(--archie-text-secondary); }
 .msg-action-btn.active { border-color: var(--module-accent); background: var(--module-accent-alpha-10); color: var(--module-accent); }
-.msg-action-btn.copied { color: var(--archie-green); }
+.msg-action-btn.copied { color: var(--archie-green); border-color: var(--archie-green); }
 .msg-actions .voice-play-btn { width: auto; min-width: 32px; min-height: 28px; border-radius: 12px; font-size: 0.75rem; }
 @media (hover: none) { .msg-actions { opacity: 1; } }
 
@@ -1221,30 +1221,32 @@ function createChatMessage(type, content, extras = {}) {
 function copyMessageText(btn) {
     var bubble = btn.closest('.bubble-wrapper').querySelector('.bubble');
     var text = bubble.textContent || bubble.innerText;
-    navigator.clipboard.writeText(text).then(function() {
+    function showCopied() {
         btn.textContent = '\u2705';
         btn.classList.add('copied');
         setTimeout(function() {
             btn.textContent = '\u{1F4CB}';
             btn.classList.remove('copied');
         }, 1500);
-    }).catch(function() {
-        // Fallback for older browsers
-        var ta = document.createElement('textarea');
-        ta.value = text;
-        ta.style.position = 'fixed';
-        ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-        btn.textContent = '\u2705';
-        btn.classList.add('copied');
-        setTimeout(function() {
-            btn.textContent = '\u{1F4CB}';
-            btn.classList.remove('copied');
-        }, 1500);
-    });
+    }
+    // Use textarea + execCommand as primary method (works on HTTP)
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0';
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, ta.value.length);
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch(e) {}
+    document.body.removeChild(ta);
+    if (ok) { showCopied(); return; }
+    // Fallback to clipboard API (only works on HTTPS/localhost)
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(showCopied).catch(function() {
+            alert('Copy failed - try HTTPS or copy manually');
+        });
+    }
 }
 
 async function toggleReaction(btn) {
@@ -1379,28 +1381,42 @@ async function playVoice(messageId, btn) {
         const data = await response.json();
 
         if (data.success && data.audio_base64) {
-            const audio = new Audio('data:audio/wav;base64,' + data.audio_base64);
+            const audioBlob = Uint8Array.from(atob(data.audio_base64), c => c.charCodeAt(0));
+            const blob = new Blob([audioBlob], { type: 'audio/wav' });
+            const url = URL.createObjectURL(blob);
+            const audio = new Audio(url);
             currentAudio = audio;
             audio.onended = () => {
                 btn.classList.remove('playing');
-                btn.textContent = '🔊';
+                btn.textContent = '\u{1F50A}';
                 currentAudio = null;
+                URL.revokeObjectURL(url);
             };
-            audio.onerror = () => {
+            audio.onerror = (e) => {
+                console.error('Audio playback error:', e);
                 btn.classList.remove('playing');
-                btn.textContent = '🔊';
+                btn.textContent = '\u{1F50A}';
                 currentAudio = null;
+                URL.revokeObjectURL(url);
             };
-            audio.play();
+            try {
+                await audio.play();
+            } catch (playErr) {
+                console.error('Autoplay blocked:', playErr);
+                btn.classList.remove('playing');
+                btn.textContent = '\u{1F50A}';
+                currentAudio = null;
+                URL.revokeObjectURL(url);
+            }
         } else {
             console.log('Voice synthesis unavailable:', data.error || 'Unknown error');
             btn.classList.remove('playing');
-            btn.textContent = '🔊';
+            btn.textContent = '\u{1F50A}';
         }
     } catch (e) {
         console.log('Voice synthesis error:', e.message);
         btn.classList.remove('playing');
-        btn.textContent = '🔊';
+        btn.textContent = '\u{1F50A}';
     }
 }
 

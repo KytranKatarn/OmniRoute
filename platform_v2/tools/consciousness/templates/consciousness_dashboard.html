@@ -147,6 +147,28 @@
     margin-top: var(--archie-space-1, 0.25rem);
 }
 
+.stat-subtitle {
+    font-size: 0.7rem;
+    color: var(--archie-text-muted, #6e7681);
+    margin-top: 0.25rem;
+    opacity: 0.8;
+}
+
+.stat-value.muted {
+    color: var(--archie-text-muted, #6e7681);
+    text-shadow: none;
+    font-size: 1.1rem;
+}
+
+.stats-row-label {
+    font-size: 0.7rem;
+    color: var(--archie-text-muted, #6e7681);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 0.5rem;
+    margin-top: 0.25rem;
+}
+
 /* Cards & Panels */
 .panel {
     background: var(--archie-bg-secondary, #0d1117);
@@ -370,13 +392,19 @@
     </div>
 
     <div id="tab-overview" class="tab-content active">
+        <div class="stats-row-label">Knowledge</div>
         <div class="stats-grid">
-            <div class="stat-card"><div class="stat-value" id="stat-knowledge-total">-</div><div class="stat-label">Knowledge Entries</div></div>
-            <div class="stat-card"><div class="stat-value" id="stat-knowledge-24h">-</div><div class="stat-label">Added (24h)</div></div>
-            <div class="stat-card"><div class="stat-value" id="stat-agents">-</div><div class="stat-label">Active Agents</div></div>
-            <div class="stat-card"><div class="stat-value" id="stat-improvements">-</div><div class="stat-label">Improvements</div></div>
-            <div class="stat-card"><div class="stat-value" id="stat-llm-health">-</div><div class="stat-label">LLM Health</div></div>
+            <div class="stat-card"><div class="stat-value" id="stat-kb-total">-</div><div class="stat-label">Knowledge Base</div><div class="stat-subtitle" id="stat-kb-subtitle">Loading...</div></div>
+            <div class="stat-card"><div class="stat-value" id="stat-github">-</div><div class="stat-label">GitHub Indexed</div><div class="stat-subtitle" id="stat-github-subtitle">Loading...</div></div>
+            <div class="stat-card"><div class="stat-value" id="stat-embeddings">-</div><div class="stat-label">Embeddings</div><div class="stat-subtitle" id="stat-embeddings-subtitle">Loading...</div></div>
+            <div class="stat-card"><div class="stat-value" id="stat-conversations">-</div><div class="stat-label">Conversations</div><div class="stat-subtitle" id="stat-conversations-subtitle">Loading...</div></div>
+        </div>
+        <div class="stats-row-label">System Status</div>
+        <div class="stats-grid">
             <div class="stat-card"><div class="stat-value" id="stat-mood">-</div><div class="stat-label">Current Mood</div></div>
+            <div class="stat-card"><div class="stat-value" id="stat-agents">-</div><div class="stat-label">Active Agents</div></div>
+            <div class="stat-card"><div class="stat-value" id="stat-llm-health">-</div><div class="stat-label">LLM Models</div></div>
+            <div class="stat-card"><div class="stat-value" id="stat-improvements">-</div><div class="stat-label">Improvements</div></div>
         </div>
         <div class="dashboard-grid">
             <div class="chart-container"><div class="chart-title">📈 Knowledge Growth (7 days)</div><canvas id="growth-chart-mini" height="160"></canvas></div>
@@ -875,44 +903,109 @@ let growthChartMini, typeChartMini, growthChart, typeChart, categoryChart, impor
 const chartColors = { primary: '#8b5cf6', secondary: '#00ffff', success: '#00ff41', warning: '#ffaa00', danger: '#ff6b6b', info: '#0ea5e9' };
 const moodEmojis = { 'happy': '😊', 'curious': '🤔', 'focused': '🎯', 'neutral': '😐', 'confused': '😕', 'frustrated': '😤', 'supportive': '💜', 'excited': '🎉' };
 
+function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
+
+function buildKbSubtitle(breakdown) {
+    if (!breakdown || !breakdown.length) return '';
+    const top3 = breakdown.slice(0, 3);
+    return top3.map(b => {
+        const count = (b.count || 0).toLocaleString();
+        const label = (b.type || 'unknown').replace(/_/g, ' ');
+        return count + ' ' + label;
+    }).join(' · ');
+}
+
 async function loadStats() {
     try {
         const response = await fetch('/tools/consciousness/activity-stats', {credentials: 'same-origin'});
         const data = await response.json();
         if (data.success) {
-            document.getElementById('stat-knowledge-total').textContent = (data.stats.knowledge_total || 0).toLocaleString();
-            document.getElementById('stat-knowledge-24h').textContent = '+' + (data.stats.knowledge_24h || 0);
-            document.getElementById('stat-agents').textContent = data.stats.agents_active || 0;
-            document.getElementById('stat-improvements').textContent = data.stats.improvements_total || 0;
-            if (data.llm_health && data.llm_health.total) document.getElementById('stat-llm-health').textContent = (data.llm_health.online || 0) + '/' + data.llm_health.total;
-            if (data.emotional_state) document.getElementById('stat-mood').textContent = moodEmojis[data.emotional_state.mood] || '🤔';
+            const overview = data.overview || {};
+
+            // Knowledge cards
+            document.getElementById('stat-kb-total').textContent = (overview.kb_total || 0).toLocaleString();
+            document.getElementById('stat-kb-subtitle').textContent = buildKbSubtitle(overview.kb_breakdown);
+
+            document.getElementById('stat-github').textContent = (overview.github_files || 0).toLocaleString();
+            document.getElementById('stat-github-subtitle').textContent =
+                (overview.github_code || 0) + ' code · ' + (overview.github_docs || 0) + ' docs · ' + (overview.github_repos || 0) + ' repos';
+
+            const embedTotal = overview.embeddings_total || 0;
+            const embedDone = overview.embeddings_done || 0;
+            const embedPct = embedTotal > 0 ? Math.round((embedDone / embedTotal) * 100) : 0;
+            document.getElementById('stat-embeddings').textContent = embedPct + '%';
+            document.getElementById('stat-embeddings-subtitle').textContent =
+                embedDone.toLocaleString() + ' of ' + embedTotal.toLocaleString() + ' searchable';
+
+            document.getElementById('stat-conversations').textContent = (overview.conversations || 0).toLocaleString();
+            document.getElementById('stat-conversations-subtitle').textContent =
+                (overview.memories || 0) + ' memories extracted';
+
+            // System status cards
+            const mood = (data.emotional_state && data.emotional_state.mood) || 'neutral';
+            const emoji = moodEmojis[mood] || '🤔';
+            document.getElementById('stat-mood').textContent = emoji + ' ' + capitalize(mood);
+
+            const agentsActive = data.stats.agents_active || 0;
+            const agentEl = document.getElementById('stat-agents');
+            if (agentsActive > 0) {
+                agentEl.textContent = agentsActive;
+                agentEl.classList.remove('muted');
+            } else {
+                agentEl.textContent = 'None active';
+                agentEl.classList.add('muted');
+            }
+
+            const llm = data.llm_health || {};
+            let llmParts = [];
+            if (llm.online > 0) llmParts.push(llm.online + ' online');
+            if (llm.degraded > 0) llmParts.push(llm.degraded + ' degraded');
+            if (llm.offline > 0) llmParts.push(llm.offline + ' offline');
+            document.getElementById('stat-llm-health').textContent = llmParts.length > 0 ? llmParts.join(' · ') : 'No models';
+
+            const improvTotal = data.stats.improvements_total || 0;
+            const improvEl = document.getElementById('stat-improvements');
+            if (improvTotal > 0) {
+                improvEl.textContent = improvTotal;
+                improvEl.classList.remove('muted');
+            } else {
+                improvEl.textContent = 'No proposals';
+                improvEl.classList.add('muted');
+            }
+
+            // Update mini charts from overview data (avoids extra /stats call)
+            loadMiniChartsFromOverview(overview);
         }
     } catch (e) { console.error('Error loading stats:', e); }
 }
 
-async function loadMiniCharts() {
+function loadMiniChartsFromOverview(overview) {
     try {
-        const response = await fetch('/tools/consciousness/stats', {credentials: 'same-origin'});
-        const data = await response.json();
-        if (data.success && data.stats) {
-            const growthData = data.stats.learning_timeline || [];
-            const last7Days = growthData.slice(-7);
-            if (growthChartMini) growthChartMini.destroy();
-            growthChartMini = new Chart(document.getElementById('growth-chart-mini'), {
-                type: 'line', data: { labels: last7Days.map(d => d.date ? new Date(d.date).toLocaleDateString('en-US', {weekday: 'short'}) : ''),
-                    datasets: [{ label: 'Entries', data: last7Days.map(d => d.count || 0), borderColor: chartColors.primary, backgroundColor: 'rgba(139, 92, 246, 0.1)', fill: true, tension: 0.4 }]
-                }, options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' } }, y: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' } } } }
-            });
-            const typeArray = data.stats.memory_types || [];
-            const typeData = {};
-            typeArray.forEach(t => { typeData[t.memory_type || t.type || 'unknown'] = t.count || 0; });
-            if (typeChartMini) typeChartMini.destroy();
-            typeChartMini = new Chart(document.getElementById('type-chart-mini'), {
-                type: 'doughnut', data: { labels: Object.keys(typeData), datasets: [{ data: Object.values(typeData), backgroundColor: [chartColors.primary, chartColors.secondary, chartColors.success, chartColors.warning, chartColors.danger, chartColors.info] }] },
-                options: { responsive: true, plugins: { legend: { position: 'right', labels: { color: '#8b949e' } } } }
-            });
-        }
+        // Growth chart from knowledge_base 7-day data
+        const growthData = overview.kb_growth_7d || [];
+        if (growthChartMini) growthChartMini.destroy();
+        growthChartMini = new Chart(document.getElementById('growth-chart-mini'), {
+            type: 'line', data: { labels: growthData.map(d => d.date ? new Date(d.date + 'T00:00:00').toLocaleDateString('en-US', {weekday: 'short'}) : ''),
+                datasets: [{ label: 'Entries', data: growthData.map(d => d.count || 0), borderColor: chartColors.primary, backgroundColor: 'rgba(139, 92, 246, 0.1)', fill: true, tension: 0.4 }]
+            }, options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' } }, y: { grid: { color: '#21262d' }, ticks: { color: '#8b949e' } } } }
+        });
+
+        // Composition doughnut from knowledge_type breakdown
+        const breakdown = overview.kb_breakdown || [];
+        const typeLabels = breakdown.map(b => (b.type || 'unknown').replace(/_/g, ' '));
+        const typeCounts = breakdown.map(b => b.count || 0);
+        const colors = [chartColors.primary, chartColors.secondary, chartColors.success, chartColors.warning, chartColors.danger, chartColors.info, '#e879f9', '#34d399'];
+        if (typeChartMini) typeChartMini.destroy();
+        typeChartMini = new Chart(document.getElementById('type-chart-mini'), {
+            type: 'doughnut', data: { labels: typeLabels, datasets: [{ data: typeCounts, backgroundColor: colors.slice(0, typeLabels.length) }] },
+            options: { responsive: true, plugins: { legend: { position: 'right', labels: { color: '#8b949e', font: { size: 11 } } } } }
+        });
     } catch (e) { console.error('Error loading mini charts:', e); }
+}
+
+async function loadMiniCharts() {
+    // Now handled by loadStats -> loadMiniChartsFromOverview
+    // Kept as no-op for backward compatibility with setInterval
 }
 
 function escHtml(str) { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }

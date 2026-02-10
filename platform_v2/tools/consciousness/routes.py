@@ -3027,6 +3027,72 @@ def get_activity_stats():
         )
         llm_health = cur.fetchone()
 
+        # Knowledge type breakdown
+        cur.execute(
+            """
+            SELECT knowledge_type, COUNT(*) as count
+            FROM knowledge_base GROUP BY knowledge_type ORDER BY count DESC
+        """
+        )
+        kb_breakdown = [dict(r) for r in cur.fetchall()]
+
+        # Embedding coverage
+        cur.execute(
+            """
+            SELECT COUNT(*) as total,
+                   COALESCE(SUM(CASE WHEN has_embedding THEN 1 ELSE 0 END), 0) as with_embeddings
+            FROM knowledge_base
+        """
+        )
+        embed_row = cur.fetchone()
+
+        # GitHub summary
+        cur.execute(
+            """
+            SELECT
+                (SELECT COUNT(*) FROM github_repositories) as github_repos,
+                (SELECT COUNT(*) FROM knowledge_base WHERE knowledge_type = 'github_file') as github_files,
+                (SELECT COALESCE(SUM(CASE WHEN is_code THEN 1 ELSE 0 END), 0) FROM knowledge_base WHERE knowledge_type = 'github_file') as github_code,
+                (SELECT COALESCE(SUM(CASE WHEN is_documentation THEN 1 ELSE 0 END), 0) FROM knowledge_base WHERE knowledge_type = 'github_file') as github_docs
+        """
+        )
+        github_row = cur.fetchone()
+
+        # Conversations & memories
+        cur.execute(
+            """
+            SELECT
+                (SELECT COUNT(*) FROM ai_conversations) as conversations,
+                (SELECT COUNT(*) FROM long_term_memory) as memories
+        """
+        )
+        conv_row = cur.fetchone()
+
+        # Knowledge growth (7 days) from knowledge_base
+        cur.execute(
+            """
+            SELECT DATE(created_at) as date, COUNT(*) as count
+            FROM knowledge_base
+            WHERE created_at >= NOW() - INTERVAL '7 days'
+            GROUP BY DATE(created_at) ORDER BY date
+        """
+        )
+        kb_growth = [{"date": str(r["date"]), "count": r["count"]} for r in cur.fetchall()]
+
+        overview = {
+            "kb_total": embed_row["total"] if embed_row else 0,
+            "kb_breakdown": [{"type": r["knowledge_type"], "count": r["count"]} for r in kb_breakdown],
+            "embeddings_total": embed_row["total"] if embed_row else 0,
+            "embeddings_done": embed_row["with_embeddings"] if embed_row else 0,
+            "github_repos": github_row["github_repos"] if github_row else 0,
+            "github_files": github_row["github_files"] if github_row else 0,
+            "github_code": github_row["github_code"] if github_row else 0,
+            "github_docs": github_row["github_docs"] if github_row else 0,
+            "conversations": conv_row["conversations"] if conv_row else 0,
+            "memories": conv_row["memories"] if conv_row else 0,
+            "kb_growth_7d": kb_growth,
+        }
+
         cur.close()
         conn.close()
 
@@ -3038,6 +3104,7 @@ def get_activity_stats():
                     dict(emotional) if emotional else {"mood": "neutral", "energy": 0.8, "confidence": 0.8}
                 ),
                 "llm_health": dict(llm_health) if llm_health else {},
+                "overview": overview,
             }
         )
 

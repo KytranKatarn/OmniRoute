@@ -227,6 +227,21 @@ class KnowledgeAnalyzer:
                 raise ImportError("pip install anthropic")
         return self._client
 
+    def warmup(self) -> bool:
+        """Warm up Ollama model to avoid cold-start crashes"""
+        if self.backend != "ollama":
+            return True
+        try:
+            resp = requests.post(
+                f"{OLLAMA_HOST}/api/generate",
+                json={"model": OLLAMA_MODEL, "prompt": "hi", "stream": False, "options": {"num_predict": 1}},
+                timeout=30,
+            )
+            return resp.status_code == 200
+        except Exception as e:
+            logger.warning(f"Ollama warmup failed: {e}")
+            return False
+
     def health_check(self) -> dict:
         """Check if analyzer is ready"""
         if self.backend == "ollama":

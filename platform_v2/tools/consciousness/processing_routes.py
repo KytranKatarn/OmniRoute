@@ -229,6 +229,14 @@ def start_processing():
         category = data.get("category", "conversations")
         batch_size = min(int(data.get("batch_size", 10)), 50)  # Max 50 per batch
 
+        # Warm up Ollama model to avoid cold-start crashes
+        analyzer = get_knowledge_analyzer()
+        if not analyzer.warmup():
+            return (
+                jsonify({"success": False, "error": "Analyzer model failed to warm up. Try again in a few seconds."}),
+                503,
+            )
+
         # Check cost limits
         controller = get_cost_controller()
         estimate = controller.estimate_batch(batch_size, category)
@@ -281,7 +289,6 @@ def start_processing():
             return jsonify({"success": True, "message": "No items to process", "processed": 0})
 
         # Process items
-        analyzer = get_knowledge_analyzer()
         mapper = get_relationship_mapper()
         results = {
             "batch_id": batch_id,

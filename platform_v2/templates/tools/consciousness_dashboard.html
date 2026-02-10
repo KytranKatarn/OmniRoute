@@ -465,7 +465,7 @@
         <div class="stats-grid">
             <div class="stat-card"><div class="stat-value" id="stat-footprint">-</div><div class="stat-label">Total Knowledge</div><div class="stat-subtitle" id="stat-footprint-subtitle">Loading...</div></div>
             <div class="stat-card"><div class="stat-value" id="stat-github">-</div><div class="stat-label">GitHub Indexed</div><div class="stat-subtitle" id="stat-github-subtitle">Loading...</div></div>
-            <div class="stat-card"><div class="stat-value" id="stat-searchable">-</div><div class="stat-label">Searchable</div><div class="stat-subtitle" id="stat-searchable-subtitle">Loading...</div></div>
+            <div class="stat-card"><div class="stat-value" id="stat-searchable">-</div><div class="stat-label">Text Searchable</div><div class="stat-subtitle" id="stat-searchable-subtitle">Loading...</div></div>
             <div class="stat-card"><div class="stat-value" id="stat-self-knowledge">-</div><div class="stat-label">Self-Knowledge</div><div class="stat-subtitle" id="stat-self-knowledge-subtitle">Loading...</div></div>
         </div>
         <div class="stats-row-label">System Status</div>
@@ -628,12 +628,36 @@
     </div>
 
     <div id="tab-emotional" class="tab-content">
+        <div id="emotional-freshness" style="text-align: right; font-size: 0.75rem; color: var(--archie-text-muted); margin-bottom: 0.5rem;"></div>
         <div class="emotional-grid">
             <div class="mood-indicator"><div class="mood-emoji" id="mood-emoji">🤔</div><div class="mood-label" id="mood-label">Loading...</div><div style="color: var(--archie-text-muted); font-size: 0.75rem; margin-top: 0.5rem;">Current State</div></div>
-            <div class="gauge-container"><div class="gauge-label">⚡ Energy Level</div><div class="gauge-bar"><div class="gauge-fill" id="energy-fill" style="width: 0%"></div></div><div class="gauge-value" id="energy-value">-</div></div>
+            <div class="gauge-container"><div class="gauge-label">💜 Mood Intensity</div><div class="gauge-bar"><div class="gauge-fill" id="energy-fill" style="width: 0%"></div></div><div class="gauge-value" id="energy-value">-</div></div>
             <div class="gauge-container"><div class="gauge-label">🎯 Confidence Level</div><div class="gauge-bar"><div class="gauge-fill" id="confidence-fill" style="width: 0%"></div></div><div class="gauge-value" id="confidence-value">-</div></div>
-            <div class="gauge-container"><div class="gauge-label">💫 Stress Level</div><div class="gauge-bar"><div class="gauge-fill" id="stress-fill" style="width: 0%; background: linear-gradient(90deg, var(--archie-green), var(--archie-orange), var(--archie-red));"></div></div><div class="gauge-value" id="stress-value">-</div></div>
+            <div class="gauge-container" id="stress-container"><div class="gauge-label">💫 Stress Level</div><div class="gauge-bar"><div class="gauge-fill" id="stress-fill" style="width: 0%; background: linear-gradient(90deg, var(--archie-green), var(--archie-orange), var(--archie-red));"></div></div><div class="gauge-value" id="stress-value">-</div></div>
         </div>
+
+        <!-- Mood Distribution + Sentiment Doughnuts -->
+        <div style="display: flex; gap: 1rem; margin-top: 1.5rem; flex-wrap: wrap;">
+            <div class="chart-container" style="flex: 1; min-width: 250px; max-width: 350px;">
+                <div class="chart-title">🎭 Mood Distribution</div>
+                <canvas id="mood-distribution-chart" height="200"></canvas>
+            </div>
+            <div class="chart-container" style="flex: 1; min-width: 250px; max-width: 350px;">
+                <div class="chart-title">💬 Detected User Emotions</div>
+                <canvas id="sentiment-distribution-chart" height="200"></canvas>
+            </div>
+        </div>
+
+        <!-- Sentiment Insights Panel -->
+        <div class="panel" style="margin-top: 1rem;">
+            <div class="panel-header"><div class="panel-title">🔮 Sentiment Insights</div></div>
+            <div class="panel-body">
+                <div id="sentiment-insights" style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                    <div style="color: var(--archie-text-muted);">Loading...</div>
+                </div>
+            </div>
+        </div>
+
         <div class="chart-container" style="margin-top: 1.5rem; max-width: 900px;"><div class="chart-title">💜 Emotional Timeline (7 days)</div><canvas id="emotional-timeline" height="180"></canvas></div>
 
         <!-- Mood Trigger Log -->
@@ -660,7 +684,7 @@
         <div class="panel" style="margin-top: 1rem;">
             <div class="panel-header"><div class="panel-title">🧠 Recent Emotional Memories</div></div>
             <div class="panel-body">
-                <div id="emotional-memories" class="activity-feed" style="max-height: 250px;">
+                <div id="emotional-memories" class="activity-feed" style="max-height: 400px;">
                     <div style="text-align: center; color: var(--archie-text-muted); padding: 1rem;">Loading...</div>
                 </div>
             </div>
@@ -1178,9 +1202,9 @@ document.querySelectorAll('#feed-filters .filter-btn').forEach(btn => {
     });
 });
 
-let growthChartMini, typeChartMini, growthChart, typeChart, embeddingChart, importanceChart, emotionalTimeline, emotionalChartFull, chatVolumeChart;
+let growthChartMini, typeChartMini, growthChart, typeChart, embeddingChart, importanceChart, emotionalTimeline, emotionalChartFull, chatVolumeChart, moodDistChart, sentimentDistChart;
 const chartColors = { primary: '#8b5cf6', secondary: '#00ffff', success: '#00ff41', warning: '#ffaa00', danger: '#ff6b6b', info: '#0ea5e9' };
-const moodEmojis = { 'happy': '😊', 'curious': '🤔', 'focused': '🎯', 'neutral': '😐', 'confused': '😕', 'frustrated': '😤', 'supportive': '💜', 'excited': '🎉' };
+const moodEmojis = { 'happy': '😊', 'curious': '🤔', 'focused': '🎯', 'neutral': '😐', 'confused': '😕', 'frustrated': '😤', 'supportive': '💜', 'excited': '🎉', 'concerned': '😟' };
 
 function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
 
@@ -1216,13 +1240,15 @@ async function loadStats() {
             document.getElementById('stat-github-subtitle').textContent =
                 (overview.github_code || 0) + ' code · ' + (overview.github_docs || 0) + ' docs · ' + (overview.github_repos || 0) + ' repos';
 
-            // Searchable (embedding gap against full footprint)
-            const footprintTotal = overview.footprint_total || 0;
-            const embedDone = overview.embeddings_done || 0;
-            const searchPct = footprintTotal > 0 ? Math.round((embedDone / footprintTotal) * 100) : 0;
-            document.getElementById('stat-searchable').textContent = searchPct + '%';
+            // Text Searchable (KB + LTM support text search; show embedding coverage separately)
+            const ss = overview.search_status || {};
+            const textSearchable = ss.text_searchable || 0;
+            document.getElementById('stat-searchable').textContent = textSearchable.toLocaleString();
+            const kbEmbedded = ss.kb_embedded || 0;
+            const kbTotal = ss.kb_total || 0;
+            const embedPct = kbTotal > 0 ? Math.round((kbEmbedded / kbTotal) * 100) : 0;
             document.getElementById('stat-searchable-subtitle').textContent =
-                embedDone.toLocaleString() + ' of ' + footprintTotal.toLocaleString() + ' embedded';
+                embedPct + '% of KB vector-embedded (' + kbEmbedded.toLocaleString() + '/' + kbTotal.toLocaleString() + ')';
 
             // Self-Knowledge
             const sk = overview.self_knowledge || {};
@@ -1239,9 +1265,12 @@ async function loadStats() {
             const emoji = moodEmojis[mood] || '🤔';
             document.getElementById('stat-mood').textContent = emoji + ' ' + capitalize(mood);
 
-            document.getElementById('stat-conversations').textContent = (overview.conversations || 0).toLocaleString();
+            const totalConvos = (overview.conversations || 0) + (overview.claude_sessions || 0) + (overview.improvement_conversations || 0);
+            document.getElementById('stat-conversations').textContent = totalConvos.toLocaleString();
             document.getElementById('stat-conversations-subtitle').textContent =
-                (overview.memories || 0) + ' memories · ' + (data.stats.knowledge_24h || 0) + ' new today';
+                (overview.conversations || 0) + ' ARCHIE · ' +
+                (overview.claude_sessions || 0) + ' Claude · ' +
+                (overview.improvement_conversations || 0) + ' improve';
 
             const llm = data.llm_health || {};
             let llmParts = [];
@@ -1323,40 +1352,177 @@ function escHtml(str) { const d = document.createElement('div'); d.textContent =
 
 async function loadEmotionalData() {
     try {
+        const moodColors = { 'happy': '#00ff41', 'focused': '#8b5cf6', 'curious': '#00ffff', 'neutral': '#6e7681', 'concerned': '#ffaa00', 'frustrated': '#ff6b6b', 'excited': '#fbbf24', 'confused': '#f472b6', 'supportive': '#a78bfa' };
+
         // Fetch rich emotional state data
         const stateResponse = await fetch('/tools/consciousness/emotional-state', {credentials: 'same-origin'});
         const stateData = await stateResponse.json();
 
+        // Data freshness indicator
+        const freshnessEl = document.getElementById('emotional-freshness');
+        if (stateData.data_freshness) {
+            const df = stateData.data_freshness;
+            let agoText = '';
+            if (df.latest_state) {
+                const diff = Date.now() - new Date(df.latest_state).getTime();
+                const mins = Math.floor(diff / 60000);
+                if (mins < 1) agoText = 'just now';
+                else if (mins < 60) agoText = mins + ' min ago';
+                else if (mins < 1440) agoText = Math.floor(mins / 60) + ' hours ago';
+                else agoText = Math.floor(mins / 1440) + ' days ago';
+            }
+            freshnessEl.textContent = (agoText ? 'Last reading: ' + agoText + ' | ' : '') + (df.total_states || 0) + ' states \u00b7 ' + (df.total_memories || 0) + ' memories';
+        }
+
         if (stateData.mood) {
-            document.getElementById('mood-emoji').textContent = moodEmojis[stateData.mood] || '🤔';
+            document.getElementById('mood-emoji').textContent = moodEmojis[stateData.mood] || '\ud83e\udd14';
             document.getElementById('mood-label').textContent = stateData.mood || 'neutral';
 
-            const agentState = stateData.agent_state || {};
-            const energy = (agentState.energy_level || stateData.energy || 0.8) * 100;
-            const confidence = (stateData.confidence || 0.8) * 100;
-            const stress = (agentState.stress_level || 0.3) * 100;
+            const computed = stateData.computed || {};
+            const energy = (computed.energy || 0.5) * 100;
+            const confidence = (computed.confidence || 0.5) * 100;
 
             document.getElementById('energy-fill').style.width = energy + '%';
             document.getElementById('energy-value').textContent = energy.toFixed(0) + '%';
             document.getElementById('confidence-fill').style.width = confidence + '%';
             document.getElementById('confidence-value').textContent = confidence.toFixed(0) + '%';
-            document.getElementById('stress-fill').style.width = stress + '%';
-            document.getElementById('stress-value').textContent = stress.toFixed(0) + '%';
+
+            // Stress gauge — hide if no agent data
+            const stressContainer = document.getElementById('stress-container');
+            if (computed.has_agent_data && computed.stress !== null) {
+                const stress = (computed.stress || 0) * 100;
+                document.getElementById('stress-fill').style.width = stress + '%';
+                document.getElementById('stress-value').textContent = stress.toFixed(0) + '%';
+            } else {
+                stressContainer.querySelector('.gauge-bar').style.display = 'none';
+                stressContainer.querySelector('.gauge-value').textContent = 'No stress data';
+                stressContainer.querySelector('.gauge-value').style.cssText = 'color: var(--archie-text-muted); font-size: 0.75rem; font-style: italic;';
+            }
+        }
+
+        // Render mood distribution doughnut
+        if (stateData.mood_distribution && stateData.mood_distribution.length > 0) {
+            const labels = stateData.mood_distribution.map(function(d) { return d.current_mood; });
+            const counts = stateData.mood_distribution.map(function(d) { return d.count; });
+            const colors = labels.map(function(m) { return moodColors[m] || '#6e7681'; });
+            if (moodDistChart) moodDistChart.destroy();
+            moodDistChart = new Chart(document.getElementById('mood-distribution-chart'), {
+                type: 'doughnut',
+                data: { labels: labels.map(function(l) { return (moodEmojis[l] || '') + ' ' + l; }), datasets: [{ data: counts, backgroundColor: colors, borderColor: '#0d1117', borderWidth: 2 }] },
+                options: { responsive: true, plugins: { legend: { position: 'right', labels: { color: '#8b949e', padding: 8, font: { size: 11 } } } } }
+            });
+        }
+
+        // Render sentiment distribution doughnut
+        if (stateData.sentiment_summary && stateData.sentiment_summary.length > 0) {
+            const emotionColors = { 'calm': '#00ff41', 'curious': '#00ffff', 'neutral': '#6e7681', 'happy': '#fbbf24', 'frustrated': '#ff6b6b', 'appreciative': '#a78bfa', 'confused': '#f472b6' };
+            const sLabels = stateData.sentiment_summary.map(function(s) { return s.detected_emotion; });
+            const sCounts = stateData.sentiment_summary.map(function(s) { return s.count; });
+            const sColors = sLabels.map(function(e) { return emotionColors[e] || '#6e7681'; });
+            if (sentimentDistChart) sentimentDistChart.destroy();
+            sentimentDistChart = new Chart(document.getElementById('sentiment-distribution-chart'), {
+                type: 'doughnut',
+                data: { labels: sLabels, datasets: [{ data: sCounts, backgroundColor: sColors, borderColor: '#0d1117', borderWidth: 2 }] },
+                options: { responsive: true, plugins: { legend: { position: 'right', labels: { color: '#8b949e', padding: 8, font: { size: 11 } } } } }
+            });
+        }
+
+        // Render sentiment insights panel
+        const insightsEl = document.getElementById('sentiment-insights');
+        insightsEl.textContent = '';
+        if (stateData.latest_sentiment) {
+            const ls = stateData.latest_sentiment;
+            // Emotional signals as chips
+            let signals = [];
+            try { signals = typeof ls.signals === 'string' ? JSON.parse(ls.signals) : (ls.signals || []); } catch(e) {}
+            if (signals.length > 0) {
+                const signalBox = document.createElement('div');
+                signalBox.style.cssText = 'flex: 1; min-width: 200px;';
+                const signalTitle = document.createElement('div');
+                signalTitle.style.cssText = 'font-size: 0.75rem; color: var(--archie-text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.5rem;';
+                signalTitle.textContent = 'Emotional Signals';
+                signalBox.appendChild(signalTitle);
+                const chipContainer = document.createElement('div');
+                chipContainer.style.cssText = 'display: flex; gap: 0.4rem; flex-wrap: wrap;';
+                const signalColors = { 'curiosity': '#00ffff', 'appreciation': '#a78bfa', 'engagement': '#00ff41', 'trust': '#fbbf24', 'satisfaction': '#34d399', 'interest': '#0ea5e9' };
+                signals.forEach(function(s) {
+                    const chip = document.createElement('span');
+                    const bgColor = signalColors[s] || '#30363d';
+                    chip.style.cssText = 'display: inline-block; padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.75rem; background: ' + bgColor + '22; color: ' + bgColor + '; border: 1px solid ' + bgColor + '44;';
+                    chip.textContent = s;
+                    chipContainer.appendChild(chip);
+                });
+                signalBox.appendChild(chipContainer);
+                insightsEl.appendChild(signalBox);
+            }
+            // User satisfaction
+            if (ls.satisfaction) {
+                const satBox = document.createElement('div');
+                satBox.style.cssText = 'min-width: 140px; text-align: center; background: var(--archie-bg-tertiary); border-radius: 8px; padding: 0.75rem;';
+                const satIcon = ls.satisfaction === 'positive' ? '\ud83d\ude0a' : ls.satisfaction === 'negative' ? '\ud83d\ude1e' : '\ud83d\ude10';
+                const satColor = ls.satisfaction === 'positive' ? '#00ff41' : ls.satisfaction === 'negative' ? '#ff6b6b' : '#6e7681';
+                const satEmojiEl = document.createElement('div');
+                satEmojiEl.style.cssText = 'font-size: 1.5rem;';
+                satEmojiEl.textContent = satIcon;
+                const satLabelEl = document.createElement('div');
+                satLabelEl.style.cssText = 'font-size: 0.75rem; color: var(--archie-text-muted); margin-top: 0.25rem;';
+                satLabelEl.textContent = 'User Satisfaction';
+                const satValEl = document.createElement('div');
+                satValEl.style.cssText = 'color: ' + satColor + '; font-weight: 600; text-transform: capitalize;';
+                satValEl.textContent = ls.satisfaction;
+                satBox.appendChild(satEmojiEl); satBox.appendChild(satLabelEl); satBox.appendChild(satValEl);
+                insightsEl.appendChild(satBox);
+            }
+            // Indicator counts
+            let indicators = {};
+            try { indicators = typeof ls.indicators === 'string' ? JSON.parse(ls.indicators) : (ls.indicators || {}); } catch(e) {}
+            if (Object.keys(indicators).length > 0) {
+                const indBox = document.createElement('div');
+                indBox.style.cssText = 'flex: 1; min-width: 200px; background: var(--archie-bg-tertiary); border-radius: 8px; padding: 0.75rem;';
+                const indTitle = document.createElement('div');
+                indTitle.style.cssText = 'font-size: 0.75rem; color: var(--archie-text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.5rem;';
+                indTitle.textContent = 'Sentiment Indicators';
+                indBox.appendChild(indTitle);
+                const indColors = { 'positive': '#00ff41', 'negative': '#ff6b6b', 'curiosity': '#00ffff', 'uncertainty': '#ffaa00' };
+                Object.entries(indicators).forEach(function(entry) {
+                    var key = entry[0], val = entry[1];
+                    const row = document.createElement('div');
+                    row.style.cssText = 'display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.3rem;';
+                    const label = document.createElement('span');
+                    label.style.cssText = 'font-size: 0.75rem; color: var(--archie-text-muted); width: 80px; text-transform: capitalize;';
+                    label.textContent = key;
+                    const barOuter = document.createElement('div');
+                    barOuter.style.cssText = 'flex: 1; height: 6px; background: var(--archie-bg-secondary); border-radius: 3px; overflow: hidden;';
+                    const barInner = document.createElement('div');
+                    const maxVal = Math.max.apply(null, Object.values(indicators).concat([1]));
+                    barInner.style.cssText = 'height: 100%; width: ' + ((val / maxVal) * 100) + '%; background: ' + (indColors[key] || '#8b5cf6') + '; border-radius: 3px;';
+                    barOuter.appendChild(barInner);
+                    const countEl = document.createElement('span');
+                    countEl.style.cssText = 'font-size: 0.75rem; color: ' + (indColors[key] || '#8b949e') + '; min-width: 20px; text-align: right;';
+                    countEl.textContent = val;
+                    row.appendChild(label); row.appendChild(barOuter); row.appendChild(countEl);
+                    indBox.appendChild(row);
+                });
+                insightsEl.appendChild(indBox);
+            }
+        } else {
+            insightsEl.textContent = 'No sentiment data available yet';
+            insightsEl.style.color = 'var(--archie-text-muted)';
         }
 
         // Render mood transitions using DOM methods
         const transEl = document.getElementById('mood-transitions');
         transEl.textContent = '';
         if (stateData.mood_transitions && stateData.mood_transitions.length > 0) {
-            stateData.mood_transitions.forEach(t => {
+            stateData.mood_transitions.forEach(function(t) {
                 const prev = moodEmojis[t.previous_mood] || '?';
                 const curr = moodEmojis[t.current_mood] || '?';
                 const item = document.createElement('div'); item.className = 'activity-item';
-                const iconEl = document.createElement('div'); iconEl.className = 'activity-icon'; iconEl.textContent = prev + ' → ' + curr;
+                const iconEl = document.createElement('div'); iconEl.className = 'activity-icon'; iconEl.textContent = prev + ' \u2192 ' + curr;
                 const content = document.createElement('div'); content.className = 'activity-content';
                 const titleEl = document.createElement('div'); titleEl.className = 'activity-title';
-                titleEl.textContent = (t.previous_mood || '?') + ' → ' + (t.current_mood || '?');
-                if (t.mood_duration_minutes) { const badge = document.createElement('span'); badge.className = 'activity-type'; badge.textContent = t.mood_duration_minutes + ' min'; titleEl.appendChild(badge); }
+                titleEl.textContent = (t.previous_mood || '?') + ' \u2192 ' + (t.current_mood || '?');
+                if (t.mood_duration_minutes) { const badge = document.createElement('span'); badge.className = 'activity-type'; badge.textContent = Math.round(t.mood_duration_minutes) + ' min'; titleEl.appendChild(badge); }
                 const descEl = document.createElement('div'); descEl.className = 'activity-description';
                 descEl.textContent = t.trigger_event ? t.trigger_event.substring(0, 80) : 'No trigger recorded';
                 const timeEl = document.createElement('div'); timeEl.className = 'activity-time';
@@ -1373,21 +1539,30 @@ async function loadEmotionalData() {
         const relEl = document.getElementById('relationship-list');
         relEl.textContent = '';
         if (stateData.relationships && stateData.relationships.length > 0) {
-            stateData.relationships.forEach(r => {
+            stateData.relationships.forEach(function(r) {
                 const strength = ((r.relationship_strength || 0.5) * 100).toFixed(0);
-                const color = strength >= 70 ? 'var(--archie-green)' : strength >= 40 ? 'var(--archie-orange)' : 'var(--archie-red)';
+                const color = strength >= 80 ? 'var(--archie-green, #00ff41)' : strength >= 50 ? '#8b5cf6' : 'var(--archie-orange, #ffaa00)';
                 const card = document.createElement('div');
                 card.style.cssText = 'background: var(--archie-bg-tertiary); border-radius: 8px; padding: 0.75rem 1rem; min-width: 150px; text-align: center;';
                 const nameEl = document.createElement('div');
                 nameEl.style.cssText = 'font-size: 1.1rem; font-weight: 600; color: var(--archie-text-primary);';
-                nameEl.textContent = '👤 ' + (r.username || 'User ' + r.user_id);
+                nameEl.textContent = '\ud83d\udc64 ' + (r.username || 'User ' + r.user_id);
                 const barOuter = document.createElement('div'); barOuter.className = 'gauge-bar'; barOuter.style.cssText = 'margin: 0.5rem 0; height: 8px;';
                 const barInner = document.createElement('div'); barInner.className = 'gauge-fill'; barInner.style.cssText = 'width: ' + strength + '%; background: ' + color + ';';
                 barOuter.appendChild(barInner);
                 const valEl = document.createElement('div');
                 valEl.style.cssText = 'color: ' + color + '; font-size: 0.85rem;';
                 valEl.textContent = strength + '% ' + (moodEmojis[r.current_mood] || '');
-                card.appendChild(nameEl); card.appendChild(barOuter); card.appendChild(valEl); relEl.appendChild(card);
+                card.appendChild(nameEl); card.appendChild(barOuter); card.appendChild(valEl);
+                // Show "since" date
+                if (r.timestamp) {
+                    const sinceEl = document.createElement('div');
+                    const dt = new Date(r.timestamp);
+                    sinceEl.style.cssText = 'font-size: 0.7rem; color: var(--archie-text-muted); margin-top: 0.25rem;';
+                    sinceEl.textContent = 'Since ' + (dt.getMonth() + 1) + '/' + dt.getDate();
+                    card.appendChild(sinceEl);
+                }
+                relEl.appendChild(card);
             });
         } else {
             relEl.textContent = 'No relationship data yet';
@@ -1398,8 +1573,8 @@ async function loadEmotionalData() {
         const memEl = document.getElementById('emotional-memories');
         memEl.textContent = '';
         if (stateData.emotional_memories && stateData.emotional_memories.length > 0) {
-            stateData.emotional_memories.forEach(m => {
-                const icon = {'positive': '😊', 'negative': '😞', 'neutral': '😐', 'curious': '🤔'}[m.user_emotion_detected] || '💭';
+            stateData.emotional_memories.forEach(function(m) {
+                const icon = {'positive': '\ud83d\ude0a', 'negative': '\ud83d\ude1e', 'neutral': '\ud83d\ude10', 'curious': '\ud83e\udd14'}[m.user_emotion_detected] || '\ud83d\udcad';
                 const item = document.createElement('div'); item.className = 'activity-item';
                 const iconEl = document.createElement('div'); iconEl.className = 'activity-icon'; iconEl.textContent = icon;
                 const content = document.createElement('div'); content.className = 'activity-content';
@@ -1424,18 +1599,19 @@ async function loadEmotionalData() {
         const timelineData = await timelineResponse.json();
         if (timelineData.timeline) {
             const datasets = [
-                { label: 'Mood Score', data: timelineData.timeline.map(t => t.avg_mood_score), borderColor: chartColors.primary, fill: false, tension: 0.4 },
-                { label: 'Energy', data: timelineData.timeline.map(t => t.avg_energy || t.energy), borderColor: chartColors.success, fill: false, tension: 0.4 },
-                { label: 'Confidence', data: timelineData.timeline.map(t => t.avg_confidence || t.confidence), borderColor: chartColors.secondary, fill: false, tension: 0.4 }
+                { label: 'Mood Score', data: timelineData.timeline.map(function(t) { return t.avg_mood_score; }), borderColor: chartColors.primary, fill: false, tension: 0.4 },
+                { label: 'Energy', data: timelineData.timeline.map(function(t) { return t.avg_energy || t.energy; }), borderColor: chartColors.success, fill: false, tension: 0.4 },
+                { label: 'Confidence', data: timelineData.timeline.map(function(t) { return t.avg_confidence || t.confidence; }), borderColor: chartColors.secondary, fill: false, tension: 0.4 }
             ];
-            if (timelineData.timeline.some(t => t.avg_stress !== undefined && t.avg_stress !== null)) {
-                datasets.push({ label: 'Stress', data: timelineData.timeline.map(t => t.avg_stress), borderColor: chartColors.danger, borderDash: [5, 5], fill: false, tension: 0.4 });
+            if (timelineData.timeline.some(function(t) { return t.avg_stress !== undefined && t.avg_stress !== null; })) {
+                datasets.push({ label: 'Stress', data: timelineData.timeline.map(function(t) { return t.avg_stress; }), borderColor: chartColors.danger, borderDash: [5, 5], fill: false, tension: 0.4 });
             }
             if (emotionalTimeline) emotionalTimeline.destroy();
             emotionalTimeline = new Chart(document.getElementById('emotional-timeline'), {
                 type: 'line', data: {
-                    labels: timelineData.timeline.map(t => {
-                        const label = new Date(t.timestamp || t.date).toLocaleDateString();
+                    labels: timelineData.timeline.map(function(t) {
+                        const dt = parseChartDate(t.date);
+                        const label = (dt.getMonth()+1) + '/' + dt.getDate();
                         return t.dominant_mood ? label + ' ' + (moodEmojis[t.dominant_mood] || '') : label;
                     }),
                     datasets: datasets

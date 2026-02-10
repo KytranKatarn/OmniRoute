@@ -230,15 +230,22 @@ def emotional_state():
         )
         agent_state = cur.fetchone()
 
-        # Recent mood transitions
+        # Recent mood transitions — derived from archie_emotional_state via LAG()
         cur.execute(
             """
-            SELECT current_mood, previous_mood, trigger_event,
-                   mood_duration_minutes, timestamp
-            FROM agent_emotional_state
-            WHERE previous_mood IS NOT NULL
+            SELECT current_mood, previous_mood, trigger_event, mood_duration_minutes, timestamp
+            FROM (
+                SELECT current_mood,
+                       LAG(current_mood) OVER (ORDER BY timestamp) as previous_mood,
+                       notes as trigger_event,
+                       EXTRACT(EPOCH FROM (timestamp - LAG(timestamp) OVER (ORDER BY timestamp))) / 60 as mood_duration_minutes,
+                       timestamp
+                FROM archie_emotional_state
+                ORDER BY timestamp DESC
+            ) sub
+            WHERE previous_mood IS NOT NULL AND current_mood != previous_mood
             ORDER BY timestamp DESC
-            LIMIT 5
+            LIMIT 10
         """
         )
         mood_transitions = cur.fetchall()
@@ -250,10 +257,56 @@ def emotional_state():
                    emotional_intensity, relationship_impact, event_timestamp
             FROM emotional_memory
             ORDER BY event_timestamp DESC
-            LIMIT 5
+            LIMIT 15
         """
         )
         emotional_memories = cur.fetchall()
+
+        # Mood distribution
+        cur.execute(
+            """
+            SELECT current_mood, COUNT(*) as count
+            FROM archie_emotional_state
+            GROUP BY current_mood
+            ORDER BY count DESC
+        """
+        )
+        mood_distribution = cur.fetchall()
+
+        # Sentiment summary from mood_context JSONB
+        cur.execute(
+            """
+            SELECT
+                mood_context->'sentiment'->>'user_emotion' as detected_emotion,
+                COUNT(*) as count
+            FROM archie_emotional_state
+            WHERE mood_context IS NOT NULL
+              AND mood_context->'sentiment'->>'user_emotion' IS NOT NULL
+            GROUP BY detected_emotion
+            ORDER BY count DESC
+        """
+        )
+        sentiment_summary = cur.fetchall()
+
+        # Latest sentiment details
+        cur.execute(
+            """
+            SELECT mood_context->'sentiment'->'emotional_signals' as signals,
+                   mood_context->'trust'->>'user_satisfaction' as satisfaction,
+                   mood_context->'sentiment'->'indicators' as indicators
+            FROM archie_emotional_state
+            WHERE mood_context IS NOT NULL
+            ORDER BY timestamp DESC
+            LIMIT 1
+        """
+        )
+        latest_sentiment = cur.fetchone()
+
+        # Data freshness counts
+        cur.execute("SELECT COUNT(*) as cnt FROM archie_emotional_state")
+        state_count = cur.fetchone()["cnt"]
+        cur.execute("SELECT COUNT(*) as cnt FROM emotional_memory")
+        memory_count = cur.fetchone()["cnt"]
 
         # Relationship strength per user
         cur.execute(
@@ -283,6 +336,20 @@ def emotional_state():
         result["mood_transitions"] = [dict(t) for t in mood_transitions]
         result["emotional_memories"] = [dict(m) for m in emotional_memories]
         result["relationships"] = [dict(r) for r in relationships]
+        result["mood_distribution"] = [dict(d) for d in mood_distribution]
+        result["sentiment_summary"] = [dict(s) for s in sentiment_summary]
+        result["latest_sentiment"] = dict(latest_sentiment) if latest_sentiment else None
+        result["data_freshness"] = {
+            "latest_state": str(state["timestamp"]) if state and state.get("timestamp") else None,
+            "total_states": state_count,
+            "total_memories": memory_count,
+        }
+        result["computed"] = {
+            "energy": float(state.get("energy", 0.5)) if state else 0.5,
+            "confidence": float(state.get("confidence", 0.5)) if state else 0.5,
+            "stress": float(agent_state.get("stress_level", 0)) if agent_state else None,
+            "has_agent_data": agent_state is not None,
+        }
 
         return jsonify(result)
     except Exception as e:
@@ -3159,7 +3226,9 @@ def get_activity_stats():
             """
             SELECT
                 (SELECT COUNT(*) FROM ai_conversations) as conversations,
-                (SELECT COUNT(*) FROM long_term_memory) as memories
+                (SELECT COUNT(*) FROM long_term_memory) as memories,
+                (SELECT COUNT(*) FROM conversation_sessions) as claude_sessions,
+                (SELECT COUNT(*) FROM improvement_conversations) as improvement_conversations
         """
         )
         conv_row = cur.fetchone()
@@ -3244,6 +3313,9 @@ def get_activity_stats():
             + fp["emotional_memories"]
             + fp["decisions"]
             + fp["roadmap_items"]
+            + conv_row["conversations"]
+            + conv_row["claude_sessions"]
+            + conv_row["improvement_conversations"]
         )
 
         footprint_sources = []
@@ -3252,6 +3324,10 @@ def get_activity_stats():
             ("Triage Insights", fp["triage"]),
             ("Blueprints", fp["blueprint_tasks"] + fp["blueprint_phases"]),
             ("Long-term Memories", fp["ltm"]),
+            (
+                "Conversations",
+                conv_row["conversations"] + conv_row["claude_sessions"] + conv_row["improvement_conversations"],
+            ),
             ("Codebase Knowledge", fp["codebase_knowledge"]),
             ("Emotional Memories", fp["emotional_memories"]),
             ("Decisions & Roadmap", fp["decisions"] + fp["roadmap_items"]),
@@ -3269,6 +3345,20 @@ def get_activity_stats():
             + fp["complexity_patterns"]
         )
 
+        # Search status metrics
+        text_searchable = kb_total + fp["ltm"]
+        semantic_searchable = embed_row["with_embeddings"] if embed_row else 0
+        kb_unembedded = kb_total - semantic_searchable
+
+        search_status = {
+            "text_searchable": text_searchable,
+            "semantic_searchable": semantic_searchable,
+            "kb_total": kb_total,
+            "kb_embedded": semantic_searchable,
+            "kb_unembedded": kb_unembedded,
+            "not_searchable": footprint_total - text_searchable,
+        }
+
         overview = {
             "kb_total": kb_total,
             "kb_breakdown": [{"type": r["knowledge_type"], "count": r["count"]} for r in kb_breakdown],
@@ -3281,6 +3371,9 @@ def get_activity_stats():
             "github_docs": github_row["github_docs"] if github_row else 0,
             "conversations": conv_row["conversations"] if conv_row else 0,
             "memories": conv_row["memories"] if conv_row else 0,
+            "claude_sessions": conv_row["claude_sessions"] if conv_row else 0,
+            "improvement_conversations": conv_row["improvement_conversations"] if conv_row else 0,
+            "search_status": search_status,
             "kb_growth_7d": kb_growth,
             "combined_growth_7d": combined_growth_7d,
             "self_knowledge": {

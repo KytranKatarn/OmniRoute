@@ -6657,7 +6657,7 @@ def start_collaboration():
             return jsonify({"success": False, "error": "Topic required"}), 400
 
         engine = get_collaboration_engine()
-        session = engine.start_session(topic, max_turns)
+        session = engine.start_session(topic, max_turns, user_id=current_user.id)
 
         # Run collaboration in background
         def run_async():
@@ -6710,6 +6710,94 @@ def get_collaboration_status(session_id):
 
         return jsonify({"success": True, "session": session.to_dict()})
 
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/collab/stream/<session_id>", methods=["GET"])
+@login_required
+def stream_collaboration(session_id):
+    """
+    SSE endpoint for real-time collaboration updates.
+
+    Streams new messages as they arrive instead of polling.
+    Client connects with EventSource and receives 'message' events.
+    """
+    from .collaboration_engine import get_collaboration_engine
+    import time as _time
+    import json as _json
+
+    engine = get_collaboration_engine()
+
+    def generate():
+        last_msg_count = 0
+        last_status = None
+        timeout_counter = 0
+        max_timeout = 600  # 10 minutes max
+
+        while timeout_counter < max_timeout:
+            session = engine.get_session(session_id)
+            if not session:
+                yield f"data: {_json.dumps({'type': 'error', 'error': 'Session not found'})}\n\n"
+                break
+
+            current_status = session.status.value
+            current_msg_count = len(session.messages)
+
+            # Send status update if changed
+            if current_status != last_status:
+                yield f"data: {_json.dumps({'type': 'status', 'status': current_status, 'turn': session.current_turn, 'max_turns': session.max_turns})}\n\n"
+                last_status = current_status
+
+            # Send new messages
+            if current_msg_count > last_msg_count:
+                for msg in session.messages[last_msg_count:]:
+                    yield f"data: {_json.dumps({'type': 'message', 'role': msg.role, 'content': msg.content, 'turn': msg.turn, 'timestamp': msg.timestamp})}\n\n"
+                last_msg_count = current_msg_count
+
+            # End stream if session is done
+            if current_status in ("completed", "stopped", "error"):
+                yield f"data: {_json.dumps({'type': 'done', 'status': current_status})}\n\n"
+                break
+
+            _time.sleep(1)
+            timeout_counter += 1
+
+        # Final keepalive close
+        yield f"data: {_json.dumps({'type': 'close'})}\n\n"
+
+    from flask import Response
+
+    return Response(
+        generate(),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
+@consciousness_bp.route("/api/collab/resume-session/<session_id>", methods=["POST"])
+@login_required
+def resume_collaboration_session(session_id):
+    """
+    Resume/reload a collaboration session from DB.
+
+    Used when user navigates back to an in-progress or completed session.
+    Returns full session data with all messages.
+    """
+    try:
+        from .collaboration_engine import get_collaboration_engine
+
+        engine = get_collaboration_engine()
+        session = engine.get_session(session_id)
+
+        if not session:
+            return jsonify({"success": False, "error": "Session not found"}), 404
+
+        return jsonify({"success": True, "session": session.to_dict()})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -6820,6 +6908,119 @@ def list_collab_sessions():
         engine = get_collaboration_engine()
         sessions = engine.list_sessions()
         return jsonify({"success": True, "sessions": sessions})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/collab/joint/start", methods=["POST"])
+@login_required
+def start_joint_collaboration():
+    """Start a joint ARCHIE + Claude collaboration that produces work products."""
+    import asyncio
+
+    data = request.get_json() or {}
+    topic = data.get("topic", "").strip()
+    max_turns = min(int(data.get("max_turns", 10)), 20)
+
+    if not topic:
+        return jsonify({"success": False, "error": "Topic required"}), 400
+
+    try:
+        from .collaboration_engine import get_collaboration_engine
+
+        engine = get_collaboration_engine()
+        session = engine.start_session(topic, max_turns=max_turns, user_id=current_user.id)
+
+        # Run joint collaboration in background thread
+        import threading
+
+        def run_joint():
+            loop = asyncio.new_event_loop()
+            try:
+                loop.run_until_complete(engine.run_joint_collaboration(session.id))
+            except Exception as e:
+                logger.error(f"Joint collaboration error: {e}")
+            finally:
+                loop.close()
+
+        thread = threading.Thread(target=run_joint, daemon=True)
+        thread.start()
+
+        return jsonify(
+            {
+                "success": True,
+                "session_id": session.id,
+                "topic": topic,
+                "max_turns": max_turns,
+                "status": "active",
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/collab/work-products/<session_id>", methods=["GET"])
+@login_required
+def get_work_products(session_id):
+    """Get all work products for a collaboration session."""
+    try:
+        from .collaboration_engine import get_collaboration_engine
+
+        engine = get_collaboration_engine()
+        products = engine.get_work_products(session_id)
+        return jsonify({"success": True, "products": products})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/collab/work-products/<int:product_id>/approve", methods=["POST"])
+@login_required
+def approve_work_product(product_id):
+    """Approve a work product."""
+    try:
+        from .collaboration_engine import get_collaboration_engine
+
+        engine = get_collaboration_engine()
+        approved = engine.approve_work_product(product_id, current_user.username)
+
+        if approved:
+            # Log governance event for approval
+            try:
+                sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "team_management"))
+                from iaae_routes import log_governance_event
+
+                log_governance_event(
+                    event_type="work_product_approval",
+                    category="collaboration",
+                    action="approve_work_product",
+                    reason=f"Work product {product_id} approved by {current_user.username}",
+                    outcome="approved",
+                )
+            except Exception:
+                pass
+
+        return jsonify({"success": approved})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/collab/work-products/<int:product_id>/revise", methods=["POST"])
+@login_required
+def revise_work_product(product_id):
+    """Create a new revision of a work product."""
+    data = request.get_json() or {}
+    new_content = data.get("content", "").strip()
+    if not new_content:
+        return jsonify({"success": False, "error": "Content required"}), 400
+
+    try:
+        from .collaboration_engine import get_collaboration_engine
+
+        engine = get_collaboration_engine()
+        new_id = engine.revise_work_product(product_id, new_content, current_user.username)
+        if new_id:
+            return jsonify({"success": True, "new_product_id": new_id})
+        return jsonify({"success": False, "error": "Product not found"}), 404
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -7000,6 +7201,42 @@ def get_claude_status():
 
         bridge = get_claude_bridge()
         return jsonify({"success": True, "claude": bridge.health_check(), "ttyd": bridge.get_ttyd_status()})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/claude/sync-context", methods=["POST"])
+@login_required
+def sync_context_to_claude():
+    """
+    Send ARCHIE's conversation context to Claude via the proxy.
+    Primes Claude with the current conversation so it can continue the work.
+    """
+    try:
+        from .claude_bridge import get_claude_bridge
+
+        data = request.get_json() or {}
+        context = data.get("context", "")
+        if not context:
+            return jsonify({"success": False, "error": "No context provided"}), 400
+
+        bridge = get_claude_bridge()
+        bridge.clear_history()
+
+        import asyncio
+
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            result = loop.run_until_complete(
+                bridge.send_message(
+                    f"Here is the context from ARCHIE's conversation that you should be aware of:\n\n{context}\n\nPlease acknowledge you've received this context."
+                )
+            )
+        finally:
+            loop.close()
+
+        return jsonify({"success": True, "response": result[:200] if result else "Context received"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 

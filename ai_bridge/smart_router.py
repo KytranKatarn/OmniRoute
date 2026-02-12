@@ -13,6 +13,7 @@ Based on the Claude Code CLI - Smart Usage & Hybrid LLM Optimization Guide
 
 import json
 import logging
+import requests
 from decimal import Decimal
 from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
@@ -197,6 +198,7 @@ class SmartRouter:
     def _default_routing_rules(self) -> Dict[str, dict]:
         """Default routing rules if database not available"""
         return {
+            'conversation': {'preferred_tier': 'local', 'fallback_tier': 'local', 'complexity_threshold': 7, 'claude_as_judge': False},
             'format': {'preferred_tier': 'local', 'fallback_tier': 'haiku', 'complexity_threshold': 3, 'claude_as_judge': False},
             'rewrite': {'preferred_tier': 'local', 'fallback_tier': 'sonnet', 'complexity_threshold': 4, 'claude_as_judge': True},
             'summarize': {'preferred_tier': 'local', 'fallback_tier': 'haiku', 'complexity_threshold': 3, 'claude_as_judge': False},
@@ -551,6 +553,110 @@ Original task:
         # Default to simple coding
         return 'code_simple'
 
+    def get_loaded_model(self) -> Optional[str]:
+        """
+        Check which Ollama model is currently loaded in GPU memory.
+        Checks local Ollama instance (where the GPU is) via /api/ps.
+
+        Returns:
+            Model name string (e.g. 'dolphin3:latest') or None
+        """
+        try:
+            import os
+            # Check local Ollama (where the GPU lives), not remote nodes
+            local_host = os.getenv('OLLAMA_LOCAL_HOST', 'host.docker.internal')
+            local_port = os.getenv('OLLAMA_LOCAL_PORT', '11434')
+            resp = requests.get(f"http://{local_host}:{local_port}/api/ps", timeout=5)
+            if resp.status_code == 200:
+                data = resp.json()
+                models = data.get('models', [])
+                if models:
+                    return models[0].get('name')
+        except Exception as e:
+            logger.debug(f"Could not check loaded Ollama model: {e}")
+        return None
+
+    def can_downgrade(self, loaded_model: str, task_type: str) -> bool:
+        """
+        Check if the currently loaded model can handle a task even if it's
+        not the recommended model. Avoids GPU model swaps on constrained hardware.
+
+        Args:
+            loaded_model: The model currently in GPU memory
+            task_type: The classified task type
+
+        Returns:
+            True if the loaded model can handle this task type
+        """
+        # Tasks that any general model can handle
+        simple_tasks = {
+            'conversation', 'format', 'code_simple', 'documentation',
+            'summarize', 'rewrite', 'sql', 'test_scaffold',
+        }
+        if task_type in simple_tasks:
+            return True
+
+        # dolphin3 can handle moderate tasks
+        if 'dolphin3' in loaded_model:
+            moderate_tasks = {'refactor', 'review', 'debug_simple', 'api_design'}
+            if task_type in moderate_tasks:
+                return True
+
+        return False
+
+    def suggest_model_with_hardware(
+        self,
+        task_type: str,
+        complexity: int = 5,
+        agent_id: Optional[int] = None,
+        failure_count: int = 0,
+    ) -> RoutingRecommendation:
+        """
+        GPU-aware model suggestion. Extends suggest_model() with hardware state.
+
+        Checks what model is loaded and avoids swaps where possible.
+        If the task requires a higher tier than what's loaded locally,
+        routes to Claude proxy instead of swapping models.
+        """
+        # Get base recommendation
+        rec = self.suggest_model(task_type, complexity=complexity,
+                                 agent_id=agent_id, failure_count=failure_count)
+
+        # Only applies to local/ollama tier
+        if rec.provider != 'ollama' or rec.tier != 'local':
+            return rec
+
+        loaded = self.get_loaded_model()
+        if not loaded:
+            return rec
+
+        requested = rec.model_name
+        # If already loaded, great
+        if loaded == requested or loaded.split(':')[0] == requested.split(':')[0]:
+            rec.reason += f"; {loaded} already loaded (fast path)"
+            return rec
+
+        # Can the loaded model handle it?
+        if self.can_downgrade(loaded, task_type):
+            return RoutingRecommendation(
+                tier='local',
+                provider='ollama',
+                model_name=loaded,
+                reason=f"{loaded} already loaded, can handle '{task_type}' (avoiding swap)",
+                should_escalate=False,
+                estimated_cost=0.0,
+            )
+
+        # Swap would be needed — route to Claude proxy instead
+        return RoutingRecommendation(
+            tier='sonnet',
+            provider='claude',
+            model_name='claude-sonnet-4-20250514',
+            reason=f"Task '{task_type}' needs model swap ({loaded} → {requested}); routing to Claude to avoid GPU crash",
+            should_escalate=True,
+            estimated_cost=rec.estimated_cost,
+        )
+
 
 # Singleton instance
 _router_instance = None
@@ -577,3 +683,13 @@ def track_execution(**kwargs) -> Optional[int]:
 def classify_task(prompt: str, context: dict = None) -> str:
     """Convenience function to classify task"""
     return get_router().classify_task(prompt, context)
+
+
+def get_loaded_model() -> Optional[str]:
+    """Convenience function to check loaded Ollama model"""
+    return get_router().get_loaded_model()
+
+
+def suggest_model_with_hardware(task_type: str, **kwargs) -> RoutingRecommendation:
+    """Convenience function for GPU-aware model suggestion"""
+    return get_router().suggest_model_with_hardware(task_type, **kwargs)

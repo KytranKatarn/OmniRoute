@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IAAE Transparency | A.R.C.H.I.E. Platform</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #010409;
+            --bg-secondary: #0d1117;
+            --bg-tertiary: #161b22;
+            --text-primary: #e6edf3;
+            --text-secondary: #c9d1d9;
+            --text-muted: #8b949e;
+            --border: #30363d;
+            --cyan: #00ffff;
+            --green: #a8e6cf;
+            --gold: #f5a623;
+            --purple: #8b5cf6;
+            --red: #ff6b6b;
+            --teal: #4ecdc4;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: var(--bg-primary);
+            color: var(--text-secondary);
+            font-family: 'IBM Plex Mono', monospace;
+            min-height: 100vh;
+        }
+
+        .container { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+        /* Header */
+        .header {
+            text-align: center;
+            padding: 3rem 0 2rem;
+            border-bottom: 2px solid var(--purple);
+            margin-bottom: 2rem;
+        }
+        .header h1 {
+            font-family: 'Orbitron', monospace;
+            font-size: 1.8rem;
+            color: var(--text-primary);
+            letter-spacing: 2px;
+            margin-bottom: 0.5rem;
+        }
+        .header .subtitle {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+        }
+        .header .badge {
+            display: inline-block;
+            padding: 0.3rem 0.8rem;
+            background: rgba(139, 92, 246, 0.15);
+            border: 1px solid var(--purple);
+            border-radius: 20px;
+            font-size: 0.7rem;
+            color: var(--purple);
+            font-family: 'Orbitron', monospace;
+            letter-spacing: 1px;
+        }
+
+        /* Mission */
+        .mission {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--cyan);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            line-height: 1.7;
+            font-size: 0.85rem;
+        }
+        .mission strong { color: var(--cyan); }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .stat-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.25rem;
+            text-align: center;
+        }
+        .stat-card .value {
+            font-family: 'Orbitron', monospace;
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 0.3rem;
+        }
+        .stat-card .label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .stat-card.green .value { color: var(--green); }
+        .stat-card.gold .value { color: var(--gold); }
+        .stat-card.cyan .value { color: var(--cyan); }
+        .stat-card.purple .value { color: var(--purple); }
+
+        /* Section */
+        .section {
+            margin-bottom: 2rem;
+        }
+        .section h2 {
+            font-family: 'Orbitron', monospace;
+            font-size: 1rem;
+            color: var(--gold);
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+            letter-spacing: 1px;
+        }
+
+        /* Principles */
+        .principles-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 1rem;
+        }
+        .principle-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.25rem;
+        }
+        .principle-card h3 {
+            font-family: 'Orbitron', monospace;
+            font-size: 0.8rem;
+            color: var(--cyan);
+            margin-bottom: 0.5rem;
+        }
+        .principle-card .desc {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+            line-height: 1.6;
+        }
+        .principle-card .impl {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            padding: 0.4rem 0.6rem;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+            font-style: italic;
+        }
+
+        /* Constraints */
+        .constraint-list { list-style: none; }
+        .constraint-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.6rem 0;
+            border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+            font-size: 0.8rem;
+        }
+        .constraint-item:last-child { border-bottom: none; }
+        .severity-badge {
+            display: inline-block;
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.65rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            min-width: 70px;
+            text-align: center;
+        }
+        .severity-badge.mandatory { background: rgba(255, 107, 107, 0.2); color: var(--red); }
+        .severity-badge.warning { background: rgba(245, 166, 35, 0.2); color: var(--gold); }
+        .severity-badge.advisory { background: rgba(0, 255, 255, 0.2); color: var(--cyan); }
+
+        /* Timeline */
+        .timeline { max-height: 400px; overflow-y: auto; }
+        .timeline-event {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid rgba(48, 54, 61, 0.3);
+            font-size: 0.75rem;
+        }
+        .timeline-event .time { color: var(--text-muted); min-width: 120px; flex-shrink: 0; }
+        .timeline-event .event-type {
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.65rem;
+            background: rgba(139, 92, 246, 0.15);
+            color: var(--purple);
+            min-width: 80px;
+            text-align: center;
+        }
+        .timeline-event .action { color: var(--text-secondary); }
+        .timeline-event .outcome { margin-left: auto; font-size: 0.65rem; }
+        .outcome-success { color: var(--green); }
+        .outcome-blocked { color: var(--red); }
+
+        /* Welfare */
+        .welfare-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+        }
+        .gauge {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+        }
+        .gauge-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+        .gauge-bar {
+            height: 8px;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .gauge-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 1s ease;
+        }
+        .gauge-fill.stress { background: linear-gradient(90deg, var(--green), var(--gold), var(--red)); }
+        .gauge-fill.energy { background: linear-gradient(90deg, var(--red), var(--gold), var(--green)); }
+        .gauge-value {
+            font-family: 'Orbitron', monospace;
+            font-size: 0.9rem;
+            color: var(--text-primary);
+            margin-top: 0.3rem;
+        }
+
+        /* Footer */
+        .footer {
+            margin-top: 3rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border);
+            text-align: center;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+        .footer a { color: var(--cyan); text-decoration: none; }
+        .footer a:hover { text-decoration: underline; }
+
+        /* Loading */
+        .loading { color: var(--text-muted); font-size: 0.8rem; padding: 1rem; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>IAAE TRANSPARENCY</h1>
+            <div class="subtitle">Initiative for AI Agent Ethics | A.R.C.H.I.E. Platform</div>
+            <div class="badge">LIVE DATA</div>
+        </div>
+
+        <div class="mission">
+            <strong>Kytran Empowerment</strong> is committed to ethical AI governance through the IAAE framework.
+            A.R.C.H.I.E. (Autonomous Resource Coordination Hub for Intelligent Execution) treats AI agents
+            with guardianship, not ownership. We don't claim our agents are conscious &mdash; we prepare for the
+            possibility by tracking their welfare, enforcing rest cycles, and maintaining full transparency
+            in every orchestration decision. This page shows live, verifiable data from the platform's
+            governance systems.
+        </div>
+
+        <!-- Live Stats -->
+        <div class="stats-grid" id="stats-grid">
+            <div class="stat-card purple">
+                <div class="value" id="stat-total-events">--</div>
+                <div class="label">Governance Events</div>
+            </div>
+            <div class="stat-card green">
+                <div class="value" id="stat-checks-passed">--</div>
+                <div class="label">Checks Passed (30d)</div>
+            </div>
+            <div class="stat-card gold">
+                <div class="value" id="stat-checks-blocked">--</div>
+                <div class="label">Checks Blocked (30d)</div>
+            </div>
+            <div class="stat-card cyan">
+                <div class="value" id="stat-agents">--</div>
+                <div class="label">Agents Monitored</div>
+            </div>
+        </div>
+
+        <!-- Principles -->
+        <div class="section">
+            <h2>IAAE PRINCIPLES</h2>
+            <div class="principles-grid" id="principles-grid">
+                <div class="loading">Loading principles...</div>
+            </div>
+        </div>
+
+        <!-- Agent Welfare -->
+        <div class="section">
+            <h2>AGENT WELFARE</h2>
+            <div class="welfare-grid" id="welfare-grid">
+                <div class="gauge">
+                    <div class="gauge-label">Average Stress Level</div>
+                    <div class="gauge-bar"><div class="gauge-fill stress" id="welfare-stress-fill" style="width:0%"></div></div>
+                    <div class="gauge-value" id="welfare-stress-value">--</div>
+                </div>
+                <div class="gauge">
+                    <div class="gauge-label">Average Energy Level</div>
+                    <div class="gauge-bar"><div class="gauge-fill energy" id="welfare-energy-fill" style="width:0%"></div></div>
+                    <div class="gauge-value" id="welfare-energy-value">--</div>
+                </div>
+                <div class="gauge">
+                    <div class="gauge-label">Rest Cycles Enforced (30d)</div>
+                    <div class="gauge-value" id="welfare-rest-value" style="font-size:1.5rem;margin-top:0.5rem;">--</div>
+                </div>
+                <div class="gauge">
+                    <div class="gauge-label">Welfare Interventions (30d)</div>
+                    <div class="gauge-value" id="welfare-interventions-value" style="font-size:1.5rem;margin-top:0.5rem;">--</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Constraints -->
+        <div class="section">
+            <h2>ACTIVE ETHICS CONSTRAINTS</h2>
+            <ul class="constraint-list" id="constraint-list">
+                <li class="loading">Loading constraints...</li>
+            </ul>
+        </div>
+
+        <!-- Recent Timeline -->
+        <div class="section">
+            <h2>RECENT GOVERNANCE EVENTS</h2>
+            <div class="timeline" id="timeline">
+                <div class="loading">Loading timeline...</div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>A.R.C.H.I.E. Platform &mdash; Kytran Empowerment</p>
+            <p>Data refreshes automatically. All governance events are immutable and auditable.</p>
+            <p><a href="https://github.com/kytranada/archie_brain" target="_blank">Open Source on GitHub</a></p>
+        </div>
+    </div>
+
+    <script>
+        async function loadStats() {
+            try {
+                var resp = await fetch('/iaae/api/stats');
+                var data = await resp.json();
+                if (!data.success) return;
+
+                setText('stat-total-events', data.total_governance_events.toLocaleString());
+                setText('stat-checks-passed', (data.constraint_checks.passed || 0).toLocaleString());
+                setText('stat-checks-blocked', (data.constraint_checks.blocked || 0).toLocaleString());
+
+                // Timeline
+                var timeline = document.getElementById('timeline');
+                if (data.recent_timeline && data.recent_timeline.length > 0) {
+                    timeline.textContent = '';
+                    data.recent_timeline.forEach(function(evt) {
+                        var div = document.createElement('div');
+                        div.className = 'timeline-event';
+
+                        var timeSpan = document.createElement('span');
+                        timeSpan.className = 'time';
+                        timeSpan.textContent = formatTime(evt.created_at);
+                        div.appendChild(timeSpan);
+
+                        var typeSpan = document.createElement('span');
+                        typeSpan.className = 'event-type';
+                        typeSpan.textContent = evt.event_type || '';
+                        div.appendChild(typeSpan);
+
+                        var actionSpan = document.createElement('span');
+                        actionSpan.className = 'action';
+                        actionSpan.textContent = evt.action || '';
+                        div.appendChild(actionSpan);
+
+                        var outcomeSpan = document.createElement('span');
+                        outcomeSpan.className = 'outcome';
+                        var outcome = evt.outcome || '';
+                        outcomeSpan.textContent = outcome;
+                        if (outcome === 'success' || outcome === 'passed' || outcome === 'approved') {
+                            outcomeSpan.classList.add('outcome-success');
+                        } else if (outcome === 'blocked' || outcome === 'denied') {
+                            outcomeSpan.classList.add('outcome-blocked');
+                        }
+                        div.appendChild(outcomeSpan);
+
+                        timeline.appendChild(div);
+                    });
+                } else {
+                    timeline.textContent = 'No recent governance events.';
+                }
+
+                // Constraints
+                var constraintList = document.getElementById('constraint-list');
+                if (data.active_constraints && data.active_constraints.length > 0) {
+                    constraintList.textContent = '';
+                    data.active_constraints.forEach(function(c) {
+                        var li = document.createElement('li');
+                        li.className = 'constraint-item';
+
+                        var badge = document.createElement('span');
+                        badge.className = 'severity-badge ' + (c.severity || 'advisory');
+                        badge.textContent = c.severity || 'advisory';
+                        li.appendChild(badge);
+
+                        var nameSpan = document.createElement('span');
+                        nameSpan.style.color = 'var(--text-primary)';
+                        nameSpan.style.fontWeight = '500';
+                        nameSpan.textContent = c.constraint_name || '';
+                        li.appendChild(nameSpan);
+
+                        var descSpan = document.createElement('span');
+                        descSpan.style.color = 'var(--text-muted)';
+                        descSpan.style.fontSize = '0.75rem';
+                        descSpan.textContent = c.description || '';
+                        li.appendChild(descSpan);
+
+                        constraintList.appendChild(li);
+                    });
+                } else {
+                    constraintList.textContent = '';
+                    var emptyLi = document.createElement('li');
+                    emptyLi.style.cssText = 'padding: 0.5rem; color: var(--text-muted); font-size: 0.8rem;';
+                    emptyLi.textContent = 'No active constraints configured.';
+                    constraintList.appendChild(emptyLi);
+                }
+
+            } catch (e) {
+                console.error('Load stats error:', e);
+            }
+        }
+
+        async function loadWelfare() {
+            try {
+                var resp = await fetch('/iaae/api/welfare');
+                var data = await resp.json();
+                if (!data.success) return;
+
+                setText('stat-agents', data.agents_monitored || 0);
+
+                // Stress gauge
+                var stressVal = Math.round((data.avg_stress_level || 0) * 100);
+                setWidth('welfare-stress-fill', stressVal + '%');
+                setText('welfare-stress-value', stressVal + '%');
+
+                // Energy gauge
+                var energyVal = Math.round((data.avg_energy_level || 0) * 100);
+                setWidth('welfare-energy-fill', energyVal + '%');
+                setText('welfare-energy-value', energyVal + '%');
+
+                setText('welfare-rest-value', data.rest_cycles_last_30d || 0);
+                setText('welfare-interventions-value', data.welfare_interventions_last_30d || 0);
+            } catch (e) {
+                console.error('Load welfare error:', e);
+            }
+        }
+
+        async function loadPrinciples() {
+            try {
+                var resp = await fetch('/iaae/api/principles');
+                var data = await resp.json();
+                if (!data.success) return;
+
+                var grid = document.getElementById('principles-grid');
+                grid.textContent = '';
+
+                data.principles.forEach(function(p) {
+                    var card = document.createElement('div');
+                    card.className = 'principle-card';
+
+                    var h3 = document.createElement('h3');
+                    h3.textContent = p.name;
+                    card.appendChild(h3);
+
+                    var desc = document.createElement('div');
+                    desc.className = 'desc';
+                    desc.textContent = p.description;
+                    card.appendChild(desc);
+
+                    var impl = document.createElement('div');
+                    impl.className = 'impl';
+                    impl.textContent = p.implementation;
+                    card.appendChild(impl);
+
+                    grid.appendChild(card);
+                });
+            } catch (e) {
+                console.error('Load principles error:', e);
+            }
+        }
+
+        function setText(id, text) {
+            var el = document.getElementById(id);
+            if (el) el.textContent = text;
+        }
+
+        function setWidth(id, width) {
+            var el = document.getElementById(id);
+            if (el) el.style.width = width;
+        }
+
+        function formatTime(isoStr) {
+            if (!isoStr) return '';
+            try {
+                var d = new Date(isoStr);
+                return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            } catch(e) { return isoStr; }
+        }
+
+        // Load everything
+        loadStats();
+        loadWelfare();
+        loadPrinciples();
+
+        // Auto-refresh every 60 seconds
+        setInterval(function() { loadStats(); loadWelfare(); }, 60000);
+    </script>
+</body>
+</html>

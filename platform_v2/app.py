@@ -976,6 +976,11 @@ from tools.team_management.iaae_routes import iaae_bp  # noqa: E402
 
 app.register_blueprint(iaae_bp)
 
+# IAAE Public Transparency Page (no login required)
+from tools.iaae.routes import iaae_public_bp  # noqa: E402
+
+app.register_blueprint(iaae_public_bp)
+
 # HR Management Module (Phase 51) - Registered via module_registry
 
 # API Documentation (OpenAPI/Swagger)

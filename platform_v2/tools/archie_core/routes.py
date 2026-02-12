@@ -259,6 +259,199 @@ def send_message():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@archie_chat_bp.route("/api/orchestrate", methods=["POST"])
+@login_required
+def orchestrate():
+    """
+    Orchestrated message endpoint.
+
+    Routes user input through the full orchestration pipeline:
+    intent parsing → IAAE check → smart routing → agent selection → execution.
+
+    Returns response + thinking steps for the UI thinking panel.
+    Falls back to /send behavior if orchestration engine is unavailable.
+    """
+    try:
+        data = request.json or {}
+        message = data.get("message")
+        conversation_id = data.get("conversation_id") or str(uuid.uuid4())
+        voice_mode = data.get("voice_mode", False)
+
+        if not message:
+            return jsonify({"success": False, "error": "No message provided"}), 400
+
+        # Build user context
+        user_context = {"username": current_user.username}
+        try:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Load emotional state
+            cur.execute(
+                """
+                SELECT relationship_strength, current_mood
+                FROM archie_emotional_state
+                WHERE user_id = %s ORDER BY timestamp DESC LIMIT 1
+            """,
+                (current_user.id,),
+            )
+            emotional = cur.fetchone()
+            if emotional:
+                user_context["relationship_strength"] = float(emotional["relationship_strength"])
+                user_context["current_mood"] = emotional["current_mood"]
+
+            # Load ARCHIE's own state
+            cur.execute(
+                """
+                SELECT current_mood, mood_intensity, energy_level, stress_level
+                FROM agent_emotional_state ORDER BY timestamp DESC LIMIT 1
+            """
+            )
+            archie_state = cur.fetchone()
+            if archie_state:
+                user_context["archie_mood"] = archie_state["current_mood"]
+                user_context["archie_energy"] = float(archie_state.get("energy_level") or 0.8)
+
+            # Load preferences
+            cur.execute(
+                """
+                SELECT content FROM long_term_memory
+                WHERE user_id = %s AND memory_type = 'preference'
+                ORDER BY importance_score DESC LIMIT 5
+            """,
+                (current_user.id,),
+            )
+            preferences = cur.fetchall()
+            user_context["preferences"] = [p["content"] for p in preferences]
+
+            cur.close()
+            conn.close()
+        except Exception as ctx_err:
+            logger.warning(f"Could not load user context for orchestration: {ctx_err}")
+
+        # Try orchestration engine
+        try:
+            from ai_bridge.orchestration_engine import get_orchestration_engine
+
+            engine = get_orchestration_engine()
+            result = engine.orchestrate(
+                message=message,
+                user_id=current_user.id,
+                conversation_id=conversation_id,
+                voice_mode=voice_mode,
+                user_context=user_context,
+            )
+
+            if result.success:
+                # Persist conversation
+                try:
+                    conn = get_db()
+                    cur = conn.cursor(cursor_factory=RealDictCursor)
+                    chat_mode = data.get("chat_mode", "orchestrated")
+                    cur.execute(
+                        """
+                        INSERT INTO ai_conversations
+                        (user_id, conversation_id, message, response, model, metadata)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                        RETURNING id
+                    """,
+                        (
+                            current_user.id,
+                            conversation_id,
+                            message,
+                            result.response,
+                            result.model_used or "orchestrated",
+                            json.dumps(
+                                {
+                                    "chat_mode": chat_mode,
+                                    "orchestration_session": result.session_id,
+                                    "agent_used": result.agent_used,
+                                    "total_duration_ms": result.total_duration_ms,
+                                }
+                            ),
+                        ),
+                    )
+                    message_id = cur.fetchone()["id"]
+                    conn.commit()
+                    cur.close()
+                    conn.close()
+                except Exception as save_err:
+                    logger.warning(f"Failed to persist orchestrated conversation: {save_err}")
+                    message_id = None
+
+                # Update emotional state
+                if EMOTIONAL_INTELLIGENCE_AVAILABLE:
+                    try:
+                        _update_emotional_state(message, result.response, current_user.id)
+                    except Exception:
+                        pass
+
+                return jsonify(result.to_dict())
+            else:
+                # Orchestration failed — fall through to fallback
+                logger.warning(f"Orchestration returned failure: {result.error}")
+                raise RuntimeError(result.error or "Orchestration failed")
+
+        except Exception as orch_err:
+            logger.warning(f"Orchestration engine unavailable, falling back to direct chat: {orch_err}")
+
+            # Fallback: direct ArchieAI chat (same as /send)
+            ai = ArchieAI()
+            history = []
+            try:
+                conn = get_db()
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                cur.execute(
+                    """
+                    SELECT message, response FROM ai_conversations
+                    WHERE user_id = %s AND conversation_id = %s
+                    ORDER BY created_at DESC LIMIT 5
+                """,
+                    (current_user.id, conversation_id),
+                )
+                rows = cur.fetchall()
+                cur.close()
+                conn.close()
+                for row in reversed(rows):
+                    history.append({"role": "user", "content": row["message"]})
+                    if row.get("response"):
+                        history.append({"role": "assistant", "content": row["response"]})
+            except Exception:
+                pass
+
+            response_data = ai.chat(message, user_context, history)
+            if not response_data.get("success"):
+                return jsonify({"success": False, "error": "AI unavailable"}), 503
+
+            return jsonify(
+                {
+                    "success": True,
+                    "response": response_data["response"],
+                    "thinking_steps": [
+                        {
+                            "step_type": "fallback",
+                            "label": "Direct chat (orchestration unavailable)",
+                            "data": {},
+                            "duration_ms": 0,
+                            "success": True,
+                            "model_used": response_data.get("model"),
+                        }
+                    ],
+                    "agent_used": "ARCHIE",
+                    "model_used": response_data.get("model"),
+                    "conversation_id": conversation_id,
+                    "governance_events": [],
+                    "total_duration_ms": response_data.get("response_time_ms", 0),
+                }
+            )
+
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 def _update_emotional_state(user_message, ai_response, user_id):
     """Analyze conversation and update ARCHIE's emotional state"""
     # Analyze the user's message sentiment

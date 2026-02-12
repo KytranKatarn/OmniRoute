@@ -1,6 +1,6 @@
 # A.R.C.H.I.E. Platform
 
-**Version**: 5.29.0 | **Host**: 192.168.1.200 | **Status**: Operational
+**Version**: 5.32.0 | **Host**: 192.168.1.200 | **Status**: Operational
 
 ---
 
@@ -22,7 +22,7 @@
 | MCP Tools | 78 tools via `.mcp.json` |
 | Projects | `unified_projects` table (84 projects) |
 
-## Architecture (5 Systems)
+## Architecture (7 Systems)
 
 1. **Knowledge Base** - `knowledge_base` table (~5,000 active entries, 100% embedded; ~1,100 archived as `archie_v1`)
 2. **AI Bridge** - `/ai_bridge/archie_bridge.py` (multi-model router)
@@ -30,17 +30,21 @@
 4. **Dev HQ** - Development command center (`/dev-hq`), projects, knowledge, schema, integrations
 5. **Consciousness** - Knowledge analytics, AI processing, embedding coverage, emotional intelligence
 6. **Improvement Workflow** - Scan → Proposal → Sandbox → Deploy
+7. **Orchestration Engine** - `ai_bridge/orchestration_engine.py` (intent→route→delegate→execute pipeline, GPU-aware, IAAE-governed)
+8. **IAAE Transparency** - `/iaae` public page (no auth), live governance stats, agent welfare, ethics constraints
 
 ## Key Files
 
 ```
-platform_v2/app.py              - Flask app
-platform_v2/module_registry.py  - Module definitions
-platform_v2/rbac.py             - Permissions
-platform_v2/database.py         - DB connection
-ai_bridge/archie_bridge.py      - AI routing
-ai_bridge/knowledge_analyzer.py - Knowledge extraction (Ollama qwen2.5:7b)
-ai_bridge/embedding_service.py  - Vector embeddings (nomic-embed-text)
+platform_v2/app.py                - Flask app
+platform_v2/module_registry.py    - Module definitions
+platform_v2/rbac.py               - Permissions
+platform_v2/database.py           - DB connection
+ai_bridge/archie_bridge.py        - AI routing
+ai_bridge/orchestration_engine.py - Orchestration pipeline (intent→route→execute)
+ai_bridge/smart_router.py         - GPU-aware model routing
+ai_bridge/knowledge_analyzer.py   - Knowledge extraction (Ollama qwen2.5:7b)
+ai_bridge/embedding_service.py    - Vector embeddings (nomic-embed-text)
 ```
 
 ## Common Errors

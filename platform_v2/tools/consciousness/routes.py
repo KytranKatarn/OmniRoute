@@ -4291,7 +4291,6 @@ def _reindex_repo_via_tree(owner, repo, repo_type, importance=0.85, max_files=No
     Returns (indexed_count, errors, skipped_count, total_candidates, capped, effective_cap).
     """
     import requests
-    import time
 
     headers, _has_token = _get_github_headers()
     errors = []
@@ -4392,89 +4391,112 @@ def _reindex_repo_via_tree(owner, repo, repo_type, importance=0.85, max_files=No
     deleted = cur.rowcount
     conn.commit()
 
-    # 6. Download and insert each file
+    # 6. Chunked pipeline: concurrent download → upsert → batch commit
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    BATCH_SIZE = 50
+    MAX_WORKERS = 5
     indexed_count = 0
     skipped_count = 0
     raw_base = f"https://raw.githubusercontent.com/{owner}/{repo}/{default_branch}"
 
-    for path, filename, ext, size in candidates:
+    def _download_file(item):
+        """Download a single file. Thread-safe, no DB access."""
+        fpath, fname, fext, fsize = item
         try:
-            raw_url = f"{raw_base}/{path}"
+            raw_url = f"{raw_base}/{fpath}"
             file_resp = requests.get(raw_url, timeout=30)
             if file_resp.status_code != 200:
-                errors.append(f"Download failed ({file_resp.status_code}): {path}")
-                skipped_count += 1
-                continue
-
+                return (fpath, fname, fext, fsize, None, f"Download failed ({file_resp.status_code}): {fpath}")
             content = file_resp.text
             if len(content) > MAX_FILE_SIZE:
+                return (fpath, fname, fext, fsize, None, None)  # oversized, skip silently
+            return (fpath, fname, fext, fsize, content, None)
+        except Exception as dl_err:
+            return (fpath, fname, fext, fsize, None, f"Download error: {fpath}: {str(dl_err)}")
+
+    # Process in batches of BATCH_SIZE
+    for batch_start in range(0, len(candidates), BATCH_SIZE):
+        batch = candidates[batch_start : batch_start + BATCH_SIZE]
+
+        # 6a. Download batch concurrently
+        downloaded = []
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            futures = {executor.submit(_download_file, item): item for item in batch}
+            for future in as_completed(futures):
+                downloaded.append(future.result())
+
+        # 6b. Insert sequentially with ON CONFLICT DO UPDATE + SAVEPOINT
+        for fpath, fname, fext, fsize, content, dl_error in downloaded:
+            if dl_error:
+                errors.append(dl_error)
+                skipped_count += 1
+                continue
+            if content is None:
                 skipped_count += 1
                 continue
 
-            # Use repo-qualified title to avoid unique constraint collisions
-            title = f"{owner}/{repo}: {path}"
-
-            cur.execute("SAVEPOINT sp_file")
-            cur.execute(
-                """
-                INSERT INTO knowledge_base (
-                    knowledge_type, title, content, category, file_path,
-                    importance_score, source_type, file_name, file_extension,
-                    memory_metadata, tags, repo_type, created_at
-                ) VALUES (
-                    'github_file', %s, %s, 'github', %s,
-                    %s, 'github_tree', %s, %s,
-                    %s, %s, %s, NOW()
-                )
-                RETURNING id
-                """,
-                (
-                    title,
-                    content[:MAX_CONTENT_STORE],
-                    f"{owner}/{repo}/{path}",
-                    importance,
-                    filename,
-                    ext,
-                    json.dumps(
-                        {
-                            "repo": f"{owner}/{repo}",
-                            "branch": default_branch,
-                            "size": size,
-                        }
+            title = f"{owner}/{repo}: {fpath}"
+            try:
+                cur.execute("SAVEPOINT sp_file")
+                cur.execute(
+                    """
+                    INSERT INTO knowledge_base (
+                        knowledge_type, title, content, category, file_path,
+                        importance_score, source_type, file_name, file_extension,
+                        memory_metadata, tags, repo_type, created_at
+                    ) VALUES (
+                        'github_file', %s, %s, 'github', %s,
+                        %s, 'github_tree', %s, %s,
+                        %s, %s, %s, NOW()
+                    )
+                    ON CONFLICT (repo_type, file_path) DO UPDATE SET
+                        title = EXCLUDED.title,
+                        content = EXCLUDED.content,
+                        importance_score = EXCLUDED.importance_score,
+                        source_type = EXCLUDED.source_type,
+                        file_name = EXCLUDED.file_name,
+                        file_extension = EXCLUDED.file_extension,
+                        memory_metadata = EXCLUDED.memory_metadata,
+                        tags = EXCLUDED.tags,
+                        created_at = EXCLUDED.created_at
+                    RETURNING id
+                    """,
+                    (
+                        title,
+                        content[:MAX_CONTENT_STORE],
+                        f"{owner}/{repo}/{fpath}",
+                        importance,
+                        fname,
+                        fext,
+                        json.dumps(
+                            {
+                                "repo": f"{owner}/{repo}",
+                                "branch": default_branch,
+                                "size": fsize,
+                            }
+                        ),
+                        ["github", owner, repo, repo_type],
+                        repo_type,
                     ),
-                    ["github", owner, repo, repo_type],
-                    repo_type,
-                ),
-            )
-            row = cur.fetchone()
-            kb_id = row["id"] if row else None
-            cur.execute("RELEASE SAVEPOINT sp_file")
-            indexed_count += 1
+                )
+                row = cur.fetchone()
+                kb_id = row["id"] if row else None
+                cur.execute("RELEASE SAVEPOINT sp_file")
+                indexed_count += 1
 
-            # Generate embedding (non-critical)
-            if kb_id:
-                try:
-                    from .memory_service import store_embedding
+            except Exception as file_err:
+                cur.execute("ROLLBACK TO SAVEPOINT sp_file")
+                errors.append(f"Error: {fpath}: {str(file_err)}")
+                skipped_count += 1
 
-                    embed_text = f"{filename}\n\n{content[:8000]}"
-                    if store_embedding("knowledge_base", kb_id, embed_text):
-                        cur.execute(
-                            "UPDATE knowledge_base SET has_embedding = TRUE, embedding_generated_at = NOW() WHERE id = %s",
-                            (kb_id,),
-                        )
-                except Exception as embed_err:
-                    pass  # Embedding failure is non-critical
-
-            # Polite delay between downloads
-            if indexed_count % 10 == 0:
-                time.sleep(0.05)
-
-        except Exception as file_err:
-            cur.execute("ROLLBACK TO SAVEPOINT sp_file")
-            errors.append(f"Error: {path}: {str(file_err)}")
-            skipped_count += 1
-
-    conn.commit()
+        # 6c. Batch commit + update progress
+        conn.commit()
+        cur.execute(
+            "UPDATE github_repositories SET indexed_files = %s WHERE repo_type = %s",
+            (indexed_count, repo_type),
+        )
+        conn.commit()
 
     # 7. Update github_repositories row
     cur.execute(

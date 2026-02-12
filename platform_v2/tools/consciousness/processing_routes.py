@@ -231,7 +231,7 @@ def _get_backlog_counts() -> dict:
         cur.execute(
             """
             SELECT COUNT(*) FROM knowledge_base
-            WHERE source_type = 'github'
+            WHERE knowledge_type = 'github_file'
             AND (ai_analysis IS NULL OR analysis_version = 0)
             """
         )
@@ -366,24 +366,24 @@ def start_processing():
         cur = conn.cursor()
 
         source_type_map = {
-            "conversations": "conversation_log",
-            "github": "github",
-            "claude_hooks": "claude_hook",
+            "conversations": "source_type = 'conversation_log'",
+            "github": "knowledge_type = 'github_file'",
+            "claude_hooks": "source_type = 'claude_hook'",
         }
-        source_type = source_type_map.get(category, "conversation_log")
+        type_filter = source_type_map.get(category, "source_type = 'conversation_log'")
 
         cur.execute(
-            """
+            f"""
             SELECT id, title, content, memory_metadata
             FROM knowledge_base
-            WHERE source_type = %s
+            WHERE {type_filter}
             AND (ai_analysis IS NULL OR analysis_version = 0)
             AND content IS NOT NULL
             AND LENGTH(content) > 100
             ORDER BY created_at DESC
             LIMIT %s
             """,
-            (source_type, batch_size),
+            (batch_size,),
         )
         items = cur.fetchall()
         cur.close()

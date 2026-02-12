@@ -1008,6 +1008,10 @@ body.light-mode .brain-filter-btn.active { color: var(--module-accent); }
                             <option value="low">Low</option>
                         </select>
                     </div>
+                    <div>
+                        <label style="color: var(--archie-text-muted); display: block; margin-bottom: 0.5rem;">Max Files:</label>
+                        <input type="number" id="github-max-files" class="form-control" placeholder="2000" min="10" max="10000" style="width: 100px;">
+                    </div>
                     <button class="btn btn-primary" onclick="indexGitHubRepo()">🚀 Index Repository</button>
                 </div>
                 <div id="github-results" style="display: none; padding: 1rem; background: var(--archie-bg-tertiary); border-radius: 8px; margin-bottom: 1rem;"></div>
@@ -3711,7 +3715,8 @@ async function loadGitHubRepos() {
                 const details = document.createElement('div');
                 details.style.cssText = 'color: var(--archie-text-muted); font-size: 0.8rem;';
                 const fileCount = repo.actual_file_count || repo.indexed_files || 0;
-                details.textContent = fileCount + ' files | ' + (repo.repo_type || 'unknown');
+                const capLabel = repo.max_files ? repo.max_files : 'default';
+                details.textContent = fileCount + ' files | ' + (repo.repo_type || 'unknown') + ' | cap: ' + capLabel;
                 const updated = document.createElement('div');
                 updated.style.cssText = 'color: var(--archie-text-muted); font-size: 0.75rem; margin-top: 0.25rem;';
                 updated.textContent = repo.indexed_at ? 'Indexed: ' + new Date(repo.indexed_at).toLocaleDateString() : 'Not yet indexed';
@@ -3723,13 +3728,19 @@ async function loadGitHubRepos() {
                 btnReindex.style.cssText = 'padding: 0.15rem 0.4rem; font-size: 0.7rem; flex: 1;';
                 btnReindex.textContent = '📥 Re-Index';
                 btnReindex.onclick = function() { reindexSingleRepo(repo.id, btnReindex); };
+                const btnSettings = document.createElement('button');
+                btnSettings.className = 'btn btn-secondary';
+                btnSettings.style.cssText = 'padding: 0.15rem 0.4rem; font-size: 0.7rem; flex: 1;';
+                btnSettings.textContent = '⚙ Cap';
+                btnSettings.title = 'Set max files cap';
+                btnSettings.onclick = function() { editRepoMaxFiles(repo.id, repo.max_files, repo.repo_name); };
                 const btnRemove = document.createElement('button');
                 btnRemove.className = 'btn btn-secondary';
                 btnRemove.style.cssText = 'padding: 0.15rem 0.4rem; font-size: 0.7rem; color: var(--archie-red, #f44);';
                 btnRemove.textContent = '✕ Remove';
                 btnRemove.title = 'Remove repository';
                 btnRemove.onclick = function() { previewRepoRemoval(repo.id); };
-                actions.appendChild(btnReindex); actions.appendChild(btnRemove);
+                actions.appendChild(btnReindex); actions.appendChild(btnSettings); actions.appendChild(btnRemove);
                 card.appendChild(name); card.appendChild(details); card.appendChild(updated); card.appendChild(actions); listEl.appendChild(card);
             });
         } else {
@@ -3737,6 +3748,27 @@ async function loadGitHubRepos() {
             listEl.style.color = 'var(--archie-text-muted)';
         }
     } catch (e) { listEl.textContent = 'Error loading repositories'; }
+}
+
+async function editRepoMaxFiles(repoId, currentMax, repoName) {
+    const input = prompt('Max files cap for ' + repoName + ':\n(Leave empty or enter 0 for global default of 2000)', currentMax || '');
+    if (input === null) return;
+    const val = input.trim() === '' || input.trim() === '0' ? null : parseInt(input.trim());
+    if (val !== null && (isNaN(val) || val < 10 || val > 10000)) {
+        alert('Invalid value. Must be 10-10000 or empty for default.');
+        return;
+    }
+    try {
+        const resp = await fetch('/tools/consciousness/github/repositories/' + repoId, {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json'},
+            credentials: 'same-origin',
+            body: JSON.stringify({ max_files: val })
+        });
+        const data = await resp.json();
+        if (data.success) { loadGitHubRepos(); }
+        else { alert('Error: ' + (data.error || 'Unknown error')); }
+    } catch (e) { alert('Error: ' + e.message); }
 }
 
 // GitHub indexing functions
@@ -3854,6 +3886,8 @@ async function indexGitHubRepo() {
     const owner = match[1];
     const repo = match[2].replace('.git', '');
     const priority = prioritySelect.value;
+    const maxFilesInput = document.getElementById('github-max-files');
+    const maxFiles = maxFilesInput && maxFilesInput.value ? parseInt(maxFilesInput.value) : null;
 
     if (indexBtn) { indexBtn.disabled = true; indexBtn.textContent = '⏳ Indexing...'; }
     resultsEl.style.display = 'block';
@@ -3861,14 +3895,13 @@ async function indexGitHubRepo() {
     resultsEl.textContent = 'Indexing ' + owner + '/' + repo + '...';
 
     try {
+        const body = { repo_url: repoUrl, priority: priority };
+        if (maxFiles) body.max_files = maxFiles;
         const response = await fetch('/tools/consciousness/github/index-selective', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             credentials: 'same-origin',
-            body: JSON.stringify({
-                repo_url: repoUrl,
-                priority: priority
-            })
+            body: JSON.stringify(body)
         });
         const data = await response.json();
 

@@ -635,16 +635,20 @@ async def github_index_repo_handler(arguments: Dict[str, Any]) -> Dict[str, Any]
 
     repo_url = arguments.get("repo_url", "").strip()
     priority = arguments.get("priority", "high")
+    max_files = arguments.get("max_files")
     if not repo_url:
         return {"success": False, "error": "repo_url is required"}
 
     # Call the platform endpoint internally
     platform_url = f"http://{os.getenv('PLATFORM_HOST', 'localhost')}:{os.getenv('PLATFORM_PORT', '3000')}/tools/consciousness/github/index-selective"
     try:
+        body = {"repo_url": repo_url, "priority": priority}
+        if max_files is not None:
+            body["max_files"] = int(max_files)
         # Use internal API key auth
         resp = http_requests.post(
             platform_url,
-            json={"repo_url": repo_url, "priority": priority},
+            json=body,
             headers={"Content-Type": "application/json"},
             cookies={"session": "mcp-internal"},
             timeout=300,
@@ -891,7 +895,7 @@ def register_knowledge_tools():
     register_tool(
         name="github_index_repo",
         category="knowledge",
-        description="Index a GitHub repository into ARCHIE's knowledge base. Indexes all code, docs, and config files up to 500 per repo.",
+        description="Index a GitHub repository into ARCHIE's knowledge base. Indexes all code, docs, and config files up to 2000 per repo (configurable).",
         input_schema={
             "type": "object",
             "properties": {
@@ -904,6 +908,10 @@ def register_knowledge_tools():
                     "enum": ["low", "medium", "high"],
                     "description": "Indexing priority (affects importance score). Default: high",
                     "default": "high",
+                },
+                "max_files": {
+                    "type": "integer",
+                    "description": "Max files to index (10-10000). Overrides per-repo cap. Default: 2000",
                 },
             },
             "required": ["repo_url"],

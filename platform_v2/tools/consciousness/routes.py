@@ -3969,9 +3969,39 @@ SKIP_FILES = {
     "Pipfile.lock",
 }
 
+# Directories with lower-value content (deprioritized, not skipped entirely)
+LOW_VALUE_DIRS = {
+    "tests",
+    "test",
+    "__tests__",
+    "spec",
+    "testing",
+    "examples",
+    "fixtures",
+    "samples",
+    "demo",
+    "mock",
+    "mocks",
+    "__generated__",
+    "locales",
+    "translations",
+    "i18n",
+    ".github",
+    ".circleci",
+}
+
+LOW_VALUE_FILES = {
+    "changelog.md",
+    "changes.md",
+    "history.md",
+    ".travis.yml",
+    "makefile",
+    "dockerfile",
+}
+
 MAX_FILE_SIZE = 500_000  # 500 KB per file
 MAX_CONTENT_STORE = 100_000  # 100 KB stored in DB
-MAX_FILES_PER_REPO = 500  # cap per repo
+MAX_FILES_PER_REPO = 2000  # global default cap per repo
 
 
 def _get_github_headers():
@@ -4062,6 +4092,9 @@ def github_index_selective():
     repo_url = data.get("repo_url", "").strip()
     paths = data.get("paths", [])
     priority = data.get("priority", "high")  # high, medium, low
+    req_max_files = data.get("max_files")  # per-repo cap override
+    if req_max_files is not None:
+        req_max_files = int(req_max_files)
 
     if not repo_url:
         return jsonify({"success": False, "error": "Repository URL required"}), 400
@@ -4084,20 +4117,33 @@ def github_index_selective():
     # If no paths specified, use the recursive tree API for full repo index
     if not paths:
         try:
-            # Look up repo_type from github_repositories
+            # Look up repo_type and max_files from github_repositories
             conn = get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute(
-                "SELECT repo_type FROM github_repositories WHERE repo_name LIKE %s LIMIT 1",
+                "SELECT repo_type, max_files FROM github_repositories WHERE repo_name LIKE %s LIMIT 1",
                 (f"%{owner}/{repo}%",),
             )
             row = cur.fetchone()
             repo_type = row["repo_type"] if row else repo.lower()
+            # Use request max_files > DB max_files > global default
+            effective_max = (
+                req_max_files
+                if req_max_files is not None
+                else (row["max_files"] if row and row.get("max_files") else None)
+            )
+            # Persist the requested cap if provided and repo exists
+            if req_max_files is not None and row:
+                cur.execute(
+                    "UPDATE github_repositories SET max_files = %s WHERE repo_name LIKE %s",
+                    (req_max_files, f"%{owner}/{repo}%"),
+                )
+                conn.commit()
             cur.close()
             conn.close()
 
-            indexed_count, errors, skipped, total_found, was_capped = _reindex_repo_via_tree(
-                owner, repo, repo_type, importance
+            indexed_count, errors, skipped, total_found, was_capped, used_cap = _reindex_repo_via_tree(
+                owner, repo, repo_type, importance, max_files=effective_max
             )
             return jsonify(
                 {
@@ -4107,7 +4153,7 @@ def github_index_selective():
                     "priority": priority,
                     "skipped": skipped,
                     "total_found": total_found,
-                    "capped_at": MAX_FILES_PER_REPO if was_capped else None,
+                    "capped_at": used_cap if was_capped else None,
                     "errors": errors if errors else None,
                 }
             )
@@ -4238,11 +4284,11 @@ def github_index_selective():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-def _reindex_repo_via_tree(owner, repo, repo_type, importance=0.85):
+def _reindex_repo_via_tree(owner, repo, repo_type, importance=0.85, max_files=None):
     """
     Recursively index a GitHub repo using the Tree API (1 API call for full tree).
     Downloads content via raw.githubusercontent.com (no API quota).
-    Returns (indexed_count, errors, skipped_count).
+    Returns (indexed_count, errors, skipped_count, total_candidates, capped, effective_cap).
     """
     import requests
     import time
@@ -4300,21 +4346,33 @@ def _reindex_repo_via_tree(owner, repo, repo_type, importance=0.85):
 
         candidates.append((path, filename, ext, size))
 
-    # 4. Sort by priority: README first, then code, then docs, then config
+    # 4. Sort by 5-tier priority:
+    #   0 = README files
+    #   1 = Core source code (not in test/example/low-value dirs)
+    #   2 = Documentation (not changelogs, not in low-value dirs)
+    #   3 = Tests, examples, changelogs, low-value dirs
+    #   4 = Config, CI, generated, web assets, everything else
     def sort_key(item):
         _path, fname, ext, _size = item
-        if fname.lower().startswith("readme"):
+        fname_lower = fname.lower()
+        path_parts = set(_path.split("/")[:-1])
+        in_low_value = bool(path_parts & LOW_VALUE_DIRS)
+
+        if fname_lower.startswith("readme"):
             return (0, _path)
-        if ext in INDEXABLE_CODE_EXT:
+        if ext in INDEXABLE_CODE_EXT and not in_low_value:
             return (1, _path)
-        if ext in INDEXABLE_DOC_EXT:
+        if ext in INDEXABLE_DOC_EXT and not in_low_value and fname_lower not in LOW_VALUE_FILES:
             return (2, _path)
-        return (3, _path)
+        if in_low_value or fname_lower in LOW_VALUE_FILES:
+            return (3, _path)
+        return (4, _path)
 
     candidates.sort(key=sort_key)
     total_candidates = len(candidates)
-    capped = total_candidates > MAX_FILES_PER_REPO
-    candidates = candidates[:MAX_FILES_PER_REPO]
+    effective_cap = max_files if max_files is not None else MAX_FILES_PER_REPO
+    capped = total_candidates > effective_cap
+    candidates = candidates[:effective_cap]
 
     # 5. Delete old entries for this repo (and their embeddings)
     conn = get_db()
@@ -4432,7 +4490,7 @@ def _reindex_repo_via_tree(owner, repo, repo_type, importance=0.85):
     cur.close()
     conn.close()
 
-    return indexed_count, errors, skipped_count, total_candidates, capped
+    return indexed_count, errors, skipped_count, total_candidates, capped, effective_cap
 
 
 @consciousness_bp.route("/github/reindex-all", methods=["POST"])
@@ -4443,7 +4501,7 @@ def github_reindex_all():
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT id, repo_name, repo_type FROM github_repositories ORDER BY id")
+        cur.execute("SELECT id, repo_name, repo_type, max_files FROM github_repositories ORDER BY id")
         repos = cur.fetchall()
         cur.close()
         conn.close()
@@ -4455,11 +4513,14 @@ def github_reindex_all():
         for repo_row in repos:
             repo_name = repo_row["repo_name"]
             repo_type = repo_row["repo_type"]
+            repo_max = repo_row.get("max_files")
             try:
                 parts = repo_name.split("/")
                 owner = parts[0]
                 repo = parts[1]
-                indexed, errs, skipped, total_found, was_capped = _reindex_repo_via_tree(owner, repo, repo_type)
+                indexed, errs, skipped, total_found, was_capped, used_cap = _reindex_repo_via_tree(
+                    owner, repo, repo_type, max_files=repo_max
+                )
                 total_indexed += indexed
                 total_errors.extend(errs)
                 results.append(
@@ -4469,7 +4530,7 @@ def github_reindex_all():
                         "indexed": indexed,
                         "skipped": skipped,
                         "total_found": total_found,
-                        "capped_at": MAX_FILES_PER_REPO if was_capped else None,
+                        "capped_at": used_cap if was_capped else None,
                         "errors": len(errs),
                     }
                 )
@@ -4509,7 +4570,7 @@ def github_reindex_single(repo_id):
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT id, repo_name, repo_type FROM github_repositories WHERE id = %s", (repo_id,))
+        cur.execute("SELECT id, repo_name, repo_type, max_files FROM github_repositories WHERE id = %s", (repo_id,))
         repo_row = cur.fetchone()
         cur.close()
         conn.close()
@@ -4519,11 +4580,14 @@ def github_reindex_single(repo_id):
 
         repo_name = repo_row["repo_name"]
         repo_type = repo_row["repo_type"]
+        repo_max = repo_row.get("max_files")
         parts = repo_name.split("/")
         owner = parts[0]
         repo = parts[1]
 
-        indexed, errs, skipped, total_found, was_capped = _reindex_repo_via_tree(owner, repo, repo_type)
+        indexed, errs, skipped, total_found, was_capped, used_cap = _reindex_repo_via_tree(
+            owner, repo, repo_type, max_files=repo_max
+        )
         return jsonify(
             {
                 "success": True,
@@ -4531,7 +4595,7 @@ def github_reindex_single(repo_id):
                 "indexed": indexed,
                 "skipped": skipped,
                 "total_found": total_found,
-                "capped_at": MAX_FILES_PER_REPO if was_capped else None,
+                "capped_at": used_cap if was_capped else None,
                 "errors": errs if errs else None,
             }
         )
@@ -4556,6 +4620,7 @@ def github_repositories():
             """
             SELECT gr.id, gr.repo_name, gr.repo_type, gr.status, gr.indexed,
                    gr.indexed_files, gr.cloned_at, gr.updated_at, gr.indexed_at,
+                   gr.max_files,
                    (SELECT COUNT(*) FROM knowledge_base kb
                     WHERE kb.knowledge_type = 'github_file'
                     AND kb.repo_type = gr.repo_type) as actual_file_count
@@ -4569,6 +4634,41 @@ def github_repositories():
         conn.close()
 
         return jsonify({"success": True, "repositories": [dict(r) for r in repos], "count": len(repos)})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/github/repositories/<int:repo_id>", methods=["PATCH"])
+@login_required
+@admin_required
+def github_repository_update(repo_id):
+    """Update a tracked repository's settings (e.g. max_files cap)."""
+    try:
+        data = request.get_json() or {}
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute("SELECT id, repo_name FROM github_repositories WHERE id = %s", (repo_id,))
+        repo = cur.fetchone()
+        if not repo:
+            cur.close()
+            conn.close()
+            return jsonify({"success": False, "error": "Repository not found"}), 404
+
+        # Update max_files (None resets to global default)
+        if "max_files" in data:
+            new_max = data["max_files"]
+            if new_max is not None:
+                new_max = int(new_max)
+            cur.execute(
+                "UPDATE github_repositories SET max_files = %s, updated_at = NOW() WHERE id = %s",
+                (new_max, repo_id),
+            )
+            conn.commit()
+
+        cur.close()
+        conn.close()
+        return jsonify({"success": True, "repo_id": repo_id, "max_files": data.get("max_files")})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 

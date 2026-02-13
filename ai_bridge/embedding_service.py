@@ -24,17 +24,11 @@ from dataclasses import dataclass
 logger = logging.getLogger(__name__)
 
 # Configuration
-# Embedding model is available on the main server (192.168.1.200)
-# Use OLLAMA_EMBEDDING_HOST if set, otherwise try OLLAMA_PRIMARY, then fallback to .200
+# Embedding model (nomic-embed-text) runs on ARCHIE's local Ollama instance.
+# Use OLLAMA_EMBEDDING_HOST if set, otherwise OLLAMA_PRIMARY, then host.docker.internal.
 _embedding_host = os.getenv("OLLAMA_EMBEDDING_HOST", "")
 if not _embedding_host:
-    _primary = os.getenv("OLLAMA_PRIMARY", "")
-    # Check if primary is the main server that has the embedding model
-    if "192.168.1.200" in _primary:
-        _embedding_host = _primary
-    else:
-        # Fallback to main server where nomic-embed-text is installed
-        _embedding_host = "http://192.168.1.200:11434"
+    _embedding_host = os.getenv("OLLAMA_PRIMARY", "host.docker.internal:11434")
 
 # Ensure http:// prefix
 if not _embedding_host.startswith("http"):

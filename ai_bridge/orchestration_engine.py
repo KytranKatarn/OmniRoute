@@ -251,7 +251,7 @@ class OrchestrationEngine:
                         ))
 
             # --- Step 7: Execute ---
-            model_used = self._resolve_model(routing, gpu_info)
+            model_used = self._resolve_model(routing, gpu_info, intent)
             response_text = self._step_execute(
                 message, user_id, conversation_id,
                 selected_agent, model_used, routing, intent,
@@ -864,10 +864,20 @@ class OrchestrationEngine:
         """Execute via local Ollama (dolphin3 or whatever is loaded)"""
         try:
             # Use ArchieAI for personality-enriched responses
-            sys.path.insert(0, os.path.join(
-                os.path.dirname(__file__), '..', 'platform_v2', 'tools', 'archie_core'
-            ))
-            from ai_chat import ArchieAI
+            # Try multiple import paths: /app/tools/archie_core (container)
+            # or relative from ai_bridge (host dev)
+            ArchieAI = None
+            for path in [
+                '/app/tools/archie_core',
+                os.path.join(os.path.dirname(__file__), '..', 'platform_v2', 'tools', 'archie_core'),
+            ]:
+                if os.path.exists(os.path.join(path, 'ai_chat.py')):
+                    sys.path.insert(0, path)
+                    from ai_chat import ArchieAI
+                    break
+
+            if ArchieAI is None:
+                raise ImportError("Could not find ai_chat module")
 
             ai = ArchieAI()
             context = user_context or {}
@@ -942,7 +952,8 @@ class OrchestrationEngine:
             logger.debug(f"Could not check loaded model: {e}")
         return None
 
-    def _resolve_model(self, routing: Optional[Dict], gpu_info: Dict) -> str:
+    def _resolve_model(self, routing: Optional[Dict], gpu_info: Dict,
+                        intent: Optional[Dict] = None) -> str:
         """Resolve final model name, preferring loaded model to avoid swaps"""
         if routing is None:
             return 'dolphin3:latest'
@@ -953,18 +964,27 @@ class OrchestrationEngine:
         if routing.get('provider') != 'ollama':
             return requested
 
+        # Conversation MUST use dolphin3 — it follows personality system prompts
+        # faithfully. qwen2.5 ignores them and produces generic AI disclaimers.
+        intent_type = intent.get('type', '') if intent else ''
+        if intent_type == 'conversation':
+            return 'dolphin3:latest'
+
+        # Models that cannot be used for chat/generation (embedding-only)
+        non_chat_models = {'nomic-embed-text', 'nomic-embed-text:latest'}
+
+        loaded = gpu_info.get('loaded_model')
+
+        # Never substitute an embedding model for a chat request
+        if loaded and loaded in non_chat_models:
+            return requested
+
         # If GPU check says we can use the loaded model, use it
-        if gpu_info.get('can_use_loaded') and gpu_info.get('loaded_model'):
-            return gpu_info['loaded_model']
+        if gpu_info.get('can_use_loaded') and loaded:
+            return loaded
 
         # If a swap would be required and the loaded model can handle it, prefer loaded
-        if gpu_info.get('swap_required') and gpu_info.get('loaded_model'):
-            loaded = gpu_info['loaded_model']
-            # Conversational tasks can be handled by any model
-            task_type = routing.get('task_type', 'conversation')
-            if task_type in ('conversation', 'format', 'code_simple', 'documentation'):
-                return loaded
-            # For complex tasks, still prefer loaded model over crashing
+        if gpu_info.get('swap_required') and loaded:
             return loaded
 
         return requested

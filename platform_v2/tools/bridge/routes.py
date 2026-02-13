@@ -200,6 +200,7 @@ LLM_CONNECTIONS = {
 
 
 @bridge_bp.route("/")
+@login_required
 def bridge_dashboard():
     """Render the main Bridge command center"""
     deployment_mode = os.getenv("DEPLOYMENT_MODE", "hub")

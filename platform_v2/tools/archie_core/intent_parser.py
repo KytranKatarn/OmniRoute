@@ -108,6 +108,25 @@ class IntentParser:
         ):
             return {"type": "system_status", "confidence": 0.9, "entities": {"subtype": "health"}}
 
+        # Self-referential questions (about ARCHIE itself) — treat as conversation
+        # Be specific to avoid catching knowledge queries like "what do you know about X"
+        if re.search(r"\b(you|your|yourself)\b", text_lower) and any(
+            phrase in text_lower
+            for phrase in [
+                "who are you",
+                "what are you",
+                "tell me about you",
+                "are you assigned",
+                "what station are you",
+                "what can you do",
+                "how are you",
+                "how do you feel",
+                "what do you do",
+                "what do you think",
+            ]
+        ):
+            return {"type": "conversation", "confidence": 0.95, "entities": {"subtype": "self_query"}}
+
         # Team operations
         if any(word in text_lower for word in ["assign", "station", "roster", "agent", "team"]):
             if any(action in text_lower for action in ["move", "assign", "put", "switch"]):

@@ -524,29 +524,32 @@ class OrchestrationEngine:
         except Exception as e:
             logger.warning(f"Agent selection error: {e}")
 
+        # Always fall back to ARCHIE (agent_id=2) if no agent found
+        if not agent or not agent.get('agent_id'):
+            agent = {
+                'agent_id': 2,
+                'name': 'ARCHIE',
+                'department': 'Command',
+                'worker_type': 'internal',
+                'model': 'dolphin3:latest',
+                'tier': 1,
+            }
+
         duration = int((time.time() - t0) * 1000)
 
-        if agent:
-            steps.append(ThinkingStep(
-                step_type=StepType.AGENT_SELECT.value,
-                label=f"Agent: {agent.get('name', 'Unknown')} ({agent.get('department', '')})",
-                data={
-                    'agent_id': agent.get('agent_id'),
-                    'name': agent.get('name'),
-                    'department': agent.get('department'),
-                    'worker_type': agent.get('worker_type'),
-                    'tier': agent.get('tier'),
-                },
-                duration_ms=duration,
-                agent_id=agent.get('agent_id'),
-            ))
-        else:
-            steps.append(ThinkingStep(
-                step_type=StepType.AGENT_SELECT.value,
-                label="Agent: ARCHIE (default)",
-                data={'reason': 'No suitable agent found, ARCHIE handles directly'},
-                duration_ms=duration,
-            ))
+        steps.append(ThinkingStep(
+            step_type=StepType.AGENT_SELECT.value,
+            label=f"Agent: {agent.get('name', 'Unknown')} ({agent.get('department', '')})",
+            data={
+                'agent_id': agent.get('agent_id'),
+                'name': agent.get('name'),
+                'department': agent.get('department'),
+                'worker_type': agent.get('worker_type'),
+                'tier': agent.get('tier'),
+            },
+            duration_ms=duration,
+            agent_id=agent.get('agent_id'),
+        ))
 
         return agent
 

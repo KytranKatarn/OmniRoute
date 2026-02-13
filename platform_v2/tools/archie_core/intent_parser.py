@@ -168,8 +168,8 @@ class IntentParser:
                 return {
                     "score": result["complexity_score"],
                     "requires_contractor": result["requires_contractor"],
-                    "matching_patterns": result["matching_patterns"] or [],
-                    "recommended_action": result["recommended_action"],
+                    "matching_patterns": [],
+                    "recommended_action": result.get("suggested_model", "use_fast_local_model"),
                 }
         except Exception as e:
             print(f"Complexity assessment error: {e}")

@@ -152,11 +152,11 @@ STATIONS_FALLBACK = {
 # LLM Connection definitions
 LLM_CONNECTIONS = {
     "ollama_local": {
-        "name": "Ollama (Local)",
+        "name": "Ollama (Local Hub)",
         "type": "local",
-        "host": "192.168.1.246",
+        "host": "host.docker.internal",
         "port": 11434,
-        "models": ["qwen2.5-coder:7b", "deepseek-coder-v2:16b", "llama3.1:8b"],
+        "models": ["dolphin3:latest", "qwen2.5:7b", "nomic-embed-text:latest"],
         "cost": "FREE",
     },
     "claude_api": {

@@ -501,30 +501,71 @@ class OrchestrationEngine:
     def _step_select_agent(
         self, message: str, intent: Dict, steps: List[ThinkingStep]
     ) -> Optional[Dict]:
-        """Step 6: Select the best agent for this task"""
+        """Step 6: Select the best agent via Bridge stations, then delegation, then ARCHIE fallback"""
         t0 = time.time()
         agent = None
+        source = 'default'
 
+        intent_type = intent.get('type', 'conversation')
+
+        # Map intent to Bridge station codes
+        station_map = {
+            'code_task': ['ENGINEERING', 'ENGINEERING_CODE', 'ENGINEERING_BUILD'],
+            'team_task': ['OPERATIONS', 'OPERATIONS_CORE', 'HR'],
+            'business_task': ['OPERATIONS', 'FINANCE'],
+            'knowledge_query': ['CONSCIOUSNESS', 'RND', 'RND_AI'],
+            'creative_task': ['CREATIVE', 'CREATIVE_MEDIA', 'CREATIVE_CONTENT'],
+            'system_status': ['OPERATIONS', 'INFRASTRUCTURE', 'SECURITY'],
+            'conversation': ['COMMAND'],
+        }
+        preferred_stations = station_map.get(intent_type, ['COMMAND'])
+
+        # Try 1: Find agent assigned to a matching Bridge station
         try:
-            from agent_delegation import select_best_agent_for_task
-            intent_type = intent.get('type', 'conversation')
-
-            # Map intent to department preference
-            dept_map = {
-                'code_task': 'Engineering',
-                'team_task': 'Operations',
-                'business_task': 'Strategy',
-                'knowledge_query': 'Research',
-                'creative_task': 'Creative',
-                'system_status': 'Operations',
-            }
-            dept = dept_map.get(intent_type)
-
-            agent = select_best_agent_for_task(message, department_preference=dept)
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute("""
+                SELECT a.id as agent_id, a.name, a.department, a.worker_type,
+                       a.model, a.tier, bs.station_code
+                FROM station_assignments sa
+                JOIN bridge_stations bs ON sa.station_id = bs.id
+                JOIN agents a ON sa.agent_id = a.id
+                WHERE sa.is_active = true
+                  AND a.status = 'active'
+                  AND bs.station_code = ANY(%s)
+                ORDER BY sa.priority ASC, sa.assignment_type = 'primary' DESC
+                LIMIT 1
+            """, (preferred_stations,))
+            row = cur.fetchone()
+            if row:
+                agent = dict(row)
+                source = 'station'
+            cur.close()
+            conn.close()
         except Exception as e:
-            logger.warning(f"Agent selection error: {e}")
+            logger.warning(f"Station assignment lookup error: {e}")
 
-        # Always fall back to ARCHIE (agent_id=2) if no agent found
+        # Try 2: Fall back to agent_delegation department match
+        if not agent:
+            try:
+                from agent_delegation import select_best_agent_for_task
+                dept_map = {
+                    'code_task': 'Engineering',
+                    'team_task': 'Operations',
+                    'business_task': 'Strategy',
+                    'knowledge_query': 'Research',
+                    'creative_task': 'Creative',
+                    'system_status': 'Operations',
+                }
+                dept = dept_map.get(intent_type)
+                result = select_best_agent_for_task(message, department_preference=dept)
+                if result and result.get('agent_id'):
+                    agent = result
+                    source = 'delegation'
+            except Exception as e:
+                logger.warning(f"Agent delegation fallback error: {e}")
+
+        # Try 3: Always fall back to ARCHIE (agent_id=2)
         if not agent or not agent.get('agent_id'):
             agent = {
                 'agent_id': 2,
@@ -539,13 +580,15 @@ class OrchestrationEngine:
 
         steps.append(ThinkingStep(
             step_type=StepType.AGENT_SELECT.value,
-            label=f"Agent: {agent.get('name', 'Unknown')} ({agent.get('department', '')})",
+            label=f"Agent: {agent.get('name', 'Unknown')} ({agent.get('department', '')}) [{source}]",
             data={
                 'agent_id': agent.get('agent_id'),
                 'name': agent.get('name'),
                 'department': agent.get('department'),
                 'worker_type': agent.get('worker_type'),
                 'tier': agent.get('tier'),
+                'source': source,
+                'station': agent.get('station_code'),
             },
             duration_ms=duration,
             agent_id=agent.get('agent_id'),

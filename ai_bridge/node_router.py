@@ -37,7 +37,7 @@ def get_db():
 
 def get_fallback_host() -> str:
     """Get fallback Ollama host from environment"""
-    host = os.getenv('OLLAMA_HOST', 'http://192.168.1.246:11434')
+    host = os.getenv('OLLAMA_HOST', 'http://host.docker.internal:11434')
     if not host.startswith('http://') and not host.startswith('https://'):
         host = f'http://{host}'
     return host

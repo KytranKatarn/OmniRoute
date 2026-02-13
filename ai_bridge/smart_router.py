@@ -69,7 +69,7 @@ DEFAULT_MODEL_CONFIGS = {
     'local': ModelConfig(
         tier='local',
         provider='ollama',
-        model_name='deepseek-coder-v2:16b',
+        model_name='dolphin3:latest',
         input_cost_per_1m=0.0,
         output_cost_per_1m=0.0,
         max_tokens=8192

@@ -3,6 +3,7 @@ A.R.C.H.I.E. Intent Parser
 NLP-based intent classification using local Ollama models
 Determines what the user wants and how to route their request
 """
+
 import requests
 import json
 import os
@@ -16,29 +17,29 @@ class IntentParser:
     """Parse natural language into structured intents using local Ollama"""
 
     INTENT_TYPES = [
-        'code_task',          # Write/fix/review code
-        'team_task',          # Assign agents, manage stations
-        'business_task',      # Invoices, emails, scheduling
-        'knowledge_query',    # What do we know about X?
-        'workflow',           # Multi-step automated tasks
-        'file_operation',     # Read/write/edit files
-        'creative_task',      # Generate images, content
-        'system_status',      # Health checks, stats
-        'contractor_request', # Explicit Claude escalation
-        'conversation'        # General chat, greetings
+        "code_task",  # Write/fix/review code
+        "team_task",  # Assign agents, manage stations
+        "business_task",  # Invoices, emails, scheduling
+        "knowledge_query",  # What do we know about X?
+        "workflow",  # Multi-step automated tasks
+        "file_operation",  # Read/write/edit files
+        "creative_task",  # Generate images, content
+        "system_status",  # Health checks, stats
+        "contractor_request",  # Explicit Claude escalation
+        "conversation",  # General chat, greetings
     ]
 
     def __init__(self):
-        ollama_host = os.getenv('OLLAMA_PRIMARY', '192.168.1.246:11434')
+        ollama_host = os.getenv("OLLAMA_PRIMARY", "host.docker.internal:11434")
         # Ensure http:// prefix
-        self.ollama_url = ollama_host if ollama_host.startswith('http') else f'http://{ollama_host}'
-        self.classification_model = 'llama3.2:3b'  # Fast model for classification
+        self.ollama_url = ollama_host if ollama_host.startswith("http") else f"http://{ollama_host}"
+        self.classification_model = "qwen2.5:7b"  # Installed locally, good for classification
         self.db_config = {
-            'host': os.getenv('DB_HOST', 'archie_database'),
-            'port': os.getenv('DB_PORT', '5432'),
-            'database': os.getenv('DB_NAME', 'archie'),
-            'user': os.getenv('DB_USER', 'archie'),
-            'password': os.getenv('DB_PASSWORD', '')
+            "host": os.getenv("DB_HOST", "archie_database"),
+            "port": os.getenv("DB_PORT", "5432"),
+            "database": os.getenv("DB_NAME", "archie"),
+            "user": os.getenv("DB_USER", "archie"),
+            "password": os.getenv("DB_PASSWORD", ""),
         }
 
     def get_db(self):
@@ -66,7 +67,7 @@ class IntentParser:
         """
         # Step 1: Quick pattern matching for obvious intents
         quick_result = self._quick_classify(user_input)
-        if quick_result and quick_result.get('confidence', 0) > 0.9:
+        if quick_result and quick_result.get("confidence", 0) > 0.9:
             return quick_result
 
         # Step 2: Assess complexity using database patterns
@@ -77,15 +78,15 @@ class IntentParser:
 
         # Step 4: Merge results
         result = self._merge_results(quick_result, llm_result, complexity)
-        result['raw_input'] = user_input
-        result['complexity'] = complexity
+        result["raw_input"] = user_input
+        result["complexity"] = complexity
 
         # Step 5: Detect multi-agent requirement (Phase 63)
         multi_agent_config = self._detect_multi_agent_requirement(user_input, result)
-        result['requires_multi_agent'] = multi_agent_config['requires_multi_agent']
-        result['participating_stations'] = multi_agent_config['participating_stations']
-        result['discussion_mode'] = multi_agent_config['discussion_mode']
-        result['domains_detected'] = multi_agent_config['domains_detected']
+        result["requires_multi_agent"] = multi_agent_config["requires_multi_agent"]
+        result["participating_stations"] = multi_agent_config["participating_stations"]
+        result["discussion_mode"] = multi_agent_config["discussion_mode"]
+        result["domains_detected"] = multi_agent_config["domains_detected"]
 
         return result
 
@@ -94,53 +95,59 @@ class IntentParser:
         text_lower = text.lower().strip()
 
         # Greeting patterns
-        if re.match(r'^(hi|hello|hey|good morning|good afternoon|good evening|howdy|sup|yo)\b', text_lower):
-            return {'type': 'conversation', 'confidence': 0.95, 'entities': {'subtype': 'greeting'}}
+        if re.match(r"^(hi|hello|hey|good morning|good afternoon|good evening|howdy|sup|yo)\b", text_lower):
+            return {"type": "conversation", "confidence": 0.95, "entities": {"subtype": "greeting"}}
 
         # Explicit Claude/contractor request
-        if any(word in text_lower for word in ['claude', 'need help from claude', 'escalate', 'contractor']):
-            return {'type': 'contractor_request', 'confidence': 0.95, 'entities': {'explicit': True}}
+        if any(word in text_lower for word in ["claude", "need help from claude", "escalate", "contractor"]):
+            return {"type": "contractor_request", "confidence": 0.95, "entities": {"explicit": True}}
 
         # Status checks
-        if any(phrase in text_lower for phrase in ['system status', 'health check', "what's running", 'are you online']):
-            return {'type': 'system_status', 'confidence': 0.9, 'entities': {'subtype': 'health'}}
+        if any(
+            phrase in text_lower for phrase in ["system status", "health check", "what's running", "are you online"]
+        ):
+            return {"type": "system_status", "confidence": 0.9, "entities": {"subtype": "health"}}
 
         # Team operations
-        if any(word in text_lower for word in ['assign', 'station', 'roster', 'agent', 'team']):
-            if any(action in text_lower for action in ['move', 'assign', 'put', 'switch']):
-                return {'type': 'team_task', 'confidence': 0.85, 'entities': {'action': 'assignment'}}
-            return {'type': 'team_task', 'confidence': 0.75, 'entities': {'action': 'query'}}
+        if any(word in text_lower for word in ["assign", "station", "roster", "agent", "team"]):
+            if any(action in text_lower for action in ["move", "assign", "put", "switch"]):
+                return {"type": "team_task", "confidence": 0.85, "entities": {"action": "assignment"}}
+            return {"type": "team_task", "confidence": 0.75, "entities": {"action": "query"}}
 
         # Code tasks
-        code_keywords = ['write', 'code', 'function', 'class', 'implement', 'fix', 'bug', 'debug', 'refactor']
+        code_keywords = ["write", "code", "function", "class", "implement", "fix", "bug", "debug", "refactor"]
         if any(word in text_lower for word in code_keywords):
             # Detect language
             language = None
-            for lang in ['python', 'javascript', 'typescript', 'rust', 'go', 'java', 'sql', 'html', 'css']:
+            for lang in ["python", "javascript", "typescript", "rust", "go", "java", "sql", "html", "css"]:
                 if lang in text_lower:
                     language = lang
                     break
-            return {'type': 'code_task', 'confidence': 0.8, 'entities': {'language': language}}
+            return {"type": "code_task", "confidence": 0.8, "entities": {"language": language}}
 
         # Business tasks
-        if any(word in text_lower for word in ['invoice', 'email', 'schedule', 'meeting', 'customer', 'payment']):
-            return {'type': 'business_task', 'confidence': 0.8, 'entities': {}}
+        if any(word in text_lower for word in ["invoice", "email", "schedule", "meeting", "customer", "payment"]):
+            return {"type": "business_task", "confidence": 0.8, "entities": {}}
 
         # File operations
-        if any(word in text_lower for word in ['read file', 'open file', 'edit file', 'create file', 'show me']):
-            return {'type': 'file_operation', 'confidence': 0.85, 'entities': {}}
+        if any(word in text_lower for word in ["read file", "open file", "edit file", "create file", "show me"]):
+            return {"type": "file_operation", "confidence": 0.85, "entities": {}}
 
         # Workflow patterns (multi-step)
-        if any(phrase in text_lower for phrase in ['and then', 'after that', 'workflow', 'pipeline', 'review and deploy']):
-            return {'type': 'workflow', 'confidence': 0.75, 'entities': {'multi_step': True}}
+        if any(
+            phrase in text_lower for phrase in ["and then", "after that", "workflow", "pipeline", "review and deploy"]
+        ):
+            return {"type": "workflow", "confidence": 0.75, "entities": {"multi_step": True}}
 
         # Creative tasks
-        if any(word in text_lower for word in ['generate image', 'create picture', 'design', 'make a logo']):
-            return {'type': 'creative_task', 'confidence': 0.8, 'entities': {'media_type': 'image'}}
+        if any(word in text_lower for word in ["generate image", "create picture", "design", "make a logo"]):
+            return {"type": "creative_task", "confidence": 0.8, "entities": {"media_type": "image"}}
 
         # Knowledge queries
-        if any(phrase in text_lower for phrase in ['what is', 'how does', 'explain', 'tell me about', 'what do we know']):
-            return {'type': 'knowledge_query', 'confidence': 0.75, 'entities': {}}
+        if any(
+            phrase in text_lower for phrase in ["what is", "how does", "explain", "tell me about", "what do we know"]
+        ):
+            return {"type": "knowledge_query", "confidence": 0.75, "entities": {}}
 
         return None
 
@@ -151,7 +158,7 @@ class IntentParser:
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
             # Use the database function
-            cur.execute("SELECT * FROM assess_command_complexity(%s)", (text,))
+            cur.execute("SELECT * FROM assess_command_complexity(%s::TEXT, NULL::VARCHAR)", (text,))
             result = cur.fetchone()
 
             cur.close()
@@ -159,20 +166,20 @@ class IntentParser:
 
             if result:
                 return {
-                    'score': result['complexity_score'],
-                    'requires_contractor': result['requires_contractor'],
-                    'matching_patterns': result['matching_patterns'] or [],
-                    'recommended_action': result['recommended_action']
+                    "score": result["complexity_score"],
+                    "requires_contractor": result["requires_contractor"],
+                    "matching_patterns": result["matching_patterns"] or [],
+                    "recommended_action": result["recommended_action"],
                 }
         except Exception as e:
             print(f"Complexity assessment error: {e}")
 
         # Default medium complexity
         return {
-            'score': 5,
-            'requires_contractor': False,
-            'matching_patterns': [],
-            'recommended_action': 'use_fast_local_model'
+            "score": 5,
+            "requires_contractor": False,
+            "matching_patterns": [],
+            "recommended_action": "use_fast_local_model",
         }
 
     def _llm_classify(self, text: str, context: dict = None) -> dict:
@@ -205,46 +212,46 @@ JSON:"""
                     "model": self.classification_model,
                     "prompt": prompt,
                     "stream": False,
-                    "options": {"temperature": 0.1}
+                    "options": {"temperature": 0.1},
                 },
-                timeout=30
+                timeout=30,
             )
 
             if response.status_code == 200:
-                result_text = response.json().get('response', '').strip()
+                result_text = response.json().get("response", "").strip()
                 # Extract JSON from response
-                json_match = re.search(r'\{[^{}]+\}', result_text)
+                json_match = re.search(r"\{[^{}]+\}", result_text)
                 if json_match:
                     result = json.loads(json_match.group())
-                    if result.get('type') in self.INTENT_TYPES:
+                    if result.get("type") in self.INTENT_TYPES:
                         return result
         except Exception as e:
             print(f"LLM classification error: {e}")
 
         # Fallback
-        return {'type': 'conversation', 'confidence': 0.5, 'entities': {}}
+        return {"type": "conversation", "confidence": 0.5, "entities": {}}
 
     def _merge_results(self, quick: dict, llm: dict, complexity: dict) -> dict:
         """Merge quick, LLM, and complexity results"""
         # Start with LLM result
-        result = llm.copy() if llm else {'type': 'conversation', 'confidence': 0.5, 'entities': {}}
+        result = llm.copy() if llm else {"type": "conversation", "confidence": 0.5, "entities": {}}
 
         # Override with quick result if higher confidence
-        if quick and quick.get('confidence', 0) > result.get('confidence', 0):
+        if quick and quick.get("confidence", 0) > result.get("confidence", 0):
             result = quick.copy()
 
         # Add complexity-based contractor flag
-        if complexity.get('requires_contractor'):
-            result['requires_contractor'] = True
-        elif result.get('type') == 'contractor_request':
-            result['requires_contractor'] = True
+        if complexity.get("requires_contractor"):
+            result["requires_contractor"] = True
+        elif result.get("type") == "contractor_request":
+            result["requires_contractor"] = True
         else:
-            result['requires_contractor'] = False
+            result["requires_contractor"] = False
 
         # Ensure all fields exist
-        result.setdefault('confidence', 0.5)
-        result.setdefault('entities', {})
-        result.setdefault('parameters', {})
+        result.setdefault("confidence", 0.5)
+        result.setdefault("entities", {})
+        result.setdefault("parameters", {})
 
         return result
 
@@ -252,39 +259,39 @@ JSON:"""
         """Extract relevant entities based on intent type"""
         entities = {}
 
-        if intent_type == 'code_task':
+        if intent_type == "code_task":
             # Extract language
-            for lang in ['python', 'javascript', 'typescript', 'rust', 'go', 'java', 'sql']:
+            for lang in ["python", "javascript", "typescript", "rust", "go", "java", "sql"]:
                 if lang in text.lower():
-                    entities['language'] = lang
+                    entities["language"] = lang
                     break
 
             # Extract action
-            if 'fix' in text.lower() or 'bug' in text.lower():
-                entities['action'] = 'fix'
-            elif 'refactor' in text.lower():
-                entities['action'] = 'refactor'
-            elif 'review' in text.lower():
-                entities['action'] = 'review'
+            if "fix" in text.lower() or "bug" in text.lower():
+                entities["action"] = "fix"
+            elif "refactor" in text.lower():
+                entities["action"] = "refactor"
+            elif "review" in text.lower():
+                entities["action"] = "review"
             else:
-                entities['action'] = 'write'
+                entities["action"] = "write"
 
-        elif intent_type == 'team_task':
+        elif intent_type == "team_task":
             # Try to extract agent name
-            name_match = re.search(r'(?:assign|move)\s+(\w+)', text, re.IGNORECASE)
+            name_match = re.search(r"(?:assign|move)\s+(\w+)", text, re.IGNORECASE)
             if name_match:
-                entities['agent_name'] = name_match.group(1)
+                entities["agent_name"] = name_match.group(1)
 
             # Try to extract station
-            station_match = re.search(r'(?:to|at)\s+(\w+)\s+station', text, re.IGNORECASE)
+            station_match = re.search(r"(?:to|at)\s+(\w+)\s+station", text, re.IGNORECASE)
             if station_match:
-                entities['station'] = station_match.group(1)
+                entities["station"] = station_match.group(1)
 
-        elif intent_type == 'file_operation':
+        elif intent_type == "file_operation":
             # Extract file path
-            path_match = re.search(r'[/\\][\w./\\-]+\.\w+', text)
+            path_match = re.search(r"[/\\][\w./\\-]+\.\w+", text)
             if path_match:
-                entities['file_path'] = path_match.group()
+                entities["file_path"] = path_match.group()
 
         return entities
 
@@ -303,27 +310,27 @@ JSON:"""
 
         # Patterns suggesting multi-agent discussion
         multi_agent_patterns = [
-            r'review.*(code|design|architecture|plan)',
-            r'(design|build|implement).*with.*(security|performance|testing)',
-            r'(complex|comprehensive|full-stack|end-to-end)',
-            r'multiple\s+(teams?|agents?|perspectives?|experts?)',
-            r'(collaborate|discussion|consensus|debate)',
-            r'get.*opinions?\s+from',
-            r'what\s+does\s+everyone\s+think',
-            r'team\s+(review|discussion|meeting)',
-            r'cross-?(functional|team|department)',
+            r"review.*(code|design|architecture|plan)",
+            r"(design|build|implement).*with.*(security|performance|testing)",
+            r"(complex|comprehensive|full-stack|end-to-end)",
+            r"multiple\s+(teams?|agents?|perspectives?|experts?)",
+            r"(collaborate|discussion|consensus|debate)",
+            r"get.*opinions?\s+from",
+            r"what\s+does\s+everyone\s+think",
+            r"team\s+(review|discussion|meeting)",
+            r"cross-?(functional|team|department)",
         ]
 
         # Domain combinations that benefit from multi-agent discussion
         domain_keywords = {
-            'security': ['security', 'auth', 'permission', 'encrypt', 'vulnerability', 'attack', 'protect'],
-            'performance': ['performance', 'optimize', 'speed', 'latency', 'cache', 'scale'],
-            'architecture': ['architecture', 'design pattern', 'structure', 'system design', 'microservice'],
-            'code': ['code', 'implement', 'function', 'class', 'api', 'endpoint', 'backend', 'frontend'],
-            'testing': ['test', 'qa', 'quality', 'coverage', 'regression', 'integration'],
-            'operations': ['deploy', 'infrastructure', 'devops', 'monitor', 'logging', 'ci/cd'],
-            'business': ['business', 'revenue', 'customer', 'market', 'product', 'requirements'],
-            'creative': ['design', 'ui', 'ux', 'visual', 'brand', 'creative'],
+            "security": ["security", "auth", "permission", "encrypt", "vulnerability", "attack", "protect"],
+            "performance": ["performance", "optimize", "speed", "latency", "cache", "scale"],
+            "architecture": ["architecture", "design pattern", "structure", "system design", "microservice"],
+            "code": ["code", "implement", "function", "class", "api", "endpoint", "backend", "frontend"],
+            "testing": ["test", "qa", "quality", "coverage", "regression", "integration"],
+            "operations": ["deploy", "infrastructure", "devops", "monitor", "logging", "ci/cd"],
+            "business": ["business", "revenue", "customer", "market", "product", "requirements"],
+            "creative": ["design", "ui", "ux", "visual", "brand", "creative"],
         }
 
         # Detect domains mentioned
@@ -342,7 +349,7 @@ JSON:"""
                 matching_patterns.append(pattern)
 
         # High complexity also suggests multi-agent
-        complexity_score = intent.get('complexity', {}).get('score', 5)
+        complexity_score = intent.get("complexity", {}).get("score", 5)
         if complexity_score >= 7:
             requires_multi = True
 
@@ -352,41 +359,40 @@ JSON:"""
 
         # Map domains to Bridge stations
         domain_to_station = {
-            'security': 'SECURITY',
-            'performance': 'ENGINEERING',
-            'architecture': 'ENGINEERING',
-            'code': 'ENGINEERING',
-            'testing': 'QA',
-            'operations': 'OPERATIONS',
-            'business': 'OPERATIONS',
-            'creative': 'CREATIVE',
+            "security": "SECURITY",
+            "performance": "ENGINEERING",
+            "architecture": "ENGINEERING",
+            "code": "ENGINEERING",
+            "testing": "QA",
+            "operations": "OPERATIONS",
+            "business": "OPERATIONS",
+            "creative": "CREATIVE",
         }
 
-        participating_stations = list(set(
-            domain_to_station.get(d, 'ENGINEERING') for d in domains_found
-        ))
+        participating_stations = list(set(domain_to_station.get(d, "ENGINEERING") for d in domains_found))
 
         # Ensure at least 2 stations for multi-agent
         if requires_multi and len(participating_stations) < 2:
             # Add complementary stations
-            if 'ENGINEERING' in participating_stations:
-                participating_stations.append('QA')
-            elif 'SECURITY' in participating_stations:
-                participating_stations.append('ENGINEERING')
+            if "ENGINEERING" in participating_stations:
+                participating_stations.append("QA")
+            elif "SECURITY" in participating_stations:
+                participating_stations.append("ENGINEERING")
             else:
-                participating_stations.append('ENGINEERING')
+                participating_stations.append("ENGINEERING")
 
         return {
-            'requires_multi_agent': requires_multi,
-            'participating_stations': participating_stations[:4],  # Max 4 stations
-            'domains_detected': domains_found,
-            'matching_patterns': matching_patterns,
-            'discussion_mode': 'collaborative' if requires_multi else 'single'
+            "requires_multi_agent": requires_multi,
+            "participating_stations": participating_stations[:4],  # Max 4 stations
+            "domains_detected": domains_found,
+            "matching_patterns": matching_patterns,
+            "discussion_mode": "collaborative" if requires_multi else "single",
         }
 
 
 # Singleton instance
 _parser = None
+
 
 def get_intent_parser() -> IntentParser:
     """Get singleton IntentParser instance"""

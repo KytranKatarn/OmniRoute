@@ -11,9 +11,19 @@ import json
 import sys
 import os
 
-# Ensure imports work
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'platform_v2'))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'ai_bridge'))
+# Ensure imports work — support both host and Docker container paths
+_test_dir = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.dirname(_test_dir)
+
+# Try relative path first (host runs from /mnt/archie_brain/tests/)
+sys.path.insert(0, os.path.join(_project_root, 'platform_v2'))
+sys.path.insert(0, os.path.join(_project_root, 'ai_bridge'))
+
+# Docker mounts: platform_v2 → /app, ai_bridge → /mnt/archie_brain/ai_bridge
+if os.path.isdir('/app'):
+    sys.path.insert(0, '/app')
+if os.path.isdir('/mnt/archie_brain/ai_bridge'):
+    sys.path.insert(0, '/mnt/archie_brain/ai_bridge')
 
 
 class TestIntentParsing:

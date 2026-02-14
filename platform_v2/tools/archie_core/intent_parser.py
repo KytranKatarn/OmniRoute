@@ -130,6 +130,39 @@ class IntentParser:
         ):
             return {"type": "conversation", "confidence": 0.95, "entities": {"subtype": "self_query"}}
 
+        # Station management — assign/unassign agents to stations (check BEFORE team_management
+        # since station phrases like "put agent on X station" also contain "agent" keywords)
+        station_management_keywords = [
+            "assign to station",
+            "assign station",
+            "put on station",
+            "move to station",
+            "station assignment",
+            "unassign",
+            "engineering station",
+            "command station",
+            "operations station",
+            "security station",
+            "creative station",
+            "consciousness station",
+        ]
+        # Also match "put/assign/move ... on/to ... station" patterns
+        station_mgmt_patterns = [
+            r"\b(put|assign|move|place)\b.*\b(on|to|at)\b.*\bstation\b",
+        ]
+        if any(phrase in text_lower for phrase in station_management_keywords) or any(
+            re.search(p, text_lower) for p in station_mgmt_patterns
+        ):
+            action = "unassign" if "unassign" in text_lower else "assign"
+            station_match = re.search(
+                r"(engineering|command|operations|security|creative|consciousness)\s+station",
+                text_lower,
+            )
+            entities = {"action": action}
+            if station_match:
+                entities["station"] = station_match.group(1)
+            return {"type": "station_management", "confidence": 0.9, "entities": entities}
+
         # Team management — create/update/delete agents
         team_management_keywords = [
             "create agent",
@@ -151,7 +184,14 @@ class IntentParser:
             "subagent",
             "team member",
         ]
-        if any(phrase in text_lower for phrase in team_management_keywords):
+        # Also match "create/spawn a [new] ... agent" patterns via regex
+        team_mgmt_patterns = [
+            r"\b(create|spawn|build|add)\b.*\bagent\b",
+            r"\bagent\b.*\b(retire|deactivate|pause|remove)\b",
+        ]
+        if any(phrase in text_lower for phrase in team_management_keywords) or any(
+            re.search(p, text_lower) for p in team_mgmt_patterns
+        ):
             action = "create"
             if any(w in text_lower for w in ["retire", "deactivate", "pause", "remove"]):
                 action = "deactivate"
@@ -160,32 +200,6 @@ class IntentParser:
             elif any(w in text_lower for w in ["capabilities", "skills", "model"]):
                 action = "query"
             return {"type": "team_management", "confidence": 0.9, "entities": {"action": action}}
-
-        # Station management — assign/unassign agents to stations
-        station_management_keywords = [
-            "assign to station",
-            "assign station",
-            "put on station",
-            "move to station",
-            "station assignment",
-            "unassign",
-            "engineering station",
-            "command station",
-            "operations station",
-            "security station",
-            "creative station",
-            "consciousness station",
-        ]
-        if any(phrase in text_lower for phrase in station_management_keywords):
-            action = "unassign" if "unassign" in text_lower else "assign"
-            station_match = re.search(
-                r"(engineering|command|operations|security|creative|consciousness)\s+station",
-                text_lower,
-            )
-            entities = {"action": action}
-            if station_match:
-                entities["station"] = station_match.group(1)
-            return {"type": "station_management", "confidence": 0.9, "entities": entities}
 
         # Status query — who's on duty, team overview, workload
         status_query_keywords = [

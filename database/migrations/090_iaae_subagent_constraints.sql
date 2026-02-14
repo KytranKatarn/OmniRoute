@@ -2,7 +2,7 @@
 -- Part of Phase 2: ARCHIE creating/managing agents via Chat
 
 -- Add sub-agent governance constraints
-INSERT INTO ethics_constraints (constraint_type, name, description, severity, enforcement_action, is_active)
+INSERT INTO ethics_constraints (constraint_type, constraint_name, description, severity, enforcement_action, is_active)
 VALUES
     ('autonomy', 'sub_agent_creation_limit',
      'Maximum number of sub-agents any single agent can create',

@@ -10,6 +10,12 @@
 2. **Test in Docker** - `docker exec archie_platform python3 script.py`
 3. **Two .env files** - Root `.env` and `platform_v2/.env` must match
 4. **Module perms** - Add to BOTH `rbac.py` AND `module_registry.py`
+5. **Dev HQ is the source of truth** - After every commit+push, update Dev HQ:
+   - `mcp create_project` / `create_task` for new work
+   - `mcp complete_task` with notes when done
+   - `mcp log_decision` for architectural choices
+   - `mcp store_memory` (vault_note) for roadmap updates
+   - `mcp update_project_understanding` after working on a project
 
 ## Quick Reference
 
@@ -42,7 +48,9 @@
 | **Decisions** | `project_decisions` table | MCP `log_decision` |
 | **Module Code** | `/platform_v2/tools/` filesystem | Direct file access |
 
-**NO filesystem docs** — `/docs/` is archived (git history only). **NO TODO_LIST.md** — use `unified_tasks` table.
+| **Roadmaps** | `knowledge_base` vault_notes with "roadmap" tag | MCP `search_knowledge`, `store_memory` |
+
+**NO filesystem docs** — `/docs/` is archived (git history only). **NO TODO_LIST.md** — use `unified_tasks` table. **NO ad-hoc memory tracking** — use Dev HQ projects + tasks + decisions.
 
 ## Key Files
 

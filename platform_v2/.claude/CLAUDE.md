@@ -10,6 +10,12 @@
 2. **Test in Docker** - `docker exec archie_platform python3 script.py`
 3. **Two .env files** - Root `.env` and `platform_v2/.env` must match
 4. **Module perms** - Add to BOTH `rbac.py` AND `module_registry.py`
+5. **Dev HQ is the source of truth** - After every commit+push, update Dev HQ:
+   - `mcp create_project` / `create_task` for new work
+   - `mcp complete_task` with notes when done
+   - `mcp log_decision` for architectural choices
+   - `mcp store_memory` (vault_note) for roadmap updates
+   - `mcp update_project_understanding` after working on a project
 
 ## Quick Reference
 
@@ -20,7 +26,7 @@
 | Docs | `knowledge_base` table → Dev HQ Knowledge tab or MCP `search_knowledge` |
 | Modules | `/mnt/archie_brain/platform_v2/tools/` (50 modules) |
 | MCP Tools | 78 tools via `.mcp.json` |
-| Projects | `unified_projects` table (84 projects) |
+| Projects | `unified_projects` table → MCP `get_projects` / `create_task` |
 
 ## Architecture (7 Systems)
 
@@ -32,6 +38,19 @@
 6. **Improvement Workflow** - Scan → Proposal → Sandbox → Deploy
 7. **Orchestration Engine** - `ai_bridge/orchestration_engine.py` (intent→route→delegate→execute pipeline, GPU-aware, IAAE-governed)
 8. **IAAE Transparency** - `/iaae` public page (no auth), live governance stats, agent welfare, ethics constraints
+
+## Source of Truth
+
+| Data | Location | Access |
+|------|----------|--------|
+| **Documentation & Knowledge** | `knowledge_base` table | Dev HQ Knowledge tab, MCP `search_knowledge`, MCP `store_memory` (use `knowledge_type='vault_note'` for docs) |
+| **Projects & Tasks** | `unified_projects` + `unified_tasks` tables | MCP `get_projects`, `create_project`, `create_task`, `complete_task` |
+| **Decisions** | `project_decisions` table | MCP `log_decision` |
+| **Module Code** | `/platform_v2/tools/` filesystem | Direct file access |
+
+| **Roadmaps** | `knowledge_base` vault_notes with "roadmap" tag | MCP `search_knowledge`, `store_memory` |
+
+**NO filesystem docs** — `/docs/` is archived (git history only). **NO TODO_LIST.md** — use `unified_tasks` table. **NO ad-hoc memory tracking** — use Dev HQ projects + tasks + decisions.
 
 ## Key Files
 

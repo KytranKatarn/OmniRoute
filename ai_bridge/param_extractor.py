@@ -14,7 +14,8 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-OLLAMA_HOST = os.getenv('OLLAMA_HOST', 'http://host.docker.internal:11434')
+_raw_host = os.getenv('OLLAMA_HOST', 'http://host.docker.internal:11434')
+OLLAMA_HOST = _raw_host if _raw_host.startswith('http') else f'http://{_raw_host}'
 EXTRACTION_MODEL = os.getenv('ARCHIE_CHAT_MODEL', 'dolphin3:latest')
 
 AVAILABLE_DEPARTMENTS = [

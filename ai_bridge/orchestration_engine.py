@@ -1102,7 +1102,7 @@ Please try again or use the Team Management module directly.""",
                 FROM bridge_stations bs
                 LEFT JOIN station_assignments sa ON bs.id = sa.station_id
                 WHERE bs.is_active = TRUE
-                GROUP BY bs.station_code, bs.station_name
+                GROUP BY bs.station_code, bs.station_name, bs.position_order
                 ORDER BY bs.position_order
             """)
             stations = cur.fetchall()

@@ -204,6 +204,7 @@ class IntentParser:
         # Status query — who's on duty, team overview, workload
         status_query_keywords = [
             "who's on duty",
+            "who is on duty",
             "team status",
             "station status",
             "who is assigned",

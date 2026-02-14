@@ -19,6 +19,9 @@ class IntentParser:
     INTENT_TYPES = [
         "code_task",  # Write/fix/review code
         "team_task",  # Assign agents, manage stations
+        "team_management",  # Create/update/delete agents, manage team
+        "station_management",  # Assign/unassign agents to stations, check station status
+        "status_query",  # Who's on duty, team overview, workload check
         "business_task",  # Invoices, emails, scheduling
         "knowledge_query",  # What do we know about X?
         "workflow",  # Multi-step automated tasks
@@ -127,7 +130,88 @@ class IntentParser:
         ):
             return {"type": "conversation", "confidence": 0.95, "entities": {"subtype": "self_query"}}
 
-        # Team operations
+        # Team management — create/update/delete agents
+        team_management_keywords = [
+            "create agent",
+            "new agent",
+            "spawn agent",
+            "hire",
+            "recruit",
+            "retire agent",
+            "deactivate agent",
+            "pause agent",
+            "remove agent",
+            "update agent",
+            "change agent",
+            "modify agent",
+            "agent capabilities",
+            "agent skills",
+            "agent model",
+            "sub-agent",
+            "subagent",
+            "team member",
+        ]
+        if any(phrase in text_lower for phrase in team_management_keywords):
+            action = "create"
+            if any(w in text_lower for w in ["retire", "deactivate", "pause", "remove"]):
+                action = "deactivate"
+            elif any(w in text_lower for w in ["update", "change", "modify"]):
+                action = "update"
+            elif any(w in text_lower for w in ["capabilities", "skills", "model"]):
+                action = "query"
+            return {"type": "team_management", "confidence": 0.9, "entities": {"action": action}}
+
+        # Station management — assign/unassign agents to stations
+        station_management_keywords = [
+            "assign to station",
+            "assign station",
+            "put on station",
+            "move to station",
+            "station assignment",
+            "unassign",
+            "engineering station",
+            "command station",
+            "operations station",
+            "security station",
+            "creative station",
+            "consciousness station",
+        ]
+        if any(phrase in text_lower for phrase in station_management_keywords):
+            action = "unassign" if "unassign" in text_lower else "assign"
+            station_match = re.search(
+                r"(engineering|command|operations|security|creative|consciousness)\s+station",
+                text_lower,
+            )
+            entities = {"action": action}
+            if station_match:
+                entities["station"] = station_match.group(1)
+            return {"type": "station_management", "confidence": 0.9, "entities": entities}
+
+        # Status query — who's on duty, team overview, workload
+        status_query_keywords = [
+            "who's on duty",
+            "team status",
+            "station status",
+            "who is assigned",
+            "show team",
+            "show roster",
+            "how busy",
+            "workload",
+            "active agents",
+            "agent performance",
+            "leaderboard",
+        ]
+        if any(phrase in text_lower for phrase in status_query_keywords):
+            subtype = "roster"
+            if any(w in text_lower for w in ["performance", "leaderboard"]):
+                subtype = "performance"
+            elif any(w in text_lower for w in ["busy", "workload"]):
+                subtype = "workload"
+            elif any(w in text_lower for w in ["station status"]):
+                subtype = "station"
+            return {"type": "status_query", "confidence": 0.9, "entities": {"subtype": subtype}}
+
+        # Team operations (generic fallback for unmatched team keywords)
         if any(word in text_lower for word in ["assign", "station", "roster", "agent", "team"]):
             if any(action in text_lower for action in ["move", "assign", "put", "switch"]):
                 return {"type": "team_task", "confidence": 0.85, "entities": {"action": "assignment"}}
@@ -209,15 +293,18 @@ User request: "{text}"
 
 Categories:
 1. code_task - Writing, fixing, reviewing, or refactoring code
-2. team_task - Managing agents, stations, assignments, roster
-3. business_task - Invoices, emails, scheduling, CRM, store operations
-4. knowledge_query - Questions about documentation, how things work
-5. workflow - Multi-step automated tasks (review -> test -> deploy)
-6. file_operation - Reading, writing, editing specific files
-7. creative_task - Generating images, designs, creative content
-8. system_status - Health checks, status reports, what's running
-9. contractor_request - Explicit request for advanced AI help (Claude)
-10. conversation - General chat, greetings, small talk
+2. team_task - Managing agents, stations, assignments, roster (generic)
+3. team_management - Create, update, delete, or configure agents (hire, recruit, retire, deactivate, modify agent capabilities)
+4. station_management - Assign or unassign agents to/from stations, station assignments
+5. status_query - Who's on duty, team status, station status, workload, agent performance, roster overview
+6. business_task - Invoices, emails, scheduling, CRM, store operations
+7. knowledge_query - Questions about documentation, how things work
+8. workflow - Multi-step automated tasks (review -> test -> deploy)
+9. file_operation - Reading, writing, editing specific files
+10. creative_task - Generating images, designs, creative content
+11. system_status - Health checks, status reports, what's running
+12. contractor_request - Explicit request for advanced AI help (Claude)
+13. conversation - General chat, greetings, small talk
 
 Respond with ONLY a JSON object in this exact format:
 {{"type": "category_name", "confidence": 0.85, "entities": {{"key": "value"}}}}
@@ -305,6 +392,57 @@ JSON:"""
             station_match = re.search(r"(?:to|at)\s+(\w+)\s+station", text, re.IGNORECASE)
             if station_match:
                 entities["station"] = station_match.group(1)
+
+        elif intent_type == "team_management":
+            # Extract agent name
+            name_match = re.search(
+                r"(?:create|spawn|hire|recruit|retire|deactivate|pause|remove|update|change|modify)\s+(?:agent\s+)?(\w+)",
+                text,
+                re.IGNORECASE,
+            )
+            if name_match:
+                entities["agent_name"] = name_match.group(1)
+
+            # Extract action
+            if any(w in text.lower() for w in ["create", "new", "spawn", "hire", "recruit"]):
+                entities["action"] = "create"
+            elif any(w in text.lower() for w in ["retire", "deactivate", "pause", "remove"]):
+                entities["action"] = "deactivate"
+            elif any(w in text.lower() for w in ["update", "change", "modify"]):
+                entities["action"] = "update"
+
+        elif intent_type == "station_management":
+            # Extract agent name
+            name_match = re.search(r"(?:assign|move|put)\s+(\w+)", text, re.IGNORECASE)
+            if name_match:
+                entities["agent_name"] = name_match.group(1)
+
+            # Extract station
+            station_match = re.search(
+                r"(engineering|command|operations|security|creative|consciousness)\s+station",
+                text,
+                re.IGNORECASE,
+            )
+            if station_match:
+                entities["station"] = station_match.group(1).lower()
+
+            # Extract action
+            if "unassign" in text.lower():
+                entities["action"] = "unassign"
+            else:
+                entities["action"] = "assign"
+
+        elif intent_type == "status_query":
+            # Extract what kind of status query
+            text_lower = text.lower()
+            if any(w in text_lower for w in ["performance", "leaderboard"]):
+                entities["subtype"] = "performance"
+            elif any(w in text_lower for w in ["busy", "workload"]):
+                entities["subtype"] = "workload"
+            elif "station" in text_lower:
+                entities["subtype"] = "station"
+            else:
+                entities["subtype"] = "roster"
 
         elif intent_type == "file_operation":
             # Extract file path

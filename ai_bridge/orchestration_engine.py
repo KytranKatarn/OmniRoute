@@ -252,11 +252,19 @@ class OrchestrationEngine:
 
             # --- Step 7: Execute ---
             model_used = self._resolve_model(routing, gpu_info, intent)
-            response_text = self._step_execute(
-                message, user_id, conversation_id,
-                selected_agent, model_used, routing, intent,
-                voice_mode, user_context, steps
-            )
+            intent_type = intent.get('type', 'conversation')
+
+            # Team management intents bypass normal LLM execution
+            if intent_type in ('team_management', 'station_management', 'status_query'):
+                response_text = self._execute_team_action(
+                    intent_type, message, user_id, intent, steps
+                )
+            else:
+                response_text = self._step_execute(
+                    message, user_id, conversation_id,
+                    selected_agent, model_used, routing, intent,
+                    voice_mode, user_context, steps
+                )
 
             # --- Step 8: Log steps to DB ---
             total_ms = int((time.time() - start_time) * 1000)
@@ -512,6 +520,9 @@ class OrchestrationEngine:
         station_map = {
             'code_task': ['ENGINEERING', 'ENGINEERING_CODE', 'ENGINEERING_BUILD'],
             'team_task': ['OPERATIONS', 'OPERATIONS_CORE', 'HR'],
+            'team_management': ['HR', 'OPERATIONS', 'COMMAND'],
+            'station_management': ['COMMAND', 'OPERATIONS'],
+            'status_query': ['COMMAND', 'OPERATIONS'],
             'business_task': ['OPERATIONS', 'FINANCE'],
             'knowledge_query': ['CONSCIOUSNESS', 'RND', 'RND_AI'],
             'creative_task': ['CREATIVE', 'CREATIVE_MEDIA', 'CREATIVE_CONTENT'],
@@ -725,6 +736,452 @@ class OrchestrationEngine:
         ))
 
         return response_text
+
+    # =========================================================================
+    # Team Management Actions (Phase 2)
+    # =========================================================================
+
+    TEAM_RESPONSE_TEMPLATES = {
+        'agent_created': """I've created a new agent for you!
+
+**{name}** — {title}
+- Model: {model}
+- Department: {department}
+- Capabilities: {capabilities}
+
+{first_name} is now active and ready to receive tasks.""",
+
+        'agent_assigned': """Done! **{agent_name}** has been assigned to **{station_name}** station as {assignment_type}.""",
+
+        'team_status': """Here's the current team status:
+
+**Active Agents**: {active_count}
+**On Stations**: {stationed_count}
+**Resting**: {resting_count}
+
+{station_summary}""",
+
+        'agent_deactivated': """**{agent_name}** has been deactivated and moved to the lounge.
+Reason: {reason}""",
+
+        'error': """I ran into an issue: {error}
+
+Please try again or use the Team Management module directly.""",
+    }
+
+    def _execute_team_action(
+        self, intent_type: str, message: str, user_id: int,
+        intent: Dict, steps: List[ThinkingStep]
+    ) -> str:
+        """Execute team management actions instead of normal LLM call."""
+        t0 = time.time()
+
+        try:
+            if intent_type == 'team_management':
+                response = self._handle_team_management(message, user_id, intent, steps)
+            elif intent_type == 'station_management':
+                response = self._handle_station_management(message, user_id, intent, steps)
+            elif intent_type == 'status_query':
+                response = self._handle_status_query(message, user_id, intent, steps)
+            else:
+                response = "I'm not sure how to handle that team action."
+
+        except Exception as e:
+            logger.error(f"Team action failed: {e}", exc_info=True)
+            response = self.TEAM_RESPONSE_TEMPLATES['error'].format(error=str(e))
+
+        duration = int((time.time() - t0) * 1000)
+        steps.append(ThinkingStep(
+            step_type=StepType.EXECUTE.value,
+            label=f"Team Action: {intent_type} ({duration}ms)",
+            data={
+                'action_type': intent_type,
+                'response_length': len(response),
+            },
+            duration_ms=duration,
+        ))
+
+        return response
+
+    def _handle_team_management(
+        self, message: str, user_id: int, intent: Dict, steps: List[ThinkingStep]
+    ) -> str:
+        """Handle agent creation, update, and deactivation."""
+        entities = intent.get('entities', {})
+        action = entities.get('action', 'query')
+        msg_lower = message.lower()
+
+        # Detect action if not already in entities
+        if action == 'query':
+            if any(kw in msg_lower for kw in ['create', 'new', 'spawn', 'hire', 'recruit']):
+                action = 'create'
+            elif any(kw in msg_lower for kw in ['retire', 'deactivate', 'pause', 'remove']):
+                action = 'deactivate'
+            elif any(kw in msg_lower for kw in ['update', 'change', 'modify']):
+                action = 'update'
+
+        if action == 'create':
+            return self._create_agent_from_chat(message, user_id, steps)
+        elif action == 'deactivate':
+            return self._deactivate_agent_from_chat(message, user_id, steps)
+        else:
+            return self._describe_team(steps)
+
+    def _create_agent_from_chat(
+        self, message: str, user_id: int, steps: List[ThinkingStep]
+    ) -> str:
+        """Create a new agent based on natural language request."""
+        from param_extractor import extract_params
+        from ethics_monitor import get_monitor
+
+        # Step: Check IAAE governance
+        monitor = get_monitor()
+        archie_id = 2  # ARCHIE is the parent agent
+        permission = monitor.check_agent_creation_allowed(archie_id)
+
+        steps.append(ThinkingStep(
+            step_type=StepType.IAAE_CHECK.value,
+            label=f"IAAE: Sub-agent creation {'allowed' if permission['allowed'] else 'blocked'}",
+            data=permission,
+            success=permission['allowed'],
+        ))
+
+        if not permission['allowed']:
+            return f"I can't create a new agent right now: {permission['reason']}"
+
+        # Step: Extract parameters from natural language
+        t0 = time.time()
+        params = extract_params(message, 'create_agent')
+        extraction_ms = int((time.time() - t0) * 1000)
+
+        steps.append(ThinkingStep(
+            step_type='param_extraction',
+            label=f"Extract params ({extraction_ms}ms)",
+            data={'params': params},
+            duration_ms=extraction_ms,
+            success='error' not in params,
+        ))
+
+        if 'error' in params:
+            return self.TEAM_RESPONSE_TEMPLATES['error'].format(error=params['error'])
+
+        # Build agent creation payload
+        model = params.get('model', 'dolphin3:latest')
+        first_name = params.get('first_name', 'New')
+        last_name = params.get('last_name', 'Agent')
+        department = params.get('department', 'AI Operations')
+        title = params.get('title', f'{model} Specialist')
+        system_prompt = params.get('system_prompt', f'You are {first_name}, an AI agent.')
+        bio = params.get('bio', f'AI agent powered by {model}.')
+        capabilities = params.get('capabilities', [])
+        if isinstance(capabilities, list):
+            capabilities_json = json.dumps(capabilities)
+            capabilities_str = ', '.join(capabilities) if capabilities else 'general'
+        else:
+            capabilities_json = json.dumps([capabilities])
+            capabilities_str = str(capabilities)
+
+        name = f"{first_name} {last_name}".strip()
+
+        # Create the agent in DB
+        conn = get_db()
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute("""
+                INSERT INTO agents (
+                    name, first_name, last_name, title, department, worker_type,
+                    model, temperature, max_tokens, system_prompt, bio,
+                    default_model_tier, status, capabilities,
+                    parent_agent_id, created_by_agent_id, created_by_user_id,
+                    agent_generation, created_at, updated_at
+                ) VALUES (
+                    %s, %s, %s, %s, %s, 'ai', %s, 0.7, 4096, %s, %s,
+                    'local', 'active', %s,
+                    %s, %s, %s, 1, NOW(), NOW()
+                )
+                RETURNING id, first_name, last_name, model, department, title
+            """, (
+                name, first_name, last_name, title, department,
+                model, system_prompt, bio, capabilities_json,
+                archie_id, archie_id, user_id,
+            ))
+            new_agent = cur.fetchone()
+            conn.commit()
+
+            # Log creation event via IAAE
+            monitor.log_agent_creation_event(
+                parent_agent_id=archie_id,
+                child_agent_id=new_agent['id'],
+                user_id=user_id,
+                reason=f"Created via chat: {message[:200]}",
+                source='chat',
+                conn=conn,
+            )
+
+            cur.close()
+
+            steps.append(ThinkingStep(
+                step_type='team_action',
+                label=f"Created: {name} (#{new_agent['id']})",
+                data={
+                    'agent_id': new_agent['id'],
+                    'name': name,
+                    'model': model,
+                    'department': department,
+                },
+                success=True,
+            ))
+
+            return self.TEAM_RESPONSE_TEMPLATES['agent_created'].format(
+                name=name,
+                first_name=first_name,
+                title=title,
+                model=model,
+                department=department,
+                capabilities=capabilities_str,
+            )
+
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Agent creation failed: {e}")
+            return self.TEAM_RESPONSE_TEMPLATES['error'].format(error=str(e))
+        finally:
+            conn.close()
+
+    def _deactivate_agent_from_chat(
+        self, message: str, user_id: int, steps: List[ThinkingStep]
+    ) -> str:
+        """Deactivate an agent based on natural language request."""
+        from param_extractor import extract_params, resolve_agent_by_name
+
+        params = extract_params(message, 'agent_action')
+        agent_name = params.get('agent_name', '')
+
+        if not agent_name:
+            return "I need to know which agent to deactivate. Could you specify the agent name?"
+
+        conn = get_db()
+        try:
+            agent = resolve_agent_by_name(agent_name, conn)
+            if not agent:
+                return f"I couldn't find an agent matching '{agent_name}'. Check the Team Management roster."
+
+            # Don't deactivate ARCHIE or system agents
+            if agent['id'] in (1, 2):
+                return f"I can't deactivate {agent['name']} — they're a core system agent."
+
+            cur = conn.cursor()
+            cur.execute(
+                "UPDATE agents SET status = 'inactive', updated_at = NOW() WHERE id = %s",
+                (agent['id'],)
+            )
+            conn.commit()
+            cur.close()
+
+            steps.append(ThinkingStep(
+                step_type='team_action',
+                label=f"Deactivated: {agent['name']} (#{agent['id']})",
+                data={'agent_id': agent['id'], 'name': agent['name']},
+                success=True,
+            ))
+
+            reason = params.get('reason', 'Requested via chat')
+            return self.TEAM_RESPONSE_TEMPLATES['agent_deactivated'].format(
+                agent_name=agent['name'],
+                reason=reason,
+            )
+        except Exception as e:
+            conn.rollback()
+            return self.TEAM_RESPONSE_TEMPLATES['error'].format(error=str(e))
+        finally:
+            conn.close()
+
+    def _handle_station_management(
+        self, message: str, user_id: int, intent: Dict, steps: List[ThinkingStep]
+    ) -> str:
+        """Handle station assignment/unassignment."""
+        from param_extractor import extract_params, resolve_agent_by_name, resolve_station_by_name
+
+        params = extract_params(message, 'assign_station')
+        agent_name = params.get('agent_name', '')
+        station_code = params.get('station_code', '')
+        assignment_type = params.get('assignment_type', 'primary')
+
+        if not agent_name or not station_code:
+            return "I need both an agent name and a station. For example: 'Assign Nova to Engineering station'"
+
+        conn = get_db()
+        try:
+            agent = resolve_agent_by_name(agent_name, conn)
+            if not agent:
+                return f"I couldn't find an agent matching '{agent_name}'."
+
+            station = resolve_station_by_name(station_code, conn)
+            if not station:
+                return f"I couldn't find a station matching '{station_code}'. Available: COMMAND, ENGINEERING, OPERATIONS, etc."
+
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Check if already assigned
+            cur.execute("""
+                SELECT id FROM station_assignments
+                WHERE agent_id = %s AND station_id = %s AND is_active = TRUE
+            """, (agent['id'], station['id']))
+
+            if cur.fetchone():
+                return f"**{agent['name']}** is already assigned to **{station['station_name']}** station."
+
+            # Create assignment
+            cur.execute("""
+                INSERT INTO station_assignments
+                    (station_id, agent_id, assignment_type, priority, is_active, assigned_by)
+                VALUES (%s, %s, %s, 10, TRUE, %s)
+                ON CONFLICT (station_id, agent_id) DO UPDATE
+                SET is_active = TRUE, assignment_type = %s, assigned_at = NOW()
+            """, (station['id'], agent['id'], assignment_type, user_id, assignment_type))
+            conn.commit()
+            cur.close()
+
+            steps.append(ThinkingStep(
+                step_type='team_action',
+                label=f"Assigned: {agent['name']} → {station['station_code']}",
+                data={
+                    'agent_id': agent['id'],
+                    'station_code': station['station_code'],
+                    'assignment_type': assignment_type,
+                },
+                success=True,
+            ))
+
+            return self.TEAM_RESPONSE_TEMPLATES['agent_assigned'].format(
+                agent_name=agent['name'],
+                station_name=station['station_name'] or station['station_code'],
+                assignment_type=assignment_type,
+            )
+        except Exception as e:
+            conn.rollback()
+            return self.TEAM_RESPONSE_TEMPLATES['error'].format(error=str(e))
+        finally:
+            conn.close()
+
+    def _handle_status_query(
+        self, message: str, user_id: int, intent: Dict, steps: List[ThinkingStep]
+    ) -> str:
+        """Handle team/station status queries."""
+        entities = intent.get('entities', {})
+        subtype = entities.get('subtype', 'roster')
+
+        conn = get_db()
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Active agents count
+            cur.execute("SELECT COUNT(*) as count FROM agents WHERE status = 'active'")
+            active_count = cur.fetchone()['count']
+
+            # Stationed agents
+            cur.execute("""
+                SELECT COUNT(DISTINCT sa.agent_id) as count
+                FROM station_assignments sa
+                JOIN agents a ON sa.agent_id = a.id
+                WHERE sa.is_active = TRUE AND a.status = 'active'
+            """)
+            stationed_count = cur.fetchone()['count']
+
+            # Resting agents
+            cur.execute("""
+                SELECT COUNT(*) as count FROM agent_rest_cycles
+                WHERE ended_at IS NULL
+            """)
+            resting_count = cur.fetchone()['count']
+
+            # Station summary
+            cur.execute("""
+                SELECT bs.station_code, bs.station_name,
+                       COUNT(sa.id) FILTER (WHERE sa.is_active = TRUE) as agent_count
+                FROM bridge_stations bs
+                LEFT JOIN station_assignments sa ON bs.id = sa.station_id
+                WHERE bs.is_active = TRUE
+                GROUP BY bs.station_code, bs.station_name
+                ORDER BY bs.position_order
+            """)
+            stations = cur.fetchall()
+
+            station_lines = []
+            for s in stations:
+                count = s['agent_count'] or 0
+                indicator = "●" if count > 0 else "○"
+                station_lines.append(
+                    f"  {indicator} **{s['station_code']}** ({s['station_name']}): {count} agents"
+                )
+
+            station_summary = '\n'.join(station_lines) if station_lines else "No stations configured."
+
+            cur.close()
+
+            steps.append(ThinkingStep(
+                step_type='team_action',
+                label=f"Status: {active_count} active, {stationed_count} on stations",
+                data={
+                    'active': active_count,
+                    'stationed': stationed_count,
+                    'resting': resting_count,
+                },
+                success=True,
+            ))
+
+            return self.TEAM_RESPONSE_TEMPLATES['team_status'].format(
+                active_count=active_count,
+                stationed_count=stationed_count,
+                resting_count=resting_count,
+                station_summary=station_summary,
+            )
+        except Exception as e:
+            return self.TEAM_RESPONSE_TEMPLATES['error'].format(error=str(e))
+        finally:
+            conn.close()
+
+    def _describe_team(self, steps: List[ThinkingStep]) -> str:
+        """Show a brief description of team capabilities."""
+        conn = get_db()
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute("""
+                SELECT department, COUNT(*) as count
+                FROM agents WHERE status = 'active'
+                GROUP BY department ORDER BY count DESC LIMIT 10
+            """)
+            depts = cur.fetchall()
+            cur.close()
+
+            lines = [f"  - **{d['department']}**: {d['count']} agents" for d in depts]
+            dept_summary = '\n'.join(lines) if lines else "No departments configured."
+
+            total = sum(d['count'] for d in depts)
+
+            steps.append(ThinkingStep(
+                step_type='team_action',
+                label=f"Team overview: {total} agents",
+                data={'departments': [d['department'] for d in depts]},
+                success=True,
+            ))
+
+            return f"""Here's an overview of the team:
+
+**Total Active Agents**: {total}
+
+**By Department**:
+{dept_summary}
+
+You can ask me to:
+- Create a new agent ("Create a Python code reviewer")
+- Assign agents to stations ("Put Nova on Engineering station")
+- Check station status ("Who's on duty?")
+- Deactivate agents ("Retire the test agent")"""
+        except Exception as e:
+            return self.TEAM_RESPONSE_TEMPLATES['error'].format(error=str(e))
+        finally:
+            conn.close()
 
     def orchestrate_joint(
         self,
@@ -967,7 +1424,7 @@ class OrchestrationEngine:
         # Conversation MUST use dolphin3 — it follows personality system prompts
         # faithfully. qwen2.5 ignores them and produces generic AI disclaimers.
         intent_type = intent.get('type', '') if intent else ''
-        if intent_type == 'conversation':
+        if intent_type in ('conversation', 'team_management', 'station_management', 'status_query'):
             return 'dolphin3:latest'
 
         # Models that cannot be used for chat/generation (embedding-only)

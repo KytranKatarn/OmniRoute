@@ -606,6 +606,119 @@ class EthicsMonitor:
             logger.error(f"Error getting ATHENA status: {e}")
             return {'status': 'error', 'message': str(e)}
 
+    # =========================================================================
+    # SUB-AGENT GOVERNANCE (Phase 2)
+    # =========================================================================
+
+    def check_agent_creation_allowed(self, parent_agent_id: int, conn=None) -> Dict:
+        """
+        Check if an agent is allowed to create sub-agents.
+
+        Validates:
+        1. Agent has a budget with can_create_sub_agents=True
+        2. Current sub-agent count < max_sub_agents
+        3. Agent generation depth < 3 (prevents recursive spawning)
+
+        Returns dict with 'allowed' bool, 'reason' if blocked, 'remaining' count.
+        """
+        close_conn = False
+        if conn is None:
+            conn = get_db()
+            close_conn = True
+
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Check budget
+            cur.execute("SELECT * FROM agent_budgets WHERE agent_id = %s", (parent_agent_id,))
+            budget = cur.fetchone()
+
+            if not budget or not budget['can_create_sub_agents']:
+                cur.close()
+                return {"allowed": False, "reason": "Agent not authorized to create sub-agents"}
+
+            # Check current sub-agent count
+            cur.execute("""
+                SELECT COUNT(*) as count FROM agents
+                WHERE parent_agent_id = %s AND status = 'active'
+            """, (parent_agent_id,))
+            count = cur.fetchone()['count']
+
+            if count >= budget['max_sub_agents']:
+                cur.close()
+                return {
+                    "allowed": False,
+                    "reason": f"Sub-agent limit reached ({count}/{budget['max_sub_agents']})"
+                }
+
+            # Check generation depth
+            cur.execute("SELECT agent_generation FROM agents WHERE id = %s", (parent_agent_id,))
+            gen_row = cur.fetchone()
+            if gen_row and gen_row['agent_generation'] is not None and gen_row['agent_generation'] >= 3:
+                cur.close()
+                return {"allowed": False, "reason": "Maximum agent generation depth reached (3)"}
+
+            cur.close()
+            return {
+                "allowed": True,
+                "remaining": budget['max_sub_agents'] - count,
+                "generation": gen_row['agent_generation'] if gen_row else 0
+            }
+
+        except Exception as e:
+            logger.error(f"Error checking agent creation permission: {e}")
+            return {"allowed": False, "reason": f"Governance check failed: {str(e)}"}
+        finally:
+            if close_conn:
+                conn.close()
+
+    def log_agent_creation_event(self, parent_agent_id: int, child_agent_id: int,
+                                  user_id: int = None, reason: str = None,
+                                  source: str = 'chat', conn=None) -> bool:
+        """Log an agent creation event to the governance audit trail."""
+        close_conn = False
+        if conn is None:
+            conn = get_db()
+            close_conn = True
+
+        try:
+            cur = conn.cursor()
+
+            # Insert creation event
+            cur.execute("""
+                INSERT INTO agent_creation_events
+                    (parent_agent_id, child_agent_id, created_by_user_id,
+                     creation_reason, creation_source, is_approved, approved_at)
+                VALUES (%s, %s, %s, %s, %s, TRUE, NOW())
+            """, (parent_agent_id, child_agent_id, user_id, reason, source))
+
+            # Also log to governance audit
+            cur.execute("""
+                INSERT INTO governance_audit_log
+                    (event_type, event_category, action, outcome, details, timestamp)
+                VALUES ('sub_agent_created', 'autonomy', 'create_agent', 'approved',
+                        %s, NOW())
+            """, (json.dumps({
+                'parent_agent_id': parent_agent_id,
+                'child_agent_id': child_agent_id,
+                'created_by_user_id': user_id,
+                'reason': reason,
+                'source': source
+            }),))
+
+            conn.commit()
+            cur.close()
+            logger.info(f"Agent creation logged: parent={parent_agent_id}, child={child_agent_id}")
+            return True
+
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Error logging agent creation: {e}")
+            return False
+        finally:
+            if close_conn:
+                conn.close()
+
 
 # Singleton instance
 _monitor_instance = None

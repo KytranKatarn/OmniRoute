@@ -723,8 +723,10 @@ async function initClaudeTerminalIframe() {
     };
 
     // Check if ttyd is reachable after a short delay
+    // Note: cross-origin iframes (different port) won't have contentDocument,
+    // so we only check contentWindow which is always available for loaded iframes
     setTimeout(function() {
-        if (!iframe.contentWindow || !iframe.contentDocument) {
+        if (!iframe.contentWindow) {
             if (offline) offline.style.display = 'flex';
         }
     }, 5000);

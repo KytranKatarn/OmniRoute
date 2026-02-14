@@ -13,13 +13,20 @@ echo "tmux session: $TMUX_SESSION (persistent across browser disconnects)"
 
 # Kill any stale tmux session on startup (clean slate for service restart)
 tmux kill-session -t "$TMUX_SESSION" 2>/dev/null || true
+rm -f /tmp/tmux-1000/default 2>/dev/null || true
+
+# Pre-create the tmux session with bash (Claude CLI exits in detached sessions).
+# Then send the claude command into the live bash session.
+tmux new-session -d -s "$TMUX_SESSION"
+sleep 0.5
+tmux send-keys -t "$TMUX_SESSION" '/home/kytran/.local/bin/claude' Enter
 
 # Start ttyd with:
 # -p: port
 # -i: interface (lo = localhost only)
 # -W: writable (allow input)
 # -t: terminal options
-# tmux new-session -A: attach if exists, create if not
+# tmux attach: reconnects to the persistent claude session
 exec ttyd \
     -p "$TTYD_PORT" \
     -i lo \
@@ -28,4 +35,4 @@ exec ttyd \
     -t fontFamily="JetBrains Mono, Consolas, monospace" \
     -t cursorBlink=true \
     -t theme='{"background": "#1a1a2e", "foreground": "#00ff41"}' \
-    tmux new-session -A -s "$TMUX_SESSION" /home/kytran/.local/bin/claude
+    tmux attach-session -t "$TMUX_SESSION"

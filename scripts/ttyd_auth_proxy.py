@@ -344,20 +344,20 @@ async def handle_connection(reader, writer):
 
     # --- Token-based auth (checked first) ---
     token, stripped_request = parse_token_from_request(raw_request)
-    if token is not None:
+    if token is not None and token:
         if validate_token(token):
             logger.info("Token auth succeeded from %s", peer)
-            if is_websocket_upgrade(stripped_request):
+            ws = is_websocket_upgrade(stripped_request)
+            if ws:
                 await proxy_websocket(reader, writer, stripped_request)
             else:
                 await proxy_http(reader, writer, stripped_request)
             return
         else:
-            logger.warning("Token auth failed from %s", peer)
-            writer.write(_make_403_response())
-            await writer.drain()
-            writer.close()
-            return
+            # Token not recognized as SSO — could be a ttyd internal token.
+            # Fall through to Basic Auth instead of hard 403.
+            logger.info("Token not SSO, falling through to Basic Auth from %s", peer)
+            raw_request = stripped_request  # use URL with token stripped
 
     # --- Basic Auth fallback ---
     creds = parse_basic_auth(raw_request)
@@ -377,7 +377,9 @@ async def handle_connection(reader, writer):
 
     logger.info("Auth OK user=%s from %s", username, peer)
 
-    if is_websocket_upgrade(raw_request):
+    ws = is_websocket_upgrade(raw_request)
+    logger.info("BasicAuth request type: %s, path: %s", "WS" if ws else "HTTP", extract_path(raw_request))
+    if ws:
         await proxy_websocket(reader, writer, raw_request)
     else:
         await proxy_http(reader, writer, raw_request)

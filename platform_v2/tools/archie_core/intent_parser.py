@@ -22,6 +22,7 @@ class IntentParser:
         "team_management",  # Create/update/delete agents, manage team
         "station_management",  # Assign/unassign agents to stations, check station status
         "status_query",  # Who's on duty, team overview, workload check
+        "dev_hq_status",  # Project status, roadmap, upcoming tasks
         "business_task",  # Invoices, emails, scheduling
         "knowledge_query",  # What do we know about X?
         "workflow",  # Multi-step automated tasks
@@ -226,6 +227,26 @@ class IntentParser:
                 subtype = "station"
             return {"type": "status_query", "confidence": 0.9, "entities": {"subtype": subtype}}
 
+        # Dev HQ status — project status, roadmap, upcoming tasks
+        dev_hq_keywords = [
+            "project status",
+            "roadmap",
+            "what's next",
+            "upcoming tasks",
+            "dev hq",
+            "project progress",
+            "what are we working on",
+            "active projects",
+            "pending tasks",
+        ]
+        if any(phrase in text_lower for phrase in dev_hq_keywords):
+            subtype = "project_list"
+            if "roadmap" in text_lower:
+                subtype = "roadmap"
+            elif any(w in text_lower for w in ["task", "upcoming", "pending", "what's next"]):
+                subtype = "task_list"
+            return {"type": "dev_hq_status", "confidence": 0.9, "entities": {"subtype": subtype}}
+
         # Team operations (generic fallback for unmatched team keywords)
         if any(word in text_lower for word in ["assign", "station", "roster", "agent", "team"]):
             if any(action in text_lower for action in ["move", "assign", "put", "switch"]):
@@ -312,14 +333,15 @@ Categories:
 3. team_management - Create, update, delete, or configure agents (hire, recruit, retire, deactivate, modify agent capabilities)
 4. station_management - Assign or unassign agents to/from stations, station assignments
 5. status_query - Who's on duty, team status, station status, workload, agent performance, roster overview
-6. business_task - Invoices, emails, scheduling, CRM, store operations
-7. knowledge_query - Questions about documentation, how things work
-8. workflow - Multi-step automated tasks (review -> test -> deploy)
-9. file_operation - Reading, writing, editing specific files
-10. creative_task - Generating images, designs, creative content
-11. system_status - Health checks, status reports, what's running
-12. contractor_request - Explicit request for advanced AI help (Claude)
-13. conversation - General chat, greetings, small talk
+6. dev_hq_status - Project status, roadmap, what's next, upcoming tasks, active projects, pending tasks, project progress
+7. business_task - Invoices, emails, scheduling, CRM, store operations
+8. knowledge_query - Questions about documentation, how things work
+9. workflow - Multi-step automated tasks (review -> test -> deploy)
+10. file_operation - Reading, writing, editing specific files
+11. creative_task - Generating images, designs, creative content
+12. system_status - Health checks, status reports, what's running
+13. contractor_request - Explicit request for advanced AI help (Claude)
+14. conversation - General chat, greetings, small talk
 
 Respond with ONLY a JSON object in this exact format:
 {{"type": "category_name", "confidence": 0.85, "entities": {{"key": "value"}}}}
@@ -458,6 +480,16 @@ JSON:"""
                 entities["subtype"] = "station"
             else:
                 entities["subtype"] = "roster"
+
+        elif intent_type == "dev_hq_status":
+            # Extract what kind of dev hq status query
+            text_lower = text.lower()
+            if "roadmap" in text_lower:
+                entities["subtype"] = "roadmap"
+            elif any(w in text_lower for w in ["task", "upcoming", "pending", "what's next"]):
+                entities["subtype"] = "task_list"
+            else:
+                entities["subtype"] = "project_list"
 
         elif intent_type == "file_operation":
             # Extract file path

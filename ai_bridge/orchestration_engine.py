@@ -255,7 +255,7 @@ class OrchestrationEngine:
             intent_type = intent.get('type', 'conversation')
 
             # Team management intents bypass normal LLM execution
-            if intent_type in ('team_management', 'station_management', 'status_query'):
+            if intent_type in ('team_management', 'station_management', 'status_query', 'dev_hq_status'):
                 response_text = self._execute_team_action(
                     intent_type, message, user_id, intent, steps
                 )
@@ -523,6 +523,7 @@ class OrchestrationEngine:
             'team_management': ['HR', 'OPERATIONS', 'COMMAND'],
             'station_management': ['COMMAND', 'OPERATIONS'],
             'status_query': ['COMMAND', 'OPERATIONS'],
+            'dev_hq_status': ['COMMAND', 'OPERATIONS'],
             'business_task': ['OPERATIONS', 'FINANCE'],
             'knowledge_query': ['CONSCIOUSNESS', 'RND', 'RND_AI'],
             'creative_task': ['CREATIVE', 'CREATIVE_MEDIA', 'CREATIVE_CONTENT'],
@@ -783,6 +784,8 @@ Please try again or use the Team Management module directly.""",
                 response = self._handle_station_management(message, user_id, intent, steps)
             elif intent_type == 'status_query':
                 response = self._handle_status_query(message, user_id, intent, steps)
+            elif intent_type == 'dev_hq_status':
+                response = self._handle_dev_hq_status(message, user_id, intent, steps)
             else:
                 response = "I'm not sure how to handle that team action."
 
@@ -1141,6 +1144,107 @@ Please try again or use the Team Management module directly.""",
         finally:
             conn.close()
 
+    def _handle_dev_hq_status(
+        self, message: str, user_id: int, intent: Dict, steps: List[ThinkingStep]
+    ) -> str:
+        """Handle project status, roadmap, and task queries from Dev HQ data."""
+        conn = get_db()
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Get active projects ordered by priority
+            cur.execute("""
+                SELECT id, name, status, priority, description
+                FROM unified_projects
+                WHERE status = 'active'
+                ORDER BY priority DESC, created_at DESC
+                LIMIT 10
+            """)
+            projects = cur.fetchall()
+
+            # For each project, get pending and completed task counts
+            project_lines = []
+            total_pending = 0
+            total_completed = 0
+            for proj in projects:
+                cur.execute("""
+                    SELECT
+                        COUNT(*) FILTER (WHERE status = 'pending') as pending,
+                        COUNT(*) FILTER (WHERE status = 'completed') as completed,
+                        COUNT(*) as total
+                    FROM unified_tasks
+                    WHERE project_id = %s
+                """, (proj['id'],))
+                counts = cur.fetchone()
+                pending = counts['pending'] or 0
+                completed = counts['completed'] or 0
+                total = counts['total'] or 0
+                total_pending += pending
+                total_completed += completed
+
+                progress = int(completed / total * 100) if total > 0 else 0
+                p = proj.get('priority', 5)
+                priority_label = 'Critical' if p >= 9 else 'High' if p >= 7 else 'Medium' if p >= 4 else 'Low'
+
+                project_lines.append(
+                    f"  - **{proj['name']}** ({priority_label} priority)\n"
+                    f"    Progress: {progress}% | Tasks: {completed}/{total} done, {pending} pending"
+                )
+
+            # Get recent decisions
+            cur.execute("""
+                SELECT title, status, created_at
+                FROM project_decisions
+                ORDER BY created_at DESC
+                LIMIT 5
+            """)
+            decisions = cur.fetchall()
+
+            decision_lines = []
+            for d in decisions:
+                created = d['created_at'].strftime('%b %d') if d.get('created_at') else '?'
+                dstatus = d.get('status', 'proposed')
+                decision_lines.append(f"  - [{created}] **{d['title']}** ({dstatus})")
+
+            cur.close()
+
+            # Build response
+            project_count = len(projects)
+            projects_section = '\n'.join(project_lines) if project_lines else "  No active projects."
+            decisions_section = '\n'.join(decision_lines) if decision_lines else "  No recent decisions."
+
+            response = f"""Here's the current Dev HQ status:
+
+**Active Projects**: {project_count}
+**Tasks**: {total_completed} completed, {total_pending} pending
+
+{projects_section}
+
+**Recent Decisions**:
+{decisions_section}
+
+You can check the full details at Dev HQ: /dev-hq"""
+
+            steps.append(ThinkingStep(
+                step_type='team_action',
+                label=f"Dev HQ: {project_count} projects, {total_pending} pending tasks",
+                data={
+                    'active_projects': project_count,
+                    'total_pending': total_pending,
+                    'total_completed': total_completed,
+                    'recent_decisions': len(decisions),
+                },
+                success=True,
+            ))
+
+            return response
+
+        except Exception as e:
+            logger.error(f"Dev HQ status query failed: {e}", exc_info=True)
+            return self.TEAM_RESPONSE_TEMPLATES['error'].format(error=str(e))
+        finally:
+            conn.close()
+
     def _describe_team(self, steps: List[ThinkingStep]) -> str:
         """Show a brief description of team capabilities."""
         conn = get_db()
@@ -1424,7 +1528,7 @@ You can ask me to:
         # Conversation MUST use dolphin3 — it follows personality system prompts
         # faithfully. qwen2.5 ignores them and produces generic AI disclaimers.
         intent_type = intent.get('type', '') if intent else ''
-        if intent_type in ('conversation', 'team_management', 'station_management', 'status_query'):
+        if intent_type in ('conversation', 'team_management', 'station_management', 'status_query', 'dev_hq_status'):
             return 'dolphin3:latest'
 
         # Models that cannot be used for chat/generation (embedding-only)

@@ -28,4 +28,4 @@ exec ttyd \
     -t fontFamily="JetBrains Mono, Consolas, monospace" \
     -t cursorBlink=true \
     -t theme='{"background": "#1a1a2e", "foreground": "#00ff41"}' \
-    tmux new-session -A -s "$TMUX_SESSION"
+    tmux new-session -A -s "$TMUX_SESSION" /home/kytran/.local/bin/claude

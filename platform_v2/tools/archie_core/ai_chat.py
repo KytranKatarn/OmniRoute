@@ -178,7 +178,7 @@ YOUR PLATFORM & ROLE:
 
         try:
             response = requests.post(
-                f"{base_url}/api/chat", json={"model": model, "messages": messages, "stream": False}, timeout=60
+                f"{base_url}/api/chat", json={"model": model, "messages": messages, "stream": False}, timeout=120
             )
 
             response_time = (datetime.now() - start_time).total_seconds() * 1000

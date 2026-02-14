@@ -319,7 +319,7 @@
 @keyframes blink { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; } }
 
 /* Orchestrated Solo Layout */
-.solo-orchestrated-container { display: flex; height: 100%; gap: 0; }
+.solo-orchestrated-container { display: flex; height: calc(100vh - 280px); gap: 0; position: relative; }
 .solo-orchestrated-container .solo-chat-main { flex: 1; min-width: 0; }
 .solo-orchestrated-container .thinking-panel { width: 320px; flex-shrink: 0; display: flex; flex-direction: column; background: var(--archie-bg-secondary, #0d1117); border: 1px solid var(--archie-border-default, #30363d); border-left: 3px solid var(--archie-cyan, #00ffff); border-radius: 0 var(--archie-radius-lg, 12px) var(--archie-radius-lg, 12px) 0; overflow: hidden; animation: slideInRight 0.3s ease; }
 @keyframes slideInRight { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
@@ -554,7 +554,7 @@
     font-size: 0.85rem;
     display: none;
 }
-.chat-layout-wrapper .sidebar-expand-btn.visible {
+.solo-orchestrated-container .sidebar-expand-btn.visible {
     display: block;
 }
 
@@ -897,9 +897,9 @@ body.light-mode .brain-filter-btn.active { color: var(--module-accent); }
             </div>
         </div>
 
-        <!-- Chat Layout: Sidebar + Main -->
-        <div class="chat-layout-wrapper">
-            <!-- Conversation Sidebar -->
+        <!-- Solo Mode: Orchestrated ARCHIE Chat + Thinking Panel -->
+        <div id="solo-chat-container" class="solo-orchestrated-container" style="display: flex;">
+            <!-- Conversation Sidebar (Solo mode only) -->
             <div id="chat-sidebar" class="chat-sidebar">
                 <div class="sidebar-header">
                     <button class="sidebar-new-chat-btn" onclick="startNewChat()">+ New Chat</button>
@@ -912,15 +912,7 @@ body.light-mode .brain-filter-btn.active { color: var(--module-accent); }
                     <!-- Populated by JS -->
                 </div>
             </div>
-
-            <!-- Sidebar Expand Button (when collapsed) -->
             <button id="sidebar-expand-btn" class="sidebar-expand-btn" onclick="toggleSidebar()" title="Expand sidebar">&#9654;</button>
-
-            <!-- Main Chat Area -->
-            <div class="chat-main-area">
-
-        <!-- Solo Mode: Orchestrated ARCHIE Chat + Thinking Panel -->
-        <div id="solo-chat-container" class="solo-orchestrated-container" style="display: flex;">
             <!-- Main Chat Panel -->
             <div class="chat-container solo-chat-main" id="solo-chat-main">
                 <div class="chat-header">
@@ -970,21 +962,21 @@ body.light-mode .brain-filter-btn.active { color: var(--module-accent); }
 
         <!-- Side-by-Side Mode: ARCHIE Code + Claude Code Terminal -->
         <div id="dual-chat-container" class="dual-chat-container" style="display: none;">
-            <!-- ARCHIE Code Panel (Orchestrated Chat + Thinking) -->
+            <!-- ARCHIE Chat Panel (Orchestrated, no sidebar) -->
             <div class="chat-panel archie-panel">
                 <div class="chat-panel-header archie">
                     <span class="ai-icon">🧠</span>
                     <div class="ai-info">
-                        <div class="ai-name">A.R.C.H.I.E. Code</div>
+                        <div class="ai-name">A.R.C.H.I.E.</div>
                         <div class="ai-model">Orchestrated AI</div>
                     </div>
-                    <span class="status-dot"></span>
+                    <button class="clear-chat-btn" onclick="clearSideBySideChat()" title="Clear conversation" style="padding: 0.3rem 0.6rem; border: 1px solid #ff6b6b; border-radius: 4px; background: rgba(255,107,107,0.1); color: #ff6b6b; cursor: pointer; font-size: 0.75rem;">Clear</button>
                 </div>
-                <div class="chat-panel-content" id="archie-panel-messages">
-                    <div class="chat-message archie"><div class="role">🧠 A.R.C.H.I.E.</div><div class="content">I'm here alongside Claude Code. Ask us anything!</div></div>
+                <div class="chat-panel-content" id="archie-side-messages">
+                    <div class="chat-message archie"><div class="role">🧠 A.R.C.H.I.E.</div><div class="content">I'm here alongside Claude Code. Ask me anything!</div></div>
                 </div>
                 <div class="chat-panel-input">
-                    <textarea placeholder="Message ARCHIE..." rows="2" id="archie-side-input" onkeypress="if(event.key==='Enter' && !event.shiftKey) { event.preventDefault(); sendArchieSideMessage(); }"></textarea>
+                    <input type="text" id="archie-side-input" class="chat-input" placeholder="Talk to A.R.C.H.I.E...." onkeypress="if(event.key==='Enter') sendSideBySideMessage()" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color, #333); border-radius: 6px; background: var(--bg-secondary, #16213e); color: var(--text-primary, #e0e0e0); font-family: inherit;">
                 </div>
             </div>
 
@@ -1096,8 +1088,6 @@ body.light-mode .brain-filter-btn.active { color: var(--module-accent); }
             </div>
         </div>
 
-            </div><!-- /chat-main-area -->
-        </div><!-- /chat-layout-wrapper -->
     </div>
 
     <div id="tab-emotional" class="tab-content">
@@ -4464,59 +4454,74 @@ async function indexGitHubRepo() {
     }
 }
 
-// Side-by-side mode: Send message to ARCHIE panel
-async function sendArchieSideMessage() {
+// Side-by-side conversation state
+let sideBySideConversationId = null;
+
+function _createSideMsg(role, text, isError) {
+    const msg = document.createElement('div');
+    msg.className = 'chat-message ' + (role === 'user' ? 'user' : 'archie');
+    const roleEl = document.createElement('div');
+    roleEl.className = 'role';
+    roleEl.textContent = role === 'user' ? 'You' : 'A.R.C.H.I.E.';
+    msg.appendChild(roleEl);
+    const contentEl = document.createElement('div');
+    contentEl.className = 'content';
+    contentEl.textContent = text;
+    if (isError) contentEl.style.color = '#ff6b6b';
+    msg.appendChild(contentEl);
+    return msg;
+}
+
+// Side-by-side mode: Send message to ARCHIE panel (orchestrated)
+async function sendSideBySideMessage() {
     const input = document.getElementById('archie-side-input');
     const message = input.value.trim();
     if (!message) return;
 
-    const messagesEl = document.getElementById('archie-panel-messages');
-
-    // Add user message
-    const userMsg = document.createElement('div');
-    userMsg.className = 'chat-message user';
-
-    const userRole = document.createElement('div');
-    userRole.className = 'role';
-    userRole.textContent = '👤 You';
-    userMsg.appendChild(userRole);
-
-    const userContent = document.createElement('div');
-    userContent.className = 'content';
-    userContent.textContent = message;
-    userMsg.appendChild(userContent);
-
-    messagesEl.appendChild(userMsg);
+    const messagesEl = document.getElementById('archie-side-messages');
+    messagesEl.appendChild(_createSideMsg('user', message));
     input.value = '';
     messagesEl.scrollTop = messagesEl.scrollHeight;
 
     try {
-        const response = await fetch('/tools/archie-chat/send', {
+        const response = await fetch('/tools/archie-chat/api/orchestrate', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ message: message })
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                message: message,
+                conversation_id: sideBySideConversationId,
+                chat_mode: 'orchestrated'
+            })
         });
         const data = await response.json();
 
-        const archieMsg = document.createElement('div');
-        archieMsg.className = 'chat-message archie';
-
-        const archieRole = document.createElement('div');
-        archieRole.className = 'role';
-        archieRole.textContent = '🧠 A.R.C.H.I.E.';
-        archieMsg.appendChild(archieRole);
-
-        const archieContent = document.createElement('div');
-        archieContent.className = 'content';
-        archieContent.textContent = data.response || data.error || 'No response';
-        archieMsg.appendChild(archieContent);
-
-        messagesEl.appendChild(archieMsg);
+        if (data.success) {
+            sideBySideConversationId = data.conversation_id;
+            messagesEl.appendChild(_createSideMsg('archie', data.response || 'No response'));
+        } else {
+            messagesEl.appendChild(_createSideMsg('archie', 'Error: ' + (data.error || 'Unknown error'), true));
+        }
         messagesEl.scrollTop = messagesEl.scrollHeight;
     } catch (e) {
-        console.error('ARCHIE error:', e);
+        console.error('Side-by-side ARCHIE error:', e);
+        messagesEl.appendChild(_createSideMsg('archie', 'Connection error: ' + e.message, true));
+        messagesEl.scrollTop = messagesEl.scrollHeight;
     }
 }
+
+// Clear side-by-side conversation
+function clearSideBySideChat() {
+    sideBySideConversationId = null;
+    const messagesEl = document.getElementById('archie-side-messages');
+    if (messagesEl) {
+        while (messagesEl.firstChild) messagesEl.removeChild(messagesEl.firstChild);
+        messagesEl.appendChild(_createSideMsg('archie', 'Conversation cleared. How can I help?'));
+    }
+}
+
+// Legacy alias
+async function sendArchieSideMessage() { return sendSideBySideMessage(); }
 
 // Side-by-side mode: Send message to Claude panel
 async function sendClaudeSideMessage() {

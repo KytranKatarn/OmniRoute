@@ -1010,7 +1010,7 @@ class OrchestrationEngine:
             cur.execute("""
                 SELECT message, response FROM ai_conversations
                 WHERE user_id = %s AND conversation_id = %s
-                ORDER BY created_at DESC LIMIT 5
+                ORDER BY created_at DESC LIMIT 10
             """, (user_id, conversation_id))
             rows = cur.fetchall()
             cur.close()

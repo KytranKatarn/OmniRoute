@@ -740,7 +740,7 @@ function reconnectClaudeTerminal() {
 async function syncContextToClaude() {
     // Gather ARCHIE's recent conversation context and send to Claude proxy
     try {
-        var messages = document.querySelectorAll('#archie-panel-messages .chat-message');
+        var messages = document.querySelectorAll('#archie-side-messages .chat-message');
         var context = [];
         messages.forEach(function(msg) {
             var role = msg.querySelector('.role');

@@ -27,6 +27,7 @@ class DateTimeEncoder(json.JSONEncoder):
 # Initialize Flask app
 app = Flask(__name__)
 app.config.from_object(Config)
+app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB upload limit
 app.json_encoder = DateTimeEncoder
 
 # Track application start time for uptime

@@ -7108,6 +7108,426 @@ def get_chat_history():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+# ============================================================================
+# CONVERSATION THREAD MANAGEMENT
+# ============================================================================
+
+
+@consciousness_bp.route("/api/conversations", methods=["GET"])
+@login_required
+def list_conversations():
+    """
+    List all conversation threads for the current user.
+
+    Returns threads ordered by last_message_at DESC, limit 200.
+    Each item includes conversation_id, title, chat_mode, message_count,
+    created_at, and last_message_at.
+    """
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            SELECT conversation_id, title, chat_mode, message_count,
+                   created_at, last_message_at
+            FROM ai_conversation_threads
+            WHERE user_id = %s AND (is_archived = false OR is_archived IS NULL)
+            ORDER BY last_message_at DESC
+            LIMIT 200
+            """,
+            (current_user.id,),
+        )
+        threads = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        # Serialize datetimes
+        for t in threads:
+            if t.get("created_at"):
+                t["created_at"] = t["created_at"].isoformat()
+            if t.get("last_message_at"):
+                t["last_message_at"] = t["last_message_at"].isoformat()
+
+        return jsonify({"success": True, "data": threads})
+
+    except Exception as e:
+        logging.error(f"Error listing conversations: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/conversations/<conv_id>/messages", methods=["GET"])
+@login_required
+def get_conversation_messages(conv_id):
+    """
+    Get all messages for a specific conversation.
+
+    Returns messages from ai_conversations ordered by created_at ASC.
+    """
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            SELECT id, conversation_id, message, response, model,
+                   metadata, created_at
+            FROM ai_conversations
+            WHERE user_id = %s AND conversation_id = %s
+            ORDER BY created_at ASC
+            """,
+            (current_user.id, conv_id),
+        )
+        messages = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        # Serialize datetimes and extract chat_mode from metadata
+        for m in messages:
+            if m.get("created_at"):
+                m["created_at"] = m["created_at"].isoformat()
+            if m.get("metadata") and isinstance(m["metadata"], dict):
+                m["chat_mode"] = m["metadata"].get("chat_mode", "solo")
+            else:
+                m["chat_mode"] = "solo"
+
+        return jsonify({"success": True, "data": messages})
+
+    except Exception as e:
+        logging.error(f"Error fetching conversation messages: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/conversations/<conv_id>", methods=["DELETE"])
+@login_required
+def delete_conversation(conv_id):
+    """
+    Delete a conversation thread and all its messages.
+
+    Removes from both ai_conversation_threads and ai_conversations.
+    Only the owning user can delete their conversations.
+    """
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+
+        # Delete messages first (child rows)
+        cur.execute(
+            """
+            DELETE FROM ai_conversations
+            WHERE user_id = %s AND conversation_id = %s
+            """,
+            (current_user.id, conv_id),
+        )
+        messages_deleted = cur.rowcount
+
+        # Delete the thread record
+        cur.execute(
+            """
+            DELETE FROM ai_conversation_threads
+            WHERE user_id = %s AND conversation_id = %s
+            """,
+            (current_user.id, conv_id),
+        )
+        thread_deleted = cur.rowcount
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        if thread_deleted == 0 and messages_deleted == 0:
+            return jsonify({"success": False, "error": "Conversation not found"}), 404
+
+        return jsonify(
+            {
+                "success": True,
+                "messages_deleted": messages_deleted,
+                "thread_deleted": thread_deleted > 0,
+            }
+        )
+
+    except Exception as e:
+        logging.error(f"Error deleting conversation: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/conversations/<conv_id>", methods=["PUT"])
+@login_required
+def update_conversation(conv_id):
+    """
+    Update a conversation thread (rename).
+
+    Request body:
+        - title: New title for the conversation
+    """
+    try:
+        data = request.get_json() or {}
+        title = data.get("title", "").strip()
+
+        if not title:
+            return jsonify({"success": False, "error": "Title is required"}), 400
+
+        if len(title) > 255:
+            return jsonify({"success": False, "error": "Title too long (max 255 chars)"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+
+        cur.execute(
+            """
+            UPDATE ai_conversation_threads
+            SET title = %s, updated_at = NOW()
+            WHERE user_id = %s AND conversation_id = %s
+            """,
+            (title, current_user.id, conv_id),
+        )
+        updated = cur.rowcount
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        if updated == 0:
+            return jsonify({"success": False, "error": "Conversation not found"}), 404
+
+        return jsonify({"success": True, "title": title})
+
+    except Exception as e:
+        logging.error(f"Error updating conversation: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ─── File Upload Endpoint ───────────────────────────────────────────────────────
+
+ALLOWED_TEXT_EXTENSIONS = {
+    ".txt",
+    ".md",
+    ".csv",
+    ".json",
+    ".py",
+    ".js",
+    ".html",
+    ".css",
+    ".yml",
+    ".yaml",
+    ".xml",
+    ".sql",
+    ".sh",
+    ".ts",
+    ".tsx",
+}
+ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
+MAX_EXTRACTED_TEXT = 20000
+
+
+@consciousness_bp.route("/api/chat/upload", methods=["POST"])
+@login_required
+def chat_file_upload():
+    """
+    Upload a file for chat context. Extracts text from common file types.
+
+    Accepts multipart form data with:
+        - file: The uploaded file
+        - store_in_knowledge (optional): 'true' to save to knowledge_base
+
+    Returns extracted text, optional thumbnail (images), and metadata.
+    """
+    import tempfile
+    from werkzeug.utils import secure_filename
+
+    if "file" not in request.files:
+        return jsonify({"success": False, "error": "No file provided"}), 400
+
+    uploaded = request.files["file"]
+    if not uploaded.filename:
+        return jsonify({"success": False, "error": "No filename"}), 400
+
+    filename = secure_filename(uploaded.filename)
+    if not filename:
+        return jsonify({"success": False, "error": "Invalid filename"}), 400
+
+    _, ext = os.path.splitext(filename)
+    ext = ext.lower()
+    file_type = ext.lstrip(".")
+
+    extracted_text = ""
+    thumbnail = None
+    tmp_path = None
+
+    try:
+        # Save to temp file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+            tmp_path = tmp.name
+            uploaded.save(tmp_path)
+
+        # ── PDF extraction ──────────────────────────────────────────────
+        if ext == ".pdf":
+            try:
+                import PyPDF2
+
+                with open(tmp_path, "rb") as f:
+                    reader = PyPDF2.PdfReader(f)
+                    pages = []
+                    for page in reader.pages:
+                        text = page.extract_text()
+                        if text:
+                            pages.append(text)
+                    extracted_text = "\n\n".join(pages)
+            except ImportError:
+                extracted_text = "[PyPDF2 not installed — cannot extract PDF text]"
+            except Exception as e:
+                logging.error(f"PDF extraction error: {e}")
+                extracted_text = f"[PDF extraction failed: {e}]"
+
+        # ── DOCX extraction ─────────────────────────────────────────────
+        elif ext == ".docx":
+            try:
+                import docx
+
+                doc = docx.Document(tmp_path)
+                paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
+                extracted_text = "\n\n".join(paragraphs)
+            except ImportError:
+                extracted_text = "[python-docx not installed — cannot extract DOCX text]"
+            except Exception as e:
+                logging.error(f"DOCX extraction error: {e}")
+                extracted_text = f"[DOCX extraction failed: {e}]"
+
+        # ── Image processing ────────────────────────────────────────────
+        elif ext in ALLOWED_IMAGE_EXTENSIONS:
+            try:
+                from PIL import Image
+                import io
+
+                img = Image.open(tmp_path)
+                img.thumbnail((200, 200))
+
+                # Convert to RGB if needed (e.g. RGBA PNGs)
+                if img.mode in ("RGBA", "P", "LA"):
+                    img = img.convert("RGB")
+
+                buf = io.BytesIO()
+                img.save(buf, format="JPEG", quality=85)
+                buf.seek(0)
+                thumbnail = "data:image/jpeg;base64," + base64.b64encode(buf.read()).decode("utf-8")
+            except ImportError:
+                logging.error("Pillow not installed — cannot process image")
+            except Exception as e:
+                logging.error(f"Image thumbnail error: {e}")
+
+            # Try OCR if pytesseract is available
+            try:
+                import pytesseract
+                from PIL import Image as PILImage
+
+                img = PILImage.open(tmp_path)
+                extracted_text = pytesseract.image_to_string(img)
+            except ImportError:
+                extracted_text = "[Image file — OCR not available (pytesseract not installed)]"
+            except Exception as e:
+                logging.error(f"OCR error: {e}")
+                extracted_text = f"[Image file — OCR failed: {e}]"
+
+        # ── Text-based files ────────────────────────────────────────────
+        elif ext in ALLOWED_TEXT_EXTENSIONS:
+            try:
+                with open(tmp_path, "r", encoding="utf-8", errors="replace") as f:
+                    extracted_text = f.read()
+            except Exception as e:
+                logging.error(f"Text read error: {e}")
+                extracted_text = f"[Failed to read text file: {e}]"
+
+        # ── Unsupported type ────────────────────────────────────────────
+        else:
+            return jsonify({"success": False, "error": f"Unsupported file type: {ext}"}), 400
+
+        # Cap extracted text
+        if len(extracted_text) > MAX_EXTRACTED_TEXT:
+            extracted_text = extracted_text[:MAX_EXTRACTED_TEXT]
+
+        # ── Optional: store in knowledge base ───────────────────────────
+        store_in_knowledge = request.form.get("store_in_knowledge", "").lower() == "true"
+        if store_in_knowledge and extracted_text.strip():
+            try:
+                conn = get_db()
+                cur = conn.cursor()
+                cur.execute(
+                    """
+                    INSERT INTO knowledge_base
+                        (title, content, source_type, tags, importance_score, created_at, updated_at)
+                    VALUES (%s, %s, 'chat_upload', %s, 0.5, NOW(), NOW())
+                    """,
+                    (
+                        f"Chat Upload: {filename}",
+                        extracted_text,
+                        json.dumps(["chat-upload", file_type]),
+                    ),
+                )
+                conn.commit()
+                cur.close()
+                conn.close()
+            except Exception as e:
+                logging.error(f"Knowledge base insert error: {e}")
+
+        return jsonify(
+            {
+                "success": True,
+                "filename": filename,
+                "file_type": file_type,
+                "extracted_text": extracted_text,
+                "thumbnail": thumbnail,
+                "text_length": len(extracted_text),
+            }
+        )
+
+    except Exception as e:
+        logging.error(f"File upload processing error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+    finally:
+        # Clean up temp file
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+
+
+@consciousness_bp.route("/api/terminal/token", methods=["POST"])
+@login_required
+@admin_required
+def generate_terminal_token():
+    """Generate a one-time auth token for the Claude Terminal (ttyd SSO)."""
+    import secrets
+
+    try:
+        token = secrets.token_urlsafe(32)
+
+        conn = get_db()
+        cur = conn.cursor()
+
+        # Clean up expired and used tokens
+        cur.execute("DELETE FROM terminal_auth_tokens WHERE expires_at < NOW() OR used = TRUE")
+
+        # Insert new token with 60-second expiry
+        cur.execute(
+            """
+            INSERT INTO terminal_auth_tokens (user_id, token, expires_at)
+            VALUES (%s, %s, NOW() + INTERVAL '60 seconds')
+            """,
+            (current_user.id, token),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({"success": True, "token": token})
+
+    except Exception as e:
+        logging.error(f"Error generating terminal token: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @consciousness_bp.route("/api/claude/chat", methods=["POST"])
 @login_required
 def claude_side_chat():

@@ -135,9 +135,25 @@ function updateClaudeStatus(online) {
     });
 }
 
-function openClaudeTerminal() {
+async function openClaudeTerminal() {
     const host = window.location.hostname;
-    const url = 'http://' + host + ':7681';
+    let url = 'http://' + host + ':7681';
+
+    // Try to get SSO token
+    try {
+        const response = await fetch('/tools/consciousness/api/terminal/token', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {'Content-Type': 'application/json'}
+        });
+        const data = await response.json();
+        if (data.success && data.token) {
+            url += '/?token=' + encodeURIComponent(data.token);
+        }
+    } catch (e) {
+        console.debug('Token fetch failed, falling back to Basic Auth:', e.message);
+    }
+
     window.open(url, 'claude-terminal', 'width=900,height=600,menubar=no,toolbar=no');
 }
 
@@ -671,7 +687,7 @@ function stopResize() {
 // Claude Code terminal iframe management
 let claudeTerminalLoaded = false;
 
-function initClaudeTerminalIframe() {
+async function initClaudeTerminalIframe() {
     if (claudeTerminalLoaded) return;
 
     var iframe = document.getElementById('claude-terminal-iframe');
@@ -680,6 +696,21 @@ function initClaudeTerminalIframe() {
 
     var host = window.location.hostname;
     var ttydUrl = 'http://' + host + ':7681';
+
+    // Try to get SSO token
+    try {
+        const response = await fetch('/tools/consciousness/api/terminal/token', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {'Content-Type': 'application/json'}
+        });
+        const data = await response.json();
+        if (data.success && data.token) {
+            ttydUrl += '/?token=' + encodeURIComponent(data.token);
+        }
+    } catch (e) {
+        console.debug('Token fetch failed, falling back to Basic Auth:', e.message);
+    }
 
     iframe.src = ttydUrl;
     claudeTerminalLoaded = true;

@@ -19,6 +19,7 @@ import logging
 import os
 import signal
 import sys
+from urllib.parse import urlparse, parse_qs, urlencode
 
 import psycopg2
 import websockets
@@ -119,6 +120,42 @@ def authenticate(username: str, password: str) -> bool:
         return False
 
 
+def validate_token(token: str) -> bool:
+    """Validate a one-time terminal auth token against the DB.
+
+    Looks up the token in ``terminal_auth_tokens``. If the token is valid
+    (exists, not yet used, and not expired) it is immediately marked as
+    used so it cannot be replayed.
+
+    Returns True if the token was valid and consumed, False otherwise.
+    """
+    try:
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id, user_id FROM terminal_auth_tokens "
+                    "WHERE token = %s AND used = FALSE AND expires_at > NOW()",
+                    (token,),
+                )
+                row = cur.fetchone()
+                if row is None:
+                    return False
+                token_id, user_id = row
+                cur.execute(
+                    "UPDATE terminal_auth_tokens SET used = TRUE WHERE id = %s",
+                    (token_id,),
+                )
+                conn.commit()
+                logger.info("Token auth OK token_id=%s user_id=%s", token_id, user_id)
+                return True
+        finally:
+            conn.close()
+    except Exception:
+        logger.exception("Token validation DB error")
+        return False
+
+
 # ---------------------------------------------------------------------------
 # HTTP helpers – build raw HTTP responses
 # ---------------------------------------------------------------------------
@@ -163,6 +200,47 @@ def parse_basic_auth(raw_request: bytes):
             except Exception:
                 return None
     return None
+
+
+def parse_token_from_request(raw_request: bytes):
+    """Extract a ``token`` query parameter from the request URL.
+
+    Returns ``(token, stripped_request)`` where *stripped_request* has the
+    ``token`` parameter removed from the URL so that ttyd never sees it.
+    If no token is present, returns ``(None, raw_request)`` unchanged.
+    """
+    first_line, rest = raw_request.split(b"\r\n", 1)
+    parts = first_line.split(b" ")
+    if len(parts) < 3:
+        return None, raw_request
+
+    method, raw_url, version = parts[0], parts[1], parts[2]
+    url_str = raw_url.decode("utf-8", errors="replace")
+
+    parsed = urlparse(url_str)
+    params = parse_qs(parsed.query, keep_blank_values=True)
+
+    if "token" not in params:
+        return None, raw_request
+
+    # Grab the first token value
+    token = params["token"][0]
+
+    # Remove the token param and rebuild the URL
+    del params["token"]
+    # parse_qs returns lists; flatten back for urlencode
+    cleaned_query = urlencode(
+        {k: v[0] if len(v) == 1 else v for k, v in params.items()},
+        doseq=True,
+    )
+    cleaned_path = parsed.path
+    if cleaned_query:
+        cleaned_path += "?" + cleaned_query
+
+    new_first_line = method + b" " + cleaned_path.encode("utf-8") + b" " + version
+    stripped_request = new_first_line + b"\r\n" + rest
+
+    return token, stripped_request
 
 
 def is_websocket_upgrade(raw_request: bytes) -> bool:
@@ -264,6 +342,24 @@ async def handle_connection(reader, writer):
         writer.close()
         return
 
+    # --- Token-based auth (checked first) ---
+    token, stripped_request = parse_token_from_request(raw_request)
+    if token is not None:
+        if validate_token(token):
+            logger.info("Token auth succeeded from %s", peer)
+            if is_websocket_upgrade(stripped_request):
+                await proxy_websocket(reader, writer, stripped_request)
+            else:
+                await proxy_http(reader, writer, stripped_request)
+            return
+        else:
+            logger.warning("Token auth failed from %s", peer)
+            writer.write(_make_403_response())
+            await writer.drain()
+            writer.close()
+            return
+
+    # --- Basic Auth fallback ---
     creds = parse_basic_auth(raw_request)
     if creds is None:
         writer.write(_make_401_response())

@@ -230,6 +230,19 @@ def send_message():
         )
 
         message_id = cur.fetchone()["id"]
+
+        # Auto-upsert conversation thread
+        cur.execute(
+            """
+            INSERT INTO ai_conversation_threads (conversation_id, user_id, title, chat_mode, message_count, last_message_at)
+            VALUES (%s, %s, LEFT(%s, 80), %s, 1, NOW())
+            ON CONFLICT (conversation_id) DO UPDATE SET
+                message_count = ai_conversation_threads.message_count + 1,
+                last_message_at = NOW(), updated_at = NOW()
+            """,
+            (conversation_id, current_user.id, message, chat_mode),
+        )
+
         conn.commit()
         cur.close()
         conn.close()
@@ -372,6 +385,19 @@ def orchestrate():
                         ),
                     )
                     message_id = cur.fetchone()["id"]
+
+                    # Auto-upsert conversation thread
+                    cur.execute(
+                        """
+                        INSERT INTO ai_conversation_threads (conversation_id, user_id, title, chat_mode, message_count, last_message_at)
+                        VALUES (%s, %s, LEFT(%s, 80), %s, 1, NOW())
+                        ON CONFLICT (conversation_id) DO UPDATE SET
+                            message_count = ai_conversation_threads.message_count + 1,
+                            last_message_at = NOW(), updated_at = NOW()
+                        """,
+                        (conversation_id, current_user.id, message, chat_mode),
+                    )
+
                     conn.commit()
                     cur.close()
                     conn.close()

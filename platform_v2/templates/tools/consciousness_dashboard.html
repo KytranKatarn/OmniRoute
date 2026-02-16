@@ -944,6 +944,8 @@ body.light-mode .brain-filter-btn.active { color: var(--module-accent); }
                     <span id="voice-status-text">Listening...</span>
                 </div>
             </div>
+            <!-- Thinking Panel FAB (mobile only) -->
+            <button id="thinking-toggle-fab" class="thinking-toggle-fab" onclick="toggleThinkingPanelMobile()" title="Show thinking steps">🧪</button>
             <!-- Thinking Panel (collapsible) -->
             <div id="thinking-panel" class="thinking-panel" style="display: none;">
                 <div class="thinking-panel-header">
@@ -958,6 +960,9 @@ body.light-mode .brain-filter-btn.active { color: var(--module-accent); }
                 </div>
             </div>
         </div>
+        <!-- Mobile overlays for chat drawers -->
+        <div class="mobile-chat-sidebar-overlay" id="mobileChatSidebarOverlay" onclick="closeChatSidebar()"></div>
+        <div class="mobile-thinking-overlay" id="mobileThinkingOverlay" onclick="closeThinkingPanelMobile()"></div>
 
         <!-- Side-by-Side Mode: ARCHIE Code + Claude Code Terminal -->
         <div id="dual-chat-container" class="dual-chat-container" style="display: none;">
@@ -5860,6 +5865,137 @@ function pollCardPregenJob(jobId, profileId, onComplete) {
             if (onComplete) onComplete('error');
         }
     }, 3000);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// MOBILE: Chat Sidebar Drawer
+// ═══════════════════════════════════════════════════════════════════════
+function toggleChatSidebar() {
+    const sidebar = document.getElementById('chat-sidebar');
+    const overlay = document.getElementById('mobileChatSidebarOverlay');
+    if (!sidebar) return;
+    const isOpen = sidebar.classList.toggle('mobile-open');
+    if (overlay) overlay.classList.toggle('active', isOpen);
+    document.body.classList.toggle('mobile-sidebar-open', isOpen);
+}
+
+function closeChatSidebar() {
+    const sidebar = document.getElementById('chat-sidebar');
+    const overlay = document.getElementById('mobileChatSidebarOverlay');
+    if (sidebar) sidebar.classList.remove('mobile-open');
+    if (overlay) overlay.classList.remove('active');
+    document.body.classList.remove('mobile-sidebar-open');
+}
+
+// Override sidebar expand button on mobile
+(function() {
+    const expandBtn = document.getElementById('sidebar-expand-btn');
+    if (expandBtn && window.innerWidth <= 768) {
+        expandBtn.removeAttribute('onclick');
+        expandBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            toggleChatSidebar();
+        });
+    }
+})();
+
+// ═══════════════════════════════════════════════════════════════════════
+// MOBILE: Thinking Panel Bottom Sheet
+// ═══════════════════════════════════════════════════════════════════════
+function toggleThinkingPanelMobile() {
+    const panel = document.getElementById('thinking-panel');
+    const overlay = document.getElementById('mobileThinkingOverlay');
+    if (!panel) return;
+    // Ensure panel is visible in DOM first
+    panel.style.display = 'flex';
+    const isOpen = panel.classList.toggle('mobile-open');
+    if (overlay) overlay.classList.toggle('active', isOpen);
+    document.body.classList.toggle('mobile-thinking-open', isOpen);
+    if (!isOpen) {
+        panel.style.display = 'none';
+    }
+}
+
+function closeThinkingPanelMobile() {
+    const panel = document.getElementById('thinking-panel');
+    const overlay = document.getElementById('mobileThinkingOverlay');
+    if (panel) {
+        panel.classList.remove('mobile-open');
+        if (window.innerWidth <= 768) panel.style.display = 'none';
+    }
+    if (overlay) overlay.classList.remove('active');
+    document.body.classList.remove('mobile-thinking-open');
+}
+
+// Hook: Show FAB when thinking steps arrive
+(function() {
+    const origToggle = window.toggleThinkingPanel;
+    if (origToggle && window.innerWidth <= 768) {
+        window.toggleThinkingPanel = function() {
+            toggleThinkingPanelMobile();
+        };
+    }
+})();
+
+// Update FAB indicator when steps arrive
+const _origCreateStep = window.createThinkingStepElement;
+if (typeof _origCreateStep === 'function') {
+    window.createThinkingStepElement = function() {
+        const result = _origCreateStep.apply(this, arguments);
+        const fab = document.getElementById('thinking-toggle-fab');
+        if (fab) fab.classList.add('has-steps');
+        return result;
+    };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// MOBILE: Touch Swipe Gestures
+// ═══════════════════════════════════════════════════════════════════════
+class TouchGestureHandler {
+    constructor(element, options = {}) {
+        this.element = element;
+        this.threshold = options.threshold || 50;
+        this.onSwipeLeft = options.onSwipeLeft || null;
+        this.onSwipeRight = options.onSwipeRight || null;
+        this.startX = 0;
+        this.startY = 0;
+        this.element.addEventListener('touchstart', this.handleStart.bind(this), { passive: true });
+        this.element.addEventListener('touchend', this.handleEnd.bind(this), { passive: true });
+    }
+    handleStart(e) {
+        this.startX = e.changedTouches[0].screenX;
+        this.startY = e.changedTouches[0].screenY;
+    }
+    handleEnd(e) {
+        const dx = e.changedTouches[0].screenX - this.startX;
+        const dy = e.changedTouches[0].screenY - this.startY;
+        if (Math.abs(dx) < this.threshold || Math.abs(dy) > Math.abs(dx)) return;
+        if (dx < 0 && this.onSwipeLeft) this.onSwipeLeft();
+        if (dx > 0 && this.onSwipeRight) this.onSwipeRight();
+    }
+}
+
+// Attach swipe gestures on mobile
+if (window.innerWidth <= 768) {
+    document.addEventListener('DOMContentLoaded', function() {
+        const chatContainer = document.getElementById('solo-chat-container');
+        if (chatContainer) {
+            new TouchGestureHandler(chatContainer, {
+                onSwipeRight: function() {
+                    const sidebar = document.getElementById('chat-sidebar');
+                    if (sidebar && !sidebar.classList.contains('mobile-open')) {
+                        toggleChatSidebar();
+                    }
+                },
+                onSwipeLeft: function() {
+                    const sidebar = document.getElementById('chat-sidebar');
+                    if (sidebar && sidebar.classList.contains('mobile-open')) {
+                        closeChatSidebar();
+                    }
+                }
+            });
+        }
+    });
 }
 </script>
 {% endblock %}

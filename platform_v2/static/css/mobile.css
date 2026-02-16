@@ -1,0 +1,551 @@
+/* ═══════════════════════════════════════════════════════════════════════════════
+   A.R.C.H.I.E. Mobile / Responsive Layout
+   Breakpoints: 374px (Fold folded) | 480px (small phones) | 768px (tablets/Fold unfolded)
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   1. TOUCH TARGETS
+   ───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    button,
+    .btn,
+    .tab-btn,
+    .chat-mode-btn,
+    .nav-module-btn,
+    .nav-icon-btn {
+        min-height: 44px;
+        min-width: 44px;
+    }
+}
+
+@media (hover: none) and (pointer: coarse) {
+    button,
+    .btn,
+    .tab-btn,
+    .chat-mode-btn {
+        min-height: 48px;
+        min-width: 48px;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   2. TAB NAVIGATION — Horizontal scroll instead of wrapping
+   ───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .tab-nav {
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+    .tab-nav::-webkit-scrollbar {
+        display: none;
+    }
+    .tab-btn {
+        flex-shrink: 0;
+        white-space: nowrap;
+    }
+
+    .chat-mode-tabs {
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        gap: 0.5rem;
+        padding-bottom: 0.25rem;
+    }
+    .chat-mode-tabs::-webkit-scrollbar {
+        display: none;
+    }
+    .chat-mode-btn {
+        flex-shrink: 0;
+        white-space: nowrap;
+        font-size: 0.75rem;
+        padding: 0.5rem 0.75rem;
+    }
+    /* Push Claude Terminal button to new row on mobile */
+    .chat-mode-tabs > div[style*="margin-left: auto"] {
+        margin-left: 0 !important;
+        width: 100%;
+        justify-content: flex-start;
+        margin-top: 0.25rem;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   3. NAVIGATION DRAWER — Slide from right
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Hamburger toggle button (hidden on desktop) */
+.mobile-nav-toggle {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    background: transparent;
+    border: 1px solid rgba(255, 170, 0, 0.3);
+    border-radius: 8px;
+    color: #FFAA00;
+    cursor: pointer;
+    font-size: 1.4rem;
+    line-height: 1;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+.mobile-nav-toggle:hover {
+    background: rgba(255, 170, 0, 0.1);
+    border-color: rgba(255, 170, 0, 0.5);
+}
+body.light-mode .mobile-nav-toggle {
+    color: #cc6600;
+    border-color: rgba(204, 102, 0, 0.3);
+}
+
+/* Overlay backdrop */
+.mobile-nav-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 10000;
+    backdrop-filter: blur(2px);
+}
+.mobile-nav-overlay.active {
+    display: block;
+}
+
+@media (max-width: 768px) {
+    .mobile-nav-toggle {
+        display: flex;
+    }
+
+    .admin-ops-nav {
+        flex-wrap: nowrap;
+        gap: 8px;
+        padding: 8px 12px;
+    }
+
+    .admin-ops-nav .nav-center {
+        order: 0;
+        width: auto;
+        margin-bottom: 0;
+        flex: 1;
+    }
+
+    .admin-ops-nav .nav-left,
+    .admin-ops-nav .nav-center,
+    .admin-ops-nav .nav-right {
+        flex: none;
+    }
+
+    .admin-ops-nav .nav-left {
+        flex: 0 0 auto;
+    }
+    .admin-ops-nav .nav-center {
+        flex: 1 1 0;
+        min-width: 0;
+    }
+
+    .nav-category-label {
+        font-size: 0.65rem;
+        letter-spacing: 0.1em;
+    }
+
+    /* Nav right becomes a fixed drawer */
+    .admin-ops-nav .nav-right {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 280px;
+        max-width: 80vw;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 4px;
+        padding: 1.5rem 1rem;
+        background: linear-gradient(180deg, rgba(0, 0, 0, 0.98) 0%, rgba(13, 17, 23, 0.98) 100%);
+        border-left: 1px solid rgba(255, 170, 0, 0.3);
+        transform: translateX(100%);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 10001;
+        overflow-y: auto;
+        justify-content: flex-start;
+    }
+    body.light-mode .admin-ops-nav .nav-right {
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 249, 250, 0.98) 100%);
+        border-left: 1px solid rgba(204, 102, 0, 0.3);
+    }
+    .admin-ops-nav .nav-right.open {
+        transform: translateX(0);
+    }
+
+    /* Stack module buttons vertically in drawer */
+    .admin-ops-nav .nav-right .nav-module-btn {
+        width: 100%;
+        justify-content: flex-start;
+        padding: 0.75rem 1rem;
+        font-size: 0.75rem;
+    }
+    .admin-ops-nav .nav-right .nav-module-btn span {
+        display: inline;
+    }
+    .admin-ops-nav .nav-right .nav-module-btn i {
+        width: 18px;
+        height: 18px;
+    }
+
+    /* Theme controls row in drawer */
+    .admin-ops-nav .nav-right .theme-controls {
+        flex-direction: row;
+        justify-content: center;
+        gap: 0.5rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid rgba(255, 170, 0, 0.15);
+        margin-bottom: 0.5rem;
+    }
+
+    .admin-ops-nav .nav-right .nav-divider {
+        width: 100%;
+        height: 1px;
+        margin: 0.25rem 0;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   4. CHAT SIDEBAR — Off-canvas drawer from left
+   ───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .chat-sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 280px;
+        max-width: 80vw;
+        transform: translateX(-100%);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 10001;
+        opacity: 1;
+        border-right: 1px solid var(--archie-border-default, #30363d);
+    }
+    .chat-sidebar.collapsed {
+        width: 280px;
+        max-width: 80vw;
+        opacity: 1;
+        border-right: 1px solid var(--archie-border-default, #30363d);
+    }
+    .chat-sidebar.mobile-open {
+        transform: translateX(0);
+    }
+
+    /* Repurpose expand button as fixed FAB */
+    .sidebar-expand-btn {
+        position: fixed !important;
+        top: 80px;
+        left: 12px;
+        transform: none !important;
+        z-index: 9999;
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: var(--archie-bg-secondary, #0d1117);
+        border: 1px solid var(--module-accent, #8b5cf6);
+        color: var(--module-accent, #8b5cf6);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+        font-size: 1rem;
+        cursor: pointer;
+    }
+}
+
+/* Chat sidebar overlay */
+.mobile-chat-sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 10000;
+    backdrop-filter: blur(2px);
+}
+.mobile-chat-sidebar-overlay.active {
+    display: block;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   5. THINKING PANEL — Bottom sheet
+   ───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .solo-orchestrated-container .thinking-panel {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        width: 100%;
+        height: 50vh;
+        max-height: 400px;
+        transform: translateY(100%);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border-radius: 16px 16px 0 0;
+        border-left: none;
+        border: 1px solid var(--archie-border-default, #30363d);
+        border-bottom: none;
+        z-index: 10000;
+        animation: none;
+    }
+    .solo-orchestrated-container .thinking-panel.mobile-open {
+        transform: translateY(0);
+    }
+}
+
+/* Thinking panel FAB */
+.thinking-toggle-fab {
+    display: none;
+    position: fixed;
+    bottom: 12px;
+    right: 12px;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--archie-bg-secondary, #0d1117);
+    border: 2px solid var(--archie-cyan, #00ffff);
+    color: var(--archie-cyan, #00ffff);
+    font-size: 1.2rem;
+    cursor: pointer;
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 12px rgba(0, 255, 255, 0.3);
+    transition: all 0.2s ease;
+}
+.thinking-toggle-fab:hover {
+    background: rgba(0, 255, 255, 0.15);
+    box-shadow: 0 4px 16px rgba(0, 255, 255, 0.4);
+}
+.thinking-toggle-fab.has-steps {
+    animation: pulse-fab 2s infinite;
+}
+@keyframes pulse-fab {
+    0%, 100% { box-shadow: 0 2px 12px rgba(0, 255, 255, 0.3); }
+    50% { box-shadow: 0 2px 20px rgba(0, 255, 255, 0.6); }
+}
+
+@media (max-width: 768px) {
+    .thinking-toggle-fab {
+        display: flex;
+    }
+    /* Hide the inline thinking toggle button on mobile */
+    .thinking-toggle-btn {
+        display: none !important;
+    }
+}
+
+/* Thinking panel overlay */
+.mobile-thinking-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 9999;
+}
+.mobile-thinking-overlay.active {
+    display: block;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   6. SOLO CHAT LAYOUT
+   ───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .solo-orchestrated-container {
+        flex-direction: column;
+        height: calc(100vh - 140px);
+    }
+    .solo-orchestrated-container .solo-chat-main {
+        width: 100%;
+        flex: 1;
+        min-width: 0;
+    }
+
+    .chat-input-wrapper {
+        padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    }
+    .chat-input-area {
+        gap: 0.4rem;
+        padding: 0.5rem;
+    }
+    .chat-input {
+        font-size: 16px; /* Prevent iOS zoom on focus */
+    }
+    .chat-send-btn {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.8rem;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   7. COLLABORATION LAYOUT
+   ───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .collab-container {
+        flex-direction: column !important;
+    }
+    .collab-history-sidebar {
+        width: 100% !important;
+        max-height: 180px;
+        border-right: none;
+        border-bottom: 1px solid var(--archie-border-default, #30363d);
+    }
+    .collab-history-sidebar.collapsed {
+        max-height: 0;
+        overflow: hidden;
+    }
+
+    .template-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 0.5rem;
+    }
+
+    .work-products-panel {
+        width: 100% !important;
+        max-height: 200px;
+        border-left: none;
+        border-top: 2px solid var(--archie-gold, #f5a623);
+    }
+}
+
+@media (max-width: 374px) {
+    .template-grid {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   8. DASHBOARD GRIDS
+   ───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+    .tool-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 374px) {
+    .stats-grid {
+        grid-template-columns: 1fr !important;
+    }
+    .tool-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   9. GALAXY FOLD SPECIFIC (374px)
+   ───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 374px) {
+    /* Reduce padding */
+    .panel,
+    .stat-card,
+    .tool-card,
+    .card {
+        padding: 0.75rem;
+    }
+
+    /* Button groups stack */
+    .btn-group,
+    .collab-settings,
+    .chat-input-area {
+        flex-direction: column;
+        width: 100%;
+    }
+    .btn-group > *,
+    .collab-settings > * {
+        width: 100%;
+    }
+
+    /* Badge font size */
+    .badge,
+    .status-badge,
+    .wp-type,
+    .tab-btn-count {
+        font-size: 0.6rem;
+    }
+
+    /* Compact nav */
+    .admin-ops-nav {
+        padding: 6px 8px;
+    }
+    .nav-category-label {
+        font-size: 0.6rem;
+        letter-spacing: 0.05em;
+    }
+    .nav-back-btn {
+        padding: 6px 10px;
+        font-size: 0.65rem;
+    }
+
+    /* Compact chat */
+    .chat-message {
+        padding: 0.5rem;
+    }
+    .chat-input-area {
+        padding: 0.4rem;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   10. UTILITIES
+   ───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .desktop-only {
+        display: none !important;
+    }
+}
+
+@media (min-width: 769px) {
+    .mobile-only {
+        display: none !important;
+    }
+}
+
+/* Safe area padding */
+.safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.safe-area-top {
+    padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.2s !important;
+    }
+}
+
+/* Body scroll lock when drawer/overlay is open */
+body.mobile-nav-open,
+body.mobile-sidebar-open,
+body.mobile-thinking-open {
+    overflow: hidden;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SIDE-BY-SIDE MODE — Stack vertically on mobile
+   ───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .side-by-side-container {
+        flex-direction: column !important;
+    }
+    .claude-terminal-wrapper {
+        height: 40vh;
+        min-height: 200px;
+    }
+}

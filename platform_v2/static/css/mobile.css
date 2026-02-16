@@ -124,6 +124,9 @@ body.light-mode .mobile-nav-toggle {
         flex-wrap: nowrap;
         gap: 8px;
         padding: 8px 12px;
+        /* Remove backdrop-filter so fixed-position children are relative to viewport.
+           !important needed to override inline <style> in admin_ops_nav.html */
+        backdrop-filter: none !important;
     }
 
     .admin-ops-nav .nav-center {

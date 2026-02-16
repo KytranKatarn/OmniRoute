@@ -56,6 +56,9 @@ class StepType(Enum):
     GPU_CHECK = "gpu_check"
     EXECUTE = "execute"
     FALLBACK = "fallback"
+    DECOMPOSE = "decompose"
+    DELEGATE = "delegate"
+    SYNTHESIZE = "synthesize"
 
 
 @dataclass
@@ -259,6 +262,57 @@ class OrchestrationEngine:
                 response_text = self._execute_team_action(
                     intent_type, message, user_id, intent, steps
                 )
+            elif intent.get('requires_multi_agent') and intent.get('participating_stations'):
+                # Multi-agent orchestration: decompose → assign → execute → synthesize
+                steps.append(ThinkingStep(
+                    step_type=StepType.ROUTE_DECISION.value,
+                    label=f"Multi-agent mode: {len(intent['participating_stations'])} stations",
+                    data={
+                        'stations': intent['participating_stations'],
+                        'domains': intent.get('domains_detected', []),
+                    },
+                    duration_ms=0,
+                ))
+
+                try:
+                    from multi_agent_orchestrator import MultiAgentOrchestrator
+                    multi_orch = MultiAgentOrchestrator(self)
+                    multi_result = multi_orch.orchestrate_multi_agent(
+                        message=message,
+                        intent=intent,
+                        user_id=user_id,
+                        session_id=db_session_id,
+                    )
+                    steps.extend(multi_result.thinking_steps)
+
+                    if multi_result.response:
+                        response_text = multi_result.response
+                    else:
+                        # Decomposition failed — fall back to single-agent
+                        logger.info("Multi-agent decomposition failed, falling back to single-agent")
+                        steps.append(ThinkingStep(
+                            step_type=StepType.FALLBACK.value,
+                            label="Multi-agent fallback → single agent",
+                            data={'reason': 'decomposition returned no sub-tasks'},
+                        ))
+                        response_text = self._step_execute(
+                            message, user_id, conversation_id,
+                            selected_agent, model_used, routing, intent,
+                            voice_mode, user_context, steps
+                        )
+                except Exception as e:
+                    logger.error(f"Multi-agent orchestration failed: {e}", exc_info=True)
+                    steps.append(ThinkingStep(
+                        step_type=StepType.FALLBACK.value,
+                        label=f"Multi-agent error → single agent",
+                        data={'error': str(e)[:200]},
+                        success=False,
+                    ))
+                    response_text = self._step_execute(
+                        message, user_id, conversation_id,
+                        selected_agent, model_used, routing, intent,
+                        voice_mode, user_context, steps
+                    )
             else:
                 response_text = self._step_execute(
                     message, user_id, conversation_id,

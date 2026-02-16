@@ -352,6 +352,12 @@
 .thinking-step[data-type="execute"] .thinking-step-label { color: var(--archie-text-secondary, #c9d1d9); }
 .thinking-step[data-type="fallback"] { border-left-color: #f5a623; background: rgba(245, 166, 35, 0.08); }
 .thinking-step[data-type="fallback"] .thinking-step-label { color: #f5a623; }
+.thinking-step[data-type="decompose"] { border-left-color: #ff9f43; }
+.thinking-step[data-type="decompose"] .thinking-step-label { color: #ff9f43; }
+.thinking-step[data-type="delegate"] { border-left-color: #ee5a24; }
+.thinking-step[data-type="delegate"] .thinking-step-label { color: #ee5a24; }
+.thinking-step[data-type="synthesize"] { border-left-color: #a29bfe; }
+.thinking-step[data-type="synthesize"] .thinking-step-label { color: #a29bfe; }
 .thinking-panel-footer { padding: 0.5rem 0.75rem; background: var(--archie-bg-tertiary, #161b22); border-top: 1px solid var(--archie-border-default, #30363d); }
 .thinking-summary { font-size: 0.72rem; color: var(--archie-text-muted); }
 .thinking-toggle-btn { background: var(--archie-bg-primary, #010409); border: 1px solid var(--archie-border-default, #30363d); border-radius: var(--archie-radius-md, 8px); padding: var(--archie-space-3, 0.75rem); color: var(--archie-text-muted); cursor: pointer; transition: all 0.2s ease; font-size: 1rem; }
@@ -2985,6 +2991,12 @@ function formatStepData(step) {
             return d.response_length ? d.response_length + ' chars' : '';
         case 'fallback':
             return d.original_error ? d.original_error.substring(0, 80) + '...' : '';
+        case 'decompose':
+            return d.sub_task_count ? d.sub_task_count + ' sub-tasks' + (d.sub_tasks ? ': ' + d.sub_tasks.map(s => s.domain).join(', ') : '') : '';
+        case 'delegate':
+            return d.assignments ? d.assignments.map(a => a.agent + ' → ' + a.station).join(', ') : '';
+        case 'synthesize':
+            return d.completed_count !== undefined ? d.completed_count + '/' + (d.completed_count + (d.failed_count || 0)) + ' results merged' : '';
         default:
             return '';
     }

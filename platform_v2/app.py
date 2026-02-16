@@ -1131,6 +1131,17 @@ def _warmup_kokoro():
 _warmup_kokoro()
 
 # ============================================================================
+# VOICE CACHE WARMUP - Pre-cache common ARCHIE phrases after Kokoro loads
+# ============================================================================
+try:
+    from tools.consciousness.voice_pregen import auto_warmup_cache
+
+    auto_warmup_cache()
+    logger.info("Voice cache warmup thread started")
+except Exception as e:
+    logger.warning(f"Voice cache warmup skipped: {e}")
+
+# ============================================================================
 # SANDBOX MODE CONTEXT PROCESSOR
 # ============================================================================
 

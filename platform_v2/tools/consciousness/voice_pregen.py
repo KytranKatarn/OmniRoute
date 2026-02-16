@@ -224,6 +224,74 @@ ARCHIE_PHRASES = [
 ]
 
 
+def auto_warmup_cache(synthesizer=None, db_conn_func=None):
+    """Pre-cache common ARCHIE phrases on startup using Kokoro engine.
+
+    Runs in a background daemon thread. Waits for Kokoro pipeline to load
+    before synthesizing. Skips phrases already in cache.
+
+    Args:
+        synthesizer: VoiceSynthesizer instance (lazy-loaded if None)
+        db_conn_func: Callable returning a DB connection (uses get_db if None)
+    """
+    import hashlib
+
+    def _warmup():
+        try:
+            time.sleep(15)  # Wait for Kokoro pipeline to load first
+
+            if synthesizer is None:
+                try:
+                    import sys
+
+                    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+                    from ai_bridge.voice_synthesis import get_voice_synthesizer
+
+                    synth = get_voice_synthesizer()
+                except ImportError:
+                    logger.warning("[VoiceWarmup] Could not import voice synthesizer")
+                    return
+            else:
+                synth = synthesizer
+
+            conn_func = db_conn_func or get_db
+            conn = conn_func()
+            cur = conn.cursor()
+
+            cached = 0
+            skipped = 0
+            for phrase in ARCHIE_PHRASES:
+                # Build the same cache key the synthesizer uses (kokoro, en, neutral, af_heart)
+                normalized = phrase.lower().strip()
+                content = f"kokoro|en|agent:2|{normalized}|neutral"
+                text_hash = hashlib.sha256(content.encode()).hexdigest()[:32]
+
+                cur.execute(
+                    "SELECT 1 FROM voice_word_cache WHERE text_hash = %s",
+                    (text_hash,),
+                )
+                if cur.fetchone():
+                    skipped += 1
+                    continue
+
+                try:
+                    # Use agent synthesis (ARCHIE = agent_id 2) for consistent cache keys
+                    result = synth.synthesize_for_agent(phrase, agent_id=2, emotion="neutral")
+                    if result.get("success"):
+                        cached += 1
+                    time.sleep(0.05)  # Throttle
+                except Exception as e:
+                    logger.debug(f"[VoiceWarmup] Skipped '{phrase}': {e}")
+
+            conn.close()
+            logger.info(f"[VoiceWarmup] Done: {cached} new, {skipped} already cached")
+        except Exception as e:
+            logger.error(f"[VoiceWarmup] Failed: {e}")
+
+    t = threading.Thread(target=_warmup, daemon=True, name="voice-warmup-cache")
+    t.start()
+
+
 def get_db():
     """Get database connection"""
     return psycopg2.connect(

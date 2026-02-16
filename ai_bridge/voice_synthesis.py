@@ -1056,6 +1056,34 @@ class VoiceSynthesizer:
         return output.getvalue()
 
 
+    def cleanup_cache(self, max_age_days=30, min_hits=1):
+        """Remove unused cache entries older than max_age_days with fewer than min_hits.
+
+        Args:
+            max_age_days: Only delete entries older than this many days
+            min_hits: Only delete entries with hit_count below this threshold
+
+        Returns:
+            Number of deleted entries
+        """
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute("""
+                DELETE FROM voice_word_cache
+                WHERE COALESCE(hit_count, 0) < %s
+                AND created_at < NOW() - INTERVAL '1 day' * %s
+                RETURNING id
+            """, (min_hits, max_age_days))
+            deleted = cur.rowcount
+            conn.commit()
+            cur.close()
+            conn.close()
+            return deleted
+        except Exception as e:
+            print(f"[VoiceDNA] Cache cleanup error: {e}")
+            return 0
+
     # ========================================
     # Voice Management API Methods
     # ========================================

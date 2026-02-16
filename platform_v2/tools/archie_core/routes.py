@@ -1233,6 +1233,49 @@ def voice_status():
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
 
+
+@archie_chat_bp.route("/api/voice/cache/cleanup", methods=["POST"])
+@login_required
+def voice_cache_cleanup():
+    """
+    Clean up unused voice cache entries (Phase 5: Voice Integration Polish)
+
+    Removes entries with fewer than min_hits that are older than max_age_days.
+
+    Request (optional):
+        {
+            "max_age_days": 30,
+            "min_hits": 1
+        }
+
+    Response:
+        {
+            "success": true,
+            "deleted": 42
+        }
+    """
+    try:
+        from ai_bridge.voice_synthesis import get_voice_synthesizer
+
+        data = request.json or {}
+        max_age = int(data.get("max_age_days", 30))
+        min_hits = int(data.get("min_hits", 1))
+
+        # Clamp to reasonable bounds
+        max_age = max(1, min(365, max_age))
+        min_hits = max(0, min(100, min_hits))
+
+        synthesizer = get_voice_synthesizer()
+        deleted = synthesizer.cleanup_cache(max_age_days=max_age, min_hits=min_hits)
+
+        return jsonify({"success": True, "deleted": deleted})
+
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
     @archie_chat_bp.route("/api/chat/react", methods=["POST"])
     @login_required
     def chat_react():

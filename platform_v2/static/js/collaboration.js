@@ -1080,20 +1080,10 @@ newCollaboration = function() {
 // Voice Controller — STT (Web Speech API) + Auto-TTS
 // =========================================================================
 
-var voiceModeEnabled = false;
 var voiceListening = false;
 var speechRecognition = null;
-
-function toggleVoiceMode() {
-    voiceModeEnabled = !voiceModeEnabled;
-    var btn = document.getElementById('voice-mode-toggle');
-    if (btn) {
-        btn.classList.toggle('active', voiceModeEnabled);
-    }
-    if (voiceModeEnabled) {
-        showNotification('Voice mode on — responses will be spoken', 'info');
-    }
-}
+var silenceTimer = null;
+var SILENCE_TIMEOUT = 8000; // 8 seconds of silence before auto-send
 
 function toggleVoiceInput() {
     if (voiceListening) {
@@ -1112,11 +1102,10 @@ function startVoiceInput() {
     }
 
     speechRecognition = new SpeechRecognition();
-    speechRecognition.continuous = false;
+    speechRecognition.continuous = true;
     speechRecognition.interimResults = true;
     speechRecognition.lang = 'en-US';
 
-    var micBtn = document.getElementById('voice-mic-btn');
     var statusEl = document.getElementById('voice-status');
     var statusText = document.getElementById('voice-status-text');
     var inputEl = document.getElementById('archie-chat-input');
@@ -1134,42 +1123,53 @@ function startVoiceInput() {
 
     speechRecognition.onstart = function() {
         voiceListening = true;
-        if (micBtn) micBtn.classList.add('listening');
+        updateMicButton(true);
         if (statusEl) statusEl.style.display = 'flex';
         if (statusText) statusText.textContent = 'Listening...';
-        if (inputEl) inputEl.placeholder = 'Listening...';
+        if (inputEl) inputEl.placeholder = 'Listening... (click Mic or press Escape to stop)';
     };
 
     speechRecognition.onresult = function(event) {
+        // Clear existing silence timer on new speech
+        clearTimeout(silenceTimer);
+
         var transcript = '';
-        var isFinal = false;
         for (var i = event.resultIndex; i < event.results.length; i++) {
             transcript += event.results[i][0].transcript;
-            if (event.results[i].isFinal) {
-                isFinal = true;
-            }
         }
 
+        // Show interim text in input
         if (inputEl) inputEl.value = transcript;
-        if (statusText) statusText.textContent = isFinal ? 'Processing...' : 'Listening...';
+        if (statusText) statusText.textContent = 'Listening...';
 
-        if (isFinal && transcript.trim()) {
-            stopVoiceInput();
-            // Auto-send
-            sendArchieMessage();
-        }
+        // Reset silence timer — auto-send after SILENCE_TIMEOUT ms of silence
+        silenceTimer = setTimeout(function() {
+            if (inputEl && inputEl.value.trim()) {
+                sendArchieMessage();
+                // Clear input for next utterance but keep listening
+                if (inputEl) inputEl.value = '';
+            }
+        }, SILENCE_TIMEOUT);
     };
 
     speechRecognition.onerror = function(event) {
         console.error('Speech recognition error:', event.error);
-        if (event.error !== 'no-speech') {
+        if (event.error !== 'no-speech' && event.error !== 'aborted') {
             showNotification('Voice input error: ' + event.error, 'error');
+            stopVoiceInput();
         }
-        stopVoiceInput();
     };
 
     speechRecognition.onend = function() {
-        stopVoiceInput();
+        // Auto-restart for continuous mode (unless user explicitly stopped)
+        if (voiceListening) {
+            try {
+                speechRecognition.start();
+            } catch (e) {
+                // Browser may block rapid restarts
+                stopVoiceInput();
+            }
+        }
     };
 
     try {
@@ -1177,25 +1177,45 @@ function startVoiceInput() {
     } catch (e) {
         showNotification('Could not start voice input: ' + e.message, 'error');
     }
+
+    // Listen for Escape key to stop
+    document.addEventListener('keydown', _voiceEscapeHandler);
+}
+
+function _voiceEscapeHandler(e) {
+    if (e.key === 'Escape' && voiceListening) {
+        stopVoiceInput();
+    }
 }
 
 function stopVoiceInput() {
     voiceListening = false;
+    clearTimeout(silenceTimer);
     if (speechRecognition) {
-        try { speechRecognition.stop(); } catch(e) {}
+        try { speechRecognition.abort(); } catch(e) {}
         speechRecognition = null;
     }
-    var micBtn = document.getElementById('voice-mic-btn');
+
+    updateMicButton(false);
+
     var statusEl = document.getElementById('voice-status');
     var inputEl = document.getElementById('archie-chat-input');
-
-    if (micBtn) micBtn.classList.remove('listening');
     if (statusEl) statusEl.style.display = 'none';
     if (inputEl) inputEl.placeholder = 'Talk to A.R.C.H.I.E....';
+
+    document.removeEventListener('keydown', _voiceEscapeHandler);
+}
+
+function updateMicButton(active) {
+    var btn = document.getElementById('voice-input-btn');
+    if (btn) {
+        btn.classList.toggle('listening', active);
+        btn.title = active ? 'Stop listening (click or press Escape)' : 'Start voice input';
+    }
 }
 
 async function speakResponse(text) {
-    if (!voiceModeEnabled || !text) return;
+    if (!voiceEnabled || !text) return;
 
     // Strip markdown formatting for cleaner speech
     var cleanText = text

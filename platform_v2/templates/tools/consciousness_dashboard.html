@@ -935,8 +935,7 @@ body.light-mode .brain-filter-btn.active { color: var(--module-accent); }
                         </label>
                         <input type="text" id="archie-chat-input" class="chat-input" placeholder="Talk to A.R.C.H.I.E...." onkeypress="if(event.key==='Enter') sendArchieMessage()">
                         <button onclick="sendArchieMessage()" class="chat-send-btn">Send</button>
-                        <button id="voice-mic-btn" class="voice-mic-btn" onclick="toggleVoiceInput()" title="Voice input (hold to speak)">Mic</button>
-                        <button id="voice-mode-toggle" class="voice-toggle-btn" onclick="toggleVoiceMode()" title="Toggle voice mode (auto-speak responses)">Voice</button>
+                        <button id="voice-input-btn" class="voice-mic-btn" onclick="toggleVoiceInput()" title="Start voice input">Mic</button>
                         <button id="thinking-toggle-btn" class="thinking-toggle-btn" onclick="toggleThinkingPanel()" title="Toggle thinking panel">🧪</button>
                     </div>
                 </div>
@@ -3107,7 +3106,7 @@ async function loadVoiceConfig() {
         const response = await fetch('/tools/archie-chat/api/voice/config', { credentials: 'same-origin' });
         const data = await response.json();
         if (data.success !== false) {
-            voiceEnabled = data.voice_enabled || false;
+            voiceEnabled = (data.config && data.config.voice_enabled) || false;
             updateVoiceToggle();
         }
     } catch (e) { console.debug('Voice config not available:', e.message); }

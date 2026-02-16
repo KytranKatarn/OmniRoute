@@ -187,7 +187,7 @@
 /* Collaboration Mode */
 .collab-container {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     height: calc(100vh - 350px);
     min-height: 400px;
     background: var(--bg-secondary, #16213e);
@@ -357,8 +357,9 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 100%;
+    flex: 1;
     gap: 1rem;
+    overflow-y: auto;
 }
 
 .collab-start-form h3 {
@@ -622,4 +623,317 @@
 .solo-chat-container {
     height: calc(100vh - 350px);
     min-height: 400px;
+}
+
+/* =========================================================================
+   Collaboration Templates
+   ========================================================================= */
+
+.template-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+    width: 100%;
+    max-width: 600px;
+    margin-bottom: 1rem;
+}
+
+.template-card {
+    background: var(--bg-tertiary, #1a1a2e);
+    border: 1px solid var(--border-color, #333);
+    border-radius: 8px;
+    padding: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+}
+
+.template-card:hover {
+    border-color: #8b5cf6;
+    background: rgba(139, 92, 246, 0.1);
+    transform: translateY(-2px);
+}
+
+.template-card.selected {
+    border-color: #00ffff;
+    background: rgba(0, 255, 255, 0.1);
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.15);
+}
+
+.template-icon {
+    font-size: 1.5rem;
+    margin-bottom: 0.25rem;
+}
+
+.template-name {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-primary, #e0e0e0);
+    margin-bottom: 0.25rem;
+}
+
+.template-desc {
+    font-size: 0.65rem;
+    color: var(--text-muted, #888);
+    line-height: 1.3;
+}
+
+@media (max-width: 768px) {
+    .template-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* =========================================================================
+   Collaboration History Sidebar
+   ========================================================================= */
+
+.collab-container-with-sidebar {
+    display: flex;
+    height: calc(100vh - 350px);
+    min-height: 400px;
+}
+
+.collab-history-sidebar {
+    width: 280px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-tertiary, #1a1a2e);
+    border-right: 1px solid var(--border-color, #333);
+    overflow: hidden;
+    transition: width 0.3s ease, opacity 0.3s ease;
+}
+
+.collab-history-sidebar.collapsed {
+    width: 0;
+    opacity: 0;
+    overflow: hidden;
+    border-right: none;
+}
+
+.history-sidebar-header {
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--border-color, #333);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.history-sidebar-header h4 {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-primary, #e0e0e0);
+}
+
+.history-search {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border-color, #333);
+}
+
+.history-search input {
+    width: 100%;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--border-color, #333);
+    border-radius: 4px;
+    background: var(--bg-secondary, #16213e);
+    color: var(--text-primary, #e0e0e0);
+    font-size: 0.8rem;
+    font-family: inherit;
+}
+
+.history-search input:focus {
+    outline: none;
+    border-color: var(--accent-primary, #00ff41);
+}
+
+.history-filter-pills {
+    display: flex;
+    gap: 0.25rem;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border-color, #333);
+    flex-wrap: wrap;
+}
+
+.filter-pill {
+    padding: 0.2rem 0.5rem;
+    border: 1px solid var(--border-color, #333);
+    border-radius: 12px;
+    background: transparent;
+    color: var(--text-muted, #888);
+    font-size: 0.65rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+}
+
+.filter-pill:hover {
+    border-color: var(--text-primary, #e0e0e0);
+    color: var(--text-primary, #e0e0e0);
+}
+
+.filter-pill.active {
+    background: var(--accent-primary, #00ff41);
+    color: #000;
+    border-color: var(--accent-primary, #00ff41);
+}
+
+.history-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.5rem;
+}
+
+.history-item {
+    padding: 0.6rem;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-bottom: 0.25rem;
+    transition: all 0.2s;
+}
+
+.history-item:hover {
+    background: rgba(139, 92, 246, 0.1);
+    border-color: var(--border-color, #333);
+}
+
+.history-item.active {
+    background: rgba(0, 255, 255, 0.1);
+    border-color: #00ffff;
+}
+
+.history-item-topic {
+    font-size: 0.8rem;
+    color: var(--text-primary, #e0e0e0);
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 0.25rem;
+}
+
+.history-item-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.65rem;
+    color: var(--text-muted, #888);
+}
+
+.history-status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.history-status-dot.completed { background: #8b5cf6; }
+.history-status-dot.stopped { background: #ffaa00; }
+.history-status-dot.active { background: #00ff41; }
+.history-status-dot.error { background: #ff4444; }
+.history-status-dot.paused { background: #ffaa00; }
+
+.history-item-actions {
+    display: flex;
+    gap: 0.3rem;
+    margin-top: 0.4rem;
+}
+
+.history-item-actions button {
+    padding: 0.15rem 0.4rem;
+    font-size: 0.6rem;
+    border: 1px solid var(--border-color, #333);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-muted, #888);
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.2s;
+}
+
+.history-item-actions button:hover {
+    border-color: #8b5cf6;
+    color: #8b5cf6;
+}
+
+.history-item-actions button.btn-continue:hover {
+    border-color: #00ff41;
+    color: #00ff41;
+}
+
+.btn-history-toggle {
+    padding: 0.3rem 0.6rem;
+    border: 1px solid var(--border-color, #333);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-muted, #888);
+    cursor: pointer;
+    font-size: 0.75rem;
+    transition: all 0.2s;
+    font-family: inherit;
+}
+
+.btn-history-toggle:hover {
+    border-color: #8b5cf6;
+    color: #8b5cf6;
+}
+
+.btn-history-toggle.active {
+    background: rgba(139, 92, 246, 0.15);
+    border-color: #8b5cf6;
+    color: #8b5cf6;
+}
+
+/* =========================================================================
+   Export Buttons
+   ========================================================================= */
+
+.collab-export-btns {
+    display: flex;
+    gap: 0.3rem;
+}
+
+.collab-export-btns button {
+    padding: 0.3rem 0.6rem;
+    border: 1px solid var(--border-color, #333);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-muted, #888);
+    cursor: pointer;
+    font-size: 0.7rem;
+    transition: all 0.2s;
+    font-family: inherit;
+}
+
+.collab-export-btns button:hover {
+    border-color: var(--accent-primary, #00ff41);
+    color: var(--accent-primary, #00ff41);
+}
+
+.wp-save-kb-btn {
+    padding: 0.2rem 0.5rem;
+    font-size: 0.6rem;
+    border: 1px solid var(--border-color, #333);
+    border-radius: 4px;
+    background: rgba(139, 92, 246, 0.1);
+    color: #8b5cf6;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.2s;
+}
+
+.wp-save-kb-btn:hover {
+    background: rgba(139, 92, 246, 0.25);
+    border-color: #8b5cf6;
+}
+
+/* Read-only indicator for history view */
+.collab-readonly-banner {
+    padding: 0.5rem 1rem;
+    background: rgba(139, 92, 246, 0.1);
+    border-bottom: 1px solid rgba(139, 92, 246, 0.3);
+    text-align: center;
+    font-size: 0.75rem;
+    color: #8b5cf6;
 }

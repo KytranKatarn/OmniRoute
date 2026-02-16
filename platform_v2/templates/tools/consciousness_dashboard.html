@@ -1005,11 +1005,39 @@ body.light-mode .brain-filter-btn.active { color: var(--module-accent); }
         </div>
 
         <!-- Collaboration Mode: AI-to-AI Discussion -->
-        <div id="collab-container" class="collab-container" style="display: none;">
+        <div id="collab-container" class="collab-container" style="display: none; flex-direction: row;">
+            <!-- History Sidebar -->
+            <div id="collab-history-sidebar" class="collab-history-sidebar collapsed">
+                <div class="history-sidebar-header">
+                    <h4>History</h4>
+                    <button class="btn-history-toggle" onclick="toggleCollabHistory()" title="Close">&times;</button>
+                </div>
+                <div class="history-search">
+                    <input type="text" id="history-search-input" placeholder="Search sessions..." oninput="loadCollabHistory()">
+                </div>
+                <div class="history-filter-pills">
+                    <button class="filter-pill active" data-filter="all" onclick="setHistoryFilter('all')">All</button>
+                    <button class="filter-pill" data-filter="completed" onclick="setHistoryFilter('completed')">Completed</button>
+                    <button class="filter-pill" data-filter="stopped" onclick="setHistoryFilter('stopped')">Stopped</button>
+                    <button class="filter-pill" data-filter="active" onclick="setHistoryFilter('active')">Active</button>
+                </div>
+                <div class="history-list" id="history-list"></div>
+            </div>
+
+            <!-- Main Content (flex: 1 to fill remaining space) -->
+            <div id="collab-main-content" style="flex:1; display:flex; flex-direction:column; min-width:0; overflow:hidden;">
+
             <!-- Start View -->
             <div id="collab-start-view" class="collab-start-form">
-                <h3>🤝 AI-to-AI Collaboration</h3>
+                <div style="display:flex; align-items:center; gap:0.5rem; width:100%; max-width:600px; justify-content:space-between;">
+                    <h3 style="margin:0;">🤝 AI-to-AI Collaboration</h3>
+                    <button class="btn-history-toggle" onclick="toggleCollabHistory()" title="View history">&#9776; History</button>
+                </div>
                 <p>Start a discussion between ARCHIE and Claude. They'll work together to solve your question, and ARCHIE will learn from Claude's expertise.</p>
+
+                <!-- Template Grid -->
+                <div id="collab-templates" class="template-grid"></div>
+
                 <textarea id="collab-topic" placeholder="Enter a topic or question for the AIs to discuss..."></textarea>
                 <div class="collab-settings">
                     <label>Max Turns:</label>
@@ -1043,9 +1071,17 @@ body.light-mode .brain-filter-btn.active { color: var(--module-accent); }
 
             <!-- Active View -->
             <div id="collab-active-view" style="display: none; flex-direction: column; height: 100%;">
+                <div id="collab-readonly-banner" class="collab-readonly-banner" style="display:none;">Viewing past session (read-only)</div>
                 <div class="collab-header">
-                    <h3 id="collab-active-title">Collaboration in Progress</h3>
-                    <div style="display:flex; gap:0.5rem;">
+                    <div style="display:flex; align-items:center; gap:0.5rem;">
+                        <button class="btn-history-toggle" id="btn-history-toggle" onclick="toggleCollabHistory()" title="Toggle history">&#9776;</button>
+                        <h3 id="collab-active-title" style="margin:0;">Collaboration in Progress</h3>
+                    </div>
+                    <div style="display:flex; gap:0.5rem; align-items:center;">
+                        <div class="collab-export-btns" id="collab-export-btns" style="display:none;">
+                            <button onclick="exportCollabMarkdown()" title="Download as Markdown">Export</button>
+                            <button onclick="copyCollabToClipboard()" title="Copy to clipboard">Copy</button>
+                        </div>
                         <button class="btn btn-secondary" id="btn-toggle-products" onclick="toggleWorkProducts()" style="display:none;">Work Products</button>
                         <button class="btn btn-secondary" onclick="newCollaboration()">+ New</button>
                     </div>
@@ -1077,6 +1113,8 @@ body.light-mode .brain-filter-btn.active { color: var(--module-accent); }
                     </div>
                 </div>
             </div>
+
+            </div><!-- /collab-main-content -->
         </div>
 
         <!-- Interjection Modal -->

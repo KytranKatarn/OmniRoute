@@ -28,6 +28,10 @@ function switchChatMode(mode) {
     // Load collab state if switching to collab mode
     if (mode === 'collab') {
         loadCollabLearnings();
+        // Pre-load history if sidebar is open
+        if (historyVisible) {
+            loadCollabHistory();
+        }
     }
 
     // Initialize terminal iframe when switching to side-by-side
@@ -261,6 +265,9 @@ function handleCollabSSEMessage(data) {
             collabEventSource.close();
             collabEventSource = null;
         }
+        // Show export buttons when done
+        var exportBtns = document.getElementById('collab-export-btns');
+        if (exportBtns) exportBtns.style.display = 'flex';
         loadCollabLearnings();
     } else if (data.type === 'close') {
         if (collabEventSource) {
@@ -999,6 +1006,16 @@ function renderWorkProducts(products) {
             actionsEl.appendChild(approveBtn);
         }
 
+        // Save to KB button
+        var saveKbBtn = document.createElement('button');
+        saveKbBtn.className = 'wp-save-kb-btn';
+        saveKbBtn.textContent = 'Save to KB';
+        saveKbBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            saveWorkProductToKB(product.id);
+        });
+        actionsEl.appendChild(saveKbBtn);
+
         if (product.version && product.version > 1) {
             var verEl = document.createElement('span');
             verEl.style.cssText = 'font-size: 0.65rem; color: var(--archie-text-muted); padding: 0.2rem 0.4rem;';
@@ -1030,7 +1047,7 @@ async function approveWorkProduct(productId) {
     }
 }
 
-// Override newCollaboration to clean up joint mode state
+// Override newCollaboration to clean up joint mode state + template state
 var _originalNewCollaboration = newCollaboration;
 newCollaboration = function() {
     stopWorkProductsPoll();
@@ -1044,6 +1061,17 @@ newCollaboration = function() {
 
     var wpList = document.getElementById('work-products-list');
     if (wpList) wpList.textContent = '';
+
+    // Reset template selection
+    selectedTemplate = null;
+    document.querySelectorAll('.template-card').forEach(function(c) {
+        c.classList.remove('selected');
+    });
+
+    // Reset read-only mode
+    collabReadOnly = false;
+    var banner = document.getElementById('collab-readonly-banner');
+    if (banner) banner.style.display = 'none';
 
     _originalNewCollaboration();
 };
@@ -1217,6 +1245,615 @@ async function speakResponse(text) {
     }
 }
 
+// =========================================================================
+// Collaboration Templates
+// =========================================================================
+
+const COLLAB_TEMPLATES = [
+    {
+        id: 'code-review',
+        name: 'Code Review',
+        icon: '\uD83D\uDD0D',
+        description: 'Review code for bugs, quality, and best practices',
+        prompt: 'Review this code and identify issues, improvements, and best practices:\n\n[paste code here]',
+        mode: 'joint',
+        maxTurns: 8,
+        systemHint: 'Focus on code quality, potential bugs, and actionable improvements.'
+    },
+    {
+        id: 'brainstorm',
+        name: 'Brainstorm',
+        icon: '\uD83D\uDCA1',
+        description: 'Generate and refine ideas collaboratively',
+        prompt: 'Brainstorm ideas for: [describe your goal]',
+        mode: 'discuss',
+        maxTurns: 12,
+        systemHint: 'Be creative and build on each other\'s ideas.'
+    },
+    {
+        id: 'debug',
+        name: 'Debug Analysis',
+        icon: '\uD83D\uDC1B',
+        description: 'Diagnose and solve a technical problem',
+        prompt: 'Help debug this issue:\n\nSymptom: [describe what\'s happening]\nExpected: [what should happen]\nContext: [relevant code/config]',
+        mode: 'joint',
+        maxTurns: 10,
+        systemHint: 'Systematic debugging: reproduce, isolate, diagnose, fix.'
+    },
+    {
+        id: 'architecture',
+        name: 'Architecture Design',
+        icon: '\uD83C\uDFD7\uFE0F',
+        description: 'Design system architecture or component structure',
+        prompt: 'Design the architecture for: [describe the system/feature]\n\nConstraints: [list any constraints]',
+        mode: 'joint',
+        maxTurns: 10,
+        systemHint: 'Focus on scalability, maintainability, and clear boundaries.'
+    },
+    {
+        id: 'knowledge',
+        name: 'Knowledge Synthesis',
+        icon: '\uD83D\uDCDA',
+        description: 'Research and synthesize knowledge on a topic',
+        prompt: 'Research and synthesize knowledge about: [topic]',
+        mode: 'discuss',
+        maxTurns: 8,
+        systemHint: 'Combine perspectives for comprehensive understanding.'
+    },
+    {
+        id: 'freeform',
+        name: 'Freeform',
+        icon: '\u270F\uFE0F',
+        description: 'Start with your own topic',
+        prompt: '',
+        mode: 'discuss',
+        maxTurns: 10,
+        systemHint: ''
+    }
+];
+
+let selectedTemplate = null;
+
+function renderTemplates() {
+    var container = document.getElementById('collab-templates');
+    if (!container) return;
+
+    container.textContent = '';
+    COLLAB_TEMPLATES.forEach(function(tpl) {
+        var card = document.createElement('div');
+        card.className = 'template-card';
+        card.dataset.templateId = tpl.id;
+        if (selectedTemplate && selectedTemplate.id === tpl.id) {
+            card.classList.add('selected');
+        }
+
+        var iconEl = document.createElement('div');
+        iconEl.className = 'template-icon';
+        iconEl.textContent = tpl.icon;
+        card.appendChild(iconEl);
+
+        var nameEl = document.createElement('div');
+        nameEl.className = 'template-name';
+        nameEl.textContent = tpl.name;
+        card.appendChild(nameEl);
+
+        var descEl = document.createElement('div');
+        descEl.className = 'template-desc';
+        descEl.textContent = tpl.description;
+        card.appendChild(descEl);
+
+        card.addEventListener('click', function() {
+            applyTemplate(tpl);
+        });
+
+        container.appendChild(card);
+    });
+}
+
+function applyTemplate(tpl) {
+    selectedTemplate = tpl;
+
+    // Fill topic
+    var topicEl = document.getElementById('collab-topic');
+    if (topicEl && tpl.prompt) {
+        topicEl.value = tpl.prompt;
+        topicEl.focus();
+    }
+
+    // Set mode
+    setCollabMode(tpl.mode);
+
+    // Set max turns
+    var turnsEl = document.getElementById('collab-max-turns');
+    if (turnsEl) {
+        turnsEl.value = tpl.maxTurns;
+    }
+
+    // Highlight selected card
+    document.querySelectorAll('.template-card').forEach(function(c) {
+        c.classList.toggle('selected', c.dataset.templateId === tpl.id);
+    });
+}
+
+// Override startCollaboration to include systemHint
+var _templateStartCollaboration = startCollaboration;
+startCollaboration = async function() {
+    // Inject systemHint into fetch body if a template is selected
+    if (selectedTemplate && selectedTemplate.systemHint && currentCollabMode !== 'joint') {
+        // For discuss mode, override the original to pass systemHint
+        var topicInput = document.getElementById('collab-topic');
+        var maxTurnsInput = document.getElementById('collab-max-turns');
+        var topic = topicInput.value.trim();
+        if (!topic) {
+            alert('Please enter a topic for discussion');
+            return;
+        }
+        var maxTurns = parseInt(maxTurnsInput.value) || 10;
+
+        try {
+            var response = await fetch('/tools/consciousness/api/collab/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    topic: topic,
+                    max_turns: maxTurns,
+                    system_hint: selectedTemplate.systemHint
+                })
+            });
+            var data = await response.json();
+            if (data.success) {
+                renderedMessageCount = 0;
+                collabSession = {
+                    id: data.session_id,
+                    status: data.status,
+                    topic: topic,
+                    messages: []
+                };
+                document.getElementById('collab-start-view').style.display = 'none';
+                document.getElementById('collab-active-view').style.display = 'flex';
+                startCollabStream();
+                showNotification('Collaboration started!', 'success');
+            } else {
+                showNotification(data.error || 'Failed to start collaboration', 'error');
+            }
+        } catch (e) {
+            console.error('Start collab error:', e);
+            showNotification('Failed to start collaboration', 'error');
+        }
+    } else if (selectedTemplate && selectedTemplate.systemHint && currentCollabMode === 'joint') {
+        // For joint mode, override to pass systemHint
+        var topicInput = document.getElementById('collab-topic');
+        var maxTurnsInput = document.getElementById('collab-max-turns');
+        var topic = topicInput.value.trim();
+        if (!topic) {
+            alert('Please enter a topic for joint work');
+            return;
+        }
+        var maxTurns = parseInt(maxTurnsInput.value) || 10;
+
+        try {
+            var response = await fetch('/tools/consciousness/api/collab/joint/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    topic: topic,
+                    max_turns: maxTurns,
+                    system_hint: selectedTemplate.systemHint
+                })
+            });
+            var data = await response.json();
+            if (data.success) {
+                renderedMessageCount = 0;
+                collabSession = {
+                    id: data.session_id,
+                    status: data.status,
+                    topic: topic,
+                    messages: [],
+                    isJoint: true
+                };
+                document.getElementById('collab-start-view').style.display = 'none';
+                document.getElementById('collab-active-view').style.display = 'flex';
+                var titleEl = document.getElementById('collab-active-title');
+                if (titleEl) titleEl.textContent = 'Joint Work in Progress';
+                var toggleBtn = document.getElementById('btn-toggle-products');
+                if (toggleBtn) toggleBtn.style.display = 'inline-block';
+                showWorkProducts();
+                startCollabStream();
+                startWorkProductsPoll();
+                showNotification('Joint collaboration started!', 'success');
+            } else {
+                showNotification(data.error || 'Failed to start joint work', 'error');
+            }
+        } catch (e) {
+            console.error('Start joint collab error:', e);
+            showNotification('Failed to start joint collaboration', 'error');
+        }
+    } else {
+        await _templateStartCollaboration();
+    }
+};
+
+// =========================================================================
+// History Browser
+// =========================================================================
+
+let historyVisible = false;
+let historyFilter = 'all';
+let collabReadOnly = false;
+
+function toggleCollabHistory() {
+    historyVisible = !historyVisible;
+    var sidebar = document.getElementById('collab-history-sidebar');
+    var toggleBtn = document.getElementById('btn-history-toggle');
+
+    if (sidebar) {
+        sidebar.classList.toggle('collapsed', !historyVisible);
+    }
+    if (toggleBtn) {
+        toggleBtn.classList.toggle('active', historyVisible);
+    }
+
+    if (historyVisible) {
+        loadCollabHistory();
+    }
+}
+
+function setHistoryFilter(filter) {
+    historyFilter = filter;
+    document.querySelectorAll('.filter-pill').forEach(function(pill) {
+        pill.classList.toggle('active', pill.dataset.filter === filter);
+    });
+    loadCollabHistory();
+}
+
+async function loadCollabHistory() {
+    var searchInput = document.getElementById('history-search-input');
+    var search = searchInput ? searchInput.value.trim() : '';
+    var params = new URLSearchParams();
+    if (search) params.set('search', search);
+    if (historyFilter && historyFilter !== 'all') params.set('status', historyFilter);
+
+    try {
+        var response = await fetch('/tools/consciousness/api/collab/sessions?' + params.toString());
+        var data = await response.json();
+
+        if (data.success) {
+            renderHistoryList(data.sessions || []);
+        }
+    } catch (e) {
+        console.error('Load history error:', e);
+    }
+}
+
+function renderHistoryList(sessions) {
+    var container = document.getElementById('history-list');
+    if (!container) return;
+
+    container.textContent = '';
+
+    if (sessions.length === 0) {
+        var emptyEl = document.createElement('div');
+        emptyEl.style.cssText = 'padding: 1rem; text-align: center; color: var(--text-muted, #888); font-size: 0.8rem;';
+        emptyEl.textContent = 'No sessions found';
+        container.appendChild(emptyEl);
+        return;
+    }
+
+    sessions.forEach(function(session) {
+        var item = document.createElement('div');
+        item.className = 'history-item';
+        if (collabSession && collabSession.id === session.id) {
+            item.classList.add('active');
+        }
+
+        // Topic
+        var topicEl = document.createElement('div');
+        topicEl.className = 'history-item-topic';
+        topicEl.textContent = session.topic || 'Untitled';
+        item.appendChild(topicEl);
+
+        // Meta row: status dot + date + message count
+        var metaEl = document.createElement('div');
+        metaEl.className = 'history-item-meta';
+
+        var dot = document.createElement('span');
+        dot.className = 'history-status-dot ' + (session.status || 'completed');
+        metaEl.appendChild(dot);
+
+        var dateText = '';
+        if (session.created_at) {
+            var d = new Date(session.created_at);
+            dateText = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        }
+        var dateEl = document.createElement('span');
+        dateEl.textContent = dateText;
+        metaEl.appendChild(dateEl);
+
+        var msgCount = session.message_count || (session.messages ? session.messages.length : 0);
+        var countEl = document.createElement('span');
+        countEl.textContent = msgCount + ' msgs';
+        metaEl.appendChild(countEl);
+
+        var turnsEl = document.createElement('span');
+        turnsEl.textContent = (session.current_turn || 0) + '/' + (session.max_turns || 10);
+        metaEl.appendChild(turnsEl);
+
+        item.appendChild(metaEl);
+
+        // Actions
+        var actionsEl = document.createElement('div');
+        actionsEl.className = 'history-item-actions';
+
+        var viewBtn = document.createElement('button');
+        viewBtn.textContent = 'View';
+        viewBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            viewCollabSession(session.id);
+        });
+        actionsEl.appendChild(viewBtn);
+
+        if (session.status === 'stopped' || session.status === 'completed') {
+            var continueBtn = document.createElement('button');
+            continueBtn.className = 'btn-continue';
+            continueBtn.textContent = 'Continue';
+            continueBtn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                continueCollabSession(session.id);
+            });
+            actionsEl.appendChild(continueBtn);
+        }
+
+        item.appendChild(actionsEl);
+
+        // Click item to view
+        item.addEventListener('click', function() {
+            viewCollabSession(session.id);
+        });
+
+        container.appendChild(item);
+    });
+}
+
+async function viewCollabSession(sessionId) {
+    try {
+        var response = await fetch('/tools/consciousness/api/collab/status/' + sessionId);
+        var data = await response.json();
+
+        if (!data.success) {
+            showNotification('Failed to load session', 'error');
+            return;
+        }
+
+        var session = data.session;
+
+        // Set read-only mode
+        collabReadOnly = true;
+        collabSession = {
+            id: session.id,
+            status: session.status,
+            topic: session.topic,
+            messages: session.messages || []
+        };
+
+        // Show active view in read-only
+        document.getElementById('collab-start-view').style.display = 'none';
+        document.getElementById('collab-active-view').style.display = 'flex';
+
+        var banner = document.getElementById('collab-readonly-banner');
+        if (banner) banner.style.display = 'block';
+
+        var titleEl = document.getElementById('collab-active-title');
+        if (titleEl) titleEl.textContent = session.topic || 'Past Session';
+
+        // Show export buttons
+        var exportBtns = document.getElementById('collab-export-btns');
+        if (exportBtns) exportBtns.style.display = 'flex';
+
+        // Clear and render messages
+        var messagesContainer = document.getElementById('collab-messages');
+        messagesContainer.textContent = '';
+        renderedMessageCount = 0;
+
+        (session.messages || []).forEach(function(msg) {
+            renderCollabMessage(msg);
+        });
+
+        // Update status bar
+        updateCollabStatusUI(session.status, session.current_turn, session.max_turns);
+
+        // Hide control buttons in read-only
+        var btnPause = document.getElementById('btn-pause');
+        var btnResume = document.getElementById('btn-resume');
+        var btnStop = document.getElementById('btn-stop');
+        var btnInterject = document.getElementById('btn-interject');
+        if (btnPause) btnPause.style.display = 'none';
+        if (btnResume) btnResume.style.display = 'none';
+        if (btnStop) btnStop.style.display = 'none';
+        if (btnInterject) btnInterject.style.display = 'none';
+
+        // Load work products if any
+        if (session.work_products && session.work_products.length > 0) {
+            var toggleBtn = document.getElementById('btn-toggle-products');
+            if (toggleBtn) toggleBtn.style.display = 'inline-block';
+            renderWorkProducts(session.work_products);
+            showWorkProducts();
+        }
+
+        // Update history list selection
+        document.querySelectorAll('.history-item').forEach(function(item) {
+            item.classList.remove('active');
+        });
+        // Highlight is handled on next reload
+
+        showNotification('Viewing session: ' + (session.topic || '').substring(0, 40), 'info');
+    } catch (e) {
+        console.error('View session error:', e);
+        showNotification('Failed to load session', 'error');
+    }
+}
+
+async function continueCollabSession(sessionId) {
+    if (!confirm('Continue this collaboration? New turns will be added.')) return;
+
+    try {
+        var response = await fetch('/tools/consciousness/api/collab/continue/' + sessionId, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        var data = await response.json();
+
+        if (data.success) {
+            // First load the full session to get existing messages
+            collabReadOnly = false;
+            var banner = document.getElementById('collab-readonly-banner');
+            if (banner) banner.style.display = 'none';
+
+            // Load existing messages
+            var statusResp = await fetch('/tools/consciousness/api/collab/status/' + sessionId);
+            var statusData = await statusResp.json();
+
+            if (statusData.success) {
+                var session = statusData.session;
+                renderedMessageCount = 0;
+                collabSession = {
+                    id: session.id,
+                    status: 'active',
+                    topic: session.topic,
+                    messages: session.messages || []
+                };
+
+                document.getElementById('collab-start-view').style.display = 'none';
+                document.getElementById('collab-active-view').style.display = 'flex';
+
+                var titleEl = document.getElementById('collab-active-title');
+                if (titleEl) titleEl.textContent = 'Continuing: ' + (session.topic || '').substring(0, 50);
+
+                // Show export buttons
+                var exportBtns = document.getElementById('collab-export-btns');
+                if (exportBtns) exportBtns.style.display = 'flex';
+
+                // Render existing messages
+                var messagesContainer = document.getElementById('collab-messages');
+                messagesContainer.textContent = '';
+                (session.messages || []).forEach(function(msg) {
+                    renderCollabMessage(msg);
+                });
+
+                // Start SSE for new messages
+                startCollabStream();
+
+                showNotification('Collaboration resumed!', 'success');
+            }
+        } else {
+            showNotification(data.error || 'Failed to continue', 'error');
+        }
+    } catch (e) {
+        console.error('Continue session error:', e);
+        showNotification('Failed to continue session', 'error');
+    }
+}
+
+// =========================================================================
+// Export & Share Functions
+// =========================================================================
+
+function buildCollabMarkdown() {
+    if (!collabSession) return '';
+
+    var lines = [];
+    lines.push('# AI Collaboration: ' + (collabSession.topic || 'Untitled'));
+    lines.push('**Date**: ' + (collabSession.created_at || new Date().toISOString()) +
+        ' | **Status**: ' + (collabSession.status || 'unknown') +
+        ' | **Messages**: ' + (collabSession.messages ? collabSession.messages.length : 0));
+    lines.push('');
+    lines.push('---');
+    lines.push('');
+    lines.push('## Conversation');
+    lines.push('');
+
+    (collabSession.messages || []).forEach(function(msg) {
+        var roleLabel = msg.role === 'archie' ? 'A.R.C.H.I.E.' :
+                       msg.role === 'claude' ? 'Claude' : 'User';
+        var roleIcon = msg.role === 'archie' ? '\uD83E\uDDE0' :
+                      msg.role === 'claude' ? '\uD83E\uDD16' : '\uD83D\uDC64';
+        var modelInfo = msg.model_used ? ' (' + msg.model_used : '';
+        if (msg.duration_ms) modelInfo += ', ' + msg.duration_ms + 'ms';
+        if (modelInfo) modelInfo += ')';
+
+        lines.push('### Turn ' + msg.turn);
+        lines.push('**' + roleIcon + ' ' + roleLabel + '**' + modelInfo);
+        lines.push(msg.content);
+        lines.push('');
+    });
+
+    lines.push('---');
+    lines.push('*Exported from A.R.C.H.I.E. Platform*');
+
+    return lines.join('\n');
+}
+
+function exportCollabMarkdown() {
+    var md = buildCollabMarkdown();
+    if (!md) {
+        showNotification('No session to export', 'error');
+        return;
+    }
+
+    var blob = new Blob([md], { type: 'text/markdown' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    var safeTopic = (collabSession.topic || 'collaboration').replace(/[^a-z0-9]/gi, '_').substring(0, 40);
+    a.download = 'collab_' + safeTopic + '.md';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showNotification('Exported as Markdown', 'success');
+}
+
+function copyCollabToClipboard() {
+    var md = buildCollabMarkdown();
+    if (!md) {
+        showNotification('No session to copy', 'error');
+        return;
+    }
+
+    navigator.clipboard.writeText(md).then(function() {
+        showNotification('Copied to clipboard', 'success');
+    }).catch(function() {
+        // Fallback
+        var textarea = document.createElement('textarea');
+        textarea.value = md;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        showNotification('Copied to clipboard', 'success');
+    });
+}
+
+async function saveWorkProductToKB(productId) {
+    if (!confirm('Save this work product to the Knowledge Base?')) return;
+
+    try {
+        var response = await fetch('/tools/consciousness/api/collab/work-products/' + productId + '/save-to-kb', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        var data = await response.json();
+
+        if (data.success) {
+            showNotification('Saved to Knowledge Base! (ID: ' + data.kb_id + ')', 'success');
+        } else {
+            showNotification(data.error || 'Failed to save', 'error');
+        }
+    } catch (e) {
+        console.error('Save to KB error:', e);
+        showNotification('Failed to save to Knowledge Base', 'error');
+    }
+}
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
     // Check if we're on the consciousness dashboard
@@ -1231,4 +1868,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Load learning stats
     loadCollabLearnings();
+
+    // Render collaboration templates
+    renderTemplates();
 });

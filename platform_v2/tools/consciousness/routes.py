@@ -6657,7 +6657,8 @@ def start_collaboration():
             return jsonify({"success": False, "error": "Topic required"}), 400
 
         engine = get_collaboration_engine()
-        session = engine.start_session(topic, max_turns, user_id=current_user.id)
+        system_hint = data.get("system_hint", "")
+        session = engine.start_session(topic, max_turns, user_id=current_user.id, system_hint=system_hint)
 
         # Run collaboration in background
         def run_async():
@@ -6901,14 +6902,69 @@ def get_collab_history():
 @consciousness_bp.route("/api/collab/sessions", methods=["GET"])
 @login_required
 def list_collab_sessions():
-    """List all active/recent collaboration sessions in memory."""
+    """List all active/recent collaboration sessions from DB + memory."""
     try:
         from .collaboration_engine import get_collaboration_engine
 
         engine = get_collaboration_engine()
+        search = request.args.get("search", "").strip()
+        status_filter = request.args.get("status", "").strip()
+
         sessions = engine.list_sessions()
+
+        # Apply search filter
+        if search:
+            search_lower = search.lower()
+            sessions = [s for s in sessions if search_lower in (s.get("topic", "") or "").lower()]
+
+        # Apply status filter
+        if status_filter and status_filter != "all":
+            sessions = [s for s in sessions if s.get("status") == status_filter]
+
         return jsonify({"success": True, "sessions": sessions})
     except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/collab/continue/<session_id>", methods=["POST"])
+@login_required
+def continue_collaboration(session_id):
+    """Continue a stopped/completed collaboration session from where it left off."""
+    try:
+        import threading
+        import asyncio
+        from .collaboration_engine import get_collaboration_engine
+
+        engine = get_collaboration_engine()
+
+        # Run continue in background thread
+        def run_continue():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(engine.continue_session(session_id))
+            finally:
+                loop.close()
+
+        thread = threading.Thread(target=run_continue, daemon=True)
+        thread.start()
+
+        audit_log(
+            "COLLAB_CONTINUE",
+            {
+                "user_id": current_user.id,
+                "session_id": session_id,
+            },
+            success=True,
+        )
+
+        return jsonify({"success": True, "session_id": session_id, "status": "active"})
+    except ValueError as e:
+        return jsonify({"success": False, "error": str(e)}), 400
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -6929,7 +6985,8 @@ def start_joint_collaboration():
         from .collaboration_engine import get_collaboration_engine
 
         engine = get_collaboration_engine()
-        session = engine.start_session(topic, max_turns=max_turns, user_id=current_user.id)
+        system_hint = data.get("system_hint", "")
+        session = engine.start_session(topic, max_turns=max_turns, user_id=current_user.id, system_hint=system_hint)
 
         # Run joint collaboration in background thread
         import threading
@@ -6956,6 +7013,143 @@ def start_joint_collaboration():
             }
         )
     except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/collab/export/<session_id>", methods=["GET"])
+@login_required
+def export_collaboration(session_id):
+    """Export a collaboration session as Markdown."""
+    try:
+        from .collaboration_engine import get_collaboration_engine
+
+        engine = get_collaboration_engine()
+        session = engine.get_session(session_id)
+
+        if not session:
+            return jsonify({"success": False, "error": "Session not found"}), 404
+
+        # Build markdown
+        lines = []
+        lines.append(f"# AI Collaboration: {session.topic}")
+        lines.append(
+            f"**Date**: {session.created_at} | **Status**: {session.status.value} | **Turns**: {session.current_turn}/{session.max_turns}"
+        )
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+        lines.append("## Conversation")
+        lines.append("")
+
+        for msg in session.messages:
+            role_label = {"archie": "A.R.C.H.I.E.", "claude": "Claude", "user": "User", "system": "System"}.get(
+                msg.role, msg.role
+            )
+            role_icon = {
+                "archie": "\U0001f9e0",
+                "claude": "\U0001f916",
+                "user": "\U0001f464",
+                "system": "\u2699\ufe0f",
+            }.get(msg.role, "")
+            model_info = ""
+            if msg.model_used:
+                model_info = f" ({msg.model_used}"
+                if msg.duration_ms:
+                    model_info += f", {msg.duration_ms}ms"
+                model_info += ")"
+
+            lines.append(f"### Turn {msg.turn}")
+            lines.append(f"**{role_icon} {role_label}**{model_info}")
+            lines.append(msg.content)
+            lines.append("")
+
+        # Add work products if any
+        products = engine.get_work_products(session_id)
+        if products:
+            lines.append("## Work Products")
+            lines.append("")
+            for p in products:
+                approved = "\u2713" if p.get("approved") else "\u2717"
+                lines.append(f"### [{p['product_type']}] {p['title']}")
+                lines.append(f"**Author**: {p['author']} | **Approved**: {approved}")
+                lines.append(p.get("content", ""))
+                lines.append("")
+
+        lines.append("---")
+        lines.append("*Exported from A.R.C.H.I.E. Platform*")
+
+        markdown = "\n".join(lines)
+        return jsonify({"success": True, "markdown": markdown, "topic": session.topic})
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/collab/work-products/<int:product_id>/save-to-kb", methods=["POST"])
+@login_required
+def save_work_product_to_kb(product_id):
+    """Save a work product to the knowledge base."""
+    try:
+        from .collaboration_engine import get_collaboration_engine
+
+        engine = get_collaboration_engine()
+
+        # Find the work product
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT wp.id, wp.product_type, wp.title, wp.content, wp.author,
+                   cs.topic, cs.session_uuid::text as session_uuid
+            FROM collaboration_work_products wp
+            JOIN collaboration_sessions cs ON wp.session_id = cs.id
+            WHERE wp.id = %s
+        """,
+            (product_id,),
+        )
+        product = cur.fetchone()
+        if not product:
+            cur.close()
+            conn.close()
+            return jsonify({"success": False, "error": "Work product not found"}), 404
+
+        # Insert into knowledge_base
+        title = f"[Collab] {product['title']} — {product['topic'][:60]}"
+        content = product["content"]
+        cur.execute(
+            """
+            INSERT INTO knowledge_base (title, content, source_type, knowledge_type, importance_score)
+            VALUES (%s, %s, 'collaboration', 'vault_note', 0.6)
+            RETURNING id
+        """,
+            (title, content),
+        )
+        kb_id = cur.fetchone()["id"]
+        conn.commit()
+
+        # Generate embedding
+        try:
+            from ai_bridge.embedding_service import generate_embedding
+
+            embedding = generate_embedding(f"{title}\n{content[:500]}")
+            if embedding:
+                cur.execute(
+                    "UPDATE knowledge_base SET embedding = %s, has_embedding = TRUE WHERE id = %s",
+                    (embedding, kb_id),
+                )
+                conn.commit()
+        except Exception as emb_err:
+            logger.warning(f"Failed to generate embedding for KB entry {kb_id}: {emb_err}")
+
+        cur.close()
+        conn.close()
+
+        return jsonify({"success": True, "kb_id": kb_id, "title": title})
+
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
 
 

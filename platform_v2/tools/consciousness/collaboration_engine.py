@@ -62,8 +62,10 @@ class CollabSession:
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
     db_id: Optional[int] = None  # DB primary key
     user_id: Optional[int] = None
+    system_hint: str = ""  # Optional template hint for guiding AI responses
 
     work_products: List[Dict] = field(default_factory=list)
+    _context_summaries: Dict[int, str] = field(default_factory=dict)  # Cached summaries keyed by message count
 
     def to_dict(self) -> dict:
         return {
@@ -71,7 +73,15 @@ class CollabSession:
             "topic": self.topic,
             "status": self.status.value,
             "messages": [
-                {"role": m.role, "content": m.content, "turn": m.turn, "timestamp": m.timestamp} for m in self.messages
+                {
+                    "role": m.role,
+                    "content": m.content,
+                    "turn": m.turn,
+                    "timestamp": m.timestamp,
+                    "model_used": m.model_used,
+                    "duration_ms": m.duration_ms,
+                }
+                for m in self.messages
             ],
             "current_turn": self.current_turn,
             "max_turns": self.max_turns,
@@ -108,23 +118,28 @@ class CollaborationEngine:
             self._claude = get_claude_bridge()
         return self._claude
 
-    def start_session(self, topic: str, max_turns: int = 10, user_id: int = None) -> CollabSession:
+    def start_session(
+        self, topic: str, max_turns: int = 10, user_id: int = None, system_hint: str = ""
+    ) -> CollabSession:
         """Start a new collaboration session — creates DB record + in-memory cache"""
         session_uuid = str(uuid.uuid4())
         capped_turns = min(max_turns, 20)
 
-        # Persist to DB
+        # Persist to DB (store system_hint in metadata JSONB)
         db_id = None
         try:
             conn = get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
+            metadata = {}
+            if system_hint:
+                metadata["system_hint"] = system_hint
             cur.execute(
                 """
-                INSERT INTO collaboration_sessions (session_uuid, user_id, topic, max_turns)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO collaboration_sessions (session_uuid, user_id, topic, max_turns, metadata)
+                VALUES (%s, %s, %s, %s, %s)
                 RETURNING id
             """,
-                (session_uuid, user_id, topic, capped_turns),
+                (session_uuid, user_id, topic, capped_turns, psycopg2.extras.Json(metadata) if metadata else None),
             )
             db_id = cur.fetchone()["id"]
             conn.commit()
@@ -140,6 +155,7 @@ class CollaborationEngine:
             max_turns=capped_turns,
             db_id=db_id,
             user_id=user_id,
+            system_hint=system_hint,
         )
         self.sessions[session.id] = session
         logger.info(f"Started collaboration session {session.id}: {topic}")
@@ -260,8 +276,9 @@ class CollaborationEngine:
                 "Please directly address their message before continuing the discussion."
             )
 
+        hint = f"\nGuideline: {session.system_hint}" if session.system_hint else ""
         prompt = f"""You are ARCHIE, an AI assistant collaborating with Claude to answer: "{session.topic}"
-
+{hint}
 Previous discussion:
 {context}
 
@@ -289,8 +306,9 @@ If you think the topic is fully addressed, say "I think we've covered this well.
                 "Please directly address their message before continuing the discussion."
             )
 
+        hint = f"\nGuideline: {session.system_hint}" if session.system_hint else ""
         message = f"""ARCHIE and I are discussing: "{session.topic}"
-
+{hint}
 Conversation so far:
 {context}
 
@@ -306,11 +324,72 @@ Please respond to ARCHIE's latest point. Be helpful and collaborative.{interject
             return f"I encountered an issue: {str(e)}"
 
     def _build_context(self, session: CollabSession) -> str:
-        """Build conversation context string"""
+        """Build conversation context string with summarization for long conversations"""
+        messages = session.messages
+        if len(messages) <= 6:
+            # Short conversation — return all messages verbatim
+            lines = []
+            for msg in messages:
+                lines.append(f"{msg.role.upper()}: {msg.content}")
+            return "\n\n".join(lines)
+
+        # Long conversation — summarize older messages, keep last 4 verbatim
+        older_messages = messages[:-4]
+        recent_messages = messages[-4:]
+
+        # Check cache (re-summarize when older message count changes)
+        cache_key = len(older_messages)
+        if cache_key not in session._context_summaries:
+            summary = self._summarize_history(older_messages, session.topic)
+            session._context_summaries[cache_key] = summary
+
+        summary = session._context_summaries[cache_key]
+
+        recent_lines = []
+        for msg in recent_messages:
+            recent_lines.append(f"{msg.role.upper()}: {msg.content}")
+        recent_text = "\n\n".join(recent_lines)
+
+        return f"[Summary of earlier discussion]\n{summary}\n\n[Recent messages]\n{recent_text}"
+
+    def _summarize_history(self, messages: List[CollabMessage], topic: str) -> str:
+        """Summarize older messages using ARCHIE's Ollama (dolphin3, already loaded)"""
+        archie = self._get_archie()
+        if not archie:
+            # Fallback: just return last 6 of the older messages
+            lines = []
+            for msg in messages[-6:]:
+                lines.append(f"{msg.role.upper()}: {msg.content}")
+            return "\n\n".join(lines)
+
+        # Build the text to summarize
+        msg_texts = []
+        for msg in messages:
+            msg_texts.append(f"{msg.role.upper()}: {msg.content}")
+        full_text = "\n\n".join(msg_texts)
+
+        # Truncate if too long for model context
+        if len(full_text) > 6000:
+            full_text = full_text[:6000] + "\n...(truncated)"
+
+        prompt = f"""Summarize the key points from this AI discussion about "{topic}" in 3-5 concise bullet points. Focus on decisions made, insights shared, and any conclusions reached.
+
+Discussion:
+{full_text}
+
+Summary (bullet points only):"""
+
+        try:
+            result = archie._call_llm(prompt, max_tokens=500)
+            if result and result[0]:
+                return result[0]
+        except Exception as e:
+            logger.warning(f"Context summarization failed: {e}")
+
+        # Fallback: return last few older messages verbatim
         lines = []
-        for msg in session.messages[-6:]:
-            role = msg.role.upper()
-            lines.append(f"{role}: {msg.content}")
+        for msg in messages[-4:]:
+            lines.append(f"{msg.role.upper()}: {msg.content}")
         return "\n\n".join(lines)
 
     def _is_conclusion(self, response: str) -> bool:
@@ -365,6 +444,89 @@ Please respond to ARCHIE's latest point. Be helpful and collaborative.{interject
             return True
         return False
 
+    async def continue_session(self, session_id: str) -> CollabSession:
+        """Continue a stopped/completed session from where it left off.
+
+        Different from resume_session (which unpauses an in-memory session) —
+        this re-starts the async collaboration loop for a DB-persisted
+        stopped/completed session.
+        """
+        session = self._load_session_from_db(session_id)
+        if not session:
+            raise ValueError(f"Session {session_id} not found")
+
+        if session.status not in (CollabStatus.STOPPED, CollabStatus.COMPLETED):
+            raise ValueError(f"Session is {session.status.value}, cannot continue")
+
+        # Reset status and put back into in-memory cache
+        session.status = CollabStatus.ACTIVE
+        self.sessions[session_id] = session
+        self._update_session_status(session, "active")
+
+        # Resume the collaboration loop from current_turn
+        try:
+            while session.current_turn < session.max_turns:
+                if session.status == CollabStatus.PAUSED:
+                    await asyncio.sleep(1)
+                    continue
+                if session.status == CollabStatus.STOPPED:
+                    break
+
+                session.current_turn += 1
+
+                # ARCHIE's turn
+                t0 = time.time()
+                archie_response = await self._get_archie_response(session)
+                archie_ms = int((time.time() - t0) * 1000)
+                archie_msg = CollabMessage(
+                    role="archie",
+                    content=archie_response,
+                    turn=session.current_turn,
+                    model_used="dolphin3:latest",
+                    duration_ms=archie_ms,
+                )
+                session.messages.append(archie_msg)
+                self._persist_message(session, archie_msg)
+                self._update_session_turn(session)
+
+                if self._is_conclusion(archie_response):
+                    break
+
+                await asyncio.sleep(1)
+
+                # Claude's turn
+                t0 = time.time()
+                claude_response = await self._get_claude_response(session)
+                claude_ms = int((time.time() - t0) * 1000)
+                claude_msg = CollabMessage(
+                    role="claude",
+                    content=claude_response,
+                    turn=session.current_turn,
+                    model_used="claude-proxy",
+                    duration_ms=claude_ms,
+                )
+                session.messages.append(claude_msg)
+                self._persist_message(session, claude_msg)
+
+                if self._is_conclusion(claude_response):
+                    break
+
+                await asyncio.sleep(1)
+
+            session.status = CollabStatus.COMPLETED
+            self._update_session_status(session, "completed")
+            await self._extract_learnings(session)
+
+        except Exception as e:
+            logger.error(f"Continue collaboration error: {e}")
+            session.status = CollabStatus.ERROR
+            error_msg = CollabMessage(role="system", content=f"Error: {str(e)}", turn=session.current_turn)
+            session.messages.append(error_msg)
+            self._persist_message(session, error_msg)
+            self._update_session_status(session, "error")
+
+        return session
+
     def add_interjection(self, session_id: str, message: str) -> bool:
         """Add user interjection to session"""
         session = self.sessions.get(session_id)
@@ -389,7 +551,7 @@ Please respond to ARCHIE's latest point. Be helpful and collaborative.{interject
     def list_sessions(self) -> List[dict]:
         """List all sessions (merges in-memory active + recent DB sessions)"""
         # Get recent sessions from DB
-        db_sessions = self._load_recent_sessions_from_db(limit=20)
+        db_sessions = self._load_recent_sessions_from_db(limit=50)
 
         # Merge with in-memory (in-memory takes priority for active sessions)
         result = {}
@@ -476,7 +638,7 @@ Please respond to ARCHIE's latest point. Be helpful and collaborative.{interject
             cur.execute(
                 """
                 SELECT id, session_uuid::text as session_uuid, user_id, topic, status,
-                       current_turn, max_turns, created_at
+                       current_turn, max_turns, created_at, metadata
                 FROM collaboration_sessions
                 WHERE session_uuid = %s
             """,
@@ -514,6 +676,10 @@ Please respond to ARCHIE's latest point. Be helpful and collaborative.{interject
                 for m in msg_rows
             ]
 
+            # Extract system_hint from metadata if present
+            metadata = row.get("metadata") or {}
+            system_hint = metadata.get("system_hint", "") if isinstance(metadata, dict) else ""
+
             return CollabSession(
                 id=row["session_uuid"],
                 topic=row["topic"],
@@ -524,6 +690,7 @@ Please respond to ARCHIE's latest point. Be helpful and collaborative.{interject
                 created_at=row["created_at"].isoformat() if row["created_at"] else "",
                 db_id=row["id"],
                 user_id=row["user_id"],
+                system_hint=system_hint,
             )
         except Exception as e:
             logger.warning(f"Failed to load collab session from DB: {e}")

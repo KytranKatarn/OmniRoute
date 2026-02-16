@@ -567,14 +567,14 @@ class VoiceSynthesizer:
                 (word_text, phoneme_sequence, full_audio_cache, text_hash, emotion_context, voice_parameters, duration_ms, hit_count, usage_count, last_used, engine, language)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, 0, 0, NOW(), %s, %s)
                 ON CONFLICT (text_hash) WHERE text_hash IS NOT NULL DO UPDATE
-                SET full_audio_cache = EXCLUDED.full_audio_cache,
+                SET full_audio_cache = CASE WHEN voice_word_cache.is_locked THEN voice_word_cache.full_audio_cache ELSE EXCLUDED.full_audio_cache END,
                     hit_count = COALESCE(voice_word_cache.hit_count, 0) + 1,
                     usage_count = COALESCE(voice_word_cache.usage_count, 0) + 1,
                     last_used = NOW(),
-                    emotion_context = EXCLUDED.emotion_context,
-                    voice_parameters = EXCLUDED.voice_parameters,
-                    engine = EXCLUDED.engine,
-                    language = EXCLUDED.language
+                    emotion_context = CASE WHEN voice_word_cache.is_locked THEN voice_word_cache.emotion_context ELSE EXCLUDED.emotion_context END,
+                    voice_parameters = CASE WHEN voice_word_cache.is_locked THEN voice_word_cache.voice_parameters ELSE EXCLUDED.voice_parameters END,
+                    engine = CASE WHEN voice_word_cache.is_locked THEN voice_word_cache.engine ELSE EXCLUDED.engine END,
+                    language = CASE WHEN voice_word_cache.is_locked THEN voice_word_cache.language ELSE EXCLUDED.language END
             """, (
                 text[:100],
                 json.dumps([]),
@@ -1461,13 +1461,14 @@ class VoiceSynthesizer:
                  voice_parameters, duration_ms, hit_count, usage_count, last_used, agent_id, engine, language)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, 0, 0, NOW(), %s, %s, %s)
                 ON CONFLICT (text_hash) WHERE text_hash IS NOT NULL DO UPDATE
-                SET full_audio_cache = EXCLUDED.full_audio_cache,
+                SET full_audio_cache = CASE WHEN voice_word_cache.is_locked THEN voice_word_cache.full_audio_cache ELSE EXCLUDED.full_audio_cache END,
                     hit_count = COALESCE(voice_word_cache.hit_count, 0) + 1,
                     usage_count = COALESCE(voice_word_cache.usage_count, 0) + 1,
                     last_used = NOW(),
-                    agent_id = EXCLUDED.agent_id,
-                    engine = EXCLUDED.engine,
-                    language = EXCLUDED.language
+                    voice_parameters = CASE WHEN voice_word_cache.is_locked THEN voice_word_cache.voice_parameters ELSE EXCLUDED.voice_parameters END,
+                    agent_id = CASE WHEN voice_word_cache.is_locked THEN voice_word_cache.agent_id ELSE EXCLUDED.agent_id END,
+                    engine = CASE WHEN voice_word_cache.is_locked THEN voice_word_cache.engine ELSE EXCLUDED.engine END,
+                    language = CASE WHEN voice_word_cache.is_locked THEN voice_word_cache.language ELSE EXCLUDED.language END
             """, (
                 text[:100],
                 json.dumps([]),

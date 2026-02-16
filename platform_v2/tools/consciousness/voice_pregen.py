@@ -283,6 +283,21 @@ def auto_warmup_cache(synthesizer=None, db_conn_func=None):
                 except Exception as e:
                     logger.debug(f"[VoiceWarmup] Skipped '{phrase}': {e}")
 
+            # Lock warmup entries for immutability
+            if cached > 0:
+                conn2 = conn_func()
+                cur2 = conn2.cursor()
+                cur2.execute(
+                    """
+                    UPDATE voice_word_cache
+                    SET is_locked = TRUE
+                    WHERE agent_id = 2 AND engine = 'kokoro' AND is_locked = FALSE
+                """
+                )
+                conn2.commit()
+                cur2.close()
+                conn2.close()
+
             conn.close()
             logger.info(f"[VoiceWarmup] Done: {cached} new, {skipped} already cached")
         except Exception as e:
@@ -503,6 +518,38 @@ def run_pregen_job(
             # Small delay to avoid overloading TTS
             # Kokoro is much faster than XTTS, so needs less throttling
             time.sleep(0.02 if engine == "kokoro" else 0.1)
+
+    # Lock all generated entries to prevent overwrites
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        if agent_id:
+            cur.execute(
+                """
+                UPDATE voice_word_cache
+                SET is_locked = TRUE
+                WHERE agent_id = %s AND engine = %s AND language = %s
+                AND is_locked = FALSE
+            """,
+                (agent_id, effective_engine, language),
+            )
+        else:
+            cur.execute(
+                """
+                UPDATE voice_word_cache
+                SET is_locked = TRUE
+                WHERE agent_id IS NULL AND engine = %s AND language = %s
+                AND is_locked = FALSE
+            """,
+                (effective_engine, language),
+            )
+        locked = cur.rowcount
+        conn.commit()
+        cur.close()
+        conn.close()
+        logger.info(f"[VoicePregen] Locked {locked} cache entries for immutability")
+    except Exception as e:
+        logger.error(f"[VoicePregen] Lock error: {e}")
 
     # Final update
     update_job_progress(job_id, completed, failed, "completed")

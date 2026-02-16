@@ -5466,6 +5466,14 @@ async function loadVoiceProfiles() {
             pregenBtn.textContent = '\u26A1 Pre-gen';
             pregenBtn.onclick = (function(pid) { return function() { toggleCardPregen(pid); }; })(p.id);
             actions.appendChild(pregenBtn);
+
+            var dnaBtn = document.createElement('button');
+            dnaBtn.className = 'btn btn-secondary';
+            dnaBtn.id = 'voice-dna-btn-' + p.id;
+            dnaBtn.style.cssText = 'background:linear-gradient(135deg, #8b5cf620, #00ffff15);border-color:#a78bfa';
+            dnaBtn.textContent = '\uD83E\uDDEC Full Voice DNA';
+            dnaBtn.onclick = (function(pid, pdata) { return function() { startFullVoiceDNA(pid, pdata); }; })(p.id, { agent_id: p.agent_id, language: p.language || 'en', engine: p.engine || 'xtts_v2' });
+            actions.appendChild(dnaBtn);
             card.appendChild(actions);
 
             // Store pregen data for this profile
@@ -5523,7 +5531,21 @@ async function loadVoiceProfiles() {
             var pgEmGroup = document.createElement('div');
             pgEmGroup.className = 'filter-group';
             pgEmGroup.id = 'card-pregen-emotions-' + p.id;
-            ['neutral','excited','curious','empathetic','gentle'].forEach(function(em, idx) {
+            // Select All toggle
+            var selAllBtn = document.createElement('button');
+            selAllBtn.className = 'filter-btn';
+            selAllBtn.style.cssText = 'font-weight:bold;border-color:var(--archie-accent)';
+            selAllBtn.textContent = 'All';
+            selAllBtn.onclick = (function(groupId) { return function() {
+                var grp = document.getElementById(groupId);
+                var btns = grp.querySelectorAll('.filter-btn:not([data-select-all])');
+                var allActive = Array.prototype.every.call(btns, function(b) { return b.classList.contains('active'); });
+                btns.forEach(function(b) { allActive ? b.classList.remove('active') : b.classList.add('active'); });
+                this.classList.toggle('active', !allActive);
+            }; })('card-pregen-emotions-' + p.id);
+            selAllBtn.dataset.selectAll = 'true';
+            pgEmGroup.appendChild(selAllBtn);
+            ['neutral','excited','curious','empathetic','focused','playful','concerned','thoughtful','confident','gentle'].forEach(function(em, idx) {
                 var emBtn = document.createElement('button');
                 emBtn.className = 'filter-btn' + (idx === 0 ? ' active' : '');
                 emBtn.dataset.emotion = em;
@@ -5771,7 +5793,45 @@ async function startCardPregen(profileId) {
     }
 }
 
-function pollCardPregenJob(jobId, profileId) {
+async function startFullVoiceDNA(profileId, pdata) {
+    if (!confirm('Generate Full Voice DNA?\n\nThis will synthesize all common words and phrases across ALL 10 emotions.\nEstimated: ~2,000+ entries, ~1-2 minutes on Kokoro.\n\nAudio will be locked after generation to preserve voice consistency.')) return;
+
+    var dnaBtn = document.getElementById('voice-dna-btn-' + profileId);
+    if (dnaBtn) { dnaBtn.disabled = true; dnaBtn.textContent = '\u23F3 Generating...'; }
+
+    // Show progress in the pregen section
+    var section = document.getElementById('card-pregen-' + profileId);
+    if (section && !section.classList.contains('open')) section.classList.add('open');
+    var progressEl = document.getElementById('card-pregen-progress-' + profileId);
+    if (progressEl) {
+        progressEl.style.display = 'block';
+        document.getElementById('card-pregen-bar-' + profileId).style.width = '0%';
+        document.getElementById('card-pregen-pct-' + profileId).textContent = '0%';
+        document.getElementById('card-pregen-status-' + profileId).textContent = 'Full Voice DNA — Starting...';
+    }
+
+    try {
+        var r = await fetch('/tools/consciousness/api/voice/pregen/full-dna', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ agent_id: parseInt(pdata.agent_id), language: pdata.language })
+        });
+        var d = await r.json();
+        if (d.success) {
+            pollCardPregenJob(d.job_id, profileId, function() {
+                if (dnaBtn) { dnaBtn.disabled = false; dnaBtn.textContent = '\uD83E\uDDEC Full Voice DNA'; }
+            });
+        } else {
+            if (dnaBtn) { dnaBtn.disabled = false; dnaBtn.textContent = '\uD83E\uDDEC Full Voice DNA'; }
+            document.getElementById('card-pregen-status-' + profileId).textContent = 'Error: ' + (d.error || 'Unknown');
+        }
+    } catch (e) {
+        if (dnaBtn) { dnaBtn.disabled = false; dnaBtn.textContent = '\uD83E\uDDEC Full Voice DNA'; }
+        if (progressEl) document.getElementById('card-pregen-status-' + profileId).textContent = 'Error: ' + e.message;
+    }
+}
+
+function pollCardPregenJob(jobId, profileId, onComplete) {
     var interval = setInterval(async function() {
         try {
             var r = await fetch('/tools/consciousness/api/voice/pregen/' + jobId);
@@ -5786,16 +5846,18 @@ function pollCardPregenJob(jobId, profileId) {
                 clearInterval(interval);
                 document.getElementById('card-pregen-start-' + profileId).disabled = false;
                 if (job.status === 'completed') {
-                    document.getElementById('card-pregen-status-' + profileId).textContent = 'Completed: ' + job.completed_words + ' words cached';
+                    document.getElementById('card-pregen-status-' + profileId).textContent = '\u2705 Completed: ' + job.completed_words + ' words cached & locked';
                     loadVoiceProfiles();
                 } else {
                     document.getElementById('card-pregen-status-' + profileId).textContent = 'Failed: ' + (job.error_message || 'Unknown error');
                 }
+                if (onComplete) onComplete(job.status);
             }
         } catch (e) {
             clearInterval(interval);
             document.getElementById('card-pregen-start-' + profileId).disabled = false;
             document.getElementById('card-pregen-status-' + profileId).textContent = 'Poll error: ' + e.message;
+            if (onComplete) onComplete('error');
         }
     }, 3000);
 }

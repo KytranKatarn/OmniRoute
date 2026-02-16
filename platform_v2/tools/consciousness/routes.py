@@ -8468,6 +8468,67 @@ def voice_pregen_start():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@consciousness_bp.route("/api/voice/pregen/full-dna", methods=["POST"])
+@login_required
+@admin_required
+def voice_full_dna():
+    """Start a Full Voice DNA job — all phrases + top words across all 10 emotions"""
+    try:
+        data = request.get_json() or {}
+        agent_id = data.get("agent_id")
+        language = data.get("language", "en")
+
+        if not agent_id:
+            return jsonify({"success": False, "error": "agent_id required"}), 400
+
+        # Look up agent's voice profile
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            "SELECT engine, language FROM agent_voice_profiles WHERE agent_id = %s",
+            (agent_id,),
+        )
+        profile = cur.fetchone()
+        cur.close()
+        conn.close()
+
+        if not profile:
+            return jsonify({"success": False, "error": "Agent has no voice profile"}), 400
+
+        engine = profile["engine"] or "kokoro"
+
+        ALL_EMOTIONS = [
+            "neutral",
+            "excited",
+            "curious",
+            "empathetic",
+            "focused",
+            "playful",
+            "concerned",
+            "thoughtful",
+            "confident",
+            "gentle",
+        ]
+
+        from .voice_pregen import start_pregen_job
+
+        job_id = start_pregen_job(
+            job_type="manual",
+            word_count=200,
+            emotions=ALL_EMOTIONS,
+            agent_id=agent_id,
+            quality="high",
+            engine=engine,
+            language=language,
+        )
+
+        return jsonify({"success": True, "job_id": job_id, "emotions": len(ALL_EMOTIONS)})
+
+    except Exception as e:
+        logger.error(f"Voice full DNA error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @consciousness_bp.route("/api/voice/pregen/<int:job_id>", methods=["GET"])
 @login_required
 @admin_required

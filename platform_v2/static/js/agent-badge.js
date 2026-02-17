@@ -1,140 +1,75 @@
 /**
- * Agent Badge System — Project #91
- * Shows assigned team member agent per module (top-left floating badge)
- * Polls /api/module-agents every 15s for real-time status
+ * Agent Badge System — Fetches and displays agent assignments on module cards.
+ * Polls every 30s for updates.
  */
-
 (function() {
-    'use strict';
+    var moduleAgents = {};
 
-    const POLL_INTERVAL = 15000; // 15 seconds
-    let badgeEl = null;
-    let currentModule = null;
-
-    function getModuleName() {
-        // Get from data-module attribute on body, or from URL path
-        const body = document.querySelector('body');
-        if (body && body.dataset.module && body.dataset.module !== 'default') {
-            return body.dataset.module;
-        }
-        // Extract from URL: /tools/team-management → team_management
-        const path = window.location.pathname;
-        const match = path.match(/\/tools\/([^/]+)/);
-        if (match) {
-            return match[1].replace(/-/g, '_');
-        }
-        return null;
+    function fetchModuleAgents() {
+        fetch('/tools/bridge/api/dashboard/module-agents')
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    moduleAgents = data.module_agents;
+                    renderBadges();
+                }
+            })
+            .catch(function(e) {
+                console.debug('Agent badge fetch failed:', e);
+            });
     }
 
-    function createBadge() {
-        badgeEl = document.createElement('div');
-        badgeEl.className = 'agent-badge hidden';
+    function renderBadges() {
+        var cards = document.querySelectorAll('[data-module-id]');
+        for (var i = 0; i < cards.length; i++) {
+            var card = cards[i];
+            var moduleId = card.getAttribute('data-module-id');
+            var agent = moduleAgents[moduleId];
 
-        const avatar = document.createElement('div');
-        avatar.className = 'agent-badge-avatar';
+            // Remove existing badge
+            var existing = card.querySelector('.agent-badge');
+            if (existing) existing.remove();
 
-        const info = document.createElement('div');
-        info.className = 'agent-badge-info';
+            if (!agent) continue;
 
-        const name = document.createElement('span');
-        name.className = 'agent-badge-name';
-        name.textContent = 'Loading...';
+            var statusClass = agent.status === 'active' ? 'active' :
+                              agent.status === 'working' ? 'working' :
+                              agent.status === 'resting' ? 'resting' : 'offline';
 
-        const station = document.createElement('span');
-        station.className = 'agent-badge-station';
+            var badge = document.createElement('div');
+            badge.className = 'agent-badge';
 
-        info.appendChild(name);
-        info.appendChild(station);
+            var dot = document.createElement('span');
+            dot.className = 'status-dot ' + statusClass;
+            badge.appendChild(dot);
 
-        const status = document.createElement('div');
-        status.className = 'agent-badge-status';
+            var nameSpan = document.createElement('span');
+            nameSpan.className = 'agent-name';
+            nameSpan.textContent = agent.first_name || agent.agent_codename;
+            badge.appendChild(nameSpan);
 
-        const tooltip = document.createElement('div');
-        tooltip.className = 'agent-badge-tooltip';
+            var codeSpan = document.createElement('span');
+            codeSpan.className = 'agent-codename';
+            codeSpan.textContent = '(' + agent.agent_codename + ')';
+            badge.appendChild(codeSpan);
 
-        badgeEl.appendChild(avatar);
-        badgeEl.appendChild(info);
-        badgeEl.appendChild(status);
-        badgeEl.appendChild(tooltip);
-
-        document.body.appendChild(badgeEl);
-        return badgeEl;
-    }
-
-    function createTooltipRow(label, value) {
-        const row = document.createElement('div');
-        row.className = 'agent-badge-tooltip-row';
-
-        const labelEl = document.createElement('span');
-        labelEl.className = 'agent-badge-tooltip-label';
-        labelEl.textContent = label;
-
-        const valueEl = document.createElement('span');
-        valueEl.className = 'agent-badge-tooltip-value';
-        valueEl.textContent = value;
-
-        row.appendChild(labelEl);
-        row.appendChild(valueEl);
-        return row;
-    }
-
-    function updateBadge(data) {
-        if (!badgeEl) return;
-        if (!data || !data.agent_name) {
-            badgeEl.classList.add('hidden');
-            return;
-        }
-
-        badgeEl.classList.remove('hidden');
-
-        // Avatar (first letter of agent name, colored by station)
-        const avatar = badgeEl.querySelector('.agent-badge-avatar');
-        avatar.textContent = data.agent_name.charAt(0).toUpperCase();
-        avatar.className = 'agent-badge-avatar station-' + (data.station_code || 'COMMAND');
-
-        // Name and station
-        badgeEl.querySelector('.agent-badge-name').textContent = data.agent_name;
-        badgeEl.querySelector('.agent-badge-station').textContent = data.station_code || '';
-
-        // Status indicator
-        const status = badgeEl.querySelector('.agent-badge-status');
-        status.className = 'agent-badge-status ' + (data.status || 'active');
-
-        // Tooltip (safe DOM construction)
-        const tooltip = badgeEl.querySelector('.agent-badge-tooltip');
-        tooltip.replaceChildren();
-        tooltip.appendChild(createTooltipRow('Agent', data.agent_name));
-        tooltip.appendChild(createTooltipRow('Station', data.station_code || 'N/A'));
-        tooltip.appendChild(createTooltipRow('Model', data.model || 'N/A'));
-        tooltip.appendChild(createTooltipRow('Status', data.status || 'active'));
-    }
-
-    async function fetchAgentInfo() {
-        if (!currentModule) return;
-        try {
-            const resp = await fetch('/api/module-agents?module=' + encodeURIComponent(currentModule));
-            if (resp.ok) {
-                const data = await resp.json();
-                updateBadge(data);
+            // Insert at top of card content
+            var cardBody = card.querySelector('.module-card-body, .card-content, .module-info');
+            if (cardBody) {
+                cardBody.insertBefore(badge, cardBody.firstChild);
+            } else if (card.children.length > 1) {
+                card.insertBefore(badge, card.children[1]);
+            } else {
+                card.appendChild(badge);
             }
-        } catch (e) {
-            // Silently fail — badge just stays hidden
         }
     }
 
-    function init() {
-        currentModule = getModuleName();
-        if (!currentModule) return; // Not on a module page
-
-        createBadge();
-        fetchAgentInfo();
-        setInterval(fetchAgentInfo, POLL_INTERVAL);
-    }
-
-    // Initialize when DOM is ready
+    // Initial fetch + polling
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
+        document.addEventListener('DOMContentLoaded', fetchModuleAgents);
     } else {
-        init();
+        fetchModuleAgents();
     }
+    setInterval(fetchModuleAgents, 30000);
 })();

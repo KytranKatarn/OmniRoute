@@ -6719,6 +6719,56 @@ def toggle_external_provider(provider):
 
 
 # ============================================================================
+# DASHBOARD AGENT BADGE API
+# ============================================================================
+
+
+@bridge_bp.route("/api/dashboard/module-agents", methods=["GET"])
+@login_required
+def get_module_agents():
+    """Get assigned agent info for all active modules (for dashboard badges)."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT
+                bs.station_code,
+                UNNEST(bs.modules) as module_id,
+                a.name as agent_codename,
+                a.first_name,
+                a.display_name,
+                a.model,
+                a.status as agent_status
+            FROM bridge_stations bs
+            JOIN station_assignments sa ON sa.station_id = bs.id AND sa.is_active = TRUE
+            JOIN agents a ON a.id = sa.agent_id AND a.status = 'active'
+            WHERE bs.is_active = TRUE
+            ORDER BY bs.station_code
+        """
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        module_agents = {}
+        for row in rows:
+            mid = row["module_id"]
+            if mid not in module_agents:
+                module_agents[mid] = {
+                    "agent_codename": row["agent_codename"],
+                    "first_name": row["first_name"] or row["agent_codename"],
+                    "display_name": row["display_name"] or row["agent_codename"],
+                    "station_code": row["station_code"],
+                    "status": row["agent_status"],
+                }
+
+        return jsonify({"success": True, "module_agents": module_agents})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
 # MESH CLUSTER API ROUTES
 # ============================================================================
 try:

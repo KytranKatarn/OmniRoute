@@ -228,8 +228,16 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        self.scheduler.add_job(
+            with_app_context(self._notify_email_telegram),
+            trigger=IntervalTrigger(seconds=30),
+            id="agent_email_telegram_notify",
+            name="Agent Loop: Email Telegram Notifications",
+            replace_existing=True,
+        )
+
         self._running = True
-        logger.info("Agent loop started with 11 jobs")
+        logger.info("Agent loop started with 12 jobs")
 
     def stop(self):
         """Remove agent loop jobs from the scheduler."""
@@ -241,6 +249,7 @@ class AgentLoop:
             "agent_email_inbox",
             "agent_email_analyze",
             "agent_telegram_notify",
+            "agent_email_telegram_notify",
             "agent_browser_tasks",
             "agent_briefings",
             "agent_anomaly_detection",
@@ -268,6 +277,7 @@ class AgentLoop:
             "agent_email_inbox",
             "agent_email_analyze",
             "agent_telegram_notify",
+            "agent_email_telegram_notify",
             "agent_browser_tasks",
             "agent_briefings",
             "agent_anomaly_detection",
@@ -852,6 +862,184 @@ class AgentLoop:
                 self._log_cycle("reports", count, 0, 0)
         except Exception as e:
             logger.error(f"Report generation error: {e}")
+
+    # ------------------------------------------------------------------
+    # Email Telegram Notifications (Phase 2 - Email Manager)
+    # ------------------------------------------------------------------
+
+    def _notify_email_telegram(self):
+        """Send Telegram notifications for newly analyzed emails."""
+        gateway = self.flask_app.config.get("TELEGRAM_GATEWAY")
+        if not gateway or not gateway.is_running:
+            return
+        cur = None
+        conn = None
+        try:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Get authorized Telegram users with email prefs
+            cur.execute("""
+                SELECT tu.telegram_id, tu.id as tg_user_id,
+                       COALESCE(tep.notify_urgent, TRUE) as notify_urgent,
+                       COALESCE(tep.notify_action_required, TRUE) as notify_action_required,
+                       COALESCE(tep.digest_enabled, TRUE) as digest_enabled,
+                       COALESCE(tep.digest_interval_minutes, 60) as digest_interval,
+                       tep.last_digest_at
+                FROM telegram_users tu
+                LEFT JOIN telegram_email_prefs tep ON tu.id = tep.telegram_user_id
+                WHERE tu.is_authorized = TRUE
+            """)
+            users = cur.fetchall()
+            if not users:
+                return
+
+            for user in users:
+                # --- Instant notifications for urgent/action_required ---
+                categories_instant = []
+                if user["notify_urgent"]:
+                    categories_instant.append("urgent")
+                if user["notify_action_required"]:
+                    categories_instant.append("action_required")
+
+                if categories_instant:
+                    placeholders = ",".join(["%s"] * len(categories_instant))
+                    cur.execute(f"""
+                        SELECT id, from_name, from_address, subject, ai_category, ai_summary, ai_priority
+                        FROM email_inbox
+                        WHERE ai_category IN ({placeholders})
+                        AND ai_analyzed_at IS NOT NULL
+                        AND telegram_notified_at IS NULL
+                        AND is_archived = FALSE
+                        ORDER BY received_at DESC LIMIT 5
+                    """, categories_instant)
+                    urgent_emails = cur.fetchall()
+
+                    for email in urgent_emails:
+                        self._send_email_telegram_notification(gateway, user["telegram_id"], email)
+                        cur.execute("UPDATE email_inbox SET telegram_notified_at = NOW() WHERE id = %s", (email["id"],))
+                    conn.commit()
+
+                # --- Digest for non-urgent emails ---
+                if user["digest_enabled"]:
+                    last_digest = user.get("last_digest_at")
+                    interval = user.get("digest_interval", 60)
+                    if last_digest:
+                        from datetime import timedelta
+                        if datetime.now() - last_digest < timedelta(minutes=interval):
+                            continue  # Not time for digest yet
+
+                    cur.execute("""
+                        SELECT id, from_name, from_address, subject, ai_category, ai_summary
+                        FROM email_inbox
+                        WHERE ai_analyzed_at IS NOT NULL
+                        AND telegram_notified_at IS NULL
+                        AND ai_category NOT IN ('urgent', 'action_required')
+                        AND is_archived = FALSE
+                        ORDER BY received_at DESC LIMIT 20
+                    """)
+                    digest_emails = cur.fetchall()
+
+                    if digest_emails:
+                        self._send_email_telegram_digest(gateway, user["telegram_id"], digest_emails)
+                        ids = [e["id"] for e in digest_emails]
+                        id_placeholders = ",".join(["%s"] * len(ids))
+                        cur.execute(f"UPDATE email_inbox SET telegram_notified_at = NOW() WHERE id IN ({id_placeholders})", ids)
+
+                        # Update last_digest_at
+                        cur.execute("""
+                            INSERT INTO telegram_email_prefs (telegram_user_id, last_digest_at, created_at, updated_at)
+                            VALUES (%s, NOW(), NOW(), NOW())
+                            ON CONFLICT ON CONSTRAINT uq_tep_telegram_user
+                            DO UPDATE SET last_digest_at = NOW(), updated_at = NOW()
+                        """, (user["tg_user_id"],))
+                        conn.commit()
+
+        except Exception as e:
+            logger.error(f"Email Telegram notify failed: {e}")
+        finally:
+            try:
+                if cur:
+                    cur.close()
+                if conn:
+                    conn.close()
+            except Exception:
+                pass
+
+    def _send_email_telegram_notification(self, gateway, telegram_id, email):
+        """Send instant Telegram notification for a single email."""
+        try:
+            import asyncio
+            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+            category_emoji = {
+                "urgent": "\U0001F6A8",
+                "action_required": "\u26A0\uFE0F",
+                "informational": "\u2139\uFE0F",
+                "newsletter": "\U0001F4F0",
+                "spam": "\U0001F6AB",
+            }
+            emoji = category_emoji.get(email.get("ai_category", ""), "\U0001F4E7")
+            priority = email.get("ai_priority", 3)
+            priority_str = "\u2B50" * min(priority, 5) if priority else ""
+
+            sender = email.get("from_name") or email.get("from_address", "Unknown")
+            text = f"{emoji} *New Email*\n\n"
+            text += f"*From:* {sender}\n"
+            text += f"*Subject:* {email.get('subject', '(no subject)')}\n"
+            if priority_str:
+                text += f"*Priority:* {priority_str}\n"
+            if email.get("ai_summary"):
+                text += f"\n_{email['ai_summary']}_\n"
+
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("Reply", callback_data=f"email_reply_{email['id']}"),
+                    InlineKeyboardButton("Archive", callback_data=f"email_archive_{email['id']}"),
+                    InlineKeyboardButton("Star", callback_data=f"email_star_{email['id']}"),
+                ],
+                [
+                    InlineKeyboardButton("Mark Read", callback_data=f"email_read_{email['id']}"),
+                ]
+            ])
+
+            loop = gateway._loop
+            asyncio.run_coroutine_threadsafe(
+                gateway._application.bot.send_message(
+                    chat_id=telegram_id, text=text, parse_mode="Markdown",
+                    reply_markup=keyboard
+                ),
+                loop
+            )
+        except Exception as e:
+            logger.error(f"Send email notification failed: {e}")
+
+    def _send_email_telegram_digest(self, gateway, telegram_id, emails):
+        """Send a digest of non-urgent emails via Telegram."""
+        try:
+            import asyncio
+
+            text = f"\U0001F4EC *Email Digest* ({len(emails)} new)\n\n"
+            for i, email in enumerate(emails[:10], 1):
+                sender = email.get("from_name") or email.get("from_address", "Unknown")
+                subject = email.get("subject", "(no subject)")
+                cat = email.get("ai_category", "unknown")
+                text += f"{i}. *{sender}*: {subject} [{cat}]\n"
+
+            if len(emails) > 10:
+                text += f"\n... and {len(emails) - 10} more"
+
+            text += "\n\nUse /inbox to see all unread emails."
+
+            loop = gateway._loop
+            asyncio.run_coroutine_threadsafe(
+                gateway._application.bot.send_message(
+                    chat_id=telegram_id, text=text, parse_mode="Markdown"
+                ),
+                loop
+            )
+        except Exception as e:
+            logger.error(f"Send email digest failed: {e}")
 
     # ------------------------------------------------------------------
     # Approval Queue Processor

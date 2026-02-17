@@ -2815,6 +2815,15 @@
             </div>
         </div>
 
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+            <span style="color: var(--archie-text-muted); font-size: 0.85rem;">History Range:</span>
+            <div style="display: flex; gap: 4px;" id="history-range-selector">
+                <button class="btn btn-sm" data-hours="1" onclick="changeHistoryRange(1)">1h</button>
+                <button class="btn btn-sm active" data-hours="24" onclick="changeHistoryRange(24)">24h</button>
+                <button class="btn btn-sm" data-hours="168" onclick="changeHistoryRange(168)">7d</button>
+                <button class="btn btn-sm" data-hours="720" onclick="changeHistoryRange(720)">30d</button>
+            </div>
+        </div>
         <div class="charts-grid" style="grid-template-columns: repeat(3, 1fr);">
             <div class="chart-card">
                 <h3>CPU History</h3>
@@ -5150,6 +5159,26 @@ let cpuHistory = [];
 let memHistory = [];
 let gpuHistory = {};  // Multi-GPU: { gpu_0: [], gpu_1: [], ... }
 let gpuDeviceCount = 0;  // Number of GPUs detected
+let historyHours = 24;  // Default: 24 hours of history
+
+// Format ISO UTC timestamp to local time, smart format based on hours range
+function formatHistoryTime(isoStr, hours) {
+    const d = new Date(isoStr);
+    if (hours > 24) {
+        return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' +
+               d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    }
+    return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+}
+
+function changeHistoryRange(hours) {
+    historyHours = hours;
+    // Update active button
+    document.querySelectorAll('#history-range-selector .btn').forEach(btn => {
+        btn.classList.toggle('active', parseInt(btn.dataset.hours) === hours);
+    });
+    loadHistoricalData();
+}
 
 // Color palette for multi-device charts
 const deviceColors = [
@@ -5894,35 +5923,25 @@ async function refreshAll() {
 }
 
 async function loadHistoricalData() {
-    console.log('loadHistoricalData: Starting...');
+    const hours = historyHours;
+    console.log('loadHistoricalData: Starting with hours=' + hours);
 
     // Load CPU history
     try {
-        console.log('loadHistoricalData: Fetching CPU...');
-        const cpuRes = await fetch('/tools/system-operations/api/history?type=cpu&hours=1');
-        console.log('loadHistoricalData: CPU response status:', cpuRes.status);
-
-        if (!cpuRes.ok) {
-            console.error('CPU history fetch failed:', cpuRes.status, cpuRes.statusText);
-            return;
-        }
-
-        const cpuJson = await cpuRes.json();
-        console.log('loadHistoricalData: CPU data:', cpuJson);
-
-        if (cpuJson.success && cpuJson.data && cpuJson.data.values && cpuJson.data.values.length > 0) {
-            cpuHistory = cpuJson.data.labels.map((label, i) => ({
-                time: label,
-                value: cpuJson.data.values[i]
-            }));
-            if (cpuChart) {
-                cpuChart.data.labels = cpuHistory.map(h => h.time);
-                cpuChart.data.datasets[0].data = cpuHistory.map(h => h.value);
-                cpuChart.update('none');
-                console.log('loadHistoricalData: CPU chart updated with', cpuHistory.length, 'points');
+        const cpuRes = await fetch('/tools/system-operations/api/history?type=cpu&hours=' + hours);
+        if (cpuRes.ok) {
+            const cpuJson = await cpuRes.json();
+            if (cpuJson.success && cpuJson.data && cpuJson.data.values && cpuJson.data.values.length > 0) {
+                cpuHistory = cpuJson.data.labels.map((label, i) => ({
+                    time: formatHistoryTime(label, hours),
+                    value: cpuJson.data.values[i]
+                }));
+                if (cpuChart) {
+                    cpuChart.data.labels = cpuHistory.map(h => h.time);
+                    cpuChart.data.datasets[0].data = cpuHistory.map(h => h.value);
+                    cpuChart.update('none');
+                }
             }
-        } else {
-            console.log('loadHistoricalData: No CPU history data - response:', cpuJson);
         }
     } catch (e) {
         console.error('loadHistoricalData: CPU error:', e);
@@ -5930,31 +5949,20 @@ async function loadHistoricalData() {
 
     // Load Memory history
     try {
-        console.log('loadHistoricalData: Fetching Memory...');
-        const memRes = await fetch('/tools/system-operations/api/history?type=memory&hours=1');
-        console.log('loadHistoricalData: Memory response status:', memRes.status);
-
-        if (!memRes.ok) {
-            console.error('Memory history fetch failed:', memRes.status, memRes.statusText);
-            return;
-        }
-
-        const memJson = await memRes.json();
-        console.log('loadHistoricalData: Memory data:', memJson);
-
-        if (memJson.success && memJson.data && memJson.data.values && memJson.data.values.length > 0) {
-            memHistory = memJson.data.labels.map((label, i) => ({
-                time: label,
-                value: memJson.data.values[i]
-            }));
-            if (memChart) {
-                memChart.data.labels = memHistory.map(h => h.time);
-                memChart.data.datasets[0].data = memHistory.map(h => h.value);
-                memChart.update('none');
-                console.log('loadHistoricalData: Memory chart updated with', memHistory.length, 'points');
+        const memRes = await fetch('/tools/system-operations/api/history?type=memory&hours=' + hours);
+        if (memRes.ok) {
+            const memJson = await memRes.json();
+            if (memJson.success && memJson.data && memJson.data.values && memJson.data.values.length > 0) {
+                memHistory = memJson.data.labels.map((label, i) => ({
+                    time: formatHistoryTime(label, hours),
+                    value: memJson.data.values[i]
+                }));
+                if (memChart) {
+                    memChart.data.labels = memHistory.map(h => h.time);
+                    memChart.data.datasets[0].data = memHistory.map(h => h.value);
+                    memChart.update('none');
+                }
             }
-        } else {
-            console.log('loadHistoricalData: No memory history data - response:', memJson);
         }
     } catch (e) {
         console.error('loadHistoricalData: Memory error:', e);
@@ -5962,16 +5970,9 @@ async function loadHistoricalData() {
 
     // Load GPU VRAM history (multi-device support)
     try {
-        console.log('loadHistoricalData: Fetching GPU VRAM (multi-device)...');
-        const gpuRes = await fetch('/tools/system-operations/api/history/multi?type=gpu_vram&hours=1');
-        console.log('loadHistoricalData: GPU VRAM response status:', gpuRes.status);
-
-        if (!gpuRes.ok) {
-            console.error('GPU VRAM history fetch failed:', gpuRes.status, gpuRes.statusText);
-        } else {
+        const gpuRes = await fetch('/tools/system-operations/api/history/multi?type=gpu_vram&hours=' + hours);
+        if (gpuRes.ok) {
             const gpuJson = await gpuRes.json();
-            console.log('loadHistoricalData: GPU VRAM multi-device data:', gpuJson);
-
             if (gpuJson.success && gpuJson.data && gpuJson.data.devices) {
                 const devices = gpuJson.data.devices;
                 const deviceKeys = Object.keys(devices).sort();
@@ -5981,17 +5982,14 @@ async function loadHistoricalData() {
                 gpuHistory = {};
                 deviceKeys.forEach(key => {
                     gpuHistory[key] = devices[key].labels.map((label, i) => ({
-                        time: label,
+                        time: formatHistoryTime(label, hours),
                         value: devices[key].values[i]
                     }));
                 });
 
                 if (gpuChart && deviceKeys.length > 0) {
-                    // Use labels from first device (they should all align)
                     const labels = gpuHistory[deviceKeys[0]].map(h => h.time);
                     gpuChart.data.labels = labels;
-
-                    // Create datasets for each GPU
                     gpuChart.data.datasets = deviceKeys.map((key, idx) => ({
                         label: `GPU ${idx}`,
                         data: gpuHistory[key].map(h => h.value),
@@ -6000,14 +5998,9 @@ async function loadHistoricalData() {
                         fill: true,
                         borderWidth: 2
                     }));
-
-                    // Enable legend if multiple GPUs
                     gpuChart.options.plugins.legend.display = deviceKeys.length > 1;
                     gpuChart.update('none');
-                    console.log('loadHistoricalData: GPU chart updated with', deviceKeys.length, 'devices');
                 }
-            } else {
-                console.log('loadHistoricalData: No GPU VRAM history data - response:', gpuJson);
             }
         }
     } catch (e) {
@@ -6488,7 +6481,7 @@ function updateDashboard(data) {
     document.getElementById('sys-users').textContent = data.system?.users_logged_in ?? '0';
 
     // Charts - only update if charts are initialized
-    const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    const now = new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
     cpuHistory.push({ time: now, value: cpuPct });
     memHistory.push({ time: now, value: memPct });
 

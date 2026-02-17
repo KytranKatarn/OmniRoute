@@ -1178,31 +1178,51 @@ def api_history():
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Use interval multiplication instead of string interpolation
-        cur.execute(
-            """
-            SELECT value, recorded_at
-            FROM system_metrics_history
-            WHERE metric_type = %s
-              AND recorded_at > NOW() - (%s * INTERVAL '1 hour')
-            ORDER BY recorded_at ASC
-            LIMIT 720
-        """,
-            (metric_type, hours),
-        )
+        # For windows > 24h, downsample to hourly averages
+        if hours > 24:
+            cur.execute(
+                """
+                SELECT AVG(value) as value, date_trunc('hour', recorded_at) as recorded_at
+                FROM system_metrics_history
+                WHERE metric_type = %s
+                  AND recorded_at > NOW() - (%s * INTERVAL '1 hour')
+                GROUP BY date_trunc('hour', recorded_at)
+                ORDER BY recorded_at ASC
+                LIMIT 720
+            """,
+                (metric_type, hours),
+            )
+        else:
+            cur.execute(
+                """
+                SELECT value, recorded_at
+                FROM system_metrics_history
+                WHERE metric_type = %s
+                  AND recorded_at > NOW() - (%s * INTERVAL '1 hour')
+                ORDER BY recorded_at ASC
+                LIMIT 720
+            """,
+                (metric_type, hours),
+            )
 
         data = cur.fetchall()
         cur.close()
         conn.close()
 
-        # Convert to chart format
-        labels = [row["recorded_at"].strftime("%H:%M") for row in data]
-        values = [float(row["value"]) for row in data]
+        # Send ISO timestamps — frontend formats in user's local timezone
+        labels = [row["recorded_at"].strftime("%Y-%m-%dT%H:%M:%SZ") for row in data]
+        values = [round(float(row["value"]), 1) for row in data]
 
         return jsonify(
             {
                 "success": True,
-                "data": {"labels": labels, "values": values, "metric_type": metric_type, "count": len(values)},
+                "data": {
+                    "labels": labels,
+                    "values": values,
+                    "metric_type": metric_type,
+                    "count": len(values),
+                    "hours": hours,
+                },
             }
         )
     except Exception as e:
@@ -1243,25 +1263,39 @@ def api_history_multi():
             # Fall back to base type (backward compat - single device)
             device_types = [base_type]
 
-        # Fetch data for each device
+        # Fetch data for each device (downsample for windows > 24h)
         devices = {}
         for metric_type in device_types:
-            cur.execute(
-                """
-                SELECT value, recorded_at
-                FROM system_metrics_history
-                WHERE metric_type = %s
-                  AND recorded_at > NOW() - (%s * INTERVAL '1 hour')
-                ORDER BY recorded_at ASC
-                LIMIT 720
-            """,
-                (metric_type, hours),
-            )
+            if hours > 24:
+                cur.execute(
+                    """
+                    SELECT AVG(value) as value, date_trunc('hour', recorded_at) as recorded_at
+                    FROM system_metrics_history
+                    WHERE metric_type = %s
+                      AND recorded_at > NOW() - (%s * INTERVAL '1 hour')
+                    GROUP BY date_trunc('hour', recorded_at)
+                    ORDER BY recorded_at ASC
+                    LIMIT 720
+                """,
+                    (metric_type, hours),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT value, recorded_at
+                    FROM system_metrics_history
+                    WHERE metric_type = %s
+                      AND recorded_at > NOW() - (%s * INTERVAL '1 hour')
+                    ORDER BY recorded_at ASC
+                    LIMIT 720
+                """,
+                    (metric_type, hours),
+                )
             data = cur.fetchall()
             if data:
                 devices[metric_type] = {
-                    "labels": [row["recorded_at"].strftime("%H:%M") for row in data],
-                    "values": [float(row["value"]) for row in data],
+                    "labels": [row["recorded_at"].strftime("%Y-%m-%dT%H:%M:%SZ") for row in data],
+                    "values": [round(float(row["value"]), 1) for row in data],
                 }
 
         cur.close()

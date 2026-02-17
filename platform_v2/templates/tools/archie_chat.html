@@ -3363,6 +3363,7 @@ async function loadVoiceConfig() {
 // Toggle voice enabled
 async function toggleVoice() {
     voiceConfig.enabled = !voiceConfig.enabled;
+    voiceEnabled = voiceConfig.enabled;
 
     // Update button state
     const btn = document.querySelector('.voice-toggle-btn');
@@ -3600,10 +3601,32 @@ function updateVolume(value) {
     }
 }
 
+// ============================================
+// Collaboration Glue Code
+// ============================================
+
+// Bridge: collaboration.js calls showFlashMessage via showNotification()
+function showFlashMessage(message, type) {
+    showToast(message, type);
+}
+
+// Bridge: collaboration.js voice functions reference voiceEnabled
+var voiceEnabled = true;
+
+// Bridge: collaboration.js voice calls sendArchieMessage (STT auto-send)
+function sendArchieMessage() {
+    var input = document.getElementById('messageInput');
+    if (input && input.value.trim()) {
+        sendMessage(input.value.trim());
+        input.value = '';
+    }
+}
+
 // Initialize
 loadStatus();
 loadSuggestions();
 loadVoiceConfig();
 document.getElementById('messageInput').focus();
 </script>
+<script src="/static/js/collaboration.js"></script>
 {% endblock %}

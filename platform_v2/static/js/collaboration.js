@@ -342,7 +342,7 @@ function updateCollabStatusUI(status, turn, maxTurns) {
 
     var statusDot = document.querySelector('.collab-status-dot');
     var statusText = document.querySelector('.collab-status-text');
-    if (statusDot) statusDot.className = 'status-dot ' + status;
+    if (statusDot) statusDot.className = 'status-dot collab-status-dot ' + status;
     if (statusText) statusText.textContent = status.charAt(0).toUpperCase() + status.slice(1);
 
     var btnPause = document.getElementById('btn-pause');
@@ -490,7 +490,7 @@ function updateCollabUI(session) {
     var statusDot = document.querySelector('.collab-status-dot');
     var statusText = document.querySelector('.collab-status-text');
 
-    statusDot.className = 'status-dot ' + session.status;
+    statusDot.className = 'status-dot collab-status-dot ' + session.status;
     statusText.textContent = session.status.charAt(0).toUpperCase() + session.status.slice(1);
 
     // Update buttons

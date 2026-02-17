@@ -1082,6 +1082,19 @@
     border-color: var(--archie-purple);
 }
 
+.panel-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--archie-text-secondary);
+}
+
+.panel-title i {
+    width: 16px;
+    height: 16px;
+    color: var(--archie-cyan);
+}
+
 .resize-handle {
     width: 6px;
     cursor: col-resize;
@@ -1451,6 +1464,36 @@
     box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
 }
 
+.collab-row {
+    display: flex;
+    gap: 16px;
+    align-items: flex-end;
+}
+
+.collab-row > div {
+    flex: 1;
+}
+
+.collab-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.collab-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.collab-status-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.75rem;
+    color: var(--archie-text-tertiary);
+}
+
 /* Collab Messages */
 #collab-messages {
     flex: 1;
@@ -1635,7 +1678,7 @@
     flex-shrink: 0;
 }
 
-.history-header h4 {
+.history-header h3 {
     font-size: 0.85rem;
     font-weight: 600;
     color: var(--archie-text-secondary);
@@ -1832,6 +1875,29 @@
     background: var(--archie-bg-secondary);
     border-left: 1px solid var(--archie-border-default);
     overflow: hidden;
+}
+
+.wp-header {
+    padding: 16px;
+    border-bottom: 1px solid var(--archie-border-default);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.wp-header h3 {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--archie-text-secondary);
+}
+
+.wp-badge {
+    padding: 2px 8px;
+    background: var(--archie-purple);
+    border-radius: 10px;
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 600;
 }
 
 #work-products-panel .panel-header {
@@ -2720,9 +2786,9 @@
             <div class="interjection-content">
                 <h3>Add to Conversation</h3>
                 <textarea id="interjection-text" placeholder="Type your message to inject into the collaboration..."></textarea>
-                <div class="interjection-actions">
-                    <button class="cancel-btn" onclick="hideInterjectionModal()">Cancel</button>
-                    <button class="send-btn" onclick="submitInterjection()">Send</button>
+                <div class="modal-actions">
+                    <button class="cancel" onclick="hideInterjectionModal()">Cancel</button>
+                    <button class="submit" onclick="submitInterjection()">Send</button>
                 </div>
             </div>
         </div>
@@ -3352,10 +3418,12 @@ async function loadVoiceConfig() {
                 autoPlay: data.config.auto_play || false,
                 volume: data.config.volume || 0.8
             };
+            voiceEnabled = voiceConfig.enabled;
         }
         voiceSystemReady = true;
     } catch (e) {
         console.log('Voice config load failed, using defaults');
+        voiceEnabled = voiceConfig.enabled;
         voiceSystemReady = true;
     }
 }

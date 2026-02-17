@@ -436,7 +436,8 @@ def check_inbox_now():
         from email_intelligence import EmailIntelligence
 
         ei = EmailIntelligence()
-        setting_id = request.json.get("setting_id") if request.json else None
+        setting_id = request.get_json(silent=True, force=True) or {}
+        setting_id = setting_id.get("setting_id")
         result = ei.check_inbox(setting_id)
         return jsonify({"success": True, **result})
     except Exception as e:

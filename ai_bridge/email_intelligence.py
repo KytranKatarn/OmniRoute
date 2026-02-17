@@ -199,9 +199,9 @@ class EmailIntelligence:
 
         uid_list = data[0].split()
 
-        # On first run, only take last 50
-        if last_uid == 0 and len(uid_list) > 50:
-            uid_list = uid_list[-50:]
+        # On first run, take all emails (up to 500)
+        if last_uid == 0 and len(uid_list) > 500:
+            uid_list = uid_list[-500:]
 
         fetched = 0
         analyzed = 0
@@ -293,12 +293,12 @@ class EmailIntelligence:
                 if uid > max_uid:
                     max_uid = uid
 
-                # Auto-analyze if enabled
-                if setting.get("auto_analyze", True):
+                # Auto-analyze: only analyze first 10 during fetch, rest queued for background
+                if setting.get("auto_analyze", True) and analyzed < 10:
                     try:
                         self.analyze_email(email_id)
                         analyzed += 1
-                        time.sleep(2)  # GPU safety: 2s between AI calls
+                        time.sleep(1)  # GPU safety between AI calls
                     except Exception as e:
                         logger.warning(f"Auto-analysis failed for email #{email_id}: {e}")
 

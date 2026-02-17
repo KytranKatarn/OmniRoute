@@ -65,6 +65,25 @@ def render_template_vars(template_str, variables):
     return template_str
 
 
+def get_smtp_for_sending(cur, account_id=None):
+    """Resolve SMTP config: per-account first, then legacy fallback."""
+    if account_id:
+        cur.execute(
+            """SELECT smtp_host, smtp_port, smtp_user, smtp_password_encrypted,
+                      smtp_encryption AS encryption, from_email, from_name, reply_to
+               FROM email_imap_settings
+               WHERE id = %s AND smtp_host IS NOT NULL""",
+            (account_id,),
+        )
+        smtp = cur.fetchone()
+        if smtp:
+            return dict(smtp)
+    # Fallback to legacy email_settings
+    cur.execute("SELECT * FROM email_settings WHERE is_default = true AND is_active = true")
+    smtp = cur.fetchone()
+    return dict(smtp) if smtp else None
+
+
 # ============================================================================
 # MAIN PAGE
 # ============================================================================
@@ -634,6 +653,7 @@ def send_email():
         body_text = data.get("body_text", "")
         template_id = data.get("template_id")
         variables = data.get("variables", {})
+        account_id = data.get("account_id")
 
         if not recipient:
             return jsonify({"success": False, "error": "Recipient is required"}), 400
@@ -653,9 +673,8 @@ def send_email():
         if not subject:
             return jsonify({"success": False, "error": "Subject is required"}), 400
 
-        # Get default SMTP settings
-        cur.execute("SELECT * FROM email_settings WHERE is_default = true AND is_active = true")
-        smtp = cur.fetchone()
+        # Get SMTP settings (per-account or fallback)
+        smtp = get_smtp_for_sending(cur, account_id)
 
         if not smtp:
             cur.close()

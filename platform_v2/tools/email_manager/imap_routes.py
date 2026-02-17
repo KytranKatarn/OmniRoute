@@ -1018,12 +1018,36 @@ def send_draft(draft_id):
                 404,
             )
 
-        # Get SMTP settings
-        cur.execute("SELECT * FROM email_settings WHERE is_default = TRUE AND is_active = TRUE LIMIT 1")
-        smtp = cur.fetchone()
+        # Get SMTP settings — prefer the account that received the original email
+        account_id = None
+        if draft.get("inbox_email_id"):
+            cur.execute(
+                "SELECT imap_setting_id FROM email_inbox WHERE id = %s",
+                (draft["inbox_email_id"],),
+            )
+            inbox_row = cur.fetchone()
+            if inbox_row:
+                account_id = inbox_row.get("imap_setting_id")
+
+        # Try per-account SMTP, fallback to legacy
+        smtp = None
+        if account_id:
+            cur.execute(
+                """SELECT smtp_host, smtp_port, smtp_user, smtp_password_encrypted,
+                          smtp_encryption AS encryption, from_email, from_name, reply_to
+                   FROM email_imap_settings
+                   WHERE id = %s AND smtp_host IS NOT NULL""",
+                (account_id,),
+            )
+            smtp = cur.fetchone()
+
+        if not smtp:
+            cur.execute("SELECT * FROM email_settings WHERE is_default = TRUE AND is_active = TRUE LIMIT 1")
+            smtp = cur.fetchone()
+
         if not smtp:
             return (
-                jsonify({"success": False, "error": "No default SMTP configured"}),
+                jsonify({"success": False, "error": "No SMTP configured"}),
                 400,
             )
 

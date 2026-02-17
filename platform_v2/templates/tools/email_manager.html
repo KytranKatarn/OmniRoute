@@ -547,133 +547,19 @@
             <div class="em-panel">
                 <div class="em-panel-header">
                     <h2 class="em-panel-title">
-                        <i data-lucide="settings"></i>
-                        SMTP Settings
+                        <i data-lucide="mail"></i>
+                        Email Accounts
                     </h2>
-                    <button class="em-btn em-btn--primary" onclick="showSettingsModal()">
+                    <button class="em-btn em-btn--primary" onclick="openWizard()">
                         <i data-lucide="plus"></i>
-                        Add SMTP
+                        Add Account
                     </button>
                 </div>
-                <div class="em-settings-list" id="smtp-settings-list">
+                <div id="unified-accounts-list">
                     <div class="em-loading">
                         <i data-lucide="loader-2" class="em-spinner"></i>
-                        <span>Loading SMTP settings...</span>
+                        <span>Loading accounts...</span>
                     </div>
-                </div>
-            </div>
-
-            <!-- IMAP / Incoming Email Settings -->
-            <div class="em-panel" style="margin-top: 24px;">
-                <div class="em-panel-header">
-                    <div>
-                        <h2 class="em-panel-title">
-                            <i data-lucide="inbox"></i>
-                            IMAP / Incoming Email
-                        </h2>
-                        <p class="imap-panel-subtitle">Configure incoming email server for inbox monitoring</p>
-                    </div>
-                </div>
-                <div class="imap-settings-body">
-                    <form id="imap-settings-form" onsubmit="saveImapSettings(event)">
-                        <input type="hidden" id="imap-setting-id" value="">
-                        <div class="em-form-row">
-                            <div class="em-form-group">
-                                <label>Account Name</label>
-                                <input type="text" id="imap-name" value="Gmail" class="em-input" placeholder="Gmail">
-                            </div>
-                            <div class="em-form-group">
-                                <label>IMAP Host <span class="em-required">*</span></label>
-                                <input type="text" id="imap-host" required value="imap.gmail.com" class="em-input" placeholder="imap.gmail.com">
-                            </div>
-                        </div>
-                        <div class="em-form-row">
-                            <div class="em-form-group">
-                                <label>IMAP Port</label>
-                                <input type="number" id="imap-port" value="993" class="em-input">
-                            </div>
-                            <div class="em-form-group">
-                                <label>Encryption</label>
-                                <select id="imap-encryption" class="em-select">
-                                    <option value="ssl" selected>SSL (Recommended)</option>
-                                    <option value="tls">TLS</option>
-                                    <option value="none">None</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="em-form-row">
-                            <div class="em-form-group">
-                                <label>Email / Username <span class="em-required">*</span></label>
-                                <input type="text" id="imap-user" required class="em-input" placeholder="you@gmail.com" value="{{ current_user.email if current_user and current_user.email else '' }}">
-                            </div>
-                            <div class="em-form-group">
-                                <label>App Password <span class="em-required">*</span></label>
-                                <input type="password" id="imap-password" class="em-input" placeholder="16-character App Password">
-                            </div>
-                        </div>
-                        <div class="em-form-row">
-                            <div class="em-form-group">
-                                <label>Folder</label>
-                                <input type="text" id="imap-folder" value="INBOX" class="em-input" placeholder="INBOX">
-                            </div>
-                            <div class="em-form-group">
-                                <label>Check Interval</label>
-                                <select id="imap-interval" class="em-select">
-                                    <option value="1">Every 1 minute</option>
-                                    <option value="2">Every 2 minutes</option>
-                                    <option value="5" selected>Every 5 minutes</option>
-                                    <option value="10">Every 10 minutes</option>
-                                    <option value="15">Every 15 minutes</option>
-                                    <option value="30">Every 30 minutes</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="em-form-row">
-                            <div class="em-form-group imap-toggle-group">
-                                <label class="imap-toggle-label">
-                                    <input type="checkbox" id="imap-auto-analyze" checked>
-                                    <span class="imap-toggle-switch"></span>
-                                    <span class="imap-toggle-text">
-                                        <strong>Auto-Analyze</strong>
-                                        <small>AI categorization, sentiment, priority</small>
-                                    </span>
-                                </label>
-                            </div>
-                            <div class="em-form-group imap-toggle-group">
-                                <label class="imap-toggle-label">
-                                    <input type="checkbox" id="imap-auto-file-kb">
-                                    <span class="imap-toggle-switch"></span>
-                                    <span class="imap-toggle-text">
-                                        <strong>Auto-File to KB</strong>
-                                        <small>Auto-save important emails to Knowledge Base</small>
-                                    </span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <div class="imap-form-actions">
-                            <div class="imap-actions-left">
-                                <button type="submit" class="em-btn em-btn--primary">
-                                    <i data-lucide="save"></i>
-                                    Save IMAP Settings
-                                </button>
-                                <button type="button" class="em-btn em-btn--outline" onclick="testImapConnection()" id="imap-test-btn">
-                                    <i data-lucide="plug"></i>
-                                    Test Connection
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Status area for test results -->
-                        <div id="imap-status-area" class="imap-status-area" style="display: none;"></div>
-
-                        <div class="imap-help-note">
-                            <i data-lucide="info"></i>
-                            <span>Gmail users: Generate an App Password at
-                                <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">myaccount.google.com/apppasswords</a>
-                            </span>
-                        </div>
-                    </form>
                 </div>
             </div>
         </div>
@@ -856,6 +742,87 @@
                         <i data-lucide="save"></i>
                         Save Settings
                     </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Unified Account Edit Modal -->
+<div class="em-modal" id="account-edit-modal">
+    <div class="em-modal-backdrop" onclick="closeModal('account-edit-modal')"></div>
+    <div class="em-modal-content em-modal-content--lg">
+        <div class="em-modal-header">
+            <h2><i data-lucide="mail"></i> Edit Email Account</h2>
+            <button class="em-modal-close" onclick="closeModal('account-edit-modal')"><i data-lucide="x"></i></button>
+        </div>
+        <div class="em-modal-body">
+            <form id="account-edit-form" onsubmit="saveUnifiedAccount(event)">
+                <input type="hidden" id="acct-setting-id" value="">
+
+                <h3 style="color:var(--archie-accent,#00FFFF);margin:0 0 12px 0;font-size:0.95rem;">INCOMING (IMAP)</h3>
+                <div class="em-form-row">
+                    <div class="em-form-group"><label>Account Name</label><input type="text" id="acct-name" class="em-input"></div>
+                    <div class="em-form-group"><label>IMAP Host</label><input type="text" id="acct-imap-host" class="em-input"></div>
+                </div>
+                <div class="em-form-row">
+                    <div class="em-form-group"><label>Port</label><input type="number" id="acct-imap-port" class="em-input" value="993"></div>
+                    <div class="em-form-group"><label>Encryption</label>
+                        <select id="acct-imap-encryption" class="em-select">
+                            <option value="ssl">SSL</option><option value="tls">TLS</option><option value="none">None</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="em-form-row">
+                    <div class="em-form-group"><label>Email / Username</label><input type="text" id="acct-imap-user" class="em-input"></div>
+                    <div class="em-form-group"><label>Password</label><input type="password" id="acct-imap-password" class="em-input" placeholder="Leave blank to keep current"></div>
+                </div>
+                <div class="em-form-row">
+                    <div class="em-form-group"><label>Folder</label><input type="text" id="acct-imap-folder" class="em-input" value="INBOX"></div>
+                    <div class="em-form-group"><label>Check Interval</label>
+                        <select id="acct-check-interval" class="em-select">
+                            <option value="1">1 min</option><option value="2">2 min</option>
+                            <option value="5" selected>5 min</option><option value="10">10 min</option>
+                            <option value="15">15 min</option><option value="30">30 min</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="em-form-row">
+                    <div class="em-form-group imap-toggle-group">
+                        <label class="imap-toggle-label"><input type="checkbox" id="acct-auto-analyze" checked><span class="imap-toggle-switch"></span><span class="imap-toggle-text"><strong>Auto-Analyze</strong></span></label>
+                    </div>
+                    <div class="em-form-group imap-toggle-group">
+                        <label class="imap-toggle-label"><input type="checkbox" id="acct-auto-file-kb"><span class="imap-toggle-switch"></span><span class="imap-toggle-text"><strong>Auto-File KB</strong></span></label>
+                    </div>
+                </div>
+
+                <hr style="border-color:var(--archie-border,#333);margin:20px 0;">
+
+                <h3 style="color:var(--archie-accent,#00FFFF);margin:0 0 12px 0;font-size:0.95rem;">OUTGOING (SMTP)</h3>
+                <div class="em-form-row">
+                    <div class="em-form-group"><label>SMTP Host</label><input type="text" id="acct-smtp-host" class="em-input" placeholder="smtp.gmail.com"></div>
+                    <div class="em-form-group"><label>Port</label><input type="number" id="acct-smtp-port" class="em-input" value="587"></div>
+                </div>
+                <div class="em-form-row">
+                    <div class="em-form-group"><label>Username</label><input type="text" id="acct-smtp-user" class="em-input"></div>
+                    <div class="em-form-group"><label>Password</label><input type="password" id="acct-smtp-password" class="em-input" placeholder="Leave blank to keep current"></div>
+                </div>
+                <div class="em-form-row">
+                    <div class="em-form-group"><label>Encryption</label>
+                        <select id="acct-smtp-encryption" class="em-select">
+                            <option value="tls">TLS</option><option value="ssl">SSL</option><option value="none">None</option>
+                        </select>
+                    </div>
+                    <div class="em-form-group"><label>From Email</label><input type="email" id="acct-from-email" class="em-input"></div>
+                </div>
+                <div class="em-form-row">
+                    <div class="em-form-group"><label>From Name</label><input type="text" id="acct-from-name" class="em-input"></div>
+                    <div class="em-form-group"><label>Reply-To</label><input type="text" id="acct-reply-to" class="em-input"></div>
+                </div>
+
+                <div class="em-modal-actions">
+                    <button type="button" class="em-btn em-btn--outline" onclick="closeModal('account-edit-modal')">Cancel</button>
+                    <button type="submit" class="em-btn em-btn--primary"><i data-lucide="save"></i> Save Account</button>
                 </div>
             </form>
         </div>
@@ -3216,8 +3183,7 @@ document.querySelectorAll('.em-tab').forEach(tab => {
 
         // Load settings when switching to settings tab
         if (tab.dataset.tab === 'settings') {
-            loadSettings();
-            loadImapSettings();
+            loadUnifiedAccounts();
         }
 
         // Load inbox when switching to inbox tab
@@ -4656,7 +4622,223 @@ async function filterLogs() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// SMTP SETTINGS
+// UNIFIED ACCOUNT SETTINGS
+// ═══════════════════════════════════════════════════════════════════════════════
+async function loadUnifiedAccounts() {
+    try {
+        var resp = await fetch('/tools/email-manager/api/imap/settings');
+        var data = await resp.json();
+        var container = document.getElementById('unified-accounts-list');
+
+        if (!data.success || !data.settings.length) {
+            container.textContent = '';
+            var empty = document.createElement('div');
+            empty.className = 'em-empty-state';
+            var iconDiv = document.createElement('div');
+            iconDiv.className = 'em-empty-icon';
+            var icon = document.createElement('i');
+            icon.setAttribute('data-lucide', 'inbox');
+            iconDiv.appendChild(icon);
+            empty.appendChild(iconDiv);
+            var msg = document.createElement('p');
+            msg.textContent = 'No email accounts configured';
+            empty.appendChild(msg);
+            var btn = document.createElement('button');
+            btn.className = 'em-btn em-btn--outline';
+            btn.textContent = 'Add Account';
+            btn.onclick = openWizard;
+            empty.appendChild(btn);
+            container.appendChild(empty);
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+            return;
+        }
+
+        container.textContent = '';
+        data.settings.forEach(function(s) {
+            var card = document.createElement('div');
+            card.className = 'em-settings-card unified-account-card';
+
+            var smtpConfigured = s.smtp_host && s.from_email;
+            var badgeText = smtpConfigured
+                ? (s.smtp_test_result === 'success' ? 'SMTP Verified' : 'SMTP Not Tested')
+                : 'No SMTP';
+            var badgeClass = smtpConfigured
+                ? (s.smtp_test_result === 'success' ? 'em-badge--success' : 'em-badge--warning')
+                : 'em-badge--muted';
+
+            var infoDiv = document.createElement('div');
+            infoDiv.className = 'em-settings-info';
+
+            var h4 = document.createElement('h4');
+            h4.textContent = s.name || 'Account';
+            var badge = document.createElement('span');
+            badge.className = 'em-badge ' + badgeClass;
+            badge.textContent = badgeText;
+            h4.appendChild(document.createTextNode(' '));
+            h4.appendChild(badge);
+            infoDiv.appendChild(h4);
+
+            var pIn = document.createElement('p');
+            var strongIn = document.createElement('strong');
+            strongIn.textContent = 'Incoming: ';
+            pIn.appendChild(strongIn);
+            pIn.appendChild(document.createTextNode(
+                (s.imap_host || '') + ':' + (s.imap_port || 993) + ' (' + (s.imap_user || '') + ')'
+            ));
+            infoDiv.appendChild(pIn);
+
+            var pOut = document.createElement('p');
+            if (smtpConfigured) {
+                var strongOut = document.createElement('strong');
+                strongOut.textContent = 'Outgoing: ';
+                pOut.appendChild(strongOut);
+                pOut.appendChild(document.createTextNode(
+                    s.smtp_host + ':' + (s.smtp_port || 587) + ' (' + s.from_email + ')'
+                ));
+            } else {
+                pOut.className = 'em-text-muted';
+                var strongOutNone = document.createElement('strong');
+                strongOutNone.textContent = 'Outgoing: ';
+                pOut.appendChild(strongOutNone);
+                pOut.appendChild(document.createTextNode('Not configured'));
+            }
+            infoDiv.appendChild(pOut);
+            card.appendChild(infoDiv);
+
+            var actionsDiv = document.createElement('div');
+            actionsDiv.className = 'em-settings-actions';
+
+            var editBtn = document.createElement('button');
+            editBtn.className = 'em-btn em-btn--sm em-btn--outline';
+            var editIcon = document.createElement('i');
+            editIcon.setAttribute('data-lucide', 'edit');
+            editBtn.appendChild(editIcon);
+            editBtn.appendChild(document.createTextNode(' Edit'));
+            editBtn.onclick = (function(id) { return function() { editUnifiedAccount(id); }; })(s.id);
+            actionsDiv.appendChild(editBtn);
+
+            if (smtpConfigured) {
+                var testBtn = document.createElement('button');
+                testBtn.className = 'em-btn em-btn--sm em-btn--outline';
+                var plugIcon = document.createElement('i');
+                plugIcon.setAttribute('data-lucide', 'plug');
+                testBtn.appendChild(plugIcon);
+                testBtn.appendChild(document.createTextNode(' Test SMTP'));
+                testBtn.onclick = (function(id) { return function() { testAccountSmtp(id); }; })(s.id);
+                actionsDiv.appendChild(testBtn);
+            }
+
+            card.appendChild(actionsDiv);
+            container.appendChild(card);
+        });
+
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    } catch (e) {
+        console.error('Failed to load accounts:', e);
+    }
+}
+
+async function editUnifiedAccount(id) {
+    try {
+        var resp = await fetch('/tools/email-manager/api/imap/settings');
+        var data = await resp.json();
+        if (!data.success) return;
+        var acct = data.settings.find(function(s) { return s.id === id; });
+        if (!acct) return;
+
+        document.getElementById('acct-setting-id').value = acct.id;
+        document.getElementById('acct-name').value = acct.name || '';
+        document.getElementById('acct-imap-host').value = acct.imap_host || '';
+        document.getElementById('acct-imap-port').value = acct.imap_port || 993;
+        document.getElementById('acct-imap-user').value = acct.imap_user || '';
+        document.getElementById('acct-imap-password').value = '';
+        document.getElementById('acct-imap-encryption').value = acct.encryption || 'ssl';
+        document.getElementById('acct-imap-folder').value = acct.folder || 'INBOX';
+        document.getElementById('acct-check-interval').value = acct.check_interval_minutes || 5;
+        document.getElementById('acct-auto-analyze').checked = acct.auto_analyze !== false;
+        document.getElementById('acct-auto-file-kb').checked = !!acct.auto_file_kb;
+
+        document.getElementById('acct-smtp-host').value = acct.smtp_host || '';
+        document.getElementById('acct-smtp-port').value = acct.smtp_port || 587;
+        document.getElementById('acct-smtp-user').value = acct.smtp_user || '';
+        document.getElementById('acct-smtp-password').value = '';
+        document.getElementById('acct-smtp-encryption').value = acct.smtp_encryption || 'tls';
+        document.getElementById('acct-from-email').value = acct.from_email || '';
+        document.getElementById('acct-from-name').value = acct.from_name || '';
+        document.getElementById('acct-reply-to').value = acct.reply_to || '';
+
+        showModal('account-edit-modal');
+    } catch (e) {
+        showToast('Failed to load account', 'error');
+    }
+}
+
+async function saveUnifiedAccount(event) {
+    event.preventDefault();
+    var id = document.getElementById('acct-setting-id').value;
+    if (!id) return;
+
+    var payload = {
+        name: document.getElementById('acct-name').value,
+        imap_host: document.getElementById('acct-imap-host').value,
+        imap_port: parseInt(document.getElementById('acct-imap-port').value) || 993,
+        imap_user: document.getElementById('acct-imap-user').value,
+        encryption: document.getElementById('acct-imap-encryption').value,
+        folder: document.getElementById('acct-imap-folder').value,
+        check_interval_minutes: parseInt(document.getElementById('acct-check-interval').value) || 5,
+        auto_analyze: document.getElementById('acct-auto-analyze').checked,
+        auto_file_kb: document.getElementById('acct-auto-file-kb').checked,
+        smtp_host: document.getElementById('acct-smtp-host').value,
+        smtp_port: parseInt(document.getElementById('acct-smtp-port').value) || 587,
+        smtp_user: document.getElementById('acct-smtp-user').value,
+        smtp_encryption: document.getElementById('acct-smtp-encryption').value,
+        from_email: document.getElementById('acct-from-email').value,
+        from_name: document.getElementById('acct-from-name').value,
+        reply_to: document.getElementById('acct-reply-to').value
+    };
+
+    var pw = document.getElementById('acct-imap-password').value;
+    if (pw) payload.imap_password = pw;
+    var smtpPw = document.getElementById('acct-smtp-password').value;
+    if (smtpPw) payload.smtp_password = smtpPw;
+
+    try {
+        var resp = await fetch('/tools/email-manager/api/imap/settings/' + id, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        var data = await resp.json();
+        if (data.success) {
+            closeModal('account-edit-modal');
+            showToast('Account saved', 'success');
+            loadUnifiedAccounts();
+        } else {
+            showToast(data.error || 'Save failed', 'error');
+        }
+    } catch (e) {
+        showToast('Error saving account', 'error');
+    }
+}
+
+async function testAccountSmtp(id) {
+    showToast('Testing SMTP connection...', 'info');
+    try {
+        var resp = await fetch('/tools/email-manager/api/imap/settings/' + id + '/test-smtp', { method: 'POST' });
+        var data = await resp.json();
+        if (data.success) {
+            showToast('SMTP connection successful!', 'success');
+        } else {
+            showToast('SMTP failed: ' + (data.message || 'Unknown error'), 'error');
+        }
+        loadUnifiedAccounts();
+    } catch (e) {
+        showToast('SMTP test failed', 'error');
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SMTP SETTINGS (legacy)
 // ═══════════════════════════════════════════════════════════════════════════════
 async function loadSettings() {
     try {

@@ -2777,7 +2777,7 @@
                 <div class="stat-card-header">
                     <div class="stat-card-title">
                         <i data-lucide="monitor" style="width: 20px; height: 20px;"></i>
-                        GPU Usage
+                        GPU VRAM
                     </div>
                     <span id="gpu-temp" class="stat-badge" style="display: none;" title="GPU Temperature">
                         <i data-lucide="thermometer" style="width: 12px; height: 12px;"></i>
@@ -2792,6 +2792,7 @@
                     <div class="progress-fill green" id="gpu-bar" style="width: 0%"></div>
                 </div>
                 <div class="stat-subtitle" style="margin-top: 4px; font-size: 0.75rem;">VRAM: <span id="gpu-vram">--</span></div>
+                <div class="stat-subtitle" style="margin-top: 2px; font-size: 0.75rem;">Compute: <span id="gpu-compute">--</span></div>
                 <!-- GPU 1 Divider -->
                 <div style="border-top: 1px dashed var(--archie-border); margin: 10px 0 8px 0;"></div>
                 <div class="stat-subtitle" style="font-size: 0.7rem; color: var(--archie-text-muted); margin-bottom: 2px;">GPU 1</div>
@@ -2824,7 +2825,7 @@
                 <canvas id="memChart"></canvas>
             </div>
             <div class="chart-card">
-                <h3>GPU History</h3>
+                <h3>GPU VRAM History</h3>
                 <canvas id="gpuChart"></canvas>
             </div>
         </div>
@@ -5737,7 +5738,7 @@ function initCharts() {
         }
     });
 
-    // GPU chart config - supports multiple GPUs with legend
+    // GPU VRAM chart config - supports multiple GPUs with legend
     const gpuChartConfig = {
         type: 'line',
         options: {
@@ -5760,7 +5761,7 @@ function initCharts() {
         data: {
             labels: ['Loading...'],
             datasets: [{
-                label: 'GPU 0',
+                label: 'GPU 0 VRAM',
                 data: [null],
                 borderColor: '#8b5cf6',
                 backgroundColor: 'rgba(139, 92, 246, 0.1)',
@@ -5959,17 +5960,17 @@ async function loadHistoricalData() {
         console.error('loadHistoricalData: Memory error:', e);
     }
 
-    // Load GPU history (multi-device support)
+    // Load GPU VRAM history (multi-device support)
     try {
-        console.log('loadHistoricalData: Fetching GPU (multi-device)...');
-        const gpuRes = await fetch('/tools/system-operations/api/history/multi?type=gpu&hours=1');
-        console.log('loadHistoricalData: GPU response status:', gpuRes.status);
+        console.log('loadHistoricalData: Fetching GPU VRAM (multi-device)...');
+        const gpuRes = await fetch('/tools/system-operations/api/history/multi?type=gpu_vram&hours=1');
+        console.log('loadHistoricalData: GPU VRAM response status:', gpuRes.status);
 
         if (!gpuRes.ok) {
-            console.error('GPU history fetch failed:', gpuRes.status, gpuRes.statusText);
+            console.error('GPU VRAM history fetch failed:', gpuRes.status, gpuRes.statusText);
         } else {
             const gpuJson = await gpuRes.json();
-            console.log('loadHistoricalData: GPU multi-device data:', gpuJson);
+            console.log('loadHistoricalData: GPU VRAM multi-device data:', gpuJson);
 
             if (gpuJson.success && gpuJson.data && gpuJson.data.devices) {
                 const devices = gpuJson.data.devices;
@@ -6006,7 +6007,7 @@ async function loadHistoricalData() {
                     console.log('loadHistoricalData: GPU chart updated with', deviceKeys.length, 'devices');
                 }
             } else {
-                console.log('loadHistoricalData: No GPU history data - response:', gpuJson);
+                console.log('loadHistoricalData: No GPU VRAM history data - response:', gpuJson);
             }
         }
     } catch (e) {
@@ -6181,6 +6182,7 @@ function updateDashboard(data) {
     const gpuModelEl = document.getElementById('gpu-model');
     const gpuBarEl = document.getElementById('gpu-bar');
     const vramEl = document.getElementById('gpu-vram');
+    const gpuComputeEl = document.getElementById('gpu-compute');
     const gpu1ValueEl = document.getElementById('gpu1-value');
     const gpu1ModelEl = document.getElementById('gpu1-model');
     const gpusArray = data.gpus || (data.gpu?.available ? [data.gpu] : []);
@@ -6191,7 +6193,14 @@ function updateDashboard(data) {
         const gpu0Name = (gpu0.model || 'GPU').substring(0, 25);
         const gpu0Driver = gpu0.driver || '';
 
-        if (gpu0.has_detailed_stats && gpu0.usage_percent != null) {
+        if (gpu0.has_detailed_stats && gpu0.vram_percent != null) {
+            // Primary display: VRAM percentage
+            gpuValueEl.textContent = gpu0.vram_percent.toFixed(1) + '%';
+            gpuModelEl.textContent = gpu0Name + (gpu0Driver ? ' (' + gpu0Driver + ')' : '');
+            gpuBarEl.style.width = gpu0.vram_percent + '%';
+            gpuBarEl.className = 'progress-fill ' + getColorClass(gpu0.vram_percent);
+        } else if (gpu0.has_detailed_stats && gpu0.usage_percent != null) {
+            // Fallback: compute utilization if no VRAM data
             gpuValueEl.textContent = gpu0.usage_percent.toFixed(1) + '%';
             gpuModelEl.textContent = gpu0Name + (gpu0Driver ? ' (' + gpu0Driver + ')' : '');
             gpuBarEl.style.width = gpu0.usage_percent + '%';
@@ -6201,6 +6210,13 @@ function updateDashboard(data) {
             gpuValueEl.style.fontSize = '1.2rem';
             gpuBarEl.style.width = '0%';
             gpuModelEl.textContent = gpu0Driver ? gpu0Driver + ' (no stats)' : 'No usage stats';
+        }
+
+        // Secondary display: compute utilization
+        if (gpu0.usage_percent != null) {
+            gpuComputeEl.textContent = gpu0.usage_percent.toFixed(1) + '%';
+        } else {
+            gpuComputeEl.textContent = 'N/A';
         }
 
         // Temperature badge for GPU 0
@@ -6226,6 +6242,7 @@ function updateDashboard(data) {
         gpuModelEl.textContent = 'No GPU detected';
         gpuTempBadge.style.display = 'none';
         vramEl.textContent = '--';
+        gpuComputeEl.textContent = '--';
     }
 
     // GPU 1
@@ -6475,13 +6492,13 @@ function updateDashboard(data) {
     cpuHistory.push({ time: now, value: cpuPct });
     memHistory.push({ time: now, value: memPct });
 
-    // Multi-GPU history collection
+    // Multi-GPU history collection (VRAM as primary metric)
     const gpus = data.gpus || (data.gpu?.available ? [data.gpu] : []);
     gpus.forEach((gpu, idx) => {
-        if (gpu.has_detailed_stats && gpu.usage_percent != null) {
+        if (gpu.has_detailed_stats && gpu.vram_percent != null) {
             const key = `gpu_${idx}`;
             if (!gpuHistory[key]) gpuHistory[key] = [];
-            gpuHistory[key].push({ time: now, value: gpu.usage_percent });
+            gpuHistory[key].push({ time: now, value: gpu.vram_percent });
             if (gpuHistory[key].length > 30) gpuHistory[key].shift();
         }
     });

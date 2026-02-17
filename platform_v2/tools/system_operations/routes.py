@@ -123,7 +123,7 @@ def record_metric(metric_type: str, value: float, details: dict = None):
         )
         conn.commit()
 
-        # Run cleanup (delete records older than 7 days) - every 100th insert
+        # Run cleanup (delete records older than 30 days) - every 100th insert
         import random
 
         if random.randint(1, 100) == 1:
@@ -259,24 +259,36 @@ def api_overview():
                 # Build array of all GPUs
                 gpus_array = []
                 for idx, gpu in enumerate(host_gpus):
+                    vram_total = gpu.get("vram_total_mb")
+                    vram_used = gpu.get("vram_used_mb")
+                    vram_pct = None
+                    if vram_total and vram_used is not None and vram_total > 0:
+                        vram_pct = round((vram_used / vram_total) * 100, 1)
+
                     gpu_data = {
                         "index": idx,
                         "available": True,
                         "model": gpu.get("model", "Unknown"),
                         "vendor": gpu.get("vendor"),
                         "temperature": gpu.get("temperature"),
-                        "vram_total_mb": gpu.get("vram_total_mb"),
-                        "vram_used_mb": gpu.get("vram_used_mb"),
+                        "vram_total_mb": vram_total,
+                        "vram_used_mb": vram_used,
+                        "vram_percent": vram_pct,
                         "usage_percent": gpu.get("utilization_percent"),
                         "driver": gpu.get("driver"),
-                        "has_detailed_stats": gpu.get("vram_total_mb") is not None,
+                        "has_detailed_stats": vram_total is not None,
                     }
                     gpus_array.append(gpu_data)
-                    # Record per-GPU metric for history
+                    # Record per-GPU compute utilization metric for history
                     if gpu_data["usage_percent"] is not None:
                         record_metric(f"gpu_{idx}", gpu_data["usage_percent"])
                         if idx == 0:
                             record_metric("gpu", gpu_data["usage_percent"])  # Backward compat
+                    # Record per-GPU VRAM metric for history
+                    if vram_pct is not None:
+                        record_metric(f"gpu_vram_{idx}", vram_pct)
+                        if idx == 0:
+                            record_metric("gpu_vram", vram_pct)  # Backward compat
 
                 # Store array of all GPUs
                 data["gpus"] = gpus_array
@@ -1160,8 +1172,8 @@ def api_history():
         metric_type = request.args.get("type", "cpu")
         hours = int(request.args.get("hours", 1))
 
-        # Validate hours (max 168 = 7 days)
-        hours = min(max(hours, 1), 168)
+        # Validate hours (max 720 = 30 days)
+        hours = min(max(hours, 1), 720)
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -1207,9 +1219,9 @@ def api_history():
 def api_history_multi():
     """Get historical metrics for multiple devices (e.g., gpu_0, gpu_1)"""
     try:
-        base_type = request.args.get("type", "gpu")  # 'gpu' or 'cpu'
+        base_type = request.args.get("type", "gpu")  # 'gpu', 'gpu_vram', or 'cpu'
         hours = int(request.args.get("hours", 1))
-        hours = min(max(hours, 1), 168)
+        hours = min(max(hours, 1), 720)  # Max 30 days
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)

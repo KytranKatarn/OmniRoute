@@ -1330,6 +1330,121 @@ def voice_cache_cleanup():
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
 
+
+@archie_chat_bp.route("/api/voice/recent", methods=["GET"])
+@login_required
+def voice_recent():
+    """Recent voice generation activity for the current user."""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT text_length, generation_time_ms, cached, emotion, engine, language,
+                   created_at
+            FROM voice_generation_log
+            WHERE user_id = %s
+            ORDER BY created_at DESC
+            LIMIT 5
+        """,
+            (current_user.id,),
+        )
+        rows = cur.fetchall()
+        recent = []
+        for r in rows:
+            recent.append(
+                {
+                    "text_length": r[0],
+                    "latency_ms": r[1],
+                    "cache_hit": r[2],
+                    "emotion": r[3],
+                    "engine": r[4],
+                    "language": r[5] or "en",
+                    "created_at": r[6].isoformat() if r[6] else None,
+                }
+            )
+        cur.close()
+        conn.close()
+        return jsonify({"success": True, "recent": recent})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
+@archie_chat_bp.route("/api/voice/profiles/<int:profile_id>/invalidate-cache", methods=["POST"])
+@login_required
+def invalidate_voice_cache(profile_id):
+    """Unlock or clear cached voice entries for a profile."""
+    try:
+        data = request.get_json() or {}
+        clear = data.get("clear", False)
+        regenerate = data.get("regenerate", False)
+
+        conn = get_db()
+        cur = conn.cursor()
+
+        # Get profile info
+        cur.execute(
+            "SELECT agent_id, engine, language FROM agent_voice_profiles WHERE id = %s",
+            (profile_id,),
+        )
+        profile = cur.fetchone()
+        if not profile:
+            cur.close()
+            conn.close()
+            return jsonify({"success": False, "error": "Profile not found"})
+
+        agent_id, engine, language = profile
+
+        if clear:
+            cur.execute(
+                """DELETE FROM voice_word_cache
+                WHERE agent_id = %s AND engine = %s AND language = %s
+                AND is_locked = TRUE""",
+                (agent_id, engine, language),
+            )
+            deleted = cur.rowcount
+            unlocked = 0
+        else:
+            cur.execute(
+                """UPDATE voice_word_cache
+                SET is_locked = FALSE, locked_at = NULL, locked_with_params = NULL
+                WHERE agent_id = %s AND engine = %s AND language = %s
+                AND is_locked = TRUE""",
+                (agent_id, engine, language),
+            )
+            unlocked = cur.rowcount
+            deleted = 0
+
+        conn.commit()
+
+        pregen_job_id = None
+        if regenerate:
+            cur.execute(
+                """INSERT INTO voice_pregen_jobs
+                (agent_id, status, job_type, total_words, language, engine)
+                VALUES (%s, 'pending', 'manual', 200, %s, %s)
+                RETURNING id""",
+                (agent_id, language, engine),
+            )
+            row = cur.fetchone()
+            if row:
+                pregen_job_id = row[0]
+            conn.commit()
+
+        cur.close()
+        conn.close()
+
+        return jsonify(
+            {
+                "success": True,
+                "unlocked": unlocked,
+                "deleted": deleted,
+                "pregen_job_id": pregen_job_id,
+            }
+        )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
     @archie_chat_bp.route("/api/chat/react", methods=["POST"])
     @login_required
     def chat_react():

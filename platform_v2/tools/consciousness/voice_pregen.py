@@ -290,7 +290,7 @@ def auto_warmup_cache(synthesizer=None, db_conn_func=None):
                 cur2.execute(
                     """
                     UPDATE voice_word_cache
-                    SET is_locked = TRUE
+                    SET is_locked = TRUE, locked_at = NOW()
                     WHERE agent_id = 2 AND engine = 'kokoro' AND is_locked = FALSE
                 """
                 )
@@ -531,17 +531,31 @@ def run_pregen_job(
             cur.execute(
                 """
                 UPDATE voice_word_cache
-                SET is_locked = TRUE
+                SET is_locked = TRUE,
+                    locked_at = NOW(),
+                    locked_with_params = (
+                        SELECT jsonb_build_object(
+                            'speaker', avp.speaker,
+                            'speed', avp.speed,
+                            'pitch_shift', avp.pitch_shift,
+                            'warmth', avp.warmth,
+                            'engine', avp.engine,
+                            'voice_blend', avp.voice_blend
+                        )
+                        FROM agent_voice_profiles avp
+                        WHERE avp.agent_id = %s AND avp.engine = %s AND avp.language = %s
+                        LIMIT 1
+                    )
                 WHERE agent_id = %s AND engine = %s AND language = %s
                 AND is_locked = FALSE
             """,
-                (agent_id, effective_engine, language),
+                (agent_id, effective_engine, language, agent_id, effective_engine, language),
             )
         else:
             cur.execute(
                 """
                 UPDATE voice_word_cache
-                SET is_locked = TRUE
+                SET is_locked = TRUE, locked_at = NOW()
                 WHERE agent_id IS NULL AND engine = %s AND language = %s
                 AND is_locked = FALSE
             """,

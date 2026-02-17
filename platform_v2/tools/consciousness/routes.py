@@ -8886,3 +8886,28 @@ def voice_pregen_status(job_id):
     except Exception as e:
         logger.error(f"Voice pregen status error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@consciousness_bp.route("/api/voice/profile-lock-status/<int:profile_id>")
+@login_required
+@admin_required
+def voice_profile_lock_status(profile_id):
+    """Get locked cache entry count for a voice profile."""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            """SELECT COUNT(*) FROM voice_word_cache vwc
+            JOIN agent_voice_profiles avp ON avp.id = %s
+            WHERE vwc.agent_id = avp.agent_id
+            AND vwc.engine = avp.engine
+            AND vwc.language = avp.language
+            AND vwc.is_locked = TRUE""",
+            (profile_id,),
+        )
+        count = cur.fetchone()[0]
+        cur.close()
+        conn.close()
+        return jsonify({"success": True, "locked_count": count})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})

@@ -1246,16 +1246,16 @@ def api_history_multi():
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        # Find all metric types matching the pattern (e.g., gpu_0, gpu_1, gpu_2)
+        # Find all metric types matching pattern (e.g., gpu_0, gpu_1 but NOT gpu_vram_0)
         cur.execute(
             """
             SELECT DISTINCT metric_type
             FROM system_metrics_history
-            WHERE metric_type LIKE %s
+            WHERE metric_type ~ %s
               AND recorded_at > NOW() - (%s * INTERVAL '1 hour')
             ORDER BY metric_type
         """,
-            (f"{base_type}_%", hours),
+            (f"^{base_type}_\\d+$", hours),
         )
         device_types = [row["metric_type"] for row in cur.fetchall()]
 

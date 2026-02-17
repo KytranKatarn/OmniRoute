@@ -12,19 +12,21 @@ Features:
 Author: A.R.C.H.I.E. Self-Improvement System
 Date: 2026-01-15 (V2 refactor)
 """
+
 import os
 import sys
 import json
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 
-sys.path.insert(0, '/mnt/archie_brain/ai_bridge')
+sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
 from archie_bridge import archie_bridge
 
 # Import V2 validators
 try:
     from code_validator import CodeValidator, validate_code
     from content_matcher import ContentMatcher, verify_content
+
     VALIDATORS_AVAILABLE = True
 except ImportError:
     VALIDATORS_AVAILABLE = False
@@ -36,7 +38,7 @@ class CodeGenerationEngine:
 
     # V2 Configuration
     MAX_RETRIES = 3
-    DEFAULT_MODEL = 'llama3.1:8b'  # Fallback if Team Management unavailable
+    DEFAULT_MODEL = "qwen3-coder-cpu:latest"  # Fallback if Team Management unavailable
 
     # Prompts for architect/editor pattern
     ARCHITECT_PROMPT = """You are analyzing a code issue to plan a MINIMAL fix.
@@ -145,12 +147,12 @@ NEW_CONTENT:
     def __init__(self):
         # Support both Docker internal paths and host mount paths
         # Docker container uses /app for platform_v2, host uses /mnt/archie_brain/platform_v2
-        self.docker_platform_path = '/app'
-        self.host_platform_path = '/mnt/archie_brain/platform_v2'
-        self.ai_bridge_path = '/mnt/archie_brain/ai_bridge'
+        self.docker_platform_path = "/app"
+        self.host_platform_path = "/mnt/archie_brain/platform_v2"
+        self.ai_bridge_path = "/mnt/archie_brain/ai_bridge"
 
         # Detect if running inside Docker (platform at /app) or outside
-        if os.path.exists('/app/app.py'):
+        if os.path.exists("/app/app.py"):
             self.base_path = self.docker_platform_path
         else:
             self.base_path = self.host_platform_path
@@ -168,7 +170,7 @@ NEW_CONTENT:
         target_files: Optional[List[str]] = None,
         line_number: Optional[int] = None,
         issue_context: Optional[Dict] = None,
-        prefer_contractor: bool = False
+        prefer_contractor: bool = False,
     ) -> Dict:
         """
         V2 Code Generation with full validation pipeline.
@@ -201,10 +203,10 @@ NEW_CONTENT:
 
         # Validate target files
         validation = self._validate_target_files(target_files or [])
-        if not validation['valid_files']:
+        if not validation["valid_files"]:
             return {
-                'success': False,
-                'error': f"No valid target files found. Missing: {validation['missing_files']}"
+                "success": False,
+                "error": f"No valid target files found. Missing: {validation['missing_files']}",
             }
 
         # Select model based on task complexity
@@ -215,16 +217,16 @@ NEW_CONTENT:
         all_changes = []
         all_validation_results = []
 
-        for file_info in validation['valid_files']:
-            file_path = file_info['path']
+        for file_info in validation["valid_files"]:
+            file_path = file_info["path"]
             language = self._detect_language(file_path)
 
             # Get focused context around line number
             if line_number:
                 context = self._read_file_content(file_path, line_number)
-                focused_context = context['context']
+                focused_context = context["context"]
             else:
-                focused_context = file_info['content'][:2000]
+                focused_context = file_info["content"][:2000]
 
             # Try generation with retries
             retry_count = 0
@@ -236,25 +238,27 @@ NEW_CONTENT:
                     # First attempt - use architect/editor pattern
                     change = self._generate_with_architect_editor(
                         file_path=file_path,
-                        file_content=file_info['content'],
+                        file_content=file_info["content"],
                         focused_context=focused_context,
                         issue_description=proposal_description,
                         issue_context=issue_context,
                         line_number=line_number,
                         language=language,
-                        model=model
+                        model=model,
                     )
                 else:
                     # Retry with error feedback
                     # Handle case where previous change was None
-                    prev_change = change if change else {'old_content': '', 'new_content': ''}
+                    prev_change = (
+                        change if change else {"old_content": "", "new_content": ""}
+                    )
                     change = self._generate_with_retry(
                         file_path=file_path,
-                        file_content=file_info['content'],
+                        file_content=file_info["content"],
                         previous_change=prev_change,
                         validation_error=last_error,
                         language=language,
-                        model=model
+                        model=model,
                     )
 
                 if not change:
@@ -266,53 +270,67 @@ NEW_CONTENT:
                 validation_result = self._validate_change(
                     change=change,
                     file_path=file_path,
-                    file_content=file_info['content'],
-                    language=language
+                    file_content=file_info["content"],
+                    language=language,
                 )
 
-                if validation_result['valid']:
+                if validation_result["valid"]:
                     # Success!
                     all_changes.append(change)
                     all_validation_results.append(validation_result)
-                    print(f"   ✅ {file_path}: Valid change generated (attempt {retry_count + 1})")
+                    print(
+                        f"   ✅ {file_path}: Valid change generated (attempt {retry_count + 1})"
+                    )
                     break
                 else:
-                    last_error = validation_result['error']
-                    print(f"   ⚠️ {file_path}: Validation failed (attempt {retry_count + 1}): {last_error}")
+                    last_error = validation_result["error"]
+                    print(
+                        f"   ⚠️ {file_path}: Validation failed (attempt {retry_count + 1}): {last_error}"
+                    )
                     retry_count += 1
 
             if retry_count >= self.MAX_RETRIES:
                 print(f"   ❌ {file_path}: Max retries exceeded")
-                all_validation_results.append({
-                    'valid': False,
-                    'error': f"Max retries exceeded. Last error: {last_error}",
-                    'file_path': file_path
-                })
+                all_validation_results.append(
+                    {
+                        "valid": False,
+                        "error": f"Max retries exceeded. Last error: {last_error}",
+                        "file_path": file_path,
+                    }
+                )
 
         # Build error message if no changes were generated
         error_msg = None
         if len(all_changes) == 0:
             if all_validation_results:
                 # Collect error messages from validation results
-                errors = [r.get('error', 'Unknown error') for r in all_validation_results if not r.get('valid')]
-                error_msg = f"Code generation failed: {'; '.join(errors)}" if errors else "No valid code changes could be generated"
+                errors = [
+                    r.get("error", "Unknown error")
+                    for r in all_validation_results
+                    if not r.get("valid")
+                ]
+                error_msg = (
+                    f"Code generation failed: {'; '.join(errors)}"
+                    if errors
+                    else "No valid code changes could be generated"
+                )
             else:
                 error_msg = "AI did not generate any code changes"
 
         result = {
-            'success': len(all_changes) > 0,
-            'changes': all_changes,
-            'validation_results': all_validation_results,
-            'metadata': {
-                'generated_at': datetime.now().isoformat(),
-                'model_used': model,
-                'proposal_id': proposal_id,
-                'retries_used': retry_count if 'retry_count' in dir() else 0,
-                'validation_enabled': VALIDATORS_AVAILABLE
-            }
+            "success": len(all_changes) > 0,
+            "changes": all_changes,
+            "validation_results": all_validation_results,
+            "metadata": {
+                "generated_at": datetime.now().isoformat(),
+                "model_used": model,
+                "proposal_id": proposal_id,
+                "retries_used": retry_count if "retry_count" in dir() else 0,
+                "validation_enabled": VALIDATORS_AVAILABLE,
+            },
         }
         if error_msg:
-            result['error'] = error_msg
+            result["error"] = error_msg
         return result
 
     def _select_model_for_task(self, category: str, prefer_contractor: bool) -> str:
@@ -327,21 +345,25 @@ NEW_CONTENT:
         """
         # Category to skills mapping
         category_skills = {
-            'security': ['security_analysis', 'complex_security', 'code_review'],
-            'performance': ['performance_optimization', 'algorithm_design', 'profiling'],
-            'architecture': ['architecture', 'system_design', 'technical_leadership'],
-            'database': ['database_optimization', 'sql', 'database_design'],
-            'ui': ['javascript', 'frontend_development', 'ui_design'],
-            'api': ['api_design', 'python', 'rest_api'],
-            'backend': ['python', 'api_design', 'backend_development'],
-            'frontend': ['javascript', 'react', 'frontend_development'],
-            'testing': ['code_review', 'testing', 'test_automation'],
-            'documentation': ['documentation', 'technical_writing'],
-            'refactoring': ['refactoring', 'code_review', 'best_practices'],
-            'code_quality': ['code_review', 'best_practices', 'syntax_correction'],
+            "security": ["security_analysis", "complex_security", "code_review"],
+            "performance": [
+                "performance_optimization",
+                "algorithm_design",
+                "profiling",
+            ],
+            "architecture": ["architecture", "system_design", "technical_leadership"],
+            "database": ["database_optimization", "sql", "database_design"],
+            "ui": ["javascript", "frontend_development", "ui_design"],
+            "api": ["api_design", "python", "rest_api"],
+            "backend": ["python", "api_design", "backend_development"],
+            "frontend": ["javascript", "react", "frontend_development"],
+            "testing": ["code_review", "testing", "test_automation"],
+            "documentation": ["documentation", "technical_writing"],
+            "refactoring": ["refactoring", "code_review", "best_practices"],
+            "code_quality": ["code_review", "best_practices", "syntax_correction"],
         }
 
-        required_skills = category_skills.get(category, ['code_review', 'python'])
+        required_skills = category_skills.get(category, ["code_review", "python"])
 
         # Try to find best agent using skills
         try:
@@ -349,18 +371,19 @@ NEW_CONTENT:
             from psycopg2.extras import RealDictCursor
 
             conn = psycopg2.connect(
-                host=os.getenv('DB_HOST', 'localhost'),
-                database=os.getenv('DB_NAME', 'archie'),
-                user=os.getenv('DB_USER', 'archie'),
-                password=os.getenv('DB_PASSWORD', 'archie_secure_2024')
+                host=os.getenv("DB_HOST", "localhost"),
+                database=os.getenv("DB_NAME", "archie"),
+                user=os.getenv("DB_USER", "archie"),
+                password=os.getenv("DB_PASSWORD", "archie_secure_2024"),
             )
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
             # Query for best agent with required skills
-            placeholders = ','.join(['%s'] * len(required_skills))
-            worker_preference = 'contract' if prefer_contractor else 'internal'
+            placeholders = ",".join(["%s"] * len(required_skills))
+            worker_preference = "contract" if prefer_contractor else "internal"
 
-            cur.execute(f"""
+            cur.execute(
+                f"""
                 SELECT
                     a.model,
                     a.name,
@@ -379,16 +402,20 @@ NEW_CONTENT:
                     skill_score DESC,
                     matching_skills DESC
                 LIMIT 1
-            """, required_skills + [worker_preference])
+            """,
+                required_skills + [worker_preference],
+            )
 
             result = cur.fetchone()
             cur.close()
             conn.close()
 
-            if result and result['model']:
+            if result and result["model"]:
                 print(f"   Skill-based selection: {result['name']} ({result['model']})")
-                print(f"   Matching skills: {result['matching_skills']}, Score: {result['skill_score']}")
-                return result['model']
+                print(
+                    f"   Matching skills: {result['matching_skills']}, Score: {result['skill_score']}"
+                )
+                return result["model"]
 
         except Exception as e:
             print(f"   Warning: Skill-based selection failed: {e}")
@@ -399,11 +426,10 @@ NEW_CONTENT:
 
             task_desc = f"Generate code fix for {category} issue"
             agent = select_best_agent_for_task(
-                task_description=task_desc,
-                department_preference="Engineering"
+                task_description=task_desc, department_preference="Engineering"
             )
-            if agent and agent.get('model'):
-                return agent['model']
+            if agent and agent.get("model"):
+                return agent["model"]
         except ImportError:
             pass  # Team Management not available
         except Exception as e:
@@ -412,10 +438,10 @@ NEW_CONTENT:
         # Fallback to preference-based selection
         if prefer_contractor:
             # Check for available external APIs
-            if os.getenv('ANTHROPIC_API_KEY'):
-                return 'claude-sonnet-4-20250514'
-            elif os.getenv('OPENAI_API_KEY'):
-                return 'gpt-4-turbo'
+            if os.getenv("ANTHROPIC_API_KEY"):
+                return "claude-sonnet-4-20250514"
+            elif os.getenv("OPENAI_API_KEY"):
+                return "gpt-4-turbo"
 
         return self.DEFAULT_MODEL
 
@@ -423,16 +449,16 @@ NEW_CONTENT:
         """Detect language from file extension"""
         ext = os.path.splitext(file_path)[1].lower()
         lang_map = {
-            '.py': 'python',
-            '.js': 'javascript',
-            '.jsx': 'javascript',
-            '.ts': 'typescript',
-            '.tsx': 'typescript',
-            '.html': 'html',
-            '.css': 'css',
-            '.sql': 'sql'
+            ".py": "python",
+            ".js": "javascript",
+            ".jsx": "javascript",
+            ".ts": "typescript",
+            ".tsx": "typescript",
+            ".html": "html",
+            ".css": "css",
+            ".sql": "sql",
         }
-        return lang_map.get(ext, 'text')
+        return lang_map.get(ext, "text")
 
     def _generate_with_architect_editor(
         self,
@@ -443,7 +469,7 @@ NEW_CONTENT:
         issue_context: Optional[Dict],
         line_number: Optional[int],
         language: str,
-        model: str
+        model: str,
     ) -> Optional[Dict]:
         """
         Two-phase generation using architect/editor pattern.
@@ -463,24 +489,24 @@ NEW_CONTENT:
         architect_prompt = self.ARCHITECT_PROMPT.format(
             issue_description=issue_description,
             file_path=file_path,
-            line_number=line_number or 'unknown',
+            line_number=line_number or "unknown",
             language=language,
             file_context=focused_context,
             start_line=start_line,
-            end_line=end_line
+            end_line=end_line,
         )
 
         architect_result = archie_bridge(
             prompt=architect_prompt,
             user_id=4,  # admin user
             enable_memory=True,
-            force_model=model
+            force_model=model,
         )
 
-        if not architect_result.get('success'):
+        if not architect_result.get("success"):
             return None
 
-        architect_output = architect_result['response']
+        architect_output = architect_result["response"]
 
         # Phase 2: Editor - generate actual code
         editor_prompt = self.EDITOR_PROMPT.format(
@@ -489,23 +515,22 @@ NEW_CONTENT:
             start_line=start_line,
             end_line=end_line,
             language=language,
-            focused_context=focused_context
+            focused_context=focused_context,
         )
 
         editor_result = archie_bridge(
             prompt=editor_prompt,
             user_id=4,  # admin user
             enable_memory=True,
-            force_model=model
+            force_model=model,
         )
 
-        if not editor_result.get('success'):
+        if not editor_result.get("success"):
             return None
 
         # Parse the editor response
         changes = self._parse_code_changes_from_response(
-            editor_result['response'],
-            category='general'
+            editor_result["response"], category="general"
         )
 
         return changes[0] if changes else None
@@ -517,55 +542,50 @@ NEW_CONTENT:
         previous_change: Dict,
         validation_error: str,
         language: str,
-        model: str
+        model: str,
     ) -> Optional[Dict]:
         """Generate code with retry prompt including error feedback"""
 
         # Get actual file context for reference
-        lines = file_content.split('\n')
-        preview = '\n'.join(f"{i+1}: {line}" for i, line in enumerate(lines[:100]))
+        lines = file_content.split("\n")
+        preview = "\n".join(f"{i+1}: {line}" for i, line in enumerate(lines[:100]))
 
         # Analyze the error
-        if 'SyntaxError' in validation_error or 'IndentationError' in validation_error:
+        if "SyntaxError" in validation_error or "IndentationError" in validation_error:
             error_analysis = "The generated code has a syntax error. Check indentation and Python syntax."
-        elif 'not found' in validation_error.lower():
+        elif "not found" in validation_error.lower():
             error_analysis = "The OLD_CONTENT doesn't match the actual file. Copy it exactly from the file content shown."
         else:
             error_analysis = validation_error
 
         retry_prompt = self.RETRY_PROMPT.format(
-            previous_old_content=previous_change.get('old_content', ''),
-            previous_new_content=previous_change.get('new_content', ''),
+            previous_old_content=previous_change.get("old_content", ""),
+            previous_new_content=previous_change.get("new_content", ""),
             validation_error=validation_error,
             language=language,
             actual_file_content=preview,
             error_analysis=error_analysis,
-            file_path=file_path
+            file_path=file_path,
         )
 
         result = archie_bridge(
             prompt=retry_prompt,
             user_id=4,  # admin user
             enable_memory=True,
-            force_model=model
+            force_model=model,
         )
 
-        if not result.get('success'):
+        if not result.get("success"):
             return None
 
         changes = self._parse_code_changes_from_response(
-            result['response'],
-            category='general'
+            result["response"], category="general"
         )
 
         return changes[0] if changes else None
 
     def _validate_change(
-        self,
-        change: Dict,
-        file_path: str,
-        file_content: str,
-        language: str
+        self, change: Dict, file_path: str, file_content: str, language: str
     ) -> Dict:
         """
         Validate a generated change before saving.
@@ -575,26 +595,33 @@ NEW_CONTENT:
         2. Content matching of old_content in file
         """
         if not VALIDATORS_AVAILABLE:
-            return {'valid': True, 'warning': 'Validators not available'}
+            return {"valid": True, "warning": "Validators not available"}
 
         errors = []
 
         # 1. Validate syntax of new_content
-        new_content = change.get('new_content', '')
-        if new_content and language in ('python', 'javascript', 'html', 'css'):
+        new_content = change.get("new_content", "")
+        if new_content and language in ("python", "javascript", "html", "css"):
             # For Python, we need to validate in context
-            if language == 'python':
+            if language == "python":
                 test_code = new_content
                 stripped = test_code.strip()
 
                 # Check if it's a complete definition
-                if stripped.startswith('def ') or stripped.startswith('class ') or stripped.startswith('import '):
+                if (
+                    stripped.startswith("def ")
+                    or stripped.startswith("class ")
+                    or stripped.startswith("import ")
+                ):
                     # Try as standalone module
                     import ast
+
                     try:
                         ast.parse(test_code)
                     except SyntaxError as e:
-                        errors.append(f"SyntaxError in new_content: {e.msg} at line {e.lineno}")
+                        errors.append(
+                            f"SyntaxError in new_content: {e.msg} at line {e.lineno}"
+                        )
                 else:
                     # It's a code snippet - need to dedent and wrap appropriately
                     import ast
@@ -624,8 +651,11 @@ NEW_CONTENT:
                             last_error = e
 
                     # Try 3: Wrap in try/except (for except/finally blocks)
-                    if not valid and ('except' in dedented or 'finally' in dedented):
-                        wrapped = "def _test():\n    try:\n        pass\n" + textwrap.indent(dedented, "    ")
+                    if not valid and ("except" in dedented or "finally" in dedented):
+                        wrapped = (
+                            "def _test():\n    try:\n        pass\n"
+                            + textwrap.indent(dedented, "    ")
+                        )
                         try:
                             ast.parse(wrapped)
                             valid = True
@@ -633,8 +663,11 @@ NEW_CONTENT:
                             last_error = e
 
                     # Try 4: Wrap in if block (for else/elif)
-                    if not valid and ('else' in dedented or 'elif' in dedented):
-                        wrapped = "def _test():\n    if True:\n        pass\n" + textwrap.indent(dedented, "    ")
+                    if not valid and ("else" in dedented or "elif" in dedented):
+                        wrapped = (
+                            "def _test():\n    if True:\n        pass\n"
+                            + textwrap.indent(dedented, "    ")
+                        )
                         try:
                             ast.parse(wrapped)
                             valid = True
@@ -642,7 +675,9 @@ NEW_CONTENT:
                             last_error = e
 
                     if not valid and last_error:
-                        errors.append(f"SyntaxError in new_content: {last_error.msg} at line {last_error.lineno}")
+                        errors.append(
+                            f"SyntaxError in new_content: {last_error.msg} at line {last_error.lineno}"
+                        )
 
             else:
                 result = self.validator.validate(new_content, file_path)
@@ -650,28 +685,28 @@ NEW_CONTENT:
                     errors.extend(result.errors)
 
         # 2. Verify old_content exists in file
-        old_content = change.get('old_content', '')
+        old_content = change.get("old_content", "")
         if old_content:
             match_result = self.matcher.verify_old_content(file_path, old_content)
             if not match_result.match_found:
                 errors.append(f"old_content not found in file: {match_result.error}")
                 if match_result.suggestions:
-                    errors.append(f"Suggestions: {'; '.join(match_result.suggestions[:2])}")
+                    errors.append(
+                        f"Suggestions: {'; '.join(match_result.suggestions[:2])}"
+                    )
 
         if errors:
-            return {
-                'valid': False,
-                'error': '; '.join(errors),
-                'file_path': file_path
-            }
+            return {"valid": False, "error": "; ".join(errors), "file_path": file_path}
 
         return {
-            'valid': True,
-            'file_path': file_path,
-            'match_type': match_result.match_type if old_content else None
+            "valid": True,
+            "file_path": file_path,
+            "match_type": match_result.match_type if old_content else None,
         }
 
-    def _read_file_content(self, file_path: str, line_number: Optional[int] = None) -> Optional[Dict]:
+    def _read_file_content(
+        self, file_path: str, line_number: Optional[int] = None
+    ) -> Optional[Dict]:
         """
         Read actual file content from the codebase.
 
@@ -691,61 +726,64 @@ NEW_CONTENT:
         possible_paths = []
 
         # Handle absolute paths first
-        if file_path.startswith('/'):
+        if file_path.startswith("/"):
             # Absolute path - use as-is
             possible_paths.append(file_path)
             # Also try mapping /app paths to host paths (in case running from host)
-            if file_path.startswith('/app/'):
-                rel_path = file_path[len('/app/'):]
+            if file_path.startswith("/app/"):
+                rel_path = file_path[len("/app/") :]
                 possible_paths.append(os.path.join(self.host_platform_path, rel_path))
-        elif file_path.startswith('platform_v2/'):
+        elif file_path.startswith("platform_v2/"):
             # Strip prefix and look in platform_v2 (both Docker and host paths)
-            rel_path = file_path[len('platform_v2/'):]
+            rel_path = file_path[len("platform_v2/") :]
             possible_paths.append(os.path.join(self.docker_platform_path, rel_path))
             possible_paths.append(os.path.join(self.host_platform_path, rel_path))
-        elif file_path.startswith('ai_bridge/'):
+        elif file_path.startswith("ai_bridge/"):
             # Look in ai_bridge
-            rel_path = file_path[len('ai_bridge/'):]
+            rel_path = file_path[len("ai_bridge/") :]
             possible_paths.append(os.path.join(self.ai_bridge_path, rel_path))
         else:
             # Try all locations
             possible_paths.append(os.path.join(self.docker_platform_path, file_path))
             possible_paths.append(os.path.join(self.host_platform_path, file_path))
             possible_paths.append(os.path.join(self.ai_bridge_path, file_path))
-            possible_paths.append(os.path.join('/mnt/archie_brain', file_path))
+            possible_paths.append(os.path.join("/mnt/archie_brain", file_path))
 
         for full_path in possible_paths:
             if os.path.exists(full_path):
                 try:
-                    with open(full_path, 'r', encoding='utf-8') as f:
+                    with open(full_path, "r", encoding="utf-8") as f:
                         content = f.read()
 
                     # Get context around specific line if provided
                     context = content
                     if line_number and line_number > 0:
-                        lines = content.split('\n')
+                        lines = content.split("\n")
                         start = max(0, line_number - 15)  # 15 lines before
                         end = min(len(lines), line_number + 15)  # 15 lines after
                         context_lines = lines[start:end]
-                        context = '\n'.join(f"{start + i + 1}: {line}" for i, line in enumerate(context_lines))
+                        context = "\n".join(
+                            f"{start + i + 1}: {line}"
+                            for i, line in enumerate(context_lines)
+                        )
 
                     return {
-                        'full_path': full_path,
-                        'content': content,
-                        'exists': True,
-                        'context': context,
-                        'line_count': len(content.split('\n'))
+                        "full_path": full_path,
+                        "content": content,
+                        "exists": True,
+                        "context": context,
+                        "line_count": len(content.split("\n")),
                     }
                 except Exception as e:
                     print(f"Error reading {full_path}: {e}")
                     continue
 
         return {
-            'full_path': file_path,
-            'content': '',
-            'exists': False,
-            'context': '',
-            'line_count': 0
+            "full_path": file_path,
+            "content": "",
+            "exists": False,
+            "context": "",
+            "line_count": 0,
         }
 
     def _validate_target_files(self, target_files: List[str]) -> Dict:
@@ -762,23 +800,25 @@ NEW_CONTENT:
         valid_files = []
         missing_files = []
 
-        for file_path in (target_files or []):
+        for file_path in target_files or []:
             file_info = self._read_file_content(file_path)
-            if file_info['exists']:
-                valid_files.append({
-                    'path': file_path,
-                    'full_path': file_info['full_path'],
-                    'content': file_info['content'],
-                    'context': file_info['context'],
-                    'line_count': file_info['line_count']
-                })
+            if file_info["exists"]:
+                valid_files.append(
+                    {
+                        "path": file_path,
+                        "full_path": file_info["full_path"],
+                        "content": file_info["content"],
+                        "context": file_info["context"],
+                        "line_count": file_info["line_count"],
+                    }
+                )
             else:
                 missing_files.append(file_path)
 
         return {
-            'valid_files': valid_files,
-            'missing_files': missing_files,
-            'all_valid': len(missing_files) == 0
+            "valid_files": valid_files,
+            "missing_files": missing_files,
+            "all_valid": len(missing_files) == 0,
         }
 
     def generate_code_for_proposal(
@@ -789,7 +829,7 @@ NEW_CONTENT:
         category: str,
         target_files: Optional[List[str]] = None,
         line_number: Optional[int] = None,
-        issue_context: Optional[Dict] = None
+        issue_context: Optional[Dict] = None,
     ) -> Dict:
         """
         Generate actual code changes for an improvement proposal
@@ -825,36 +865,44 @@ NEW_CONTENT:
         file_contexts = []
         validation = self._validate_target_files(target_files or [])
 
-        if validation['missing_files']:
-            print(f"⚠️  Warning: Some target files don't exist: {validation['missing_files']}")
+        if validation["missing_files"]:
+            print(
+                f"⚠️  Warning: Some target files don't exist: {validation['missing_files']}"
+            )
 
         # Read actual content for each valid file
-        for file_info in validation['valid_files']:
+        for file_info in validation["valid_files"]:
             # If we have a line number, get focused context
             if line_number:
-                focused = self._read_file_content(file_info['path'], line_number)
-                file_contexts.append({
-                    'path': file_info['path'],
-                    'full_path': file_info['full_path'],
-                    'context': focused['context'],
-                    'line_number': line_number,
-                    'line_count': file_info['line_count']
-                })
+                focused = self._read_file_content(file_info["path"], line_number)
+                file_contexts.append(
+                    {
+                        "path": file_info["path"],
+                        "full_path": file_info["full_path"],
+                        "context": focused["context"],
+                        "line_number": line_number,
+                        "line_count": file_info["line_count"],
+                    }
+                )
             else:
                 # Include first 200 lines as context (or full file if smaller)
-                lines = file_info['content'].split('\n')
+                lines = file_info["content"].split("\n")
                 preview_lines = lines[:200]
-                preview = '\n'.join(f"{i+1}: {line}" for i, line in enumerate(preview_lines))
+                preview = "\n".join(
+                    f"{i+1}: {line}" for i, line in enumerate(preview_lines)
+                )
                 if len(lines) > 200:
                     preview += f"\n... ({len(lines) - 200} more lines)"
 
-                file_contexts.append({
-                    'path': file_info['path'],
-                    'full_path': file_info['full_path'],
-                    'context': preview,
-                    'line_number': None,
-                    'line_count': file_info['line_count']
-                })
+                file_contexts.append(
+                    {
+                        "path": file_info["path"],
+                        "full_path": file_info["full_path"],
+                        "context": preview,
+                        "line_number": None,
+                        "line_count": file_info["line_count"],
+                    }
+                )
 
         # Build context-aware prompt for code generation WITH ACTUAL CODE
         prompt = self._build_code_generation_prompt(
@@ -864,7 +912,7 @@ NEW_CONTENT:
             target_files,
             file_contexts,
             line_number,
-            issue_context
+            issue_context,
         )
 
         # Use AI to generate code changes
@@ -872,28 +920,28 @@ NEW_CONTENT:
             prompt=prompt,
             user_id=4,  # admin user
             enable_memory=True,
-            force_model='llama3.1:8b'  # Use capable model for code generation
+            force_model="qwen3-coder-cpu:latest",  # Use capable model for code generation
         )
 
-        if not result.get('success'):
+        if not result.get("success"):
             return {
-                'success': False,
-                'error': result.get('error', 'Code generation failed')
+                "success": False,
+                "error": result.get("error", "Code generation failed"),
             }
 
         # Parse AI response to extract code changes
-        ai_response = result['response']
+        ai_response = result["response"]
         changes = self._parse_code_changes_from_response(ai_response, category)
 
         return {
-            'success': True,
-            'changes': changes,
-            'metadata': {
-                'generated_at': datetime.now().isoformat(),
-                'model_used': result.get('model', 'unknown'),
-                'proposal_id': proposal_id,
-                'ai_response': ai_response
-            }
+            "success": True,
+            "changes": changes,
+            "metadata": {
+                "generated_at": datetime.now().isoformat(),
+                "model_used": result.get("model", "unknown"),
+                "proposal_id": proposal_id,
+                "ai_response": ai_response,
+            },
         }
 
     def _build_code_generation_prompt(
@@ -904,7 +952,7 @@ NEW_CONTENT:
         target_files: Optional[List[str]],
         file_contexts: Optional[List[Dict]] = None,
         line_number: Optional[int] = None,
-        issue_context: Optional[Dict] = None
+        issue_context: Optional[Dict] = None,
     ) -> str:
         """Build prompt for AI code generation WITH ACTUAL FILE CONTENT"""
 
@@ -913,9 +961,13 @@ NEW_CONTENT:
         if file_contexts:
             file_context_section = "\n**ACTUAL FILE CONTENT (READ THIS CAREFULLY):**\n"
             for fc in file_contexts:
-                file_context_section += f"\n--- {fc['path']} ({fc['line_count']} lines) ---\n"
-                if fc.get('line_number'):
-                    file_context_section += f"(Focus area: around line {fc['line_number']})\n"
+                file_context_section += (
+                    f"\n--- {fc['path']} ({fc['line_count']} lines) ---\n"
+                )
+                if fc.get("line_number"):
+                    file_context_section += (
+                        f"(Focus area: around line {fc['line_number']})\n"
+                    )
                 file_context_section += f"```\n{fc['context']}\n```\n"
         else:
             file_context_section = "\n**WARNING: Could not read target files. Creating new files instead.**\n"
@@ -1004,9 +1056,7 @@ Notice: Both OLD_CONTENT and NEW_CONTENT preserve the 8-space indentation before
         return prompt
 
     def _parse_code_changes_from_response(
-        self,
-        ai_response: str,
-        category: str
+        self, ai_response: str, category: str
     ) -> List[Dict]:
         """
         Parse AI response to extract structured code changes
@@ -1019,74 +1069,86 @@ Notice: Both OLD_CONTENT and NEW_CONTENT preserve the 8-space indentation before
 
         # Normalize markdown formatting - remove ** bold markers around keywords
         normalized = ai_response
-        normalized = re.sub(r'\*\*FILE:\*\*', 'FILE:', normalized)
-        normalized = re.sub(r'\*\*ACTION:\*\*', 'ACTION:', normalized)
-        normalized = re.sub(r'\*\*DESCRIPTION:\*\*', 'DESCRIPTION:', normalized)
-        normalized = re.sub(r'\*\*OLD_CONTENT:\*\*', 'OLD_CONTENT:', normalized)
-        normalized = re.sub(r'\*\*NEW_CONTENT:\*\*', 'NEW_CONTENT:', normalized)
+        normalized = re.sub(r"\*\*FILE:\*\*", "FILE:", normalized)
+        normalized = re.sub(r"\*\*ACTION:\*\*", "ACTION:", normalized)
+        normalized = re.sub(r"\*\*DESCRIPTION:\*\*", "DESCRIPTION:", normalized)
+        normalized = re.sub(r"\*\*OLD_CONTENT:\*\*", "OLD_CONTENT:", normalized)
+        normalized = re.sub(r"\*\*NEW_CONTENT:\*\*", "NEW_CONTENT:", normalized)
 
         # Also handle backtick-wrapped file paths: `templates/foo.html`
         # FILE: `templates/foo.html` -> FILE: templates/foo.html
-        normalized = re.sub(r'FILE:\s*`([^`]+)`', r'FILE: \1', normalized)
+        normalized = re.sub(r"FILE:\s*`([^`]+)`", r"FILE: \1", normalized)
 
         # Look for FILE: markers (with flexible patterns)
-        file_pattern = r'FILE:\s*(.+?)(?:\n|$)'
-        action_pattern = r'ACTION:\s*(\w+?)(?:\n|$)'
-        description_pattern = r'DESCRIPTION:\s*(.+?)(?:\n|$)'
-        old_content_pattern = r'OLD_CONTENT:\s*```(?:\w+)?\n(.*?)```'
-        new_content_pattern = r'NEW_CONTENT:\s*```(?:\w+)?\n(.*?)```'
+        file_pattern = r"FILE:\s*(.+?)(?:\n|$)"
+        action_pattern = r"ACTION:\s*(\w+?)(?:\n|$)"
+        description_pattern = r"DESCRIPTION:\s*(.+?)(?:\n|$)"
+        old_content_pattern = r"OLD_CONTENT:\s*```(?:\w+)?\n(.*?)```"
+        new_content_pattern = r"NEW_CONTENT:\s*```(?:\w+)?\n(.*?)```"
 
         # Find all file blocks - split on FILE: (case insensitive)
-        file_blocks = re.split(r'(?=FILE:)', normalized, flags=re.IGNORECASE)
+        file_blocks = re.split(r"(?=FILE:)", normalized, flags=re.IGNORECASE)
 
         for block in file_blocks:
             if not block.strip():
                 continue
 
             # Check if block starts with FILE:
-            if not re.match(r'^FILE:', block, re.IGNORECASE):
+            if not re.match(r"^FILE:", block, re.IGNORECASE):
                 continue
 
             # Extract components
             file_match = re.search(file_pattern, block, re.IGNORECASE)
             action_match = re.search(action_pattern, block, re.IGNORECASE)
             desc_match = re.search(description_pattern, block, re.IGNORECASE)
-            old_content_match = re.search(old_content_pattern, block, re.DOTALL | re.IGNORECASE)
-            new_content_match = re.search(new_content_pattern, block, re.DOTALL | re.IGNORECASE)
+            old_content_match = re.search(
+                old_content_pattern, block, re.DOTALL | re.IGNORECASE
+            )
+            new_content_match = re.search(
+                new_content_pattern, block, re.DOTALL | re.IGNORECASE
+            )
 
             if not file_match:
                 continue
 
             file_path = file_match.group(1).strip()
             # Clean up file path - remove trailing markers or notes
-            file_path = re.sub(r'\s*\(.*\)\s*$', '', file_path)  # Remove (create) or (modify) notes
-            file_path = file_path.strip('`').strip()
+            file_path = re.sub(
+                r"\s*\(.*\)\s*$", "", file_path
+            )  # Remove (create) or (modify) notes
+            file_path = file_path.strip("`").strip()
 
             # Determine action - default to modify if not specified
             if action_match:
                 action = action_match.group(1).strip().lower()
-            elif '(create)' in block.lower() or 'create' in block[:100].lower():
-                action = 'create'
+            elif "(create)" in block.lower() or "create" in block[:100].lower():
+                action = "create"
             else:
-                action = 'modify'
+                action = "modify"
 
-            description = desc_match.group(1).strip() if desc_match else f'Change to {file_path}'
-            old_content = old_content_match.group(1).strip() if old_content_match else ''
-            new_content = new_content_match.group(1).strip() if new_content_match else ''
+            description = (
+                desc_match.group(1).strip() if desc_match else f"Change to {file_path}"
+            )
+            old_content = (
+                old_content_match.group(1).strip() if old_content_match else ""
+            )
+            new_content = (
+                new_content_match.group(1).strip() if new_content_match else ""
+            )
 
             # Strip line number prefixes if AI accidentally included them (e.g., "215:         except:")
             def strip_line_numbers(content):
                 """Remove line number prefixes like '215:' or '215:\t' from each line"""
-                lines = content.split('\n')
+                lines = content.split("\n")
                 cleaned = []
                 for line in lines:
                     # Match pattern: optional spaces, digits, colon, optional tab/space
-                    match = re.match(r'^\s*\d+:\s?(.*)$', line)
+                    match = re.match(r"^\s*\d+:\s?(.*)$", line)
                     if match:
                         cleaned.append(match.group(1))
                     else:
                         cleaned.append(line)
-                return '\n'.join(cleaned)
+                return "\n".join(cleaned)
 
             old_content = strip_line_numbers(old_content)
             new_content = strip_line_numbers(new_content)
@@ -1098,14 +1160,16 @@ Notice: Both OLD_CONTENT and NEW_CONTENT preserve the 8-space indentation before
             # Generate diff
             diff = self._generate_diff(old_content, new_content, file_path)
 
-            changes.append({
-                'file_path': file_path,
-                'action': action,
-                'old_content': old_content,
-                'new_content': new_content,
-                'diff': diff,
-                'description': description
-            })
+            changes.append(
+                {
+                    "file_path": file_path,
+                    "action": action,
+                    "old_content": old_content,
+                    "new_content": new_content,
+                    "diff": diff,
+                    "description": description,
+                }
+            )
 
         # If AI didn't provide structured format, create a fallback change
         if not changes:
@@ -1118,25 +1182,29 @@ Notice: Both OLD_CONTENT and NEW_CONTENT preserve the 8-space indentation before
         """Create a fallback change when AI doesn't follow format"""
 
         # For UI category, assume dashboard modification
-        if category == 'ui':
-            return [{
-                'file_path': 'templates/dashboard.html',
-                'action': 'modify',
-                'old_content': '<div class="tool-card disabled">',
-                'new_content': '<a href="/tools/website_builder/" class="tool-card">',
-                'diff': '- <div class="tool-card disabled">\n+ <a href="/tools/website_builder/" class="tool-card">',
-                'description': 'Enable Website Builder module (AI-generated)'
-            }]
+        if category == "ui":
+            return [
+                {
+                    "file_path": "templates/dashboard.html",
+                    "action": "modify",
+                    "old_content": '<div class="tool-card disabled">',
+                    "new_content": '<a href="/tools/website_builder/" class="tool-card">',
+                    "diff": '- <div class="tool-card disabled">\n+ <a href="/tools/website_builder/" class="tool-card">',
+                    "description": "Enable Website Builder module (AI-generated)",
+                }
+            ]
 
         # Generic fallback
-        return [{
-            'file_path': 'CHANGE_DESCRIPTION.md',
-            'action': 'create',
-            'old_content': '',
-            'new_content': f"# AI-Generated Change\n\n{ai_response}",
-            'diff': f"+ {ai_response}",
-            'description': 'AI-generated improvement description'
-        }]
+        return [
+            {
+                "file_path": "CHANGE_DESCRIPTION.md",
+                "action": "create",
+                "old_content": "",
+                "new_content": f"# AI-Generated Change\n\n{ai_response}",
+                "diff": f"+ {ai_response}",
+                "description": "AI-generated improvement description",
+            }
+        ]
 
     def _generate_diff(self, old_content: str, new_content: str, file_path: str) -> str:
         """Generate unified diff between old and new content"""
@@ -1148,12 +1216,12 @@ Notice: Both OLD_CONTENT and NEW_CONTENT preserve the 8-space indentation before
         diff = difflib.unified_diff(
             old_lines,
             new_lines,
-            fromfile=f'a/{file_path}',
-            tofile=f'b/{file_path}',
-            lineterm=''
+            fromfile=f"a/{file_path}",
+            tofile=f"b/{file_path}",
+            lineterm="",
         )
 
-        return ''.join(diff)
+        return "".join(diff)
 
 
 # Convenience functions
@@ -1161,12 +1229,12 @@ def generate_code_for_proposal(
     proposal_id: int,
     proposal_title: str,
     proposal_description: str,
-    category: str = 'general',
+    category: str = "general",
     target_files: Optional[List[str]] = None,
     line_number: Optional[int] = None,
     issue_context: Optional[Dict] = None,
     use_v2: bool = True,
-    prefer_contractor: bool = False
+    prefer_contractor: bool = False,
 ) -> Dict:
     """
     Generate code changes for a proposal.
@@ -1192,7 +1260,7 @@ def generate_code_for_proposal(
             target_files,
             line_number,
             issue_context,
-            prefer_contractor
+            prefer_contractor,
         )
     else:
         # Fall back to V1 (legacy)
@@ -1203,7 +1271,7 @@ def generate_code_for_proposal(
             category,
             target_files,
             line_number,
-            issue_context
+            issue_context,
         )
 
 
@@ -1211,11 +1279,11 @@ def generate_code_with_validation(
     proposal_id: int,
     proposal_title: str,
     proposal_description: str,
-    category: str = 'general',
+    category: str = "general",
     target_files: Optional[List[str]] = None,
     line_number: Optional[int] = None,
     issue_context: Optional[Dict] = None,
-    prefer_contractor: bool = False
+    prefer_contractor: bool = False,
 ) -> Dict:
     """V2 convenience function - always uses validation pipeline"""
     engine = CodeGenerationEngine()
@@ -1227,11 +1295,11 @@ def generate_code_with_validation(
         target_files,
         line_number,
         issue_context,
-        prefer_contractor
+        prefer_contractor,
     )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Test code generation
     print("=" * 80)
     print("Code Generation Engine - Test")
@@ -1241,16 +1309,16 @@ if __name__ == '__main__':
         proposal_id=999,
         proposal_title="Enable Website Builder",
         proposal_description="Make the Website Builder tool active and clickable on the dashboard. Add a basic interface.",
-        category='ui'
+        category="ui",
     )
 
     print(f"\n✅ Success: {result['success']}")
     print(f"📝 Changes generated: {len(result.get('changes', []))}")
 
-    for i, change in enumerate(result.get('changes', []), 1):
+    for i, change in enumerate(result.get("changes", []), 1):
         print(f"\n--- Change {i} ---")
         print(f"File: {change['file_path']}")
         print(f"Action: {change['action']}")
         print(f"Description: {change['description']}")
-        if change.get('diff'):
+        if change.get("diff"):
             print(f"Diff:\n{change['diff'][:200]}...")

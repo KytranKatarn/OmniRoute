@@ -12,6 +12,7 @@ Features:
 Author: A.R.C.H.I.E.
 Date: 2026-01-19
 """
+
 import os
 import sys
 import json
@@ -19,11 +20,12 @@ import re
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 
-sys.path.insert(0, '/mnt/archie_brain/ai_bridge')
-sys.path.insert(0, '/mnt/archie_brain/platform_v2')
+sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
+sys.path.insert(0, "/mnt/archie_brain/platform_v2")
 
 try:
     from archie_bridge import archie_bridge
+
     AI_AVAILABLE = True
 except ImportError:
     AI_AVAILABLE = False
@@ -31,6 +33,7 @@ except ImportError:
 try:
     import psycopg2
     from psycopg2.extras import RealDictCursor
+
     DB_AVAILABLE = True
 except ImportError:
     DB_AVAILABLE = False
@@ -39,10 +42,10 @@ except ImportError:
 def get_db():
     """Get database connection"""
     return psycopg2.connect(
-        host=os.getenv('DB_HOST', 'archie_database'),
-        database=os.getenv('DB_NAME', 'archie'),
-        user=os.getenv('DB_USER', 'archie'),
-        password=os.getenv('DB_PASSWORD', 'archie_secure_2024')
+        host=os.getenv("DB_HOST", "archie_database"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", "archie_secure_2024"),
     )
 
 
@@ -51,54 +54,67 @@ class NLCodeGenerator:
 
     # Intent patterns for classification
     INTENT_PATTERNS = {
-        'create': [
-            r'create\s+(?:a\s+)?(.+)',
-            r'write\s+(?:a\s+)?(.+)',
-            r'make\s+(?:a\s+)?(.+)',
-            r'build\s+(?:a\s+)?(.+)',
-            r'generate\s+(?:a\s+)?(.+)',
-            r'add\s+(?:a\s+)?(.+)'
+        "create": [
+            r"create\s+(?:a\s+)?(.+)",
+            r"write\s+(?:a\s+)?(.+)",
+            r"make\s+(?:a\s+)?(.+)",
+            r"build\s+(?:a\s+)?(.+)",
+            r"generate\s+(?:a\s+)?(.+)",
+            r"add\s+(?:a\s+)?(.+)",
         ],
-        'modify': [
-            r'modify\s+(.+)',
-            r'change\s+(.+)',
-            r'update\s+(.+)',
-            r'edit\s+(.+)',
-            r'refactor\s+(.+)'
+        "modify": [
+            r"modify\s+(.+)",
+            r"change\s+(.+)",
+            r"update\s+(.+)",
+            r"edit\s+(.+)",
+            r"refactor\s+(.+)",
         ],
-        'fix': [
-            r'fix\s+(.+)',
-            r'repair\s+(.+)',
-            r'debug\s+(.+)',
-            r'solve\s+(.+)',
-            r'correct\s+(.+)'
+        "fix": [
+            r"fix\s+(.+)",
+            r"repair\s+(.+)",
+            r"debug\s+(.+)",
+            r"solve\s+(.+)",
+            r"correct\s+(.+)",
         ],
-        'explain': [
-            r'explain\s+(.+)',
-            r'what\s+(?:does|is)\s+(.+)',
-            r'how\s+(?:does|to)\s+(.+)',
-            r'describe\s+(.+)'
+        "explain": [
+            r"explain\s+(.+)",
+            r"what\s+(?:does|is)\s+(.+)",
+            r"how\s+(?:does|to)\s+(.+)",
+            r"describe\s+(.+)",
         ],
-        'convert': [
-            r'convert\s+(.+)',
-            r'translate\s+(.+)',
-            r'transform\s+(.+)'
-        ]
+        "convert": [r"convert\s+(.+)", r"translate\s+(.+)", r"transform\s+(.+)"],
     }
 
     # Language detection patterns
     LANGUAGE_PATTERNS = {
-        'python': ['python', 'flask', 'django', 'pandas', 'numpy', 'def ', 'class '],
-        'javascript': ['javascript', 'js', 'node', 'react', 'vue', 'express', 'function '],
-        'sql': ['sql', 'query', 'select', 'insert', 'update', 'delete', 'table', 'database'],
-        'html': ['html', 'webpage', 'page', 'website', 'template', 'div', 'form'],
-        'css': ['css', 'style', 'styling', 'layout', 'flexbox', 'grid'],
-        'bash': ['bash', 'shell', 'script', 'command', 'terminal']
+        "python": ["python", "flask", "django", "pandas", "numpy", "def ", "class "],
+        "javascript": [
+            "javascript",
+            "js",
+            "node",
+            "react",
+            "vue",
+            "express",
+            "function ",
+        ],
+        "sql": [
+            "sql",
+            "query",
+            "select",
+            "insert",
+            "update",
+            "delete",
+            "table",
+            "database",
+        ],
+        "html": ["html", "webpage", "page", "website", "template", "div", "form"],
+        "css": ["css", "style", "styling", "layout", "flexbox", "grid"],
+        "bash": ["bash", "shell", "script", "command", "terminal"],
     }
 
     # Code templates for common patterns
     TEMPLATES = {
-        'flask_route': '''
+        "flask_route": '''
 @{blueprint}.route('/{route_path}', methods=['{method}'])
 {decorator}
 def {function_name}():
@@ -111,7 +127,7 @@ def {function_name}():
     except Exception as e:
         return jsonify({{'success': False, 'error': str(e)}}), 500
 ''',
-        'python_function': '''
+        "python_function": '''
 def {function_name}({parameters}) -> {return_type}:
     """
     {description}
@@ -124,7 +140,7 @@ def {function_name}({parameters}) -> {return_type}:
     """
     {body}
 ''',
-        'python_class': '''
+        "python_class": '''
 class {class_name}:
     """
     {description}
@@ -135,19 +151,19 @@ class {class_name}:
 
     {methods}
 ''',
-        'sql_query': '''
+        "sql_query": """
 -- {description}
 {query_type} {target}
 {clauses}
 {conditions}
 {ordering};
-''',
-        'html_component': '''
+""",
+        "html_component": """
 <{tag} class="{classes}" id="{element_id}">
     {content}
 </{tag}>
-''',
-        'javascript_function': '''
+""",
+        "javascript_function": """
 /**
  * {description}
  * @param {{{param_types}}} {param_names}
@@ -156,18 +172,18 @@ class {class_name}:
 {async_keyword}function {function_name}({parameters}) {{
     {body}
 }}
-'''
+""",
     }
 
     def __init__(self):
-        self.model = 'llama3.1:8b'
+        self.model = "qwen3-coder-cpu:latest"
 
     def generate(
         self,
         natural_language: str,
         context: Optional[Dict] = None,
         target_language: Optional[str] = None,
-        file_path: Optional[str] = None
+        file_path: Optional[str] = None,
     ) -> Dict:
         """
         Generate code from natural language description
@@ -189,10 +205,7 @@ class {class_name}:
             }
         """
         if not AI_AVAILABLE:
-            return {
-                'success': False,
-                'error': 'AI Bridge not available'
-            }
+            return {"success": False, "error": "AI Bridge not available"}
 
         # Step 1: Classify intent
         intent, intent_confidence = self._classify_intent(natural_language)
@@ -209,18 +222,13 @@ class {class_name}:
 
         # Step 5: Generate code using AI
         result = self._generate_code(
-            natural_language,
-            intent,
-            target_language,
-            entities,
-            context,
-            kb_context
+            natural_language, intent, target_language, entities, context, kb_context
         )
 
-        if result.get('success'):
-            result['intent'] = intent
-            result['language'] = target_language
-            result['confidence'] = intent_confidence
+        if result.get("success"):
+            result["intent"] = intent
+            result["language"] = target_language
+            result["confidence"] = intent_confidence
 
             # Save generation for learning
             self._save_generation(natural_language, result)
@@ -237,7 +245,7 @@ class {class_name}:
                     return intent, 0.9
 
         # Default to 'create' with lower confidence
-        return 'create', 0.6
+        return "create", 0.6
 
     def _detect_language(self, text: str, file_path: Optional[str] = None) -> str:
         """Detect target programming language"""
@@ -246,15 +254,15 @@ class {class_name}:
         if file_path:
             ext = os.path.splitext(file_path)[1].lower()
             ext_map = {
-                '.py': 'python',
-                '.js': 'javascript',
-                '.jsx': 'javascript',
-                '.ts': 'typescript',
-                '.tsx': 'typescript',
-                '.sql': 'sql',
-                '.html': 'html',
-                '.css': 'css',
-                '.sh': 'bash'
+                ".py": "python",
+                ".js": "javascript",
+                ".jsx": "javascript",
+                ".ts": "typescript",
+                ".tsx": "typescript",
+                ".sql": "sql",
+                ".html": "html",
+                ".css": "css",
+                ".sh": "bash",
             }
             if ext in ext_map:
                 return ext_map[ext]
@@ -272,39 +280,39 @@ class {class_name}:
             return max(scores, key=scores.get)
 
         # Default to Python
-        return 'python'
+        return "python"
 
     def _extract_entities(self, text: str, intent: str) -> Dict:
         """Extract relevant entities from natural language"""
         entities = {
-            'functions': [],
-            'classes': [],
-            'variables': [],
-            'operations': [],
-            'data_types': []
+            "functions": [],
+            "classes": [],
+            "variables": [],
+            "operations": [],
+            "data_types": [],
         }
 
         # Function names (after "called", "named")
-        func_match = re.search(r'(?:called|named|function)\s+(\w+)', text, re.I)
+        func_match = re.search(r"(?:called|named|function)\s+(\w+)", text, re.I)
         if func_match:
-            entities['functions'].append(func_match.group(1))
+            entities["functions"].append(func_match.group(1))
 
         # Class names
-        class_match = re.search(r'class\s+(\w+)', text, re.I)
+        class_match = re.search(r"class\s+(\w+)", text, re.I)
         if class_match:
-            entities['classes'].append(class_match.group(1))
+            entities["classes"].append(class_match.group(1))
 
         # Data types
-        types = ['string', 'int', 'float', 'list', 'dict', 'array', 'object', 'boolean']
+        types = ["string", "int", "float", "list", "dict", "array", "object", "boolean"]
         for t in types:
             if t in text.lower():
-                entities['data_types'].append(t)
+                entities["data_types"].append(t)
 
         # Operations (CRUD)
-        ops = ['create', 'read', 'update', 'delete', 'get', 'set', 'add', 'remove']
+        ops = ["create", "read", "update", "delete", "get", "set", "add", "remove"]
         for op in ops:
             if op in text.lower():
-                entities['operations'].append(op)
+                entities["operations"].append(op)
 
         return entities
 
@@ -318,7 +326,8 @@ class {class_name}:
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
             # Search for relevant code snippets and documentation
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT title, content, knowledge_type
                 FROM knowledge_base
                 WHERE search_vector @@ plainto_tsquery('english', %s)
@@ -328,7 +337,9 @@ class {class_name}:
                   )
                 ORDER BY importance_score DESC
                 LIMIT 3
-            """, (query, f'%{language}%'))
+            """,
+                (query, f"%{language}%"),
+            )
 
             results = cur.fetchall()
             cur.close()
@@ -352,47 +363,50 @@ class {class_name}:
         language: str,
         entities: Dict,
         user_context: Optional[Dict],
-        kb_context: str
+        kb_context: str,
     ) -> Dict:
         """Generate code using AI"""
 
         # Build prompt based on intent
-        if intent == 'create':
-            prompt = self._build_create_prompt(natural_language, language, entities, user_context, kb_context)
-        elif intent == 'modify':
+        if intent == "create":
+            prompt = self._build_create_prompt(
+                natural_language, language, entities, user_context, kb_context
+            )
+        elif intent == "modify":
             prompt = self._build_modify_prompt(natural_language, language, user_context)
-        elif intent == 'fix':
+        elif intent == "fix":
             prompt = self._build_fix_prompt(natural_language, language, user_context)
-        elif intent == 'explain':
-            prompt = self._build_explain_prompt(natural_language, language, user_context)
-        elif intent == 'convert':
-            prompt = self._build_convert_prompt(natural_language, language, user_context)
+        elif intent == "explain":
+            prompt = self._build_explain_prompt(
+                natural_language, language, user_context
+            )
+        elif intent == "convert":
+            prompt = self._build_convert_prompt(
+                natural_language, language, user_context
+            )
         else:
             prompt = self._build_generic_prompt(natural_language, language)
 
         # Call AI
         result = archie_bridge(
-            prompt=prompt,
-            user_id=1,
-            enable_memory=True,
-            force_model=self.model
+            prompt=prompt, user_id=1, enable_memory=True, force_model=self.model
         )
 
-        if not result.get('success'):
+        if not result.get("success"):
             return {
-                'success': False,
-                'error': result.get('error', 'Code generation failed')
+                "success": False,
+                "error": result.get("error", "Code generation failed"),
             }
 
         # Parse response
-        response = result['response']
+        response = result["response"]
         code, explanation = self._parse_response(response, language)
 
         return {
-            'success': True,
-            'code': code,
-            'explanation': explanation,
-            'raw_response': response
+            "success": True,
+            "code": code,
+            "explanation": explanation,
+            "raw_response": response,
         }
 
     def _build_create_prompt(
@@ -401,15 +415,15 @@ class {class_name}:
         language: str,
         entities: Dict,
         context: Optional[Dict],
-        kb_context: str
+        kb_context: str,
     ) -> str:
         """Build prompt for code creation"""
 
         context_section = ""
         if context:
-            if context.get('existing_code'):
+            if context.get("existing_code"):
                 context_section = f"\n\nExisting code context:\n```{language}\n{context['existing_code'][:1000]}\n```"
-            if context.get('file_path'):
+            if context.get("file_path"):
                 context_section += f"\nTarget file: {context['file_path']}"
 
         kb_section = ""
@@ -443,10 +457,12 @@ Explanation:
 [Brief explanation of what the code does]
 """
 
-    def _build_modify_prompt(self, nl: str, language: str, context: Optional[Dict]) -> str:
+    def _build_modify_prompt(
+        self, nl: str, language: str, context: Optional[Dict]
+    ) -> str:
         """Build prompt for code modification"""
 
-        existing_code = context.get('existing_code', '') if context else ''
+        existing_code = context.get("existing_code", "") if context else ""
 
         return f"""You are A.R.C.H.I.E., an expert {language} developer.
 
@@ -478,8 +494,8 @@ Explanation:
     def _build_fix_prompt(self, nl: str, language: str, context: Optional[Dict]) -> str:
         """Build prompt for fixing code"""
 
-        existing_code = context.get('existing_code', '') if context else ''
-        error_msg = context.get('error', '') if context else ''
+        existing_code = context.get("existing_code", "") if context else ""
+        error_msg = context.get("error", "") if context else ""
 
         return f"""You are A.R.C.H.I.E., an expert {language} developer and debugger.
 
@@ -509,10 +525,12 @@ Fixed code:
 Explanation: [Why this fix works]
 """
 
-    def _build_explain_prompt(self, nl: str, language: str, context: Optional[Dict]) -> str:
+    def _build_explain_prompt(
+        self, nl: str, language: str, context: Optional[Dict]
+    ) -> str:
         """Build prompt for code explanation"""
 
-        existing_code = context.get('existing_code', '') if context else ''
+        existing_code = context.get("existing_code", "") if context else ""
 
         return f"""You are A.R.C.H.I.E., an expert {language} developer and teacher.
 
@@ -532,11 +550,15 @@ Explanation format:
 4. **Potential improvements**: Suggestions for better code
 """
 
-    def _build_convert_prompt(self, nl: str, language: str, context: Optional[Dict]) -> str:
+    def _build_convert_prompt(
+        self, nl: str, language: str, context: Optional[Dict]
+    ) -> str:
         """Build prompt for code conversion"""
 
-        existing_code = context.get('existing_code', '') if context else ''
-        source_lang = context.get('source_language', 'unknown') if context else 'unknown'
+        existing_code = context.get("existing_code", "") if context else ""
+        source_lang = (
+            context.get("source_language", "unknown") if context else "unknown"
+        )
 
         return f"""You are A.R.C.H.I.E., an expert polyglot developer.
 
@@ -579,21 +601,21 @@ Explanation:
         """Parse AI response to extract code and explanation"""
 
         # Find code blocks
-        code_pattern = rf'```(?:{language})?\n?(.*?)```'
+        code_pattern = rf"```(?:{language})?\n?(.*?)```"
         code_matches = re.findall(code_pattern, response, re.DOTALL | re.IGNORECASE)
 
         code = code_matches[0].strip() if code_matches else ""
 
         # Extract explanation (text after last code block)
         explanation = ""
-        if '```' in response:
-            parts = response.split('```')
+        if "```" in response:
+            parts = response.split("```")
             if len(parts) > 2:
                 last_part = parts[-1].strip()
                 # Remove common prefixes
-                for prefix in ['Explanation:', 'Notes:', 'Summary:']:
+                for prefix in ["Explanation:", "Notes:", "Summary:"]:
                     if last_part.startswith(prefix):
-                        last_part = last_part[len(prefix):].strip()
+                        last_part = last_part[len(prefix) :].strip()
                 explanation = last_part
 
         return code, explanation
@@ -620,18 +642,21 @@ Explanation:
                 )
             """)
 
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO nl_code_generations
                 (prompt, intent, language, generated_code, explanation, confidence)
                 VALUES (%s, %s, %s, %s, %s, %s)
-            """, (
-                prompt,
-                result.get('intent'),
-                result.get('language'),
-                result.get('code'),
-                result.get('explanation'),
-                result.get('confidence')
-            ))
+            """,
+                (
+                    prompt,
+                    result.get("intent"),
+                    result.get("language"),
+                    result.get("code"),
+                    result.get("explanation"),
+                    result.get("confidence"),
+                ),
+            )
 
             conn.commit()
             cur.close()
@@ -646,7 +671,7 @@ def generate_code_from_nl(
     description: str,
     context: Optional[Dict] = None,
     language: Optional[str] = None,
-    file_path: Optional[str] = None
+    file_path: Optional[str] = None,
 ) -> Dict:
     """
     Generate code from natural language description
@@ -673,16 +698,16 @@ def generate_code_from_nl(
 # Quick templates
 def create_flask_route(
     route_path: str,
-    method: str = 'GET',
-    description: str = '',
-    requires_auth: bool = True
+    method: str = "GET",
+    description: str = "",
+    requires_auth: bool = True,
 ) -> str:
     """Generate a Flask route template"""
 
-    decorator = '@login_required' if requires_auth else ''
-    function_name = route_path.replace('/', '_').replace('-', '_').strip('_')
+    decorator = "@login_required" if requires_auth else ""
+    function_name = route_path.replace("/", "_").replace("-", "_").strip("_")
     if not function_name:
-        function_name = 'index'
+        function_name = "index"
 
     body = 'result = {"message": "Hello from A.R.C.H.I.E."}'
 
@@ -704,14 +729,16 @@ def {function_name}():
 def create_python_function(
     name: str,
     params: List[str] = None,
-    return_type: str = 'None',
-    description: str = ''
+    return_type: str = "None",
+    description: str = "",
 ) -> str:
     """Generate a Python function template"""
 
     params = params or []
-    param_str = ', '.join(params) if params else ''
-    args_doc = '\n        '.join([f'{p}: Description' for p in params]) if params else 'None'
+    param_str = ", ".join(params) if params else ""
+    args_doc = (
+        "\n        ".join([f"{p}: Description" for p in params]) if params else "None"
+    )
 
     return f'''
 def {name}({param_str}) -> {return_type}:
@@ -729,15 +756,14 @@ def {name}({param_str}) -> {return_type}:
 '''
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("=" * 60)
     print("Natural Language Code Generator - Test")
     print("=" * 60)
 
     # Test generation
     result = generate_code_from_nl(
-        "Create a function that calculates the factorial of a number",
-        language="python"
+        "Create a function that calculates the factorial of a number", language="python"
     )
 
     print(f"\nSuccess: {result.get('success')}")

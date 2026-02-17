@@ -11,6 +11,7 @@ Purpose:
 Author: A.R.C.H.I.E. Platform
 Date: 2026-01-06
 """
+
 import os
 import json
 import requests
@@ -23,9 +24,9 @@ class KnowledgeEmbeddingGenerator:
 
     def __init__(
         self,
-        ollama_url: str = 'http://localhost:11434',
-        model: str = 'nomic-embed-text',
-        dimension: int = 768
+        ollama_url: str = "http://localhost:11434",
+        model: str = "arctic-embed-cpu",
+        dimension: int = 768,
     ):
         self.ollama_url = ollama_url
         self.model = model
@@ -44,17 +45,14 @@ class KnowledgeEmbeddingGenerator:
         try:
             # Use Ollama's embedding API
             response = requests.post(
-                f'{self.ollama_url}/api/embeddings',
-                json={
-                    'model': self.model,
-                    'prompt': text
-                },
-                timeout=30
+                f"{self.ollama_url}/api/embeddings",
+                json={"model": self.model, "prompt": text},
+                timeout=30,
             )
 
             if response.status_code == 200:
                 data = response.json()
-                embedding = data.get('embedding', [])
+                embedding = data.get("embedding", [])
 
                 if len(embedding) == 0:
                     print(f"[Embeddings] Warning: Empty embedding returned for text")
@@ -87,25 +85,22 @@ class KnowledgeEmbeddingGenerator:
         # Combine article fields for richer semantic representation
         text_parts = []
 
-        if article.get('title'):
+        if article.get("title"):
             text_parts.append(f"Title: {article['title']}")
 
-        if article.get('description'):
+        if article.get("description"):
             text_parts.append(f"Description: {article['description']}")
 
-        if article.get('content'):
+        if article.get("content"):
             # Limit content to first 2000 chars to avoid token limits
-            content = article['content'][:2000]
+            content = article["content"][:2000]
             text_parts.append(f"Content: {content}")
 
         combined_text = "\n\n".join(text_parts)
 
         return self.generate_embedding(combined_text)
 
-    def generate_embeddings_batch(
-        self,
-        articles: List[Dict]
-    ) -> Dict[int, List[float]]:
+    def generate_embeddings_batch(self, articles: List[Dict]) -> Dict[int, List[float]]:
         """
         Generate embeddings for multiple articles
 
@@ -118,7 +113,7 @@ class KnowledgeEmbeddingGenerator:
         embeddings = {}
 
         for article in articles:
-            article_id = article.get('id')
+            article_id = article.get("id")
             if not article_id:
                 continue
 
@@ -153,10 +148,7 @@ class KnowledgeEmbeddingGenerator:
                     WHERE id = ANY(%s)
                 """
                 with db.engine.connect() as conn:
-                    result = conn.execute(
-                        sqlalchemy.text(query),
-                        (article_ids,)
-                    )
+                    result = conn.execute(sqlalchemy.text(query), (article_ids,))
                     articles = [dict(row._mapping) for row in result]
             else:
                 query = """
@@ -172,7 +164,7 @@ class KnowledgeEmbeddingGenerator:
 
             if not articles:
                 print("[Embeddings] No articles to process")
-                return {'success': True, 'updated': 0}
+                return {"success": True, "updated": 0}
 
             print(f"[Embeddings] Processing {len(articles)} articles...")
 
@@ -193,7 +185,7 @@ class KnowledgeEmbeddingGenerator:
                     with db.engine.connect() as conn:
                         conn.execute(
                             sqlalchemy.text(update_query),
-                            (json.dumps(embedding), article_id)
+                            (json.dumps(embedding), article_id),
                         )
                         conn.commit()
 
@@ -205,24 +197,17 @@ class KnowledgeEmbeddingGenerator:
             print(f"[Embeddings] ✓ Updated {updated_count} articles with embeddings")
 
             return {
-                'success': True,
-                'processed': len(articles),
-                'updated': updated_count,
-                'failed': len(articles) - updated_count
+                "success": True,
+                "processed": len(articles),
+                "updated": updated_count,
+                "failed": len(articles) - updated_count,
             }
 
         except Exception as e:
             print(f"[Embeddings] Error in batch update: {e}")
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
-    def cosine_similarity(
-        self,
-        vec1: List[float],
-        vec2: List[float]
-    ) -> float:
+    def cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
         """
         Calculate cosine similarity between two vectors
 
@@ -254,12 +239,7 @@ class KnowledgeEmbeddingGenerator:
             print(f"[Embeddings] Error calculating similarity: {e}")
             return 0.0
 
-    def search_similar_articles(
-        self,
-        query_text: str,
-        limit: int = 10,
-        min_similarity: float = 0.3
-    ) -> List[Dict]:
+    def search_similar_articles(self, query_text: str, limit: int = 10, min_similarity: float = 0.3) -> List[Dict]:
         """
         Search for similar articles using semantic search
 
@@ -300,7 +280,7 @@ class KnowledgeEmbeddingGenerator:
             for article in articles:
                 try:
                     # Parse embedding from JSONB
-                    embedding_json = article.get('embedding')
+                    embedding_json = article.get("embedding")
                     if isinstance(embedding_json, str):
                         article_embedding = json.loads(embedding_json)
                     else:
@@ -313,21 +293,23 @@ class KnowledgeEmbeddingGenerator:
                     similarity = self.cosine_similarity(query_embedding, article_embedding)
 
                     if similarity >= min_similarity:
-                        scored_articles.append({
-                            'id': article['id'],
-                            'title': article['title'],
-                            'description': article['description'],
-                            'content': article['content'],
-                            'category': article['category'],
-                            'similarity': similarity
-                        })
+                        scored_articles.append(
+                            {
+                                "id": article["id"],
+                                "title": article["title"],
+                                "description": article["description"],
+                                "content": article["content"],
+                                "category": article["category"],
+                                "similarity": similarity,
+                            }
+                        )
 
                 except Exception as e:
                     print(f"[Embeddings] Error processing article #{article['id']}: {e}")
                     continue
 
             # Sort by similarity (highest first)
-            scored_articles.sort(key=lambda x: x['similarity'], reverse=True)
+            scored_articles.sort(key=lambda x: x["similarity"], reverse=True)
 
             # Return top results
             return scored_articles[:limit]

@@ -23,8 +23,8 @@ logger = logging.getLogger(__name__)
 
 # Configuration
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://host.docker.internal:11434")
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
-EMBEDDING_DIMENSION = 1536  # nomic-embed-text dimension
+EMBEDDING_MODEL = os.getenv("OLLAMA_EMBEDDING_MODEL", "arctic-embed-cpu")
+EMBEDDING_DIMENSION = 768  # arctic-embed-cpu dimension
 
 
 def get_db_connection():
@@ -122,7 +122,10 @@ def cosine_similarity(a: List[float], b: List[float]) -> float:
 
 
 def semantic_search(
-    query: str, source_types: Optional[List[str]] = None, limit: int = 10, min_similarity: float = 0.5
+    query: str,
+    source_types: Optional[List[str]] = None,
+    limit: int = 10,
+    min_similarity: float = 0.5,
 ) -> List[Dict]:
     """Search memories by semantic similarity"""
 
@@ -218,7 +221,7 @@ def text_search(query: str, source_types: Optional[List[str]] = None, limit: int
                         "source_id": row["id"],
                         "title": row["title"],
                         "content": row["content"][:500],
-                        "importance": float(row["importance"]) if row["importance"] else 0.5,
+                        "importance": (float(row["importance"]) if row["importance"] else 0.5),
                         "entry_type": row["entry_type"],
                         "tags": row["tags"] or [],
                         "similarity": 0.7,  # Placeholder for text match
@@ -245,7 +248,7 @@ def text_search(query: str, source_types: Optional[List[str]] = None, limit: int
                         "source_id": row["id"],
                         "title": f"{row['memory_type']}: {row['category'] or 'General'}",
                         "content": row["content"][:500] if row["content"] else "",
-                        "importance": float(row["importance_score"]) if row["importance_score"] else 0.5,
+                        "importance": (float(row["importance_score"]) if row["importance_score"] else 0.5),
                         "tags": row["tags"] or [],
                         "similarity": 0.6,
                     }
@@ -427,7 +430,11 @@ def get_collections(user_id: int = None, agent_id: int = None) -> List[Dict]:
 
 
 def add_to_collection(
-    collection_id: int, memory_type: str, memory_id: int, notes: str = None, added_by: int = None
+    collection_id: int,
+    memory_type: str,
+    memory_id: int,
+    notes: str = None,
+    added_by: int = None,
 ) -> bool:
     """Add a memory to a collection"""
     conn = get_db_connection()
@@ -544,7 +551,16 @@ def create_association(
                 strength = GREATEST(memory_associations.strength, EXCLUDED.strength),
                 association_type = EXCLUDED.association_type
         """,
-            (source_type, source_id, target_type, target_id, association_type, strength, is_bidirectional, created_by),
+            (
+                source_type,
+                source_id,
+                target_type,
+                target_id,
+                association_type,
+                strength,
+                is_bidirectional,
+                created_by,
+            ),
         )
 
         conn.commit()
@@ -579,7 +595,17 @@ def get_related_memories(memory_type: str, memory_id: int, limit: int = 10) -> L
             ORDER BY strength DESC
             LIMIT %s
         """,
-            (memory_type, memory_id, memory_type, memory_id, memory_type, memory_id, memory_type, memory_id, limit),
+            (
+                memory_type,
+                memory_id,
+                memory_type,
+                memory_id,
+                memory_type,
+                memory_id,
+                memory_type,
+                memory_id,
+                limit,
+            ),
         )
 
         results = []
@@ -657,7 +683,14 @@ def record_memory(
                 VALUES (%s, %s, %s, %s, %s, %s)
                 RETURNING id
             """,
-                (agent_id, memory_type, content, importance, source_module, json.dumps(metadata) if metadata else None),
+                (
+                    agent_id,
+                    memory_type,
+                    content,
+                    importance,
+                    source_module,
+                    json.dumps(metadata) if metadata else None,
+                ),
             )
 
             memory_id = cur.fetchone()[0]
@@ -727,7 +760,14 @@ def log_memory_access(
             (memory_type, memory_id, access_type, accessor_type, accessor_id, context)
             VALUES (%s, %s, %s, %s, %s, %s)
         """,
-            (memory_type, memory_id, access_type, accessor_type, accessor_id, json.dumps(context) if context else None),
+            (
+                memory_type,
+                memory_id,
+                access_type,
+                accessor_type,
+                accessor_id,
+                json.dumps(context) if context else None,
+            ),
         )
 
         conn.commit()

@@ -3,8 +3,24 @@ A.R.C.H.I.E. Platform - Main Application
 With User Signup and Admin Approval System
 """
 
-from flask import Flask, render_template, redirect, url_for, flash, request, jsonify, session
-from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from flask import (
+    Flask,
+    render_template,
+    redirect,
+    url_for,
+    flash,
+    request,
+    jsonify,
+    session,
+)
+from flask_login import (
+    LoginManager,
+    UserMixin,
+    login_user,
+    logout_user,
+    login_required,
+    current_user,
+)
 from werkzeug.security import check_password_hash, generate_password_hash
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -113,7 +129,12 @@ def create_user_session(user_id):
                 created_at, last_activity, expires_at)
                VALUES (%s, %s, %s, %s, NOW(), NOW(),
                 NOW() + INTERVAL '24 hours')""",
-            (user_id, token, request.remote_addr, request.headers.get("User-Agent", "")),
+            (
+                user_id,
+                token,
+                request.remote_addr,
+                request.headers.get("User-Agent", ""),
+            ),
         )
         conn.commit()
         cur.close()
@@ -189,7 +210,11 @@ import sys  # noqa: E402
 sys.path.insert(0, "/mnt/archie_brain")
 
 try:
-    from ai_bridge.archie_bridge import archie_bridge, get_available_models, classify_task
+    from ai_bridge.archie_bridge import (
+        archie_bridge,
+        get_available_models,
+        classify_task,
+    )
 
     AI_BRIDGE_AVAILABLE = True
     print("✅ A.R.C.H.I.E. Bridge loaded successfully")
@@ -217,7 +242,10 @@ def ai_chat():
     Routes to best model automatically
     """
     if not AI_BRIDGE_AVAILABLE:
-        return jsonify({"success": False, "error": "A.R.C.H.I.E. Bridge not available"}), 503
+        return (
+            jsonify({"success": False, "error": "A.R.C.H.I.E. Bridge not available"}),
+            503,
+        )
 
     try:
         data = request.json
@@ -229,7 +257,12 @@ def ai_chat():
             return jsonify({"success": False, "error": "Prompt is required"}), 400
 
         # Use A.R.C.H.I.E. Bridge
-        result = archie_bridge(prompt=prompt, context=context, user_id=current_user.id, force_model=force_model)
+        result = archie_bridge(
+            prompt=prompt,
+            context=context,
+            user_id=current_user.id,
+            force_model=force_model,
+        )
 
         return jsonify(result)
 
@@ -242,7 +275,10 @@ def ai_chat():
 def get_ai_models():
     """Get available AI models"""
     if not AI_BRIDGE_AVAILABLE:
-        return jsonify({"success": False, "error": "A.R.C.H.I.E. Bridge not available"}), 503
+        return (
+            jsonify({"success": False, "error": "A.R.C.H.I.E. Bridge not available"}),
+            503,
+        )
 
     try:
         models = get_available_models()
@@ -256,7 +292,10 @@ def get_ai_models():
 def classify_ai_task():
     """Classify what type of task this is"""
     if not AI_BRIDGE_AVAILABLE:
-        return jsonify({"success": False, "error": "A.R.C.H.I.E. Bridge not available"}), 503
+        return (
+            jsonify({"success": False, "error": "A.R.C.H.I.E. Bridge not available"}),
+            503,
+        )
 
     try:
         data = request.json
@@ -275,7 +314,10 @@ def classify_ai_task():
 def ai_preferences():
     """Get or update user's AI preferences"""
     if not AI_BRIDGE_AVAILABLE:
-        return jsonify({"success": False, "error": "A.R.C.H.I.E. Bridge not available"}), 503
+        return (
+            jsonify({"success": False, "error": "A.R.C.H.I.E. Bridge not available"}),
+            503,
+        )
 
     if request.method == "GET":
         try:
@@ -443,7 +485,12 @@ def login():
                 try:
                     cur.execute(
                         "INSERT INTO failed_logins (username, ip_address, user_agent, reason) VALUES (%s, %s, %s, %s)",
-                        (username, request.remote_addr, request.headers.get("User-Agent"), "unknown_username"),
+                        (
+                            username,
+                            request.remote_addr,
+                            request.headers.get("User-Agent"),
+                            "unknown_username",
+                        ),
                     )
                     conn.commit()
                 except Exception:
@@ -455,7 +502,10 @@ def login():
 
             # Check if account is inactive (pending approval)
             if not user_data.get("is_active", False):
-                flash("Your account is pending admin approval. Please wait for activation.", "error")
+                flash(
+                    "Your account is pending admin approval. Please wait for activation.",
+                    "error",
+                )
                 cur.close()
                 conn.close()
                 return render_template("login.html")
@@ -494,7 +544,12 @@ def login():
                 try:
                     cur.execute(
                         "INSERT INTO audit_log (user_id, action, ip_address, user_agent) VALUES (%s, %s, %s, %s)",
-                        (user_data["id"], "login", request.remote_addr, request.headers.get("User-Agent")),
+                        (
+                            user_data["id"],
+                            "login",
+                            request.remote_addr,
+                            request.headers.get("User-Agent"),
+                        ),
                     )
                     cur.execute(
                         "INSERT INTO user_activity_log"
@@ -510,7 +565,10 @@ def login():
                         ),
                     )
                     # Reset failed login count on successful login
-                    cur.execute("UPDATE users SET failed_login_count = 0 WHERE id = %s", (user_data["id"],))
+                    cur.execute(
+                        "UPDATE users SET failed_login_count = 0 WHERE id = %s",
+                        (user_data["id"],),
+                    )
                     conn.commit()
                 except Exception:
                     pass
@@ -524,7 +582,12 @@ def login():
                 try:
                     cur.execute(
                         "INSERT INTO failed_logins (username, ip_address, user_agent, reason) VALUES (%s, %s, %s, %s)",
-                        (username, request.remote_addr, request.headers.get("User-Agent"), "invalid_password"),
+                        (
+                            username,
+                            request.remote_addr,
+                            request.headers.get("User-Agent"),
+                            "invalid_password",
+                        ),
                     )
                     cur.execute(
                         "UPDATE users SET failed_login_count = COALESCE(failed_login_count, 0) + 1 WHERE id = %s",
@@ -578,7 +641,10 @@ def verify_2fa():
 
             conn = get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute("SELECT * FROM users WHERE id = %s AND is_active = TRUE", (pending_user_id,))
+            cur.execute(
+                "SELECT * FROM users WHERE id = %s AND is_active = TRUE",
+                (pending_user_id,),
+            )
             user_data = cur.fetchone()
 
             if not user_data:
@@ -613,7 +679,12 @@ def verify_2fa():
                 try:
                     cur.execute(
                         "INSERT INTO audit_log (user_id, action, ip_address, user_agent)" " VALUES (%s, %s, %s, %s)",
-                        (user_data["id"], "login_2fa_verified", request.remote_addr, request.headers.get("User-Agent")),
+                        (
+                            user_data["id"],
+                            "login_2fa_verified",
+                            request.remote_addr,
+                            request.headers.get("User-Agent"),
+                        ),
                     )
                     cur.execute(
                         "INSERT INTO user_activity_log"
@@ -628,7 +699,10 @@ def verify_2fa():
                             request.headers.get("User-Agent"),
                         ),
                     )
-                    cur.execute("UPDATE users SET failed_login_count = 0 WHERE id = %s", (user_data["id"],))
+                    cur.execute(
+                        "UPDATE users SET failed_login_count = 0 WHERE id = %s",
+                        (user_data["id"],),
+                    )
                     conn.commit()
                 except Exception:
                     pass
@@ -743,7 +817,10 @@ def signup():
             cur.close()
             conn.close()
 
-            flash("Registration successful! Your account is pending admin approval.", "success")
+            flash(
+                "Registration successful! Your account is pending admin approval.",
+                "success",
+            )
             return redirect(url_for("login"))
 
         except Exception as e:
@@ -819,7 +896,10 @@ def dashboard():
         archie = cur.fetchone()
 
         # Get user's project count
-        cur.execute("SELECT COUNT(*) as count FROM projects WHERE user_id = %s", (current_user.id,))
+        cur.execute(
+            "SELECT COUNT(*) as count FROM projects WHERE user_id = %s",
+            (current_user.id,),
+        )
         project_count = cur.fetchone()["count"]
 
         # Get relationship strength
@@ -901,7 +981,16 @@ def health():
             200,
         )
     except Exception as e:
-        return jsonify({"status": "unhealthy", "error": str(e), "timestamp": datetime.now().isoformat()}), 500
+        return (
+            jsonify(
+                {
+                    "status": "unhealthy",
+                    "error": str(e),
+                    "timestamp": datetime.now().isoformat(),
+                }
+            ),
+            500,
+        )
 
 
 # ============================================================================
@@ -1141,6 +1230,53 @@ try:
 except Exception as e:
     logger.warning(f"Voice cache warmup skipped: {e}")
 
+
+# ============================================================================
+# OLLAMA MODEL WARMUP - Pre-load key models so first requests are fast
+# ============================================================================
+def _warmup_ollama_models():
+    """Background warmup of Ollama models: dolphin3-8k (GPU), embedding model (CPU)."""
+    import threading
+
+    def _do_warmup():
+        import time
+        import requests as req
+
+        ollama_host = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
+        if not ollama_host.startswith("http"):
+            ollama_host = f"http://{ollama_host}"
+
+        models_to_warm = [
+            ("dolphin3-8k:latest", "generate", "warmup"),
+            ("arctic-embed-cpu", "embed", "warmup"),
+        ]
+        for model_name, endpoint, payload_key in models_to_warm:
+            for attempt in range(3):
+                try:
+                    if endpoint == "embed":
+                        data = {"model": model_name, "input": payload_key}
+                    else:
+                        data = {"model": model_name, "prompt": payload_key, "stream": False}
+                    resp = req.post(
+                        f"{ollama_host}/api/{endpoint}",
+                        json=data,
+                        timeout=120,
+                    )
+                    if resp.status_code == 200:
+                        logger.info(f"Ollama warmup: {model_name} loaded successfully")
+                        break
+                    else:
+                        logger.warning(f"Ollama warmup: {model_name} returned {resp.status_code}, retry {attempt+1}/3")
+                except Exception as e:
+                    logger.warning(f"Ollama warmup: {model_name} attempt {attempt+1}/3 failed: {e}")
+                time.sleep(5)
+
+    t = threading.Thread(target=_do_warmup, daemon=True, name="ollama-warmup")
+    t.start()
+
+
+_warmup_ollama_models()
+
 # ============================================================================
 # SANDBOX MODE CONTEXT PROCESSOR
 # ============================================================================
@@ -1221,7 +1357,11 @@ def inject_sandbox_context():
                 return f"/sandbox/{path}"
         return path
 
-    return {"sandbox_mode": is_sandbox, "sandbox_prefix": sandbox_prefix, "sandbox_url": sandbox_url}
+    return {
+        "sandbox_mode": is_sandbox,
+        "sandbox_prefix": sandbox_prefix,
+        "sandbox_url": sandbox_url,
+    }
 
 
 # ============================================================================
@@ -1290,7 +1430,12 @@ def get_modules():
                     }
                 )
 
-        return jsonify({"success": True, "modules": sorted(accessible, key=lambda m: m.get("name", ""))})
+        return jsonify(
+            {
+                "success": True,
+                "modules": sorted(accessible, key=lambda m: m.get("name", "")),
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -1377,7 +1522,7 @@ def get_notifications():
                     "message": notif["message"],
                     "source": notif["source"],
                     "is_read": notif["is_read"],
-                    "created_at": notif["created_at"].isoformat() if notif["created_at"] else None,
+                    "created_at": (notif["created_at"].isoformat() if notif["created_at"] else None),
                 }
             )
 
@@ -1393,7 +1538,10 @@ def mark_notification_read(notification_id):
     try:
         conn = get_db()
         cur = conn.cursor()
-        cur.execute("UPDATE system_notifications SET is_read = TRUE WHERE id = %s", (notification_id,))
+        cur.execute(
+            "UPDATE system_notifications SET is_read = TRUE WHERE id = %s",
+            (notification_id,),
+        )
         conn.commit()
         cur.close()
         conn.close()
@@ -1471,7 +1619,13 @@ def create_notification_endpoint():
             conn.commit()
             cur.close()
             conn.close()
-            return jsonify({"success": True, "grouped": True, "count": existing["grouped_count"] + 1})
+            return jsonify(
+                {
+                    "success": True,
+                    "grouped": True,
+                    "count": existing["grouped_count"] + 1,
+                }
+            )
 
         # Create new notification
         cur.execute(
@@ -1482,7 +1636,15 @@ def create_notification_endpoint():
             VALUES (%s, %s, %s, %s, %s, %s, %s, FALSE, NOW())
             RETURNING id
         """,
-            (notification_type, title, message, source, priority, source_icon, related_action),
+            (
+                notification_type,
+                title,
+                message,
+                source,
+                priority,
+                source_icon,
+                related_action,
+            ),
         )
 
         notification_id = cur.fetchone()["id"]
@@ -1518,7 +1680,12 @@ def get_notification_count():
         conn.close()
 
         return jsonify(
-            {"success": True, "unread": counts["unread"], "critical": counts["critical"], "errors": counts["errors"]}
+            {
+                "success": True,
+                "unread": counts["unread"],
+                "critical": counts["critical"],
+                "errors": counts["errors"],
+            }
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -1577,7 +1744,10 @@ def search_notifications():
         where_sql = " AND ".join(where_clauses)
 
         # Get total count
-        cur.execute(f"SELECT COUNT(*) as total FROM system_notifications WHERE {where_sql}", params)
+        cur.execute(
+            f"SELECT COUNT(*) as total FROM system_notifications WHERE {where_sql}",
+            params,
+        )
         total = cur.fetchone()["total"]
 
         # Get paginated results
@@ -1740,7 +1910,7 @@ def server_error(e):
         context = {
             "route": request.path if request else "unknown",
             "method": request.method if request else "unknown",
-            "user_id": current_user.id if hasattr(current_user, "id") and current_user.is_authenticated else None,
+            "user_id": (current_user.id if hasattr(current_user, "id") and current_user.is_authenticated else None),
             "error_type": "500",
             "timestamp": datetime.now().isoformat(),
         }
@@ -1775,7 +1945,7 @@ def handle_exception(e):
         context = {
             "route": request.path if request else "unknown",
             "method": request.method if request else "unknown",
-            "user_id": current_user.id if hasattr(current_user, "id") and current_user.is_authenticated else None,
+            "user_id": (current_user.id if hasattr(current_user, "id") and current_user.is_authenticated else None),
             "error_type": error_type,
             "timestamp": datetime.now().isoformat(),
             "url": request.url if request else None,
@@ -1795,7 +1965,10 @@ def handle_exception(e):
                 logger.info(f"[Mistake Detector] 📚 Known solution available: {solution[:200]}")
                 # You could add this to the flash message for admins
                 if current_user.is_authenticated and hasattr(current_user, "is_admin") and current_user.is_admin():
-                    flash(f"Known issue detected. Solution: {solution[:100]}...", "warning")
+                    flash(
+                        f"Known issue detected. Solution: {solution[:100]}...",
+                        "warning",
+                    )
         else:
             logger.info(f"[Mistake Detector] No pattern match for: {error_type}")
 
@@ -1806,7 +1979,10 @@ def handle_exception(e):
     # Return appropriate error response
     if request and request.path.startswith("/api/"):
         # API error - return JSON
-        return jsonify({"success": False, "error": error_message, "error_type": error_type}), 500
+        return (
+            jsonify({"success": False, "error": error_message, "error_type": error_type}),
+            500,
+        )
     else:
         # Web error - flash and redirect
         flash(f"An error occurred: {error_message}", "error")

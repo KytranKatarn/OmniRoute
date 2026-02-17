@@ -22,7 +22,7 @@ from typing import List, Dict, Optional, Any
 logger = logging.getLogger(__name__)
 
 sys.path.insert(0, os.path.dirname(__file__))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'platform_v2'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "platform_v2"))
 
 
 @dataclass
@@ -35,7 +35,7 @@ class SubTask:
     response: Optional[str] = None
     model_used: Optional[str] = None
     duration_ms: int = 0
-    status: str = 'pending'
+    status: str = "pending"
 
 
 @dataclass
@@ -84,8 +84,8 @@ class MultiAgentOrchestrator:
 
         start_time = time.time()
         thinking_steps = []
-        stations = intent.get('participating_stations', [])
-        domains = intent.get('domains_detected', [])
+        stations = intent.get("participating_stations", [])
+        domains = intent.get("domains_detected", [])
 
         # Step 1: Decompose
         sub_tasks = self._decompose_task(message, stations, domains, thinking_steps)
@@ -108,11 +108,13 @@ class MultiAgentOrchestrator:
         final_response = self._synthesize_results(message, sub_tasks, thinking_steps)
 
         total_ms = int((time.time() - start_time) * 1000)
-        agents_used = list(set(
-            st.assigned_agent.get('name', 'Unknown')
-            for st in sub_tasks
-            if st.assigned_agent
-        ))
+        agents_used = list(
+            set(
+                st.assigned_agent.get("name", "Unknown")
+                for st in sub_tasks
+                if st.assigned_agent
+            )
+        )
 
         return MultiAgentResult(
             response=final_response,
@@ -164,12 +166,14 @@ class MultiAgentOrchestrator:
         )
 
         try:
-            proxy_url = os.getenv('CLAUDE_PROXY_URL', 'http://host.docker.internal:7682')
+            proxy_url = os.getenv(
+                "CLAUDE_PROXY_URL", "http://host.docker.internal:7682"
+            )
             resp = requests.post(
                 f"{proxy_url}/api/chat",
                 json={
-                    'message': f"Decompose this request into sub-tasks:\n\n{message}",
-                    'system_prompt': system_prompt,
+                    "message": f"Decompose this request into sub-tasks:\n\n{message}",
+                    "system_prompt": system_prompt,
                 },
                 timeout=60,
             )
@@ -177,19 +181,19 @@ class MultiAgentOrchestrator:
             if resp.status_code != 200:
                 raise RuntimeError(f"Claude proxy returned {resp.status_code}")
 
-            raw_response = resp.json().get('response', '')
+            raw_response = resp.json().get("response", "")
 
             # Parse JSON from response (handle markdown code blocks)
             json_text = raw_response.strip()
-            if '```' in json_text:
+            if "```" in json_text:
                 # Extract from code block
-                start = json_text.find('[')
-                end = json_text.rfind(']') + 1
+                start = json_text.find("[")
+                end = json_text.rfind("]") + 1
                 if start >= 0 and end > start:
                     json_text = json_text[start:end]
-            elif not json_text.startswith('['):
-                start = json_text.find('[')
-                end = json_text.rfind(']') + 1
+            elif not json_text.startswith("["):
+                start = json_text.find("[")
+                end = json_text.rfind("]") + 1
                 if start >= 0 and end > start:
                     json_text = json_text[start:end]
 
@@ -197,62 +201,74 @@ class MultiAgentOrchestrator:
 
             # Map domain names to station codes
             domain_map = {
-                'security': 'SECURITY',
-                'engineering': 'ENGINEERING',
-                'qa': 'QA',
-                'operations': 'OPERATIONS',
-                'creative': 'CREATIVE',
+                "security": "SECURITY",
+                "engineering": "ENGINEERING",
+                "qa": "QA",
+                "operations": "OPERATIONS",
+                "creative": "CREATIVE",
             }
 
             sub_tasks = []
             for i, task in enumerate(tasks_data[:4]):  # Max 4 sub-tasks
-                domain = task.get('required_domain', 'engineering').lower()
-                station = domain_map.get(domain, 'ENGINEERING')
-                sub_tasks.append(SubTask(
-                    index=i,
-                    description=task.get('description', f'Sub-task {i+1}'),
-                    domain=domain,
-                    station=station,
-                ))
+                domain = task.get("required_domain", "engineering").lower()
+                station = domain_map.get(domain, "ENGINEERING")
+                sub_tasks.append(
+                    SubTask(
+                        index=i,
+                        description=task.get("description", f"Sub-task {i+1}"),
+                        domain=domain,
+                        station=station,
+                    )
+                )
 
             duration = int((time.time() - t0) * 1000)
-            thinking_steps.append(ThinkingStep(
-                step_type=StepType.DECOMPOSE.value,
-                label=f"Decomposed into {len(sub_tasks)} sub-tasks",
-                data={
-                    'sub_task_count': len(sub_tasks),
-                    'sub_tasks': [
-                        {'description': st.description[:80], 'domain': st.domain, 'station': st.station}
-                        for st in sub_tasks
-                    ],
-                },
-                duration_ms=duration,
-            ))
+            thinking_steps.append(
+                ThinkingStep(
+                    step_type=StepType.DECOMPOSE.value,
+                    label=f"Decomposed into {len(sub_tasks)} sub-tasks",
+                    data={
+                        "sub_task_count": len(sub_tasks),
+                        "sub_tasks": [
+                            {
+                                "description": st.description[:80],
+                                "domain": st.domain,
+                                "station": st.station,
+                            }
+                            for st in sub_tasks
+                        ],
+                    },
+                    duration_ms=duration,
+                )
+            )
 
             return sub_tasks
 
         except (json.JSONDecodeError, KeyError, TypeError) as e:
             duration = int((time.time() - t0) * 1000)
             logger.warning(f"Decomposition JSON parse failed: {e}")
-            thinking_steps.append(ThinkingStep(
-                step_type=StepType.DECOMPOSE.value,
-                label="Decomposition failed (bad JSON)",
-                data={'error': str(e)},
-                duration_ms=duration,
-                success=False,
-            ))
+            thinking_steps.append(
+                ThinkingStep(
+                    step_type=StepType.DECOMPOSE.value,
+                    label="Decomposition failed (bad JSON)",
+                    data={"error": str(e)},
+                    duration_ms=duration,
+                    success=False,
+                )
+            )
             return []
 
         except Exception as e:
             duration = int((time.time() - t0) * 1000)
             logger.warning(f"Decomposition failed: {e}")
-            thinking_steps.append(ThinkingStep(
-                step_type=StepType.DECOMPOSE.value,
-                label=f"Decomposition failed: {str(e)[:60]}",
-                data={'error': str(e)},
-                duration_ms=duration,
-                success=False,
-            ))
+            thinking_steps.append(
+                ThinkingStep(
+                    step_type=StepType.DECOMPOSE.value,
+                    label=f"Decomposition failed: {str(e)[:60]}",
+                    data={"error": str(e)},
+                    duration_ms=duration,
+                    success=False,
+                )
+            )
             return []
 
     # =========================================================================
@@ -271,12 +287,12 @@ class MultiAgentOrchestrator:
 
         # Station-to-department mapping for agent_delegation
         station_to_dept = {
-            'SECURITY': 'Security',
-            'ENGINEERING': 'Engineering',
-            'QA': 'Quality Assurance',
-            'OPERATIONS': 'Operations',
-            'CREATIVE': 'Creative',
-            'COMMAND': 'Command',
+            "SECURITY": "Security",
+            "ENGINEERING": "Engineering",
+            "QA": "Quality Assurance",
+            "OPERATIONS": "Operations",
+            "CREATIVE": "Creative",
+            "COMMAND": "Command",
         }
 
         try:
@@ -285,55 +301,71 @@ class MultiAgentOrchestrator:
             logger.warning("agent_delegation not available for multi-agent assignment")
             # Fall back: assign ARCHIE to all sub-tasks
             archie = {
-                'id': 2, 'name': 'ARCHIE', 'department': 'Command',
-                'worker_type': 'internal', 'model': 'dolphin3:latest', 'tier': 1,
+                "id": 2,
+                "name": "ARCHIE",
+                "department": "Command",
+                "worker_type": "internal",
+                "model": "dolphin3-8k:latest",
+                "tier": 1,
             }
             for st in sub_tasks:
                 st.assigned_agent = archie
-            thinking_steps.append(ThinkingStep(
-                step_type=StepType.DELEGATE.value,
-                label="Delegation: all tasks → ARCHIE (fallback)",
-                data={'reason': 'agent_delegation module not available'},
-                duration_ms=int((time.time() - t0) * 1000),
-            ))
+            thinking_steps.append(
+                ThinkingStep(
+                    step_type=StepType.DELEGATE.value,
+                    label="Delegation: all tasks → ARCHIE (fallback)",
+                    data={"reason": "agent_delegation module not available"},
+                    duration_ms=int((time.time() - t0) * 1000),
+                )
+            )
             return
 
         assignments = []
         for st in sub_tasks:
-            dept = station_to_dept.get(st.station, 'Engineering')
-            agent = select_best_agent_for_task(st.description, department_preference=dept)
+            dept = station_to_dept.get(st.station, "Engineering")
+            agent = select_best_agent_for_task(
+                st.description, department_preference=dept
+            )
 
-            if agent and agent.get('id'):
+            if agent and agent.get("id"):
                 st.assigned_agent = {
-                    'id': agent.get('id'),
-                    'agent_id': agent.get('id'),
-                    'name': agent.get('name', 'Unknown'),
-                    'department': agent.get('department', dept),
-                    'worker_type': agent.get('worker_type', 'internal'),
-                    'model': agent.get('model', 'dolphin3:latest'),
-                    'tier': agent.get('tier', 1),
+                    "id": agent.get("id"),
+                    "agent_id": agent.get("id"),
+                    "name": agent.get("name", "Unknown"),
+                    "department": agent.get("department", dept),
+                    "worker_type": agent.get("worker_type", "internal"),
+                    "model": agent.get("model", "dolphin3-8k:latest"),
+                    "tier": agent.get("tier", 1),
                 }
             else:
                 # Fallback to ARCHIE
                 st.assigned_agent = {
-                    'id': 2, 'agent_id': 2, 'name': 'ARCHIE',
-                    'department': 'Command', 'worker_type': 'internal',
-                    'model': 'dolphin3:latest', 'tier': 1,
+                    "id": 2,
+                    "agent_id": 2,
+                    "name": "ARCHIE",
+                    "department": "Command",
+                    "worker_type": "internal",
+                    "model": "dolphin3-8k:latest",
+                    "tier": 1,
                 }
 
-            assignments.append({
-                'sub_task': st.description[:60],
-                'agent': st.assigned_agent['name'],
-                'station': st.station,
-            })
+            assignments.append(
+                {
+                    "sub_task": st.description[:60],
+                    "agent": st.assigned_agent["name"],
+                    "station": st.station,
+                }
+            )
 
         duration = int((time.time() - t0) * 1000)
-        thinking_steps.append(ThinkingStep(
-            step_type=StepType.DELEGATE.value,
-            label=f"Delegated {len(sub_tasks)} sub-tasks to {len(set(a['agent'] for a in assignments))} agents",
-            data={'assignments': assignments},
-            duration_ms=duration,
-        ))
+        thinking_steps.append(
+            ThinkingStep(
+                step_type=StepType.DELEGATE.value,
+                label=f"Delegated {len(sub_tasks)} sub-tasks to {len(set(a['agent'] for a in assignments))} agents",
+                data={"assignments": assignments},
+                duration_ms=duration,
+            )
+        )
 
     # =========================================================================
     # Step 3: Execute Sub-Tasks
@@ -361,23 +393,27 @@ class MultiAgentOrchestrator:
         for st in sub_tasks:
             if not st.assigned_agent:
                 continue
-            model = st.assigned_agent.get('model', 'dolphin3:latest')
-            worker_type = st.assigned_agent.get('worker_type', 'internal')
+            model = st.assigned_agent.get("model", "dolphin3-8k:latest")
+            worker_type = st.assigned_agent.get("worker_type", "internal")
 
             # Internal agents use Ollama, contract agents use Claude proxy
-            if worker_type == 'internal':
+            if worker_type == "internal":
                 ollama_tasks.append(st)
             else:
                 claude_tasks.append(st)
 
         # Execute Ollama tasks sequentially (GPU-safe)
         for st in ollama_tasks:
-            self._execute_single_subtask(st, original_message, user_id, session_id, thinking_steps)
+            self._execute_single_subtask(
+                st, original_message, user_id, session_id, thinking_steps
+            )
 
         # Execute Claude proxy tasks (could be parallel, but keeping simple with sequential
         # since Claude proxy is single-connection anyway)
         for st in claude_tasks:
-            self._execute_single_subtask(st, original_message, user_id, session_id, thinking_steps)
+            self._execute_single_subtask(
+                st, original_message, user_id, session_id, thinking_steps
+            )
 
     def _execute_single_subtask(
         self,
@@ -392,9 +428,9 @@ class MultiAgentOrchestrator:
 
         t0 = time.time()
         agent = sub_task.assigned_agent or {}
-        model = agent.get('model', 'dolphin3:latest')
-        worker_type = agent.get('worker_type', 'internal')
-        agent_name = agent.get('name', 'Unknown')
+        model = agent.get("model", "dolphin3-8k:latest")
+        worker_type = agent.get("worker_type", "internal")
+        agent_name = agent.get("name", "Unknown")
 
         prompt = (
             f"You are handling a specific aspect of a larger request.\n\n"
@@ -404,13 +440,12 @@ class MultiAgentOrchestrator:
         )
 
         try:
-            sub_task.status = 'running'
+            sub_task.status = "running"
 
-            if worker_type == 'internal':
+            if worker_type == "internal":
                 # Use Ollama via the engine's execution method
                 response_text, actual_model = self.engine._execute_ollama(
-                    prompt, model, user_id, '',
-                    False, None
+                    prompt, model, user_id, "", False, None
                 )
             else:
                 # Use Claude proxy
@@ -420,13 +455,13 @@ class MultiAgentOrchestrator:
 
             sub_task.response = response_text
             sub_task.model_used = actual_model
-            sub_task.status = 'completed'
+            sub_task.status = "completed"
 
         except Exception as e:
             logger.error(f"Sub-task {sub_task.index} execution failed: {e}")
             sub_task.response = f"Error: {str(e)}"
             sub_task.model_used = model
-            sub_task.status = 'failed'
+            sub_task.status = "failed"
 
         sub_task.duration_ms = int((time.time() - t0) * 1000)
 
@@ -435,26 +470,29 @@ class MultiAgentOrchestrator:
             try:
                 conn = get_db()
                 cur = conn.cursor()
-                cur.execute("""
+                cur.execute(
+                    """
                     INSERT INTO delegation_tasks
                     (session_id, parent_message, sub_task_index, sub_task_description,
                      assigned_agent_id, assigned_station, model_used, status,
                      response, duration_ms, completed_at)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                             CASE WHEN %s IN ('completed', 'failed') THEN NOW() ELSE NULL END)
-                """, (
-                    session_id,
-                    original_message[:500],
-                    sub_task.index,
-                    sub_task.description[:500],
-                    agent.get('id'),
-                    sub_task.station,
-                    sub_task.model_used,
-                    sub_task.status,
-                    sub_task.response[:5000] if sub_task.response else None,
-                    sub_task.duration_ms,
-                    sub_task.status,
-                ))
+                """,
+                    (
+                        session_id,
+                        original_message[:500],
+                        sub_task.index,
+                        sub_task.description[:500],
+                        agent.get("id"),
+                        sub_task.station,
+                        sub_task.model_used,
+                        sub_task.status,
+                        sub_task.response[:5000] if sub_task.response else None,
+                        sub_task.duration_ms,
+                        sub_task.status,
+                    ),
+                )
                 conn.commit()
                 cur.close()
                 conn.close()
@@ -462,23 +500,27 @@ class MultiAgentOrchestrator:
                 logger.warning(f"Failed to persist delegation task: {e}")
 
         # Record thinking step
-        thinking_steps.append(ThinkingStep(
-            step_type=StepType.EXECUTE.value,
-            label=f"Sub-task {sub_task.index + 1}: {agent_name} ({sub_task.station}) [{sub_task.duration_ms}ms]",
-            data={
-                'sub_task_index': sub_task.index,
-                'sub_task': sub_task.description[:80],
-                'agent': agent_name,
-                'station': sub_task.station,
-                'model': sub_task.model_used,
-                'status': sub_task.status,
-                'response_length': len(sub_task.response) if sub_task.response else 0,
-            },
-            duration_ms=sub_task.duration_ms,
-            success=sub_task.status == 'completed',
-            agent_id=agent.get('id'),
-            model_used=sub_task.model_used,
-        ))
+        thinking_steps.append(
+            ThinkingStep(
+                step_type=StepType.EXECUTE.value,
+                label=f"Sub-task {sub_task.index + 1}: {agent_name} ({sub_task.station}) [{sub_task.duration_ms}ms]",
+                data={
+                    "sub_task_index": sub_task.index,
+                    "sub_task": sub_task.description[:80],
+                    "agent": agent_name,
+                    "station": sub_task.station,
+                    "model": sub_task.model_used,
+                    "status": sub_task.status,
+                    "response_length": (
+                        len(sub_task.response) if sub_task.response else 0
+                    ),
+                },
+                duration_ms=sub_task.duration_ms,
+                success=sub_task.status == "completed",
+                agent_id=agent.get("id"),
+                model_used=sub_task.model_used,
+            )
+        )
 
     # =========================================================================
     # Step 4: Synthesize
@@ -496,26 +538,32 @@ class MultiAgentOrchestrator:
         t0 = time.time()
 
         # Collect results
-        completed = [st for st in sub_tasks if st.status == 'completed']
-        failed = [st for st in sub_tasks if st.status == 'failed']
+        completed = [st for st in sub_tasks if st.status == "completed"]
+        failed = [st for st in sub_tasks if st.status == "failed"]
 
         if not completed:
             # All sub-tasks failed
             duration = int((time.time() - t0) * 1000)
-            thinking_steps.append(ThinkingStep(
-                step_type=StepType.SYNTHESIZE.value,
-                label="Synthesis: all sub-tasks failed",
-                data={'completed': 0, 'failed': len(failed)},
-                duration_ms=duration,
-                success=False,
-            ))
+            thinking_steps.append(
+                ThinkingStep(
+                    step_type=StepType.SYNTHESIZE.value,
+                    label="Synthesis: all sub-tasks failed",
+                    data={"completed": 0, "failed": len(failed)},
+                    duration_ms=duration,
+                    success=False,
+                )
+            )
             return "I attempted to break this into sub-tasks, but all of them encountered errors. Please try a simpler request or rephrase."
 
         # Build synthesis prompt
         results_text = []
         for st in sub_tasks:
-            status_label = "COMPLETED" if st.status == 'completed' else "FAILED"
-            agent_name = st.assigned_agent.get('name', 'Unknown') if st.assigned_agent else 'Unknown'
+            status_label = "COMPLETED" if st.status == "completed" else "FAILED"
+            agent_name = (
+                st.assigned_agent.get("name", "Unknown")
+                if st.assigned_agent
+                else "Unknown"
+            )
             results_text.append(
                 f"--- Sub-task {st.index + 1} ({st.domain}, {agent_name}) [{status_label}] ---\n"
                 f"Task: {st.description}\n"
@@ -533,41 +581,49 @@ class MultiAgentOrchestrator:
         )
 
         try:
-            proxy_url = os.getenv('CLAUDE_PROXY_URL', 'http://host.docker.internal:7682')
+            proxy_url = os.getenv(
+                "CLAUDE_PROXY_URL", "http://host.docker.internal:7682"
+            )
             resp = requests.post(
                 f"{proxy_url}/api/chat",
                 json={
-                    'message': synthesis_prompt,
-                    'system_prompt': "You are a synthesis engine. Combine multiple sub-task results into a single coherent response.",
+                    "message": synthesis_prompt,
+                    "system_prompt": "You are a synthesis engine. Combine multiple sub-task results into a single coherent response.",
                 },
                 timeout=90,
             )
 
             if resp.status_code == 200:
-                final_response = resp.json().get('response', '')
+                final_response = resp.json().get("response", "")
             else:
                 raise RuntimeError(f"Claude proxy returned {resp.status_code}")
 
         except Exception as e:
-            logger.warning(f"Synthesis via Claude proxy failed: {e}, falling back to concatenation")
+            logger.warning(
+                f"Synthesis via Claude proxy failed: {e}, falling back to concatenation"
+            )
             # Fallback: concatenate responses with headers
             parts = []
             for st in completed:
                 parts.append(f"**{st.domain.title()}**:\n{st.response}\n")
             if failed:
-                parts.append(f"\n*Note: {len(failed)} sub-task(s) could not be completed.*")
-            final_response = '\n'.join(parts)
+                parts.append(
+                    f"\n*Note: {len(failed)} sub-task(s) could not be completed.*"
+                )
+            final_response = "\n".join(parts)
 
         duration = int((time.time() - t0) * 1000)
-        thinking_steps.append(ThinkingStep(
-            step_type=StepType.SYNTHESIZE.value,
-            label=f"Synthesized {len(completed)}/{len(sub_tasks)} results ({duration}ms)",
-            data={
-                'completed_count': len(completed),
-                'failed_count': len(failed),
-                'response_length': len(final_response),
-            },
-            duration_ms=duration,
-        ))
+        thinking_steps.append(
+            ThinkingStep(
+                step_type=StepType.SYNTHESIZE.value,
+                label=f"Synthesized {len(completed)}/{len(sub_tasks)} results ({duration}ms)",
+                data={
+                    "completed_count": len(completed),
+                    "failed_count": len(failed),
+                    "response_length": len(final_response),
+                },
+                duration_ms=duration,
+            )
+        )
 
         return final_response

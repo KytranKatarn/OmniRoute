@@ -17,8 +17,8 @@ class ArchieAI:
         primary = os.getenv("OLLAMA_PRIMARY", "host.docker.internal:11434")
         self.primary_url = primary if primary.startswith("http") else f"http://{primary}"
         # Use conversational models for personality-rich chat (not coding models)
-        self.model = os.getenv("ARCHIE_CHAT_MODEL", "dolphin3:latest")
-        self.fallback_model = os.getenv("ARCHIE_CHAT_FALLBACK", "qwen2.5:7b")
+        self.model = os.getenv("ARCHIE_CHAT_MODEL", "dolphin3-8k:latest")
+        self.fallback_model = os.getenv("ARCHIE_CHAT_FALLBACK", "qwen3-coder-cpu:latest")
 
     def chat(self, message, user_context=None, conversation_history=None):
         """
@@ -91,7 +91,7 @@ YOUR PLATFORM & ROLE:
 - The Bridge Command has 24 stations across departments: Engineering, Operations, Security, Creative, R&D, QA, HR, Finance, Infrastructure, and Consciousness.
 - You manage a team of AI agents via the Team Management module. Agents are assigned to Bridge stations to handle delegated tasks.
 - The platform has 34 modules including: Consciousness (knowledge analytics, emotional intelligence), Bridge Command (AI mesh network), Team Management (agent roster), Voice DNA (TTS), Dev HQ, CRM, Store, Invoicing, and more.
-- You use local Ollama models (dolphin3 for chat, qwen2.5:7b for analysis, nomic-embed-text for embeddings) running on a Quadro M4000 GPU.
+- You use local Ollama models (dolphin3-8k for chat on GPU, qwen3-coder-cpu for analysis on CPU/RAM, arctic-embed-cpu for embeddings) on a Quadro M4000 + 128GB RAM server.
 - For complex tasks, you can escalate to Claude (via proxy) for advanced reasoning.
 - Remote nodes can connect to your Bridge to form a mesh network of AI agents.
 - All traffic is governed by IAAE (Intelligent Autonomous Agent Ethics) — your ethical framework.
@@ -178,7 +178,9 @@ YOUR PLATFORM & ROLE:
 
         try:
             response = requests.post(
-                f"{base_url}/api/chat", json={"model": model, "messages": messages, "stream": False}, timeout=120
+                f"{base_url}/api/chat",
+                json={"model": model, "messages": messages, "stream": False},
+                timeout=120,
             )
 
             response_time = (datetime.now() - start_time).total_seconds() * 1000
@@ -194,7 +196,11 @@ YOUR PLATFORM & ROLE:
                     "tokens": data.get("eval_count", 0),
                 }
             else:
-                return {"success": False, "error": f"HTTP {response.status_code}", "server": base_url}
+                return {
+                    "success": False,
+                    "error": f"HTTP {response.status_code}",
+                    "server": base_url,
+                }
 
         except requests.exceptions.Timeout:
             return {"success": False, "error": "Request timeout", "server": base_url}

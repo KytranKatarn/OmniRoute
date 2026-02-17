@@ -14,28 +14,45 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-_raw_host = os.getenv('OLLAMA_HOST', 'http://host.docker.internal:11434')
-OLLAMA_HOST = _raw_host if _raw_host.startswith('http') else f'http://{_raw_host}'
-EXTRACTION_MODEL = os.getenv('ARCHIE_CHAT_MODEL', 'dolphin3:latest')
+_raw_host = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
+OLLAMA_HOST = _raw_host if _raw_host.startswith("http") else f"http://{_raw_host}"
+EXTRACTION_MODEL = os.getenv("ARCHIE_CHAT_MODEL", "dolphin3-8k:latest")
 
 AVAILABLE_DEPARTMENTS = [
-    'Engineering', 'Operations', 'Customer Support', 'Marketing',
-    'Finance', 'Legal', 'HR', 'Security', 'Documentation',
-    'AI Operations', 'Creative', 'Research', 'Compliance', 'Administration'
+    "Engineering",
+    "Operations",
+    "Customer Support",
+    "Marketing",
+    "Finance",
+    "Legal",
+    "HR",
+    "Security",
+    "Documentation",
+    "AI Operations",
+    "Creative",
+    "Research",
+    "Compliance",
+    "Administration",
 ]
 
 AVAILABLE_STATIONS = [
-    'COMMAND', 'CONSCIOUSNESS', 'HR', 'RND', 'OPERATIONS',
-    'ENGINEERING', 'CREATIVE', 'SECURITY', 'MEDICAL', 'AWAY_TEAM'
+    "COMMAND",
+    "CONSCIOUSNESS",
+    "HR",
+    "RND",
+    "OPERATIONS",
+    "ENGINEERING",
+    "CREATIVE",
+    "SECURITY",
+    "MEDICAL",
+    "AWAY_TEAM",
 ]
 
-AVAILABLE_MODELS = [
-    'dolphin3:latest', 'qwen2.5:7b', 'tinyllama', 'nomic-embed-text'
-]
+AVAILABLE_MODELS = ["dolphin3-8k:latest", "qwen3-coder-cpu:latest", "arctic-embed-cpu"]
 
 # Template prompts for different action types
 TEMPLATES = {
-    'create_agent': """Extract agent creation parameters from this request.
+    "create_agent": """Extract agent creation parameters from this request.
 Return ONLY valid JSON, no explanation.
 
 Available Ollama models (local, free): {models}
@@ -47,8 +64,7 @@ JSON format:
 {{"model": "string (pick best model for the role)", "first_name": "string", "last_name": "string", "department": "string", "title": "string", "system_prompt": "string (brief role description)", "capabilities": ["string"]}}
 
 JSON:""",
-
-    'assign_station': """Extract station assignment parameters from this request.
+    "assign_station": """Extract station assignment parameters from this request.
 Return ONLY valid JSON, no explanation.
 
 Available stations: {stations}
@@ -59,8 +75,7 @@ JSON format:
 {{"agent_name": "string", "station_code": "string (UPPERCASE)", "assignment_type": "primary"}}
 
 JSON:""",
-
-    'agent_action': """Extract agent action parameters from this request.
+    "agent_action": """Extract agent action parameters from this request.
 Return ONLY valid JSON, no explanation.
 
 Actions: deactivate, activate, update
@@ -85,11 +100,11 @@ def _parse_json_from_response(text: str) -> dict:
         pass
 
     # Handle markdown code blocks
-    if '```' in text:
-        blocks = text.split('```')
+    if "```" in text:
+        blocks = text.split("```")
         for block in blocks[1::2]:  # odd-indexed blocks are inside backticks
             block = block.strip()
-            if block.startswith('json'):
+            if block.startswith("json"):
                 block = block[4:].strip()
             try:
                 return json.loads(block)
@@ -97,7 +112,7 @@ def _parse_json_from_response(text: str) -> dict:
                 continue
 
     # Try to find JSON object in text
-    match = re.search(r'\{[^{}]*\}', text, re.DOTALL)
+    match = re.search(r"\{[^{}]*\}", text, re.DOTALL)
     if match:
         try:
             return json.loads(match.group())
@@ -115,9 +130,9 @@ def extract_params(message: str, action_type: str) -> dict:
 
     prompt = template.format(
         message=message,
-        models=', '.join(AVAILABLE_MODELS),
-        departments=', '.join(AVAILABLE_DEPARTMENTS),
-        stations=', '.join(AVAILABLE_STATIONS),
+        models=", ".join(AVAILABLE_MODELS),
+        departments=", ".join(AVAILABLE_DEPARTMENTS),
+        stations=", ".join(AVAILABLE_STATIONS),
     )
 
     try:
@@ -127,9 +142,9 @@ def extract_params(message: str, action_type: str) -> dict:
                 "model": EXTRACTION_MODEL,
                 "prompt": prompt,
                 "stream": False,
-                "options": {"temperature": 0.1, "num_ctx": 4096}
+                "options": {"temperature": 0.1, "num_ctx": 4096},
             },
-            timeout=120  # M4000 cold starts can be slow
+            timeout=120,  # M4000 cold starts can be slow
         )
         resp.raise_for_status()
 
@@ -139,8 +154,8 @@ def extract_params(message: str, action_type: str) -> dict:
         result = _parse_json_from_response(text)
 
         # Normalize station codes to uppercase
-        if 'station_code' in result:
-            result['station_code'] = result['station_code'].upper()
+        if "station_code" in result:
+            result["station_code"] = result["station_code"].upper()
 
         return result
 
@@ -155,8 +170,10 @@ def extract_params(message: str, action_type: str) -> dict:
 def resolve_agent_by_name(name: str, conn) -> dict | None:
     """Find agent by fuzzy name match. Returns dict with id, name, etc."""
     from psycopg2.extras import RealDictCursor
+
     cur = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute("""
+    cur.execute(
+        """
         SELECT id, name, first_name, last_name, department, model, status
         FROM agents
         WHERE LOWER(name) LIKE %s
@@ -164,7 +181,9 @@ def resolve_agent_by_name(name: str, conn) -> dict | None:
            OR LOWER(last_name) LIKE %s
         ORDER BY status = 'active' DESC, id
         LIMIT 1
-    """, (f"%{name.lower()}%", f"%{name.lower()}%", f"%{name.lower()}%"))
+    """,
+        (f"%{name.lower()}%", f"%{name.lower()}%", f"%{name.lower()}%"),
+    )
     row = cur.fetchone()
     cur.close()
     return dict(row) if row else None
@@ -173,8 +192,10 @@ def resolve_agent_by_name(name: str, conn) -> dict | None:
 def resolve_station_by_name(name: str, conn) -> dict | None:
     """Find station by code or name match."""
     from psycopg2.extras import RealDictCursor
+
     cur = conn.cursor(cursor_factory=RealDictCursor)
-    cur.execute("""
+    cur.execute(
+        """
         SELECT id, station_code, station_name, full_name
         FROM bridge_stations
         WHERE UPPER(station_code) = %s
@@ -182,7 +203,9 @@ def resolve_station_by_name(name: str, conn) -> dict | None:
            OR LOWER(full_name) LIKE %s
         ORDER BY id
         LIMIT 1
-    """, (name.upper(), f"%{name.lower()}%", f"%{name.lower()}%"))
+    """,
+        (name.upper(), f"%{name.lower()}%", f"%{name.lower()}%"),
+    )
     row = cur.fetchone()
     cur.close()
     return dict(row) if row else None

@@ -5,7 +5,7 @@ Indexes Obsidian vault notes into the knowledge base with embeddings and link gr
 Purpose:
 - Parse markdown + YAML frontmatter
 - Extract [[wikilinks]] and create graph
-- Generate 768-dim embeddings (Ollama nomic-embed-text)
+- Generate 768-dim embeddings (Ollama arctic-embed-cpu)
 - Index to knowledge_base table (is_documentation=true)
 - Update vault_links table for relationships
 - Log to vault_sync_log
@@ -13,6 +13,7 @@ Purpose:
 Author: A.R.C.H.I.E. Platform
 Date: 2026-01-08
 """
+
 import os
 import re
 import json
@@ -32,10 +33,11 @@ class KnowledgeVaultIndexer:
     def __init__(self):
         self.vault_manager = ObsidianVaultManager()
         self.embedding_generator = KnowledgeEmbeddingGenerator()
-        self.vault_path = '/mnt/archie_brain/knowledge/'
+        self.vault_path = "/mnt/archie_brain/knowledge/"
 
     def _serialize_frontmatter(self, frontmatter: Dict) -> str:
         """Serialize frontmatter to JSON, converting datetime objects to ISO strings"""
+
         def convert_datetime(obj):
             if isinstance(obj, datetime):
                 return obj.isoformat()
@@ -71,11 +73,11 @@ class KnowledgeVaultIndexer:
                 return False, f"Failed to read note: {msg}"
 
             # Extract data
-            title = note_data['title']
-            content = note_data['content']
-            frontmatter = note_data['frontmatter']
-            category = frontmatter.get('category', 'Core')
-            tags = frontmatter.get('tags', [])
+            title = note_data["title"]
+            content = note_data["content"]
+            frontmatter = note_data["frontmatter"]
+            category = frontmatter.get("category", "Core")
+            tags = frontmatter.get("tags", [])
 
             # Generate embedding
             print(f"[Vault Indexer] Generating embedding for '{title}'...")
@@ -102,7 +104,7 @@ class KnowledgeVaultIndexer:
                     tags=tags,
                     frontmatter=frontmatter,
                     file_path=file_path,
-                    embedding=embedding
+                    embedding=embedding,
                 )
             else:
                 # Create new note
@@ -113,7 +115,7 @@ class KnowledgeVaultIndexer:
                     tags=tags,
                     frontmatter=frontmatter,
                     file_path=file_path,
-                    embedding=embedding
+                    embedding=embedding,
                 )
                 success = note_id is not None
 
@@ -131,6 +133,7 @@ class KnowledgeVaultIndexer:
             error_msg = f"Error indexing note: {str(e)}"
             print(f"[Vault Indexer] {error_msg}")
             import traceback
+
             traceback.print_exc()
             return False, error_msg
 
@@ -145,11 +148,11 @@ class KnowledgeVaultIndexer:
             print("[Vault Indexer] Starting full vault re-index...")
 
             stats = {
-                'success': True,
-                'total_found': 0,
-                'indexed': 0,
-                'failed': 0,
-                'errors': []
+                "success": True,
+                "total_found": 0,
+                "indexed": 0,
+                "failed": 0,
+                "errors": [],
             }
 
             # Find all .md files
@@ -159,23 +162,20 @@ class KnowledgeVaultIndexer:
                     continue
 
                 for filename in os.listdir(category_path):
-                    if not filename.endswith('.md'):
+                    if not filename.endswith(".md"):
                         continue
 
                     file_path = os.path.join(category_path, filename)
-                    stats['total_found'] += 1
+                    stats["total_found"] += 1
 
                     # Index note
                     success, msg = self.reindex_note(file_path)
 
                     if success:
-                        stats['indexed'] += 1
+                        stats["indexed"] += 1
                     else:
-                        stats['failed'] += 1
-                        stats['errors'].append({
-                            'file': filename,
-                            'error': msg
-                        })
+                        stats["failed"] += 1
+                        stats["errors"].append({"file": filename, "error": msg})
 
             print(f"[Vault Indexer] Re-index complete: {stats['indexed']}/{stats['total_found']} succeeded")
 
@@ -183,10 +183,7 @@ class KnowledgeVaultIndexer:
 
         except Exception as e:
             print(f"[Vault Indexer] Error in full re-index: {e}")
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     def delete_note_from_index(self, file_path: str) -> Tuple[bool, str]:
         """
@@ -208,10 +205,7 @@ class KnowledgeVaultIndexer:
             cursor = conn.cursor()
 
             # Delete from knowledge_base (CASCADE will delete vault_links)
-            cursor.execute(
-                "DELETE FROM knowledge_base WHERE id = %s",
-                (note_id,)
-            )
+            cursor.execute("DELETE FROM knowledge_base WHERE id = %s", (note_id,))
 
             conn.commit()
             cursor.close()
@@ -236,7 +230,7 @@ class KnowledgeVaultIndexer:
         tags: List[str],
         frontmatter: Dict,
         file_path: str,
-        embedding: Optional[List[float]] = None
+        embedding: Optional[List[float]] = None,
     ) -> Optional[int]:
         """Insert new note into knowledge_base table"""
         try:
@@ -247,26 +241,29 @@ class KnowledgeVaultIndexer:
             embedding_json = json.dumps(embedding) if embedding else None
 
             # Insert into knowledge_base
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO knowledge_base
                 (knowledge_type, title, content, category, tags,
                  is_documentation, file_path, frontmatter_metadata,
                  last_synced_at, created_at, updated_at)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
-            """, (
-                'vault_note',  # knowledge_type (unified schema)
-                title,
-                content,
-                category,
-                [str(t) for t in tags],  # Convert all tags to strings
-                True,  # is_documentation
-                file_path,
-                self._serialize_frontmatter(frontmatter),  # frontmatter_metadata (handles datetime)
-                datetime.now(),  # last_synced_at
-                datetime.now(),  # created_at
-                datetime.now()   # updated_at
-            ))
+            """,
+                (
+                    "vault_note",  # knowledge_type (unified schema)
+                    title,
+                    content,
+                    category,
+                    [str(t) for t in tags],  # Convert all tags to strings
+                    True,  # is_documentation
+                    file_path,
+                    self._serialize_frontmatter(frontmatter),  # frontmatter_metadata (handles datetime)
+                    datetime.now(),  # last_synced_at
+                    datetime.now(),  # created_at
+                    datetime.now(),  # updated_at
+                ),
+            )
 
             note_id = cursor.fetchone()[0]
 
@@ -279,6 +276,7 @@ class KnowledgeVaultIndexer:
         except Exception as e:
             print(f"[Vault Indexer] Error inserting note to DB: {e}")
             import traceback
+
             traceback.print_exc()
             return None
 
@@ -291,7 +289,7 @@ class KnowledgeVaultIndexer:
         tags: List[str],
         frontmatter: Dict,
         file_path: str,
-        embedding: Optional[List[float]] = None
+        embedding: Optional[List[float]] = None,
     ) -> bool:
         """Update existing note in knowledge_base table"""
         try:
@@ -302,7 +300,8 @@ class KnowledgeVaultIndexer:
             embedding_json = json.dumps(embedding) if embedding else None
 
             # Update knowledge_base
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE knowledge_base
                 SET title = %s,
                     content = %s,
@@ -312,16 +311,18 @@ class KnowledgeVaultIndexer:
                     last_synced_at = %s,
                     updated_at = %s
                 WHERE id = %s
-            """, (
-                title,
-                content,
-                category,
-                [str(t) for t in tags],  # Convert all tags to strings
-                self._serialize_frontmatter(frontmatter),  # Handle datetime objects
-                datetime.now(),
-                datetime.now(),
-                note_id
-            ))
+            """,
+                (
+                    title,
+                    content,
+                    category,
+                    [str(t) for t in tags],  # Convert all tags to strings
+                    self._serialize_frontmatter(frontmatter),  # Handle datetime objects
+                    datetime.now(),
+                    datetime.now(),
+                    note_id,
+                ),
+            )
 
             conn.commit()
             cursor.close()
@@ -341,7 +342,7 @@ class KnowledgeVaultIndexer:
 
             cursor.execute(
                 "SELECT id FROM knowledge_base WHERE file_path = %s AND is_documentation = TRUE",
-                (file_path,)
+                (file_path,),
             )
 
             result = cursor.fetchone()
@@ -372,10 +373,7 @@ class KnowledgeVaultIndexer:
             cursor = conn.cursor()
 
             # First, delete existing links from this source
-            cursor.execute(
-                "DELETE FROM vault_links WHERE source_note_id = %s",
-                (source_note_id,)
-            )
+            cursor.execute("DELETE FROM vault_links WHERE source_note_id = %s", (source_note_id,))
 
             # Resolve each wikilink to a target note ID
             for link_text in wikilinks:
@@ -394,18 +392,21 @@ class KnowledgeVaultIndexer:
                     continue
 
                 # Insert link
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO vault_links
                     (source_note_id, target_note_id, link_text, link_type, created_at)
                     VALUES (%s, %s, %s, %s, %s)
                     ON CONFLICT (source_note_id, target_note_id, link_type) DO NOTHING
-                """, (
-                    source_note_id,
-                    target_note_id,
-                    link_text,
-                    'wikilink',
-                    datetime.now()
-                ))
+                """,
+                    (
+                        source_note_id,
+                        target_note_id,
+                        link_text,
+                        "wikilink",
+                        datetime.now(),
+                    ),
+                )
 
             conn.commit()
             cursor.close()
@@ -430,7 +431,8 @@ class KnowledgeVaultIndexer:
             conn = get_db()
             cursor = conn.cursor()
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT
                     vl.source_note_id,
                     kb.title,
@@ -442,18 +444,22 @@ class KnowledgeVaultIndexer:
                 JOIN knowledge_base kb ON vl.source_note_id = kb.id
                 WHERE vl.target_note_id = %s
                 ORDER BY vl.created_at DESC
-            """, (note_id,))
+            """,
+                (note_id,),
+            )
 
             backlinks = []
             for row in cursor.fetchall():
-                backlinks.append({
-                    'note_id': row[0],
-                    'title': row[1],
-                    'category': row[2],
-                    'file_path': row[3],
-                    'link_text': row[4],
-                    'created_at': row[5]
-                })
+                backlinks.append(
+                    {
+                        "note_id": row[0],
+                        "title": row[1],
+                        "category": row[2],
+                        "file_path": row[3],
+                        "link_text": row[4],
+                        "created_at": row[5],
+                    }
+                )
 
             cursor.close()
             conn.close()
@@ -479,7 +485,8 @@ class KnowledgeVaultIndexer:
             cursor = conn.cursor()
 
             # Get all links
-            cursor.execute(f"""
+            cursor.execute(
+                f"""
                 SELECT
                     vl.source_note_id,
                     vl.target_note_id,
@@ -490,7 +497,8 @@ class KnowledgeVaultIndexer:
                 JOIN knowledge_base s ON vl.source_note_id = s.id
                 JOIN knowledge_base t ON vl.target_note_id = t.id
                 LIMIT {limit}
-            """)
+            """
+            )
 
             edges = []
             nodes = {}
@@ -500,39 +508,27 @@ class KnowledgeVaultIndexer:
 
                 # Add nodes
                 if source_id not in nodes:
-                    nodes[source_id] = {'id': source_id, 'title': source_title}
+                    nodes[source_id] = {"id": source_id, "title": source_title}
                 if target_id not in nodes:
-                    nodes[target_id] = {'id': target_id, 'title': target_title}
+                    nodes[target_id] = {"id": target_id, "title": target_title}
 
                 # Add edge
-                edges.append({
-                    'source': source_id,
-                    'target': target_id,
-                    'link_text': link_text
-                })
+                edges.append({"source": source_id, "target": target_id, "link_text": link_text})
 
             cursor.close()
             conn.close()
 
-            return {
-                'nodes': list(nodes.values()),
-                'edges': edges
-            }
+            return {"nodes": list(nodes.values()), "edges": edges}
 
         except Exception as e:
             print(f"[Vault Indexer] Error getting link graph: {e}")
-            return {'nodes': [], 'edges': []}
+            return {"nodes": [], "edges": []}
 
     # ========================================================================
     # HELPER FUNCTIONS
     # ========================================================================
 
-    def _prepare_embedding_text(
-        self,
-        title: str,
-        content: str,
-        frontmatter: Dict
-    ) -> str:
+    def _prepare_embedding_text(self, title: str, content: str, frontmatter: Dict) -> str:
         """
         Prepare text for embedding generation
 
@@ -540,11 +536,11 @@ class KnowledgeVaultIndexer:
         """
         parts = [f"Title: {title}"]
 
-        category = frontmatter.get('category', '')
+        category = frontmatter.get("category", "")
         if category:
             parts.append(f"Category: {category}")
 
-        tags = frontmatter.get('tags', [])
+        tags = frontmatter.get("tags", [])
         if tags:
             parts.append(f"Tags: {', '.join(str(t) for t in tags)}")
 
@@ -561,17 +557,17 @@ class KnowledgeVaultIndexer:
             cursor = conn.cursor()
 
             # Count vault notes
-            cursor.execute(
-                "SELECT COUNT(*) FROM knowledge_base WHERE is_documentation = TRUE"
-            )
+            cursor.execute("SELECT COUNT(*) FROM knowledge_base WHERE is_documentation = TRUE")
             note_count = cursor.fetchone()[0]
 
             # Count with embeddings
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT COUNT(*) FROM knowledge_base
                 WHERE is_documentation = TRUE
                 AND embedding IS NOT NULL
-            """)
+            """
+            )
             embedded_count = cursor.fetchone()[0]
 
             # Count links
@@ -579,22 +575,24 @@ class KnowledgeVaultIndexer:
             link_count = cursor.fetchone()[0]
 
             # Get recent sync events
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT event_type, COUNT(*)
                 FROM vault_sync_log
                 WHERE detected_at > NOW() - INTERVAL '24 hours'
                 GROUP BY event_type
-            """)
+            """
+            )
             recent_events = {row[0]: row[1] for row in cursor.fetchall()}
 
             cursor.close()
             conn.close()
 
             return {
-                'total_notes': note_count,
-                'notes_with_embeddings': embedded_count,
-                'total_links': link_count,
-                'recent_events_24h': recent_events
+                "total_notes": note_count,
+                "notes_with_embeddings": embedded_count,
+                "total_links": link_count,
+                "recent_events_24h": recent_events,
             }
 
         except Exception as e:
@@ -605,6 +603,7 @@ class KnowledgeVaultIndexer:
 # ============================================================================
 # STANDALONE FUNCTIONS (for import by watcher and API)
 # ============================================================================
+
 
 def reindex_note(file_path: str) -> Tuple[bool, str]:
     """Index a single note (called by file watcher)"""
@@ -634,7 +633,7 @@ def get_indexing_stats() -> Dict:
 # TESTING
 # ============================================================================
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("=== Knowledge Vault Indexer Test ===\n")
 
     indexer = KnowledgeVaultIndexer()

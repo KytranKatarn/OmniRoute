@@ -9071,14 +9071,14 @@ OLLAMA_MODEL_CATALOG = [
     },
     # --- Embedding ---
     {
-        "id": "nomic-embed-text",
-        "name": "Nomic Embed Text",
-        "params": "137M",
-        "size_gb": 0.3,
+        "id": "arctic-embed-cpu",
+        "name": "Snowflake Arctic Embed M (CPU)",
+        "params": "110M",
+        "size_gb": 0.4,
         "vram_gb": 1.0,
         "ram_gb": 2,
         "category": "embedding",
-        "description": "High-quality text embeddings with 8K context",
+        "description": "High-quality 768-dim text embeddings, better retrieval than nomic",
         "quant": "F16",
     },
     {
@@ -9209,7 +9209,7 @@ AGENT_TEMPLATES = [
             "restore_operations",
             "schedule_management",
         ],
-        "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "mistral:7b"],
+        "recommended_models": ["dolphin3-8k:latest", "qwen3-coder-cpu:latest"],
     },
     {
         "id": "security_sentinel",
@@ -9232,7 +9232,7 @@ AGENT_TEMPLATES = [
             "firewall_management",
             "security_audits",
         ],
-        "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "mistral:7b"],
+        "recommended_models": ["dolphin3-8k:latest", "qwen3-coder-cpu:latest"],
     },
     {
         "id": "account_clerk",
@@ -9255,7 +9255,7 @@ AGENT_TEMPLATES = [
             "role_assignment",
             "user_onboarding",
         ],
-        "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "tinyllama:latest"],
+        "recommended_models": ["dolphin3-8k:latest", "qwen3-coder-cpu:latest"],
     },
     {
         "id": "ops_engineer",
@@ -9302,7 +9302,7 @@ AGENT_TEMPLATES = [
             "subscription_tracking",
             "service_health",
         ],
-        "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "mistral:7b"],
+        "recommended_models": ["dolphin3-8k:latest", "qwen3-coder-cpu:latest"],
     },
     # --- AI Command (3) ---
     {
@@ -9325,7 +9325,7 @@ AGENT_TEMPLATES = [
             "resource_allocation",
             "performance_monitoring",
         ],
-        "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "mistral:7b"],
+        "recommended_models": ["dolphin3-8k:latest", "qwen3-coder-cpu:latest"],
     },
     {
         "id": "consciousness_analyst",
@@ -9347,7 +9347,7 @@ AGENT_TEMPLATES = [
             "coherence_monitoring",
             "cognitive_insights",
         ],
-        "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "mistral:7b"],
+        "recommended_models": ["dolphin3-8k:latest", "qwen3-coder-cpu:latest"],
     },
     {
         "id": "chat_concierge",
@@ -9369,7 +9369,7 @@ AGENT_TEMPLATES = [
             "context_tracking",
             "user_assistance",
         ],
-        "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "tinyllama:latest"],
+        "recommended_models": ["dolphin3-8k:latest", "qwen3-coder-cpu:latest"],
     },
     # --- Development Tools (3) ---
     {
@@ -9393,7 +9393,7 @@ AGENT_TEMPLATES = [
             "security_scanning",
             "standards_enforcement",
         ],
-        "recommended_models": ["qwen2.5:7b", "codellama:7b", "deepseek-coder:6.7b"],
+        "recommended_models": ["qwen3-coder-cpu:latest", "dolphin3-8k:latest"],
     },
     {
         "id": "test_engineer",
@@ -9416,7 +9416,7 @@ AGENT_TEMPLATES = [
             "deployment_validation",
             "environment_isolation",
         ],
-        "recommended_models": ["qwen2.5:7b", "codellama:7b", "llama3.1:8b"],
+        "recommended_models": ["qwen3-coder-cpu:latest", "dolphin3-8k:latest"],
     },
     {
         "id": "improvement_scout",
@@ -9439,7 +9439,7 @@ AGENT_TEMPLATES = [
             "performance_analysis",
             "improvement_tracking",
         ],
-        "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "mistral:7b"],
+        "recommended_models": ["dolphin3-8k:latest", "qwen3-coder-cpu:latest"],
     },
     # --- SaaS Services (9) ---
     {
@@ -9463,7 +9463,7 @@ AGENT_TEMPLATES = [
             "relationship_insights",
             "engagement_optimization",
         ],
-        "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "mistral:7b"],
+        "recommended_models": ["dolphin3-8k:latest", "qwen3-coder-cpu:latest"],
     },
     {
         "id": "web_designer",
@@ -9485,7 +9485,7 @@ AGENT_TEMPLATES = [
             "asset_management",
             "responsive_design",
         ],
-        "recommended_models": ["qwen2.5:7b", "codellama:7b", "llama3.1:8b"],
+        "recommended_models": ["qwen3-coder-cpu:latest", "dolphin3-8k:latest"],
     },
     {
         "id": "store_manager",
@@ -9508,7 +9508,7 @@ AGENT_TEMPLATES = [
             "order_processing",
             "store_optimization",
         ],
-        "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "mistral:7b"],
+        "recommended_models": ["dolphin3-8k:latest", "qwen3-coder-cpu:latest"],
     },
     {
         "id": "call_handler",
@@ -9530,7 +9530,7 @@ AGENT_TEMPLATES = [
             "queue_management",
             "call_analytics",
         ],
-        "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "tinyllama:latest"],
+        "recommended_models": ["dolphin3-8k:latest", "qwen3-coder-cpu:latest"],
     },
     {
         "id": "email_specialist",
@@ -9553,7 +9553,7 @@ AGENT_TEMPLATES = [
             "email_analytics",
             "template_creation",
         ],
-        "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "mistral:7b"],
+        "recommended_models": ["dolphin3-8k:latest", "qwen3-coder-cpu:latest"],
     },
     {
         "id": "automation_builder",
@@ -9597,7 +9597,7 @@ AGENT_TEMPLATES = [
             "billing_management",
             "financial_reporting",
         ],
-        "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "tinyllama:latest"],
+        "recommended_models": ["dolphin3-8k:latest", "qwen3-coder-cpu:latest"],
     },
     {
         "id": "schedule_coordinator",
@@ -9619,7 +9619,7 @@ AGENT_TEMPLATES = [
             "conflict_resolution",
             "time_optimization",
         ],
-        "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "tinyllama:latest"],
+        "recommended_models": ["dolphin3-8k:latest", "qwen3-coder-cpu:latest"],
     },
     {
         "id": "social_strategist",
@@ -9641,7 +9641,7 @@ AGENT_TEMPLATES = [
             "post_scheduling",
             "account_management",
         ],
-        "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "mistral:7b"],
+        "recommended_models": ["dolphin3-8k:latest", "qwen3-coder-cpu:latest"],
     },
     # --- Project & Knowledge (1) ---
     {
@@ -9664,7 +9664,7 @@ AGENT_TEMPLATES = [
             "resource_coordination",
             "status_reporting",
         ],
-        "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "mistral:7b"],
+        "recommended_models": ["dolphin3-8k:latest", "qwen3-coder-cpu:latest"],
     },
     # --- Media & Home (1) ---
     {
@@ -9687,7 +9687,7 @@ AGENT_TEMPLATES = [
             "transcoding_requests",
             "asset_maintenance",
         ],
-        "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "tinyllama:latest"],
+        "recommended_models": ["dolphin3-8k:latest", "qwen3-coder-cpu:latest"],
     },
 ]
 

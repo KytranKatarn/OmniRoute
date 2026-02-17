@@ -201,7 +201,7 @@ def detect_current_environment():
 
 def call_ollama(
     prompt,
-    model="deepseek-coder-v2:16b",
+    model="dolphin3-8k:latest",
     system_prompt=None,
     context=None,
     prefer_gpu=True,
@@ -1335,11 +1335,11 @@ def get_default_provider():
             return (result["provider"], result["model_name"])
         else:
             # Fallback to Ollama
-            return ("ollama", "deepseek-coder-v2:16b")
+            return ("ollama", "dolphin3-8k:latest")
 
     except Exception as e:
         print(f"Error getting default provider: {e}")
-        return ("ollama", "deepseek-coder-v2:16b")
+        return ("ollama", "dolphin3-8k:latest")
 
 
 def calculate_cost(provider, model, tokens_used, prompt_tokens=0, completion_tokens=0):
@@ -2077,7 +2077,7 @@ def test_model(provider="ollama", model=None):
     try:
         if provider == "ollama":
             if not model:
-                model = "deepseek-coder-v2:16b"
+                model = "dolphin3-8k:latest"
             result = call_ollama(test_prompt, model=model)
         elif provider == "claude":
             if not model:
@@ -2414,7 +2414,7 @@ def call_contractor(contractor_agent, prompt, system_prompt=None):
     else:
         # Fallback to Ollama for unknown providers
         result = call_ollama(
-            prompt, model=model or "deepseek-coder-v2:16b", system_prompt=system_prompt
+            prompt, model=model or "dolphin3-8k:latest", system_prompt=system_prompt
         )
 
     # Track usage if successful
@@ -2564,7 +2564,7 @@ def get_available_models():
     """Get list of available AI models/providers"""
     return {
         "ollama": [
-            "deepseek-coder-v2:16b",
+            "dolphin3-8k:latest",
             "qwen2.5-coder:7b",
             "deepseek-coder:33b",
             "codellama:latest",
@@ -3901,7 +3901,7 @@ Create a clear, executable plan. During execution, I'll generate the actual code
     result = archie_bridge(
         planning_prompt,
         user_id=user_id,
-        force_model=force_model or "deepseek-coder-v2:16b",
+        force_model=force_model or "dolphin3-8k:latest",
         enable_memory=True,
     )
 
@@ -4134,7 +4134,7 @@ Generate the EXACT code changes needed. Respond with a ```edit block containing:
                         code_gen_prompt,
                         user_id=user_id,
                         enable_memory=False,
-                        force_model="deepseek-coder-v2:16b",
+                        force_model="dolphin3-8k:latest",
                     )
 
                     if not edit_result.get("success"):
@@ -4194,7 +4194,7 @@ Generate the complete file content. Respond with a ```content block:
                         content_gen_prompt,
                         user_id=user_id,
                         enable_memory=False,
-                        force_model="deepseek-coder-v2:16b",
+                        force_model="dolphin3-8k:latest",
                     )
 
                     if not content_result.get("success"):

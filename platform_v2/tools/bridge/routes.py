@@ -156,7 +156,7 @@ LLM_CONNECTIONS = {
         "type": "local",
         "host": "host.docker.internal",
         "port": 11434,
-        "models": ["dolphin3:latest", "qwen2.5:7b", "nomic-embed-text:latest"],
+        "models": ["dolphin3-8k:latest", "qwen3-coder-cpu:latest", "arctic-embed-cpu"],
         "cost": "FREE",
     },
     "claude_api": {
@@ -278,7 +278,7 @@ def get_bridge_stats():
                 "success": True,
                 "stats": {
                     "llm_status": {"online": 5, "total": 6},
-                    "active_requests": token_stats["total_requests"] if token_stats else 0,
+                    "active_requests": (token_stats["total_requests"] if token_stats else 0),
                     "system_load": system_load,
                     "active_agents": agent_stats["active_agents"] if agent_stats else 0,
                     "tokens_24h": token_stats["total_tokens"] if token_stats else 0,
@@ -372,7 +372,13 @@ def get_stations():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "stations": stations_data, "total_stations": len(stations_data)})
+        return jsonify(
+            {
+                "success": True,
+                "stations": stations_data,
+                "total_stations": len(stations_data),
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error getting stations: {e}")
@@ -403,7 +409,10 @@ def get_station_detail(station_code):
         if not station:
             cur.close()
             conn.close()
-            return jsonify({"success": False, "error": f"Station {station_code} not found"}), 404
+            return (
+                jsonify({"success": False, "error": f"Station {station_code} not found"}),
+                404,
+            )
 
         # Get assigned agents with full details
         cur.execute(
@@ -490,7 +499,10 @@ def get_llm_connections():
 def check_connection_health(connection_id):
     """Check health of a specific LLM connection"""
     if connection_id not in LLM_CONNECTIONS:
-        return jsonify({"success": False, "error": f"Connection {connection_id} not found"}), 404
+        return (
+            jsonify({"success": False, "error": f"Connection {connection_id} not found"}),
+            404,
+        )
 
     conn_info = LLM_CONNECTIONS[connection_id]
 
@@ -618,12 +630,18 @@ def assign_agent_to_station(agent_id):
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get station ID from code
-        cur.execute("SELECT id FROM bridge_stations WHERE station_code = %s", (station_code.upper(),))
+        cur.execute(
+            "SELECT id FROM bridge_stations WHERE station_code = %s",
+            (station_code.upper(),),
+        )
         station = cur.fetchone()
         if not station:
             cur.close()
             conn.close()
-            return jsonify({"success": False, "error": f"Station {station_code} not found"}), 404
+            return (
+                jsonify({"success": False, "error": f"Station {station_code} not found"}),
+                404,
+            )
 
         station_id = station["id"]
 
@@ -658,7 +676,14 @@ def assign_agent_to_station(agent_id):
                 VALUES (%s, %s, %s, %s, %s, %s)
                 RETURNING id
             """,
-                (station_id, agent_id, assignment_type, shift_preference, priority, notes),
+                (
+                    station_id,
+                    agent_id,
+                    assignment_type,
+                    shift_preference,
+                    priority,
+                    notes,
+                ),
             )
 
         assignment_id = cur.fetchone()["id"]
@@ -923,7 +948,13 @@ def update_station_config(station_code):
         if not updated:
             return jsonify({"success": False, "error": "Station not found"}), 404
 
-        return jsonify({"success": True, "station": updated, "message": f"Station {station_code} updated"})
+        return jsonify(
+            {
+                "success": True,
+                "station": updated,
+                "message": f"Station {station_code} updated",
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error updating station: {e}")
@@ -950,7 +981,11 @@ def reorder_stations():
                 SET position_row = %s, position_order = %s, updated_at = NOW()
                 WHERE station_code = %s
             """,
-                (item.get("position_row", 0), item.get("position_order", 0), item["station_code"].upper()),
+                (
+                    item.get("position_row", 0),
+                    item.get("position_order", 0),
+                    item["station_code"].upper(),
+                ),
             )
 
         conn.commit()
@@ -998,7 +1033,13 @@ def update_assignment(assignment_id):
     """Update a station assignment"""
     data = request.get_json() or {}
 
-    allowed_fields = ["assignment_type", "shift_preference", "priority", "notes", "is_active"]
+    allowed_fields = [
+        "assignment_type",
+        "shift_preference",
+        "priority",
+        "notes",
+        "is_active",
+    ]
     updates = {k: v for k, v in data.items() if k in allowed_fields}
 
     if not updates:
@@ -1084,7 +1125,10 @@ def request_station_support(station_code):
         if not station:
             cur.close()
             conn.close()
-            return jsonify({"success": False, "message": f"Station {station_code} not found"}), 404
+            return (
+                jsonify({"success": False, "message": f"Station {station_code} not found"}),
+                404,
+            )
 
         # Step 2: Check if additional_support slot is already filled
         cur.execute(
@@ -1121,7 +1165,11 @@ def request_station_support(station_code):
 
         # Define capability keywords and their model mappings
         # Bridge interprets the capability_needed string to find appropriate agents
-        fast_coder_models = ["qwen2.5-coder:7b", "starcoder2:7b", "deepseek-coder-v2:16b"]  # noqa: F841
+        fast_coder_models = [
+            "qwen2.5-coder:7b",
+            "starcoder2:7b",
+            "deepseek-coder-v2:16b",
+        ]  # noqa: F841
 
         # Determine what kind of agent is needed based on capability description
         capability_lower = capability_needed.lower() if capability_needed else ""
@@ -1218,7 +1266,11 @@ def request_station_support(station_code):
             VALUES (%s, %s, 'additional_support', 99, %s, TRUE)
             RETURNING id
         """,
-            (station["id"], candidate["id"], f"Support for {requesting_module}: {task_type}"),
+            (
+                station["id"],
+                candidate["id"],
+                f"Support for {requesting_module}: {task_type}",
+            ),
         )
 
         assignment = cur.fetchone()
@@ -1405,13 +1457,19 @@ def assign_training():
         notes = data.get("notes", "")
 
         if not agent_id or not skill_name:
-            return jsonify({"success": False, "error": "Agent ID and skill name required"}), 400
+            return (
+                jsonify({"success": False, "error": "Agent ID and skill name required"}),
+                400,
+            )
 
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get skill category
-        cur.execute("SELECT DISTINCT skill_category FROM agent_skills WHERE skill_name = %s LIMIT 1", (skill_name,))
+        cur.execute(
+            "SELECT DISTINCT skill_category FROM agent_skills WHERE skill_name = %s LIMIT 1",
+            (skill_name,),
+        )
         skill_row = cur.fetchone()
         skill_category = skill_row["skill_category"] if skill_row else "General"
 
@@ -1428,7 +1486,8 @@ def assign_training():
 
         # Remove from station assignment if any
         cur.execute(
-            "UPDATE station_assignments SET is_active = FALSE WHERE agent_id = %s AND is_active = TRUE", (agent_id,)
+            "UPDATE station_assignments SET is_active = FALSE WHERE agent_id = %s AND is_active = TRUE",
+            (agent_id,),
         )
 
         # Insert training assignment
@@ -1457,7 +1516,11 @@ def assign_training():
         conn.close()
 
         return jsonify(
-            {"success": True, "training_id": training_id, "message": f"Agent assigned to {skill_name} training"}
+            {
+                "success": True,
+                "training_id": training_id,
+                "message": f"Agent assigned to {skill_name} training",
+            }
         )
 
     except Exception as e:
@@ -1478,7 +1541,8 @@ def complete_training(training_id):
 
         # Get training details
         cur.execute(
-            "SELECT agent_id, skill_name, target_proficiency FROM training_assignments WHERE id = %s", (training_id,)
+            "SELECT agent_id, skill_name, target_proficiency FROM training_assignments WHERE id = %s",
+            (training_id,),
         )
         training = cur.fetchone()
 
@@ -1505,7 +1569,11 @@ def complete_training(training_id):
                 SET proficiency_level = GREATEST(agent_skills.proficiency_level, EXCLUDED.proficiency_level),
                     updated_at = NOW()
             """,
-                (training["agent_id"], training["skill_name"], training["target_proficiency"]),
+                (
+                    training["agent_id"],
+                    training["skill_name"],
+                    training["target_proficiency"],
+                ),
             )
 
         conn.commit()
@@ -1578,7 +1646,8 @@ def send_agent_to_lounge(agent_id):
 
         # Remove from station assignment if any
         cur.execute(
-            "UPDATE station_assignments SET is_active = FALSE WHERE agent_id = %s AND is_active = TRUE", (agent_id,)
+            "UPDATE station_assignments SET is_active = FALSE WHERE agent_id = %s AND is_active = TRUE",
+            (agent_id,),
         )
 
         # Cancel any active training
@@ -1604,7 +1673,13 @@ def send_agent_to_lounge(agent_id):
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "rest_cycle_id": rest_cycle_id, "message": "Agent sent to lounge"})
+        return jsonify(
+            {
+                "success": True,
+                "rest_cycle_id": rest_cycle_id,
+                "message": "Agent sent to lounge",
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error sending agent to lounge: {e}")
@@ -1633,7 +1708,10 @@ def return_agent_from_lounge(agent_id):
             return jsonify({"success": False, "error": "Agent is not in lounge"}), 400
 
         if rest_cycle["rest_type"] == "forced":
-            return jsonify({"success": False, "error": "Cannot return agent from forced rest"}), 403
+            return (
+                jsonify({"success": False, "error": "Cannot return agent from forced rest"}),
+                403,
+            )
 
         # End rest cycle
         cur.execute(
@@ -1709,7 +1787,14 @@ def check_iaae_move_compliance(agent_id):
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "allowed": allowed, "can_override": can_override, "warnings": warnings})
+        return jsonify(
+            {
+                "success": True,
+                "allowed": allowed,
+                "can_override": can_override,
+                "warnings": warnings,
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error checking IAAE compliance: {e}")
@@ -1824,7 +1909,11 @@ def get_archie_status():
                 "archie": {
                     "identity": identity or {"name": "A.R.C.H.I.E.", "role": "AI Co-founder"},
                     "emotional_state": emotional
-                    or {"current_mood": "supportive", "mood_intensity": 0.85, "relationship_strength": 0.90},
+                    or {
+                        "current_mood": "supportive",
+                        "mood_intensity": 0.85,
+                        "relationship_strength": 0.90,
+                    },
                     "top_traits": traits or [],
                     "station": "COMMS",
                     "status": "Active",
@@ -1855,7 +1944,11 @@ def get_module_mapping():
         if isinstance(station_modules, list):
             for module in station_modules:
                 modules.append(
-                    {"module": module, "station": station_code, "station_color": station_info.get("color", "#00FFFF")}
+                    {
+                        "module": module,
+                        "station": station_code,
+                        "station_color": station_info.get("color", "#00FFFF"),
+                    }
                 )
 
     return jsonify({"success": True, "modules": modules})
@@ -1901,7 +1994,12 @@ def get_llm_status():
                     c[key] = c[key].isoformat()
 
         return jsonify(
-            {"success": True, "connections": connections, "summary": summary, "timestamp": datetime.now().isoformat()}
+            {
+                "success": True,
+                "connections": connections,
+                "summary": summary,
+                "timestamp": datetime.now().isoformat(),
+            }
         )
 
     except Exception as e:
@@ -1917,7 +2015,13 @@ def trigger_llm_check():
 
         results = check_now()
 
-        return jsonify({"success": True, "results": results, "timestamp": datetime.now().isoformat()})
+        return jsonify(
+            {
+                "success": True,
+                "results": results,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
 
     except Exception as e:
         logger.error(f"LLM check error: {e}")
@@ -2146,7 +2250,10 @@ def get_node_install_script():
         return (
             script_content,
             200,
-            {"Content-Type": "text/plain; charset=utf-8", "Content-Disposition": 'inline; filename="install.sh"'},
+            {
+                "Content-Type": "text/plain; charset=utf-8",
+                "Content-Disposition": 'inline; filename="install.sh"',
+            },
         )
     else:
         return "Install script not found", 404
@@ -2170,7 +2277,10 @@ def get_node_install_script_windows():
         return (
             script_content,
             200,
-            {"Content-Type": "text/plain; charset=utf-8", "Content-Disposition": 'inline; filename="install.ps1"'},
+            {
+                "Content-Type": "text/plain; charset=utf-8",
+                "Content-Disposition": 'inline; filename="install.ps1"',
+            },
         )
     else:
         return "Install script not found", 404
@@ -2190,7 +2300,10 @@ def get_node_heartbeat_script_windows():
         return (
             script_content,
             200,
-            {"Content-Type": "text/plain; charset=utf-8", "Content-Disposition": 'inline; filename="heartbeat.ps1"'},
+            {
+                "Content-Type": "text/plain; charset=utf-8",
+                "Content-Disposition": 'inline; filename="heartbeat.ps1"',
+            },
         )
     else:
         return "Heartbeat script not found", 404
@@ -2210,7 +2323,10 @@ def get_node_heartbeat_script_linux():
         return (
             script_content,
             200,
-            {"Content-Type": "text/plain; charset=utf-8", "Content-Disposition": 'inline; filename="heartbeat.sh"'},
+            {
+                "Content-Type": "text/plain; charset=utf-8",
+                "Content-Disposition": 'inline; filename="heartbeat.sh"',
+            },
         )
     else:
         return "Heartbeat script not found", 404
@@ -2230,7 +2346,10 @@ def get_node_docker_compose():
             mimetype="text/yaml",
             headers={"Content-Disposition": "attachment; filename=docker-compose.node.yml"},
         )
-    return jsonify({"success": False, "error": "Docker Compose template not found"}), 404
+    return (
+        jsonify({"success": False, "error": "Docker Compose template not found"}),
+        404,
+    )
 
 
 @bridge_bp.route("/api/nodes/node_sync.py", methods=["GET"])
@@ -2277,7 +2396,10 @@ def serve_node_image():
             404,
         )
     return send_file(
-        tarball_path, mimetype="application/gzip", as_attachment=True, download_name="archie-node-latest.tar.gz"
+        tarball_path,
+        mimetype="application/gzip",
+        as_attachment=True,
+        download_name="archie-node-latest.tar.gz",
     )
 
 
@@ -2291,7 +2413,10 @@ def get_node_client_package():
     node_client_dir = "/mnt/archie_brain/node_client"
 
     if not os.path.exists(node_client_dir):
-        return jsonify({"success": False, "error": "Node client package not found"}), 404
+        return (
+            jsonify({"success": False, "error": "Node client package not found"}),
+            404,
+        )
 
     try:
         # Create tarball in memory
@@ -2418,7 +2543,9 @@ def register_node():
                 # Smart max_concurrent based on hardware (or use provided value)
                 data.get("max_concurrent")
                 or calculate_max_concurrent(
-                    data.get("ram_gb", 8), data.get("cpu_cores", 4), data.get("gpu_vram_gb", 0)
+                    data.get("ram_gb", 8),
+                    data.get("cpu_cores", 4),
+                    data.get("gpu_vram_gb", 0),
                 ),
                 data.get("tags", []),
                 "pending",  # New nodes start as pending
@@ -2595,7 +2722,12 @@ def node_heartbeat(node_id):
         conn.close()
 
         return jsonify(
-            {"success": True, "status": status, "message": "Heartbeat received", "models_synced": models_synced}
+            {
+                "success": True,
+                "status": status,
+                "message": "Heartbeat received",
+                "models_synced": models_synced,
+            }
         )
 
     except Exception as e:
@@ -2665,7 +2797,14 @@ def get_node_detail(node_id):
         # Remove sensitive data
         node.pop("api_key_hash", None)
 
-        return jsonify({"success": True, "node": node, "capabilities": capabilities, "heartbeats": heartbeats})
+        return jsonify(
+            {
+                "success": True,
+                "node": node,
+                "capabilities": capabilities,
+                "heartbeats": heartbeats,
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error getting node: {e}")
@@ -2861,7 +3000,12 @@ def select_node_for_request():
             cur.close()
             conn.close()
             return jsonify(
-                {"success": True, "node": None, "use_local": True, "message": "No remote nodes available, use local"}
+                {
+                    "success": True,
+                    "node": None,
+                    "use_local": True,
+                    "message": "No remote nodes available, use local",
+                }
             )
 
         # Increment load counter
@@ -3015,7 +3159,14 @@ def get_node_stats():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "overall": overall, "by_provider": by_provider, "recent_hour": recent})
+        return jsonify(
+            {
+                "success": True,
+                "overall": overall,
+                "by_provider": by_provider,
+                "recent_hour": recent,
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error getting stats: {e}")
@@ -3100,7 +3251,10 @@ def approve_node(node_id):
         conn.close()
 
         if not node:
-            return jsonify({"success": False, "error": "Node not found or already processed"}), 404
+            return (
+                jsonify({"success": False, "error": "Node not found or already processed"}),
+                404,
+            )
 
         return jsonify(
             {
@@ -3152,7 +3306,10 @@ def reject_node(node_id):
         conn.close()
 
         if not node:
-            return jsonify({"success": False, "error": "Node not found or already processed"}), 404
+            return (
+                jsonify({"success": False, "error": "Node not found or already processed"}),
+                404,
+            )
 
         return jsonify(
             {
@@ -3301,7 +3458,13 @@ def get_node_health_history(node_id):
         conn.close()
 
         return jsonify(
-            {"success": True, "node_id": node_id, "hours": hours, "data_points": len(history), "history": history}
+            {
+                "success": True,
+                "node_id": node_id,
+                "hours": hours,
+                "data_points": len(history),
+                "history": history,
+            }
         )
 
     except Exception as e:
@@ -3396,7 +3559,10 @@ def assign_node_to_station(node_id):
             return jsonify({"success": False, "error": "Node not found"}), 404
 
         # Verify station exists
-        cur.execute("SELECT id, station_name FROM bridge_stations WHERE id = %s", (data["station_id"],))
+        cur.execute(
+            "SELECT id, station_name FROM bridge_stations WHERE id = %s",
+            (data["station_id"],),
+        )
         station = cur.fetchone()
 
         if not station:
@@ -3416,7 +3582,15 @@ def assign_node_to_station(node_id):
         if cur.fetchone():
             cur.close()
             conn.close()
-            return jsonify({"success": False, "error": "Node is already assigned to this station"}), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Node is already assigned to this station",
+                    }
+                ),
+                400,
+            )
 
         # Create assignment
         cur.execute(
@@ -3456,7 +3630,7 @@ def assign_node_to_station(node_id):
                     "station_name": station["station_name"],
                     "role": assignment["role"],
                     "priority": assignment["priority"],
-                    "assigned_at": assignment["assigned_at"].isoformat() if assignment["assigned_at"] else None,
+                    "assigned_at": (assignment["assigned_at"].isoformat() if assignment["assigned_at"] else None),
                 },
             }
         )
@@ -3509,7 +3683,12 @@ def update_node_station_assignment(node_id, station_id):
         if "role" in data:
             if data["role"] not in ["primary", "backup", "relief", "worker"]:
                 return (
-                    jsonify({"success": False, "error": "Invalid role. Must be: primary, backup, relief, or worker"}),
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": "Invalid role. Must be: primary, backup, relief, or worker",
+                        }
+                    ),
                     400,
                 )
             update_fields.append("role = %s")
@@ -3523,7 +3702,10 @@ def update_node_station_assignment(node_id, station_id):
             if data["shift_preference"] not in ["alpha", "beta", "gamma", "any"]:
                 return (
                     jsonify(
-                        {"success": False, "error": "Invalid shift_preference. Must be: alpha, beta, gamma, or any"}
+                        {
+                            "success": False,
+                            "error": "Invalid shift_preference. Must be: alpha, beta, gamma, or any",
+                        }
                     ),
                     400,
                 )
@@ -3647,7 +3829,10 @@ def get_station_nodes(station_id):
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Verify station exists
-        cur.execute("SELECT id, station_code, station_name, color FROM bridge_stations WHERE id = %s", (station_id,))
+        cur.execute(
+            "SELECT id, station_code, station_name, color FROM bridge_stations WHERE id = %s",
+            (station_id,),
+        )
         station = cur.fetchone()
 
         if not station:
@@ -3807,7 +3992,10 @@ def select_node_for_station_api():
                 "success": True,
                 "selected_node": best_node,
                 "alternatives": nodes[1:] if len(nodes) > 1 else [],
-                "selection_criteria": {"urgency": urgency, "station_id": data["station_id"]},
+                "selection_criteria": {
+                    "urgency": urgency,
+                    "station_id": data["station_id"],
+                },
             }
         )
 
@@ -3956,7 +4144,14 @@ def get_node_models(node_id):
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "node": node, "models": models, "model_count": len(models)})
+        return jsonify(
+            {
+                "success": True,
+                "node": node,
+                "models": models,
+                "model_count": len(models),
+            }
+        )
 
     except Exception as e:
         logger.error(f"Get node models error: {e}")
@@ -3988,7 +4183,10 @@ def sync_node_models_api(node_id):
         if not node["ollama_available"]:
             cur.close()
             conn.close()
-            return jsonify({"success": False, "error": "Node does not have Ollama"}), 400
+            return (
+                jsonify({"success": False, "error": "Node does not have Ollama"}),
+                400,
+            )
 
         # Fetch models from node's Ollama
         import requests as req
@@ -3998,12 +4196,23 @@ def sync_node_models_api(node_id):
         try:
             resp = req.get(ollama_url, timeout=10)
             if resp.status_code != 200:
-                return jsonify({"success": False, "error": f"Ollama returned {resp.status_code}"}), 502
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": f"Ollama returned {resp.status_code}",
+                        }
+                    ),
+                    502,
+                )
 
             models = resp.json().get("models", [])
 
         except req.exceptions.RequestException as e:
-            return jsonify({"success": False, "error": f"Cannot reach node Ollama: {e}"}), 502
+            return (
+                jsonify({"success": False, "error": f"Cannot reach node Ollama: {e}"}),
+                502,
+            )
 
         # Sync models using database function
         cur.execute(
@@ -4020,7 +4229,11 @@ def sync_node_models_api(node_id):
         conn.close()
 
         return jsonify(
-            {"success": True, "models_synced": models_synced, "message": f"Synced {models_synced} models from node"}
+            {
+                "success": True,
+                "models_synced": models_synced,
+                "message": f"Synced {models_synced} models from node",
+            }
         )
 
     except Exception as e:
@@ -4054,9 +4267,23 @@ def select_node_for_model():
         conn.close()
 
         if not node:
-            return jsonify({"success": False, "error": f"No bridge-enabled node has model {model_name}"}), 404
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"No bridge-enabled node has model {model_name}",
+                    }
+                ),
+                404,
+            )
 
-        return jsonify({"success": True, "node": node, "ollama_url": f"http://{node['vpn_ip']}:{node['port']}"})
+        return jsonify(
+            {
+                "success": True,
+                "node": node,
+                "ollama_url": f"http://{node['vpn_ip']}:{node['port']}",
+            }
+        )
 
     except Exception as e:
         logger.error(f"Select node for model error: {e}")
@@ -4069,12 +4296,32 @@ def select_node_for_model():
 
 # Resource scheduler modes
 SCHEDULER_MODES = {
-    "ai_priority": {"ai_weight": 80, "mining_weight": 20, "description": "Prioritize AI workloads"},
-    "mining_priority": {"ai_weight": 20, "mining_weight": 80, "description": "Prioritize mining"},
-    "balanced": {"ai_weight": 50, "mining_weight": 50, "description": "Equal resource split"},
-    "ai_only": {"ai_weight": 100, "mining_weight": 0, "description": "AI workloads only"},
+    "ai_priority": {
+        "ai_weight": 80,
+        "mining_weight": 20,
+        "description": "Prioritize AI workloads",
+    },
+    "mining_priority": {
+        "ai_weight": 20,
+        "mining_weight": 80,
+        "description": "Prioritize mining",
+    },
+    "balanced": {
+        "ai_weight": 50,
+        "mining_weight": 50,
+        "description": "Equal resource split",
+    },
+    "ai_only": {
+        "ai_weight": 100,
+        "mining_weight": 0,
+        "description": "AI workloads only",
+    },
     "mining_only": {"ai_weight": 0, "mining_weight": 100, "description": "Mining only"},
-    "dynamic": {"ai_weight": -1, "mining_weight": -1, "description": "Auto-adjust based on demand"},
+    "dynamic": {
+        "ai_weight": -1,
+        "mining_weight": -1,
+        "description": "Auto-adjust based on demand",
+    },
 }
 
 
@@ -4183,7 +4430,13 @@ def update_scheduler_config():
                 updated_at = NOW()
             RETURNING *
         """,
-            (mode, ai_weight, mining_weight, data.get("gpu_for_mining", True), data.get("cpu_for_ai", True)),
+            (
+                mode,
+                ai_weight,
+                mining_weight,
+                data.get("gpu_for_mining", True),
+                data.get("cpu_for_ai", True),
+            ),
         )
 
         config = cur.fetchone()
@@ -4191,7 +4444,13 @@ def update_scheduler_config():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "config": config, "message": f"Scheduler updated to {mode} mode"})
+        return jsonify(
+            {
+                "success": True,
+                "config": config,
+                "message": f"Scheduler updated to {mode} mode",
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error updating scheduler: {e}")
@@ -4252,7 +4511,12 @@ def get_contributors():
             {
                 "success": True,
                 "contributors": [],
-                "summary": {"total_contributors": 0, "total_hashrate": 0, "total_paid": 0, "total_pending": 0},
+                "summary": {
+                    "total_contributors": 0,
+                    "total_hashrate": 0,
+                    "total_paid": 0,
+                    "total_pending": 0,
+                },
                 "note": "Contributor tables not yet created",
             }
         )
@@ -4280,7 +4544,11 @@ def register_contributor():
                 is_active = TRUE
             RETURNING id, wallet_address, display_name
         """,
-            (data.get("wallet_address"), data.get("display_name"), data.get("contributor_type", "miner")),
+            (
+                data.get("wallet_address"),
+                data.get("display_name"),
+                data.get("contributor_type", "miner"),
+            ),
         )
 
         contributor = cur.fetchone()
@@ -4288,7 +4556,13 @@ def register_contributor():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "contributor": contributor, "message": "Contributor registered"})
+        return jsonify(
+            {
+                "success": True,
+                "contributor": contributor,
+                "message": "Contributor registered",
+            }
+        )
 
     except Exception as e:
         logger.error(f"Error registering contributor: {e}")
@@ -4359,7 +4633,10 @@ def allocate_resource():
     node_id = data.get("node_id")
 
     if task_type not in ["ai", "mining"]:
-        return jsonify({"success": False, "error": "task_type must be ai or mining"}), 400
+        return (
+            jsonify({"success": False, "error": "task_type must be ai or mining"}),
+            400,
+        )
 
     try:
         conn = get_db_connection()
@@ -4409,7 +4686,13 @@ def allocate_resource():
             cur.close()
             conn.close()
             return (
-                jsonify({"success": False, "error": f"Resource limit reached for {task_type} tasks", "config": config}),
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"Resource limit reached for {task_type} tasks",
+                        "config": config,
+                    }
+                ),
                 429,
             )
 
@@ -4430,7 +4713,11 @@ def allocate_resource():
         conn.close()
 
         return jsonify(
-            {"success": True, "allocation_id": allocation["id"], "message": f"Resource allocated for {task_type}"}
+            {
+                "success": True,
+                "allocation_id": allocation["id"],
+                "message": f"Resource allocated for {task_type}",
+            }
         )
 
     except Exception as e:
@@ -4743,7 +5030,13 @@ Provide the code completion (just the code, nothing else):"""
             return jsonify(
                 {
                     "success": True,
-                    "completions": [{"text": completion.strip(), "kind": "text", "detail": "A.R.C.H.I.E. suggestion"}],
+                    "completions": [
+                        {
+                            "text": completion.strip(),
+                            "kind": "text",
+                            "detail": "A.R.C.H.I.E. suggestion",
+                        }
+                    ],
                 }
             )
         else:
@@ -4817,7 +5110,11 @@ def ide_code_actions(session_id):
                             "title": f"Fix: {diag.get('message', 'Issue')[:50]}",
                             "kind": "archie.fix",
                             "command": "archie.fix",
-                            "arguments": {"code": selected_code, "diagnostic": diag, "language": language},
+                            "arguments": {
+                                "code": selected_code,
+                                "diagnostic": diag,
+                                "language": language,
+                            },
                             "isPreferred": True,
                         }
                     )
@@ -4897,13 +5194,22 @@ Code:
 Provide the corrected code only, no explanations."""
 
         else:
-            return jsonify({"success": False, "error": f"Unknown action: {action}"}), 400
+            return (
+                jsonify({"success": False, "error": f"Unknown action: {action}"}),
+                400,
+            )
 
         # Execute with AI
         result = archie_bridge(prompt=prompt, user_id=1, enable_memory=True, force_model="llama3.1:8b")
 
         if result.get("success"):
-            return jsonify({"success": True, "result": result["response"], "model": result.get("model", "unknown")})
+            return jsonify(
+                {
+                    "success": True,
+                    "result": result["response"],
+                    "model": result.get("model", "unknown"),
+                }
+            )
         else:
             return jsonify({"success": False, "error": result.get("error", "Action failed")})
 
@@ -4954,9 +5260,18 @@ def mcp_manifest():
                     "name": "archie_complete",
                     "description": "Get code completion suggestions",
                     "parameters": {
-                        "prefix": {"type": "string", "description": "Code before cursor"},
-                        "suffix": {"type": "string", "description": "Code after cursor"},
-                        "language": {"type": "string", "description": "Programming language"},
+                        "prefix": {
+                            "type": "string",
+                            "description": "Code before cursor",
+                        },
+                        "suffix": {
+                            "type": "string",
+                            "description": "Code after cursor",
+                        },
+                        "language": {
+                            "type": "string",
+                            "description": "Programming language",
+                        },
                     },
                 },
                 {
@@ -5036,7 +5351,10 @@ def mcp_tool(tool_name):
             return jsonify({"success": False, "error": "Fix failed"})
 
         else:
-            return jsonify({"success": False, "error": f"Unknown tool: {tool_name}"}), 404
+            return (
+                jsonify({"success": False, "error": f"Unknown tool: {tool_name}"}),
+                404,
+            )
 
     except Exception as e:
         logger.error(f"MCP tool error: {e}")
@@ -5264,7 +5582,14 @@ def training_status():
             }
         )
     except Exception as e:
-        return jsonify({"module": "agent_training", "status": "error", "healthy": False, "message": str(e)})
+        return jsonify(
+            {
+                "module": "agent_training",
+                "status": "error",
+                "healthy": False,
+                "message": str(e),
+            }
+        )
 
 
 @bridge_bp.route("/api/training/stats")
@@ -5400,9 +5725,18 @@ def create_training_dataset():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "dataset": dataset, "message": "Dataset created successfully"})
+        return jsonify(
+            {
+                "success": True,
+                "dataset": dataset,
+                "message": "Dataset created successfully",
+            }
+        )
     except psycopg2.errors.UniqueViolation:
-        return jsonify({"success": False, "error": "Dataset with this name already exists"}), 400
+        return (
+            jsonify({"success": False, "error": "Dataset with this name already exists"}),
+            400,
+        )
     except Exception as e:
         logger.error(f"Failed to create dataset: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
@@ -5452,7 +5786,10 @@ def upload_training_data(dataset_id):
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Verify ownership
-        cur.execute("SELECT id FROM ft_datasets WHERE id = %s AND user_id = %s", (dataset_id, current_user.id))
+        cur.execute(
+            "SELECT id FROM ft_datasets WHERE id = %s AND user_id = %s",
+            (dataset_id, current_user.id),
+        )
         if not cur.fetchone():
             cur.close()
             conn.close()
@@ -5474,7 +5811,14 @@ def upload_training_data(dataset_id):
             WHERE id = %s
             RETURNING id, total_samples, status
         """,
-            (total, train_count, val_count, test_count, json_module.dumps(samples[:5]), dataset_id),
+            (
+                total,
+                train_count,
+                val_count,
+                test_count,
+                json_module.dumps(samples[:5]),
+                dataset_id,
+            ),
         )
 
         result = cur.fetchone()
@@ -5482,7 +5826,13 @@ def upload_training_data(dataset_id):
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "dataset": result, "message": f"Uploaded {total} samples successfully"})
+        return jsonify(
+            {
+                "success": True,
+                "dataset": result,
+                "message": f"Uploaded {total} samples successfully",
+            }
+        )
     except Exception as e:
         logger.error(f"Failed to upload dataset data: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
@@ -5586,7 +5936,10 @@ def create_training_job():
         if not dataset:
             cur.close()
             conn.close()
-            return jsonify({"success": False, "error": "Dataset not found or not ready"}), 400
+            return (
+                jsonify({"success": False, "error": "Dataset not found or not ready"}),
+                400,
+            )
 
         # Calculate total steps
         total_steps = (dataset["total_samples"] // batch_size) * epochs
@@ -5680,7 +6033,10 @@ def start_training_job(job_id):
         conn.close()
 
         if not job:
-            return jsonify({"success": False, "error": "Job not found or already started"}), 404
+            return (
+                jsonify({"success": False, "error": "Job not found or already started"}),
+                404,
+            )
 
         return jsonify({"success": True, "job": job, "message": "Training job started"})
     except Exception as e:
@@ -5712,7 +6068,10 @@ def cancel_training_job(job_id):
         conn.close()
 
         if not job:
-            return jsonify({"success": False, "error": "Job not found or cannot be cancelled"}), 404
+            return (
+                jsonify({"success": False, "error": "Job not found or cannot be cancelled"}),
+                404,
+            )
 
         return jsonify({"success": True, "job": job, "message": "Training job cancelled"})
     except Exception as e:
@@ -5806,10 +6165,17 @@ def deploy_trained_model(model_id):
         conn.close()
 
         if not model:
-            return jsonify({"success": False, "error": "Model not found or not ready"}), 404
+            return (
+                jsonify({"success": False, "error": "Model not found or not ready"}),
+                404,
+            )
 
         return jsonify(
-            {"success": True, "model": model, "message": f"Model {model['model_name']} deployed successfully"}
+            {
+                "success": True,
+                "model": model,
+                "message": f"Model {model['model_name']} deployed successfully",
+            }
         )
     except Exception as e:
         logger.error(f"Failed to deploy model: {e}")
@@ -5880,10 +6246,19 @@ def test_trained_model(model_id):
         # Use AI bridge if model is deployed
         if model["is_deployed"] and AI_BRIDGE_AVAILABLE:
             result = archie_bridge(
-                prompt=prompt, user_id=current_user.id, enable_memory=False, force_model=model["model_id"]
+                prompt=prompt,
+                user_id=current_user.id,
+                enable_memory=False,
+                force_model=model["model_id"],
             )
             if result.get("success"):
-                return jsonify({"success": True, "response": result["response"], "model": model["model_name"]})
+                return jsonify(
+                    {
+                        "success": True,
+                        "response": result["response"],
+                        "model": model["model_name"],
+                    }
+                )
 
         # Demo response for non-deployed models
         demo_response = f"[Demo] Response from {model['model_name']} to: {prompt[:50]}..."

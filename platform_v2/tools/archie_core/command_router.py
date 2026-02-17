@@ -48,10 +48,10 @@ class CommandRouter:
 
         # Model selection based on task complexity (local hub models)
         self.model_map = {
-            "fast": "dolphin3:latest",
-            "standard": "qwen2.5:7b",
-            "powerful": "qwen2.5:7b",
-            "code": "qwen2.5:7b",
+            "fast": "dolphin3-8k:latest",
+            "standard": "dolphin3-8k:latest",
+            "powerful": "qwen3-coder-cpu:latest",
+            "code": "qwen3-coder-cpu:latest",
         }
 
     def get_db(self):
@@ -339,7 +339,10 @@ Keep your synthesis concise but comprehensive."""
         # Check if needs contractor escalation
         if complexity.get("requires_contractor") or intent.get("requires_contractor"):
             return await self._request_contractor_escalation(
-                intent, context, user_id, reason="Complex code task requiring advanced reasoning"
+                intent,
+                context,
+                user_id,
+                reason="Complex code task requiring advanced reasoning",
             )
 
         # Select model based on complexity
@@ -406,12 +409,18 @@ Guidelines:
 
                 if agent_name and station:
                     # Look up agent
-                    cur.execute("SELECT id, name FROM agents WHERE name ILIKE %s", (f"%{agent_name}%",))
+                    cur.execute(
+                        "SELECT id, name FROM agents WHERE name ILIKE %s",
+                        (f"%{agent_name}%",),
+                    )
                     agent = cur.fetchone()
 
                     if agent:
                         # Look up station
-                        cur.execute("SELECT id, name FROM bridge_stations WHERE name ILIKE %s", (f"%{station}%",))
+                        cur.execute(
+                            "SELECT id, name FROM bridge_stations WHERE name ILIKE %s",
+                            (f"%{station}%",),
+                        )
                         station_row = cur.fetchone()
 
                         if station_row:
@@ -490,7 +499,9 @@ Guidelines:
         else:
             # Generic business response
             response = self._call_ollama(
-                self.model_map["standard"], "You are ARCHIE's Operations Station, handling business tasks.", raw_input
+                self.model_map["standard"],
+                "You are ARCHIE's Operations Station, handling business tasks.",
+                raw_input,
             )
 
             return {
@@ -551,7 +562,8 @@ Provide a helpful, conversational answer. If the knowledge doesn't fully answer 
                 return {
                     "success": True,
                     "response": response.get(
-                        "content", "I found some relevant information but had trouble synthesizing it."
+                        "content",
+                        "I found some relevant information but had trouble synthesizing it.",
                     ),
                     "agent_used": "Consciousness",
                     "station": "Consciousness",
@@ -622,7 +634,11 @@ Would you like me to create this workflow? I'll keep you updated on each step.""
                     "cost": 0.00,
                 }
             except Exception as e:
-                return {"success": False, "error": str(e), "response": f"I couldn't read that file: {str(e)}"}
+                return {
+                    "success": False,
+                    "error": str(e),
+                    "response": f"I couldn't read that file: {str(e)}",
+                }
         else:
             return {
                 "success": True,
@@ -691,7 +707,11 @@ Would you like me to create this workflow? I'll keep you updated on each step.""
             try:
                 # Try NVIDIA first
                 result = subprocess.run(
-                    ["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader,nounits"],
+                    [
+                        "nvidia-smi",
+                        "--query-gpu=name,memory.total",
+                        "--format=csv,noheader,nounits",
+                    ],
                     capture_output=True,
                     text=True,
                     timeout=5,
@@ -820,12 +840,19 @@ All systems operational!"""
 
         except Exception as e:
             logger.error(f"Error getting system status: {e}")
-            return {"success": False, "error": str(e), "response": f"I had trouble checking system status: {str(e)}"}
+            return {
+                "success": False,
+                "error": str(e),
+                "response": f"I had trouble checking system status: {str(e)}",
+            }
 
     async def _handle_contractor_request(self, intent: dict, context: dict, user_id: int) -> dict:
         """Handle explicit contractor (Claude) escalation request"""
         return await self._request_contractor_escalation(
-            intent, context, user_id, reason="User explicitly requested Claude/contractor assistance"
+            intent,
+            context,
+            user_id,
+            reason="User explicitly requested Claude/contractor assistance",
         )
 
     async def _handle_conversation(self, intent: dict, context: dict, user_id: int) -> dict:

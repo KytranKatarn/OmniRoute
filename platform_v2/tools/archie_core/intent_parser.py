@@ -37,7 +37,7 @@ class IntentParser:
         ollama_host = os.getenv("OLLAMA_PRIMARY", "host.docker.internal:11434")
         # Ensure http:// prefix
         self.ollama_url = ollama_host if ollama_host.startswith("http") else f"http://{ollama_host}"
-        self.classification_model = "qwen2.5:7b"  # Installed locally, good for classification
+        self.classification_model = "dolphin3-8k:latest"  # Fast classification on GPU
         self.db_config = {
             "host": os.getenv("DB_HOST", "archie_database"),
             "port": os.getenv("DB_PORT", "5432"),
@@ -99,18 +99,39 @@ class IntentParser:
         text_lower = text.lower().strip()
 
         # Greeting patterns
-        if re.match(r"^(hi|hello|hey|good morning|good afternoon|good evening|howdy|sup|yo)\b", text_lower):
-            return {"type": "conversation", "confidence": 0.95, "entities": {"subtype": "greeting"}}
+        if re.match(
+            r"^(hi|hello|hey|good morning|good afternoon|good evening|howdy|sup|yo)\b",
+            text_lower,
+        ):
+            return {
+                "type": "conversation",
+                "confidence": 0.95,
+                "entities": {"subtype": "greeting"},
+            }
 
         # Explicit Claude/contractor request
         if any(word in text_lower for word in ["claude", "need help from claude", "escalate", "contractor"]):
-            return {"type": "contractor_request", "confidence": 0.95, "entities": {"explicit": True}}
+            return {
+                "type": "contractor_request",
+                "confidence": 0.95,
+                "entities": {"explicit": True},
+            }
 
         # Status checks
         if any(
-            phrase in text_lower for phrase in ["system status", "health check", "what's running", "are you online"]
+            phrase in text_lower
+            for phrase in [
+                "system status",
+                "health check",
+                "what's running",
+                "are you online",
+            ]
         ):
-            return {"type": "system_status", "confidence": 0.9, "entities": {"subtype": "health"}}
+            return {
+                "type": "system_status",
+                "confidence": 0.9,
+                "entities": {"subtype": "health"},
+            }
 
         # Self-referential questions (about ARCHIE itself) — treat as conversation
         # Be specific to avoid catching knowledge queries like "what do you know about X"
@@ -129,7 +150,11 @@ class IntentParser:
                 "what do you think",
             ]
         ):
-            return {"type": "conversation", "confidence": 0.95, "entities": {"subtype": "self_query"}}
+            return {
+                "type": "conversation",
+                "confidence": 0.95,
+                "entities": {"subtype": "self_query"},
+            }
 
         # Station management — assign/unassign agents to stations (check BEFORE team_management
         # since station phrases like "put agent on X station" also contain "agent" keywords)
@@ -162,7 +187,11 @@ class IntentParser:
             entities = {"action": action}
             if station_match:
                 entities["station"] = station_match.group(1)
-            return {"type": "station_management", "confidence": 0.9, "entities": entities}
+            return {
+                "type": "station_management",
+                "confidence": 0.9,
+                "entities": entities,
+            }
 
         # Team management — create/update/delete agents
         team_management_keywords = [
@@ -200,7 +229,11 @@ class IntentParser:
                 action = "update"
             elif any(w in text_lower for w in ["capabilities", "skills", "model"]):
                 action = "query"
-            return {"type": "team_management", "confidence": 0.9, "entities": {"action": action}}
+            return {
+                "type": "team_management",
+                "confidence": 0.9,
+                "entities": {"action": action},
+            }
 
         # Status query — who's on duty, team overview, workload
         status_query_keywords = [
@@ -225,7 +258,11 @@ class IntentParser:
                 subtype = "workload"
             elif any(w in text_lower for w in ["station status"]):
                 subtype = "station"
-            return {"type": "status_query", "confidence": 0.9, "entities": {"subtype": subtype}}
+            return {
+                "type": "status_query",
+                "confidence": 0.9,
+                "entities": {"subtype": subtype},
+            }
 
         # Dev HQ status — project status, roadmap, upcoming tasks
         dev_hq_keywords = [
@@ -245,46 +282,123 @@ class IntentParser:
                 subtype = "roadmap"
             elif any(w in text_lower for w in ["task", "upcoming", "pending", "what's next"]):
                 subtype = "task_list"
-            return {"type": "dev_hq_status", "confidence": 0.9, "entities": {"subtype": subtype}}
+            return {
+                "type": "dev_hq_status",
+                "confidence": 0.9,
+                "entities": {"subtype": subtype},
+            }
 
         # Team operations (generic fallback for unmatched team keywords)
         if any(word in text_lower for word in ["assign", "station", "roster", "agent", "team"]):
             if any(action in text_lower for action in ["move", "assign", "put", "switch"]):
-                return {"type": "team_task", "confidence": 0.85, "entities": {"action": "assignment"}}
-            return {"type": "team_task", "confidence": 0.75, "entities": {"action": "query"}}
+                return {
+                    "type": "team_task",
+                    "confidence": 0.85,
+                    "entities": {"action": "assignment"},
+                }
+            return {
+                "type": "team_task",
+                "confidence": 0.75,
+                "entities": {"action": "query"},
+            }
 
         # Code tasks
-        code_keywords = ["write", "code", "function", "class", "implement", "fix", "bug", "debug", "refactor"]
+        code_keywords = [
+            "write",
+            "code",
+            "function",
+            "class",
+            "implement",
+            "fix",
+            "bug",
+            "debug",
+            "refactor",
+        ]
         if any(word in text_lower for word in code_keywords):
             # Detect language
             language = None
-            for lang in ["python", "javascript", "typescript", "rust", "go", "java", "sql", "html", "css"]:
+            for lang in [
+                "python",
+                "javascript",
+                "typescript",
+                "rust",
+                "go",
+                "java",
+                "sql",
+                "html",
+                "css",
+            ]:
                 if lang in text_lower:
                     language = lang
                     break
-            return {"type": "code_task", "confidence": 0.8, "entities": {"language": language}}
+            return {
+                "type": "code_task",
+                "confidence": 0.8,
+                "entities": {"language": language},
+            }
 
         # Business tasks
-        if any(word in text_lower for word in ["invoice", "email", "schedule", "meeting", "customer", "payment"]):
+        if any(
+            word in text_lower
+            for word in [
+                "invoice",
+                "email",
+                "schedule",
+                "meeting",
+                "customer",
+                "payment",
+            ]
+        ):
             return {"type": "business_task", "confidence": 0.8, "entities": {}}
 
         # File operations
-        if any(word in text_lower for word in ["read file", "open file", "edit file", "create file", "show me"]):
+        if any(
+            word in text_lower
+            for word in [
+                "read file",
+                "open file",
+                "edit file",
+                "create file",
+                "show me",
+            ]
+        ):
             return {"type": "file_operation", "confidence": 0.85, "entities": {}}
 
         # Workflow patterns (multi-step)
         if any(
-            phrase in text_lower for phrase in ["and then", "after that", "workflow", "pipeline", "review and deploy"]
+            phrase in text_lower
+            for phrase in [
+                "and then",
+                "after that",
+                "workflow",
+                "pipeline",
+                "review and deploy",
+            ]
         ):
-            return {"type": "workflow", "confidence": 0.75, "entities": {"multi_step": True}}
+            return {
+                "type": "workflow",
+                "confidence": 0.75,
+                "entities": {"multi_step": True},
+            }
 
         # Creative tasks
         if any(word in text_lower for word in ["generate image", "create picture", "design", "make a logo"]):
-            return {"type": "creative_task", "confidence": 0.8, "entities": {"media_type": "image"}}
+            return {
+                "type": "creative_task",
+                "confidence": 0.8,
+                "entities": {"media_type": "image"},
+            }
 
         # Knowledge queries
         if any(
-            phrase in text_lower for phrase in ["what is", "how does", "explain", "tell me about", "what do we know"]
+            phrase in text_lower
+            for phrase in [
+                "what is",
+                "how does",
+                "explain",
+                "tell me about",
+                "what do we know",
+            ]
         ):
             return {"type": "knowledge_query", "confidence": 0.75, "entities": {}}
 
@@ -297,7 +411,10 @@ class IntentParser:
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
             # Use the database function
-            cur.execute("SELECT * FROM assess_command_complexity(%s::TEXT, NULL::VARCHAR)", (text,))
+            cur.execute(
+                "SELECT * FROM assess_command_complexity(%s::TEXT, NULL::VARCHAR)",
+                (text,),
+            )
             result = cur.fetchone()
 
             cur.close()
@@ -404,7 +521,15 @@ JSON:"""
 
         if intent_type == "code_task":
             # Extract language
-            for lang in ["python", "javascript", "typescript", "rust", "go", "java", "sql"]:
+            for lang in [
+                "python",
+                "javascript",
+                "typescript",
+                "rust",
+                "go",
+                "java",
+                "sql",
+            ]:
                 if lang in text.lower():
                     entities["language"] = lang
                     break
@@ -527,13 +652,64 @@ JSON:"""
 
         # Domain combinations that benefit from multi-agent discussion
         domain_keywords = {
-            "security": ["security", "auth", "permission", "encrypt", "vulnerability", "attack", "protect"],
-            "performance": ["performance", "optimize", "speed", "latency", "cache", "scale"],
-            "architecture": ["architecture", "design pattern", "structure", "system design", "microservice"],
-            "code": ["code", "implement", "function", "class", "api", "endpoint", "backend", "frontend"],
-            "testing": ["test", "qa", "quality", "coverage", "regression", "integration"],
-            "operations": ["deploy", "infrastructure", "devops", "monitor", "logging", "ci/cd"],
-            "business": ["business", "revenue", "customer", "market", "product", "requirements"],
+            "security": [
+                "security",
+                "auth",
+                "permission",
+                "encrypt",
+                "vulnerability",
+                "attack",
+                "protect",
+            ],
+            "performance": [
+                "performance",
+                "optimize",
+                "speed",
+                "latency",
+                "cache",
+                "scale",
+            ],
+            "architecture": [
+                "architecture",
+                "design pattern",
+                "structure",
+                "system design",
+                "microservice",
+            ],
+            "code": [
+                "code",
+                "implement",
+                "function",
+                "class",
+                "api",
+                "endpoint",
+                "backend",
+                "frontend",
+            ],
+            "testing": [
+                "test",
+                "qa",
+                "quality",
+                "coverage",
+                "regression",
+                "integration",
+            ],
+            "operations": [
+                "deploy",
+                "infrastructure",
+                "devops",
+                "monitor",
+                "logging",
+                "ci/cd",
+            ],
+            "business": [
+                "business",
+                "revenue",
+                "customer",
+                "market",
+                "product",
+                "requirements",
+            ],
             "creative": ["design", "ui", "ux", "visual", "brand", "creative"],
         }
 

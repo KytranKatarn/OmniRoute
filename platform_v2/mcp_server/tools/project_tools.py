@@ -138,10 +138,24 @@ register_tool(
             "project_type": {
                 "type": "string",
                 "description": "Filter by type",
-                "enum": ["feature", "bugfix", "infrastructure", "documentation", "research"],
+                "enum": [
+                    "feature",
+                    "bugfix",
+                    "infrastructure",
+                    "documentation",
+                    "research",
+                ],
             },
-            "limit": {"type": "integer", "description": "Max results (default 20, max 100)", "default": 20},
-            "include_progress": {"type": "boolean", "description": "Include task completion progress", "default": True},
+            "limit": {
+                "type": "integer",
+                "description": "Max results (default 20, max 100)",
+                "default": 20,
+            },
+            "include_progress": {
+                "type": "boolean",
+                "description": "Include task completion progress",
+                "default": True,
+            },
         },
     },
     handler=get_projects_handler,
@@ -236,8 +250,8 @@ async def get_project_details_handler(arguments: Dict[str, Any]) -> Dict[str, An
                 "priority": project["priority"],
                 "type": project["project_type"],
                 "tags": project["tags"],
-                "start_date": str(project["start_date"]) if project["start_date"] else None,
-                "target_date": str(project["target_date"]) if project["target_date"] else None,
+                "start_date": (str(project["start_date"]) if project["start_date"] else None),
+                "target_date": (str(project["target_date"]) if project["target_date"] else None),
                 "metadata": project["metadata"],
             },
             "tasks": {
@@ -265,8 +279,8 @@ async def get_project_details_handler(arguments: Dict[str, Any]) -> Dict[str, An
             "documents": [{"type": d["doc_type"], "title": d["title"], "version": d["version"]} for d in docs],
             "archie_awareness": (
                 {
-                    "understanding": awareness["understanding_level"] if awareness else 0,
-                    "emotion": awareness["emotional_association"] if awareness else "neutral",
+                    "understanding": (awareness["understanding_level"] if awareness else 0),
+                    "emotion": (awareness["emotional_association"] if awareness else "neutral"),
                     "notes": awareness["notes"] if awareness else None,
                 }
                 if awareness
@@ -290,7 +304,10 @@ register_tool(
         "type": "object",
         "properties": {
             "project_id": {"type": "integer", "description": "Project ID"},
-            "project_slug": {"type": "string", "description": "Project slug (URL-friendly name)"},
+            "project_slug": {
+                "type": "string",
+                "description": "Project slug (URL-friendly name)",
+            },
         },
     },
     handler=get_project_details_handler,
@@ -379,12 +396,29 @@ register_tool(
             "project_type": {
                 "type": "string",
                 "description": "Project type",
-                "enum": ["feature", "bugfix", "infrastructure", "documentation", "research"],
+                "enum": [
+                    "feature",
+                    "bugfix",
+                    "infrastructure",
+                    "documentation",
+                    "research",
+                ],
                 "default": "feature",
             },
-            "priority": {"type": "integer", "description": "Priority 1-10 (10=highest)", "default": 5},
-            "tags": {"type": "array", "items": {"type": "string"}, "description": "Tags for categorization"},
-            "parent_project_id": {"type": "integer", "description": "Parent project ID for sub-projects"},
+            "priority": {
+                "type": "integer",
+                "description": "Priority 1-10 (10=highest)",
+                "default": 5,
+            },
+            "tags": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Tags for categorization",
+            },
+            "parent_project_id": {
+                "type": "integer",
+                "description": "Parent project ID for sub-projects",
+            },
         },
         "required": ["name"],
     },
@@ -442,7 +476,11 @@ async def update_project_status_handler(arguments: Dict[str, Any]) -> Dict[str, 
 
         return {
             "success": True,
-            "project": {"name": result["name"], "status": result["status"], "priority": result["priority"]},
+            "project": {
+                "name": result["name"],
+                "status": result["status"],
+                "priority": result["priority"],
+            },
             "message": "Project updated",
         }
 
@@ -609,7 +647,11 @@ async def create_task_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
         task_id = cur.fetchone()["id"]
         conn.commit()
 
-        return {"success": True, "task_id": task_id, "message": f"Task '{title}' created"}
+        return {
+            "success": True,
+            "task_id": task_id,
+            "message": f"Task '{title}' created",
+        }
 
     except Exception as e:
         conn.rollback()
@@ -632,13 +674,31 @@ register_tool(
             "description": {"type": "string", "description": "Detailed description"},
             "task_type": {
                 "type": "string",
-                "enum": ["implementation", "review", "testing", "documentation", "research", "bugfix"],
+                "enum": [
+                    "implementation",
+                    "review",
+                    "testing",
+                    "documentation",
+                    "research",
+                    "bugfix",
+                ],
                 "default": "implementation",
             },
-            "priority": {"type": "integer", "description": "Priority 1-10", "default": 5},
-            "estimated_effort": {"type": "string", "enum": ["tiny", "small", "medium", "large", "epic"]},
+            "priority": {
+                "type": "integer",
+                "description": "Priority 1-10",
+                "default": 5,
+            },
+            "estimated_effort": {
+                "type": "string",
+                "enum": ["tiny", "small", "medium", "large", "epic"],
+            },
             "due_date": {"type": "string", "description": "Due date (ISO format)"},
-            "dependencies": {"type": "array", "items": {"type": "integer"}, "description": "Task IDs this depends on"},
+            "dependencies": {
+                "type": "array",
+                "items": {"type": "integer"},
+                "description": "Task IDs this depends on",
+            },
         },
         "required": ["project_id", "title"],
     },
@@ -679,7 +739,11 @@ async def complete_task_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
 
         conn.commit()
 
-        return {"success": True, "task": result["title"], "message": "Task marked as completed"}
+        return {
+            "success": True,
+            "task": result["title"],
+            "message": "Task marked as completed",
+        }
 
     except Exception as e:
         conn.rollback()
@@ -697,8 +761,14 @@ register_tool(
     input_schema={
         "type": "object",
         "properties": {
-            "task_id": {"type": "integer", "description": "Task ID to complete (required)"},
-            "notes": {"type": "string", "description": "Completion notes or summary of work done"},
+            "task_id": {
+                "type": "integer",
+                "description": "Task ID to complete (required)",
+            },
+            "notes": {
+                "type": "string",
+                "description": "Completion notes or summary of work done",
+            },
         },
         "required": ["task_id"],
     },
@@ -753,7 +823,7 @@ async def get_project_docs_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
                     "id": d["id"],
                     "type": d["doc_type"],
                     "title": d["title"],
-                    "content": d["content"][:2000] if arguments.get("brief") else d["content"],
+                    "content": (d["content"][:2000] if arguments.get("brief") else d["content"]),
                     "version": d["version"],
                     "updated": str(d["updated_at"]),
                 }
@@ -779,10 +849,22 @@ register_tool(
             "project_id": {"type": "integer", "description": "Project ID (required)"},
             "doc_type": {
                 "type": "string",
-                "enum": ["readme", "architecture", "api", "changelog", "decision", "guide", "spec"],
+                "enum": [
+                    "readme",
+                    "architecture",
+                    "api",
+                    "changelog",
+                    "decision",
+                    "guide",
+                    "spec",
+                ],
                 "description": "Filter by document type",
             },
-            "brief": {"type": "boolean", "description": "Truncate content to 2000 chars", "default": False},
+            "brief": {
+                "type": "boolean",
+                "description": "Truncate content to 2000 chars",
+                "default": False,
+            },
         },
         "required": ["project_id"],
     },
@@ -866,10 +948,22 @@ register_tool(
         "properties": {
             "project_id": {"type": "integer", "description": "Project ID (optional)"},
             "title": {"type": "string", "description": "Decision title (required)"},
-            "context": {"type": "string", "description": "Why was this decision needed?"},
-            "decision": {"type": "string", "description": "What was decided? (required)"},
-            "alternatives": {"type": "string", "description": "What alternatives were considered?"},
-            "consequences": {"type": "string", "description": "What are the implications?"},
+            "context": {
+                "type": "string",
+                "description": "Why was this decision needed?",
+            },
+            "decision": {
+                "type": "string",
+                "description": "What was decided? (required)",
+            },
+            "alternatives": {
+                "type": "string",
+                "description": "What alternatives were considered?",
+            },
+            "consequences": {
+                "type": "string",
+                "description": "What are the implications?",
+            },
             "task_id": {"type": "integer", "description": "Related task ID"},
         },
         "required": ["title", "decision"],
@@ -1023,7 +1117,10 @@ register_tool(
     input_schema={
         "type": "object",
         "properties": {
-            "project_id": {"type": "integer", "description": "Filter by project (optional, shows all if omitted)"},
+            "project_id": {
+                "type": "integer",
+                "description": "Filter by project (optional, shows all if omitted)",
+            },
             "limit": {"type": "integer", "description": "Max results", "default": 20},
         },
     },
@@ -1066,8 +1163,8 @@ async def log_config_change_handler(arguments: Dict[str, Any]) -> Dict[str, Any]
                 arguments.get("config_path"),
                 arguments.get("config_key"),
                 change_type,
-                json.dumps(arguments.get("previous_value")) if arguments.get("previous_value") else None,
-                json.dumps(arguments.get("new_value")) if arguments.get("new_value") else None,
+                (json.dumps(arguments.get("previous_value")) if arguments.get("previous_value") else None),
+                (json.dumps(arguments.get("new_value")) if arguments.get("new_value") else None),
                 arguments.get("change_reason"),
                 arguments.get("impact_assessment"),
                 arguments.get("session_id"),
@@ -1103,19 +1200,42 @@ register_tool(
             "config_type": {
                 "type": "string",
                 "description": "Type of config changed",
-                "enum": ["module", "setting", "integration", "database", "mcp", "hook", "env"],
+                "enum": [
+                    "module",
+                    "setting",
+                    "integration",
+                    "database",
+                    "mcp",
+                    "hook",
+                    "env",
+                ],
             },
             "change_type": {
                 "type": "string",
                 "description": "Type of change",
                 "enum": ["created", "modified", "deleted", "enabled", "disabled"],
             },
-            "config_path": {"type": "string", "description": "File path or table affected"},
-            "config_key": {"type": "string", "description": "Specific setting/key changed"},
-            "previous_value": {"type": "object", "description": "Previous value (if applicable)"},
+            "config_path": {
+                "type": "string",
+                "description": "File path or table affected",
+            },
+            "config_key": {
+                "type": "string",
+                "description": "Specific setting/key changed",
+            },
+            "previous_value": {
+                "type": "object",
+                "description": "Previous value (if applicable)",
+            },
             "new_value": {"type": "object", "description": "New value"},
-            "change_reason": {"type": "string", "description": "Why this change was made"},
-            "impact_assessment": {"type": "string", "description": "What impact this change has"},
+            "change_reason": {
+                "type": "string",
+                "description": "Why this change was made",
+            },
+            "impact_assessment": {
+                "type": "string",
+                "description": "What impact this change has",
+            },
             "session_id": {"type": "string", "description": "Claude Code session ID"},
             "project_id": {"type": "integer", "description": "Related project ID"},
         },
@@ -1199,7 +1319,15 @@ register_tool(
             "config_type": {
                 "type": "string",
                 "description": "Filter by config type",
-                "enum": ["module", "setting", "integration", "database", "mcp", "hook", "env"],
+                "enum": [
+                    "module",
+                    "setting",
+                    "integration",
+                    "database",
+                    "mcp",
+                    "hook",
+                    "env",
+                ],
             },
             "limit": {"type": "integer", "description": "Max results", "default": 20},
         },
@@ -1208,7 +1336,9 @@ register_tool(
 )
 
 
-async def update_project_understanding_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
+async def update_project_understanding_handler(
+    arguments: Dict[str, Any],
+) -> Dict[str, Any]:
     """
     Update ARCHIE's understanding and notes about a project.
     Call this after working on or learning about a project.
@@ -1222,7 +1352,10 @@ async def update_project_understanding_handler(arguments: Dict[str, Any]) -> Dic
         return {"success": False, "error": "Database connection failed"}
 
     try:
-        updates = ["last_interaction = NOW()", "interaction_count = interaction_count + 1"]
+        updates = [
+            "last_interaction = NOW()",
+            "interaction_count = interaction_count + 1",
+        ]
         params = []
 
         if "understanding_level" in arguments:
@@ -1287,11 +1420,21 @@ register_tool(
                 "minimum": 0,
                 "maximum": 100,
             },
-            "notes": {"type": "string", "description": "ARCHIE's internal notes about the project"},
+            "notes": {
+                "type": "string",
+                "description": "ARCHIE's internal notes about the project",
+            },
             "emotional_association": {
                 "type": "string",
                 "description": "Emotional state toward project",
-                "enum": ["excited", "focused", "curious", "concerned", "neutral", "confident"],
+                "enum": [
+                    "excited",
+                    "focused",
+                    "curious",
+                    "concerned",
+                    "neutral",
+                    "confident",
+                ],
             },
             "key_insights": {
                 "type": "array",
@@ -1306,7 +1449,9 @@ register_tool(
 )
 
 
-async def get_knowledge_processing_status_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
+async def get_knowledge_processing_status_handler(
+    arguments: Dict[str, Any],
+) -> Dict[str, Any]:
     """Get current status of knowledge processing: embedding coverage, analysis progress, service health."""
     conn, cur = get_db_connection()
     if not conn:
@@ -1359,8 +1504,8 @@ async def get_knowledge_processing_status_handler(arguments: Dict[str, Any]) -> 
             "embedding_coverage": f"{embed_pct}% ({embedded}/{total})",
             "analysis_coverage": f"{analysis_pct}% ({analyzed}/{total})",
             "unanalyzed_backlog": backlog,
-            "model": "qwen2.5:7b (Ollama, GPU)",
-            "embedding_model": "nomic-embed-text (Ollama, GPU)",
+            "model": "qwen3-coder-cpu:latest (Ollama, CPU/RAM)",
+            "embedding_model": "arctic-embed-cpu (Snowflake Arctic Embed, CPU)",
         }
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -1497,7 +1642,10 @@ async def start_working_on_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     session_id = arguments.get("session_id", "claude_cli")
 
     if not work_on:
-        return {"success": False, "error": "work_on is required (project name or description)"}
+        return {
+            "success": False,
+            "error": "work_on is required (project name or description)",
+        }
 
     conn, cur = get_db_connection()
     if not conn:
@@ -1714,7 +1862,9 @@ async def get_current_work_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
                 "started": str(session["started_at"]),
                 "last_activity": str(session["last_activity"]),
             },
-            "current_task": {"id": session["task_id"], "title": session["task_title"]} if session["task_id"] else None,
+            "current_task": (
+                {"id": session["task_id"], "title": session["task_title"]} if session["task_id"] else None
+            ),
             "recent_notes": [{"type": n["note_type"], "content": n["content"][:200]} for n in notes],
             "pending_tasks": [{"id": t["id"], "title": t["title"], "priority": t["priority"]} for t in pending_tasks],
         }
@@ -1733,7 +1883,13 @@ register_tool(
     description="Get current work context - what project and task is being actively worked on.",
     input_schema={
         "type": "object",
-        "properties": {"session_id": {"type": "string", "description": "Session identifier", "default": "claude_cli"}},
+        "properties": {
+            "session_id": {
+                "type": "string",
+                "description": "Session identifier",
+                "default": "claude_cli",
+            }
+        },
     },
     handler=get_current_work_handler,
 )
@@ -1769,7 +1925,10 @@ async def add_work_note_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
 
         session = cur.fetchone()
         if not session:
-            return {"success": False, "error": "No active work session. Use start_working_on first."}
+            return {
+                "success": False,
+                "error": "No active work session. Use start_working_on first.",
+            }
 
         # Add note
         cur.execute(
@@ -1778,7 +1937,14 @@ async def add_work_note_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
             VALUES (%s, %s, %s, %s, %s, %s)
             RETURNING id
         """,
-            (session["id"], session["project_id"], session["task_id"], note_type, note, session_id),
+            (
+                session["id"],
+                session["project_id"],
+                session["task_id"],
+                note_type,
+                note,
+                session_id,
+            ),
         )
 
         note_id = cur.fetchone()["id"]
@@ -1793,7 +1959,12 @@ async def add_work_note_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
 
         conn.commit()
 
-        return {"success": True, "note_id": note_id, "note_type": note_type, "message": f"Note added to work session"}
+        return {
+            "success": True,
+            "note_id": note_id,
+            "note_type": note_type,
+            "message": f"Note added to work session",
+        }
 
     except Exception as e:
         conn.rollback()
@@ -1933,7 +2104,10 @@ register_tool(
     input_schema={
         "type": "object",
         "properties": {
-            "summary": {"type": "string", "description": "Summary of what was accomplished"},
+            "summary": {
+                "type": "string",
+                "description": "Summary of what was accomplished",
+            },
             "session_id": {"type": "string", "default": "claude_cli"},
         },
     },
@@ -1970,7 +2144,11 @@ async def set_current_file_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
 
         conn.commit()
 
-        return {"success": True, "current_file": file_path, "message": f"Now working on: {file_path}"}
+        return {
+            "success": True,
+            "current_file": file_path,
+            "message": f"Now working on: {file_path}",
+        }
 
     except Exception as e:
         conn.rollback()
@@ -1987,7 +2165,10 @@ register_tool(
     input_schema={
         "type": "object",
         "properties": {
-            "file_path": {"type": "string", "description": "Path to file being worked on"},
+            "file_path": {
+                "type": "string",
+                "description": "Path to file being worked on",
+            },
             "session_id": {"type": "string", "default": "claude_cli"},
         },
         "required": ["file_path"],

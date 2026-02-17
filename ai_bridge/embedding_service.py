@@ -1,7 +1,7 @@
 """
 Embedding Service for ARCHIE Consciousness Intelligence
 
-Generates semantic embeddings using Ollama's nomic-embed-text model (768 dimensions).
+Generates semantic embeddings using Ollama's arctic-embed-cpu model (768 dimensions).
 Used for vector similarity search in knowledge retrieval.
 
 Usage:
@@ -24,7 +24,8 @@ from dataclasses import dataclass
 logger = logging.getLogger(__name__)
 
 # Configuration
-# Embedding model (nomic-embed-text) runs on ARCHIE's local Ollama instance.
+# Embedding model runs on ARCHIE's local Ollama instance (CPU, kept loaded via MAX_LOADED_MODELS=3).
+# arctic-embed-cpu — 768-dim, better retrieval quality than nomic-embed-text.
 # Use OLLAMA_EMBEDDING_HOST if set, otherwise OLLAMA_PRIMARY, then host.docker.internal.
 _embedding_host = os.getenv("OLLAMA_EMBEDDING_HOST", "")
 if not _embedding_host:
@@ -34,7 +35,7 @@ if not _embedding_host:
 if not _embedding_host.startswith("http"):
     _embedding_host = f"http://{_embedding_host}"
 OLLAMA_HOST = _embedding_host
-EMBEDDING_MODEL = "nomic-embed-text"
+EMBEDDING_MODEL = os.getenv("OLLAMA_EMBEDDING_MODEL", "arctic-embed-cpu")
 EMBEDDING_DIMENSIONS = 768
 REQUEST_TIMEOUT = 30  # seconds
 

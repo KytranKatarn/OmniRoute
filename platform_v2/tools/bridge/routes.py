@@ -6627,6 +6627,98 @@ def get_escalation_log():
 
 
 # ============================================================================
+# EXTERNAL PROVIDER KEY MANAGEMENT
+# ============================================================================
+
+
+@bridge_bp.route("/api/external-providers", methods=["GET"])
+@login_required
+def get_external_providers():
+    """List external AI providers and their status (keys masked)."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT id, provider, is_active, monthly_budget_usd, current_month_cost_usd,
+                   budget_reset_day, created_at, updated_at,
+                   CASE WHEN api_key_encrypted IS NOT NULL AND api_key_encrypted != ''
+                        THEN '****' || RIGHT(api_key_encrypted, 4) ELSE NULL END as key_hint
+            FROM external_api_keys
+            ORDER BY provider
+        """
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        result = []
+        for r in rows:
+            d = dict(r)
+            for k, v in d.items():
+                if hasattr(v, "isoformat"):
+                    d[k] = v.isoformat()
+            result.append(d)
+        return jsonify({"success": True, "providers": result})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/external-providers", methods=["POST"])
+@login_required
+def upsert_external_provider():
+    """Add or update an external AI provider API key."""
+    data = request.get_json() or {}
+    provider = data.get("provider", "").strip().lower()
+    api_key = data.get("api_key", "").strip()
+
+    if provider not in ("openai", "perplexity", "xai"):
+        return jsonify({"success": False, "error": f"Unknown provider: {provider}"}), 400
+    if not api_key:
+        return jsonify({"success": False, "error": "API key required"}), 400
+
+    budget = data.get("monthly_budget_usd", 10.0)
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            INSERT INTO external_api_keys (provider, api_key_encrypted, monthly_budget_usd, is_active)
+            VALUES (%s, %s, %s, TRUE)
+            ON CONFLICT (provider) DO UPDATE SET
+                api_key_encrypted = %s, monthly_budget_usd = %s, is_active = TRUE, updated_at = NOW()
+            RETURNING id, provider, is_active, monthly_budget_usd
+        """,
+            (provider, api_key, budget, api_key, budget),
+        )
+        row = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"success": True, "provider": dict(row)})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/external-providers/<provider>/toggle", methods=["POST"])
+@login_required
+def toggle_external_provider(provider):
+    """Enable/disable an external provider."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE external_api_keys SET is_active = NOT is_active, updated_at = NOW() WHERE provider = %s",
+            (provider,),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
 # MESH CLUSTER API ROUTES
 # ============================================================================
 try:

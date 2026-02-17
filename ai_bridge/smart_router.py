@@ -149,7 +149,12 @@ DEFAULT_MODEL_CONFIGS = {
 }
 
 # Tier escalation order (classify and vision are capability-specific, not in main escalation chain)
-TIER_ORDER = ["classify", "local", "local_analysis", "minimax_cloud", "qwen3_cloud", "haiku", "sonnet", "opus"]
+TIER_ORDER = [
+    "classify", "local", "local_analysis",
+    "minimax_cloud", "qwen3_cloud",
+    "openai", "perplexity", "grok",
+    "haiku", "sonnet", "opus",
+]
 
 # Capability-based routing: maps capability requirements to preferred tiers
 CAPABILITY_ROUTING = {

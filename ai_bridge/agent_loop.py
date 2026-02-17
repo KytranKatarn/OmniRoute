@@ -559,7 +559,7 @@ class AgentLoop:
         cur.execute(
             """
             UPDATE scheduled_tasks
-            SET status = 'completed', completed_at = NOW(), updated_at = NOW()
+            SET status = 'completed', executed_at = NOW(), updated_at = NOW()
             WHERE id = %s
             """,
             (task["id"],),

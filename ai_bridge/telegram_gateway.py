@@ -49,6 +49,7 @@ class TelegramGateway:
         self._running = False
         self._thread = None
         self._application = None
+        self._loop = None
 
     def start(self):
         """Start the Telegram bot in a background thread."""
@@ -62,23 +63,25 @@ class TelegramGateway:
         logger.info("Telegram gateway started")
 
     def stop(self):
-        """Stop the Telegram bot."""
+        """Stop the Telegram bot.
+
+        Sets _running=False which causes the _run() coroutine's while loop
+        to exit, triggering graceful shutdown (updater.stop → app.stop → app.shutdown).
+        """
         self._running = False
-        if self._application:
-            try:
-                asyncio.run_coroutine_threadsafe(
-                    self._application.stop(), self._application.loop
-                )
-            except Exception:
-                pass
-        logger.info("Telegram gateway stopped")
+        logger.info("Telegram gateway stopping (will shutdown within ~1s)")
 
     @property
     def is_running(self):
         return self._running
 
     def _run_bot(self):
-        """Run the bot event loop in a separate thread."""
+        """Run the bot event loop in a separate thread.
+
+        Uses lower-level initialize/start/polling instead of run_polling()
+        because run_polling() registers signal handlers which only work
+        in the main thread.
+        """
         try:
             from telegram import Update
             from telegram.ext import (
@@ -91,6 +94,7 @@ class TelegramGateway:
 
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
+            self._loop = loop
 
             app = ApplicationBuilder().token(self.bot_token).build()
             self._application = app
@@ -107,7 +111,20 @@ class TelegramGateway:
             app.add_handler(MessageHandler(filters.VOICE, self._handle_voice))
 
             logger.info("Telegram bot polling started")
-            loop.run_until_complete(app.run_polling(drop_pending_updates=True))
+
+            # Use lower-level API to avoid signal handler issues in non-main thread
+            async def _run():
+                await app.initialize()
+                await app.updater.start_polling(drop_pending_updates=True)
+                await app.start()
+                # Keep running until stopped
+                while self._running:
+                    await asyncio.sleep(1)
+                await app.updater.stop()
+                await app.stop()
+                await app.shutdown()
+
+            loop.run_until_complete(_run())
 
         except Exception as e:
             logger.error(f"Telegram bot crashed: {e}")

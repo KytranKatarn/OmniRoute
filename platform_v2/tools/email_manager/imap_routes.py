@@ -395,7 +395,16 @@ def generate_draft(email_id):
         instructions = request.json.get("instructions", "") if request.json else ""
         draft_id = ei.generate_draft_reply(email_id, instructions)
         if draft_id:
-            return jsonify({"success": True, "draft_id": draft_id})
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                "SELECT id, to_address, subject, body_html, body_text, status FROM email_drafts WHERE id = %s",
+                (draft_id,),
+            )
+            draft = cur.fetchone()
+            cur.close()
+            conn.close()
+            return jsonify({"success": True, "draft_id": draft_id, "draft": dict(draft) if draft else None})
         return jsonify({"success": False, "error": "Draft generation failed"}), 500
     except Exception as e:
         logger.error(f"Draft generation failed: {e}")

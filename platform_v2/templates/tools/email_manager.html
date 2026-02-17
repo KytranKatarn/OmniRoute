@@ -99,12 +99,17 @@
 
         <!-- Tab Navigation -->
         <div class="em-tabs">
-            <button class="em-tab active" data-tab="templates">
+            <button class="em-tab active" data-tab="inbox">
+                <i data-lucide="mail-open"></i>
+                <span>Inbox</span>
+                <span class="em-tab-badge" id="inbox-unread-badge" style="display: none;">0</span>
+            </button>
+            <button class="em-tab" data-tab="templates">
                 <i data-lucide="file-text"></i>
                 <span>Templates</span>
             </button>
             <button class="em-tab" data-tab="sent">
-                <i data-lucide="inbox"></i>
+                <i data-lucide="send"></i>
                 <span>Sent Emails</span>
             </button>
             <button class="em-tab" data-tab="campaigns">
@@ -117,8 +122,169 @@
             </button>
         </div>
 
+        <!-- Inbox Tab -->
+        <div class="em-tab-content active" id="tab-inbox">
+            <div class="em-panel">
+                <div class="em-panel-header">
+                    <h2 class="em-panel-title">
+                        <i data-lucide="mail-open"></i>
+                        Inbox
+                    </h2>
+                    <div class="inbox-header-actions">
+                        <div class="inbox-search-group">
+                            <input type="text" id="inbox-search-input" class="em-input" placeholder="Search emails..." onkeydown="if(event.key==='Enter')searchInbox()">
+                            <button class="em-btn em-btn--sm em-btn--outline" onclick="searchInbox()">
+                                <i data-lucide="search"></i>
+                            </button>
+                        </div>
+                        <button class="em-btn em-btn--sm em-btn--primary" onclick="checkInboxNow()" id="inbox-check-btn">
+                            <i data-lucide="refresh-cw"></i>
+                            <span>Check Now</span>
+                        </button>
+                    </div>
+                </div>
+                <!-- Category Filter Bar -->
+                <div class="inbox-filters" id="inbox-filters">
+                    <button class="inbox-filter-btn active" data-category="" onclick="setInboxFilter('')">
+                        All
+                        <span class="inbox-filter-count" id="filter-count-all"></span>
+                    </button>
+                    <button class="inbox-filter-btn inbox-filter--urgent" data-category="urgent" onclick="setInboxFilter('urgent')">
+                        Urgent
+                        <span class="inbox-filter-count" id="filter-count-urgent"></span>
+                    </button>
+                    <button class="inbox-filter-btn inbox-filter--action" data-category="action_required" onclick="setInboxFilter('action_required')">
+                        Action Required
+                        <span class="inbox-filter-count" id="filter-count-action_required"></span>
+                    </button>
+                    <button class="inbox-filter-btn inbox-filter--info" data-category="informational" onclick="setInboxFilter('informational')">
+                        Informational
+                        <span class="inbox-filter-count" id="filter-count-informational"></span>
+                    </button>
+                    <button class="inbox-filter-btn inbox-filter--spam" data-category="spam" onclick="setInboxFilter('spam')">
+                        Spam
+                        <span class="inbox-filter-count" id="filter-count-spam"></span>
+                    </button>
+                    <button class="inbox-filter-btn inbox-filter--newsletter" data-category="newsletter" onclick="setInboxFilter('newsletter')">
+                        Newsletter
+                        <span class="inbox-filter-count" id="filter-count-newsletter"></span>
+                    </button>
+                </div>
+                <!-- Email List Table -->
+                <div class="em-table-wrapper">
+                    <table class="em-table" id="inbox-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;"></th>
+                                <th>From</th>
+                                <th>Subject</th>
+                                <th>Category</th>
+                                <th style="width: 80px;">Priority</th>
+                                <th style="width: 80px;">Sentiment</th>
+                                <th style="width: 100px;">Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inbox-tbody">
+                            <tr>
+                                <td colspan="7">
+                                    <div class="em-loading">
+                                        <i data-lucide="loader-2" class="em-spinner"></i>
+                                        <span>Loading inbox...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <!-- Email Detail Panel -->
+                <div class="email-detail-panel" id="email-detail-panel" style="display: none;">
+                    <div class="email-detail-header">
+                        <div class="email-detail-subject" id="detail-subject"></div>
+                        <button class="em-btn em-btn--sm em-btn--outline" onclick="closeEmailDetail()">
+                            <i data-lucide="x"></i>
+                        </button>
+                    </div>
+                    <div class="email-detail-meta">
+                        <div class="email-detail-from">
+                            <strong>From:</strong> <span id="detail-from"></span>
+                        </div>
+                        <div class="email-detail-to">
+                            <strong>To:</strong> <span id="detail-to"></span>
+                        </div>
+                        <div class="email-detail-cc" id="detail-cc-row" style="display: none;">
+                            <strong>CC:</strong> <span id="detail-cc"></span>
+                        </div>
+                        <div class="email-detail-date">
+                            <strong>Date:</strong> <span id="detail-date"></span>
+                        </div>
+                        <div class="email-detail-attachments" id="detail-attachments-row" style="display: none;">
+                            <strong>Attachments:</strong> <span id="detail-attachments"></span>
+                        </div>
+                    </div>
+                    <!-- AI Analysis Section -->
+                    <div class="email-detail-ai">
+                        <h4><i data-lucide="brain"></i> AI Analysis</h4>
+                        <div class="email-ai-grid">
+                            <div class="email-ai-item">
+                                <span class="email-ai-label">Category</span>
+                                <span class="email-ai-value" id="detail-ai-category"></span>
+                            </div>
+                            <div class="email-ai-item">
+                                <span class="email-ai-label">Priority</span>
+                                <span class="email-ai-value" id="detail-ai-priority"></span>
+                            </div>
+                            <div class="email-ai-item">
+                                <span class="email-ai-label">Sentiment</span>
+                                <span class="email-ai-value" id="detail-ai-sentiment"></span>
+                            </div>
+                            <div class="email-ai-item email-ai-item--full">
+                                <span class="email-ai-label">Summary</span>
+                                <span class="email-ai-value" id="detail-ai-summary"></span>
+                            </div>
+                            <div class="email-ai-item email-ai-item--full">
+                                <span class="email-ai-label">Suggested Action</span>
+                                <span class="email-ai-value" id="detail-ai-action"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Email Body -->
+                    <div class="email-detail-body" id="detail-body"></div>
+                    <!-- Draft Section -->
+                    <div class="email-detail-drafts" id="detail-drafts" style="display: none;">
+                        <h4><i data-lucide="edit-3"></i> Draft Reply</h4>
+                        <div id="detail-draft-content"></div>
+                    </div>
+                    <!-- Action Buttons -->
+                    <div class="email-detail-actions">
+                        <button class="em-btn em-btn--primary" onclick="generateDraft(currentEmailId)">
+                            <i data-lucide="reply"></i>
+                            <span>Generate Reply</span>
+                        </button>
+                        <button class="em-btn em-btn--outline" onclick="archiveEmail(currentEmailId)">
+                            <i data-lucide="archive"></i>
+                            <span>Archive</span>
+                        </button>
+                        <button class="em-btn em-btn--outline" onclick="saveToKB(currentEmailId)">
+                            <i data-lucide="database"></i>
+                            <span>Save to KB</span>
+                        </button>
+                    </div>
+                </div>
+                <!-- Pagination -->
+                <div class="inbox-pagination" id="inbox-pagination" style="display: none;">
+                    <button class="em-btn em-btn--sm em-btn--outline" id="inbox-prev-btn" onclick="loadInbox(inboxCurrentPage - 1)" disabled>
+                        <i data-lucide="chevron-left"></i>
+                    </button>
+                    <span class="inbox-page-info" id="inbox-page-info">Page 1 of 1</span>
+                    <button class="em-btn em-btn--sm em-btn--outline" id="inbox-next-btn" onclick="loadInbox(inboxCurrentPage + 1)" disabled>
+                        <i data-lucide="chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- Templates Tab -->
-        <div class="em-tab-content active" id="tab-templates">
+        <div class="em-tab-content" id="tab-templates">
             <div class="em-panel">
                 <div class="em-panel-header">
                     <h2 class="em-panel-title">
@@ -309,6 +475,120 @@
                     </div>
                 </div>
             </div>
+
+            <!-- IMAP / Incoming Email Settings -->
+            <div class="em-panel" style="margin-top: 24px;">
+                <div class="em-panel-header">
+                    <div>
+                        <h2 class="em-panel-title">
+                            <i data-lucide="inbox"></i>
+                            IMAP / Incoming Email
+                        </h2>
+                        <p class="imap-panel-subtitle">Configure incoming email server for inbox monitoring</p>
+                    </div>
+                </div>
+                <div class="imap-settings-body">
+                    <form id="imap-settings-form" onsubmit="saveImapSettings(event)">
+                        <input type="hidden" id="imap-setting-id" value="">
+                        <div class="em-form-row">
+                            <div class="em-form-group">
+                                <label>Account Name</label>
+                                <input type="text" id="imap-name" value="Gmail" class="em-input" placeholder="Gmail">
+                            </div>
+                            <div class="em-form-group">
+                                <label>IMAP Host <span class="em-required">*</span></label>
+                                <input type="text" id="imap-host" required value="imap.gmail.com" class="em-input" placeholder="imap.gmail.com">
+                            </div>
+                        </div>
+                        <div class="em-form-row">
+                            <div class="em-form-group">
+                                <label>IMAP Port</label>
+                                <input type="number" id="imap-port" value="993" class="em-input">
+                            </div>
+                            <div class="em-form-group">
+                                <label>Encryption</label>
+                                <select id="imap-encryption" class="em-select">
+                                    <option value="ssl" selected>SSL (Recommended)</option>
+                                    <option value="tls">TLS</option>
+                                    <option value="none">None</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="em-form-row">
+                            <div class="em-form-group">
+                                <label>Email / Username <span class="em-required">*</span></label>
+                                <input type="text" id="imap-user" required class="em-input" placeholder="you@gmail.com" value="{{ current_user.email if current_user and current_user.email else '' }}">
+                            </div>
+                            <div class="em-form-group">
+                                <label>App Password <span class="em-required">*</span></label>
+                                <input type="password" id="imap-password" class="em-input" placeholder="16-character App Password">
+                            </div>
+                        </div>
+                        <div class="em-form-row">
+                            <div class="em-form-group">
+                                <label>Folder</label>
+                                <input type="text" id="imap-folder" value="INBOX" class="em-input" placeholder="INBOX">
+                            </div>
+                            <div class="em-form-group">
+                                <label>Check Interval</label>
+                                <select id="imap-interval" class="em-select">
+                                    <option value="1">Every 1 minute</option>
+                                    <option value="2">Every 2 minutes</option>
+                                    <option value="5" selected>Every 5 minutes</option>
+                                    <option value="10">Every 10 minutes</option>
+                                    <option value="15">Every 15 minutes</option>
+                                    <option value="30">Every 30 minutes</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="em-form-row">
+                            <div class="em-form-group imap-toggle-group">
+                                <label class="imap-toggle-label">
+                                    <input type="checkbox" id="imap-auto-analyze" checked>
+                                    <span class="imap-toggle-switch"></span>
+                                    <span class="imap-toggle-text">
+                                        <strong>Auto-Analyze</strong>
+                                        <small>AI categorization, sentiment, priority</small>
+                                    </span>
+                                </label>
+                            </div>
+                            <div class="em-form-group imap-toggle-group">
+                                <label class="imap-toggle-label">
+                                    <input type="checkbox" id="imap-auto-file-kb">
+                                    <span class="imap-toggle-switch"></span>
+                                    <span class="imap-toggle-text">
+                                        <strong>Auto-File to KB</strong>
+                                        <small>Auto-save important emails to Knowledge Base</small>
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="imap-form-actions">
+                            <div class="imap-actions-left">
+                                <button type="submit" class="em-btn em-btn--primary">
+                                    <i data-lucide="save"></i>
+                                    Save IMAP Settings
+                                </button>
+                                <button type="button" class="em-btn em-btn--outline" onclick="testImapConnection()" id="imap-test-btn">
+                                    <i data-lucide="plug"></i>
+                                    Test Connection
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Status area for test results -->
+                        <div id="imap-status-area" class="imap-status-area" style="display: none;"></div>
+
+                        <div class="imap-help-note">
+                            <i data-lucide="info"></i>
+                            <span>Gmail users: Generate an App Password at
+                                <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">myaccount.google.com/apppasswords</a>
+                            </span>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -440,12 +720,12 @@
                 <input type="hidden" id="settings-id">
                 <div class="em-form-group">
                     <label>Configuration Name</label>
-                    <input type="text" id="settings-name" value="Default SMTP" class="em-input">
+                    <input type="text" id="settings-name" value="Gmail SMTP" class="em-input">
                 </div>
                 <div class="em-form-row">
                     <div class="em-form-group">
                         <label>SMTP Host <span class="em-required">*</span></label>
-                        <input type="text" id="settings-host" required placeholder="smtp.gmail.com" class="em-input">
+                        <input type="text" id="settings-host" required value="smtp.gmail.com" placeholder="smtp.gmail.com" class="em-input">
                     </div>
                     <div class="em-form-group">
                         <label>Port</label>
@@ -455,17 +735,17 @@
                 <div class="em-form-row">
                     <div class="em-form-group">
                         <label>Username</label>
-                        <input type="text" id="settings-user" placeholder="your-email@gmail.com" class="em-input">
+                        <input type="text" id="settings-user" placeholder="your-email@gmail.com" class="em-input" value="{{ current_user.email if current_user and current_user.email else '' }}">
                     </div>
                     <div class="em-form-group">
                         <label>Password</label>
-                        <input type="password" id="settings-password" placeholder="••••••••" class="em-input">
+                        <input type="password" id="settings-password" placeholder="App Password" class="em-input">
                     </div>
                 </div>
                 <div class="em-form-row">
                     <div class="em-form-group">
                         <label>From Email <span class="em-required">*</span></label>
-                        <input type="email" id="settings-from-email" required placeholder="noreply@company.com" class="em-input">
+                        <input type="email" id="settings-from-email" required placeholder="you@gmail.com" class="em-input" value="{{ current_user.email if current_user and current_user.email else '' }}">
                     </div>
                     <div class="em-form-group">
                         <label>From Name</label>
@@ -475,7 +755,7 @@
                 <div class="em-form-group">
                     <label>Encryption</label>
                     <select id="settings-encryption" class="em-select">
-                        <option value="tls">TLS (Recommended)</option>
+                        <option value="tls" selected>TLS (Recommended)</option>
                         <option value="ssl">SSL</option>
                         <option value="none">None</option>
                     </select>
@@ -1522,6 +1802,643 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
+   INBOX TAB
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+/* Tab Badge */
+.em-tab-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 700;
+    background: var(--em-danger);
+    color: #fff;
+    border-radius: 10px;
+    margin-left: 4px;
+}
+
+.em-tab.active .em-tab-badge {
+    background: rgba(255, 255, 255, 0.3);
+    color: #fff;
+}
+
+/* Inbox Header Actions */
+.inbox-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.inbox-search-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.inbox-search-group .em-input {
+    width: 220px;
+    padding: 8px 14px;
+    font-size: 0.8rem;
+}
+
+/* Category Filter Bar */
+.inbox-filters {
+    display: flex;
+    gap: 6px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--em-border);
+    overflow-x: auto;
+    flex-wrap: wrap;
+}
+
+.inbox-filter-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--em-text-secondary);
+    background: transparent;
+    border: 1px solid var(--em-border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.inbox-filter-btn:hover {
+    border-color: var(--em-accent);
+    color: var(--em-accent);
+    background: rgba(var(--em-accent-rgb), 0.05);
+}
+
+.inbox-filter-btn.active {
+    background: rgba(var(--em-accent-rgb), 0.15);
+    border-color: var(--em-accent);
+    color: var(--em-accent);
+}
+
+.inbox-filter--urgent.active { background: rgba(255, 65, 54, 0.15); border-color: #ff4136; color: #ff4136; }
+.inbox-filter--action.active { background: rgba(255, 133, 27, 0.15); border-color: #ff851b; color: #ff851b; }
+.inbox-filter--info.active   { background: rgba(0, 255, 255, 0.15); border-color: #00FFFF; color: #00FFFF; }
+.inbox-filter--spam.active   { background: rgba(108, 117, 125, 0.15); border-color: #6c757d; color: #6c757d; }
+.inbox-filter--newsletter.active { background: rgba(177, 13, 201, 0.15); border-color: #b10dc9; color: #b10dc9; }
+
+.inbox-filter-count {
+    font-size: 0.65rem;
+    opacity: 0.7;
+}
+
+.inbox-filter-count:empty {
+    display: none;
+}
+
+/* Inbox Row Styles */
+.inbox-row {
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.inbox-row:hover {
+    background: rgba(var(--em-accent-rgb), 0.08) !important;
+}
+
+.inbox-row.selected {
+    background: rgba(var(--em-accent-rgb), 0.12) !important;
+}
+
+.inbox-row--unread {
+    border-left: 3px solid #00FFFF;
+    font-weight: 600;
+}
+
+.inbox-row--unread td:first-child {
+    padding-left: 17px;
+}
+
+/* Star Button */
+.inbox-star-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--em-text-muted);
+    transition: color 0.2s ease;
+}
+
+.inbox-star-btn:hover {
+    color: #FFAA00;
+}
+
+.inbox-star-btn.starred {
+    color: #FFAA00;
+}
+
+.inbox-star-btn i {
+    width: 16px;
+    height: 16px;
+}
+
+/* From Cell */
+.inbox-from-name {
+    color: var(--em-text-primary);
+    font-weight: 500;
+    font-size: 0.85rem;
+}
+
+.inbox-from-addr {
+    color: var(--em-text-muted);
+    font-size: 0.7rem;
+}
+
+/* Subject + Summary */
+.inbox-subject-text {
+    color: var(--em-text-primary);
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 400px;
+}
+
+.inbox-summary-text {
+    color: var(--em-text-muted);
+    font-size: 0.72rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 400px;
+    margin-top: 2px;
+}
+
+/* Category Badges */
+.category-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    border-radius: 4px;
+    white-space: nowrap;
+}
+
+.category-badge--urgent         { background: rgba(255, 65, 54, 0.15); color: #ff4136; }
+.category-badge--action_required { background: rgba(255, 133, 27, 0.15); color: #ff851b; }
+.category-badge--informational  { background: rgba(0, 255, 255, 0.15); color: #00FFFF; }
+.category-badge--spam           { background: rgba(108, 117, 125, 0.15); color: #6c757d; }
+.category-badge--newsletter     { background: rgba(177, 13, 201, 0.15); color: #b10dc9; }
+
+/* Priority Dots */
+.priority-dots {
+    display: flex;
+    gap: 3px;
+    align-items: center;
+}
+
+.priority-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--em-text-muted);
+    opacity: 0.25;
+}
+
+.priority-dot.filled {
+    opacity: 1;
+}
+
+.priority-dots[data-priority="1"] .priority-dot.filled { background: #ff4136; }
+.priority-dots[data-priority="2"] .priority-dot.filled { background: #ff851b; }
+.priority-dots[data-priority="3"] .priority-dot.filled { background: #FFAA00; }
+.priority-dots[data-priority="4"] .priority-dot.filled { background: #00FF41; }
+.priority-dots[data-priority="5"] .priority-dot.filled { background: #6c757d; }
+
+/* Sentiment Badges */
+.sentiment-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 500;
+    padding: 3px 8px;
+    border-radius: 4px;
+}
+
+.sentiment-badge--positive  { background: rgba(0, 255, 65, 0.12); color: #00FF41; }
+.sentiment-badge--negative  { background: rgba(255, 107, 107, 0.12); color: #FF6B6B; }
+.sentiment-badge--neutral   { background: rgba(139, 148, 158, 0.12); color: #8b949e; }
+.sentiment-badge--mixed     { background: rgba(255, 170, 0, 0.12); color: #FFAA00; }
+
+/* Email Detail Panel */
+.email-detail-panel {
+    border-top: 2px solid var(--em-accent);
+    background: var(--em-bg-elevated);
+    padding: 0;
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; max-height: 0; }
+    to   { opacity: 1; max-height: 2000px; }
+}
+
+.email-detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--em-border);
+}
+
+.email-detail-subject {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--em-text-primary);
+}
+
+.email-detail-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 14px 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--em-text-secondary);
+    border-bottom: 1px solid var(--em-border);
+}
+
+.email-detail-meta strong {
+    color: var(--em-text-muted);
+    margin-right: 6px;
+}
+
+/* AI Analysis Section */
+.email-detail-ai {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--em-border);
+    background: rgba(var(--em-accent-rgb), 0.03);
+}
+
+.email-detail-ai h4 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--em-accent);
+    margin: 0 0 12px 0;
+}
+
+.email-detail-ai h4 i {
+    width: 16px;
+    height: 16px;
+}
+
+.email-ai-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+
+.email-ai-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.email-ai-item--full {
+    grid-column: 1 / -1;
+}
+
+.email-ai-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--em-text-muted);
+}
+
+.email-ai-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--em-text-primary);
+}
+
+/* Email Body */
+.email-detail-body {
+    padding: 20px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: var(--em-text-primary);
+    max-height: 400px;
+    overflow-y: auto;
+    border-bottom: 1px solid var(--em-border);
+}
+
+.email-detail-body img {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Drafts Section */
+.email-detail-drafts {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--em-border);
+    background: rgba(0, 255, 65, 0.03);
+}
+
+.email-detail-drafts h4 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--em-success);
+    margin: 0 0 12px 0;
+}
+
+.email-detail-drafts h4 i {
+    width: 16px;
+    height: 16px;
+}
+
+.email-draft-card {
+    padding: 12px 16px;
+    background: var(--em-bg-card);
+    border: 1px solid var(--em-border);
+    border-radius: 8px;
+    margin-bottom: 10px;
+}
+
+.email-draft-subject {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--em-text-primary);
+    margin-bottom: 8px;
+}
+
+.email-draft-body {
+    font-size: 0.8rem;
+    color: var(--em-text-secondary);
+    line-height: 1.5;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+/* Action Buttons */
+.email-detail-actions {
+    display: flex;
+    gap: 10px;
+    padding: 16px 20px;
+    flex-wrap: wrap;
+}
+
+/* Pagination */
+.inbox-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 16px 20px;
+    border-top: 1px solid var(--em-border);
+}
+
+.inbox-page-info {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--em-text-secondary);
+}
+
+/* Inbox relative date */
+.inbox-date-relative {
+    font-size: 0.75rem;
+    color: var(--em-text-secondary);
+    white-space: nowrap;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   IMAP SETTINGS
+   ═══════════════════════════════════════════════════════════════════════════════ */
+.imap-panel-subtitle {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--em-text-secondary);
+    margin: 6px 0 0 0;
+}
+
+.imap-settings-body {
+    padding: 24px;
+}
+
+.imap-toggle-group {
+    margin-bottom: 12px;
+}
+
+.imap-toggle-label {
+    display: flex !important;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    margin-bottom: 0 !important;
+}
+
+.imap-toggle-label input[type="checkbox"] {
+    display: none;
+}
+
+.imap-toggle-switch {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--em-border);
+    border-radius: 12px;
+    transition: all 0.25s ease;
+    flex-shrink: 0;
+}
+
+.imap-toggle-switch::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    background: var(--em-text-muted);
+    border-radius: 50%;
+    transition: all 0.25s ease;
+}
+
+.imap-toggle-label input[type="checkbox"]:checked + .imap-toggle-switch {
+    background: rgba(var(--em-accent-rgb), 0.3);
+    border-color: var(--em-accent);
+}
+
+.imap-toggle-label input[type="checkbox"]:checked + .imap-toggle-switch::after {
+    transform: translateX(20px);
+    background: var(--em-accent);
+}
+
+.imap-toggle-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.imap-toggle-text strong {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--em-text-primary);
+}
+
+.imap-toggle-text small {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--em-text-muted);
+}
+
+.imap-form-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 8px;
+    margin-bottom: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--em-border);
+}
+
+.imap-actions-left {
+    display: flex;
+    gap: 10px;
+}
+
+.imap-status-area {
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.imap-status-area i {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.imap-status-area--success {
+    background: rgba(0, 255, 65, 0.1);
+    border: 1px solid rgba(0, 255, 65, 0.3);
+    color: var(--em-success);
+}
+
+.imap-status-area--error {
+    background: rgba(255, 107, 107, 0.1);
+    border: 1px solid rgba(255, 107, 107, 0.3);
+    color: var(--em-danger);
+}
+
+.imap-status-area--loading {
+    background: rgba(0, 212, 255, 0.1);
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    color: var(--em-info);
+}
+
+.imap-help-note {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: rgba(0, 212, 255, 0.05);
+    border: 1px solid rgba(0, 212, 255, 0.15);
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--em-text-secondary);
+}
+
+.imap-help-note i {
+    width: 16px;
+    height: 16px;
+    color: var(--em-info);
+    flex-shrink: 0;
+}
+
+.imap-help-note a {
+    color: var(--em-info);
+    text-decoration: none;
+}
+
+.imap-help-note a:hover {
+    text-decoration: underline;
+}
+
+/* Inbox responsive */
+@media (max-width: 768px) {
+    .inbox-search-group .em-input {
+        width: 140px;
+    }
+    .inbox-filters {
+        padding: 10px 16px;
+    }
+    .inbox-subject-text,
+    .inbox-summary-text {
+        max-width: 180px;
+    }
+    .email-ai-grid {
+        grid-template-columns: 1fr;
+    }
+    .email-detail-actions {
+        flex-direction: column;
+    }
+    .email-detail-actions .em-btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .imap-form-actions {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .imap-actions-left {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .imap-actions-left .em-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
    LIGHT MODE OVERRIDES
    ═══════════════════════════════════════════════════════════════════════════════ */
 body.light-mode {
@@ -1709,6 +2626,12 @@ document.querySelectorAll('.em-tab').forEach(tab => {
         // Load settings when switching to settings tab
         if (tab.dataset.tab === 'settings') {
             loadSettings();
+            loadImapSettings();
+        }
+
+        // Load inbox when switching to inbox tab
+        if (tab.dataset.tab === 'inbox') {
+            loadInbox();
         }
 
         // Reinitialize icons
@@ -1719,34 +2642,622 @@ document.querySelectorAll('.em-tab').forEach(tab => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// TOAST NOTIFICATIONS
+// INBOX STATE
 // ═══════════════════════════════════════════════════════════════════════════════
-function showToast(message, type = 'info') {
-    const container = document.getElementById('toastContainer');
-    const icons = {
-        success: 'check-circle',
-        error: 'x-circle',
-        warning: 'alert-triangle',
-        info: 'info'
+let inboxCurrentPage = 1;
+let inboxCurrentFilter = '';
+let inboxCurrentSearch = '';
+let currentEmailId = null;
+let inboxAutoRefreshTimer = null;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INBOX - RELATIVE DATE FORMATTING
+// ═══════════════════════════════════════════════════════════════════════════════
+function formatRelativeDate(dateStr) {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSec / 60);
+    const diffHr = Math.floor(diffMin / 60);
+    const diffDay = Math.floor(diffHr / 24);
+
+    if (diffSec < 60) return 'Just now';
+    if (diffMin < 60) return diffMin + 'm ago';
+    if (diffHr < 24) return diffHr + 'h ago';
+    if (diffDay === 1) return 'Yesterday';
+    if (diffDay < 7) return diffDay + 'd ago';
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INBOX - HTML ESCAPING HELPER
+// ═══════════════════════════════════════════════════════════════════════════════
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = String(text);
+    return div.innerHTML;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INBOX - RENDER HELPERS
+// ═══════════════════════════════════════════════════════════════════════════════
+function renderCategoryBadge(category) {
+    if (!category) return '';
+    var validCategories = ['urgent', 'action_required', 'informational', 'spam', 'newsletter'];
+    var labels = { urgent: 'Urgent', action_required: 'Action Req.', informational: 'Info', spam: 'Spam', newsletter: 'Newsletter' };
+    var safeKey = validCategories.indexOf(category) !== -1 ? category : 'unknown';
+    var label = labels[category] || escapeHtml(category);
+    return '<span class="category-badge category-badge--' + safeKey + '">' + label + '</span>';
+}
+
+function renderPriorityDots(priority) {
+    const p = priority || 5;
+    let dots = '';
+    for (let i = 1; i <= 5; i++) {
+        dots += '<span class="priority-dot' + (i <= p ? ' filled' : '') + '"></span>';
+    }
+    return '<div class="priority-dots" data-priority="' + p + '">' + dots + '</div>';
+}
+
+function renderSentiment(sentiment) {
+    if (!sentiment) return '';
+    var validSentiments = ['positive', 'negative', 'neutral', 'mixed'];
+    var config = {
+        positive: { icon: '+', label: 'Positive' },
+        negative: { icon: '-', label: 'Negative' },
+        neutral:  { icon: '~', label: 'Neutral' },
+        mixed:    { icon: '?', label: 'Mixed' }
     };
+    var safeKey = validSentiments.indexOf(sentiment) !== -1 ? sentiment : 'neutral';
+    var c = config[safeKey];
+    return '<span class="sentiment-badge sentiment-badge--' + safeKey + '">' + c.icon + ' ' + c.label + '</span>';
+}
 
-    const toast = document.createElement('div');
-    toast.className = `em-toast em-toast--${type}`;
-    toast.innerHTML = `
-        <i data-lucide="${icons[type]}"></i>
-        <span>${message}</span>
-    `;
+// ═══════════════════════════════════════════════════════════════════════════════
+// INBOX - BUILD TABLE ROW (safe DOM construction)
+// ═══════════════════════════════════════════════════════════════════════════════
+function buildInboxRow(email) {
+    const tr = document.createElement('tr');
+    tr.className = 'inbox-row' + (email.is_read ? '' : ' inbox-row--unread') + (email.id === currentEmailId ? ' selected' : '');
+    tr.dataset.emailId = email.id;
+    tr.addEventListener('click', function() { viewEmail(email.id); });
 
-    container.appendChild(toast);
+    // Star cell
+    const tdStar = document.createElement('td');
+    const starBtn = document.createElement('button');
+    starBtn.className = 'inbox-star-btn' + (email.is_starred ? ' starred' : '');
+    starBtn.title = 'Toggle star';
+    starBtn.innerHTML = '<i data-lucide="star"></i>';
+    starBtn.addEventListener('click', function(e) { e.stopPropagation(); toggleStar(email.id); });
+    tdStar.appendChild(starBtn);
+    tr.appendChild(tdStar);
 
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
+    // From cell
+    const tdFrom = document.createElement('td');
+    const fromName = document.createElement('div');
+    fromName.className = 'inbox-from-name';
+    fromName.textContent = email.from_name || '';
+    const fromAddr = document.createElement('div');
+    fromAddr.className = 'inbox-from-addr';
+    fromAddr.textContent = email.from_address || '';
+    tdFrom.appendChild(fromName);
+    tdFrom.appendChild(fromAddr);
+    tr.appendChild(tdFrom);
+
+    // Subject cell
+    const tdSubject = document.createElement('td');
+    const subjectDiv = document.createElement('div');
+    subjectDiv.className = 'inbox-subject-text';
+    subjectDiv.textContent = email.subject || '(no subject)';
+    const summaryDiv = document.createElement('div');
+    summaryDiv.className = 'inbox-summary-text';
+    summaryDiv.textContent = email.ai_summary || '';
+    tdSubject.appendChild(subjectDiv);
+    tdSubject.appendChild(summaryDiv);
+    tr.appendChild(tdSubject);
+
+    // Category cell (safe - uses predefined badge HTML)
+    const tdCat = document.createElement('td');
+    tdCat.innerHTML = renderCategoryBadge(email.ai_category);
+    tr.appendChild(tdCat);
+
+    // Priority cell (safe - generates only structural HTML)
+    const tdPri = document.createElement('td');
+    tdPri.innerHTML = renderPriorityDots(email.ai_priority);
+    tr.appendChild(tdPri);
+
+    // Sentiment cell (safe - uses predefined values)
+    const tdSent = document.createElement('td');
+    tdSent.innerHTML = renderSentiment(email.ai_sentiment);
+    tr.appendChild(tdSent);
+
+    // Date cell
+    const tdDate = document.createElement('td');
+    const dateSpan = document.createElement('span');
+    dateSpan.className = 'inbox-date-relative';
+    dateSpan.textContent = formatRelativeDate(email.received_at);
+    tdDate.appendChild(dateSpan);
+    tr.appendChild(tdDate);
+
+    return tr;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INBOX - LOAD
+// ═══════════════════════════════════════════════════════════════════════════════
+async function loadInbox(page) {
+    if (page === undefined) page = 1;
+    inboxCurrentPage = page;
+    const tbody = document.getElementById('inbox-tbody');
+    tbody.textContent = '';
+    const loadingRow = document.createElement('tr');
+    const loadingCell = document.createElement('td');
+    loadingCell.colSpan = 7;
+    loadingCell.innerHTML = '<div class="em-loading"><i data-lucide="loader-2" class="em-spinner"></i><span>Loading inbox...</span></div>';
+    loadingRow.appendChild(loadingCell);
+    tbody.appendChild(loadingRow);
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+
+    var params = new URLSearchParams({ page: page, per_page: 25 });
+    if (inboxCurrentFilter) params.set('category', inboxCurrentFilter);
+    if (inboxCurrentSearch) params.set('search', inboxCurrentSearch);
+
+    try {
+        var response = await fetch('/tools/email-manager/api/inbox?' + params.toString());
+        var data = await response.json();
+
+        if (!data.success) {
+            tbody.textContent = '';
+            var errRow = document.createElement('tr');
+            var errCell = document.createElement('td');
+            errCell.colSpan = 7;
+            var errDiv = document.createElement('div');
+            errDiv.className = 'em-empty-state em-empty-state--inline';
+            var errIcon = document.createElement('i');
+            errIcon.setAttribute('data-lucide', 'alert-circle');
+            var errP = document.createElement('p');
+            errP.textContent = data.error || 'Failed to load inbox';
+            errDiv.appendChild(errIcon);
+            errDiv.appendChild(errP);
+            errCell.appendChild(errDiv);
+            errRow.appendChild(errCell);
+            tbody.appendChild(errRow);
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+            return;
+        }
+
+        // Update unread badge
+        updateUnreadBadge(data.unread || 0);
+
+        // Update filter counts
+        updateFilterCounts(data.categories || {}, data.total || 0);
+
+        // Render emails
+        tbody.textContent = '';
+        if (!data.emails || data.emails.length === 0) {
+            var emptyRow = document.createElement('tr');
+            var emptyCell = document.createElement('td');
+            emptyCell.colSpan = 7;
+            var emptyDiv = document.createElement('div');
+            emptyDiv.className = 'em-empty-state em-empty-state--inline';
+            var emptyIcon = document.createElement('i');
+            emptyIcon.setAttribute('data-lucide', 'mail-open');
+            var emptyP = document.createElement('p');
+            emptyP.textContent = 'No emails found';
+            emptyDiv.appendChild(emptyIcon);
+            emptyDiv.appendChild(emptyP);
+            emptyCell.appendChild(emptyDiv);
+            emptyRow.appendChild(emptyCell);
+            tbody.appendChild(emptyRow);
+        } else {
+            data.emails.forEach(function(email) {
+                tbody.appendChild(buildInboxRow(email));
+            });
+        }
+
+        // Pagination
+        var totalPages = Math.ceil((data.total || 0) / 25);
+        var paginationEl = document.getElementById('inbox-pagination');
+        if (totalPages > 1) {
+            paginationEl.style.display = 'flex';
+            document.getElementById('inbox-page-info').textContent = 'Page ' + page + ' of ' + totalPages;
+            document.getElementById('inbox-prev-btn').disabled = (page <= 1);
+            document.getElementById('inbox-next-btn').disabled = (page >= totalPages);
+        } else {
+            paginationEl.style.display = 'none';
+        }
+
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+
+    } catch (error) {
+        console.error('Inbox load error:', error);
+        tbody.textContent = '';
+        var failRow = document.createElement('tr');
+        var failCell = document.createElement('td');
+        failCell.colSpan = 7;
+        var failDiv = document.createElement('div');
+        failDiv.className = 'em-empty-state em-empty-state--inline';
+        var failIcon = document.createElement('i');
+        failIcon.setAttribute('data-lucide', 'wifi-off');
+        var failP = document.createElement('p');
+        failP.textContent = 'Failed to connect to inbox service';
+        failDiv.appendChild(failIcon);
+        failDiv.appendChild(failP);
+        failCell.appendChild(failDiv);
+        failRow.appendChild(failCell);
+        tbody.appendChild(failRow);
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INBOX - VIEW EMAIL DETAIL
+// ═══════════════════════════════════════════════════════════════════════════════
+async function viewEmail(id) {
+    currentEmailId = id;
+
+    // Highlight selected row
+    document.querySelectorAll('.inbox-row').forEach(function(r) { r.classList.remove('selected'); });
+    var row = document.querySelector('tr[data-email-id="' + id + '"]');
+    if (row) {
+        row.classList.remove('inbox-row--unread');
+        row.classList.add('selected');
     }
 
-    setTimeout(() => {
+    var panel = document.getElementById('email-detail-panel');
+    panel.style.display = 'block';
+
+    // Show loading state
+    document.getElementById('detail-subject').textContent = 'Loading...';
+    document.getElementById('detail-body').textContent = 'Loading email...';
+
+    try {
+        var response = await fetch('/tools/email-manager/api/inbox/' + id);
+        var data = await response.json();
+
+        if (!data.success || !data.email) {
+            document.getElementById('detail-body').textContent = 'Failed to load email details.';
+            return;
+        }
+
+        var email = data.email;
+
+        // Header
+        document.getElementById('detail-subject').textContent = email.subject || '(no subject)';
+
+        // Meta - use textContent for safety
+        document.getElementById('detail-from').textContent = (email.from_name || '') + ' <' + (email.from_address || '') + '>';
+        document.getElementById('detail-to').textContent = email.to_address || '';
+        document.getElementById('detail-date').textContent = email.received_at ? new Date(email.received_at).toLocaleString() : '';
+
+        // CC
+        var ccRow = document.getElementById('detail-cc-row');
+        if (email.cc_address) {
+            ccRow.style.display = '';
+            document.getElementById('detail-cc').textContent = email.cc_address;
+        } else {
+            ccRow.style.display = 'none';
+        }
+
+        // Attachments
+        var attachRow = document.getElementById('detail-attachments-row');
+        if (email.has_attachments && email.attachment_names && email.attachment_names.length > 0) {
+            attachRow.style.display = '';
+            document.getElementById('detail-attachments').textContent = email.attachment_names.join(', ');
+        } else {
+            attachRow.style.display = 'none';
+        }
+
+        // AI Analysis (safe - renders predefined badge HTML only)
+        document.getElementById('detail-ai-category').innerHTML = renderCategoryBadge(email.ai_category);
+        document.getElementById('detail-ai-priority').innerHTML = renderPriorityDots(email.ai_priority);
+        document.getElementById('detail-ai-sentiment').innerHTML = renderSentiment(email.ai_sentiment);
+        document.getElementById('detail-ai-summary').textContent = email.ai_summary || 'No summary available';
+        document.getElementById('detail-ai-action').textContent = email.ai_suggested_action || 'No suggestion';
+
+        // Body - sandboxed iframe for untrusted email HTML
+        var bodyEl = document.getElementById('detail-body');
+        if (email.body_html) {
+            var iframe = document.createElement('iframe');
+            iframe.sandbox = '';
+            iframe.style.cssText = 'width:100%;border:none;min-height:200px;background:#0d1117;';
+            iframe.srcdoc = '<html><head><style>body{font-family:sans-serif;color:#c9d1d9;background:#0d1117;padding:1rem;margin:0;font-size:14px;}a{color:#00FFFF;}img{max-width:100%;}</style></head><body>' + email.body_html + '</body></html>';
+            iframe.onload = function() { try { this.style.height = this.contentDocument.body.scrollHeight + 20 + 'px'; } catch(e) { this.style.height = '400px'; } };
+            bodyEl.textContent = '';
+            bodyEl.appendChild(iframe);
+        } else {
+            bodyEl.textContent = email.body_text || '(empty body)';
+        }
+
+        // Drafts
+        var draftsSection = document.getElementById('detail-drafts');
+        var draftsContent = document.getElementById('detail-draft-content');
+        if (email.drafts && email.drafts.length > 0) {
+            draftsSection.style.display = '';
+            draftsContent.textContent = '';
+            email.drafts.forEach(function(d) {
+                var card = document.createElement('div');
+                card.className = 'email-draft-card';
+                var subj = document.createElement('div');
+                subj.className = 'email-draft-subject';
+                subj.textContent = d.subject || '';
+                var body = document.createElement('div');
+                body.className = 'email-draft-body';
+                if (d.body_html) {
+                    var draftIframe = document.createElement('iframe');
+                    draftIframe.sandbox = '';
+                    draftIframe.style.cssText = 'width:100%;border:none;min-height:100px;background:#0d1117;';
+                    draftIframe.srcdoc = '<html><head><style>body{font-family:sans-serif;color:#c9d1d9;background:#0d1117;padding:1rem;margin:0;font-size:14px;}a{color:#00FFFF;}img{max-width:100%;}</style></head><body>' + d.body_html + '</body></html>';
+                    draftIframe.onload = function() { try { this.style.height = this.contentDocument.body.scrollHeight + 20 + 'px'; } catch(e) { this.style.height = '200px'; } };
+                    body.appendChild(draftIframe);
+                } else {
+                    body.textContent = d.body_text || '';
+                }
+                card.appendChild(subj);
+                card.appendChild(body);
+                draftsContent.appendChild(card);
+            });
+        } else {
+            draftsSection.style.display = 'none';
+            draftsContent.textContent = '';
+        }
+
+        // Scroll to detail panel
+        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+
+    } catch (error) {
+        console.error('View email error:', error);
+        document.getElementById('detail-body').textContent = 'Error loading email.';
+    }
+}
+
+function closeEmailDetail() {
+    document.getElementById('email-detail-panel').style.display = 'none';
+    currentEmailId = null;
+    document.querySelectorAll('.inbox-row').forEach(function(r) { r.classList.remove('selected'); });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INBOX - TOGGLE STAR
+// ═══════════════════════════════════════════════════════════════════════════════
+async function toggleStar(id) {
+    try {
+        var response = await fetch('/tools/email-manager/api/inbox/' + id + '/star', { method: 'POST' });
+        var data = await response.json();
+
+        if (data.success) {
+            var row = document.querySelector('tr[data-email-id="' + id + '"]');
+            if (row) {
+                var btn = row.querySelector('.inbox-star-btn');
+                btn.classList.toggle('starred');
+            }
+        }
+    } catch (error) {
+        showToast('Failed to toggle star', 'error');
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INBOX - ARCHIVE EMAIL
+// ═══════════════════════════════════════════════════════════════════════════════
+async function archiveEmail(id) {
+    if (!id) return;
+
+    try {
+        var response = await fetch('/tools/email-manager/api/inbox/' + id + '/archive', { method: 'POST' });
+        var data = await response.json();
+
+        if (data.success) {
+            showToast('Email archived', 'success');
+            closeEmailDetail();
+            var row = document.querySelector('tr[data-email-id="' + id + '"]');
+            if (row) row.remove();
+        } else {
+            showToast(data.error || 'Failed to archive', 'error');
+        }
+    } catch (error) {
+        showToast('Failed to archive email', 'error');
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INBOX - GENERATE DRAFT REPLY
+// ═══════════════════════════════════════════════════════════════════════════════
+async function generateDraft(id) {
+    if (!id) return;
+    showToast('Generating AI draft reply...', 'info');
+
+    try {
+        var response = await fetch('/tools/email-manager/api/inbox/' + id + '/draft', { method: 'POST' });
+        var data = await response.json();
+
+        if (data.success && data.draft) {
+            var draftsSection = document.getElementById('detail-drafts');
+            var draftsContent = document.getElementById('detail-draft-content');
+            draftsSection.style.display = '';
+            var card = document.createElement('div');
+            card.className = 'email-draft-card';
+            var subj = document.createElement('div');
+            subj.className = 'email-draft-subject';
+            subj.textContent = data.draft.subject || '';
+            var body = document.createElement('div');
+            body.className = 'email-draft-body';
+            if (data.draft.body_html) {
+                var genIframe = document.createElement('iframe');
+                genIframe.sandbox = '';
+                genIframe.style.cssText = 'width:100%;border:none;min-height:100px;background:#0d1117;';
+                genIframe.srcdoc = '<html><head><style>body{font-family:sans-serif;color:#c9d1d9;background:#0d1117;padding:1rem;margin:0;font-size:14px;}a{color:#00FFFF;}img{max-width:100%;}</style></head><body>' + data.draft.body_html + '</body></html>';
+                genIframe.onload = function() { try { this.style.height = this.contentDocument.body.scrollHeight + 20 + 'px'; } catch(e) { this.style.height = '200px'; } };
+                body.appendChild(genIframe);
+            } else {
+                body.textContent = data.draft.body_text || '';
+            }
+            card.appendChild(subj);
+            card.appendChild(body);
+            draftsContent.insertBefore(card, draftsContent.firstChild);
+            showToast('Draft reply generated', 'success');
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        } else {
+            showToast(data.error || 'Failed to generate draft', 'error');
+        }
+    } catch (error) {
+        showToast('Error generating draft', 'error');
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INBOX - SAVE TO KNOWLEDGE BASE
+// ═══════════════════════════════════════════════════════════════════════════════
+async function saveToKB(id) {
+    if (!id) return;
+
+    try {
+        var response = await fetch('/tools/email-manager/api/inbox/' + id + '/file-to-kb', { method: 'POST' });
+        var data = await response.json();
+
+        if (data.success) {
+            showToast('Email saved to Knowledge Base', 'success');
+        } else {
+            showToast(data.error || 'Failed to save to KB', 'error');
+        }
+    } catch (error) {
+        showToast('Error saving to KB', 'error');
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INBOX - CHECK NOW
+// ═══════════════════════════════════════════════════════════════════════════════
+async function checkInboxNow() {
+    var btn = document.getElementById('inbox-check-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i data-lucide="loader-2" class="em-spinner"></i><span>Checking...</span>';
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+
+    try {
+        var response = await fetch('/tools/email-manager/api/inbox/check', { method: 'POST' });
+        var data = await response.json();
+
+        if (data.success) {
+            var msg = data.new_emails !== undefined
+                ? 'Check complete: ' + data.new_emails + ' new email(s)'
+                : 'Inbox check complete';
+            showToast(msg, 'success');
+            loadInbox(1);
+        } else {
+            showToast(data.error || 'Inbox check failed', 'error');
+        }
+    } catch (error) {
+        showToast('Failed to check inbox', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i data-lucide="refresh-cw"></i><span>Check Now</span>';
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INBOX - FILTERS & SEARCH
+// ═══════════════════════════════════════════════════════════════════════════════
+function setInboxFilter(category) {
+    inboxCurrentFilter = category;
+    document.querySelectorAll('.inbox-filter-btn').forEach(function(btn) {
+        btn.classList.toggle('active', btn.dataset.category === category);
+    });
+    closeEmailDetail();
+    loadInbox(1);
+}
+
+function searchInbox() {
+    inboxCurrentSearch = document.getElementById('inbox-search-input').value.trim();
+    closeEmailDetail();
+    loadInbox(1);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INBOX - UPDATE BADGES & COUNTS
+// ═══════════════════════════════════════════════════════════════════════════════
+function updateUnreadBadge(count) {
+    var badge = document.getElementById('inbox-unread-badge');
+    if (count > 0) {
+        badge.textContent = count > 99 ? '99+' : count;
+        badge.style.display = 'inline-flex';
+    } else {
+        badge.style.display = 'none';
+    }
+}
+
+function updateFilterCounts(categories, total) {
+    var allEl = document.getElementById('filter-count-all');
+    if (allEl) allEl.textContent = total > 0 ? '(' + total + ')' : '';
+
+    var catKeys = ['urgent', 'action_required', 'informational', 'spam', 'newsletter'];
+    catKeys.forEach(function(key) {
+        var el = document.getElementById('filter-count-' + key);
+        if (el) {
+            var count = categories[key] || 0;
+            el.textContent = count > 0 ? '(' + count + ')' : '';
+        }
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INBOX - AUTO-REFRESH (60s when inbox tab visible)
+// ═══════════════════════════════════════════════════════════════════════════════
+function startInboxAutoRefresh() {
+    stopInboxAutoRefresh();
+    inboxAutoRefreshTimer = setInterval(function() {
+        var inboxTab = document.getElementById('tab-inbox');
+        if (inboxTab && inboxTab.classList.contains('active') && !currentEmailId) {
+            loadInbox(inboxCurrentPage);
+        }
+    }, 60000);
+}
+
+function stopInboxAutoRefresh() {
+    if (inboxAutoRefreshTimer) {
+        clearInterval(inboxAutoRefreshTimer);
+        inboxAutoRefreshTimer = null;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INBOX - INITIAL LOAD
+// ═══════════════════════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', function() {
+    // Load inbox since it is the default active tab
+    loadInbox(1);
+    startInboxAutoRefresh();
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TOAST NOTIFICATIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+function showToast(message, type) {
+    type = type || 'info';
+    var container = document.getElementById('toastContainer');
+    var icons = { success: 'check-circle', error: 'x-circle', warning: 'alert-triangle', info: 'info' };
+    var toast = document.createElement('div');
+    toast.className = 'em-toast em-toast--' + type;
+    var icon = document.createElement('i');
+    icon.setAttribute('data-lucide', icons[type] || 'info');
+    var span = document.createElement('span');
+    span.textContent = message;
+    toast.appendChild(icon);
+    toast.appendChild(span);
+    container.appendChild(toast);
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons({ nodes: [toast] });
+    }
+    setTimeout(function() {
         toast.style.opacity = '0';
         toast.style.transform = 'translateX(100px)';
-        setTimeout(() => toast.remove(), 300);
+        setTimeout(function() { toast.remove(); }, 300);
     }, 4000);
 }
 
@@ -2139,6 +3650,142 @@ async function sendCampaign(id) {
 
 function viewCampaignStats(id) {
     showToast('Campaign stats view coming soon!', 'info');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// IMAP SETTINGS
+// ═══════════════════════════════════════════════════════════════════════════════
+let imapSettingsLoaded = false;
+
+async function loadImapSettings() {
+    try {
+        const response = await fetch('/tools/email-manager/api/imap/settings');
+        const data = await response.json();
+
+        if (data.success && data.settings && data.settings.length > 0) {
+            const s = data.settings[0]; // Use first setting
+            document.getElementById('imap-setting-id').value = s.id;
+            document.getElementById('imap-name').value = s.name || 'Gmail';
+            document.getElementById('imap-host').value = s.imap_host || '';
+            document.getElementById('imap-port').value = s.imap_port || 993;
+            document.getElementById('imap-encryption').value = s.encryption || 'ssl';
+            document.getElementById('imap-user').value = s.imap_user || '';
+            // NEVER pre-populate password — show placeholder instead
+            document.getElementById('imap-password').value = '';
+            document.getElementById('imap-password').placeholder = 'Password saved (leave blank to keep)';
+            document.getElementById('imap-folder').value = s.folder || 'INBOX';
+            document.getElementById('imap-interval').value = String(s.check_interval_minutes || 5);
+            document.getElementById('imap-auto-analyze').checked = s.auto_analyze !== false;
+            document.getElementById('imap-auto-file-kb').checked = s.auto_file_kb === true;
+        }
+        // If no settings exist, form keeps its defaults (Gmail presets)
+
+        imapSettingsLoaded = true;
+
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    } catch (error) {
+        console.error('Error loading IMAP settings:', error);
+    }
+}
+
+async function saveImapSettings(event) {
+    event.preventDefault();
+
+    const settingId = document.getElementById('imap-setting-id').value;
+    const password = document.getElementById('imap-password').value;
+
+    // Password required for new settings
+    if (!settingId && !password) {
+        showToast('App Password is required for new IMAP settings', 'error');
+        document.getElementById('imap-password').focus();
+        return;
+    }
+
+    const data = {
+        name: document.getElementById('imap-name').value,
+        imap_host: document.getElementById('imap-host').value,
+        imap_port: parseInt(document.getElementById('imap-port').value),
+        imap_user: document.getElementById('imap-user').value,
+        encryption: document.getElementById('imap-encryption').value,
+        folder: document.getElementById('imap-folder').value,
+        check_interval_minutes: parseInt(document.getElementById('imap-interval').value),
+        auto_analyze: document.getElementById('imap-auto-analyze').checked,
+        auto_file_kb: document.getElementById('imap-auto-file-kb').checked
+    };
+
+    // Only send password if user typed a new one
+    if (password) {
+        data.imap_password = password;
+    }
+
+    try {
+        const url = settingId
+            ? '/tools/email-manager/api/imap/settings/' + settingId
+            : '/tools/email-manager/api/imap/settings';
+        const method = settingId ? 'PUT' : 'POST';
+
+        const response = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            showToast('IMAP settings saved successfully', 'success');
+            // If this was a create (POST), store the new ID
+            if (!settingId && result.id) {
+                document.getElementById('imap-setting-id').value = result.id;
+                document.getElementById('imap-password').placeholder = 'Password saved (leave blank to keep)';
+                document.getElementById('imap-password').value = '';
+            }
+        } else {
+            showToast(result.error || 'Failed to save IMAP settings', 'error');
+        }
+    } catch (error) {
+        showToast('Error saving IMAP settings', 'error');
+    }
+}
+
+async function testImapConnection() {
+    const settingId = document.getElementById('imap-setting-id').value;
+    const statusArea = document.getElementById('imap-status-area');
+
+    if (!settingId) {
+        showToast('Save IMAP settings first before testing', 'warning');
+        return;
+    }
+
+    // Show loading state
+    statusArea.style.display = 'flex';
+    statusArea.className = 'imap-status-area imap-status-area--loading';
+    statusArea.innerHTML = '<i data-lucide="loader-2" class="em-spinner"></i> <span>Testing IMAP connection...</span>';
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+
+    try {
+        const response = await fetch('/tools/email-manager/api/imap/settings/' + settingId + '/test', {
+            method: 'POST'
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            statusArea.className = 'imap-status-area imap-status-area--success';
+            statusArea.innerHTML = '<i data-lucide="check-circle"></i> <span>' + escapeHtml(data.message) + '</span>';
+            showToast('IMAP connection successful!', 'success');
+        } else {
+            statusArea.className = 'imap-status-area imap-status-area--error';
+            statusArea.innerHTML = '<i data-lucide="x-circle"></i> <span>' + escapeHtml(data.error || 'Connection failed') + '</span>';
+            showToast('IMAP connection failed', 'error');
+        }
+    } catch (error) {
+        statusArea.className = 'imap-status-area imap-status-area--error';
+        statusArea.innerHTML = '<i data-lucide="x-circle"></i> <span>Connection test failed: network error</span>';
+        showToast('IMAP test failed', 'error');
+    }
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 // Close modals on backdrop click

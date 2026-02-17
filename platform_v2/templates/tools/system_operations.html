@@ -5968,39 +5968,63 @@ async function loadHistoricalData() {
         console.error('loadHistoricalData: Memory error:', e);
     }
 
-    // Load GPU VRAM history (multi-device support)
+    // Load GPU VRAM history (multi-device support), fall back to compute if sparse
     try {
+        let gpuType = 'gpu_vram';
+        let gpuLabel = 'VRAM';
         const gpuRes = await fetch('/tools/system-operations/api/history/multi?type=gpu_vram&hours=' + hours);
-        if (gpuRes.ok) {
-            const gpuJson = await gpuRes.json();
-            if (gpuJson.success && gpuJson.data && gpuJson.data.devices) {
-                const devices = gpuJson.data.devices;
-                const deviceKeys = Object.keys(devices).sort();
-                gpuDeviceCount = deviceKeys.length;
+        let gpuJson = gpuRes.ok ? await gpuRes.json() : null;
 
-                // Initialize gpuHistory for each device
-                gpuHistory = {};
-                deviceKeys.forEach(key => {
-                    gpuHistory[key] = devices[key].labels.map((label, i) => ({
-                        time: formatHistoryTime(label, hours),
-                        value: devices[key].values[i]
-                    }));
-                });
-
-                if (gpuChart && deviceKeys.length > 0) {
-                    const labels = gpuHistory[deviceKeys[0]].map(h => h.time);
-                    gpuChart.data.labels = labels;
-                    gpuChart.data.datasets = deviceKeys.map((key, idx) => ({
-                        label: `GPU ${idx}`,
-                        data: gpuHistory[key].map(h => h.value),
-                        borderColor: deviceColors[idx % deviceColors.length].border,
-                        backgroundColor: deviceColors[idx % deviceColors.length].bg,
-                        fill: true,
-                        borderWidth: 2
-                    }));
-                    gpuChart.options.plugins.legend.display = deviceKeys.length > 1;
-                    gpuChart.update('none');
+        // Check if VRAM data is sparse (< 10 points) — fall back to compute history
+        let hasEnoughData = false;
+        if (gpuJson && gpuJson.success && gpuJson.data && gpuJson.data.devices) {
+            const keys = Object.keys(gpuJson.data.devices);
+            hasEnoughData = keys.length > 0 && keys.some(k => gpuJson.data.devices[k].values.length >= 10);
+        }
+        if (!hasEnoughData) {
+            const fallbackRes = await fetch('/tools/system-operations/api/history/multi?type=gpu&hours=' + hours);
+            if (fallbackRes.ok) {
+                const fallbackJson = await fallbackRes.json();
+                if (fallbackJson.success && fallbackJson.data && fallbackJson.data.devices) {
+                    const fKeys = Object.keys(fallbackJson.data.devices);
+                    if (fKeys.length > 0 && fKeys.some(k => fallbackJson.data.devices[k].values.length >= 10)) {
+                        gpuJson = fallbackJson;
+                        gpuType = 'gpu';
+                        gpuLabel = 'Compute';
+                    }
                 }
+            }
+        }
+
+        if (gpuJson && gpuJson.success && gpuJson.data && gpuJson.data.devices) {
+            const devices = gpuJson.data.devices;
+            const deviceKeys = Object.keys(devices).sort();
+            gpuDeviceCount = deviceKeys.length;
+
+            gpuHistory = {};
+            deviceKeys.forEach(key => {
+                // Remap device keys to gpu_0, gpu_1 for consistency with live updates
+                const normKey = key.replace(gpuType + '_', 'gpu_');
+                gpuHistory[normKey] = devices[key].labels.map((label, i) => ({
+                    time: formatHistoryTime(label, hours),
+                    value: devices[key].values[i]
+                }));
+            });
+
+            if (gpuChart && deviceKeys.length > 0) {
+                const normKeys = Object.keys(gpuHistory).sort();
+                const labels = gpuHistory[normKeys[0]].map(h => h.time);
+                gpuChart.data.labels = labels;
+                gpuChart.data.datasets = normKeys.map((key, idx) => ({
+                    label: `GPU ${idx} ${gpuLabel}`,
+                    data: gpuHistory[key].map(h => h.value),
+                    borderColor: deviceColors[idx % deviceColors.length].border,
+                    backgroundColor: deviceColors[idx % deviceColors.length].bg,
+                    fill: true,
+                    borderWidth: 2
+                }));
+                gpuChart.options.plugins.legend.display = deviceKeys.length > 1;
+                gpuChart.update('none');
             }
         }
     } catch (e) {

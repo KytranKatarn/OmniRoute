@@ -2006,6 +2006,206 @@
     opacity: 0.7;
 }
 
+.inbox-account-add {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--em-text-secondary);
+    background: transparent;
+    border: 1px dashed var(--em-border);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.inbox-account-add:hover {
+    border-color: #00FFFF;
+    color: #00FFFF;
+    border-style: solid;
+    background: rgba(0, 255, 255, 0.08);
+}
+
+/* Wizard Modal */
+.wizard-dialog {
+    background: #1a1a2e;
+    border: 1px solid #00FFFF;
+    border-radius: 12px;
+    padding: 28px;
+    width: 480px;
+    max-width: 95vw;
+    max-height: 85vh;
+    overflow-y: auto;
+}
+
+.wizard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.wizard-title {
+    color: #00FFFF;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.1rem;
+    margin: 0;
+}
+
+.wizard-progress {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin-bottom: 24px;
+}
+
+.wizard-step-dot {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid #333;
+    color: #666;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+}
+
+.wizard-step-dot.active {
+    border-color: #00FFFF;
+    color: #00FFFF;
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+}
+
+.wizard-step-dot.done {
+    border-color: #4CAF50;
+    background: #4CAF50;
+    color: white;
+}
+
+.wizard-step-line {
+    width: 40px;
+    height: 2px;
+    background: #333;
+}
+
+.wizard-subtitle {
+    color: #aaa;
+    font-size: 0.85rem;
+    margin: 0 0 16px 0;
+}
+
+.wizard-providers {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.wizard-provider-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid #333;
+    border-radius: 8px;
+    color: #ccc;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+}
+
+.wizard-provider-btn:hover {
+    border-color: #00FFFF;
+    background: rgba(0, 255, 255, 0.05);
+    color: white;
+}
+
+.wizard-provider-icon {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700;
+    font-size: 1.1rem;
+    width: 32px;
+    text-align: center;
+}
+
+.wizard-hint {
+    background: rgba(255, 200, 0, 0.08);
+    border: 1px solid rgba(255, 200, 0, 0.2);
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 0.78rem;
+    color: #dda;
+    margin-bottom: 16px;
+    line-height: 1.5;
+    display: none;
+}
+
+.wizard-form {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.wizard-label {
+    color: #888;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 8px;
+}
+
+.wizard-input {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.wizard-toggle-advanced {
+    background: none;
+    border: none;
+    color: #00FFFF;
+    font-size: 0.75rem;
+    cursor: pointer;
+    padding: 8px 0;
+    text-align: left;
+    opacity: 0.7;
+}
+
+.wizard-toggle-advanced:hover { opacity: 1; }
+
+.wizard-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid #333;
+}
+
+.wizard-testing {
+    text-align: center;
+    padding: 30px 0;
+}
+
+.wizard-testing p { color: #aaa; margin-top: 12px; }
+
+.wizard-result-icon { font-size: 48px; margin-bottom: 8px; }
+
+.wizard-done {
+    text-align: center;
+    padding: 20px 0;
+}
+
+.wizard-done h3 { color: #00FFFF; margin: 0 0 8px 0; }
+.wizard-done p { color: #aaa; font-size: 0.85rem; }
+
 /* Category Filter Bar */
 .inbox-filters {
     display: flex;
@@ -2922,6 +3122,126 @@ body.light-mode .em-table tbody tr:nth-child(even):hover {
 </style>
 
 <!-- Confirmation Dialog -->
+<!-- Add Mailbox Wizard -->
+<div class="em-confirm-overlay" id="wizard-overlay" style="display:none">
+    <div class="wizard-dialog">
+        <div class="wizard-header">
+            <h3 class="wizard-title" id="wizard-title">Add Mailbox</h3>
+            <button class="em-btn em-btn--sm em-btn--outline" onclick="closeWizard()" style="padding:4px 8px">&times;</button>
+        </div>
+        <div class="wizard-progress">
+            <div class="wizard-step-dot active" data-step="1">1</div>
+            <div class="wizard-step-line"></div>
+            <div class="wizard-step-dot" data-step="2">2</div>
+            <div class="wizard-step-line"></div>
+            <div class="wizard-step-dot" data-step="3">3</div>
+            <div class="wizard-step-line"></div>
+            <div class="wizard-step-dot" data-step="4">4</div>
+        </div>
+
+        <!-- Step 1: Choose Provider -->
+        <div class="wizard-step" id="wizard-step-1">
+            <p class="wizard-subtitle">Choose your email provider</p>
+            <div class="wizard-providers">
+                <button class="wizard-provider-btn" onclick="selectProvider('gmail')">
+                    <span class="wizard-provider-icon" style="color:#EA4335">G</span>
+                    <span>Gmail</span>
+                </button>
+                <button class="wizard-provider-btn" onclick="selectProvider('zoho')">
+                    <span class="wizard-provider-icon" style="color:#F4C400">Z</span>
+                    <span>Zoho</span>
+                </button>
+                <button class="wizard-provider-btn" onclick="selectProvider('outlook')">
+                    <span class="wizard-provider-icon" style="color:#0078D4">O</span>
+                    <span>Outlook / Hotmail</span>
+                </button>
+                <button class="wizard-provider-btn" onclick="selectProvider('yahoo')">
+                    <span class="wizard-provider-icon" style="color:#6001D2">Y</span>
+                    <span>Yahoo</span>
+                </button>
+                <button class="wizard-provider-btn" onclick="selectProvider('icloud')">
+                    <span class="wizard-provider-icon" style="color:#999">iC</span>
+                    <span>iCloud</span>
+                </button>
+                <button class="wizard-provider-btn" onclick="selectProvider('custom')">
+                    <span class="wizard-provider-icon" style="color:#00FFFF">?</span>
+                    <span>Other / Custom</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Step 2: Credentials -->
+        <div class="wizard-step" id="wizard-step-2" style="display:none">
+            <p class="wizard-subtitle" id="wizard-provider-label">Enter your credentials</p>
+            <div class="wizard-hint" id="wizard-hint"></div>
+            <div class="wizard-form">
+                <label class="wizard-label">Display Name</label>
+                <input type="text" class="em-input wizard-input" id="wizard-name" placeholder="e.g. Work Gmail">
+                <label class="wizard-label">Email Address</label>
+                <input type="email" class="em-input wizard-input" id="wizard-email" placeholder="you@example.com">
+                <label class="wizard-label" id="wizard-password-label">App Password</label>
+                <input type="password" class="em-input wizard-input" id="wizard-password" placeholder="App-specific password">
+                <div id="wizard-advanced" style="display:none">
+                    <label class="wizard-label">IMAP Host</label>
+                    <input type="text" class="em-input wizard-input" id="wizard-host" placeholder="imap.example.com">
+                    <div style="display:flex;gap:12px">
+                        <div style="flex:1">
+                            <label class="wizard-label">Port</label>
+                            <input type="number" class="em-input wizard-input" id="wizard-port" value="993">
+                        </div>
+                        <div style="flex:1">
+                            <label class="wizard-label">Encryption</label>
+                            <select class="em-select wizard-input" id="wizard-encryption">
+                                <option value="ssl">SSL (993)</option>
+                                <option value="tls">STARTTLS (143)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <label class="wizard-label">Folder</label>
+                    <input type="text" class="em-input wizard-input" id="wizard-folder" value="INBOX">
+                </div>
+                <button class="wizard-toggle-advanced" onclick="toggleWizardAdvanced()" id="wizard-advanced-toggle">
+                    Show advanced settings
+                </button>
+            </div>
+            <div class="wizard-actions">
+                <button class="em-btn em-btn--sm em-btn--outline" onclick="wizardBack()">Back</button>
+                <button class="em-btn em-btn--sm em-btn--primary" onclick="wizardTestConnection()">Test Connection</button>
+            </div>
+        </div>
+
+        <!-- Step 3: Testing -->
+        <div class="wizard-step" id="wizard-step-3" style="display:none">
+            <div class="wizard-testing">
+                <div class="wizard-spinner" id="wizard-test-spinner">
+                    <i data-lucide="loader-2" class="em-spinner"></i>
+                    <p>Testing connection...</p>
+                </div>
+                <div id="wizard-test-result" style="display:none">
+                    <div class="wizard-result-icon" id="wizard-result-icon"></div>
+                    <p id="wizard-result-msg"></p>
+                </div>
+            </div>
+            <div class="wizard-actions">
+                <button class="em-btn em-btn--sm em-btn--outline" onclick="wizardGoStep(2)">Back</button>
+                <button class="em-btn em-btn--sm em-btn--primary" id="wizard-save-btn" onclick="wizardSave()" style="display:none">Save &amp; Fetch Emails</button>
+            </div>
+        </div>
+
+        <!-- Step 4: Done -->
+        <div class="wizard-step" id="wizard-step-4" style="display:none">
+            <div class="wizard-done">
+                <div style="font-size:48px;margin-bottom:12px">&#x2705;</div>
+                <h3>Mailbox Added!</h3>
+                <p id="wizard-done-msg">Fetching emails in background...</p>
+            </div>
+            <div class="wizard-actions">
+                <button class="em-btn em-btn--sm em-btn--primary" onclick="closeWizard(); loadInbox();">Done</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="em-confirm-overlay" id="confirm-overlay" style="display:none">
     <div class="em-confirm-dialog">
         <div class="em-confirm-title" id="confirm-title">Confirm Delete</div>
@@ -3286,10 +3606,8 @@ async function loadInbox(page) {
         // Update filter counts
         updateFilterCounts(data.categories || {}, data.total || 0, data.starred || 0);
 
-        // Update account tabs
-        if (data.accounts && data.accounts.length > 0) {
-            buildAccountTabs(data.accounts, data.total || 0);
-        }
+        // Update account tabs (always show "+" add button)
+        buildAccountTabs(data.accounts || [], data.total || 0);
 
         // Render emails
         tbody.textContent = '';
@@ -4002,13 +4320,24 @@ function setAccountFilter(accountId) {
 
 function buildAccountTabs(accounts, grandTotal) {
     var bar = document.getElementById('inbox-account-bar');
-    if (!bar || accounts.length < 2) {
-        // Hide account bar if only one account
-        if (bar) bar.style.display = accounts.length < 2 ? 'none' : 'flex';
-        return;
-    }
+    if (!bar) return;
     bar.style.display = 'flex';
     bar.textContent = '';
+
+    // If only one account, just show the add button
+    if (accounts.length < 2) {
+        var addBtn = document.createElement('button');
+        addBtn.className = 'inbox-account-btn inbox-account-add';
+        addBtn.onclick = function() { openAddMailbox(); };
+        addBtn.title = 'Add Mailbox';
+        var addIcon = document.createElement('i');
+        addIcon.setAttribute('data-lucide', 'plus');
+        addIcon.style.cssText = 'width:14px;height:14px';
+        addBtn.appendChild(addIcon);
+        bar.appendChild(addBtn);
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        return;
+    }
 
     // "All Accounts" button
     var allBtn = document.createElement('button');
@@ -4043,6 +4372,17 @@ function buildAccountTabs(accounts, grandTotal) {
         btn.appendChild(count);
         bar.appendChild(btn);
     });
+
+    // "+" Add Mailbox button
+    var addBtn = document.createElement('button');
+    addBtn.className = 'inbox-account-btn inbox-account-add';
+    addBtn.onclick = function() { openAddMailbox(); };
+    addBtn.title = 'Add Mailbox';
+    var addIcon = document.createElement('i');
+    addIcon.setAttribute('data-lucide', 'plus');
+    addIcon.style.cssText = 'width:14px;height:14px';
+    addBtn.appendChild(addIcon);
+    bar.appendChild(addBtn);
 
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
@@ -4672,6 +5012,207 @@ async function testImapConnection() {
     if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
+// ==================== Add Mailbox Wizard ====================
+var wizardProviderPresets = {
+    gmail: {
+        label: 'Gmail',
+        host: 'imap.gmail.com',
+        port: 993,
+        encryption: 'ssl',
+        hint: '<strong>Gmail requires an App Password.</strong> Go to <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color:#00FFFF">Google App Passwords</a>, generate one for "Mail", and paste it below. Your regular password won\'t work if 2FA is enabled.'
+    },
+    zoho: {
+        label: 'Zoho Mail',
+        host: 'imap.zoho.com',
+        port: 993,
+        encryption: 'ssl',
+        hint: '<strong>Zoho requires an App Password if 2FA is on.</strong> Go to <a href="https://accounts.zoho.com" target="_blank" style="color:#00FFFF">accounts.zoho.com</a> &rarr; Security &rarr; App Passwords, create one for "Desktop Mail".'
+    },
+    outlook: {
+        label: 'Outlook / Hotmail',
+        host: 'outlook.office365.com',
+        port: 993,
+        encryption: 'ssl',
+        hint: 'Use your Microsoft account password. If 2FA is enabled, generate an app password at <a href="https://account.live.com/proofs/AppPassword" target="_blank" style="color:#00FFFF">account.live.com</a>.'
+    },
+    yahoo: {
+        label: 'Yahoo Mail',
+        host: 'imap.mail.yahoo.com',
+        port: 993,
+        encryption: 'ssl',
+        hint: '<strong>Yahoo requires an App Password.</strong> Go to <a href="https://login.yahoo.com/account/security" target="_blank" style="color:#00FFFF">Yahoo Account Security</a> &rarr; Generate app password.'
+    },
+    icloud: {
+        label: 'iCloud Mail',
+        host: 'imap.mail.me.com',
+        port: 993,
+        encryption: 'ssl',
+        hint: '<strong>iCloud requires an App Password.</strong> Go to <a href="https://appleid.apple.com/account/manage" target="_blank" style="color:#00FFFF">appleid.apple.com</a> &rarr; Sign-In &amp; Security &rarr; App-Specific Passwords.'
+    },
+    custom: {
+        label: 'Custom IMAP',
+        host: '',
+        port: 993,
+        encryption: 'ssl',
+        hint: 'Enter your IMAP server details below. Check with your email provider for the correct host, port, and encryption settings.'
+    }
+};
+
+var wizardCurrentProvider = null;
+var wizardCreatedSettingId = null;
+
+function openAddMailbox() {
+    wizardCurrentProvider = null;
+    wizardCreatedSettingId = null;
+    document.getElementById('wizard-name').value = '';
+    document.getElementById('wizard-email').value = '';
+    document.getElementById('wizard-password').value = '';
+    document.getElementById('wizard-host').value = '';
+    document.getElementById('wizard-port').value = '993';
+    document.getElementById('wizard-encryption').value = 'ssl';
+    document.getElementById('wizard-folder').value = 'INBOX';
+    document.getElementById('wizard-advanced').style.display = 'none';
+    document.getElementById('wizard-advanced-toggle').textContent = 'Show advanced settings';
+    document.getElementById('wizard-hint').innerHTML = '';
+    wizardGoStep(1);
+    document.getElementById('wizard-overlay').style.display = 'flex';
+}
+
+function closeWizard() {
+    document.getElementById('wizard-overlay').style.display = 'none';
+}
+
+function selectProvider(provider) {
+    wizardCurrentProvider = provider;
+    var preset = wizardProviderPresets[provider];
+    document.getElementById('wizard-provider-label').textContent = preset.label + ' — Enter your credentials';
+    document.getElementById('wizard-hint').innerHTML = preset.hint;
+    document.getElementById('wizard-host').value = preset.host;
+    document.getElementById('wizard-port').value = preset.port;
+    document.getElementById('wizard-encryption').value = preset.encryption;
+    // Auto-show advanced for custom
+    if (provider === 'custom') {
+        document.getElementById('wizard-advanced').style.display = 'block';
+        document.getElementById('wizard-advanced-toggle').textContent = 'Hide advanced settings';
+    } else {
+        document.getElementById('wizard-advanced').style.display = 'none';
+        document.getElementById('wizard-advanced-toggle').textContent = 'Show advanced settings';
+    }
+    wizardGoStep(2);
+}
+
+function wizardGoStep(step) {
+    for (var i = 1; i <= 4; i++) {
+        var el = document.getElementById('wizard-step-' + i);
+        if (el) el.style.display = i === step ? 'block' : 'none';
+    }
+    document.querySelectorAll('.wizard-step-dot').forEach(function(dot) {
+        var dotStep = parseInt(dot.dataset.step);
+        dot.classList.toggle('active', dotStep <= step);
+    });
+}
+
+function wizardBack() {
+    var currentStep = 2; // Back only available from step 2
+    wizardGoStep(1);
+}
+
+function toggleWizardAdvanced() {
+    var adv = document.getElementById('wizard-advanced');
+    var btn = document.getElementById('wizard-advanced-toggle');
+    if (adv.style.display === 'none') {
+        adv.style.display = 'block';
+        btn.textContent = 'Hide advanced settings';
+    } else {
+        adv.style.display = 'none';
+        btn.textContent = 'Show advanced settings';
+    }
+}
+
+async function wizardTestConnection() {
+    var name = document.getElementById('wizard-name').value.trim();
+    var email = document.getElementById('wizard-email').value.trim();
+    var password = document.getElementById('wizard-password').value;
+    var host = document.getElementById('wizard-host').value.trim();
+    var port = parseInt(document.getElementById('wizard-port').value) || 993;
+    var encryption = document.getElementById('wizard-encryption').value;
+    var folder = document.getElementById('wizard-folder').value.trim() || 'INBOX';
+
+    if (!email) { showToast('Email address is required', 'warning'); return; }
+    if (!password) { showToast('Password is required', 'warning'); return; }
+    if (!host) { showToast('IMAP host is required — use advanced settings', 'warning'); return; }
+    if (!name) name = email.split('@')[0];
+
+    // Go to testing step
+    wizardGoStep(3);
+    document.getElementById('wizard-test-spinner').style.display = 'block';
+    document.getElementById('wizard-test-result').style.display = 'none';
+    document.getElementById('wizard-save-btn').style.display = 'none';
+
+    try {
+        // Step 1: Create the IMAP setting
+        var createResp = await fetch('/tools/email-manager/api/imap/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: name,
+                imap_host: host,
+                imap_port: port,
+                imap_user: email,
+                imap_password: password,
+                encryption: encryption,
+                folder: folder
+            })
+        });
+        var createData = await createResp.json();
+        if (!createData.success) {
+            throw new Error(createData.error || 'Failed to create account');
+        }
+        wizardCreatedSettingId = createData.id;
+
+        // Step 2: Test the connection
+        var testResp = await fetch('/tools/email-manager/api/imap/settings/' + wizardCreatedSettingId + '/test', {
+            method: 'POST'
+        });
+        var testData = await testResp.json();
+
+        document.getElementById('wizard-test-spinner').style.display = 'none';
+        document.getElementById('wizard-test-result').style.display = 'block';
+
+        if (testData.success) {
+            document.getElementById('wizard-result-icon').innerHTML = '<span style="font-size:48px;color:#00FF88">&#x2714;</span>';
+            document.getElementById('wizard-result-msg').textContent = testData.message || 'Connection successful!';
+            document.getElementById('wizard-save-btn').style.display = 'inline-flex';
+        } else {
+            document.getElementById('wizard-result-icon').innerHTML = '<span style="font-size:48px;color:#FF4444">&#x2718;</span>';
+            document.getElementById('wizard-result-msg').textContent = testData.error || 'Connection failed. Check credentials and try again.';
+            wizardCreatedSettingId = null;
+        }
+    } catch (error) {
+        document.getElementById('wizard-test-spinner').style.display = 'none';
+        document.getElementById('wizard-test-result').style.display = 'block';
+        document.getElementById('wizard-result-icon').innerHTML = '<span style="font-size:48px;color:#FF4444">&#x2718;</span>';
+        document.getElementById('wizard-result-msg').textContent = error.message || 'Connection test failed';
+        wizardCreatedSettingId = null;
+    }
+}
+
+async function wizardSave() {
+    if (!wizardCreatedSettingId) return;
+    wizardGoStep(4);
+    document.getElementById('wizard-done-msg').textContent = 'Fetching emails in background...';
+
+    // Trigger email fetch
+    try {
+        await fetch('/tools/email-manager/api/inbox/check', { method: 'POST' });
+    } catch (e) {
+        // Non-critical, background job will pick it up
+    }
+    showToast('Mailbox added! Emails will appear shortly.', 'success');
+}
+
+// ==================== End Wizard ====================
+
 // Close modals on backdrop click
 document.querySelectorAll('.em-modal-backdrop').forEach(backdrop => {
     backdrop.addEventListener('click', () => {
@@ -4683,6 +5224,7 @@ document.querySelectorAll('.em-modal-backdrop').forEach(backdrop => {
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
         closeConfirm();
+        closeWizard();
         document.querySelectorAll('.em-modal.active').forEach(modal => {
             modal.classList.remove('active');
         });

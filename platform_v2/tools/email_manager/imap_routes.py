@@ -234,6 +234,10 @@ def get_inbox():
         if is_starred is not None:
             where.append("e.is_starred = %s")
             params.append(is_starred.lower() == "true")
+        account = request.args.get("account")
+        if account:
+            where.append("e.imap_setting_id = %s")
+            params.append(int(account))
         if search:
             where.append("(e.subject ILIKE %s OR e.from_address ILIKE %s OR e.from_name ILIKE %s)")
             params.extend([f"%{search}%"] * 3)
@@ -276,23 +280,47 @@ def get_inbox():
         )
         emails = [dict(r) for r in cur.fetchall()]
 
-        # Category counts
+        # Category counts (respect account filter)
+        acct_filter = ""
+        acct_params = []
+        if account:
+            acct_filter = " AND e.imap_setting_id = %s"
+            acct_params = [int(account)]
+
         cur.execute(
-            """
-            SELECT e.ai_category, COUNT(*) as count
-            FROM email_inbox e WHERE e.is_archived = FALSE
-            GROUP BY e.ai_category
-            """
+            f"""SELECT e.ai_category, COUNT(*) as count
+            FROM email_inbox e WHERE e.is_archived = FALSE{acct_filter}
+            GROUP BY e.ai_category""",
+            acct_params,
         )
         categories = {r["ai_category"]: r["count"] for r in cur.fetchall() if r["ai_category"]}
 
         # Unread count
-        cur.execute("SELECT COUNT(*) as c FROM email_inbox e WHERE e.is_read = FALSE AND e.is_archived = FALSE")
+        cur.execute(
+            f"SELECT COUNT(*) as c FROM email_inbox e WHERE e.is_read = FALSE AND e.is_archived = FALSE{acct_filter}",
+            acct_params,
+        )
         unread = cur.fetchone()["c"]
 
         # Starred count
-        cur.execute("SELECT COUNT(*) as c FROM email_inbox e WHERE e.is_starred = TRUE AND e.is_archived = FALSE")
+        cur.execute(
+            f"SELECT COUNT(*) as c FROM email_inbox e WHERE e.is_starred = TRUE AND e.is_archived = FALSE{acct_filter}",
+            acct_params,
+        )
         starred = cur.fetchone()["c"]
+
+        # Account counts (always show all accounts)
+        cur.execute(
+            """
+            SELECT eis.id, eis.name, COUNT(*) as count
+            FROM email_inbox e
+            JOIN email_imap_settings eis ON e.imap_setting_id = eis.id
+            WHERE e.is_archived = FALSE
+            GROUP BY eis.id, eis.name
+            ORDER BY eis.name
+        """
+        )
+        accounts = [dict(r) for r in cur.fetchall()]
 
         cur.close()
         conn.close()
@@ -307,6 +335,7 @@ def get_inbox():
                 "categories": categories,
                 "unread": unread,
                 "starred": starred,
+                "accounts": accounts,
             }
         )
     except Exception as e:
@@ -319,18 +348,26 @@ def get_inbox():
 def get_inbox_stats():
     """Get inbox stats: total fetched, analyzed, unread."""
     try:
+        account = request.args.get("account")
+        acct_filter = ""
+        acct_params = []
+        if account:
+            acct_filter = " WHERE imap_setting_id = %s"
+            acct_params = [int(account)]
+
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute(
-            """
+            f"""
             SELECT
                 COUNT(*) as total,
                 COUNT(ai_analyzed_at) as analyzed,
                 COUNT(*) FILTER (WHERE is_read = FALSE AND is_archived = FALSE) as unread,
                 COUNT(*) FILTER (WHERE is_archived = TRUE) as archived,
                 COUNT(*) FILTER (WHERE is_starred = TRUE AND is_archived = FALSE) as starred
-            FROM email_inbox
-        """
+            FROM email_inbox{acct_filter}
+        """,
+            acct_params,
         )
         stats = dict(cur.fetchone())
         cur.close()
@@ -402,11 +439,24 @@ def bulk_action():
             return jsonify({"success": False, "error": "Missing ids or action"}), 400
 
         if len(ids) > 200:
-            return jsonify({"success": False, "error": "Max 200 emails per bulk action"}), 400
+            return (
+                jsonify({"success": False, "error": "Max 200 emails per bulk action"}),
+                400,
+            )
 
-        valid_actions = ["mark_read", "mark_unread", "archive", "star", "unstar", "delete"]
+        valid_actions = [
+            "mark_read",
+            "mark_unread",
+            "archive",
+            "star",
+            "unstar",
+            "delete",
+        ]
         if action not in valid_actions:
-            return jsonify({"success": False, "error": f"Invalid action: {action}"}), 400
+            return (
+                jsonify({"success": False, "error": f"Invalid action: {action}"}),
+                400,
+            )
 
         conn = get_db()
         cur = conn.cursor()
@@ -414,15 +464,30 @@ def bulk_action():
         placeholders = ",".join(["%s"] * len(ids))
 
         if action == "mark_read":
-            cur.execute(f"UPDATE email_inbox SET is_read = TRUE WHERE id IN ({placeholders})", ids)
+            cur.execute(
+                f"UPDATE email_inbox SET is_read = TRUE WHERE id IN ({placeholders})",
+                ids,
+            )
         elif action == "mark_unread":
-            cur.execute(f"UPDATE email_inbox SET is_read = FALSE WHERE id IN ({placeholders})", ids)
+            cur.execute(
+                f"UPDATE email_inbox SET is_read = FALSE WHERE id IN ({placeholders})",
+                ids,
+            )
         elif action == "archive":
-            cur.execute(f"UPDATE email_inbox SET is_archived = TRUE WHERE id IN ({placeholders})", ids)
+            cur.execute(
+                f"UPDATE email_inbox SET is_archived = TRUE WHERE id IN ({placeholders})",
+                ids,
+            )
         elif action == "star":
-            cur.execute(f"UPDATE email_inbox SET is_starred = TRUE WHERE id IN ({placeholders})", ids)
+            cur.execute(
+                f"UPDATE email_inbox SET is_starred = TRUE WHERE id IN ({placeholders})",
+                ids,
+            )
         elif action == "unstar":
-            cur.execute(f"UPDATE email_inbox SET is_starred = FALSE WHERE id IN ({placeholders})", ids)
+            cur.execute(
+                f"UPDATE email_inbox SET is_starred = FALSE WHERE id IN ({placeholders})",
+                ids,
+            )
         elif action == "delete":
             cur.execute(f"DELETE FROM email_inbox WHERE id IN ({placeholders})", ids)
 
@@ -640,7 +705,13 @@ def generate_draft(email_id):
             draft = cur.fetchone()
             cur.close()
             conn.close()
-            return jsonify({"success": True, "draft_id": draft_id, "draft": dict(draft) if draft else None})
+            return jsonify(
+                {
+                    "success": True,
+                    "draft_id": draft_id,
+                    "draft": dict(draft) if draft else None,
+                }
+            )
         return jsonify({"success": False, "error": "Draft generation failed"}), 500
     except Exception as e:
         logger.error(f"Draft generation failed: {e}")
@@ -757,13 +828,19 @@ def send_draft(draft_id):
         cur.execute("SELECT * FROM email_drafts WHERE id = %s AND status = 'draft'", (draft_id,))
         draft = cur.fetchone()
         if not draft:
-            return jsonify({"success": False, "error": "Draft not found or already sent"}), 404
+            return (
+                jsonify({"success": False, "error": "Draft not found or already sent"}),
+                404,
+            )
 
         # Get SMTP settings
         cur.execute("SELECT * FROM email_settings WHERE is_default = TRUE AND is_active = TRUE LIMIT 1")
         smtp = cur.fetchone()
         if not smtp:
-            return jsonify({"success": False, "error": "No default SMTP configured"}), 400
+            return (
+                jsonify({"success": False, "error": "No default SMTP configured"}),
+                400,
+            )
 
         direct = False
         if request.is_json:
@@ -786,7 +863,10 @@ def send_draft(draft_id):
 
             # Add In-Reply-To header if replying
             if draft.get("inbox_email_id"):
-                cur.execute("SELECT message_id FROM email_inbox WHERE id = %s", (draft["inbox_email_id"],))
+                cur.execute(
+                    "SELECT message_id FROM email_inbox WHERE id = %s",
+                    (draft["inbox_email_id"],),
+                )
                 orig = cur.fetchone()
                 if orig and orig.get("message_id"):
                     msg["In-Reply-To"] = orig["message_id"]
@@ -802,7 +882,10 @@ def send_draft(draft_id):
             server.send_message(msg)
             server.quit()
 
-            cur.execute("UPDATE email_drafts SET status = 'sent', updated_at = NOW() WHERE id = %s", (draft_id,))
+            cur.execute(
+                "UPDATE email_drafts SET status = 'sent', updated_at = NOW() WHERE id = %s",
+                (draft_id,),
+            )
 
             # Log the send
             cur.execute(
@@ -810,11 +893,22 @@ def send_draft(draft_id):
                 INSERT INTO email_logs (recipient, subject, body_preview, status, sent_at, created_by, created_at)
                 VALUES (%s, %s, %s, 'sent', NOW(), %s, NOW())
             """,
-                (draft["to_address"], draft["subject"], (draft.get("body_text") or "")[:200], current_user.id),
+                (
+                    draft["to_address"],
+                    draft["subject"],
+                    (draft.get("body_text") or "")[:200],
+                    current_user.id,
+                ),
             )
 
             conn.commit()
-            return jsonify({"success": True, "message": "Email sent successfully", "method": "direct"})
+            return jsonify(
+                {
+                    "success": True,
+                    "message": "Email sent successfully",
+                    "method": "direct",
+                }
+            )
         else:
             # Approval flow
             from agent_loop import request_approval
@@ -838,7 +932,12 @@ def send_draft(draft_id):
             )
             conn.commit()
             return jsonify(
-                {"success": True, "message": "Queued for approval", "approval_id": approval_id, "method": "approval"}
+                {
+                    "success": True,
+                    "message": "Queued for approval",
+                    "approval_id": approval_id,
+                    "method": "approval",
+                }
             )
     except Exception as e:
         conn.rollback()

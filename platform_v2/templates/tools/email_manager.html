@@ -207,6 +207,12 @@
                         </button>
                     </div>
                 </div>
+                <!-- Account Filter Bar -->
+                <div class="inbox-account-bar" id="inbox-account-bar">
+                    <button class="inbox-account-btn active" data-account="" onclick="setAccountFilter('')">
+                        <i data-lucide="inbox" style="width:14px;height:14px"></i> All Accounts
+                    </button>
+                </div>
                 <!-- Category Filter Bar -->
                 <div class="inbox-filters" id="inbox-filters">
                     <button class="inbox-filter-btn active" data-category="" onclick="setInboxFilter('')">
@@ -1954,6 +1960,52 @@
     font-size: 0.8rem;
 }
 
+/* Account Filter Bar */
+.inbox-account-bar {
+    display: flex;
+    gap: 8px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--em-border);
+    background: rgba(0, 255, 255, 0.02);
+}
+
+.inbox-account-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 16px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: var(--em-text-secondary);
+    background: transparent;
+    border: 1px solid var(--em-border);
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    text-transform: uppercase;
+}
+
+.inbox-account-btn:hover {
+    border-color: #00FFFF;
+    color: #00FFFF;
+}
+
+.inbox-account-btn.active {
+    background: rgba(0, 255, 255, 0.12);
+    border-color: #00FFFF;
+    color: #00FFFF;
+    box-shadow: 0 0 8px rgba(0, 255, 255, 0.15);
+}
+
+.inbox-account-btn .acct-count {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    opacity: 0.7;
+}
+
 /* Category Filter Bar */
 .inbox-filters {
     display: flex;
@@ -2931,6 +2983,7 @@ let inboxCurrentPage = 1;
 let inboxCurrentFilter = '';
 let inboxCurrentSearch = '';
 let inboxCurrentSort = 'date_desc';
+let inboxCurrentAccount = '';
 let currentEmailId = null;
 let inboxAutoRefreshTimer = null;
 let analysisRunning = false;
@@ -3098,7 +3151,9 @@ function buildInboxRow(email) {
 // ═══════════════════════════════════════════════════════════════════════════════
 async function loadInboxStats() {
     try {
-        const resp = await fetch('/tools/email-manager/api/inbox/stats');
+        var statsUrl = '/tools/email-manager/api/inbox/stats';
+        if (inboxCurrentAccount) statsUrl += '?account=' + inboxCurrentAccount;
+        const resp = await fetch(statsUrl);
         const data = await resp.json();
         if (!data.success) return;
 
@@ -3197,6 +3252,7 @@ async function loadInbox(page) {
     } else if (inboxCurrentFilter) {
         params.set('category', inboxCurrentFilter);
     }
+    if (inboxCurrentAccount) params.set('account', inboxCurrentAccount);
     if (inboxCurrentSearch) params.set('search', inboxCurrentSearch);
     if (inboxCurrentSort && inboxCurrentSort !== 'date_desc') params.set('sort', inboxCurrentSort);
 
@@ -3229,6 +3285,11 @@ async function loadInbox(page) {
 
         // Update filter counts
         updateFilterCounts(data.categories || {}, data.total || 0, data.starred || 0);
+
+        // Update account tabs
+        if (data.accounts && data.accounts.length > 0) {
+            buildAccountTabs(data.accounts, data.total || 0);
+        }
 
         // Render emails
         tbody.textContent = '';
@@ -3927,6 +3988,63 @@ function setInboxFilter(category) {
     });
     closeEmailDetail();
     loadInbox(1);
+}
+
+function setAccountFilter(accountId) {
+    inboxCurrentAccount = accountId;
+    document.querySelectorAll('.inbox-account-btn').forEach(function(btn) {
+        btn.classList.toggle('active', btn.dataset.account === String(accountId));
+    });
+    closeEmailDetail();
+    loadInbox(1);
+    loadInboxStats();
+}
+
+function buildAccountTabs(accounts, grandTotal) {
+    var bar = document.getElementById('inbox-account-bar');
+    if (!bar || accounts.length < 2) {
+        // Hide account bar if only one account
+        if (bar) bar.style.display = accounts.length < 2 ? 'none' : 'flex';
+        return;
+    }
+    bar.style.display = 'flex';
+    bar.textContent = '';
+
+    // "All Accounts" button
+    var allBtn = document.createElement('button');
+    allBtn.className = 'inbox-account-btn' + (inboxCurrentAccount === '' ? ' active' : '');
+    allBtn.dataset.account = '';
+    allBtn.onclick = function() { setAccountFilter(''); };
+    var allIcon = document.createElement('i');
+    allIcon.setAttribute('data-lucide', 'inbox');
+    allIcon.style.cssText = 'width:14px;height:14px';
+    allBtn.appendChild(allIcon);
+    allBtn.appendChild(document.createTextNode(' All '));
+    var allCount = document.createElement('span');
+    allCount.className = 'acct-count';
+    allCount.textContent = '(' + grandTotal + ')';
+    allBtn.appendChild(allCount);
+    bar.appendChild(allBtn);
+
+    // Per-account buttons
+    accounts.forEach(function(acct) {
+        var btn = document.createElement('button');
+        btn.className = 'inbox-account-btn' + (inboxCurrentAccount === String(acct.id) ? ' active' : '');
+        btn.dataset.account = String(acct.id);
+        btn.onclick = function() { setAccountFilter(String(acct.id)); };
+        var icon = document.createElement('i');
+        icon.setAttribute('data-lucide', 'mail');
+        icon.style.cssText = 'width:14px;height:14px';
+        btn.appendChild(icon);
+        btn.appendChild(document.createTextNode(' ' + acct.name + ' '));
+        var count = document.createElement('span');
+        count.className = 'acct-count';
+        count.textContent = '(' + acct.count + ')';
+        btn.appendChild(count);
+        bar.appendChild(btn);
+    });
+
+    if (typeof lucide !== 'undefined') lucide.createIcons();
 }
 
 function searchInbox() {

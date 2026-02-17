@@ -582,6 +582,12 @@
         <div class="em-modal-body">
             <form id="compose-form" onsubmit="sendEmail(event)">
                 <div class="em-form-group">
+                    <label>From</label>
+                    <select id="compose-from" class="em-select">
+                        <option value="">Default SMTP</option>
+                    </select>
+                </div>
+                <div class="em-form-group">
                     <label>Template (Optional)</label>
                     <select id="compose-template" onchange="loadTemplate()" class="em-select">
                         <option value="">-- No Template --</option>
@@ -3040,6 +3046,8 @@ body.light-mode .em-table tbody tr:nth-child(even):hover {
             <div class="wizard-step-dot" data-step="3">3</div>
             <div class="wizard-step-line"></div>
             <div class="wizard-step-dot" data-step="4">4</div>
+            <div class="wizard-step-line"></div>
+            <div class="wizard-step-dot" data-step="5">5</div>
         </div>
 
         <!-- Step 1: Choose Provider -->
@@ -3131,15 +3139,45 @@ body.light-mode .em-table tbody tr:nth-child(even):hover {
             </div>
         </div>
 
-        <!-- Step 4: Done -->
+        <!-- Step 4: SMTP Configuration -->
         <div class="wizard-step" id="wizard-step-4" style="display:none">
+            <p class="wizard-subtitle">Configure outgoing email (optional)</p>
+            <div class="wizard-form">
+                <label class="wizard-label">SMTP Host</label>
+                <input type="text" class="em-input wizard-input" id="wizard-smtp-host" placeholder="smtp.gmail.com">
+                <div style="display:flex;gap:12px">
+                    <div style="flex:1"><label class="wizard-label">Port</label>
+                        <input type="number" class="em-input wizard-input" id="wizard-smtp-port" value="587"></div>
+                    <div style="flex:1"><label class="wizard-label">Encryption</label>
+                        <select class="em-select wizard-input" id="wizard-smtp-encryption">
+                            <option value="tls">TLS</option><option value="ssl">SSL</option><option value="none">None</option>
+                        </select></div>
+                </div>
+                <label class="wizard-label">SMTP Username</label>
+                <input type="text" class="em-input wizard-input" id="wizard-smtp-user" placeholder="you@example.com">
+                <label class="wizard-label">SMTP Password</label>
+                <input type="password" class="em-input wizard-input" id="wizard-smtp-password" placeholder="App password">
+                <label class="wizard-label">From Email</label>
+                <input type="email" class="em-input wizard-input" id="wizard-from-email" placeholder="you@example.com">
+                <label class="wizard-label">From Name</label>
+                <input type="text" class="em-input wizard-input" id="wizard-from-name" placeholder="Your Name">
+            </div>
+            <div class="wizard-actions">
+                <button class="em-btn em-btn--sm em-btn--outline" onclick="wizardGoStep(3)">Back</button>
+                <button class="em-btn em-btn--sm em-btn--outline" onclick="wizardSkipSmtp()">Skip</button>
+                <button class="em-btn em-btn--sm em-btn--primary" onclick="wizardSaveSmtp()">Save &amp; Test SMTP</button>
+            </div>
+        </div>
+
+        <!-- Step 5: Done -->
+        <div class="wizard-step" id="wizard-step-5" style="display:none">
             <div class="wizard-done">
                 <div style="font-size:48px;margin-bottom:12px">&#x2705;</div>
                 <h3>Mailbox Added!</h3>
                 <p id="wizard-done-msg">Fetching emails in background...</p>
             </div>
             <div class="wizard-actions">
-                <button class="em-btn em-btn--sm em-btn--primary" onclick="closeWizard(); loadInbox();">Done</button>
+                <button class="em-btn em-btn--sm em-btn--primary" onclick="closeWizard(); loadUnifiedAccounts();">Done</button>
             </div>
         </div>
     </div>
@@ -4414,8 +4452,31 @@ function closeModal(id) {
     document.getElementById(id).classList.remove('active');
 }
 
-function showComposeModal() {
+async function showComposeModal(replyAccountId) {
     document.getElementById('compose-form').reset();
+
+    // Load SMTP accounts for From dropdown
+    try {
+        var resp = await fetch('/tools/email-manager/api/smtp-accounts');
+        var data = await resp.json();
+        var sel = document.getElementById('compose-from');
+        sel.length = 1; // Keep "Default SMTP" option, remove rest
+        if (data.success && data.accounts) {
+            data.accounts.forEach(function(a) {
+                var opt = document.createElement('option');
+                opt.value = a.id;
+                var label = a.from_email || '';
+                if (a.from_name) label = a.from_name + ' — ' + label;
+                if (a.smtp_test_result === 'success') label += ' ✓';
+                opt.textContent = label;
+                sel.appendChild(opt);
+            });
+        }
+        if (replyAccountId) sel.value = replyAccountId;
+    } catch (e) {
+        console.error('Failed to load SMTP accounts:', e);
+    }
+
     showModal('compose-modal');
 }
 
@@ -4552,7 +4613,8 @@ async function sendEmail(event) {
         recipient: document.getElementById('compose-to').value,
         subject: document.getElementById('compose-subject').value,
         body_html: document.getElementById('compose-body').value,
-        template_id: document.getElementById('compose-template').value || null
+        template_id: document.getElementById('compose-template').value || null,
+        account_id: document.getElementById('compose-from').value || null
     };
 
     try {
@@ -5233,14 +5295,14 @@ function selectProvider(provider) {
 }
 
 function wizardGoStep(step) {
-    for (var i = 1; i <= 4; i++) {
+    for (var i = 1; i <= 5; i++) {
         var el = document.getElementById('wizard-step-' + i);
-        if (el) el.style.display = i === step ? 'block' : 'none';
+        if (el) el.style.display = (i === step) ? 'block' : 'none';
     }
     document.querySelectorAll('.wizard-step-dot').forEach(function(dot) {
-        var dotStep = parseInt(dot.dataset.step);
-        dot.classList.toggle('active', dotStep === step);
-        dot.classList.toggle('done', dotStep < step);
+        var s = parseInt(dot.getAttribute('data-step'));
+        dot.classList.toggle('active', s === step);
+        dot.classList.toggle('done', s < step);
     });
 }
 
@@ -5340,16 +5402,77 @@ async function wizardTestConnection() {
 
 async function wizardSave() {
     if (!wizardCreatedSettingId) return;
-    wizardGoStep(4);
-    document.getElementById('wizard-done-msg').textContent = 'Fetching emails in background...';
 
-    // Trigger email fetch
+    // Auto-fill SMTP from provider presets
+    var smtpPresets = {
+        gmail: { host: 'smtp.gmail.com', port: 587, enc: 'tls' },
+        zoho: { host: 'smtppro.zoho.com', port: 587, enc: 'tls' },
+        outlook: { host: 'smtp.office365.com', port: 587, enc: 'tls' },
+        yahoo: { host: 'smtp.mail.yahoo.com', port: 587, enc: 'tls' },
+        icloud: { host: 'smtp.mail.me.com', port: 587, enc: 'tls' },
+        custom: { host: '', port: 587, enc: 'tls' }
+    };
+    var preset = smtpPresets[wizardCurrentProvider] || smtpPresets.custom;
+    document.getElementById('wizard-smtp-host').value = preset.host;
+    document.getElementById('wizard-smtp-port').value = preset.port;
+    document.getElementById('wizard-smtp-encryption').value = preset.enc;
+    document.getElementById('wizard-smtp-user').value = document.getElementById('wizard-email').value;
+    document.getElementById('wizard-from-email').value = document.getElementById('wizard-email').value;
+    document.getElementById('wizard-smtp-password').value = '';
+    document.getElementById('wizard-from-name').value = '';
+
+    wizardGoStep(4); // SMTP step
+}
+
+async function wizardSaveSmtp() {
+    var payload = {
+        smtp_host: document.getElementById('wizard-smtp-host').value,
+        smtp_port: parseInt(document.getElementById('wizard-smtp-port').value) || 587,
+        smtp_user: document.getElementById('wizard-smtp-user').value,
+        smtp_password: document.getElementById('wizard-smtp-password').value,
+        smtp_encryption: document.getElementById('wizard-smtp-encryption').value,
+        from_email: document.getElementById('wizard-from-email').value,
+        from_name: document.getElementById('wizard-from-name').value
+    };
+
     try {
-        await fetch('/tools/email-manager/api/inbox/check', { method: 'POST' });
+        var resp = await fetch('/tools/email-manager/api/imap/settings/' + wizardCreatedSettingId, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        var data = await resp.json();
+        if (data.success) {
+            // Test SMTP
+            var testResp = await fetch('/tools/email-manager/api/imap/settings/' + wizardCreatedSettingId + '/test-smtp', { method: 'POST' });
+            var testData = await testResp.json();
+            if (testData.success) {
+                showToast('SMTP configured and verified!', 'success');
+            } else {
+                showToast('SMTP saved but test failed: ' + (testData.message || ''), 'warning');
+            }
+        }
     } catch (e) {
-        // Non-critical, background job will pick it up
+        showToast('Error saving SMTP: ' + e.message, 'error');
     }
-    showToast('Mailbox added! Emails will appear shortly.', 'success');
+
+    wizardGoStep(5);
+    document.getElementById('wizard-done-msg').textContent = 'Account configured! Fetching emails...';
+    fetch('/tools/email-manager/api/inbox/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ setting_id: wizardCreatedSettingId })
+    }).catch(function() {});
+}
+
+function wizardSkipSmtp() {
+    wizardGoStep(5);
+    document.getElementById('wizard-done-msg').textContent = 'Account configured (no outgoing). Fetching emails...';
+    fetch('/tools/email-manager/api/inbox/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ setting_id: wizardCreatedSettingId })
+    }).catch(function() {});
 }
 
 // ==================== End Wizard ====================

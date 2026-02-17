@@ -156,7 +156,13 @@ LLM_CONNECTIONS = {
         "type": "local",
         "host": "host.docker.internal",
         "port": 11434,
-        "models": ["dolphin3-8k:latest", "qwen3-coder-cpu:latest", "arctic-embed-cpu"],
+        "models": [
+            "dolphin3-8k:latest",
+            "qwen3-coder-cpu:latest",
+            "arctic-embed-cpu",
+            "qwen25-classify",
+            "minicpm-v-cpu",
+        ],
         "cost": "FREE",
     },
     "claude_api": {

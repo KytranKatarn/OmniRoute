@@ -48,7 +48,7 @@ AVAILABLE_STATIONS = [
     "AWAY_TEAM",
 ]
 
-AVAILABLE_MODELS = ["dolphin3-8k:latest", "qwen3-coder-cpu:latest", "arctic-embed-cpu"]
+AVAILABLE_MODELS = ["dolphin3-8k:latest", "qwen3-coder-cpu:latest", "arctic-embed-cpu", "qwen25-classify", "minicpm-v-cpu"]
 
 # Template prompts for different action types
 TEMPLATES = {

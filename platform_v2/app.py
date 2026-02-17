@@ -1249,6 +1249,7 @@ def _warmup_ollama_models():
         models_to_warm = [
             ("dolphin3-8k:latest", "generate", "warmup"),
             ("arctic-embed-cpu", "embed", "warmup"),
+            ("qwen25-classify", "generate", "warmup"),
         ]
         for model_name, endpoint, payload_key in models_to_warm:
             for attempt in range(3):

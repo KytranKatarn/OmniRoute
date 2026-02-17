@@ -34,8 +34,10 @@ logger = logging.getLogger(__name__)
 class ModelTier(Enum):
     """Model tier hierarchy (lower = cheaper, higher = more capable)"""
 
+    CLASSIFY = "classify"  # Tiny fast classifier (~1.5B, CPU, <500ms)
     LOCAL = "local"
     LOCAL_ANALYSIS = "local_analysis"
+    VISION = "vision"  # Multimodal vision model (CPU)
     MINIMAX_CLOUD = "minimax_cloud"
     QWEN3_CLOUD = "qwen3_cloud"
     HAIKU = "haiku"
@@ -72,6 +74,14 @@ class RoutingRecommendation:
 
 # Default model configurations
 DEFAULT_MODEL_CONFIGS = {
+    "classify": ModelConfig(
+        tier="classify",
+        provider="ollama",
+        model_name="qwen25-classify",
+        input_cost_per_1m=0.0,
+        output_cost_per_1m=0.0,
+        max_tokens=4096,
+    ),
     "local": ModelConfig(
         tier="local",
         provider="ollama",
@@ -83,10 +93,18 @@ DEFAULT_MODEL_CONFIGS = {
     "local_analysis": ModelConfig(
         tier="local_analysis",
         provider="ollama",
-        model_name="qwen3-coder-next:q4_K_M",
+        model_name="qwen3-coder-cpu:latest",
         input_cost_per_1m=0.0,
         output_cost_per_1m=0.0,
         max_tokens=32768,
+    ),
+    "vision": ModelConfig(
+        tier="vision",
+        provider="ollama",
+        model_name="minicpm-v",
+        input_cost_per_1m=0.0,
+        output_cost_per_1m=0.0,
+        max_tokens=4096,
     ),
     "minimax_cloud": ModelConfig(
         tier="minimax_cloud",
@@ -130,8 +148,22 @@ DEFAULT_MODEL_CONFIGS = {
     ),
 }
 
-# Tier escalation order
-TIER_ORDER = ["local", "local_analysis", "minimax_cloud", "qwen3_cloud", "haiku", "sonnet", "opus"]
+# Tier escalation order (classify and vision are capability-specific, not in main escalation chain)
+TIER_ORDER = ["classify", "local", "local_analysis", "minimax_cloud", "qwen3_cloud", "haiku", "sonnet", "opus"]
+
+# Capability-based routing: maps capability requirements to preferred tiers
+CAPABILITY_ROUTING = {
+    "classify": "classify",      # Intent routing, sentiment, tagging
+    "sentiment": "classify",     # Emotion detection
+    "tagging": "classify",       # Auto-tagging
+    "vision": "vision",          # Image understanding
+    "multimodal": "vision",      # Image + text
+    "json": "local",             # Structured output (any model with format=json)
+    "code": "local_analysis",    # Code generation/analysis
+    "conversation": "local",     # Chat
+    "summarize": "local",        # Summarization
+    "embed": "local",            # (handled by embedding service, not router)
+}
 
 
 class SmartRouter:
@@ -225,9 +257,63 @@ class SmartRouter:
             logger.warning(f"Error loading routing rules: {e}, using defaults")
             return self._default_routing_rules()
 
+    def suggest_model_by_capability(
+        self,
+        capability: str,
+        fallback_task_type: str = "code_simple",
+        **kwargs,
+    ) -> RoutingRecommendation:
+        """
+        Route by capability requirement rather than task type.
+
+        Args:
+            capability: Required capability (classify, vision, json, code, etc.)
+            fallback_task_type: Fall back to task-based routing if capability unknown
+
+        Returns:
+            RoutingRecommendation
+        """
+        tier = CAPABILITY_ROUTING.get(capability)
+        if tier:
+            configs = self._get_model_configs()
+            config = configs.get(tier)
+            if config:
+                return RoutingRecommendation(
+                    tier=config.tier,
+                    provider=config.provider,
+                    model_name=config.model_name,
+                    reason=f"Capability '{capability}' → {tier} tier",
+                )
+        # Fall back to task-based routing
+        return self.suggest_model(task_type=fallback_task_type, **kwargs)
+
     def _default_routing_rules(self) -> Dict[str, dict]:
         """Default routing rules if database not available"""
         return {
+            "classify": {
+                "preferred_tier": "classify",
+                "fallback_tier": "local",
+                "complexity_threshold": 2,
+                "claude_as_judge": False,
+            },
+            "sentiment": {
+                "preferred_tier": "classify",
+                "fallback_tier": "local",
+                "complexity_threshold": 2,
+                "claude_as_judge": False,
+            },
+            "tagging": {
+                "preferred_tier": "classify",
+                "fallback_tier": "local",
+                "complexity_threshold": 3,
+                "claude_as_judge": False,
+            },
+            "vision": {
+                "preferred_tier": "vision",
+                "fallback_tier": "sonnet",
+                "complexity_threshold": 5,
+                "claude_as_judge": False,
+            },
             "conversation": {
                 "preferred_tier": "local",
                 "fallback_tier": "local",
@@ -235,8 +321,8 @@ class SmartRouter:
                 "claude_as_judge": False,
             },
             "format": {
-                "preferred_tier": "local",
-                "fallback_tier": "haiku",
+                "preferred_tier": "classify",
+                "fallback_tier": "local",
                 "complexity_threshold": 3,
                 "claude_as_judge": False,
             },

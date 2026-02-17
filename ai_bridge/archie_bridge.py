@@ -145,6 +145,81 @@ def get_db():
     )
 
 
+def call_ollama_json(
+    prompt,
+    model="dolphin3-8k:latest",
+    system_prompt=None,
+    max_retries=2,
+    timeout=120,
+):
+    """
+    Call Ollama with structured JSON output enforcement.
+
+    Uses Ollama's format=json parameter and validates the response.
+    Retries with correction prompt on malformed JSON.
+
+    Args:
+        prompt: The prompt (should ask for JSON output)
+        model: Ollama model to use
+        system_prompt: Optional system prompt
+        max_retries: Retries on malformed JSON (default 2)
+        timeout: Request timeout in seconds
+
+    Returns:
+        {'success': bool, 'data': dict|None, 'raw': str, 'error': str|None}
+    """
+    ollama_host, node_id = get_ollama_url(model, prefer_gpu=True)
+
+    for attempt in range(max_retries + 1):
+        try:
+            payload = {
+                "model": model,
+                "prompt": prompt if attempt == 0 else (
+                    f"Your previous response was not valid JSON. "
+                    f"Please respond with ONLY valid JSON.\n\n{prompt}"
+                ),
+                "stream": False,
+                "format": "json",
+            }
+            if system_prompt:
+                payload["system"] = system_prompt
+
+            resp = requests.post(
+                f"{ollama_host}/api/generate",
+                json=payload,
+                timeout=timeout,
+            )
+
+            if resp.status_code != 200:
+                continue
+
+            raw = resp.json().get("response", "")
+            data = json.loads(raw)
+            return {"success": True, "data": data, "raw": raw, "error": None}
+
+        except json.JSONDecodeError:
+            # Try to extract JSON from markdown fences or mixed text
+            import re as _re
+
+            match = _re.search(r"\{[\s\S]*\}", raw)
+            if match:
+                try:
+                    data = json.loads(match.group())
+                    return {"success": True, "data": data, "raw": raw, "error": None}
+                except json.JSONDecodeError:
+                    pass
+            continue
+        except Exception as e:
+            return {"success": False, "data": None, "raw": "", "error": str(e)}
+
+    return {
+        "success": False,
+        "data": None,
+        "raw": raw if "raw" in dir() else "",
+        "error": f"Failed to get valid JSON after {max_retries + 1} attempts",
+    }
+
+
 def detect_current_environment():
     """
     Detect the current execution environment (Phase 23)

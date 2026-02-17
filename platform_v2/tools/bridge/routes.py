@@ -6544,6 +6544,89 @@ def reassign_agent():
 
 
 # ============================================================================
+# ROUTING MODE & ESCALATION LOG API
+# ============================================================================
+
+
+@bridge_bp.route("/api/routing-mode", methods=["GET"])
+@login_required
+def get_routing_mode():
+    """Get current bridge routing mode."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT value FROM platform_settings WHERE key = 'routing_mode'")
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        return jsonify({"success": True, "routing_mode": row["value"] if row else "full"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/routing-mode", methods=["POST"])
+@login_required
+def set_routing_mode():
+    """Set bridge routing mode: local_only, local_cloud, or full."""
+    data = request.get_json() or {}
+    mode = data.get("routing_mode", "full")
+    if mode not in ("local_only", "local_cloud", "full"):
+        return jsonify({"success": False, "error": f"Invalid mode: {mode}"}), 400
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO platform_settings (key, value, value_type, description, updated_at)
+            VALUES ('routing_mode', %s, 'string', 'Bridge routing mode', NOW())
+            ON CONFLICT (key) DO UPDATE SET value = %s, updated_at = NOW()
+        """,
+            (mode, mode),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+        logger.info(f"[Bridge] Routing mode changed to: {mode}")
+        return jsonify({"success": True, "routing_mode": mode})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/escalation-log", methods=["GET"])
+@login_required
+def get_escalation_log():
+    """Get recent escalation events."""
+    limit = request.args.get("limit", 20, type=int)
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT del.*, a.name as agent_name
+            FROM dispatch_escalation_log del
+            LEFT JOIN agents a ON a.id = del.original_agent_id
+            ORDER BY del.created_at DESC
+            LIMIT %s
+        """,
+            (limit,),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        # Convert datetime objects for JSON serialization
+        result = []
+        for r in rows:
+            d = dict(r)
+            for k, v in d.items():
+                if hasattr(v, "isoformat"):
+                    d[k] = v.isoformat()
+            result.append(d)
+        return jsonify({"success": True, "escalations": result})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
 # MESH CLUSTER API ROUTES
 # ============================================================================
 try:

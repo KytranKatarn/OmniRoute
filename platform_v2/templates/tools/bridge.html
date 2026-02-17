@@ -2751,6 +2751,45 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* Routing Mode Toggle */
+.routing-mode-control {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 16px;
+    background: var(--bridge-panel);
+    border: 1px solid var(--bridge-border);
+    border-radius: 8px;
+    margin-bottom: 12px;
+}
+.routing-mode-label {
+    color: var(--bridge-gold);
+    font-family: 'Orbitron', sans-serif;
+    font-size: 11px;
+    text-transform: uppercase;
+}
+.routing-btn {
+    padding: 4px 14px;
+    font-size: 11px;
+    font-family: 'IBM Plex Mono', monospace;
+    background: transparent;
+    color: var(--bridge-muted);
+    border: 1px solid var(--bridge-border);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.routing-btn:first-child { border-radius: 4px 0 0 4px; }
+.routing-btn:last-child { border-radius: 0 4px 4px 0; }
+.routing-btn.active {
+    background: var(--bridge-gold);
+    color: #000;
+    border-color: var(--bridge-gold);
+}
+.routing-btn:hover:not(.active) {
+    color: var(--bridge-text);
+    border-color: var(--bridge-gold);
+}
 </style>
 
 <!-- Admin Operations Navigation -->
@@ -2792,6 +2831,17 @@
             </div>
             <div class="bridge-time" id="bridge-time">00:00:00</div>
         </div>
+    </div>
+
+    <!-- Routing Mode Toggle -->
+    <div class="routing-mode-control">
+        <span class="routing-mode-label">Routing Mode</span>
+        <div style="display:flex;">
+            <button class="routing-btn" data-mode="local_only" title="Local Ollama models only">Local Only</button>
+            <button class="routing-btn" data-mode="local_cloud" title="Local + Ollama cloud (free)">Local + Cloud</button>
+            <button class="routing-btn active" data-mode="full" title="All tiers including paid APIs">Full</button>
+        </div>
+        <span id="routingModeStatus" style="color:var(--bridge-muted);font-size:11px;"></span>
     </div>
 
     <!-- Main Content -->
@@ -3280,6 +3330,40 @@
 
 {% block extra_js %}
 <script>
+// === Routing Mode Toggle ===
+async function loadRoutingMode() {
+    try {
+        const res = await fetch('/tools/bridge/api/routing-mode');
+        const data = await res.json();
+        if (data.success) {
+            document.querySelectorAll('.routing-btn').forEach(function(btn) {
+                btn.classList.toggle('active', btn.dataset.mode === data.routing_mode);
+            });
+        }
+    } catch (e) { console.error('Failed to load routing mode:', e); }
+}
+
+document.querySelectorAll('.routing-btn').forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+        var mode = this.dataset.mode;
+        try {
+            var res = await fetch('/tools/bridge/api/routing-mode', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({routing_mode: mode}),
+            });
+            var data = await res.json();
+            if (data.success) {
+                document.querySelectorAll('.routing-btn').forEach(function(b) { b.classList.remove('active'); });
+                btn.classList.add('active');
+                document.getElementById('routingModeStatus').textContent = 'Mode: ' + mode;
+            }
+        } catch (e) { console.error('Failed to set routing mode:', e); }
+    });
+});
+
+loadRoutingMode();
+
 // ============================================================================
 // A.R.C.H.I.E. BRIDGE - JavaScript Controller
 // ============================================================================

@@ -166,6 +166,20 @@ CAPABILITY_ROUTING = {
 }
 
 
+def _get_routing_mode() -> str:
+    """Read routing_mode from platform_settings. Returns 'full' on error."""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT value FROM platform_settings WHERE key = 'routing_mode'")
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        return row[0] if row else "full"
+    except Exception:
+        return "full"
+
+
 class SmartRouter:
     """
     Intelligent model routing based on task type, complexity, and cost.
@@ -179,6 +193,21 @@ class SmartRouter:
     def __init__(self):
         self._model_configs = None
         self._routing_rules = None
+
+    def get_available_tiers(self, routing_mode: str = None) -> list:
+        """Filter TIER_ORDER based on routing mode."""
+        if routing_mode is None:
+            routing_mode = _get_routing_mode()
+
+        local_tiers = {"classify", "local", "local_analysis", "vision"}
+        cloud_tiers = {"minimax_cloud", "qwen3_cloud"}
+
+        if routing_mode == "local_only":
+            return [t for t in TIER_ORDER if t in local_tiers]
+        elif routing_mode == "local_cloud":
+            return [t for t in TIER_ORDER if t in local_tiers | cloud_tiers]
+        else:
+            return list(TIER_ORDER)
 
     def _get_model_configs(self) -> Dict[str, ModelConfig]:
         """Load model configurations from database or use defaults"""
@@ -275,6 +304,18 @@ class SmartRouter:
         """
         tier = CAPABILITY_ROUTING.get(capability)
         if tier:
+            available = self.get_available_tiers()
+            if tier not in available:
+                # Tier blocked by routing mode — find first available
+                configs = self._get_model_configs()
+                for t in available:
+                    if t in configs:
+                        return RoutingRecommendation(
+                            tier=configs[t].tier,
+                            provider=configs[t].provider,
+                            model_name=configs[t].model_name,
+                            reason=f"Capability '{capability}' tier '{tier}' blocked by routing mode, using '{t}'",
+                        )
             configs = self._get_model_configs()
             config = configs.get(tier)
             if config:
@@ -282,7 +323,7 @@ class SmartRouter:
                     tier=config.tier,
                     provider=config.provider,
                     model_name=config.model_name,
-                    reason=f"Capability '{capability}' → {tier} tier",
+                    reason=f"Capability '{capability}' -> {tier} tier",
                 )
         # Fall back to task-based routing
         return self.suggest_model(task_type=fallback_task_type, **kwargs)

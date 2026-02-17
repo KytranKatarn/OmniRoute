@@ -181,6 +181,8 @@ class BridgeDispatcher:
         self._cache_time = 0
         self._cache_ttl = 300  # Refresh cache every 5 minutes
         self._db_getter = None
+        # Failure tracking for escalation
+        self._failure_tracker = {}  # (agent_id, capability) -> count
 
     def _get_db(self):
         """Get database connection."""
@@ -354,6 +356,88 @@ class BridgeDispatcher:
         except Exception as e:
             logger.warning(f"[BridgeDispatcher] Failed to log execution: {e}")
 
+    def _get_escalation_threshold(self) -> int:
+        """Read escalation threshold from platform_settings."""
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute("SELECT value FROM platform_settings WHERE key = 'escalation_threshold'")
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            return int(row[0]) if row else 3
+        except Exception:
+            return 3
+
+    def _track_failure(self, agent_id: int, capability: str) -> int:
+        """Increment failure count, return new count."""
+        key = (agent_id, capability)
+        self._failure_tracker[key] = self._failure_tracker.get(key, 0) + 1
+        return self._failure_tracker[key]
+
+    def _reset_failure(self, agent_id: int, capability: str):
+        """Reset failure count on success."""
+        self._failure_tracker.pop((agent_id, capability), None)
+
+    def _get_next_tier(self, current_model: str, capability: str) -> Optional[Dict]:
+        """Find the next escalation tier above current model."""
+        try:
+            from smart_router import SmartRouter, TIER_ORDER
+            router = SmartRouter()
+            available = router.get_available_tiers()
+            configs = router._get_model_configs()
+
+            current_tier = None
+            for tier_name, config in configs.items():
+                if config.model_name == current_model or current_model.startswith(config.model_name.split(":")[0]):
+                    current_tier = tier_name
+                    break
+
+            if not current_tier:
+                return None
+
+            found_current = False
+            for tier in available:
+                if tier == current_tier:
+                    found_current = True
+                    continue
+                if found_current and tier in configs:
+                    config = configs[tier]
+                    is_paid = tier in ("haiku", "sonnet", "opus") or config.provider not in ("ollama", "ollama_cloud")
+                    return {
+                        "tier": tier,
+                        "model": config.model_name,
+                        "provider": config.provider,
+                        "is_paid": is_paid,
+                    }
+            return None
+        except Exception as e:
+            logger.warning(f"[BridgeDispatcher] get_next_tier failed: {e}")
+            return None
+
+    def _log_escalation(self, original_agent_id, original_model, escalated_model,
+                         escalated_provider, capability, module_id, reason,
+                         failure_count, approval_method="auto", success=None, cost=0):
+        """Log an escalation event to dispatch_escalation_log."""
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO dispatch_escalation_log
+                (original_agent_id, original_model, escalated_model, escalated_provider,
+                 capability, module_id, reason, failure_count, cost_usd,
+                 approved_by, approval_method, success)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (original_agent_id, original_model, escalated_model, escalated_provider,
+                  capability, module_id, reason, failure_count, cost,
+                  "system" if approval_method == "auto" else None,
+                  approval_method, success))
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            logger.warning(f"[BridgeDispatcher] Failed to log escalation: {e}")
+
     # ========================================================================
     # PUBLIC API
     # ========================================================================
@@ -444,6 +528,66 @@ class BridgeDispatcher:
         )
 
         duration_ms = int((time.time() - start) * 1000)
+
+        # 4b. Escalation on failure
+        if not llm_result.get("success", False):
+            failure_count = self._track_failure(agent.get("id", 0), capability)
+            threshold = self._get_escalation_threshold()
+
+            if failure_count >= threshold:
+                next_tier = self._get_next_tier(model, capability)
+                if next_tier and not next_tier["is_paid"]:
+                    logger.info(
+                        f"[BridgeDispatcher] Auto-escalating {capability}: "
+                        f"{model} -> {next_tier['model']} (free, {failure_count} failures)"
+                    )
+                    escalated_result = self._execute_llm(
+                        model=next_tier["model"], prompt=prompt,
+                        system_prompt=system_prompt, json_mode=json_mode,
+                        prefer_gpu=prefer_gpu, timeout=timeout,
+                    )
+                    if escalated_result.get("success"):
+                        self._reset_failure(agent.get("id", 0), capability)
+                        self._log_escalation(
+                            agent.get("id"), model, next_tier["model"],
+                            next_tier["provider"], capability, module_id,
+                            f"{failure_count} consecutive failures", failure_count,
+                            approval_method="auto", success=True,
+                        )
+                        llm_result = escalated_result
+                        model = next_tier["model"]
+                        duration_ms = int((time.time() - start) * 1000)
+                elif next_tier and next_tier["is_paid"]:
+                    logger.info(
+                        f"[BridgeDispatcher] Paid escalation needed: {model} -> "
+                        f"{next_tier['model']} ({next_tier['provider']}). Submitting for approval."
+                    )
+                    try:
+                        from agent_loop import request_approval
+                        request_approval(
+                            action_type="escalation",
+                            action_data={
+                                "original_model": model,
+                                "escalated_model": next_tier["model"],
+                                "escalated_provider": next_tier["provider"],
+                                "capability": capability,
+                                "module_id": module_id,
+                                "failure_count": failure_count,
+                                "prompt_preview": prompt[:200],
+                            },
+                            reason=f"Escalation: {failure_count}x failures on {model} for {capability}",
+                            tier=2,
+                        )
+                    except Exception as esc_err:
+                        logger.warning(f"[BridgeDispatcher] Approval submission failed: {esc_err}")
+                    self._log_escalation(
+                        agent.get("id"), model, next_tier["model"],
+                        next_tier["provider"], capability, module_id,
+                        f"{failure_count} failures, awaiting approval", failure_count,
+                        approval_method="telegram", success=None,
+                    )
+        else:
+            self._reset_failure(agent.get("id", 0), capability)
 
         # 5. Build result
         result = DispatchResult(

@@ -2845,6 +2845,28 @@ body.light-mode .em-table tbody tr:nth-child(even):hover {
     cursor: pointer;
     accent-color: #00FFFF;
 }
+
+/* Light mode overrides */
+@media (prefers-color-scheme: light) {
+    .inbox-stats-bar { background: #f0f4f8; border-color: #0088aa; }
+    .inbox-stat { color: #333; }
+    .inbox-stat span { color: #006688; }
+    .inbox-bulk-bar { background: #fff8e0; border-color: #cc9f00; }
+    .bulk-count { color: #996600; }
+    .em-confirm-overlay { background: rgba(0,0,0,0.4); }
+    .em-confirm-dialog { background: #ffffff; border-color: #0088aa; }
+    .em-confirm-title { color: #006688; }
+    .em-confirm-message { color: #333; }
+    .thread-section { border-top-color: #ddd; }
+    .thread-section h4 { color: #006688; }
+    .thread-msg { border-left-color: #ddd; }
+    .thread-msg:hover { border-left-color: #0088aa; background: rgba(0,136,170,0.05); }
+    .thread-msg--active { border-left-color: #cc9f00; background: rgba(204,159,0,0.05); }
+    .thread-from { color: #333; }
+    .thread-date { color: #888; }
+    .thread-preview { color: #666; }
+    .account-badge { background: rgba(0,136,170,0.1); color: #006688; border-color: rgba(0,136,170,0.2); }
+}
 </style>
 
 <!-- Confirmation Dialog -->

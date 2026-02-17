@@ -530,6 +530,13 @@ class BridgeDispatcher:
             f"module='{module_id}'"
         )
 
+        # 3b. Inject learnings if available
+        try:
+            from bridge_learning import inject_learnings
+            prompt = inject_learnings(agent_name, capability, prompt)
+        except ImportError:
+            pass
+
         # 4. Execute the LLM call
         llm_result = self._execute_llm(
             model=model,
@@ -568,6 +575,18 @@ class BridgeDispatcher:
                             f"{failure_count} consecutive failures", failure_count,
                             approval_method="auto", success=True,
                         )
+                        try:
+                            from bridge_learning import capture_learning
+                            capture_learning(
+                                failed_result=llm_result,
+                                success_result=escalated_result,
+                                capability=capability,
+                                agent_name=agent_name,
+                                module_id=module_id,
+                                failure_count=failure_count,
+                            )
+                        except ImportError:
+                            pass
                         llm_result = escalated_result
                         model = next_tier["model"]
                         duration_ms = int((time.time() - start) * 1000)

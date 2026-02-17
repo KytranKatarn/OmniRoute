@@ -112,6 +112,9 @@ class TelegramGateway:
             app.add_handler(
                 CallbackQueryHandler(self._email_callback, pattern=r"^email_")
             )
+            app.add_handler(
+                CallbackQueryHandler(self._escalation_callback, pattern=r"^esc_")
+            )
             app.add_handler(CallbackQueryHandler(self._callback_handler))
             app.add_handler(
                 MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_message)
@@ -452,6 +455,124 @@ class TelegramGateway:
             approval_id = int(data.split("_")[1])
             self._process_approval(approval_id, user_info["user_id"], approved=False)
             await query.edit_message_text(f"Rejected #{approval_id}")
+
+    async def _escalation_callback(self, update, context):
+        """Handle escalation approval/denial/defer buttons."""
+        query = update.callback_query
+        await query.answer()
+
+        tg_user = query.from_user
+        user_info = self._get_authorized_user(tg_user.id)
+        if not user_info:
+            await query.edit_message_text("Unauthorized.")
+            return
+
+        data = query.data  # e.g. "esc_approve_47" or "esc_deny_47" or "esc_defer_47"
+        parts = data.split("_", 2)
+        if len(parts) < 3:
+            await query.edit_message_text("Invalid escalation action")
+            return
+
+        action = parts[1]  # approve, deny, defer
+        try:
+            approval_id = int(parts[2])
+        except ValueError:
+            await query.edit_message_text("Invalid escalation ID")
+            return
+
+        try:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            if action == "approve":
+                cur.execute("""
+                    UPDATE autonomy_approval_queue
+                    SET status = 'approved', approved_by = %s, approved_at = NOW(), updated_at = NOW()
+                    WHERE id = %s AND status = 'pending'
+                    RETURNING action_data
+                """, (user_info["user_id"], approval_id))
+                row = cur.fetchone()
+                conn.commit()
+                if row:
+                    action_data = row["action_data"] if isinstance(row["action_data"], dict) else json.loads(row["action_data"])
+                    await query.edit_message_text(
+                        f"Approved escalation #{approval_id}\n"
+                        f"Model: {action_data.get('escalated_model', '?')}\n"
+                        f"Will execute on next dispatch cycle."
+                    )
+                else:
+                    await query.edit_message_text(f"Escalation #{approval_id} not found or already processed.")
+
+            elif action == "deny":
+                cur.execute("""
+                    UPDATE autonomy_approval_queue
+                    SET status = 'rejected', approved_by = %s,
+                        rejected_reason = 'Denied via Telegram', updated_at = NOW()
+                    WHERE id = %s AND status = 'pending'
+                """, (user_info["user_id"], approval_id))
+                conn.commit()
+                await query.edit_message_text(f"Denied escalation #{approval_id}")
+
+            elif action == "defer":
+                cur.execute("""
+                    UPDATE autonomy_approval_queue
+                    SET expires_at = NOW() + INTERVAL '1 hour', updated_at = NOW()
+                    WHERE id = %s AND status = 'pending'
+                """, (approval_id,))
+                conn.commit()
+                await query.edit_message_text(f"Deferred escalation #{approval_id} for 1 hour")
+
+            cur.close()
+            conn.close()
+
+        except Exception as e:
+            logger.error(f"Escalation callback error: {e}")
+            await query.edit_message_text(f"Error processing escalation: {e}")
+
+    def send_escalation_notification(self, approval_id: int, context: dict):
+        """Send escalation approval request to linked Telegram users."""
+        if not self._running or not self._loop:
+            return
+
+        text = (
+            f"Escalation Request #{approval_id}\n"
+            f"Agent: {context.get('agent_name', '?')} ({context.get('station', '?')})\n"
+            f"Capability: {context.get('capability', '?')}\n"
+            f"Failed {context.get('failure_count', '?')}x on: {context.get('original_model', '?')}\n"
+            f"Next tier: {context.get('escalated_model', '?')} (~${context.get('est_cost', 0):.4f})\n"
+            f"Module: {context.get('module_id', '?')}\n\n"
+            f"ARCHIE recommends: {context.get('recommendation', 'Approve')}"
+        )
+
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("Approve", callback_data=f"esc_approve_{approval_id}"),
+                InlineKeyboardButton("Deny", callback_data=f"esc_deny_{approval_id}"),
+                InlineKeyboardButton("Defer 1hr", callback_data=f"esc_defer_{approval_id}"),
+            ]
+        ])
+
+        async def _send():
+            try:
+                conn = get_db()
+                cur = conn.cursor()
+                cur.execute("SELECT telegram_user_id FROM telegram_linked_accounts WHERE is_active = TRUE")
+                rows = cur.fetchall()
+                cur.close()
+                conn.close()
+
+                for row in rows:
+                    try:
+                        await self._application.bot.send_message(
+                            chat_id=row[0], text=text, reply_markup=keyboard
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to notify {row[0]}: {e}")
+            except Exception as e:
+                logger.error(f"Escalation notification failed: {e}")
+
+        asyncio.run_coroutine_threadsafe(_send(), self._loop)
 
     # ------------------------------------------------------------------
     # Email Interaction via Telegram

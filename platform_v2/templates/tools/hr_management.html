@@ -7,13 +7,6 @@
 {% block extra_head %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-    :root {
-        --hr-bg: #010409;
-        --hr-panel: #0d1117;
-        --hr-border: #30363d;
-        --hr-accent: #10B981;
-        --hr-text: #c9d1d9;
-    }
 
     .hr-container {
         max-width: 1600px;
@@ -26,8 +19,8 @@
         justify-content: space-between;
         align-items: center;
         padding: 20px;
-        background: linear-gradient(135deg, var(--hr-panel), rgba(16, 185, 129, 0.1));
-        border: 1px solid var(--hr-accent);
+        background: linear-gradient(135deg, var(--archie-bg-secondary), rgba(16, 185, 129, 0.1));
+        border: 1px solid var(--archie-green);
         border-radius: 8px;
         margin-bottom: 20px;
     }
@@ -39,7 +32,7 @@
     }
 
     .hr-title h1 {
-        color: var(--hr-accent);
+        color: var(--archie-green);
         font-size: 1.8rem;
         margin: 0;
     }
@@ -77,18 +70,18 @@
 
     .hr-tab {
         padding: 12px 24px;
-        background: var(--hr-panel);
-        border: 1px solid var(--hr-border);
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
         border-radius: 6px;
-        color: var(--hr-text);
+        color: var(--archie-text-secondary);
         cursor: pointer;
         transition: all 0.3s;
     }
 
     .hr-tab:hover, .hr-tab.active {
-        background: var(--hr-accent);
+        background: var(--archie-green);
         color: #000;
-        border-color: var(--hr-accent);
+        border-color: var(--archie-green);
     }
 
     .hr-content {
@@ -107,8 +100,8 @@
     }
 
     .hr-stat-card {
-        background: var(--hr-panel);
-        border: 1px solid var(--hr-border);
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
         border-radius: 8px;
         padding: 20px;
         text-align: center;
@@ -117,7 +110,7 @@
     .hr-stat-value {
         font-size: 2rem;
         font-weight: 700;
-        color: var(--hr-accent);
+        color: var(--archie-green);
     }
 
     .hr-stat-label {
@@ -127,18 +120,18 @@
     }
 
     .hr-panel {
-        background: var(--hr-panel);
-        border: 1px solid var(--hr-border);
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
         border-radius: 8px;
         padding: 20px;
         margin-bottom: 20px;
     }
 
     .hr-panel h3 {
-        color: var(--hr-accent);
+        color: var(--archie-green);
         margin-bottom: 15px;
         padding-bottom: 10px;
-        border-bottom: 1px solid var(--hr-border);
+        border-bottom: 1px solid var(--archie-border-default);
     }
 
     .hr-table {
@@ -149,12 +142,12 @@
     .hr-table th, .hr-table td {
         padding: 12px;
         text-align: left;
-        border-bottom: 1px solid var(--hr-border);
+        border-bottom: 1px solid var(--archie-border-default);
     }
 
     .hr-table th {
         background: rgba(16, 185, 129, 0.1);
-        color: var(--hr-accent);
+        color: var(--archie-green);
     }
 
     .hr-table tr:hover {
@@ -165,7 +158,7 @@
         display: inline-block;
         padding: 4px 8px;
         background: rgba(16, 185, 129, 0.2);
-        color: var(--hr-accent);
+        color: var(--archie-green);
         border-radius: 4px;
         font-size: 0.75rem;
     }

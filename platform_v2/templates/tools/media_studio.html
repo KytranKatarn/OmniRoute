@@ -502,30 +502,12 @@
    MEDIA STUDIO - NEO-COMMAND CENTER AESTHETIC (ORANGE THEME)
    ═══════════════════════════════════════════════════════════════════════════════ */
 
-:root {
-    --ms-accent: #F59E0B;
-    --ms-accent-rgb: 245, 158, 11;
-    --ms-accent-light: #FCD34D;
-    --ms-accent-dark: #D97706;
-    --ms-secondary: #EF4444;
-    --ms-success: #10B981;
-    --ms-warning: #F59E0B;
-    --ms-danger: #EF4444;
-    --ms-purple: #8B5CF6;
-    --ms-cyan: #06B6D4;
-    --ms-bg-primary: #0a0a0f;
-    --ms-bg-secondary: #0d1117;
-    --ms-bg-card: rgba(13, 17, 23, 0.95);
-    --ms-border: rgba(245, 158, 11, 0.2);
-    --ms-text-primary: #ffffff;
-    --ms-text-secondary: rgba(255, 255, 255, 0.7);
-    --ms-text-muted: rgba(255, 255, 255, 0.5);
-}
+/* Custom variables replaced with --archie-* design tokens */
 
 /* Container */
 .ms-container {
     min-height: 100vh;
-    background: var(--ms-bg-primary);
+    background: var(--archie-bg-primary);
     padding: 20px 30px 40px;
     padding-top: 80px;
 }
@@ -561,11 +543,11 @@
     font-family: 'Orbitron', sans-serif;
     font-size: 2rem;
     font-weight: 700;
-    color: var(--ms-accent);
+    color: var(--archie-orange);
     display: flex;
     align-items: center;
     gap: 15px;
-    text-shadow: 0 0 20px rgba(var(--ms-accent-rgb), 0.5);
+    text-shadow: 0 0 20px rgba(255, 170, 0, 0.5);
     margin: 0;
 }
 
@@ -577,7 +559,7 @@
 .ms-subtitle {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.9rem;
-    color: var(--ms-text-secondary);
+    color: var(--archie-text-tertiary);
     margin: 8px 0 0 51px;
     letter-spacing: 0.5px;
 }
@@ -610,25 +592,25 @@
 
 .ms-btn-primary {
     background: transparent;
-    color: var(--ms-accent);
-    border: 2px solid var(--ms-accent);
+    color: var(--archie-orange);
+    border: 2px solid var(--archie-orange);
 }
 
 .ms-btn-primary:hover {
-    background: var(--ms-accent);
+    background: var(--archie-orange);
     color: #000;
-    box-shadow: 0 0 20px rgba(var(--ms-accent-rgb), 0.4);
+    box-shadow: 0 0 20px rgba(255, 170, 0, 0.4);
 }
 
 .ms-btn-secondary {
     background: transparent;
-    color: var(--ms-text-secondary);
+    color: var(--archie-text-tertiary);
     border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .ms-btn-secondary:hover {
     border-color: rgba(255, 255, 255, 0.4);
-    color: var(--ms-text-primary);
+    color: var(--archie-text-secondary);
 }
 
 .ms-btn-large {
@@ -652,8 +634,8 @@
 }
 
 .ms-stat-card {
-    background: var(--ms-bg-card);
-    border: 1px solid var(--ms-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 12px;
     padding: 20px;
     display: flex;
@@ -665,8 +647,8 @@
 }
 
 .ms-stat-card:hover {
-    border-color: rgba(var(--ms-accent-rgb), 0.5);
-    box-shadow: 0 0 20px rgba(var(--ms-accent-rgb), 0.15);
+    border-color: rgba(255, 170, 0, 0.5);
+    box-shadow: 0 0 20px rgba(255, 170, 0, 0.15);
     transform: translateY(-2px);
 }
 
@@ -677,8 +659,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(var(--ms-accent-rgb), 0.1);
-    color: var(--ms-accent);
+    background: var(--archie-orange-alpha-10);
+    color: var(--archie-orange);
 }
 
 .ms-stat-icon i {
@@ -710,13 +692,13 @@
     font-family: 'Orbitron', sans-serif;
     font-size: 1.75rem;
     font-weight: 700;
-    color: var(--ms-text-primary);
+    color: var(--archie-text-secondary);
 }
 
 .ms-stat-label {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.7rem;
-    color: var(--ms-text-muted);
+    color: var(--archie-text-muted);
     letter-spacing: 1px;
     text-transform: uppercase;
 }
@@ -726,7 +708,7 @@
     display: flex;
     gap: 8px;
     margin-bottom: 24px;
-    border-bottom: 1px solid var(--ms-border);
+    border-bottom: 1px solid var(--archie-border-default);
 }
 
 .ms-tab {
@@ -737,7 +719,7 @@
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.85rem;
     font-weight: 500;
-    color: var(--ms-text-muted);
+    color: var(--archie-text-muted);
     background: transparent;
     border: none;
     cursor: pointer;
@@ -757,17 +739,17 @@
     left: 0;
     right: 0;
     height: 2px;
-    background: var(--ms-accent);
+    background: var(--archie-orange);
     transform: scaleX(0);
     transition: transform 0.25s ease;
 }
 
 .ms-tab:hover {
-    color: var(--ms-text-secondary);
+    color: var(--archie-text-tertiary);
 }
 
 .ms-tab.active {
-    color: var(--ms-accent);
+    color: var(--archie-orange);
 }
 
 .ms-tab.active::after {
@@ -797,8 +779,8 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    background: var(--ms-bg-card);
-    border: 1px solid var(--ms-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 8px;
     padding: 0 16px;
     flex: 1;
@@ -808,7 +790,7 @@
 .ms-search i {
     width: 18px;
     height: 18px;
-    color: var(--ms-text-muted);
+    color: var(--archie-text-muted);
 }
 
 .ms-search input {
@@ -818,11 +800,11 @@
     padding: 12px 0;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.9rem;
-    color: var(--ms-text-primary);
+    color: var(--archie-text-secondary);
 }
 
 .ms-search input::placeholder {
-    color: var(--ms-text-muted);
+    color: var(--archie-text-muted);
 }
 
 .ms-search input:focus {
@@ -836,27 +818,27 @@
 }
 
 .ms-select {
-    background: var(--ms-bg-card);
-    border: 1px solid var(--ms-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 8px;
     padding: 12px 16px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.85rem;
-    color: var(--ms-text-primary);
+    color: var(--archie-text-secondary);
     cursor: pointer;
     min-width: 150px;
 }
 
 .ms-select:focus {
     outline: none;
-    border-color: var(--ms-accent);
+    border-color: var(--archie-orange);
 }
 
 .ms-view-toggle {
     display: flex;
     gap: 4px;
-    background: var(--ms-bg-card);
-    border: 1px solid var(--ms-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 8px;
     padding: 4px;
 }
@@ -870,18 +852,18 @@
     background: transparent;
     border: none;
     border-radius: 6px;
-    color: var(--ms-text-muted);
+    color: var(--archie-text-muted);
     cursor: pointer;
     transition: all 0.2s ease;
 }
 
 .ms-view-btn:hover {
-    color: var(--ms-text-secondary);
+    color: var(--archie-text-tertiary);
 }
 
 .ms-view-btn.active {
-    background: rgba(var(--ms-accent-rgb), 0.2);
-    color: var(--ms-accent);
+    background: var(--archie-orange-alpha-20);
+    color: var(--archie-orange);
 }
 
 .ms-view-btn i {
@@ -905,8 +887,8 @@
     justify-content: center;
     padding: 80px 40px;
     text-align: center;
-    background: var(--ms-bg-card);
-    border: 1px dashed var(--ms-border);
+    background: var(--archie-bg-secondary);
+    border: 1px dashed var(--archie-border-default);
     border-radius: 12px;
 }
 
@@ -914,7 +896,7 @@
     width: 80px;
     height: 80px;
     border-radius: 50%;
-    background: rgba(var(--ms-accent-rgb), 0.1);
+    background: var(--archie-orange-alpha-10);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -924,20 +906,20 @@
 .ms-empty-icon i {
     width: 40px;
     height: 40px;
-    color: var(--ms-accent);
+    color: var(--archie-orange);
 }
 
 .ms-empty-state h3 {
     font-family: 'Orbitron', sans-serif;
     font-size: 1.25rem;
-    color: var(--ms-text-primary);
+    color: var(--archie-text-secondary);
     margin: 0 0 8px;
 }
 
 .ms-empty-state p {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.9rem;
-    color: var(--ms-text-muted);
+    color: var(--archie-text-muted);
     margin: 0 0 24px;
 }
 
@@ -948,8 +930,8 @@
 
 /* Media Card */
 .ms-media-card {
-    background: var(--ms-bg-card);
-    border: 1px solid var(--ms-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 12px;
     overflow: hidden;
     cursor: pointer;
@@ -957,8 +939,8 @@
 }
 
 .ms-media-card:hover {
-    border-color: var(--ms-accent);
-    box-shadow: 0 0 20px rgba(var(--ms-accent-rgb), 0.2);
+    border-color: var(--archie-orange);
+    box-shadow: 0 0 20px var(--archie-orange-alpha-20);
     transform: translateY(-2px);
 }
 
@@ -983,7 +965,7 @@
 .ms-media-name {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.8rem;
-    color: var(--ms-text-primary);
+    color: var(--archie-text-secondary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -992,7 +974,7 @@
 .ms-media-type {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.7rem;
-    color: var(--ms-text-muted);
+    color: var(--archie-text-muted);
     text-transform: uppercase;
 }
 
@@ -1011,8 +993,8 @@
 }
 
 .ms-generator-section {
-    background: var(--ms-bg-card);
-    border: 1px solid var(--ms-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 12px;
     padding: 20px;
 }
@@ -1020,7 +1002,7 @@
 .ms-generator-section h3 {
     font-family: 'Orbitron', sans-serif;
     font-size: 0.9rem;
-    color: var(--ms-text-primary);
+    color: var(--archie-text-secondary);
     display: flex;
     align-items: center;
     gap: 10px;
@@ -1030,29 +1012,29 @@
 .ms-generator-section h3 i {
     width: 18px;
     height: 18px;
-    color: var(--ms-accent);
+    color: var(--archie-orange);
 }
 
 .ms-textarea {
     width: 100%;
     background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--ms-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 8px;
     padding: 12px 16px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.9rem;
-    color: var(--ms-text-primary);
+    color: var(--archie-text-secondary);
     resize: vertical;
     line-height: 1.5;
 }
 
 .ms-textarea:focus {
     outline: none;
-    border-color: var(--ms-accent);
+    border-color: var(--archie-orange);
 }
 
 .ms-textarea::placeholder {
-    color: var(--ms-text-muted);
+    color: var(--archie-text-muted);
 }
 
 .ms-settings-grid {
@@ -1070,7 +1052,7 @@
 .ms-setting label {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.75rem;
-    color: var(--ms-text-muted);
+    color: var(--archie-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
@@ -1083,8 +1065,8 @@
 
 .ms-preview-container {
     flex: 1;
-    background: var(--ms-bg-card);
-    border: 1px solid var(--ms-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 12px;
     display: flex;
     align-items: center;
@@ -1098,7 +1080,7 @@
     flex-direction: column;
     align-items: center;
     gap: 16px;
-    color: var(--ms-text-muted);
+    color: var(--archie-text-muted);
 }
 
 .ms-preview-placeholder i {
@@ -1125,8 +1107,8 @@
 /* Suggestions */
 .ms-suggestions {
     margin-top: 24px;
-    background: var(--ms-bg-card);
-    border: 1px solid var(--ms-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 12px;
     padding: 20px;
 }
@@ -1134,7 +1116,7 @@
 .ms-suggestions h4 {
     font-family: 'Orbitron', sans-serif;
     font-size: 0.9rem;
-    color: var(--ms-text-primary);
+    color: var(--archie-text-secondary);
     margin: 0 0 16px;
 }
 
@@ -1150,11 +1132,11 @@
     gap: 10px;
     padding: 12px 16px;
     background: transparent;
-    border: 1px solid var(--ms-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 8px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.8rem;
-    color: var(--ms-text-secondary);
+    color: var(--archie-text-tertiary);
     cursor: pointer;
     transition: all 0.25s ease;
 }
@@ -1162,13 +1144,13 @@
 .ms-suggestion i {
     width: 16px;
     height: 16px;
-    color: var(--ms-accent);
+    color: var(--archie-orange);
 }
 
 .ms-suggestion:hover {
-    border-color: var(--ms-accent);
-    background: rgba(var(--ms-accent-rgb), 0.05);
-    color: var(--ms-text-primary);
+    border-color: var(--archie-orange);
+    background: rgba(255, 170, 0, 0.05);
+    color: var(--archie-text-secondary);
 }
 
 /* Video Editor */
@@ -1181,8 +1163,8 @@
 
 .ms-editor-sidebar,
 .ms-editor-properties {
-    background: var(--ms-bg-card);
-    border: 1px solid var(--ms-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 12px;
     padding: 16px;
 }
@@ -1194,7 +1176,7 @@
 .ms-editor-section h3 {
     font-family: 'Orbitron', sans-serif;
     font-size: 0.8rem;
-    color: var(--ms-text-primary);
+    color: var(--archie-text-secondary);
     display: flex;
     align-items: center;
     gap: 8px;
@@ -1204,7 +1186,7 @@
 .ms-editor-section h3 i {
     width: 16px;
     height: 16px;
-    color: var(--ms-accent);
+    color: var(--archie-orange);
 }
 
 .ms-file-list {
@@ -1219,7 +1201,7 @@
 .ms-file-empty p {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.75rem;
-    color: var(--ms-text-muted);
+    color: var(--archie-text-muted);
     margin: 0 0 12px;
 }
 
@@ -1236,11 +1218,11 @@
     gap: 6px;
     padding: 12px 8px;
     background: transparent;
-    border: 1px solid var(--ms-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 8px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.7rem;
-    color: var(--ms-text-secondary);
+    color: var(--archie-text-tertiary);
     cursor: pointer;
     transition: all 0.25s ease;
 }
@@ -1248,12 +1230,12 @@
 .ms-effect-btn i {
     width: 18px;
     height: 18px;
-    color: var(--ms-accent);
+    color: var(--archie-orange);
 }
 
 .ms-effect-btn:hover {
-    border-color: var(--ms-accent);
-    background: rgba(var(--ms-accent-rgb), 0.05);
+    border-color: var(--archie-orange);
+    background: rgba(255, 170, 0, 0.05);
 }
 
 .ms-editor-main {
@@ -1264,8 +1246,8 @@
 
 .ms-video-preview {
     flex: 1;
-    background: var(--ms-bg-card);
-    border: 1px solid var(--ms-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 12px;
     display: flex;
     align-items: center;
@@ -1278,7 +1260,7 @@
     flex-direction: column;
     align-items: center;
     gap: 12px;
-    color: var(--ms-text-muted);
+    color: var(--archie-text-muted);
 }
 
 .ms-video-placeholder i {
@@ -1293,8 +1275,8 @@
 }
 
 .ms-timeline {
-    background: var(--ms-bg-card);
-    border: 1px solid var(--ms-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 12px;
     overflow: hidden;
 }
@@ -1304,7 +1286,7 @@
     align-items: center;
     gap: 16px;
     padding: 12px 16px;
-    border-bottom: 1px solid var(--ms-border);
+    border-bottom: 1px solid var(--archie-border-default);
 }
 
 .ms-timeline-btn {
@@ -1314,16 +1296,16 @@
     align-items: center;
     justify-content: center;
     background: transparent;
-    border: 1px solid var(--ms-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 6px;
-    color: var(--ms-text-secondary);
+    color: var(--archie-text-tertiary);
     cursor: pointer;
     transition: all 0.2s ease;
 }
 
 .ms-timeline-btn:hover {
-    border-color: var(--ms-accent);
-    color: var(--ms-accent);
+    border-color: var(--archie-orange);
+    color: var(--archie-orange);
 }
 
 .ms-timeline-btn i {
@@ -1334,7 +1316,7 @@
 .ms-timeline-time {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.8rem;
-    color: var(--ms-text-muted);
+    color: var(--archie-text-muted);
 }
 
 .ms-timeline-zoom {
@@ -1361,7 +1343,7 @@
 .ms-track-label {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.7rem;
-    color: var(--ms-text-muted);
+    color: var(--archie-text-muted);
     text-transform: uppercase;
     width: 50px;
 }
@@ -1371,13 +1353,13 @@
     height: 40px;
     background: rgba(0, 0, 0, 0.3);
     border-radius: 4px;
-    border: 1px solid var(--ms-border);
+    border: 1px solid var(--archie-border-default);
 }
 
 .ms-editor-properties h3 {
     font-family: 'Orbitron', sans-serif;
     font-size: 0.8rem;
-    color: var(--ms-text-primary);
+    color: var(--archie-text-secondary);
     display: flex;
     align-items: center;
     gap: 8px;
@@ -1387,13 +1369,13 @@
 .ms-editor-properties h3 i {
     width: 16px;
     height: 16px;
-    color: var(--ms-accent);
+    color: var(--archie-orange);
 }
 
 .ms-properties-empty {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.8rem;
-    color: var(--ms-text-muted);
+    color: var(--archie-text-muted);
     text-align: center;
     padding: 20px;
 }
@@ -1413,8 +1395,8 @@
 }
 
 .ms-shorts-section {
-    background: var(--ms-bg-card);
-    border: 1px solid var(--ms-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 12px;
     padding: 20px;
 }
@@ -1422,7 +1404,7 @@
 .ms-shorts-section h3 {
     font-family: 'Orbitron', sans-serif;
     font-size: 0.9rem;
-    color: var(--ms-text-primary);
+    color: var(--archie-text-secondary);
     display: flex;
     align-items: center;
     gap: 10px;
@@ -1432,7 +1414,7 @@
 .ms-shorts-section h3 i {
     width: 18px;
     height: 18px;
-    color: var(--ms-accent);
+    color: var(--archie-orange);
 }
 
 .ms-shorts-preview {
@@ -1451,7 +1433,7 @@
 .ms-phone-screen {
     width: 100%;
     aspect-ratio: 9/16;
-    background: var(--ms-bg-secondary);
+    background: var(--archie-bg-secondary);
     border-radius: 28px;
     display: flex;
     align-items: center;
@@ -1464,7 +1446,7 @@
     flex-direction: column;
     align-items: center;
     gap: 12px;
-    color: var(--ms-text-muted);
+    color: var(--archie-text-muted);
 }
 
 .ms-phone-placeholder i {
@@ -1479,8 +1461,8 @@
 }
 
 .ms-recent-shorts {
-    background: var(--ms-bg-card);
-    border: 1px solid var(--ms-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 12px;
     padding: 20px;
 }
@@ -1488,7 +1470,7 @@
 .ms-recent-shorts h4 {
     font-family: 'Orbitron', sans-serif;
     font-size: 0.9rem;
-    color: var(--ms-text-primary);
+    color: var(--archie-text-secondary);
     margin: 0 0 16px;
 }
 
@@ -1500,7 +1482,7 @@
 .ms-shorts-empty p {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.85rem;
-    color: var(--ms-text-muted);
+    color: var(--archie-text-muted);
 }
 
 /* Modals */
@@ -1526,8 +1508,8 @@
 }
 
 .ms-modal-content {
-    background: var(--ms-bg-secondary);
-    border: 1px solid var(--ms-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 16px;
     width: 100%;
     max-width: 500px;
@@ -1544,13 +1526,13 @@
     justify-content: space-between;
     align-items: center;
     padding: 24px;
-    border-bottom: 1px solid var(--ms-border);
+    border-bottom: 1px solid var(--archie-border-default);
 }
 
 .ms-modal-header h2 {
     font-family: 'Orbitron', sans-serif;
     font-size: 1.25rem;
-    color: var(--ms-text-primary);
+    color: var(--archie-text-secondary);
     display: flex;
     align-items: center;
     gap: 12px;
@@ -1560,7 +1542,7 @@
 .ms-modal-header h2 i {
     width: 24px;
     height: 24px;
-    color: var(--ms-accent);
+    color: var(--archie-orange);
 }
 
 .ms-modal-close {
@@ -1568,8 +1550,8 @@
     height: 36px;
     border-radius: 8px;
     background: transparent;
-    border: 1px solid var(--ms-border);
-    color: var(--ms-text-muted);
+    border: 1px solid var(--archie-border-default);
+    color: var(--archie-text-muted);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -1578,8 +1560,8 @@
 }
 
 .ms-modal-close:hover {
-    border-color: var(--ms-danger);
-    color: var(--ms-danger);
+    border-color: var(--archie-danger);
+    color: var(--archie-danger);
 }
 
 .ms-modal-body {
@@ -1598,7 +1580,7 @@
     display: block;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.8rem;
-    color: var(--ms-text-muted);
+    color: var(--archie-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-bottom: 8px;
@@ -1609,7 +1591,7 @@
     justify-content: flex-end;
     gap: 12px;
     padding: 24px;
-    border-top: 1px solid var(--ms-border);
+    border-top: 1px solid var(--archie-border-default);
 }
 
 /* Upload Zone */
@@ -1619,7 +1601,7 @@
     align-items: center;
     justify-content: center;
     padding: 60px 40px;
-    border: 2px dashed var(--ms-border);
+    border: 2px dashed var(--archie-border-default);
     border-radius: 12px;
     cursor: pointer;
     transition: all 0.3s ease;
@@ -1627,28 +1609,28 @@
 }
 
 .ms-upload-zone:hover {
-    border-color: var(--ms-accent);
-    background: rgba(var(--ms-accent-rgb), 0.05);
+    border-color: var(--archie-orange);
+    background: rgba(255, 170, 0, 0.05);
 }
 
 .ms-upload-zone i {
     width: 48px;
     height: 48px;
-    color: var(--ms-accent);
+    color: var(--archie-orange);
     margin-bottom: 16px;
 }
 
 .ms-upload-zone h3 {
     font-family: 'Orbitron', sans-serif;
     font-size: 1.1rem;
-    color: var(--ms-text-primary);
+    color: var(--archie-text-secondary);
     margin: 0 0 8px;
 }
 
 .ms-upload-zone p {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.85rem;
-    color: var(--ms-text-muted);
+    color: var(--archie-text-muted);
     margin: 0;
 }
 
@@ -1670,7 +1652,7 @@
 .ms-upload-info p {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.75rem;
-    color: var(--ms-text-muted);
+    color: var(--archie-text-muted);
     margin: 4px 0;
 }
 
@@ -1684,37 +1666,20 @@
 .ms-style-btn {
     padding: 10px 20px;
     background: transparent;
-    border: 1px solid var(--ms-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 8px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.8rem;
-    color: var(--ms-text-secondary);
+    color: var(--archie-text-tertiary);
     cursor: pointer;
     transition: all 0.25s ease;
 }
 
 .ms-style-btn:hover,
 .ms-style-btn.active {
-    border-color: var(--ms-accent);
-    color: var(--ms-accent);
-    background: rgba(var(--ms-accent-rgb), 0.1);
-}
-
-/* Animations */
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
-@keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    border-color: var(--archie-orange);
+    color: var(--archie-orange);
+    background: var(--archie-orange-alpha-10);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
@@ -2264,8 +2229,8 @@ if (uploadZone) {
 
     ['dragenter', 'dragover'].forEach(eventName => {
         uploadZone.addEventListener(eventName, () => {
-            uploadZone.style.borderColor = 'var(--ms-accent)';
-            uploadZone.style.background = 'rgba(var(--ms-accent-rgb), 0.1)';
+            uploadZone.style.borderColor = 'var(--archie-orange)';
+            uploadZone.style.background = 'var(--archie-orange-alpha-10)';
         }, false);
     });
 

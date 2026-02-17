@@ -459,27 +459,11 @@
    STOCKBOT - AI STOCK SCREENER (RED THEME)
    =============================================================================== */
 
-:root {
-    --stockbot-accent: #EF4444;
-    --stockbot-accent-rgb: 239, 68, 68;
-    --stockbot-accent-light: #FCA5A5;
-    --stockbot-accent-dark: #DC2626;
-    --stockbot-success: #10B981;
-    --stockbot-warning: #F59E0B;
-    --stockbot-info: #3B82F6;
-    --stockbot-danger: #EF4444;
-    --stockbot-bg-primary: #0a0a0f;
-    --stockbot-bg-secondary: #0d1117;
-    --stockbot-bg-card: rgba(13, 17, 23, 0.95);
-    --stockbot-border: rgba(239, 68, 68, 0.2);
-    --stockbot-text-primary: #ffffff;
-    --stockbot-text-secondary: rgba(255, 255, 255, 0.7);
-    --stockbot-text-muted: rgba(255, 255, 255, 0.5);
-}
+/* Custom vars removed — using --archie-* design tokens from theme.css */
 
 .stockbot-container {
     min-height: 100vh;
-    background: var(--stockbot-bg-primary);
+    background: var(--archie-bg-void);
     padding: 20px 30px 40px;
     padding-top: 80px;
 }
@@ -514,11 +498,11 @@
     font-family: 'Orbitron', sans-serif;
     font-size: 2rem;
     font-weight: 700;
-    color: var(--stockbot-accent);
+    color: var(--archie-red);
     display: flex;
     align-items: center;
     gap: 15px;
-    text-shadow: 0 0 20px rgba(var(--stockbot-accent-rgb), 0.5);
+    text-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
     margin: 0;
 }
 
@@ -530,7 +514,7 @@
 .stockbot-subtitle {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.9rem;
-    color: var(--stockbot-text-secondary);
+    color: var(--archie-text-tertiary);
     margin: 8px 0 0 51px;
 }
 
@@ -540,7 +524,7 @@
     gap: 8px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.85rem;
-    color: var(--stockbot-success);
+    color: var(--archie-success);
 }
 
 .status-indicator {
@@ -551,13 +535,8 @@
 }
 
 .status-online {
-    background: var(--stockbot-success);
-    box-shadow: 0 0 10px var(--stockbot-success);
-}
-
-@keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+    background: var(--archie-success);
+    box-shadow: 0 0 10px var(--archie-success);
 }
 
 /* Disclaimer */
@@ -572,7 +551,7 @@
     margin-bottom: 24px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.8rem;
-    color: var(--stockbot-warning);
+    color: var(--archie-warning);
     line-height: 1.5;
 }
 
@@ -592,8 +571,8 @@
 }
 
 .stockbot-stat-card {
-    background: var(--stockbot-bg-card);
-    border: 1px solid var(--stockbot-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-red-alpha-20);
     border-radius: 12px;
     padding: 20px;
     display: flex;
@@ -605,8 +584,8 @@
 }
 
 .stockbot-stat-card:hover {
-    border-color: rgba(var(--stockbot-accent-rgb), 0.5);
-    box-shadow: 0 0 20px rgba(var(--stockbot-accent-rgb), 0.15);
+    border-color: rgba(239, 68, 68, 0.5);
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.15);
     transform: translateY(-2px);
 }
 
@@ -617,8 +596,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(var(--stockbot-accent-rgb), 0.1);
-    color: var(--stockbot-accent);
+    background: var(--archie-red-alpha-10);
+    color: var(--archie-red);
 }
 
 .stockbot-stat-icon i {
@@ -650,13 +629,13 @@
     font-family: 'Orbitron', sans-serif;
     font-size: 1.75rem;
     font-weight: 700;
-    color: var(--stockbot-text-primary);
+    color: var(--archie-text-secondary);
 }
 
 .stockbot-stat-label {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.7rem;
-    color: var(--stockbot-text-muted);
+    color: var(--archie-text-muted);
     letter-spacing: 1px;
 }
 
@@ -665,7 +644,7 @@
     display: flex;
     gap: 8px;
     margin-bottom: 24px;
-    border-bottom: 1px solid var(--stockbot-border);
+    border-bottom: 1px solid var(--archie-red-alpha-20);
 }
 
 .stockbot-tab {
@@ -675,7 +654,7 @@
     padding: 12px 20px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.85rem;
-    color: var(--stockbot-text-muted);
+    color: var(--archie-text-muted);
     background: transparent;
     border: none;
     cursor: pointer;
@@ -695,17 +674,17 @@
     left: 0;
     right: 0;
     height: 2px;
-    background: var(--stockbot-accent);
+    background: var(--archie-red);
     transform: scaleX(0);
     transition: transform 0.25s ease;
 }
 
 .stockbot-tab:hover {
-    color: var(--stockbot-text-secondary);
+    color: var(--archie-text-tertiary);
 }
 
 .stockbot-tab.active {
-    color: var(--stockbot-accent);
+    color: var(--archie-red);
 }
 
 .stockbot-tab.active::after {
@@ -734,8 +713,8 @@
 .stockbot-chat-main {
     display: flex;
     flex-direction: column;
-    background: var(--stockbot-bg-card);
-    border: 1px solid var(--stockbot-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-red-alpha-20);
     border-radius: 12px;
     overflow: hidden;
 }
@@ -770,7 +749,7 @@
 }
 
 .stockbot-message--assistant .stockbot-message-avatar {
-    background: linear-gradient(135deg, var(--stockbot-accent), #F59E0B);
+    background: linear-gradient(135deg, var(--archie-red), #F59E0B);
     color: white;
 }
 
@@ -794,15 +773,15 @@
 }
 
 .stockbot-message--assistant .stockbot-message-content {
-    background: rgba(var(--stockbot-accent-rgb), 0.1);
-    border: 1px solid rgba(var(--stockbot-accent-rgb), 0.2);
-    color: var(--stockbot-text-primary);
+    background: var(--archie-red-alpha-10);
+    border: 1px solid var(--archie-red-alpha-20);
+    color: var(--archie-text-secondary);
 }
 
 .stockbot-message--user .stockbot-message-content {
     background: rgba(59, 130, 246, 0.1);
     border: 1px solid rgba(59, 130, 246, 0.2);
-    color: var(--stockbot-text-primary);
+    color: var(--archie-text-secondary);
 }
 
 .stockbot-message-content ul {
@@ -825,14 +804,14 @@
     display: flex;
     gap: 4px;
     padding: 12px;
-    background: rgba(var(--stockbot-accent-rgb), 0.1);
+    background: var(--archie-red-alpha-10);
     border-radius: 12px;
 }
 
 .stockbot-typing-dots span {
     width: 8px;
     height: 8px;
-    background: var(--stockbot-accent);
+    background: var(--archie-red);
     border-radius: 50%;
     animation: bounce 1.4s infinite;
 }
@@ -850,29 +829,29 @@
     display: flex;
     gap: 12px;
     padding: 16px 20px;
-    border-top: 1px solid var(--stockbot-border);
+    border-top: 1px solid var(--archie-red-alpha-20);
     align-items: flex-end;
 }
 
 .stockbot-chat-input textarea {
     flex: 1;
     background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--stockbot-border);
+    border: 1px solid var(--archie-red-alpha-20);
     border-radius: 8px;
     padding: 12px 16px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.9rem;
-    color: var(--stockbot-text-primary);
+    color: var(--archie-text-secondary);
     resize: none;
 }
 
 .stockbot-chat-input textarea:focus {
     outline: none;
-    border-color: var(--stockbot-accent);
+    border-color: var(--archie-red);
 }
 
 .stockbot-chat-input textarea::placeholder {
-    color: var(--stockbot-text-muted);
+    color: var(--archie-text-muted);
 }
 
 .stockbot-chat-actions {
@@ -902,25 +881,25 @@
 
 .stockbot-btn-primary {
     background: transparent;
-    color: var(--stockbot-accent);
-    border: 2px solid var(--stockbot-accent);
+    color: var(--archie-red);
+    border: 2px solid var(--archie-red);
 }
 
 .stockbot-btn-primary:hover {
-    background: var(--stockbot-accent);
+    background: var(--archie-red);
     color: white;
-    box-shadow: 0 0 20px rgba(var(--stockbot-accent-rgb), 0.4);
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
 }
 
 .stockbot-btn-secondary {
     background: transparent;
-    color: var(--stockbot-text-secondary);
-    border: 1px solid var(--stockbot-border);
+    color: var(--archie-text-tertiary);
+    border: 1px solid var(--archie-red-alpha-20);
 }
 
 .stockbot-btn-secondary:hover {
-    border-color: var(--stockbot-text-secondary);
-    color: var(--stockbot-text-primary);
+    border-color: var(--archie-text-tertiary);
+    color: var(--archie-text-secondary);
 }
 
 .stockbot-btn-icon {
@@ -929,13 +908,13 @@
     padding: 0;
     justify-content: center;
     background: transparent;
-    border: 1px solid var(--stockbot-border);
-    color: var(--stockbot-text-secondary);
+    border: 1px solid var(--archie-red-alpha-20);
+    color: var(--archie-text-tertiary);
 }
 
 .stockbot-btn-icon:hover {
-    border-color: var(--stockbot-accent);
-    color: var(--stockbot-accent);
+    border-color: var(--archie-red);
+    color: var(--archie-red);
 }
 
 .stockbot-btn-large {
@@ -956,8 +935,8 @@
 
 /* Sidebar */
 .stockbot-sidebar {
-    background: var(--stockbot-bg-card);
-    border: 1px solid var(--stockbot-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-red-alpha-20);
     border-radius: 12px;
     padding: 20px;
     display: flex;
@@ -968,7 +947,7 @@
 .stockbot-sidebar h4 {
     font-family: 'Orbitron', sans-serif;
     font-size: 0.9rem;
-    color: var(--stockbot-text-primary);
+    color: var(--archie-text-secondary);
     margin: 0;
 }
 
@@ -985,11 +964,11 @@
     gap: 6px;
     padding: 12px 8px;
     background: transparent;
-    border: 1px solid var(--stockbot-border);
+    border: 1px solid var(--archie-red-alpha-20);
     border-radius: 8px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.7rem;
-    color: var(--stockbot-text-secondary);
+    color: var(--archie-text-tertiary);
     cursor: pointer;
     transition: all 0.25s ease;
 }
@@ -997,48 +976,48 @@
 .stockbot-topic-btn i {
     width: 20px;
     height: 20px;
-    color: var(--stockbot-accent);
+    color: var(--archie-red);
 }
 
 .stockbot-topic-btn:hover {
-    border-color: var(--stockbot-accent);
-    background: rgba(var(--stockbot-accent-rgb), 0.05);
+    border-color: var(--archie-red);
+    background: rgba(239, 68, 68, 0.05);
 }
 
 .stockbot-select {
     background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--stockbot-border);
+    border: 1px solid var(--archie-red-alpha-20);
     border-radius: 8px;
     padding: 10px 12px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.8rem;
-    color: var(--stockbot-text-primary);
+    color: var(--archie-text-secondary);
     width: 100%;
 }
 
 .stockbot-select:focus {
     outline: none;
-    border-color: var(--stockbot-accent);
+    border-color: var(--archie-red);
 }
 
 .stockbot-input {
     background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--stockbot-border);
+    border: 1px solid var(--archie-red-alpha-20);
     border-radius: 8px;
     padding: 10px 12px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.85rem;
-    color: var(--stockbot-text-primary);
+    color: var(--archie-text-secondary);
     width: 100%;
 }
 
 .stockbot-input:focus {
     outline: none;
-    border-color: var(--stockbot-accent);
+    border-color: var(--archie-red);
 }
 
 .stockbot-input::placeholder {
-    color: var(--stockbot-text-muted);
+    color: var(--archie-text-muted);
 }
 
 /* Market Status */
@@ -1056,25 +1035,25 @@
     align-items: center;
     gap: 8px;
     font-size: 0.8rem;
-    color: var(--stockbot-text-secondary);
+    color: var(--archie-text-tertiary);
 }
 
 .market-dot {
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: var(--stockbot-danger);
+    background: var(--archie-danger);
 }
 
 .market-dot.open {
-    background: var(--stockbot-success);
+    background: var(--archie-success);
     animation: pulse 2s infinite;
 }
 
 .market-time {
     font-family: 'Orbitron', sans-serif;
     font-size: 0.85rem;
-    color: var(--stockbot-accent);
+    color: var(--archie-red);
 }
 
 /* Watchlist */
@@ -1090,8 +1069,8 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    background: var(--stockbot-bg-card);
-    border: 1px solid var(--stockbot-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-red-alpha-20);
     border-radius: 8px;
     padding: 0 16px;
     flex: 1;
@@ -1101,7 +1080,7 @@
 .stockbot-search i {
     width: 18px;
     height: 18px;
-    color: var(--stockbot-text-muted);
+    color: var(--archie-text-muted);
 }
 
 .stockbot-search input {
@@ -1111,7 +1090,7 @@
     padding: 12px 0;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.9rem;
-    color: var(--stockbot-text-primary);
+    color: var(--archie-text-secondary);
 }
 
 .stockbot-search input:focus {
@@ -1119,8 +1098,8 @@
 }
 
 .stockbot-watchlist-grid {
-    background: var(--stockbot-bg-card);
-    border: 1px solid var(--stockbot-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-red-alpha-20);
     border-radius: 12px;
     min-height: 300px;
     display: flex;
@@ -1136,8 +1115,8 @@
 }
 
 .stockbot-screener-form {
-    background: var(--stockbot-bg-card);
-    border: 1px solid var(--stockbot-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-red-alpha-20);
     border-radius: 12px;
     padding: 24px;
 }
@@ -1145,7 +1124,7 @@
 .stockbot-screener-form h3 {
     font-family: 'Orbitron', sans-serif;
     font-size: 1rem;
-    color: var(--stockbot-text-primary);
+    color: var(--archie-text-secondary);
     display: flex;
     align-items: center;
     gap: 10px;
@@ -1155,7 +1134,7 @@
 .stockbot-screener-form h3 i {
     width: 20px;
     height: 20px;
-    color: var(--stockbot-accent);
+    color: var(--archie-red);
 }
 
 .stockbot-filter-grid {
@@ -1173,7 +1152,7 @@
 .stockbot-filter-group label {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.8rem;
-    color: var(--stockbot-text-muted);
+    color: var(--archie-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
@@ -1189,7 +1168,7 @@
 }
 
 .stockbot-range-sep {
-    color: var(--stockbot-text-muted);
+    color: var(--archie-text-muted);
     font-size: 0.8rem;
 }
 
@@ -1201,18 +1180,18 @@
 .stockbot-preset-btn {
     padding: 6px 12px;
     background: transparent;
-    border: 1px solid var(--stockbot-border);
+    border: 1px solid var(--archie-red-alpha-20);
     border-radius: 4px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.7rem;
-    color: var(--stockbot-text-muted);
+    color: var(--archie-text-muted);
     cursor: pointer;
     transition: all 0.2s ease;
 }
 
 .stockbot-preset-btn:hover {
-    border-color: var(--stockbot-accent);
-    color: var(--stockbot-accent);
+    border-color: var(--archie-red);
+    color: var(--archie-red);
 }
 
 .stockbot-screener-actions {
@@ -1222,8 +1201,8 @@
 }
 
 .stockbot-screener-results {
-    background: var(--stockbot-bg-card);
-    border: 1px solid var(--stockbot-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-red-alpha-20);
     border-radius: 12px;
     padding: 24px;
 }
@@ -1231,7 +1210,7 @@
 .stockbot-screener-results h3 {
     font-family: 'Orbitron', sans-serif;
     font-size: 1rem;
-    color: var(--stockbot-text-primary);
+    color: var(--archie-text-secondary);
     display: flex;
     align-items: center;
     gap: 10px;
@@ -1241,14 +1220,14 @@
 .stockbot-screener-results h3 i {
     width: 20px;
     height: 20px;
-    color: var(--stockbot-accent);
+    color: var(--archie-red);
 }
 
 .results-count {
     margin-left: auto;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.8rem;
-    color: var(--stockbot-text-muted);
+    color: var(--archie-text-muted);
     font-weight: normal;
 }
 
@@ -1270,7 +1249,7 @@
 .stockbot-alerts-header h3 {
     font-family: 'Orbitron', sans-serif;
     font-size: 1rem;
-    color: var(--stockbot-text-primary);
+    color: var(--archie-text-secondary);
     display: flex;
     align-items: center;
     gap: 10px;
@@ -1280,7 +1259,7 @@
 .stockbot-alerts-header h3 i {
     width: 20px;
     height: 20px;
-    color: var(--stockbot-accent);
+    color: var(--archie-red);
 }
 
 .stockbot-telegram-banner {
@@ -1308,19 +1287,19 @@
 
 .telegram-info strong {
     display: block;
-    color: var(--stockbot-text-primary);
+    color: var(--archie-text-secondary);
     margin-bottom: 4px;
 }
 
 .telegram-info p {
     margin: 0;
-    color: var(--stockbot-text-secondary);
+    color: var(--archie-text-tertiary);
     font-size: 0.85rem;
 }
 
 .stockbot-alerts-list {
-    background: var(--stockbot-bg-card);
-    border: 1px solid var(--stockbot-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-red-alpha-20);
     border-radius: 12px;
     min-height: 300px;
     display: flex;
@@ -1344,8 +1323,8 @@
 }
 
 .stockbot-modal-content {
-    background: var(--stockbot-bg-secondary);
-    border: 1px solid var(--stockbot-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-red-alpha-20);
     border-radius: 16px;
     width: 90%;
     max-width: 500px;
@@ -1357,13 +1336,13 @@
     justify-content: space-between;
     align-items: center;
     padding: 20px 24px;
-    border-bottom: 1px solid var(--stockbot-border);
+    border-bottom: 1px solid var(--archie-red-alpha-20);
 }
 
 .stockbot-modal-header h3 {
     font-family: 'Orbitron', sans-serif;
     font-size: 1.1rem;
-    color: var(--stockbot-text-primary);
+    color: var(--archie-text-secondary);
     margin: 0;
 }
 
@@ -1374,16 +1353,16 @@
     align-items: center;
     justify-content: center;
     background: transparent;
-    border: 1px solid var(--stockbot-border);
+    border: 1px solid var(--archie-red-alpha-20);
     border-radius: 8px;
-    color: var(--stockbot-text-muted);
+    color: var(--archie-text-muted);
     cursor: pointer;
     transition: all 0.2s ease;
 }
 
 .stockbot-modal-close:hover {
-    border-color: var(--stockbot-accent);
-    color: var(--stockbot-accent);
+    border-color: var(--archie-red);
+    color: var(--archie-red);
 }
 
 .stockbot-modal-body {
@@ -1398,7 +1377,7 @@
     display: block;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.8rem;
-    color: var(--stockbot-text-muted);
+    color: var(--archie-text-muted);
     margin-bottom: 8px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -1415,7 +1394,7 @@
     align-items: center;
     gap: 10px;
     cursor: pointer;
-    color: var(--stockbot-text-secondary);
+    color: var(--archie-text-tertiary);
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.9rem;
 }
@@ -1423,7 +1402,7 @@
 .stockbot-checkbox input {
     width: 18px;
     height: 18px;
-    accent-color: var(--stockbot-accent);
+    accent-color: var(--archie-red);
 }
 
 .stockbot-modal-footer {
@@ -1431,7 +1410,7 @@
     justify-content: flex-end;
     gap: 12px;
     padding: 20px 24px;
-    border-top: 1px solid var(--stockbot-border);
+    border-top: 1px solid var(--archie-red-alpha-20);
 }
 
 /* Empty State */
@@ -1442,7 +1421,7 @@
     justify-content: center;
     padding: 40px;
     text-align: center;
-    color: var(--stockbot-text-muted);
+    color: var(--archie-text-muted);
 }
 
 .stockbot-empty-state i {
@@ -1461,23 +1440,6 @@
 .stockbot-empty-hint {
     font-size: 0.8rem !important;
     opacity: 0.7;
-}
-
-/* Animations */
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
-@keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
 }
 
 /* ===============================================================================

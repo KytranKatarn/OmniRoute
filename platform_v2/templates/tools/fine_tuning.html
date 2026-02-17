@@ -7,31 +7,14 @@
 {% block extra_head %}
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
-    :root {
-        --ft-primary: #8B5CF6;
-        --ft-primary-light: #A78BFA;
-        --ft-primary-dark: #7C3AED;
-        --ft-indigo: #6366F1;
-        --ft-bg: #0a0a12;
-        --ft-card: #12121a;
-        --ft-card-hover: #1a1a24;
-        --ft-border: rgba(139, 92, 246, 0.15);
-        --ft-border-bright: rgba(139, 92, 246, 0.4);
-        --ft-text: #E5E7EB;
-        --ft-text-dim: #9CA3AF;
-        --ft-text-muted: #6B7280;
-        --ft-success: #10B981;
-        --ft-warning: #F59E0B;
-        --ft-danger: #EF4444;
-        --ft-glow: 0 0 20px rgba(139, 92, 246, 0.3);
-    }
+    /* Custom vars migrated to --archie-* tokens */
 
     /* ═══════════════════════════════════════════════════════════════
        NEURAL GRID BACKGROUND
        ═══════════════════════════════════════════════════════════════ */
     .ft-container {
         min-height: 100vh;
-        background: var(--ft-bg);
+        background: var(--archie-bg-primary);
         position: relative;
         overflow-x: hidden;
     }
@@ -74,7 +57,7 @@
        ═══════════════════════════════════════════════════════════════ */
     .ft-container {
         font-family: 'Outfit', sans-serif;
-        color: var(--ft-text);
+        color: var(--archie-text-secondary);
     }
 
     .ft-mono {
@@ -90,7 +73,7 @@
         justify-content: space-between;
         margin-bottom: 32px;
         padding-bottom: 24px;
-        border-bottom: 1px solid var(--ft-border);
+        border-bottom: 1px solid var(--archie-border-default);
     }
 
     .ft-title-group {
@@ -102,12 +85,12 @@
     .ft-icon-wrapper {
         width: 56px;
         height: 56px;
-        background: linear-gradient(135deg, var(--ft-primary) 0%, var(--ft-indigo) 100%);
+        background: linear-gradient(135deg, var(--archie-purple) 0%, var(--archie-purple) 100%);
         border-radius: 14px;
         display: flex;
         align-items: center;
         justify-content: center;
-        box-shadow: var(--ft-glow);
+        box-shadow: var(--archie-glow-purple);
         animation: ft-pulse 3s ease-in-out infinite;
     }
 
@@ -126,7 +109,7 @@
         font-size: 28px;
         font-weight: 700;
         letter-spacing: -0.5px;
-        background: linear-gradient(135deg, #fff 0%, var(--ft-primary-light) 100%);
+        background: linear-gradient(135deg, #fff 0%, var(--archie-purple) 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
@@ -134,7 +117,7 @@
 
     .ft-subtitle {
         font-size: 14px;
-        color: var(--ft-text-dim);
+        color: var(--archie-text-tertiary);
         margin-top: 4px;
         font-weight: 400;
     }
@@ -167,7 +150,7 @@
     }
 
     .ft-btn-primary {
-        background: linear-gradient(135deg, var(--ft-primary) 0%, var(--ft-indigo) 100%);
+        background: linear-gradient(135deg, var(--archie-purple) 0%, var(--archie-purple) 100%);
         color: white;
         box-shadow: 0 2px 10px rgba(139, 92, 246, 0.3);
     }
@@ -178,24 +161,24 @@
     }
 
     .ft-btn-secondary {
-        background: var(--ft-card);
-        color: var(--ft-text);
-        border: 1px solid var(--ft-border);
+        background: var(--archie-bg-secondary);
+        color: var(--archie-text-secondary);
+        border: 1px solid var(--archie-border-default);
     }
 
     .ft-btn-secondary:hover {
-        background: var(--ft-card-hover);
-        border-color: var(--ft-border-bright);
+        background: var(--archie-bg-tertiary);
+        border-color: var(--archie-border-emphasis);
     }
 
     .ft-btn-ghost {
         background: transparent;
-        color: var(--ft-text-dim);
+        color: var(--archie-text-tertiary);
         padding: 8px 12px;
     }
 
     .ft-btn-ghost:hover {
-        color: var(--ft-primary-light);
+        color: var(--archie-purple);
         background: rgba(139, 92, 246, 0.1);
     }
 
@@ -220,8 +203,8 @@
     }
 
     .ft-stat-card {
-        background: var(--ft-card);
-        border: 1px solid var(--ft-border);
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
         border-radius: 14px;
         padding: 20px;
         display: flex;
@@ -242,7 +225,7 @@
     }
 
     .ft-stat-card:hover {
-        border-color: var(--ft-border-bright);
+        border-color: var(--archie-border-emphasis);
         transform: translateY(-2px);
     }
 
@@ -254,7 +237,7 @@
         align-items: center;
         justify-content: center;
         background: rgba(139, 92, 246, 0.1);
-        color: var(--ft-primary-light);
+        color: var(--archie-purple);
     }
 
     .ft-stat-icon i {
@@ -264,17 +247,17 @@
 
     .ft-stat-icon--active {
         background: rgba(16, 185, 129, 0.1);
-        color: var(--ft-success);
+        color: var(--archie-success);
     }
 
     .ft-stat-icon--models {
         background: rgba(99, 102, 241, 0.1);
-        color: var(--ft-indigo);
+        color: var(--archie-purple);
     }
 
     .ft-stat-icon--training {
         background: rgba(245, 158, 11, 0.1);
-        color: var(--ft-warning);
+        color: var(--archie-warning);
     }
 
     .ft-stat-info {
@@ -290,7 +273,7 @@
 
     .ft-stat-label {
         font-size: 12px;
-        color: var(--ft-text-muted);
+        color: var(--archie-text-muted);
         text-transform: uppercase;
         letter-spacing: 1px;
         margin-top: 4px;
@@ -302,11 +285,11 @@
     .ft-tabs {
         display: flex;
         gap: 4px;
-        background: var(--ft-card);
+        background: var(--archie-bg-secondary);
         padding: 6px;
         border-radius: 12px;
         margin-bottom: 24px;
-        border: 1px solid var(--ft-border);
+        border: 1px solid var(--archie-border-default);
         width: fit-content;
     }
 
@@ -318,7 +301,7 @@
         border-radius: 8px;
         font-size: 14px;
         font-weight: 500;
-        color: var(--ft-text-dim);
+        color: var(--archie-text-tertiary);
         cursor: pointer;
         transition: all 0.2s ease;
         background: transparent;
@@ -332,12 +315,12 @@
     }
 
     .ft-tab:hover {
-        color: var(--ft-text);
+        color: var(--archie-text-secondary);
         background: rgba(139, 92, 246, 0.1);
     }
 
     .ft-tab.active {
-        background: linear-gradient(135deg, var(--ft-primary) 0%, var(--ft-indigo) 100%);
+        background: linear-gradient(135deg, var(--archie-purple) 0%, var(--archie-purple) 100%);
         color: white;
         box-shadow: 0 2px 10px rgba(139, 92, 246, 0.3);
     }
@@ -355,15 +338,15 @@
        CARDS & PANELS
        ═══════════════════════════════════════════════════════════════ */
     .ft-panel {
-        background: var(--ft-card);
-        border: 1px solid var(--ft-border);
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
         border-radius: 14px;
         overflow: hidden;
     }
 
     .ft-panel-header {
         padding: 16px 20px;
-        border-bottom: 1px solid var(--ft-border);
+        border-bottom: 1px solid var(--archie-border-default);
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -380,7 +363,7 @@
     .ft-panel-title i {
         width: 18px;
         height: 18px;
-        color: var(--ft-primary-light);
+        color: var(--archie-purple);
     }
 
     .ft-panel-body {
@@ -397,15 +380,15 @@
     }
 
     .ft-dataset-card {
-        background: var(--ft-card);
-        border: 1px solid var(--ft-border);
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
         border-radius: 12px;
         padding: 20px;
         transition: all 0.2s ease;
     }
 
     .ft-dataset-card:hover {
-        border-color: var(--ft-border-bright);
+        border-color: var(--archie-border-emphasis);
         transform: translateY(-2px);
     }
 
@@ -427,7 +410,7 @@
         padding: 4px 8px;
         border-radius: 6px;
         background: rgba(139, 92, 246, 0.1);
-        color: var(--ft-primary-light);
+        color: var(--archie-purple);
         text-transform: uppercase;
         letter-spacing: 0.5px;
     }
@@ -440,11 +423,11 @@
 
     .ft-dataset-stat {
         font-size: 12px;
-        color: var(--ft-text-dim);
+        color: var(--archie-text-tertiary);
     }
 
     .ft-dataset-stat strong {
-        color: var(--ft-text);
+        color: var(--archie-text-secondary);
         font-weight: 600;
     }
 
@@ -461,9 +444,9 @@
         border-radius: 50%;
     }
 
-    .ft-status-dot--ready { background: var(--ft-success); box-shadow: 0 0 8px var(--ft-success); }
-    .ft-status-dot--pending { background: var(--ft-warning); }
-    .ft-status-dot--error { background: var(--ft-danger); }
+    .ft-status-dot--ready { background: var(--archie-success); box-shadow: 0 0 8px var(--archie-success); }
+    .ft-status-dot--pending { background: var(--archie-warning); }
+    .ft-status-dot--error { background: var(--archie-danger); }
 
     /* ═══════════════════════════════════════════════════════════════
        TRAINING JOBS
@@ -475,8 +458,8 @@
     }
 
     .ft-job-item {
-        background: var(--ft-card);
-        border: 1px solid var(--ft-border);
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
         border-radius: 12px;
         padding: 16px 20px;
         display: grid;
@@ -487,7 +470,7 @@
     }
 
     .ft-job-item:hover {
-        border-color: var(--ft-border-bright);
+        border-color: var(--archie-border-emphasis);
     }
 
     .ft-job-info h4 {
@@ -499,7 +482,7 @@
 
     .ft-job-info p {
         font-size: 12px;
-        color: var(--ft-text-dim);
+        color: var(--archie-text-tertiary);
         margin: 0;
     }
 
@@ -518,14 +501,14 @@
 
     .ft-progress-fill {
         height: 100%;
-        background: linear-gradient(90deg, var(--ft-primary) 0%, var(--ft-indigo) 100%);
+        background: linear-gradient(90deg, var(--archie-purple) 0%, var(--archie-purple) 100%);
         border-radius: 3px;
         transition: width 0.5s ease;
     }
 
     .ft-progress-text {
         font-size: 11px;
-        color: var(--ft-text-dim);
+        color: var(--archie-text-tertiary);
         font-family: 'IBM Plex Mono', monospace;
     }
 
@@ -537,10 +520,10 @@
         font-weight: 500;
     }
 
-    .ft-job-status--queued { color: var(--ft-text-dim); }
-    .ft-job-status--training { color: var(--ft-warning); }
-    .ft-job-status--completed { color: var(--ft-success); }
-    .ft-job-status--failed { color: var(--ft-danger); }
+    .ft-job-status--queued { color: var(--archie-text-tertiary); }
+    .ft-job-status--training { color: var(--archie-warning); }
+    .ft-job-status--completed { color: var(--archie-success); }
+    .ft-job-status--failed { color: var(--archie-danger); }
 
     /* ═══════════════════════════════════════════════════════════════
        MODEL CARDS
@@ -552,16 +535,16 @@
     }
 
     .ft-model-card {
-        background: var(--ft-card);
-        border: 1px solid var(--ft-border);
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
         border-radius: 14px;
         padding: 20px;
         transition: all 0.2s ease;
     }
 
     .ft-model-card:hover {
-        border-color: var(--ft-border-bright);
-        box-shadow: var(--ft-glow);
+        border-color: var(--archie-border-emphasis);
+        box-shadow: var(--archie-glow-purple);
     }
 
     .ft-model-header {
@@ -575,7 +558,7 @@
         width: 44px;
         height: 44px;
         border-radius: 10px;
-        background: linear-gradient(135deg, var(--ft-primary) 0%, var(--ft-indigo) 100%);
+        background: linear-gradient(135deg, var(--archie-purple) 0%, var(--archie-purple) 100%);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -595,7 +578,7 @@
 
     .ft-model-base {
         font-size: 12px;
-        color: var(--ft-text-dim);
+        color: var(--archie-text-tertiary);
     }
 
     .ft-model-metrics {
@@ -615,13 +598,13 @@
     .ft-metric-value {
         font-size: 18px;
         font-weight: 700;
-        color: var(--ft-primary-light);
+        color: var(--archie-purple);
         font-family: 'IBM Plex Mono', monospace;
     }
 
     .ft-metric-label {
         font-size: 10px;
-        color: var(--ft-text-muted);
+        color: var(--archie-text-muted);
         text-transform: uppercase;
         letter-spacing: 0.5px;
     }
@@ -647,15 +630,15 @@
 
     .ft-playground-input,
     .ft-playground-output {
-        background: var(--ft-card);
-        border: 1px solid var(--ft-border);
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
         border-radius: 14px;
         overflow: hidden;
     }
 
     .ft-playground-header {
         padding: 14px 20px;
-        border-bottom: 1px solid var(--ft-border);
+        border-bottom: 1px solid var(--archie-border-default);
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -672,7 +655,7 @@
     .ft-playground-title i {
         width: 16px;
         height: 16px;
-        color: var(--ft-primary-light);
+        color: var(--archie-purple);
     }
 
     .ft-textarea {
@@ -681,7 +664,7 @@
         padding: 20px;
         background: transparent;
         border: none;
-        color: var(--ft-text);
+        color: var(--archie-text-secondary);
         font-family: 'IBM Plex Mono', monospace;
         font-size: 13px;
         line-height: 1.6;
@@ -693,7 +676,7 @@
     }
 
     .ft-textarea::placeholder {
-        color: var(--ft-text-muted);
+        color: var(--archie-text-muted);
     }
 
     .ft-output-content {
@@ -703,11 +686,11 @@
         font-size: 13px;
         line-height: 1.6;
         white-space: pre-wrap;
-        color: var(--ft-success);
+        color: var(--archie-success);
     }
 
     .ft-output-content.empty {
-        color: var(--ft-text-muted);
+        color: var(--archie-text-muted);
         font-style: italic;
     }
 
@@ -722,7 +705,7 @@
         display: block;
         font-size: 13px;
         font-weight: 500;
-        color: var(--ft-text-dim);
+        color: var(--archie-text-tertiary);
         margin-bottom: 8px;
     }
 
@@ -730,10 +713,10 @@
     .ft-select {
         width: 100%;
         padding: 12px 16px;
-        background: var(--ft-bg);
-        border: 1px solid var(--ft-border);
+        background: var(--archie-bg-primary);
+        border: 1px solid var(--archie-border-default);
         border-radius: 10px;
-        color: var(--ft-text);
+        color: var(--archie-text-secondary);
         font-family: 'Outfit', sans-serif;
         font-size: 14px;
         transition: all 0.2s ease;
@@ -742,7 +725,7 @@
     .ft-input:focus,
     .ft-select:focus {
         outline: none;
-        border-color: var(--ft-primary);
+        border-color: var(--archie-purple);
         box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
     }
 
@@ -756,21 +739,21 @@
     .ft-empty {
         text-align: center;
         padding: 60px 40px;
-        color: var(--ft-text-dim);
+        color: var(--archie-text-tertiary);
     }
 
     .ft-empty-icon {
         width: 64px;
         height: 64px;
         margin: 0 auto 16px;
-        color: var(--ft-text-muted);
+        color: var(--archie-text-muted);
         opacity: 0.5;
     }
 
     .ft-empty h3 {
         font-size: 18px;
         font-weight: 600;
-        color: var(--ft-text);
+        color: var(--archie-text-secondary);
         margin: 0 0 8px 0;
     }
 
@@ -799,8 +782,8 @@
     }
 
     .ft-modal {
-        background: var(--ft-card);
-        border: 1px solid var(--ft-border);
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
         border-radius: 16px;
         width: 90%;
         max-width: 560px;
@@ -816,7 +799,7 @@
 
     .ft-modal-header {
         padding: 20px 24px;
-        border-bottom: 1px solid var(--ft-border);
+        border-bottom: 1px solid var(--archie-border-default);
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -834,7 +817,7 @@
         border-radius: 8px;
         background: transparent;
         border: none;
-        color: var(--ft-text-dim);
+        color: var(--archie-text-tertiary);
         cursor: pointer;
         display: flex;
         align-items: center;
@@ -844,7 +827,7 @@
 
     .ft-modal-close:hover {
         background: rgba(239, 68, 68, 0.1);
-        color: var(--ft-danger);
+        color: var(--archie-danger);
     }
 
     .ft-modal-body {
@@ -853,7 +836,7 @@
 
     .ft-modal-footer {
         padding: 16px 24px;
-        border-top: 1px solid var(--ft-border);
+        border-top: 1px solid var(--archie-border-default);
         display: flex;
         justify-content: flex-end;
         gap: 12px;

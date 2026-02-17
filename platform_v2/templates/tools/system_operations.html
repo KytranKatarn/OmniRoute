@@ -104,10 +104,6 @@
         animation: pulse 1.5s infinite;
     }
 
-    @keyframes pulse {
-        0%, 100% { opacity: 1; transform: scale(1); }
-        50% { opacity: 0.5; transform: scale(0.8); }
-    }
 
     /* Activity Status Bar */
     .activity-status-bar {
@@ -124,16 +120,6 @@
         display: block;
     }
 
-    @keyframes slideDown {
-        from {
-            opacity: 0;
-            transform: translateY(-10px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
 
     .activity-indicator {
         display: flex;
@@ -677,10 +663,6 @@
         animation: spin 1s linear infinite;
     }
 
-    @keyframes spin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-    }
 
     /* Modal + Toast: using components.css standard classes */
 
@@ -1122,10 +1104,6 @@
     }
     .treemap-partition.new-drive {
         animation: pulseGlow 2s infinite;
-    }
-    @keyframes pulseGlow {
-        0%, 100% { box-shadow: 0 0 4px rgba(0, 212, 170, 0.2); }
-        50% { box-shadow: 0 0 16px rgba(0, 212, 170, 0.5); }
     }
     .treemap-partition-label {
         font-size: 0.65rem;
@@ -2611,9 +2589,6 @@
         animation: spin 1s linear infinite;
     }
 
-    @keyframes spin {
-        to { transform: rotate(360deg); }
-    }
 
     .loading-title {
         font-size: 1.4rem;

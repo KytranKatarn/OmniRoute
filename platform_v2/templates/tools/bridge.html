@@ -16,22 +16,7 @@
    ============================================================================ */
 
 :root {
-    /* Core Colors */
-    --bridge-bg: #0a0a0f;
-    --bridge-panel: #12121a;
-    --bridge-border: #1e1e2e;
-    --bridge-glow: #00FFFF;
-    --bridge-gold: #FFD700;
-    --bridge-text: #c9d1d9;
-    --bridge-muted: #6e7681;
-
-    /* Status Colors */
-    --status-online: #00ff41;
-    --status-warning: #FFAA00;
-    --status-error: #ff4444;
-    --status-rest: #8B5CF6;
-
-    /* Station Theme Colors */
+    /* Station Theme Colors (unique to Bridge module) */
     --station-command: #FFD700;
     --station-consciousness: #FF00FF;
     --station-hr: #10B981;
@@ -48,10 +33,6 @@
     --station-qa: #F97316;
     --station-admin: #6366F1;
     --station-support: #EC4899;
-
-    /* Typography */
-    --font-display: 'Orbitron', sans-serif;
-    --font-mono: 'IBM Plex Mono', monospace;
 }
 
 /* Scanline overlay effect */
@@ -73,14 +54,14 @@
 /* Main Container */
 .bridge-container {
     min-height: 100vh;
-    background: var(--bridge-bg);
+    background: var(--archie-bg-primary);
     background-image:
         radial-gradient(ellipse at 20% 30%, rgba(0, 255, 255, 0.03) 0%, transparent 50%),
         radial-gradient(ellipse at 80% 70%, rgba(139, 92, 246, 0.03) 0%, transparent 50%),
         radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.01) 0%, transparent 100%);
     padding: 0;
-    font-family: var(--font-mono);
-    color: var(--bridge-text);
+    font-family: var(--archie-font-mono);
+    color: var(--archie-text-secondary);
     position: relative;
     overflow-x: hidden;
 }
@@ -106,8 +87,8 @@
 .bridge-status-bar {
     display: flex;
     align-items: stretch;
-    background: var(--bridge-panel);
-    border-bottom: 3px solid var(--bridge-glow);
+    background: var(--archie-bg-secondary);
+    border-bottom: 3px solid var(--archie-cyan);
     position: sticky;
     top: 0;
     z-index: 100;
@@ -120,8 +101,8 @@
     left: 0;
     right: 0;
     height: 3px;
-    background: var(--bridge-glow);
-    box-shadow: 0 0 20px var(--bridge-glow), 0 0 40px var(--bridge-glow);
+    background: var(--archie-cyan);
+    box-shadow: 0 0 20px var(--archie-cyan), 0 0 40px var(--archie-cyan);
 }
 
 .bridge-logo {
@@ -129,9 +110,9 @@
     align-items: center;
     gap: 12px;
     padding: 12px 24px;
-    background: linear-gradient(135deg, var(--bridge-gold) 0%, #DAA520 100%);
+    background: linear-gradient(135deg, var(--archie-gold) 0%, #DAA520 100%);
     color: #000;
-    font-family: var(--font-display);
+    font-family: var(--archie-font-display);
     font-weight: 700;
     letter-spacing: 2px;
     clip-path: polygon(0 0, 100% 0, 90% 100%, 0 100%);
@@ -172,16 +153,16 @@
     animation: status-pulse 2s ease-in-out infinite;
 }
 
-.bridge-status-item .status-dot.online { background: var(--status-online); color: var(--status-online); }
-.bridge-status-item .status-dot.warning { background: var(--status-warning); color: var(--status-warning); }
-.bridge-status-item .status-dot.error { background: var(--status-error); color: var(--status-error); }
+.bridge-status-item .status-dot.online { background: var(--archie-success); color: var(--archie-success); }
+.bridge-status-item .status-dot.warning { background: var(--archie-warning); color: var(--archie-warning); }
+.bridge-status-item .status-dot.error { background: var(--archie-danger); color: var(--archie-danger); }
 
 .bridge-status-item .status-label {
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
 }
 
 .bridge-status-item .status-value {
-    color: var(--bridge-glow);
+    color: var(--archie-cyan);
     font-weight: 500;
 }
 
@@ -193,9 +174,9 @@
 }
 
 .bridge-time {
-    font-family: var(--font-display);
+    font-family: var(--archie-font-display);
     font-size: 1.1rem;
-    color: var(--bridge-glow);
+    color: var(--archie-cyan);
     letter-spacing: 2px;
 }
 
@@ -214,14 +195,14 @@
 
 .staffing-badge.full-staff {
     background: rgba(0, 255, 65, 0.15);
-    border: 1px solid var(--status-online);
-    color: var(--status-online);
+    border: 1px solid var(--archie-success);
+    color: var(--archie-success);
 }
 
 .staffing-badge.reduced-staff {
     background: rgba(255, 170, 0, 0.15);
-    border: 1px solid var(--status-warning);
-    color: var(--status-warning);
+    border: 1px solid var(--archie-warning);
+    color: var(--archie-warning);
 }
 
 /* ============================================================================
@@ -251,7 +232,7 @@
 .bridge-command-section {
     padding: 24px;
     background: linear-gradient(180deg, rgba(255, 215, 0, 0.05) 0%, transparent 100%);
-    border-bottom: 1px solid var(--bridge-border);
+    border-bottom: 1px solid var(--archie-border-default);
 }
 
 .command-station {
@@ -259,8 +240,8 @@
     grid-template-columns: 1fr 2fr 1fr;
     gap: 24px;
     padding: 20px;
-    background: var(--bridge-panel);
-    border: 2px solid var(--bridge-gold);
+    background: var(--archie-bg-secondary);
+    border: 2px solid var(--archie-gold);
     border-radius: 8px;
     position: relative;
     overflow: hidden;
@@ -273,7 +254,7 @@
     left: 0;
     right: 0;
     height: 4px;
-    background: linear-gradient(90deg, transparent, var(--bridge-gold), transparent);
+    background: linear-gradient(90deg, transparent, var(--archie-gold), transparent);
 }
 
 .command-slot {
@@ -288,14 +269,14 @@
 }
 
 .command-slot.commander {
-    border-color: var(--bridge-gold);
+    border-color: var(--archie-gold);
     background: rgba(255, 215, 0, 0.1);
 }
 
 .command-slot-label {
-    font-family: var(--font-display);
+    font-family: var(--archie-font-display);
     font-size: 0.65rem;
-    color: var(--bridge-gold);
+    color: var(--archie-gold);
     text-transform: uppercase;
     letter-spacing: 2px;
     margin-bottom: 12px;
@@ -310,17 +291,17 @@
 }
 
 .command-title {
-    font-family: var(--font-display);
+    font-family: var(--archie-font-display);
     font-size: 1.5rem;
     font-weight: 700;
-    color: var(--bridge-gold);
+    color: var(--archie-gold);
     text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
     letter-spacing: 3px;
 }
 
 .command-subtitle {
     font-size: 0.65rem;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
     text-transform: uppercase;
     letter-spacing: 1px;
 }
@@ -345,20 +326,20 @@
     justify-content: space-between;
     margin-bottom: 20px;
     padding-bottom: 12px;
-    border-bottom: 1px solid var(--bridge-border);
+    border-bottom: 1px solid var(--archie-border-default);
 }
 
 .bridge-section-title {
-    font-family: var(--font-display);
+    font-family: var(--archie-font-display);
     font-size: 0.9rem;
-    color: var(--bridge-glow);
+    color: var(--archie-cyan);
     text-transform: uppercase;
     letter-spacing: 3px;
 }
 
 .bridge-section-count {
     font-size: 0.75rem;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
 }
 
 /* Station Cards Grid */
@@ -370,8 +351,8 @@
 
 /* Station Card */
 .bridge-station-card {
-    background: var(--bridge-panel);
-    border: 1px solid var(--bridge-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 8px;
     overflow: hidden;
     transition: all 0.3s ease;
@@ -386,17 +367,17 @@
     left: 0;
     width: 4px;
     height: 100%;
-    background: var(--station-color, var(--bridge-glow));
+    background: var(--station-color, var(--archie-cyan));
 }
 
 .bridge-station-card:hover {
-    border-color: var(--station-color, var(--bridge-glow));
+    border-color: var(--station-color, var(--archie-cyan));
     box-shadow: 0 0 20px rgba(0, 255, 255, 0.1);
     transform: translateY(-2px);
 }
 
 .bridge-station-card.drag-over {
-    border-color: var(--bridge-gold);
+    border-color: var(--archie-gold);
     box-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
     background: rgba(255, 215, 0, 0.05);
 }
@@ -408,26 +389,26 @@
     gap: 12px;
     padding: 12px 16px;
     background: rgba(0, 0, 0, 0.3);
-    border-bottom: 1px solid var(--bridge-border);
+    border-bottom: 1px solid var(--archie-border-default);
 }
 
 .bridge-station-status {
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: var(--status-online);
+    background: var(--archie-success);
     animation: status-pulse 3s ease-in-out infinite;
 }
 
-.bridge-station-status.warning { background: var(--status-warning); }
-.bridge-station-status.error { background: var(--status-error); }
+.bridge-station-status.warning { background: var(--archie-warning); }
+.bridge-station-status.error { background: var(--archie-danger); }
 
 .bridge-station-name {
     flex: 1;
-    font-family: var(--font-display);
+    font-family: var(--archie-font-display);
     font-size: 0.8rem;
     font-weight: 600;
-    color: var(--station-color, var(--bridge-text));
+    color: var(--station-color, var(--archie-text-secondary));
     text-transform: uppercase;
     letter-spacing: 1px;
 }
@@ -437,7 +418,7 @@
     padding: 2px 6px;
     border-radius: 3px;
     background: rgba(0, 255, 255, 0.1);
-    color: var(--bridge-glow);
+    color: var(--archie-cyan);
     text-transform: uppercase;
 }
 
@@ -447,7 +428,7 @@
     flex-wrap: wrap;
     gap: 6px;
     padding: 12px 16px;
-    border-bottom: 1px solid var(--bridge-border);
+    border-bottom: 1px solid var(--archie-border-default);
 }
 
 .bridge-module-btn {
@@ -457,17 +438,17 @@
     width: 36px;
     height: 36px;
     background: rgba(0, 255, 255, 0.08);
-    border: 1px solid var(--bridge-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 6px;
-    color: var(--bridge-text);
+    color: var(--archie-text-secondary);
     transition: all 0.2s ease;
     text-decoration: none;
 }
 
 .bridge-module-btn:hover {
     background: rgba(0, 255, 255, 0.15);
-    border-color: var(--bridge-glow);
-    color: var(--bridge-glow);
+    border-color: var(--archie-cyan);
+    color: var(--archie-cyan);
     transform: scale(1.1);
 }
 
@@ -484,7 +465,7 @@
 
 .bridge-station-team-label {
     font-size: 0.6rem;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
     text-transform: uppercase;
     letter-spacing: 1px;
     margin-bottom: 8px;
@@ -493,13 +474,13 @@
 /* Station Node Support Section */
 .bridge-station-nodes {
     padding: 8px 16px 12px;
-    border-top: 1px solid var(--bridge-border);
+    border-top: 1px solid var(--archie-border-default);
     background: rgba(0, 255, 255, 0.02);
 }
 
 .bridge-station-nodes-label {
     font-size: 0.6rem;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
     text-transform: uppercase;
     letter-spacing: 1px;
     margin-bottom: 6px;
@@ -510,7 +491,7 @@
 
 .node-count-badge {
     background: rgba(0, 255, 255, 0.15);
-    color: var(--bridge-glow);
+    color: var(--archie-cyan);
     padding: 1px 6px;
     border-radius: 3px;
     font-size: 0.55rem;
@@ -534,14 +515,14 @@
     border: 1px solid rgba(110, 118, 129, 0.3);
     border-radius: 4px;
     font-size: 0.65rem;
-    color: var(--bridge-text);
+    color: var(--archie-text-secondary);
     cursor: pointer;
     transition: all 0.2s ease;
 }
 
 .station-node-chip:hover {
     background: rgba(0, 255, 255, 0.1);
-    border-color: var(--bridge-glow);
+    border-color: var(--archie-cyan);
 }
 
 .node-status-dot {
@@ -559,7 +540,7 @@
 
 .more-nodes {
     font-size: 0.6rem;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
     padding: 2px 6px;
 }
 
@@ -576,7 +557,7 @@
     gap: 8px;
     padding: 6px 10px;
     background: rgba(0, 255, 255, 0.05);
-    border: 1px solid var(--bridge-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 6px;
     cursor: grab;
     transition: all 0.2s ease;
@@ -584,7 +565,7 @@
 
 .bridge-agent-chip:hover {
     background: rgba(0, 255, 255, 0.1);
-    border-color: var(--bridge-glow);
+    border-color: var(--archie-cyan);
 }
 
 .bridge-agent-chip.dragging {
@@ -593,7 +574,7 @@
 }
 
 .bridge-agent-chip.primary {
-    border-left: 3px solid var(--station-color, var(--bridge-glow));
+    border-left: 3px solid var(--station-color, var(--archie-cyan));
 }
 
 .bridge-agent-avatar {
@@ -601,7 +582,7 @@
     height: 28px;
     border-radius: 50%;
     object-fit: cover;
-    border: 1px solid var(--bridge-border);
+    border: 1px solid var(--archie-border-default);
 }
 
 .bridge-agent-info {
@@ -612,7 +593,7 @@
 .bridge-agent-name {
     font-size: 0.75rem;
     font-weight: 500;
-    color: var(--bridge-text);
+    color: var(--archie-text-secondary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -620,7 +601,7 @@
 
 .bridge-agent-role {
     font-size: 0.6rem;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
 }
 
 .bridge-agent-skill-badge {
@@ -632,8 +613,8 @@
     font-size: 0.6rem;
 }
 
-.bridge-agent-skill-badge.match { color: var(--status-online); }
-.bridge-agent-skill-badge.warning { color: var(--status-warning); }
+.bridge-agent-skill-badge.match { color: var(--archie-success); }
+.bridge-agent-skill-badge.warning { color: var(--archie-warning); }
 
 /* Expand Button */
 .bridge-expand-btn {
@@ -645,17 +626,17 @@
     padding: 6px;
     margin-top: 6px;
     background: rgba(0, 0, 0, 0.3);
-    border: 1px dashed var(--bridge-border);
+    border: 1px dashed var(--archie-border-default);
     border-radius: 4px;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
     font-size: 0.65rem;
     cursor: pointer;
     transition: all 0.2s ease;
 }
 
 .bridge-expand-btn:hover {
-    border-color: var(--bridge-glow);
-    color: var(--bridge-glow);
+    border-color: var(--archie-cyan);
+    color: var(--archie-cyan);
 }
 
 .bridge-expand-btn i {
@@ -685,7 +666,7 @@
     align-items: center;
     justify-content: center;
     padding: 16px;
-    color: var(--status-warning);
+    color: var(--archie-warning);
     font-size: 0.7rem;
 }
 
@@ -694,21 +675,21 @@
    ============================================================================ */
 
 .bridge-sidebar {
-    background: var(--bridge-panel);
-    border-left: 1px solid var(--bridge-border);
+    background: var(--archie-bg-secondary);
+    border-left: 1px solid var(--archie-border-default);
     display: flex;
     flex-direction: column;
 }
 
 .bridge-sidebar-section {
     padding: 16px;
-    border-bottom: 1px solid var(--bridge-border);
+    border-bottom: 1px solid var(--archie-border-default);
 }
 
 .bridge-sidebar-title {
-    font-family: var(--font-display);
+    font-family: var(--archie-font-display);
     font-size: 0.7rem;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
     text-transform: uppercase;
     letter-spacing: 2px;
     margin-bottom: 12px;
@@ -736,22 +717,22 @@
     padding: 10px;
     background: rgba(0, 0, 0, 0.3);
     border-radius: 6px;
-    border: 1px solid var(--bridge-border);
+    border: 1px solid var(--archie-border-default);
 }
 
 .bridge-iaae-value {
-    font-family: var(--font-display);
+    font-family: var(--archie-font-display);
     font-size: 1.2rem;
     font-weight: 600;
-    color: var(--bridge-glow);
+    color: var(--archie-cyan);
 }
 
-.bridge-iaae-stat.warning .bridge-iaae-value { color: var(--status-warning); }
-.bridge-iaae-stat.error .bridge-iaae-value { color: var(--status-error); }
+.bridge-iaae-stat.warning .bridge-iaae-value { color: var(--archie-warning); }
+.bridge-iaae-stat.error .bridge-iaae-value { color: var(--archie-danger); }
 
 .bridge-iaae-label {
     font-size: 0.55rem;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
     text-transform: uppercase;
     margin-top: 4px;
 }
@@ -761,7 +742,7 @@
     min-height: 80px;
     padding: 12px;
     background: rgba(0, 0, 0, 0.3);
-    border: 2px dashed var(--bridge-border);
+    border: 2px dashed var(--archie-border-default);
     border-radius: 8px;
     display: flex;
     flex-direction: column;
@@ -770,7 +751,7 @@
 }
 
 .bridge-drop-zone.drag-over {
-    border-color: var(--bridge-gold);
+    border-color: var(--archie-gold);
     background: rgba(255, 215, 0, 0.05);
 }
 
@@ -779,7 +760,7 @@
     align-items: center;
     justify-content: center;
     gap: 6px;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
     font-size: 0.65rem;
     padding: 20px;
 }
@@ -803,7 +784,7 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
     font-size: 0.7rem;
     text-align: center;
     padding: 20px;
@@ -821,9 +802,9 @@
 
 .bridge-dispatch-section {
     margin-top: 2rem;
-    background: var(--bridge-panel);
+    background: var(--archie-bg-secondary);
     border-radius: 8px;
-    border: 1px solid var(--bridge-border);
+    border: 1px solid var(--archie-border-default);
     overflow: hidden;
 }
 
@@ -833,16 +814,16 @@
     justify-content: space-between;
     padding: 1rem 1.5rem;
     background: linear-gradient(90deg, rgba(0, 255, 255, 0.08), transparent);
-    border-bottom: 1px solid var(--bridge-border);
+    border-bottom: 1px solid var(--archie-border-default);
     flex-wrap: wrap;
     gap: 0.5rem;
 }
 
 .bridge-dispatch-header h2 {
-    font-family: var(--font-display);
+    font-family: var(--archie-font-display);
     font-size: 0.85rem;
     font-weight: 600;
-    color: var(--bridge-glow);
+    color: var(--archie-cyan);
     display: flex;
     align-items: center;
     gap: 8px;
@@ -862,19 +843,19 @@
 }
 
 .dispatch-stat-value {
-    font-family: var(--font-display);
+    font-family: var(--archie-font-display);
     font-size: 1.1rem;
     font-weight: 700;
-    color: var(--bridge-text);
+    color: var(--archie-text-secondary);
 }
 
-.dispatch-stat-value.success { color: var(--status-online); }
-.dispatch-stat-value.fail { color: var(--status-error); }
-.dispatch-stat-value.speed { color: var(--bridge-gold); }
+.dispatch-stat-value.success { color: var(--archie-success); }
+.dispatch-stat-value.fail { color: var(--archie-danger); }
+.dispatch-stat-value.speed { color: var(--archie-gold); }
 
 .dispatch-stat-label {
     font-size: 0.65rem;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
@@ -883,7 +864,7 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 1px;
-    background: var(--bridge-border);
+    background: var(--archie-border-default);
 }
 
 @media (max-width: 768px) {
@@ -891,15 +872,15 @@
 }
 
 .dispatch-panel {
-    background: var(--bridge-panel);
+    background: var(--archie-bg-secondary);
     padding: 1rem 1.5rem;
 }
 
 .dispatch-panel-title {
-    font-family: var(--font-display);
+    font-family: var(--archie-font-display);
     font-size: 0.7rem;
     font-weight: 600;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
     text-transform: uppercase;
     letter-spacing: 1px;
     margin-bottom: 0.75rem;
@@ -920,33 +901,33 @@
     padding: 6px 10px;
     background: rgba(255, 255, 255, 0.02);
     border-radius: 6px;
-    border-left: 3px solid var(--bridge-glow);
+    border-left: 3px solid var(--archie-cyan);
     font-size: 0.75rem;
 }
 
 .dispatch-history-item.failed {
-    border-left-color: var(--status-error);
+    border-left-color: var(--archie-danger);
 }
 
 .dispatch-history-agent {
     font-weight: 600;
-    color: var(--bridge-glow);
+    color: var(--archie-cyan);
     min-width: 80px;
 }
 
 .dispatch-history-module {
-    color: var(--bridge-text);
+    color: var(--archie-text-secondary);
     flex: 1;
 }
 
 .dispatch-history-time {
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
     font-size: 0.65rem;
     white-space: nowrap;
 }
 
 .dispatch-history-duration {
-    color: var(--bridge-gold);
+    color: var(--archie-gold);
     font-size: 0.65rem;
     min-width: 50px;
     text-align: right;
@@ -966,7 +947,7 @@
 
 .dispatch-station-label {
     font-size: 0.7rem;
-    color: var(--bridge-text);
+    color: var(--archie-text-secondary);
     min-width: 90px;
     font-weight: 500;
 }
@@ -988,15 +969,15 @@
 }
 
 .dispatch-station-count {
-    font-family: var(--font-display);
+    font-family: var(--archie-font-display);
     font-size: 0.7rem;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
     min-width: 30px;
     text-align: right;
 }
 
 .dispatch-empty {
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
     font-size: 0.75rem;
     text-align: center;
     padding: 2rem;
@@ -1009,9 +990,9 @@
 
 .bridge-nodes-section {
     margin-top: 2rem;
-    background: var(--bridge-panel);
+    background: var(--archie-bg-secondary);
     border-radius: 8px;
-    border: 1px solid var(--bridge-border);
+    border: 1px solid var(--archie-border-default);
     overflow: hidden;
 }
 
@@ -1021,14 +1002,14 @@
     justify-content: space-between;
     padding: 1rem 1.5rem;
     background: linear-gradient(90deg, rgba(0, 255, 255, 0.1), transparent);
-    border-bottom: 1px solid var(--bridge-border);
+    border-bottom: 1px solid var(--archie-border-default);
 }
 
 .bridge-nodes-header h2 {
-    font-family: var(--font-display);
+    font-family: var(--archie-font-display);
     font-size: 1rem;
     font-weight: 600;
-    color: var(--bridge-glow);
+    color: var(--archie-cyan);
     display: flex;
     align-items: center;
     gap: 10px;
@@ -1047,17 +1028,17 @@
     gap: 4px;
 }
 
-.node-stats .stat.online { color: var(--status-online); }
-.node-stats .stat.offline { color: var(--bridge-muted); }
+.node-stats .stat.online { color: var(--archie-success); }
+.node-stats .stat.offline { color: var(--archie-text-muted); }
 .node-stats .stat.pending { color: #58a6ff; }
 
 .btn-add-node {
-    background: linear-gradient(135deg, var(--bridge-glow), #00cccc);
+    background: linear-gradient(135deg, var(--archie-cyan), #00cccc);
     color: #000;
     border: none;
     padding: 6px 14px;
     border-radius: 4px;
-    font-family: var(--font-display);
+    font-family: var(--archie-font-display);
     font-size: 0.7rem;
     font-weight: 600;
     cursor: pointer;
@@ -1095,7 +1076,7 @@
 
 .node-grid:empty::after {
     content: 'No nodes registered yet';
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
     grid-column: 1 / -1;
     text-align: center;
     padding: 2rem;
@@ -1104,7 +1085,7 @@
 /* Node Card */
 .node-card {
     background: linear-gradient(135deg, #1a1f2e, #0d1117);
-    border: 1px solid var(--bridge-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 8px;
     overflow: hidden;
     transition: all 0.3s ease;
@@ -1116,9 +1097,9 @@
 
 .station-assignments-section {
     margin-top: 2rem;
-    background: var(--bridge-panel);
+    background: var(--archie-bg-secondary);
     border-radius: 8px;
-    border: 1px solid var(--bridge-border);
+    border: 1px solid var(--archie-border-default);
     overflow: hidden;
 }
 
@@ -1128,11 +1109,11 @@
     justify-content: space-between;
     padding: 1rem 1.5rem;
     background: linear-gradient(90deg, rgba(139, 92, 246, 0.1), transparent);
-    border-bottom: 1px solid var(--bridge-border);
+    border-bottom: 1px solid var(--archie-border-default);
 }
 
 .station-assignments-header h2 {
-    font-family: var(--font-display);
+    font-family: var(--archie-font-display);
     font-size: 1rem;
     font-weight: 600;
     color: #8B5CF6;
@@ -1154,9 +1135,9 @@
     gap: 4px;
 }
 
-.assignment-stats .stat.covered { color: var(--status-online); }
-.assignment-stats .stat.uncovered { color: var(--status-warning); }
-.assignment-stats .stat.total { color: var(--bridge-glow); }
+.assignment-stats .stat.covered { color: var(--archie-success); }
+.assignment-stats .stat.uncovered { color: var(--archie-warning); }
+.assignment-stats .stat.total { color: var(--archie-cyan); }
 
 /* Station Coverage Grid */
 .station-coverage-grid {
@@ -1168,24 +1149,24 @@
 
 .station-coverage-card {
     background: linear-gradient(135deg, #1a1f2e, #0d1117);
-    border: 1px solid var(--bridge-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 8px;
     overflow: hidden;
     transition: all 0.3s ease;
-    border-left: 3px solid var(--bridge-muted);
+    border-left: 3px solid var(--archie-text-muted);
 }
 
 .station-coverage-card:hover {
-    border-color: var(--bridge-glow);
+    border-color: var(--archie-cyan);
     box-shadow: 0 0 20px rgba(139, 92, 246, 0.15);
 }
 
 .station-coverage-card.has-nodes {
-    border-left-color: var(--status-online);
+    border-left-color: var(--archie-success);
 }
 
 .station-coverage-card.no-primary {
-    border-left-color: var(--status-warning);
+    border-left-color: var(--archie-warning);
 }
 
 .station-coverage-header {
@@ -1194,11 +1175,11 @@
     justify-content: space-between;
     padding: 10px 12px;
     background: rgba(0, 0, 0, 0.3);
-    border-bottom: 1px solid var(--bridge-border);
+    border-bottom: 1px solid var(--archie-border-default);
 }
 
 .station-coverage-name {
-    font-family: var(--font-display);
+    font-family: var(--archie-font-display);
     font-size: 0.85rem;
     font-weight: 600;
     display: flex;
@@ -1214,7 +1195,7 @@
 
 .station-coverage-code {
     font-size: 0.65rem;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
     background: rgba(255,255,255,0.05);
     padding: 2px 6px;
     border-radius: 3px;
@@ -1237,9 +1218,9 @@
     gap: 4px;
 }
 
-.station-node-counts .count.primary { color: var(--status-online); }
-.station-node-counts .count.backup { color: var(--status-warning); }
-.station-node-counts .count.worker { color: var(--bridge-glow); }
+.station-node-counts .count.primary { color: var(--archie-success); }
+.station-node-counts .count.backup { color: var(--archie-warning); }
+.station-node-counts .count.worker { color: var(--archie-cyan); }
 
 .station-assigned-nodes {
     display: flex;
@@ -1274,16 +1255,16 @@
     font-weight: 600;
 }
 
-.assigned-node-chip .role-badge.primary { background: var(--status-online); color: #000; }
-.assigned-node-chip .role-badge.backup { background: var(--status-warning); color: #000; }
-.assigned-node-chip .role-badge.worker { background: var(--bridge-glow); color: #000; }
+.assigned-node-chip .role-badge.primary { background: var(--archie-success); color: #000; }
+.assigned-node-chip .role-badge.backup { background: var(--archie-warning); color: #000; }
+.assigned-node-chip .role-badge.worker { background: var(--archie-cyan); color: #000; }
 .assigned-node-chip .role-badge.relief { background: #8B5CF6; color: #fff; }
 
 .station-coverage-actions {
     display: flex;
     gap: 6px;
     padding: 10px 12px;
-    border-top: 1px solid var(--bridge-border);
+    border-top: 1px solid var(--archie-border-default);
     background: rgba(0, 0, 0, 0.2);
 }
 
@@ -1295,7 +1276,7 @@
     padding: 6px 10px;
     border-radius: 4px;
     font-size: 0.7rem;
-    font-family: var(--font-display);
+    font-family: var(--archie-font-display);
     cursor: pointer;
     transition: all 0.2s;
 }
@@ -1324,8 +1305,8 @@
 }
 
 .assignment-modal {
-    background: var(--bridge-panel);
-    border: 1px solid var(--bridge-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 12px;
     width: 500px;
     max-width: 90vw;
@@ -1340,11 +1321,11 @@
     justify-content: space-between;
     padding: 1rem 1.5rem;
     background: linear-gradient(90deg, rgba(139, 92, 246, 0.2), transparent);
-    border-bottom: 1px solid var(--bridge-border);
+    border-bottom: 1px solid var(--archie-border-default);
 }
 
 .assignment-modal-header h3 {
-    font-family: var(--font-display);
+    font-family: var(--archie-font-display);
     font-size: 1rem;
     margin: 0;
     color: #8B5CF6;
@@ -1353,7 +1334,7 @@
 .assignment-modal-close {
     background: none;
     border: none;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
     cursor: pointer;
     font-size: 1.2rem;
     padding: 4px;
@@ -1372,7 +1353,7 @@
 .assignment-form-group label {
     display: block;
     font-size: 0.75rem;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
     margin-bottom: 6px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -1382,11 +1363,11 @@
 .assignment-form-group input {
     width: 100%;
     background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--bridge-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 6px;
     padding: 10px 12px;
-    color: var(--bridge-text);
-    font-family: var(--font-mono);
+    color: var(--archie-text-secondary);
+    font-family: var(--archie-font-mono);
     font-size: 0.85rem;
 }
 
@@ -1400,7 +1381,7 @@
     display: flex;
     gap: 10px;
     padding: 1rem 1.5rem;
-    border-top: 1px solid var(--bridge-border);
+    border-top: 1px solid var(--archie-border-default);
     background: rgba(0, 0, 0, 0.2);
 }
 
@@ -1408,7 +1389,7 @@
     flex: 1;
     padding: 10px;
     border-radius: 6px;
-    font-family: var(--font-display);
+    font-family: var(--archie-font-display);
     font-size: 0.8rem;
     cursor: pointer;
     transition: all 0.2s;
@@ -1416,8 +1397,8 @@
 
 .assignment-modal-footer .btn-cancel {
     background: transparent;
-    border: 1px solid var(--bridge-border);
-    color: var(--bridge-muted);
+    border: 1px solid var(--archie-border-default);
+    color: var(--archie-text-muted);
 }
 
 .assignment-modal-footer .btn-submit {
@@ -1468,27 +1449,27 @@
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    background: var(--bridge-muted);
+    background: var(--archie-text-muted);
 }
 
-.node-detail-status.online { background: var(--status-online); }
-.node-detail-status.offline { background: var(--bridge-muted); }
-.node-detail-status.degraded { background: var(--status-warning); }
+.node-detail-status.online { background: var(--archie-success); }
+.node-detail-status.offline { background: var(--archie-text-muted); }
+.node-detail-status.degraded { background: var(--archie-warning); }
 
 .node-detail-tabs {
     display: flex;
     gap: 2px;
     padding: 0 1rem;
     background: rgba(0, 0, 0, 0.2);
-    border-bottom: 1px solid var(--bridge-border);
+    border-bottom: 1px solid var(--archie-border-default);
 }
 
 .node-tab {
     padding: 10px 16px;
     background: transparent;
     border: none;
-    color: var(--bridge-muted);
-    font-family: var(--font-display);
+    color: var(--archie-text-muted);
+    font-family: var(--archie-font-display);
     font-size: 0.75rem;
     cursor: pointer;
     display: flex;
@@ -1499,13 +1480,13 @@
 }
 
 .node-tab:hover {
-    color: var(--bridge-text);
+    color: var(--archie-text-secondary);
     background: rgba(255, 255, 255, 0.05);
 }
 
 .node-tab.active {
-    color: var(--bridge-glow);
-    border-bottom-color: var(--bridge-glow);
+    color: var(--archie-cyan);
+    border-bottom-color: var(--archie-cyan);
 }
 
 .node-tab i {
@@ -1534,7 +1515,7 @@
 
 .node-detail-section {
     background: rgba(0, 0, 0, 0.2);
-    border: 1px solid var(--bridge-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 8px;
     padding: 1rem;
 }
@@ -1547,9 +1528,9 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    font-family: var(--font-display);
+    font-family: var(--archie-font-display);
     font-size: 0.8rem;
-    color: var(--bridge-glow);
+    color: var(--archie-cyan);
     margin: 0 0 12px 0;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -1601,12 +1582,12 @@
 }
 
 .info-row .label {
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
 }
 
 .info-row .value {
-    color: var(--bridge-text);
-    font-family: var(--font-mono);
+    color: var(--archie-text-secondary);
+    font-family: var(--archie-font-mono);
 }
 
 .node-status-cards {
@@ -1617,22 +1598,22 @@
 
 .status-card {
     background: rgba(0, 255, 255, 0.05);
-    border: 1px solid var(--bridge-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 6px;
     padding: 12px;
     text-align: center;
 }
 
 .status-card-value {
-    font-family: var(--font-display);
+    font-family: var(--archie-font-display);
     font-size: 1.2rem;
-    color: var(--bridge-glow);
+    color: var(--archie-cyan);
     margin-bottom: 4px;
 }
 
 .status-card-label {
     font-size: 0.65rem;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
     text-transform: uppercase;
 }
 
@@ -1649,14 +1630,14 @@
     justify-content: space-between;
     padding: 10px 12px;
     background: rgba(0, 0, 0, 0.2);
-    border: 1px solid var(--bridge-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 6px;
     transition: all 0.2s;
 }
 
 .station-toggle-row.active {
     background: rgba(0, 255, 255, 0.05);
-    border-color: var(--bridge-glow);
+    border-color: var(--archie-cyan);
 }
 
 .station-toggle-info {
@@ -1675,20 +1656,20 @@
 
 .station-toggle-name {
     font-size: 0.8rem;
-    color: var(--bridge-text);
+    color: var(--archie-text-secondary);
     flex: 1;
 }
 
 .station-toggle-row.active .station-toggle-name {
-    color: var(--bridge-glow);
+    color: var(--archie-cyan);
 }
 
 .station-role-select {
     padding: 4px 8px;
     background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--bridge-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 4px;
-    color: var(--bridge-text);
+    color: var(--archie-text-secondary);
     font-size: 0.7rem;
     margin-right: 8px;
 }
@@ -1735,7 +1716,7 @@
 }
 
 .toggle-switch-small input:checked + .toggle-slider-small {
-    background-color: var(--bridge-glow);
+    background-color: var(--archie-cyan);
 }
 
 .toggle-switch-small input:checked + .toggle-slider-small:before {
@@ -1755,7 +1736,7 @@
     justify-content: space-between;
     padding: 10px 12px;
     background: rgba(0, 0, 0, 0.2);
-    border: 1px solid var(--bridge-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 6px;
 }
 
@@ -1767,7 +1748,7 @@
 
 .station-assignment-name {
     font-size: 0.85rem;
-    color: var(--bridge-text);
+    color: var(--archie-text-secondary);
 }
 
 .station-assignment-role {
@@ -1795,9 +1776,9 @@
 .station-assignment-actions button {
     padding: 4px 8px;
     background: transparent;
-    border: 1px solid var(--bridge-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 4px;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
     font-size: 0.65rem;
     cursor: pointer;
 }
@@ -1821,13 +1802,13 @@
     gap: 12px;
     padding: 12px 14px;
     background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--bridge-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 8px;
     transition: all 0.2s;
 }
 
 .service-card.online {
-    border-color: var(--status-online);
+    border-color: var(--archie-success);
     background: rgba(16, 185, 129, 0.1);
 }
 
@@ -1859,16 +1840,16 @@
 .service-name {
     font-size: 0.85rem;
     font-weight: 600;
-    color: var(--bridge-text);
+    color: var(--archie-text-secondary);
 }
 
 .service-status {
     font-size: 0.7rem;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
 }
 
 .service-card.online .service-status {
-    color: var(--status-online);
+    color: var(--archie-success);
 }
 
 /* Models Grid */
@@ -1884,16 +1865,16 @@
     gap: 10px;
     padding: 10px 12px;
     background: rgba(0, 0, 0, 0.2);
-    border: 1px solid var(--bridge-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 6px;
 }
 
 .model-card.available {
-    border-left: 3px solid var(--status-online);
+    border-left: 3px solid var(--archie-success);
 }
 
 .model-card.unavailable {
-    border-left: 3px solid var(--bridge-muted);
+    border-left: 3px solid var(--archie-text-muted);
     opacity: 0.6;
 }
 
@@ -1910,7 +1891,7 @@
 .model-icon i {
     width: 16px;
     height: 16px;
-    color: var(--bridge-glow);
+    color: var(--archie-cyan);
 }
 
 .model-info {
@@ -1919,13 +1900,13 @@
 
 .model-name {
     font-size: 0.8rem;
-    color: var(--bridge-text);
-    font-family: var(--font-mono);
+    color: var(--archie-text-secondary);
+    font-family: var(--archie-font-mono);
 }
 
 .model-provider {
     font-size: 0.65rem;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
 }
 
 /* Health Chart */
@@ -1948,11 +1929,11 @@
 .health-table td {
     padding: 6px 8px;
     text-align: left;
-    border-bottom: 1px solid var(--bridge-border);
+    border-bottom: 1px solid var(--archie-border-default);
 }
 
 .health-table th {
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
     text-transform: uppercase;
     font-size: 0.6rem;
 }
@@ -1972,18 +1953,18 @@
 
 .form-row label {
     font-size: 0.75rem;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
 }
 
 .form-row input,
 .form-row select,
 .form-row textarea {
     background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--bridge-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 4px;
     padding: 8px 10px;
-    color: var(--bridge-text);
-    font-family: var(--font-mono);
+    color: var(--archie-text-secondary);
+    font-family: var(--archie-font-mono);
     font-size: 0.85rem;
 }
 
@@ -1991,12 +1972,12 @@
 .form-row select:focus,
 .form-row textarea:focus {
     outline: none;
-    border-color: var(--bridge-glow);
+    border-color: var(--archie-cyan);
 }
 
 .form-row .help-text {
     font-size: 0.65rem;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
     font-style: italic;
 }
 
@@ -2010,7 +1991,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    color: var(--bridge-text);
+    color: var(--archie-text-secondary);
 }
 
 .form-actions {
@@ -2022,7 +2003,7 @@
 .empty-state {
     text-align: center;
     padding: 2rem;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
 }
 
 .empty-state i {
@@ -2033,13 +2014,13 @@
 }
 
 .node-card:hover {
-    border-color: var(--bridge-glow);
+    border-color: var(--archie-cyan);
     box-shadow: 0 0 20px rgba(0, 255, 255, 0.15);
 }
 
-.node-card.online { border-left: 3px solid var(--status-online); }
-.node-card.offline { border-left: 3px solid var(--bridge-muted); }
-.node-card.degraded { border-left: 3px solid var(--status-warning); }
+.node-card.online { border-left: 3px solid var(--archie-success); }
+.node-card.offline { border-left: 3px solid var(--archie-text-muted); }
+.node-card.degraded { border-left: 3px solid var(--archie-warning); }
 .node-card.pending { border-left: 3px solid #58a6ff; }
 
 .node-header {
@@ -2048,7 +2029,7 @@
     gap: 8px;
     padding: 10px 12px;
     background: rgba(0, 0, 0, 0.3);
-    border-bottom: 1px solid var(--bridge-border);
+    border-bottom: 1px solid var(--archie-border-default);
     font-size: 0.7rem;
 }
 
@@ -2059,14 +2040,14 @@
     flex-shrink: 0;
 }
 
-.status-dot.online { background: var(--status-online); animation: status-pulse 2s infinite; }
-.status-dot.offline { background: var(--bridge-muted); }
-.status-dot.degraded { background: var(--status-warning); animation: status-pulse 1s infinite; }
+.status-dot.online { background: var(--archie-success); animation: status-pulse 2s infinite; }
+.status-dot.offline { background: var(--archie-text-muted); }
+.status-dot.degraded { background: var(--archie-warning); animation: status-pulse 1s infinite; }
 .status-dot.pending { background: #58a6ff; animation: status-pulse 1.5s infinite; }
 
 .node-id {
-    font-family: var(--font-mono);
-    color: var(--bridge-muted);
+    font-family: var(--archie-font-mono);
+    color: var(--archie-text-muted);
     flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -2080,9 +2061,9 @@
     text-transform: uppercase;
 }
 
-.status-badge.online { background: rgba(0, 255, 65, 0.2); color: var(--status-online); }
-.status-badge.offline { background: rgba(110, 118, 129, 0.2); color: var(--bridge-muted); }
-.status-badge.degraded { background: rgba(255, 170, 0, 0.2); color: var(--status-warning); }
+.status-badge.online { background: rgba(0, 255, 65, 0.2); color: var(--archie-success); }
+.status-badge.offline { background: rgba(110, 118, 129, 0.2); color: var(--archie-text-muted); }
+.status-badge.degraded { background: rgba(255, 170, 0, 0.2); color: var(--archie-warning); }
 .status-badge.pending { background: rgba(88, 166, 255, 0.2); color: #58a6ff; }
 
 .node-body {
@@ -2090,10 +2071,10 @@
 }
 
 .node-name {
-    font-family: var(--font-display);
+    font-family: var(--archie-font-display);
     font-size: 0.95rem;
     font-weight: 600;
-    color: var(--bridge-text);
+    color: var(--archie-text-secondary);
     margin-bottom: 4px;
 }
 
@@ -2112,7 +2093,7 @@
 
 .node-connection {
     font-size: 0.75rem;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
     margin-bottom: 10px;
 }
 
@@ -2121,7 +2102,7 @@
     flex-wrap: wrap;
     gap: 8px;
     font-size: 0.7rem;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
 }
 
 .node-specs span {
@@ -2143,13 +2124,13 @@
     padding: 2px 8px;
     border-radius: 12px;
     font-size: 0.65rem;
-    color: var(--bridge-glow);
+    color: var(--archie-cyan);
 }
 
 .node-load {
     padding: 8px 12px;
     background: rgba(0, 0, 0, 0.2);
-    border-top: 1px solid var(--bridge-border);
+    border-top: 1px solid var(--archie-border-default);
 }
 
 .load-bar-container {
@@ -2162,12 +2143,12 @@
 
 .load-bar {
     height: 100%;
-    background: var(--bridge-glow);
+    background: var(--archie-cyan);
     transition: width 0.3s ease;
 }
 
 .load-bar.idle {
-    background: var(--status-online);
+    background: var(--archie-success);
 }
 
 .load-bar.active {
@@ -2183,7 +2164,7 @@
     justify-content: space-between;
     align-items: center;
     font-size: 0.65rem;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
 }
 
 .capacity-status {
@@ -2191,7 +2172,7 @@
 }
 
 .capacity-status.idle {
-    color: var(--status-online);
+    color: var(--archie-success);
 }
 
 .capacity-status.active {
@@ -2209,7 +2190,7 @@
 
 .load-latency {
     font-size: 0.55rem;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
     margin-top: 2px;
     text-align: right;
 }
@@ -2218,17 +2199,17 @@
     display: flex;
     gap: 6px;
     padding: 10px 12px;
-    border-top: 1px solid var(--bridge-border);
+    border-top: 1px solid var(--archie-border-default);
 }
 
 .node-actions button {
     flex: 1;
     padding: 6px 10px;
-    border: 1px solid var(--bridge-border);
+    border: 1px solid var(--archie-border-default);
     background: transparent;
-    color: var(--bridge-text);
+    color: var(--archie-text-secondary);
     font-size: 0.65rem;
-    font-family: var(--font-display);
+    font-family: var(--archie-font-display);
     border-radius: 4px;
     cursor: pointer;
     transition: all 0.2s;
@@ -2236,20 +2217,20 @@
 
 .node-actions button:hover {
     background: rgba(0, 255, 255, 0.1);
-    border-color: var(--bridge-glow);
-    color: var(--bridge-glow);
+    border-color: var(--archie-cyan);
+    color: var(--archie-cyan);
 }
 
 .node-actions button.approve {
     background: rgba(0, 255, 65, 0.1);
-    border-color: var(--status-online);
-    color: var(--status-online);
+    border-color: var(--archie-success);
+    color: var(--archie-success);
 }
 
 .node-actions button.reject {
     background: rgba(255, 68, 68, 0.1);
-    border-color: var(--status-error);
-    color: var(--status-error);
+    border-color: var(--archie-danger);
+    color: var(--archie-danger);
 }
 
 /* Bridge Toggle Switch */
@@ -2259,7 +2240,7 @@
     justify-content: space-between;
     padding: 8px 12px;
     background: rgba(0, 0, 0, 0.2);
-    border-top: 1px solid var(--bridge-border);
+    border-top: 1px solid var(--archie-border-default);
     font-size: 0.75rem;
 }
 
@@ -2267,7 +2248,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
 }
 
 .bridge-toggle-label i {
@@ -2276,7 +2257,7 @@
 }
 
 .bridge-toggle-label.enabled {
-    color: var(--status-online);
+    color: var(--archie-success);
 }
 
 .toggle-switch {
@@ -2299,7 +2280,7 @@
     right: 0;
     bottom: 0;
     background: rgba(110, 118, 129, 0.3);
-    border: 1px solid var(--bridge-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 20px;
     transition: all 0.3s ease;
 }
@@ -2311,24 +2292,24 @@
     width: 14px;
     left: 2px;
     bottom: 2px;
-    background: var(--bridge-muted);
+    background: var(--archie-text-muted);
     border-radius: 50%;
     transition: all 0.3s ease;
 }
 
 .toggle-switch input:checked + .toggle-slider {
     background: rgba(0, 255, 65, 0.2);
-    border-color: var(--status-online);
+    border-color: var(--archie-success);
 }
 
 .toggle-switch input:checked + .toggle-slider:before {
     transform: translateX(20px);
-    background: var(--status-online);
+    background: var(--archie-success);
 }
 
 /* Mesh Sub-sections (inside Node Network) */
 .mesh-subsection {
-    border-top: 1px solid var(--bridge-border);
+    border-top: 1px solid var(--archie-border-default);
     background: rgba(10, 10, 15, 0.6);
     border-radius: 0 0 8px 8px;
     margin-top: 1rem;
@@ -2346,7 +2327,7 @@
     font-weight: 600;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: var(--bridge-glow);
+    color: var(--archie-cyan);
     user-select: none;
     transition: background 0.2s;
 }
@@ -2368,7 +2349,7 @@
     margin-left: auto;
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.7rem;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
     font-weight: 400;
 }
 
@@ -2400,25 +2381,25 @@
     gap: 0.75rem;
     align-items: center;
     padding: 0.6rem 0.75rem;
-    background: var(--bridge-panel);
-    border: 1px solid var(--bridge-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 6px;
     font-size: 0.78rem;
 }
 
 .mesh-loan-row .loan-flow {
-    color: var(--bridge-glow);
+    color: var(--archie-cyan);
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.72rem;
 }
 
 .mesh-loan-row .loan-agent {
-    color: var(--bridge-gold);
+    color: var(--archie-gold);
     font-weight: 500;
 }
 
 .mesh-loan-row .loan-task {
-    color: var(--bridge-text);
+    color: var(--archie-text-secondary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -2436,25 +2417,25 @@
 
 .mesh-loan-status.active {
     background: rgba(0, 255, 65, 0.15);
-    color: var(--status-online);
+    color: var(--archie-success);
     border: 1px solid rgba(0, 255, 65, 0.3);
 }
 
 .mesh-loan-status.pending {
     background: rgba(255, 170, 0, 0.15);
-    color: var(--status-warning);
+    color: var(--archie-warning);
     border: 1px solid rgba(255, 170, 0, 0.3);
 }
 
 .mesh-loan-status.completed {
     background: rgba(0, 255, 255, 0.1);
-    color: var(--bridge-glow);
+    color: var(--archie-cyan);
     border: 1px solid rgba(0, 255, 255, 0.2);
 }
 
 .mesh-loan-status.returned {
     background: rgba(139, 92, 246, 0.15);
-    color: var(--status-rest);
+    color: var(--archie-purple);
     border: 1px solid rgba(139, 92, 246, 0.3);
 }
 
@@ -2470,8 +2451,8 @@
     gap: 0.75rem;
     align-items: flex-start;
     padding: 0.6rem 0.75rem;
-    background: var(--bridge-panel);
-    border: 1px solid var(--bridge-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 6px;
     font-size: 0.78rem;
 }
@@ -2485,25 +2466,25 @@
     letter-spacing: 0.05em;
     white-space: nowrap;
     background: rgba(0, 255, 255, 0.1);
-    color: var(--bridge-glow);
+    color: var(--archie-cyan);
     border: 1px solid rgba(0, 255, 255, 0.2);
 }
 
 .mesh-learning-item .learning-type.optimization {
     background: rgba(255, 215, 0, 0.1);
-    color: var(--bridge-gold);
+    color: var(--archie-gold);
     border-color: rgba(255, 215, 0, 0.2);
 }
 
 .mesh-learning-item .learning-type.error_pattern {
     background: rgba(255, 68, 68, 0.1);
-    color: var(--status-error);
+    color: var(--archie-danger);
     border-color: rgba(255, 68, 68, 0.2);
 }
 
 .mesh-learning-item .learning-type.performance {
     background: rgba(0, 255, 65, 0.1);
-    color: var(--status-online);
+    color: var(--archie-success);
     border-color: rgba(0, 255, 65, 0.2);
 }
 
@@ -2513,7 +2494,7 @@
 }
 
 .mesh-learning-item .learning-insight {
-    color: var(--bridge-text);
+    color: var(--archie-text-secondary);
     line-height: 1.4;
 }
 
@@ -2522,7 +2503,7 @@
     gap: 0.75rem;
     margin-top: 0.3rem;
     font-size: 0.7rem;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
 }
 
 /* Header Stats for Mesh */
@@ -2532,23 +2513,23 @@
     gap: 0.75rem;
     margin-left: 0.75rem;
     padding-left: 0.75rem;
-    border-left: 1px solid var(--bridge-border);
+    border-left: 1px solid var(--archie-border-default);
 }
 
 .mesh-header-stats .stat {
     font-size: 0.75rem;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
 }
 
 .mesh-header-stats .stat span {
-    color: var(--bridge-glow);
+    color: var(--archie-cyan);
     font-weight: 600;
 }
 
 .mesh-empty-state {
     text-align: center;
     padding: 1.5rem;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
     font-size: 0.8rem;
     font-style: italic;
 }
@@ -2556,8 +2537,8 @@
 /* Model Availability Section */
 .model-availability-section {
     margin-top: 1.5rem;
-    background: var(--bridge-panel);
-    border: 1px solid var(--bridge-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 8px;
     padding: 1rem;
 }
@@ -2568,7 +2549,7 @@
     align-items: center;
     margin-bottom: 1rem;
     padding-bottom: 0.75rem;
-    border-bottom: 1px solid var(--bridge-border);
+    border-bottom: 1px solid var(--archie-border-default);
 }
 
 .model-availability-header h3 {
@@ -2576,7 +2557,7 @@
     align-items: center;
     gap: 8px;
     font-size: 0.9rem;
-    color: var(--bridge-glow);
+    color: var(--archie-cyan);
     margin: 0;
 }
 
@@ -2590,11 +2571,11 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
 }
 
 .model-stats .stat span {
-    color: var(--bridge-text);
+    color: var(--archie-text-secondary);
     font-weight: 600;
 }
 
@@ -2608,19 +2589,19 @@
 
 .model-card {
     background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--bridge-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 6px;
     padding: 10px;
     font-size: 0.75rem;
 }
 
 .model-card:hover {
-    border-color: var(--bridge-glow);
+    border-color: var(--archie-cyan);
 }
 
 .model-name {
-    font-family: var(--font-mono);
-    color: var(--bridge-text);
+    font-family: var(--archie-font-mono);
+    color: var(--archie-text-secondary);
     font-weight: 600;
     margin-bottom: 6px;
     word-break: break-all;
@@ -2630,7 +2611,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
 }
 
 .model-meta .tag {
@@ -2641,11 +2622,11 @@
 }
 
 .model-meta .nodes {
-    color: var(--status-online);
+    color: var(--archie-success);
 }
 
 .model-meta .requests {
-    color: var(--bridge-glow);
+    color: var(--archie-cyan);
 }
 
 /* Add Node Modal */
@@ -2667,8 +2648,8 @@
 }
 
 .node-modal {
-    background: var(--bridge-panel);
-    border: 1px solid var(--bridge-glow);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-cyan);
     border-radius: 8px;
     padding: 2rem;
     max-width: 500px;
@@ -2677,8 +2658,8 @@
 }
 
 .node-modal h2 {
-    font-family: var(--font-display);
-    color: var(--bridge-glow);
+    font-family: var(--archie-font-display);
+    color: var(--archie-cyan);
     margin: 0 0 1.5rem 0;
     font-size: 1.2rem;
 }
@@ -2689,14 +2670,14 @@
     padding: 1rem;
     border-radius: 4px;
     font-size: 0.75rem;
-    color: var(--status-online);
+    color: var(--archie-success);
     word-break: break-all;
     margin: 1rem 0;
 }
 
 .node-modal hr {
     border: none;
-    border-top: 1px solid var(--bridge-border);
+    border-top: 1px solid var(--archie-border-default);
     margin: 1.5rem 0;
 }
 
@@ -2706,7 +2687,7 @@
     right: 1rem;
     background: none;
     border: none;
-    color: var(--bridge-muted);
+    color: var(--archie-text-muted);
     cursor: pointer;
     font-size: 1.5rem;
 }
@@ -2740,7 +2721,7 @@
         order: 3;
         width: 100%;
         justify-content: space-around;
-        border-top: 1px solid var(--bridge-border);
+        border-top: 1px solid var(--archie-border-default);
     }
 
     .command-station {
@@ -2758,13 +2739,13 @@
     align-items: center;
     gap: 12px;
     padding: 8px 16px;
-    background: var(--bridge-panel);
-    border: 1px solid var(--bridge-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 8px;
     margin-bottom: 12px;
 }
 .routing-mode-label {
-    color: var(--bridge-gold);
+    color: var(--archie-gold);
     font-family: 'Orbitron', sans-serif;
     font-size: 11px;
     text-transform: uppercase;
@@ -2774,21 +2755,21 @@
     font-size: 11px;
     font-family: 'IBM Plex Mono', monospace;
     background: transparent;
-    color: var(--bridge-muted);
-    border: 1px solid var(--bridge-border);
+    color: var(--archie-text-muted);
+    border: 1px solid var(--archie-border-default);
     cursor: pointer;
     transition: all 0.2s;
 }
 .routing-btn:first-child { border-radius: 4px 0 0 4px; }
 .routing-btn:last-child { border-radius: 0 4px 4px 0; }
 .routing-btn.active {
-    background: var(--bridge-gold);
+    background: var(--archie-gold);
     color: #000;
-    border-color: var(--bridge-gold);
+    border-color: var(--archie-gold);
 }
 .routing-btn:hover:not(.active) {
-    color: var(--bridge-text);
-    border-color: var(--bridge-gold);
+    color: var(--archie-text-secondary);
+    border-color: var(--archie-gold);
 }
 </style>
 
@@ -2841,7 +2822,7 @@
             <button class="routing-btn" data-mode="local_cloud" title="Local + Ollama cloud (free)">Local + Cloud</button>
             <button class="routing-btn active" data-mode="full" title="All tiers including paid APIs">Full</button>
         </div>
-        <span id="routingModeStatus" style="color:var(--bridge-muted);font-size:11px;"></span>
+        <span id="routingModeStatus" style="color:var(--archie-text-muted);font-size:11px;"></span>
     </div>
 
     <!-- Main Content -->
@@ -2853,7 +2834,7 @@
                     <div class="command-slot" id="commander-slot">
                         <div class="command-slot-label">Commander</div>
                         <div id="commander-agent">
-                            <span style="color:var(--bridge-muted);font-size:0.7rem;">Loading...</span>
+                            <span style="color:var(--archie-text-muted);font-size:0.7rem;">Loading...</span>
                         </div>
                     </div>
 
@@ -2868,7 +2849,7 @@
                     <div class="command-slot" id="cocommander-slot">
                         <div class="command-slot-label">Co-Commander</div>
                         <div id="cocommander-agent">
-                            <span style="color:var(--bridge-muted);font-size:0.7rem;">Loading...</span>
+                            <span style="color:var(--archie-text-muted);font-size:0.7rem;">Loading...</span>
                         </div>
                     </div>
                 </div>
@@ -2992,7 +2973,7 @@
                     </div>
                 </div>
                 <div class="model-grid" id="model-grid">
-                    <div style="color: var(--bridge-muted); font-size: 0.8rem; grid-column: 1/-1; text-align: center; padding: 2rem;">
+                    <div style="color: var(--archie-text-muted); font-size: 0.8rem; grid-column: 1/-1; text-align: center; padding: 2rem;">
                         Loading models...
                     </div>
                 </div>
@@ -3233,7 +3214,7 @@
             <div class="node-tab-content" id="tab-stations">
                 <div class="node-detail-section full-width">
                     <h4><i data-lucide="git-branch"></i> Station Assignments</h4>
-                    <p style="font-size:0.7rem;color:var(--bridge-muted);margin-bottom:12px;">
+                    <p style="font-size:0.7rem;color:var(--archie-text-muted);margin-bottom:12px;">
                         Toggle stations on/off to assign this node. Select a role for active assignments.
                     </p>
                     <div id="node-stations-list" class="node-stations-toggle-list">
@@ -3602,9 +3583,9 @@ function renderCommandStation(station) {
     if (commander) {
         commanderEl.innerHTML = renderCommandAgentChip(commander);
     } else {
-        commanderEl.innerHTML = `<div class="bridge-agent-chip primary" style="border-color:var(--bridge-gold);">
+        commanderEl.innerHTML = `<div class="bridge-agent-chip primary" style="border-color:var(--archie-gold);">
             <div class="bridge-agent-info">
-                <div class="bridge-agent-name" style="color:var(--bridge-gold);">Kytran</div>
+                <div class="bridge-agent-name" style="color:var(--archie-gold);">Kytran</div>
                 <div class="bridge-agent-role">Administrator</div>
             </div>
         </div>`;
@@ -3615,9 +3596,9 @@ function renderCommandStation(station) {
     if (cocommander) {
         cocommanderEl.innerHTML = renderCommandAgentChip(cocommander, true);
     } else {
-        cocommanderEl.innerHTML = `<div class="bridge-agent-chip" style="border-color:var(--bridge-glow);">
+        cocommanderEl.innerHTML = `<div class="bridge-agent-chip" style="border-color:var(--archie-cyan);">
             <div class="bridge-agent-info">
-                <div class="bridge-agent-name" style="color:var(--bridge-glow);">A.R.C.H.I.E.</div>
+                <div class="bridge-agent-name" style="color:var(--archie-cyan);">A.R.C.H.I.E.</div>
                 <div class="bridge-agent-role" style="font-size:0.55rem;">(Autonomous Resource...)</div>
             </div>
         </div>`;
@@ -3651,10 +3632,10 @@ function renderCommandAgentChip(agent, isArchie = false) {
     const avatar = agent.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=0d1117&color=00ffff`;
 
     return `
-        <div class="bridge-agent-chip primary" style="border-color:${isArchie ? 'var(--bridge-glow)' : 'var(--bridge-gold)'};">
+        <div class="bridge-agent-chip primary" style="border-color:${isArchie ? 'var(--archie-cyan)' : 'var(--archie-gold)'};">
             <img src="${avatar}" alt="${displayName}" class="bridge-agent-avatar">
             <div class="bridge-agent-info">
-                <div class="bridge-agent-name" style="color:${isArchie ? 'var(--bridge-glow)' : 'var(--bridge-gold)'};">${displayName}</div>
+                <div class="bridge-agent-name" style="color:${isArchie ? 'var(--archie-cyan)' : 'var(--archie-gold)'};">${displayName}</div>
                 ${subtitle ? `<div class="bridge-agent-role" style="font-size:0.5rem;">${subtitle}</div>` : ''}
                 <div class="bridge-agent-role">${position}</div>
             </div>
@@ -3716,7 +3697,7 @@ function createStationCard(station) {
     const nodeChips = nodes.slice(0, 3).map(node => {
         const roleIcon = node.role === 'primary' ? 'star' : (node.role === 'backup' ? 'shield' : 'cpu');
         const roleColor = node.role === 'primary' ? '#FFD700' : (node.role === 'backup' ? '#10B981' : '#6e7681');
-        const statusDot = node.status === 'online' ? 'var(--status-online)' : 'var(--bridge-muted)';
+        const statusDot = node.status === 'online' ? 'var(--archie-success)' : 'var(--archie-text-muted)';
         return `
             <div class="station-node-chip" title="${node.node_name} (${node.role})" onclick="event.stopPropagation(); showNodeDetail('${node.node_id}')">
                 <span class="node-status-dot" style="background:${statusDot};"></span>
@@ -3749,7 +3730,7 @@ function createStationCard(station) {
             <div class="bridge-station-badge">${modules.length} modules</div>
         </div>
         <div class="bridge-station-modules">
-            ${moduleButtons || '<span style="color:var(--bridge-muted);font-size:0.65rem;">No modules</span>'}
+            ${moduleButtons || '<span style="color:var(--archie-text-muted);font-size:0.65rem;">No modules</span>'}
         </div>
         <div class="bridge-station-team">
             <div class="bridge-station-team-label">Assigned Team</div>
@@ -4604,7 +4585,7 @@ function renderNodeHealth(heartbeats) {
                 ${heartbeats.slice(0, 10).map(h => `
                     <tr>
                         <td>${formatTimeAgo(h.created_at)}</td>
-                        <td><span style="color:${h.status === 'online' ? 'var(--status-online)' : 'var(--bridge-muted)'}">${h.status}</span></td>
+                        <td><span style="color:${h.status === 'online' ? 'var(--archie-success)' : 'var(--archie-text-muted)'}">${h.status}</span></td>
                         <td>${h.cpu_usage ? h.cpu_usage.toFixed(1) + '%' : '--'}</td>
                         <td>${h.memory_usage ? h.memory_usage.toFixed(1) + '%' : '--'}</td>
                         <td>${h.gpu_usage ? h.gpu_usage.toFixed(1) + '%' : '--'}</td>
@@ -4859,7 +4840,7 @@ function renderModelAvailability(models, summary) {
     // Render model cards
     if (grid) {
         if (models.length === 0) {
-            grid.innerHTML = '<div style="color: var(--bridge-muted); font-size: 0.8rem; grid-column: 1/-1; text-align: center; padding: 2rem;">No models available. Enable Bridge LLM on nodes with Ollama.</div>';
+            grid.innerHTML = '<div style="color: var(--archie-text-muted); font-size: 0.8rem; grid-column: 1/-1; text-align: center; padding: 2rem;">No models available. Enable Bridge LLM on nodes with Ollama.</div>';
         } else {
             grid.innerHTML = models.map(model => `
                 <div class="model-card">
@@ -4884,10 +4865,10 @@ function showAddNodeModal() {
             <h2><i data-lucide="plus-circle"></i> Add New Node</h2>
 
             <div style="margin-bottom: 1.5rem;">
-                <h3 style="color: var(--status-online); font-size: 0.9rem; margin-bottom: 0.5rem;">
+                <h3 style="color: var(--archie-success); font-size: 0.9rem; margin-bottom: 0.5rem;">
                     <i data-lucide="terminal" style="width: 16px; height: 16px; display: inline;"></i> Linux / macOS
                 </h3>
-                <p style="font-size: 0.8rem; color: var(--bridge-muted); margin-bottom: 0.5rem;">
+                <p style="font-size: 0.8rem; color: var(--archie-text-muted); margin-bottom: 0.5rem;">
                     Run this command on the target machine:
                 </p>
                 <code style="font-size: 0.7rem;">curl -sSL http://192.168.1.200:3000/tools/bridge/api/nodes/install.sh | sudo bash</code>
@@ -4897,13 +4878,13 @@ function showAddNodeModal() {
                 <h3 style="color: #58a6ff; font-size: 0.9rem; margin-bottom: 0.5rem;">
                     <i data-lucide="monitor" style="width: 16px; height: 16px; display: inline;"></i> Windows (PowerShell Admin)
                 </h3>
-                <p style="font-size: 0.8rem; color: var(--bridge-muted); margin-bottom: 0.5rem;">
+                <p style="font-size: 0.8rem; color: var(--archie-text-muted); margin-bottom: 0.5rem;">
                     Run in PowerShell as Administrator:
                 </p>
                 <code style="font-size: 0.7rem;">iwr -useb http://192.168.1.200:3000/tools/bridge/api/nodes/install.ps1 | iex</code>
             </div>
 
-            <p style="color: var(--bridge-muted); font-size: 0.75rem; margin-top: 1rem; padding: 0.75rem; background: rgba(0,255,255,0.05); border-radius: 4px;">
+            <p style="color: var(--archie-text-muted); font-size: 0.75rem; margin-top: 1rem; padding: 0.75rem; background: rgba(0,255,255,0.05); border-radius: 4px;">
                 <i data-lucide="info" style="width: 14px; height: 14px; display: inline;"></i>
                 The installer will collect system info (CPU, RAM, GPU, Ollama models) and register the node.
                 It will appear in "Pending Approval" for you to approve.
@@ -4912,7 +4893,7 @@ function showAddNodeModal() {
             <hr>
             <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 1rem;">
                 <button onclick="this.closest('.node-modal-overlay').remove()"
-                        style="padding: 8px 16px; background: var(--bridge-border); border: none; color: var(--bridge-text); border-radius: 4px; cursor: pointer;">
+                        style="padding: 8px 16px; background: var(--archie-border-default); border: none; color: var(--archie-text-secondary); border-radius: 4px; cursor: pointer;">
                     Close
                 </button>
             </div>
@@ -4949,7 +4930,7 @@ function showToast(message, type = 'info') {
         font-size: 0.85rem;
         z-index: 9999;
         animation: fadeIn 0.3s ease;
-        background: ${type === 'success' ? 'var(--status-online)' : type === 'error' ? 'var(--status-error)' : type === 'warning' ? 'var(--status-warning)' : 'var(--bridge-glow)'};
+        background: ${type === 'success' ? 'var(--archie-success)' : type === 'error' ? 'var(--archie-danger)' : type === 'warning' ? 'var(--archie-warning)' : 'var(--archie-cyan)'};
     `;
     toast.textContent = message;
     document.body.appendChild(toast);
@@ -5067,10 +5048,10 @@ function renderStationCoverageCard(station) {
                 ${hasNodes ? `
                     <div class="station-assigned-nodes">
                         ${nodeChips}
-                        ${moreCount > 0 ? `<span style="font-size:0.7rem;color:var(--bridge-muted);">+${moreCount} more</span>` : ''}
+                        ${moreCount > 0 ? `<span style="font-size:0.7rem;color:var(--archie-text-muted);">+${moreCount} more</span>` : ''}
                     </div>
                 ` : `
-                    <div style="font-size:0.75rem;color:var(--bridge-muted);text-align:center;padding:10px 0;">
+                    <div style="font-size:0.75rem;color:var(--archie-text-muted);text-align:center;padding:10px 0;">
                         No nodes assigned
                     </div>
                 `}
@@ -5101,7 +5082,7 @@ async function showStationDetail(stationId, stationName) {
 
             if (data.nodes.length === 0) {
                 body.innerHTML = `
-                    <div style="text-align:center;padding:2rem;color:var(--bridge-muted);">
+                    <div style="text-align:center;padding:2rem;color:var(--archie-text-muted);">
                         <i data-lucide="inbox" style="width:48px;height:48px;margin-bottom:1rem;"></i>
                         <p>No nodes assigned to this station</p>
                     </div>
@@ -5110,7 +5091,7 @@ async function showStationDetail(stationId, stationName) {
                 body.innerHTML = `
                     <table style="width:100%;font-size:0.8rem;border-collapse:collapse;">
                         <thead>
-                            <tr style="border-bottom:1px solid var(--bridge-border);text-align:left;">
+                            <tr style="border-bottom:1px solid var(--archie-border-default);text-align:left;">
                                 <th style="padding:8px;">Node</th>
                                 <th style="padding:8px;">Role</th>
                                 <th style="padding:8px;">Priority</th>
@@ -5123,14 +5104,14 @@ async function showStationDetail(stationId, stationName) {
                                 <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
                                     <td style="padding:8px;">
                                         <strong>${escapeHtml(node.node_name)}</strong>
-                                        <div style="font-size:0.7rem;color:var(--bridge-muted);">${node.hostname || ''}</div>
+                                        <div style="font-size:0.7rem;color:var(--archie-text-muted);">${node.hostname || ''}</div>
                                     </td>
                                     <td style="padding:8px;">
                                         <span class="role-badge ${node.role}" style="padding:2px 8px;border-radius:4px;">${node.role}</span>
                                     </td>
                                     <td style="padding:8px;">${node.priority}</td>
                                     <td style="padding:8px;">
-                                        <span style="color:${node.status === 'online' ? 'var(--status-online)' : 'var(--bridge-muted)'};">
+                                        <span style="color:${node.status === 'online' ? 'var(--archie-success)' : 'var(--archie-text-muted)'};">
                                             ${node.status}
                                         </span>
                                     </td>
@@ -5652,7 +5633,7 @@ function renderStationActivity(stations) {
         const fill = document.createElement('div');
         fill.className = 'dispatch-station-fill';
         fill.style.width = Math.round((station.dispatch_count / maxCount) * 100) + '%';
-        fill.style.background = station.color || 'var(--bridge-glow)';
+        fill.style.background = station.color || 'var(--archie-cyan)';
         fillBg.appendChild(fill);
 
         const count = document.createElement('span');

@@ -198,12 +198,6 @@
         }
         .tab-content.active { display: block; }
 
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
         /* Sections - Consistent panel styling */
         .section {
             background: var(--archie-bg-secondary, #0d1117);
@@ -274,8 +268,6 @@
         .badge.fixed { background: #00FF00; color: #000; }
         .badge.security { background: #FF0000; color: #fff; }
         .badge.quality { background: #00FFFF; color: #000; }
-
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
         /* File Browser */
         .file-browser {
@@ -537,8 +529,6 @@
             margin: 0 auto 15px;
         }
 
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
         .empty-state { padding: 40px; text-align: center; color: #666; }
         .error-message { padding: 20px; text-align: center; color: #ff4136; }
 
@@ -568,17 +558,6 @@
                 var(--archie-bg-hover, #21262d),
                 transparent);
             margin: 0 12px;
-        }
-
-        /* CodeRabbit Module Theme Colors */
-        :root {
-            --cr-primary: var(--archie-red, #FF6B6B);
-            --cr-secondary: var(--archie-green, #00ff41);
-            --cr-accent: var(--archie-cyan, #00FFFF);
-            --cr-warning: var(--archie-orange, #FFAA00);
-            --cr-bg: var(--archie-bg-primary, #010409);
-            --cr-panel: var(--archie-bg-secondary, #0d1117);
-            --cr-border: var(--archie-bg-hover, #21262d);
         }
 
         /* Module Header - Premium styling */

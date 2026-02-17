@@ -7,25 +7,7 @@
 {% block extra_head %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css">
 <style>
-    /* CSS Variables for Figma Integration - Orange Creation Theme */
-    :root {
-        --fi-primary: #F59E0B;
-        --fi-primary-light: #FBBF24;
-        --fi-primary-dark: #D97706;
-        --fi-bg: #0a0a0f;
-        --fi-card-bg: #111118;
-        --fi-border: rgba(245, 158, 11, 0.2);
-        --fi-text: #E5E5E5;
-        --fi-text-secondary: #9CA3AF;
-        --fi-success: #22c55e;
-        --fi-danger: #ef4444;
-        /* Legacy variable mappings for existing styles */
-        --card-bg: var(--fi-card-bg);
-        --border-color: var(--fi-border);
-        --text-secondary: var(--fi-text-secondary);
-        --bg-secondary: rgba(245, 158, 11, 0.05);
-        --primary-color: var(--fi-primary);
-    }
+    /* Custom vars migrated to --archie-* tokens */
 
     /* Figma Integration Styles */
     .figma-container {
@@ -38,9 +20,9 @@
 
     /* Sidebar - Files & Auth */
     .figma-sidebar {
-        background: var(--card-bg);
+        background: var(--archie-bg-secondary);
         border-radius: 12px;
-        border: 1px solid var(--border-color);
+        border: 1px solid var(--archie-border-default);
         display: flex;
         flex-direction: column;
         overflow: hidden;
@@ -48,7 +30,7 @@
 
     .sidebar-header {
         padding: 16px;
-        border-bottom: 1px solid var(--border-color);
+        border-bottom: 1px solid var(--archie-border-default);
         display: flex;
         align-items: center;
         gap: 12px;
@@ -67,8 +49,8 @@
         align-items: center;
         gap: 8px;
         padding: 12px 16px;
-        background: var(--bg-secondary);
-        border-bottom: 1px solid var(--border-color);
+        background: var(--archie-orange-alpha-10);
+        border-bottom: 1px solid var(--archie-border-default);
     }
 
     .auth-status.connected {
@@ -99,18 +81,18 @@
     }
 
     .file-item:hover {
-        background: var(--bg-secondary);
+        background: var(--archie-orange-alpha-10);
     }
 
     .file-item.selected {
-        background: var(--primary-color);
+        background: var(--archie-orange);
         color: white;
     }
 
     .file-thumbnail {
         width: 48px;
         height: 36px;
-        background: var(--bg-secondary);
+        background: var(--archie-orange-alpha-10);
         border-radius: 4px;
         display: flex;
         align-items: center;
@@ -131,14 +113,14 @@
 
     .file-date {
         font-size: 12px;
-        color: var(--text-secondary);
+        color: var(--archie-text-tertiary);
     }
 
     /* Main Canvas */
     .figma-canvas {
-        background: var(--card-bg);
+        background: var(--archie-bg-secondary);
         border-radius: 12px;
-        border: 1px solid var(--border-color);
+        border: 1px solid var(--archie-border-default);
         display: flex;
         flex-direction: column;
         overflow: hidden;
@@ -146,7 +128,7 @@
 
     .canvas-header {
         padding: 12px 16px;
-        border-bottom: 1px solid var(--border-color);
+        border-bottom: 1px solid var(--archie-border-default);
         display: flex;
         align-items: center;
         gap: 12px;
@@ -166,11 +148,11 @@
     }
 
     .canvas-tab:hover {
-        background: var(--bg-secondary);
+        background: var(--archie-orange-alpha-10);
     }
 
     .canvas-tab.active {
-        background: var(--primary-color);
+        background: var(--archie-orange);
         color: white;
     }
 
@@ -186,18 +168,18 @@
         min-height: 300px;
         max-height: calc(100vh - 250px);
         overflow-y: auto;
-        background: var(--fi-card-bg);
+        background: var(--archie-bg-secondary);
         border-radius: 8px;
         display: flex;
         align-items: flex-start;
         justify-content: center;
         position: relative;
-        border: 1px solid var(--fi-border);
+        border: 1px solid var(--archie-border-default);
     }
 
     .design-placeholder {
         text-align: center;
-        color: var(--text-secondary);
+        color: var(--archie-text-tertiary);
         padding: 40px 20px;
     }
 
@@ -224,12 +206,12 @@
     }
 
     .tree-node:hover {
-        background: var(--bg-secondary);
+        background: var(--archie-orange-alpha-10);
     }
 
     .tree-node.selected {
         background: rgba(99, 102, 241, 0.1);
-        color: var(--primary-color);
+        color: var(--archie-orange);
     }
 
     .tree-children {
@@ -270,9 +252,9 @@
 
     /* Right Panel - Settings */
     .figma-panel {
-        background: var(--card-bg);
+        background: var(--archie-bg-secondary);
         border-radius: 12px;
-        border: 1px solid var(--border-color);
+        border: 1px solid var(--archie-border-default);
         display: flex;
         flex-direction: column;
         overflow: hidden;
@@ -280,7 +262,7 @@
 
     .panel-section {
         padding: 16px;
-        border-bottom: 1px solid var(--border-color);
+        border-bottom: 1px solid var(--archie-border-default);
     }
 
     .panel-section:last-child {
@@ -301,7 +283,7 @@
 
     .option-label {
         font-size: 12px;
-        color: var(--text-secondary);
+        color: var(--archie-text-tertiary);
         margin-bottom: 6px;
     }
 
@@ -313,7 +295,7 @@
     .option-btn {
         flex: 1;
         padding: 10px;
-        border: 1px solid var(--border-color);
+        border: 1px solid var(--archie-border-default);
         border-radius: 8px;
         background: transparent;
         cursor: pointer;
@@ -322,12 +304,12 @@
     }
 
     .option-btn:hover {
-        border-color: var(--primary-color);
+        border-color: var(--archie-orange);
     }
 
     .option-btn.selected {
-        background: var(--primary-color);
-        border-color: var(--primary-color);
+        background: var(--archie-orange);
+        border-color: var(--archie-orange);
         color: white;
     }
 
@@ -392,7 +374,7 @@
 
     .btn-secondary {
         background: transparent;
-        border: 1px solid var(--border-color);
+        border: 1px solid var(--archie-border-default);
         padding: 12px;
         border-radius: 8px;
         cursor: pointer;
@@ -404,8 +386,8 @@
     }
 
     .btn-secondary:hover {
-        border-color: var(--primary-color);
-        color: var(--primary-color);
+        border-color: var(--archie-orange);
+        color: var(--archie-orange);
     }
 
     /* History Panel */
@@ -426,14 +408,14 @@
     }
 
     .history-item:hover {
-        background: var(--bg-secondary);
+        background: var(--archie-orange-alpha-10);
     }
 
     .history-badge {
         font-size: 10px;
         padding: 2px 6px;
         border-radius: 4px;
-        background: var(--bg-secondary);
+        background: var(--archie-orange-alpha-10);
     }
 
     /* Responsive */
@@ -478,7 +460,7 @@
             </svg>
             <div>
                 <div style="font-weight: 600;">Figma Integration</div>
-                <div style="font-size: 12px; color: var(--text-secondary);">Design to Code</div>
+                <div style="font-size: 12px; color: var(--archie-text-tertiary);">Design to Code</div>
             </div>
         </div>
 
@@ -491,7 +473,7 @@
         </div>
 
         <div class="file-list" id="fileList">
-            <div style="text-align: center; padding: 40px 20px; color: var(--text-secondary);">
+            <div style="text-align: center; padding: 40px 20px; color: var(--archie-text-tertiary);">
                 <i data-lucide="folder-open" style="width: 48px; height: 48px; opacity: 0.5;"></i>
                 <p style="margin-top: 12px;">Connect to Figma to see your files</p>
             </div>
@@ -539,7 +521,7 @@
                         <p style="font-size: 13px; margin-top: 8px;">Or paste a Figma URL below</p>
                         <div style="margin-top: 16px;">
                             <input type="text" id="figmaUrl" placeholder="https://www.figma.com/file/..."
-                                   style="width: 300px; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border-color);">
+                                   style="width: 300px; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--archie-border-default);">
                             <button class="btn-secondary" onclick="loadFromUrl()" style="margin-left: 8px; padding: 10px 16px;">
                                 Load
                             </button>
@@ -551,7 +533,7 @@
             <!-- Structure Tab -->
             <div id="structureTab" class="tab-content" style="display: none;">
                 <div class="component-tree" id="componentTree">
-                    <div style="color: var(--text-secondary); padding: 20px; text-align: center;">
+                    <div style="color: var(--archie-text-tertiary); padding: 20px; text-align: center;">
                         No design loaded
                     </div>
                 </div>
@@ -633,7 +615,7 @@
                 <div class="color-token" style="background: #1F2937;" title="Text"></div>
                 <div class="color-token" style="background: #6B7280;" title="Muted"></div>
             </div>
-            <p style="font-size: 11px; color: var(--text-secondary); margin: 0;">Hover for color name</p>
+            <p style="font-size: 11px; color: var(--archie-text-tertiary); margin: 0;">Hover for color name</p>
         </div>
 
         <div class="panel-section">
@@ -642,7 +624,7 @@
                 Recent
             </div>
             <div class="history-list" id="historyList">
-                <div style="color: var(--text-secondary); font-size: 13px; padding: 8px;">
+                <div style="color: var(--archie-text-tertiary); font-size: 13px; padding: 8px;">
                     No recent generations
                 </div>
             </div>
@@ -757,7 +739,7 @@
             await fetch('/tools/figma/oauth/disconnect', { method: 'POST' });
             checkAuthStatus();
             document.getElementById('fileList').innerHTML = `
-                <div style="text-align: center; padding: 40px 20px; color: var(--text-secondary);">
+                <div style="text-align: center; padding: 40px 20px; color: var(--archie-text-tertiary);">
                     <i data-lucide="folder-open" style="width: 48px; height: 48px; opacity: 0.5;"></i>
                     <p style="margin-top: 12px;">Connect to Figma to see your files</p>
                 </div>
@@ -787,7 +769,7 @@
 
         if (!files || files.length === 0) {
             fileList.innerHTML = `
-                <div style="text-align: center; padding: 40px 20px; color: var(--text-secondary);">
+                <div style="text-align: center; padding: 40px 20px; color: var(--archie-text-tertiary);">
                     <i data-lucide="file-x" style="width: 48px; height: 48px; opacity: 0.5;"></i>
                     <p style="margin-top: 12px;">No Figma files found</p>
                 </div>
@@ -854,11 +836,11 @@
 
         preview.innerHTML = `
             <div style="width: 100%; padding: 16px;">
-                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--fi-border);">
-                    <i data-lucide="figma" style="width: 20px; height: 20px; color: var(--fi-primary);"></i>
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--archie-border-default);">
+                    <i data-lucide="figma" style="width: 20px; height: 20px; color: var(--archie-orange);"></i>
                     <div>
                         <div style="font-weight: 600;">${file.name}</div>
-                        <div style="font-size: 11px; color: var(--text-secondary);">
+                        <div style="font-size: 11px; color: var(--archie-text-tertiary);">
                             Last modified: ${formatDate(file.lastModified)}
                         </div>
                     </div>
@@ -866,13 +848,13 @@
 
                 ${frames.length > 0 ? `
                 <div style="margin-bottom: 16px;">
-                    <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;">FRAMES (${frames.length})</div>
+                    <div style="font-size: 12px; color: var(--archie-text-tertiary); margin-bottom: 8px;">FRAMES (${frames.length})</div>
                     <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px;">
                         ${frames.map(frame => `
-                            <div style="background: var(--fi-card-bg); border-radius: 6px; padding: 10px; border: 1px solid var(--fi-border); cursor: pointer; transition: border-color 0.2s;"
+                            <div style="background: var(--archie-bg-secondary); border-radius: 6px; padding: 10px; border: 1px solid var(--archie-border-default); cursor: pointer; transition: border-color 0.2s;"
                                  onclick="selectFrame('${frame.id}', '${frame.name}')"
-                                 onmouseover="this.style.borderColor='var(--fi-primary)'"
-                                 onmouseout="this.style.borderColor='var(--fi-border)'">
+                                 onmouseover="this.style.borderColor='var(--archie-orange)'"
+                                 onmouseout="this.style.borderColor='var(--archie-border-default)'">
                                 <div style="height: 60px; background: ${rgbaToHex(frame.backgroundColor)}; border-radius: 4px; margin-bottom: 8px; display: flex; align-items: center; justify-content: center;">
                                     <i data-lucide="frame" style="width: 16px; height: 16px; opacity: 0.3;"></i>
                                 </div>
@@ -885,10 +867,10 @@
 
                 ${Object.keys(components).length > 0 ? `
                 <div>
-                    <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;">COMPONENTS (${Object.keys(components).length})</div>
+                    <div style="font-size: 12px; color: var(--archie-text-tertiary); margin-bottom: 8px;">COMPONENTS (${Object.keys(components).length})</div>
                     <div style="display: flex; flex-wrap: wrap; gap: 6px;">
                         ${Object.entries(components).map(([id, comp]) => `
-                            <span style="padding: 4px 10px; background: var(--bg-secondary); border-radius: 4px; font-size: 11px;">
+                            <span style="padding: 4px 10px; background: var(--archie-orange-alpha-10); border-radius: 4px; font-size: 11px;">
                                 ${comp.name}
                             </span>
                         `).join('')}
@@ -912,7 +894,7 @@
                     <div class="tree-node" onclick="selectSection('${section.id}')">
                         <i data-lucide="${getSectionIcon(section.type)}" style="width: 14px; height: 14px;"></i>
                         ${section.suggested_component}
-                        <span style="margin-left: auto; font-size: 11px; color: var(--text-secondary);">${section.type}</span>
+                        <span style="margin-left: auto; font-size: 11px; color: var(--archie-text-tertiary);">${section.type}</span>
                     </div>
                 `).join('')}
             </div>
@@ -926,7 +908,7 @@
                         <div class="tree-node">
                             <i data-lucide="box" style="width: 14px; height: 14px;"></i>
                             ${comp.name}
-                            <span style="margin-left: auto; font-size: 11px; background: var(--bg-secondary); padding: 2px 6px; border-radius: 4px;">
+                            <span style="margin-left: auto; font-size: 11px; background: var(--archie-orange-alpha-10); padding: 2px 6px; border-radius: 4px;">
                                 x${comp.count}
                             </span>
                         </div>

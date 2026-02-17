@@ -7,16 +7,6 @@
 {% block styles %}
 /* Reuses login.html cyberpunk theme */
 
-:root {
-    --login-green: #00ff41;
-    --login-cyan: #00ffff;
-    --login-void: #000000;
-    --login-surface: #0d1117;
-    --login-border: #21262d;
-    --login-text: #e6edf3;
-    --login-muted: #8b949e;
-    --login-glow: 0 0 20px rgba(0, 255, 65, 0.4), 0 0 40px rgba(0, 255, 65, 0.2);
-}
 
 * {
     margin: 0;
@@ -29,7 +19,7 @@ body {
     align-items: center;
     justify-content: center;
     min-height: 100vh;
-    background: var(--login-void);
+    background: var(--archie-bg-void);
     font-family: 'JetBrains Mono', monospace;
     overflow: hidden;
 }
@@ -80,10 +70,6 @@ body {
     animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-@keyframes fadeInUp {
-    from { opacity: 0; transform: translateY(30px); }
-    to { opacity: 1; transform: translateY(0); }
-}
 
 /* Login Card */
 .login-card {
@@ -108,7 +94,7 @@ body {
     transform: translateX(-50%);
     width: 150px;
     height: 2px;
-    background: linear-gradient(90deg, transparent, var(--login-green), transparent);
+    background: linear-gradient(90deg, transparent, var(--archie-green), transparent);
 }
 
 .login-card::after {
@@ -119,7 +105,7 @@ body {
     transform: translateX(-50%);
     width: 100px;
     height: 1px;
-    background: linear-gradient(90deg, transparent, var(--login-cyan), transparent);
+    background: linear-gradient(90deg, transparent, var(--archie-cyan), transparent);
     opacity: 0.5;
 }
 
@@ -134,8 +120,8 @@ body {
     font-size: 2.8rem;
     font-weight: 900;
     letter-spacing: 0.2em;
-    color: var(--login-green);
-    text-shadow: var(--login-glow);
+    color: var(--archie-green);
+    text-shadow: var(--archie-glow-green);
     margin-bottom: 12px;
     animation: glow 3s ease-in-out infinite;
 }
@@ -154,7 +140,7 @@ body {
 .login-subtitle {
     font-size: 0.7rem;
     letter-spacing: 0.3em;
-    color: var(--login-cyan);
+    color: var(--archie-cyan);
     text-transform: uppercase;
     opacity: 0.8;
 }
@@ -170,16 +156,16 @@ body {
     border: 1px solid rgba(0, 255, 65, 0.15);
     border-radius: 8px;
     font-size: 0.75rem;
-    color: var(--login-muted);
+    color: var(--archie-text-tertiary);
     letter-spacing: 0.05em;
 }
 
 .auth-user-badge .user-icon {
-    color: var(--login-green);
+    color: var(--archie-green);
 }
 
 .auth-user-badge .username {
-    color: var(--login-text);
+    color: var(--archie-text-primary);
     font-weight: 600;
 }
 
@@ -197,7 +183,7 @@ body {
     display: block;
     font-size: 0.7rem;
     letter-spacing: 0.15em;
-    color: var(--login-muted);
+    color: var(--archie-text-tertiary);
     text-transform: uppercase;
     margin-bottom: 10px;
     transition: color 0.3s;
@@ -207,9 +193,9 @@ body {
     width: 100%;
     padding: 20px;
     background: rgba(0, 0, 0, 0.4);
-    border: 1px solid var(--login-border);
+    border: 1px solid var(--archie-border-muted);
     border-radius: 10px;
-    color: var(--login-text);
+    color: var(--archie-text-primary);
     font-family: 'JetBrains Mono', monospace;
     font-size: 2rem;
     letter-spacing: 0.5em;
@@ -218,7 +204,7 @@ body {
 }
 
 .form-input::placeholder {
-    color: var(--login-muted);
+    color: var(--archie-text-tertiary);
     opacity: 0.3;
     font-size: 1rem;
     letter-spacing: 0.2em;
@@ -226,7 +212,7 @@ body {
 
 .form-input:focus {
     outline: none;
-    border-color: var(--login-green);
+    border-color: var(--archie-green);
     background: rgba(0, 255, 65, 0.05);
     box-shadow:
         0 0 0 3px rgba(0, 255, 65, 0.1),
@@ -234,13 +220,13 @@ body {
 }
 
 .form-group:focus-within .form-label {
-    color: var(--login-green);
+    color: var(--archie-green);
 }
 
 /* Help text */
 .form-help {
     font-size: 0.65rem;
-    color: var(--login-muted);
+    color: var(--archie-text-tertiary);
     margin-top: 10px;
     text-align: center;
     letter-spacing: 0.05em;
@@ -252,9 +238,9 @@ body {
     padding: 18px 24px;
     margin-top: 10px;
     background: transparent;
-    border: 2px solid var(--login-green);
+    border: 2px solid var(--archie-green);
     border-radius: 10px;
-    color: var(--login-green);
+    color: var(--archie-green);
     font-family: 'Orbitron', sans-serif;
     font-size: 0.85rem;
     font-weight: 600;
@@ -270,14 +256,14 @@ body {
     content: '';
     position: absolute;
     inset: 0;
-    background: var(--login-green);
+    background: var(--archie-green);
     transform: translateY(100%);
     transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
     z-index: -1;
 }
 
 .login-btn:hover {
-    color: var(--login-void);
+    color: var(--archie-bg-void);
     box-shadow:
         0 0 30px rgba(0, 255, 65, 0.4),
         0 10px 40px rgba(0, 255, 65, 0.2);
@@ -306,14 +292,11 @@ body {
     height: 20px;
     margin: -10px 0 0 -10px;
     border: 2px solid transparent;
-    border-top-color: var(--login-void);
+    border-top-color: var(--archie-bg-void);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
 }
 
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
 
 /* Cancel link */
 .cancel-section {
@@ -323,14 +306,14 @@ body {
 
 .cancel-link {
     font-size: 0.75rem;
-    color: var(--login-muted);
+    color: var(--archie-text-tertiary);
     text-decoration: none;
     letter-spacing: 0.1em;
     transition: color 0.3s;
 }
 
 .cancel-link:hover {
-    color: var(--login-green);
+    color: var(--archie-green);
     text-shadow: 0 0 15px rgba(0, 255, 65, 0.3);
 }
 
@@ -368,7 +351,7 @@ body {
     margin: 0 auto 20px;
     width: 48px;
     height: 48px;
-    color: var(--login-cyan);
+    color: var(--archie-cyan);
     opacity: 0.6;
 }
 

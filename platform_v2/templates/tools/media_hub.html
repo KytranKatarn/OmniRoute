@@ -630,16 +630,8 @@
    Theme: Golden/Amber accent with cyberpunk ARCHIE foundation
    ═══════════════════════════════════════════════════════════════════════════════ */
 
-/* Custom Properties for Media Hub */
+/* Media Hub Container */
 .media-hub {
-    --mh-accent: #E5A00D;
-    --mh-accent-bright: #FFC230;
-    --mh-accent-dim: #B8860B;
-    --mh-accent-alpha-10: rgba(229, 160, 13, 0.1);
-    --mh-accent-alpha-20: rgba(229, 160, 13, 0.2);
-    --mh-accent-alpha-30: rgba(229, 160, 13, 0.3);
-    --mh-glow: 0 0 20px rgba(229, 160, 13, 0.4);
-
     min-height: 100vh;
     background: var(--archie-bg-primary);
     padding-bottom: 60px;
@@ -650,7 +642,7 @@
    ───────────────────────────────────────────────────────────────────────────── */
 .hub-header {
     background: linear-gradient(180deg, var(--archie-bg-secondary) 0%, var(--archie-bg-primary) 100%);
-    border-bottom: 1px solid var(--mh-accent-alpha-20);
+    border-bottom: 1px solid var(--archie-orange-alpha-20);
     padding: 20px 24px;
     position: sticky;
     top: 0;
@@ -674,14 +666,14 @@
 .brand-icon {
     width: 48px;
     height: 48px;
-    background: var(--mh-accent-alpha-20);
-    border: 2px solid var(--mh-accent);
+    background: var(--archie-orange-alpha-20);
+    border: 2px solid var(--archie-gold);
     border-radius: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--mh-accent);
-    box-shadow: var(--mh-glow);
+    color: var(--archie-gold);
+    box-shadow: var(--archie-glow-orange);
 }
 
 .brand-icon i {
@@ -693,7 +685,7 @@
     font-family: 'Orbitron', sans-serif;
     font-size: 1.5rem;
     font-weight: 700;
-    color: var(--mh-accent);
+    color: var(--archie-gold);
     margin: 0;
     letter-spacing: 3px;
     text-shadow: 0 0 20px rgba(229, 160, 13, 0.5);
@@ -724,7 +716,7 @@
     width: 100%;
     padding: 12px 48px 12px 44px;
     background: var(--archie-bg-tertiary);
-    border: 1px solid var(--mh-accent-alpha-20);
+    border: 1px solid var(--archie-orange-alpha-20);
     border-radius: 10px;
     color: var(--archie-text-secondary);
     font-family: 'JetBrains Mono', monospace;
@@ -734,8 +726,8 @@
 
 .search-container input:focus {
     outline: none;
-    border-color: var(--mh-accent);
-    box-shadow: 0 0 0 3px var(--mh-accent-alpha-20), var(--mh-glow);
+    border-color: var(--archie-gold);
+    box-shadow: 0 0 0 3px var(--archie-orange-alpha-20), var(--archie-glow-orange);
 }
 
 .search-container input::placeholder {
@@ -770,7 +762,7 @@
     left: 0;
     right: 0;
     background: var(--archie-bg-elevated);
-    border: 1px solid var(--mh-accent-alpha-30);
+    border: 1px solid var(--archie-orange-alpha-30);
     border-radius: 12px;
     max-height: 480px;
     overflow-y: auto;
@@ -782,11 +774,6 @@
 .search-dropdown.active {
     display: block;
     animation: slideDown 0.2s ease;
-}
-
-@keyframes slideDown {
-    from { opacity: 0; transform: translateY(-10px); }
-    to { opacity: 1; transform: translateY(0); }
 }
 
 .search-section {
@@ -802,7 +789,7 @@
     font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 1px;
-    color: var(--mh-accent);
+    color: var(--archie-gold);
     margin-bottom: 8px;
     padding: 0 4px;
 }
@@ -818,7 +805,7 @@
 }
 
 .search-result:hover {
-    background: var(--mh-accent-alpha-10);
+    background: var(--archie-orange-alpha-10);
 }
 
 .search-result-poster {
@@ -859,8 +846,8 @@
 }
 
 .search-result-badge.request {
-    background: var(--mh-accent-alpha-20);
-    color: var(--mh-accent);
+    background: var(--archie-orange-alpha-20);
+    color: var(--archie-gold);
 }
 
 /* Install App Button */
@@ -869,11 +856,11 @@
     align-items: center;
     gap: 8px;
     padding: 10px 18px;
-    background: linear-gradient(135deg, var(--mh-accent) 0%, var(--mh-accent-bright) 100%);
+    background: linear-gradient(135deg, var(--archie-gold) 0%, var(--archie-gold) 100%);
     border: none;
     border-radius: 8px;
     color: #000;
-    font-family: var(--font-display);
+    font-family: var(--archie-font-display);
     font-size: 0.85rem;
     font-weight: 600;
     text-transform: uppercase;
@@ -951,12 +938,12 @@ body.tv-mode .install-app-btn {
 }
 
 .status-orb.partial .orb-ring {
-    border-color: var(--mh-accent);
+    border-color: var(--archie-gold);
 }
 
 .status-orb.partial .orb-core {
-    background: var(--mh-accent);
-    box-shadow: 0 0 8px var(--mh-accent);
+    background: var(--archie-gold);
+    box-shadow: 0 0 8px var(--archie-gold);
 }
 
 .status-orb.offline .orb-ring {
@@ -968,10 +955,7 @@ body.tv-mode .install-app-btn {
     box-shadow: 0 0 8px var(--archie-red);
 }
 
-@keyframes pulse {
-    0%, 100% { transform: scale(1); opacity: 1; }
-    50% { transform: scale(1.1); opacity: 0.7; }
-}
+
 
 .status-label {
     font-family: 'JetBrains Mono', monospace;
@@ -1027,8 +1011,8 @@ body.tv-mode .install-app-btn {
 }
 
 .nav-tab.active {
-    color: var(--mh-accent);
-    border-bottom-color: var(--mh-accent);
+    color: var(--archie-gold);
+    border-bottom-color: var(--archie-gold);
 }
 
 .nav-tab i {
@@ -1045,8 +1029,8 @@ body.tv-mode .install-app-btn {
 }
 
 .nav-tab.active .nav-count {
-    background: var(--mh-accent-alpha-20);
-    color: var(--mh-accent);
+    background: var(--archie-orange-alpha-20);
+    color: var(--archie-gold);
 }
 
 .nav-badge {
@@ -1078,10 +1062,7 @@ body.tv-mode .install-app-btn {
     display: block;
 }
 
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
+
 
 /* ─────────────────────────────────────────────────────────────────────────────
    STATS GRID
@@ -1107,7 +1088,7 @@ body.tv-mode .install-app-btn {
 }
 
 .stat-card:hover {
-    border-color: var(--mh-accent-alpha-30);
+    border-color: var(--archie-orange-alpha-30);
     transform: translateY(-2px);
 }
 
@@ -1115,12 +1096,12 @@ body.tv-mode .install-app-btn {
     width: 40px;
     height: 40px;
     margin: 0 auto 12px;
-    background: var(--mh-accent-alpha-10);
+    background: var(--archie-orange-alpha-10);
     border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--mh-accent);
+    color: var(--archie-gold);
 }
 
 .stat-icon i { width: 22px; height: 22px; }
@@ -1163,7 +1144,7 @@ body.tv-mode .install-app-btn {
     margin: 0;
 }
 
-.section-header h2 i { width: 20px; height: 20px; color: var(--mh-accent); }
+.section-header h2 i { width: 20px; height: 20px; color: var(--archie-gold); }
 
 /* Poster Carousel */
 .poster-carousel {
@@ -1172,7 +1153,7 @@ body.tv-mode .install-app-btn {
     overflow-x: auto;
     padding: 8px 0 16px;
     scrollbar-width: thin;
-    scrollbar-color: var(--mh-accent-alpha-30) transparent;
+    scrollbar-color: var(--archie-orange-alpha-30) transparent;
 }
 
 .poster-card {
@@ -1218,7 +1199,7 @@ body.tv-mode .install-app-btn {
 
 .poster-quality {
     padding: 2px 6px;
-    background: var(--mh-accent);
+    background: var(--archie-gold);
     color: #000;
     border-radius: 3px;
     font-size: 0.65rem;
@@ -1272,7 +1253,7 @@ body.tv-mode .install-app-btn {
     font-family: 'Orbitron', sans-serif;
     font-size: 0.9rem;
     font-weight: 600;
-    color: var(--mh-accent);
+    color: var(--archie-gold);
     margin: 0;
 }
 
@@ -1344,7 +1325,7 @@ body.tv-mode .install-app-btn {
 
 .progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--archie-cyan), var(--archie-cyan-bright));
+    background: linear-gradient(90deg, var(--archie-cyan), var(--archie-cyan));
     border-radius: 3px;
     transition: width 0.3s ease;
 }
@@ -1395,7 +1376,7 @@ body.tv-mode .install-app-btn {
 
 .episode-time {
     font-size: 0.75rem;
-    color: var(--mh-accent);
+    color: var(--archie-gold);
     font-weight: 500;
 }
 
@@ -1430,13 +1411,11 @@ body.tv-mode .install-app-btn {
 .loading-pulse {
     width: 40px;
     height: 40px;
-    border: 3px solid var(--mh-accent-alpha-30);
-    border-top-color: var(--mh-accent);
+    border: 3px solid var(--archie-orange-alpha-30);
+    border-top-color: var(--archie-gold);
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }
-
-@keyframes spin { to { transform: rotate(360deg); } }
 
 /* Media Grid (Movies/Shows) */
 .library-controls {
@@ -1498,7 +1477,7 @@ body.tv-mode .install-app-btn {
     background-position: right 12px center;
 }
 
-.control-select:focus { outline: none; border-color: var(--mh-accent); }
+.control-select:focus { outline: none; border-color: var(--archie-gold); }
 
 .filter-chip {
     padding: 8px 16px;
@@ -1512,12 +1491,12 @@ body.tv-mode .install-app-btn {
     transition: all 0.2s ease;
 }
 
-.filter-chip:hover { border-color: var(--mh-accent-alpha-30); color: var(--archie-text-secondary); }
+.filter-chip:hover { border-color: var(--archie-orange-alpha-30); color: var(--archie-text-secondary); }
 
 .filter-chip.active {
-    background: var(--mh-accent-alpha-20);
-    border-color: var(--mh-accent);
-    color: var(--mh-accent);
+    background: var(--archie-orange-alpha-20);
+    border-color: var(--archie-gold);
+    color: var(--archie-gold);
 }
 
 .view-toggle {
@@ -1540,7 +1519,7 @@ body.tv-mode .install-app-btn {
 
 .view-btn:hover { color: var(--archie-text-secondary); }
 
-.view-btn.active { background: var(--archie-bg-elevated); color: var(--mh-accent); }
+.view-btn.active { background: var(--archie-bg-elevated); color: var(--archie-gold); }
 
 .view-btn i { width: 18px; height: 18px; }
 
@@ -1570,7 +1549,7 @@ body.tv-mode .install-app-btn {
 
 .list-card:hover {
     background: var(--archie-bg-tertiary);
-    border-color: var(--mh-accent-muted);
+    border-color: var(--archie-orange-alpha-30);
     transform: translateX(4px);
 }
 
@@ -1596,7 +1575,7 @@ body.tv-mode .install-app-btn {
     left: 4px;
     width: 20px;
     height: 20px;
-    background: var(--mh-accent);
+    background: var(--archie-gold);
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -1686,7 +1665,7 @@ body.tv-mode .install-app-btn {
     width: 44px;
     height: 44px;
     border-radius: 50%;
-    background: var(--mh-accent);
+    background: var(--archie-gold);
     border: none;
     cursor: pointer;
     display: flex;
@@ -1696,7 +1675,7 @@ body.tv-mode .install-app-btn {
 }
 
 .list-card-play:hover {
-    background: var(--mh-accent-bright);
+    background: var(--archie-gold);
     transform: scale(1.1);
 }
 
@@ -1772,7 +1751,7 @@ body.tv-mode .install-app-btn {
     border-radius: 4px;
     font-size: 0.75rem;
     font-weight: 600;
-    color: var(--mh-accent);
+    color: var(--archie-gold);
     display: flex;
     align-items: center;
     gap: 4px;
@@ -1807,7 +1786,7 @@ body.tv-mode .install-app-btn {
     transition: border-color 0.2s ease;
 }
 
-.request-card:hover { border-color: var(--mh-accent-alpha-30); }
+.request-card:hover { border-color: var(--archie-orange-alpha-30); }
 
 .request-poster {
     width: 60px;
@@ -1844,7 +1823,7 @@ body.tv-mode .install-app-btn {
     text-transform: uppercase;
 }
 
-.request-status.pending { background: var(--mh-accent-alpha-20); color: var(--mh-accent); }
+.request-status.pending { background: var(--archie-orange-alpha-20); color: var(--archie-gold); }
 .request-status.approved { background: var(--archie-cyan-alpha-20); color: var(--archie-cyan); }
 .request-status.available { background: var(--archie-green-alpha-20); color: var(--archie-green); }
 .request-status.declined { background: var(--archie-red-alpha-20); color: var(--archie-red); }
@@ -1880,7 +1859,7 @@ body.tv-mode .install-app-btn {
     max-width: 700px;
     max-height: 90vh;
     background: var(--archie-bg-elevated);
-    border: 1px solid var(--mh-accent-alpha-30);
+    border: 1px solid var(--archie-orange-alpha-30);
     border-radius: 16px;
     overflow: hidden;
     animation: slideUp 0.3s ease;
@@ -1921,7 +1900,7 @@ body.tv-mode .install-app-btn {
     cursor: pointer;
     transition: all 0.2s ease;
 }
-.request-modal-close:hover { background: var(--mh-accent); transform: scale(1.1); }
+.request-modal-close:hover { background: var(--archie-gold); transform: scale(1.1); }
 .request-modal-close i { width: 18px; height: 18px; }
 
 .request-modal-content {
@@ -1995,8 +1974,8 @@ body.tv-mode .install-app-btn {
 
 .genre-tag {
     padding: 3px 10px;
-    background: var(--mh-accent-alpha-20);
-    color: var(--mh-accent);
+    background: var(--archie-orange-alpha-20);
+    color: var(--archie-gold);
     border-radius: 12px;
     font-size: 0.75rem;
     font-weight: 500;
@@ -2014,7 +1993,7 @@ body.tv-mode .install-app-btn {
     width: fit-content;
 }
 
-.request-modal-status.status-pending { background: var(--mh-accent-alpha-20); color: var(--mh-accent); }
+.request-modal-status.status-pending { background: var(--archie-orange-alpha-20); color: var(--archie-gold); }
 .request-modal-status.status-approved { background: var(--archie-cyan-alpha-20); color: var(--archie-cyan); }
 .request-modal-status.status-processing { background: var(--archie-purple-alpha-20, rgba(168, 85, 247, 0.2)); color: var(--archie-purple, #a855f7); }
 .request-modal-status.status-available { background: var(--archie-green-alpha-20); color: var(--archie-green); }
@@ -2026,7 +2005,7 @@ body.tv-mode .install-app-btn {
 .request-modal-overview h3 {
     font-family: 'Orbitron', sans-serif;
     font-size: 0.9rem;
-    color: var(--mh-accent);
+    color: var(--archie-gold);
     margin-bottom: 10px;
 }
 .request-modal-overview p {
@@ -2043,7 +2022,7 @@ body.tv-mode .install-app-btn {
 .request-modal-details h3 {
     font-family: 'Orbitron', sans-serif;
     font-size: 0.9rem;
-    color: var(--mh-accent);
+    color: var(--archie-gold);
     margin-bottom: 12px;
 }
 .detail-row {
@@ -2082,7 +2061,7 @@ body.tv-mode .install-app-btn {
     border: 1px solid var(--archie-border-muted);
     color: var(--archie-text-primary);
 }
-.request-modal-actions .btn-secondary:hover { background: var(--archie-bg-elevated); border-color: var(--mh-accent); }
+.request-modal-actions .btn-secondary:hover { background: var(--archie-bg-elevated); border-color: var(--archie-gold); }
 .request-modal-actions .btn-danger {
     background: rgba(239, 68, 68, 0.15);
     border: 1px solid rgba(239, 68, 68, 0.3);
@@ -2091,11 +2070,11 @@ body.tv-mode .install-app-btn {
 .request-modal-actions .btn-danger:hover { background: rgba(239, 68, 68, 0.25); }
 .request-modal-actions .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .request-modal-actions .btn-primary {
-    background: var(--mh-accent);
-    border: 1px solid var(--mh-accent);
+    background: var(--archie-gold);
+    border: 1px solid var(--archie-gold);
     color: white;
 }
-.request-modal-actions .btn-primary:hover { background: var(--mh-accent-hover); }
+.request-modal-actions .btn-primary:hover { background: var(--archie-gold); }
 
 /* Library status in request modal */
 .request-library-status {
@@ -2111,7 +2090,6 @@ body.tv-mode .install-app-btn {
     color: var(--archie-text-muted);
 }
 .request-library-status .spin { animation: spin 1s linear infinite; }
-@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 .library-found {
     display: flex;
     align-items: center;
@@ -2173,10 +2151,10 @@ body.tv-mode .install-app-btn {
     cursor: pointer;
     transition: all 0.2s ease;
 }
-.limit-btn:hover { border-color: var(--mh-accent); }
+.limit-btn:hover { border-color: var(--archie-gold); }
 .limit-btn.active {
-    background: var(--mh-accent);
-    border-color: var(--mh-accent);
+    background: var(--archie-gold);
+    border-color: var(--archie-gold);
     color: white;
 }
 
@@ -2218,7 +2196,7 @@ body.tv-mode .install-app-btn {
     margin: 0;
 }
 
-.calendar-header h2 i { width: 22px; height: 22px; color: var(--mh-accent); }
+.calendar-header h2 i { width: 22px; height: 22px; color: var(--archie-gold); }
 
 .calendar-controls {
     display: flex;
@@ -2259,7 +2237,7 @@ body.tv-mode .install-app-btn {
 }
 
 .calendar-view-toggle .view-btn.active {
-    color: var(--mh-accent);
+    color: var(--archie-gold);
     background: var(--archie-bg-elevated);
 }
 
@@ -2299,7 +2277,7 @@ body.tv-mode .install-app-btn {
     min-height: 120px;
 }
 
-.calendar-day.today { border-color: var(--mh-accent); }
+.calendar-day.today { border-color: var(--archie-gold); }
 
 .calendar-day-header {
     padding: 10px 12px;
@@ -2310,7 +2288,7 @@ body.tv-mode .install-app-btn {
     color: var(--archie-text-tertiary);
 }
 
-.calendar-day.today .calendar-day-header { background: var(--mh-accent-alpha-20); color: var(--mh-accent); }
+.calendar-day.today .calendar-day-header { background: var(--archie-orange-alpha-20); color: var(--archie-gold); }
 
 .calendar-day-content { padding: 8px; display: flex; flex-direction: column; gap: 6px; }
 
@@ -2325,7 +2303,7 @@ body.tv-mode .install-app-btn {
     transition: background 0.15s ease;
 }
 
-.calendar-episode:hover { background: var(--mh-accent-alpha-10); }
+.calendar-episode:hover { background: var(--archie-orange-alpha-10); }
 
 /* Month View */
 .month-header {
@@ -2369,8 +2347,8 @@ body.tv-mode .install-app-btn {
 }
 
 .month-cell.today {
-    border-color: var(--mh-accent);
-    background: var(--mh-accent-alpha-10);
+    border-color: var(--archie-gold);
+    background: var(--archie-orange-alpha-10);
 }
 
 .month-cell-date {
@@ -2380,7 +2358,7 @@ body.tv-mode .install-app-btn {
     margin-bottom: 6px;
 }
 
-.month-cell.today .month-cell-date { color: var(--mh-accent); }
+.month-cell.today .month-cell-date { color: var(--archie-gold); }
 
 .month-cell-episodes {
     display: flex;
@@ -2406,7 +2384,7 @@ body.tv-mode .install-app-btn {
     text-overflow: ellipsis;
 }
 
-.month-episode:hover { background: var(--mh-accent-alpha-20); }
+.month-episode:hover { background: var(--archie-orange-alpha-20); }
 
 .month-episode.has-file::before {
     content: '';
@@ -2428,7 +2406,7 @@ body.tv-mode .install-app-btn {
 
 .month-cell-more {
     font-size: 0.65rem;
-    color: var(--mh-accent);
+    color: var(--archie-gold);
     text-align: center;
     padding: 2px;
     cursor: pointer;
@@ -2454,7 +2432,7 @@ body.tv-mode .install-app-btn {
         display: block;
         width: 6px;
         height: 6px;
-        background: var(--mh-accent);
+        background: var(--archie-gold);
         border-radius: 50%;
         margin: 4px auto 0;
     }
@@ -2601,7 +2579,7 @@ body.tv-mode .install-app-btn {
     margin: 0 0 8px;
 }
 
-.settings-section h2 i { width: 20px; height: 20px; color: var(--mh-accent); }
+.settings-section h2 i { width: 20px; height: 20px; color: var(--archie-gold); }
 
 .section-desc { font-size: 0.85rem; color: var(--archie-text-muted); margin-bottom: 20px; }
 
@@ -2623,18 +2601,18 @@ body.tv-mode .install-app-btn {
     transition: all 0.2s ease;
 }
 
-.service-card:hover { border-color: var(--mh-accent-alpha-30); }
+.service-card:hover { border-color: var(--archie-orange-alpha-30); }
 .service-card.disabled { opacity: 0.5; }
 
 .service-icon {
     width: 44px;
     height: 44px;
-    background: var(--mh-accent-alpha-10);
+    background: var(--archie-orange-alpha-10);
     border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--mh-accent);
+    color: var(--archie-gold);
     flex-shrink: 0;
 }
 
@@ -2723,7 +2701,7 @@ body.tv-mode .install-app-btn {
     border-radius: 16px;
     overflow: hidden;
     animation: modalZoom 0.3s ease;
-    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6), var(--mh-glow);
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6), var(--archie-glow-orange);
 }
 
 @keyframes modalZoom {
@@ -2750,9 +2728,9 @@ body.tv-mode .install-app-btn {
 }
 
 .media-modal-close:hover {
-    background: var(--mh-accent);
+    background: var(--archie-gold);
     color: #000;
-    border-color: var(--mh-accent);
+    border-color: var(--archie-gold);
 }
 
 .media-modal-close i { width: 20px; height: 20px; }
@@ -2842,7 +2820,7 @@ body.tv-mode .install-app-btn {
     font-family: 'Orbitron', monospace;
     font-size: 1rem;
     font-weight: 600;
-    color: var(--mh-accent);
+    color: var(--archie-gold);
     text-transform: uppercase;
     letter-spacing: 1px;
 }
@@ -2862,9 +2840,9 @@ body.tv-mode .install-app-btn {
 }
 
 .video-player-close:hover {
-    background: var(--mh-accent);
+    background: var(--archie-gold);
     color: #000;
-    border-color: var(--mh-accent);
+    border-color: var(--archie-gold);
 }
 
 .video-player-close i { width: 20px; height: 20px; }
@@ -2901,13 +2879,9 @@ body.tv-mode .install-app-btn {
     width: 48px;
     height: 48px;
     border: 3px solid rgba(229, 160, 13, 0.2);
-    border-top-color: var(--mh-accent);
+    border-top-color: var(--archie-gold);
     border-radius: 50%;
     animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    to { transform: rotate(360deg); }
 }
 
 .video-player-controls {
@@ -2928,7 +2902,7 @@ body.tv-mode .install-app-btn {
 }
 
 .video-quality-info .quality-badge {
-    background: var(--mh-accent);
+    background: var(--archie-gold);
     color: #000;
     padding: 2px 8px;
     border-radius: 4px;
@@ -2947,7 +2921,7 @@ body.tv-mode .install-app-btn {
 }
 
 .video-subtitle-selector select:hover {
-    border-color: var(--mh-accent);
+    border-color: var(--archie-gold);
 }
 
 /* Video player responsive */
@@ -3042,7 +3016,7 @@ body.tv-mode .install-app-btn {
 }
 
 .media-details-meta span { display: flex; align-items: center; gap: 4px; }
-.media-details-meta i { width: 14px; height: 14px; color: var(--mh-accent); }
+.media-details-meta i { width: 14px; height: 14px; color: var(--archie-gold); }
 
 .media-details-overview {
     font-size: 0.9rem;
@@ -3122,7 +3096,7 @@ body.tv-mode .install-app-btn {
     margin: 0;
 }
 
-.modal-header h3 i { width: 20px; height: 20px; color: var(--mh-accent); }
+.modal-header h3 i { width: 20px; height: 20px; color: var(--archie-gold); }
 
 .modal-close {
     width: 32px;
@@ -3174,13 +3148,13 @@ body.tv-mode .install-app-btn {
 }
 
 .form-group input:focus,
-.form-group select:focus { outline: none; border-color: var(--mh-accent); }
+.form-group select:focus { outline: none; border-color: var(--archie-gold); }
 
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 
 .form-check { display: flex; align-items: center; gap: 10px; }
 
-.form-check input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--mh-accent); }
+.form-check input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--archie-gold); }
 
 .form-check label { margin-bottom: 0; }
 
@@ -3192,7 +3166,7 @@ body.tv-mode .install-app-btn {
     align-items: center;
     gap: 8px;
     padding: 10px 20px;
-    background: var(--mh-accent);
+    background: var(--archie-gold);
     border: none;
     border-radius: 8px;
     color: #000;
@@ -3203,7 +3177,7 @@ body.tv-mode .install-app-btn {
     transition: all 0.2s ease;
 }
 
-.btn-primary:hover { background: var(--mh-accent-bright); box-shadow: var(--mh-glow); }
+.btn-primary:hover { background: var(--archie-gold); box-shadow: var(--archie-glow-orange); }
 .btn-primary i { width: 18px; height: 18px; }
 
 /* Stream Now Button - Gradient accent style */
@@ -3243,9 +3217,9 @@ body.tv-mode .install-app-btn {
     gap: 8px;
     padding: 10px 20px;
     background: transparent;
-    border: 1px solid var(--mh-accent);
+    border: 1px solid var(--archie-gold);
     border-radius: 8px;
-    color: var(--mh-accent);
+    color: var(--archie-gold);
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.85rem;
     font-weight: 500;
@@ -3253,7 +3227,7 @@ body.tv-mode .install-app-btn {
     transition: all 0.2s ease;
 }
 
-.btn-outline:hover { background: var(--mh-accent-alpha-10); }
+.btn-outline:hover { background: var(--archie-orange-alpha-10); }
 .btn-outline i { width: 18px; height: 18px; }
 
 .btn-ghost {
@@ -3288,7 +3262,7 @@ body.tv-mode .install-app-btn {
     transition: all 0.15s ease;
 }
 
-.btn-icon:hover { background: var(--archie-bg-tertiary); border-color: var(--mh-accent-alpha-30); color: var(--mh-accent); }
+.btn-icon:hover { background: var(--archie-bg-tertiary); border-color: var(--archie-orange-alpha-30); color: var(--archie-gold); }
 .btn-icon i { width: 16px; height: 16px; }
 
 /* Responsive */
@@ -3321,9 +3295,9 @@ body.light-mode .calendar-day,
 body.light-mode .modal-content,
 body.light-mode .panel-drawer { background: rgba(255, 255, 255, 0.95); border-color: rgba(184, 134, 11, 0.2); }
 
-body.light-mode .brand-text h1 { color: var(--mh-accent); text-shadow: none; }
+body.light-mode .brand-text h1 { color: var(--archie-gold); text-shadow: none; }
 body.light-mode .search-container input { background: rgba(255, 255, 255, 0.8); border-color: rgba(184, 134, 11, 0.3); }
-body.light-mode .nav-tab.active { color: var(--mh-accent); border-bottom-color: var(--mh-accent); }
+body.light-mode .nav-tab.active { color: var(--archie-gold); border-bottom-color: var(--archie-gold); }
 
 body.light-mode .poster-title,
 body.light-mode .media-title,
@@ -3350,7 +3324,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
     .nav-hotkey { display: inline-block; }
 }
 
-.media-hub:focus-within .nav-hotkey { color: var(--mh-accent-dim); }
+.media-hub:focus-within .nav-hotkey { color: var(--archie-gold); }
 
 /* ─────────────────────────────────────────────────────────────────────────────
    QUALITY BADGES
@@ -3410,7 +3384,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
     overflow-x: auto;
     padding: 8px 0 16px;
     scrollbar-width: thin;
-    scrollbar-color: var(--mh-accent-alpha-30) transparent;
+    scrollbar-color: var(--archie-orange-alpha-30) transparent;
 }
 
 .continue-card {
@@ -3425,7 +3399,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
 }
 
 .continue-card:hover {
-    border-color: var(--mh-accent-alpha-30);
+    border-color: var(--archie-orange-alpha-30);
     transform: translateY(-2px);
 }
 
@@ -3457,7 +3431,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
     transform: translate(-50%, -50%);
     width: 48px;
     height: 48px;
-    background: var(--mh-accent);
+    background: var(--archie-gold);
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -3482,7 +3456,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
 
 .continue-progress-bar {
     height: 100%;
-    background: var(--mh-accent);
+    background: var(--archie-gold);
     transition: width 0.3s ease;
 }
 
@@ -3509,7 +3483,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
 }
 
 .continue-time {
-    color: var(--mh-accent);
+    color: var(--archie-gold);
     font-weight: 500;
 }
 
@@ -3533,12 +3507,12 @@ body.light-mode .stat-value { color: #1a1a1a; }
     transition: all 0.2s ease;
 }
 
-.trending-tab:hover { border-color: var(--mh-accent-alpha-30); color: var(--archie-text-secondary); }
+.trending-tab:hover { border-color: var(--archie-orange-alpha-30); color: var(--archie-text-secondary); }
 
 .trending-tab.active {
-    background: var(--mh-accent-alpha-20);
-    border-color: var(--mh-accent);
-    color: var(--mh-accent);
+    background: var(--archie-orange-alpha-20);
+    border-color: var(--archie-gold);
+    color: var(--archie-gold);
 }
 
 .tmdb-attribution {
@@ -3570,7 +3544,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
 
 .request-btn-small {
     padding: 8px 16px;
-    background: var(--mh-accent);
+    background: var(--archie-gold);
     border: none;
     border-radius: 6px;
     color: #000;
@@ -3584,7 +3558,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
     transition: all 0.2s ease;
 }
 
-.request-btn-small:hover { background: var(--mh-accent-bright); }
+.request-btn-small:hover { background: var(--archie-gold); }
 
 .request-btn-small i { width: 14px; height: 14px; }
 
@@ -3607,7 +3581,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
 }
 
 .collection-card:hover {
-    border-color: var(--mh-accent-alpha-30);
+    border-color: var(--archie-orange-alpha-30);
     transform: translateY(-2px);
 }
 
@@ -3661,7 +3635,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
     gap: 6px;
 }
 
-.collection-count i { width: 14px; height: 14px; color: var(--mh-accent); }
+.collection-count i { width: 14px; height: 14px; color: var(--archie-gold); }
 
 /* Collection Detail Modal */
 .collection-items-grid {
@@ -3765,7 +3739,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
     margin: 0 0 16px;
 }
 
-.stats-chart-card h3 i { width: 18px; height: 18px; color: var(--mh-accent); }
+.stats-chart-card h3 i { width: 18px; height: 18px; color: var(--archie-gold); }
 
 .breakdown-placeholder {
     padding: 32px;
@@ -3952,7 +3926,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
 
 .genre-bar-fill {
     height: 100%;
-    background: var(--mh-accent);
+    background: var(--archie-gold);
     border-radius: 10px;
     transition: width 0.5s ease;
 }
@@ -3985,7 +3959,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
 
 .recent-day-bar {
     width: 100%;
-    background: var(--mh-accent);
+    background: var(--archie-gold);
     border-radius: 4px 4px 0 0;
     min-height: 4px;
     transition: height 0.5s ease;
@@ -4022,7 +3996,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
     color: var(--archie-text-secondary);
 }
 
-.recent-summary-item i { width: 16px; height: 16px; color: var(--mh-accent); }
+.recent-summary-item i { width: 16px; height: 16px; color: var(--archie-gold); }
 
 /* Top Rated Grid */
 .top-rated-grid {
@@ -4143,9 +4117,9 @@ body.light-mode .stat-value { color: #1a1a1a; }
 
 .download-item-controls button i { width: 14px; height: 14px; }
 
-.download-item.paused .download-icon { background: var(--mh-accent-alpha-20); color: var(--mh-accent); }
+.download-item.paused .download-icon { background: var(--archie-orange-alpha-20); color: var(--archie-gold); }
 
-.download-item.paused .progress-fill { background: var(--mh-accent); }
+.download-item.paused .progress-fill { background: var(--archie-gold); }
 
 /* ─────────────────────────────────────────────────────────────────────────────
    FOCUSABLE / KEYBOARD NAVIGATION
@@ -4154,7 +4128,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
 .poster-card.focused,
 .collection-card.focused,
 .continue-card.focused {
-    outline: 2px solid var(--mh-accent);
+    outline: 2px solid var(--archie-gold);
     outline-offset: 2px;
 }
 
@@ -4223,9 +4197,9 @@ body.light-mode .stat-value { color: #1a1a1a; }
 }
 
 .toast-info {
-    border-color: var(--mh-accent);
-    background: var(--mh-accent-alpha-20);
-    color: var(--mh-accent);
+    border-color: var(--archie-gold);
+    background: var(--archie-orange-alpha-20);
+    color: var(--archie-gold);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -4247,7 +4221,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
     transform: translate(-50%, -50%);
     width: 44px;
     height: 44px;
-    background: var(--mh-accent);
+    background: var(--archie-gold);
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -4270,7 +4244,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
     right: 8px;
     width: 32px;
     height: 32px;
-    background: var(--mh-accent);
+    background: var(--archie-gold);
     border: none;
     border-radius: 50%;
     display: flex;
@@ -4286,7 +4260,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
 
 .poster-request-btn:hover {
     transform: scale(1.1);
-    box-shadow: var(--mh-glow);
+    box-shadow: var(--archie-glow-orange);
 }
 
 .poster-request-btn i { width: 18px; height: 18px; }
@@ -4377,8 +4351,8 @@ body.light-mode .stat-value { color: #1a1a1a; }
 }
 
 .collection-back-btn:hover {
-    border-color: var(--mh-accent);
-    color: var(--mh-accent);
+    border-color: var(--archie-gold);
+    color: var(--archie-gold);
 }
 
 .collection-back-btn i { width: 16px; height: 16px; }
@@ -4406,7 +4380,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
     font-family: 'Orbitron', sans-serif;
     font-size: 0.9rem;
     font-weight: 600;
-    color: var(--mh-accent);
+    color: var(--archie-gold);
     margin: 0 0 16px;
 }
 
@@ -4425,7 +4399,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
 .stats-grid .stat-card i {
     width: 28px;
     height: 28px;
-    color: var(--mh-accent);
+    color: var(--archie-gold);
     margin-bottom: 8px;
 }
 
@@ -4494,7 +4468,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
     transition: width 0.5s ease;
 }
 
-.size-fill.movies { background: var(--mh-accent); color: #000; }
+.size-fill.movies { background: var(--archie-gold); color: #000; }
 .size-fill.shows { background: var(--archie-cyan); color: #000; }
 
 .size-legend {
@@ -4517,7 +4491,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
     border-radius: 3px;
 }
 
-.legend-item.movies::before { background: var(--mh-accent); }
+.legend-item.movies::before { background: var(--archie-gold); }
 .legend-item.shows::before { background: var(--archie-cyan); }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -4530,9 +4504,9 @@ body.light-mode .stat-value { color: #1a1a1a; }
     margin: 24px auto 0;
     padding: 12px 24px;
     background: transparent;
-    border: 1px solid var(--mh-accent);
+    border: 1px solid var(--archie-gold);
     border-radius: 8px;
-    color: var(--mh-accent);
+    color: var(--archie-gold);
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.85rem;
     font-weight: 500;
@@ -4541,8 +4515,8 @@ body.light-mode .stat-value { color: #1a1a1a; }
 }
 
 .load-more-btn:hover {
-    background: var(--mh-accent-alpha-10);
-    box-shadow: var(--mh-glow);
+    background: var(--archie-orange-alpha-10);
+    box-shadow: var(--archie-glow-orange);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -4636,11 +4610,11 @@ body.light-mode .stat-value { color: #1a1a1a; }
 
 .genre-tag {
     padding: 4px 10px;
-    background: var(--mh-accent-alpha-10);
-    border: 1px solid var(--mh-accent-alpha-30);
+    background: var(--archie-orange-alpha-10);
+    border: 1px solid var(--archie-orange-alpha-30);
     border-radius: 12px;
     font-size: 0.7rem;
-    color: var(--mh-accent);
+    color: var(--archie-gold);
 }
 
 .modal-overview {
@@ -4682,7 +4656,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
 .modal-specs {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.7rem;
-    color: var(--mh-accent);
+    color: var(--archie-gold);
     margin-bottom: 3px;
 }
 
@@ -4716,7 +4690,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
     margin: 0;
     font-size: 0.9rem;
     font-weight: 600;
-    color: var(--mh-accent);
+    color: var(--archie-gold);
     display: flex;
     align-items: center;
     gap: 8px;
@@ -4734,8 +4708,8 @@ body.light-mode .stat-value { color: #1a1a1a; }
     cursor: pointer;
 }
 
-.season-selector:hover { border-color: var(--mh-accent); }
-.season-selector:focus { outline: none; border-color: var(--mh-accent); }
+.season-selector:hover { border-color: var(--archie-gold); }
+.season-selector:focus { outline: none; border-color: var(--archie-gold); }
 
 /* Season Tabs */
 .season-tabs {
@@ -4774,7 +4748,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
 }
 
 .season-tab.active {
-    background: var(--mh-accent);
+    background: var(--archie-gold);
     color: #000;
 }
 
@@ -4836,7 +4810,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
     width: 20px;
     height: 20px;
     border: 2px solid var(--archie-border-subtle);
-    border-top-color: var(--mh-accent);
+    border-top-color: var(--archie-gold);
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }
@@ -4862,7 +4836,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--mh-accent);
+    background: var(--archie-gold);
     color: #000;
     font-weight: 700;
     font-size: 0.85rem;
@@ -4932,8 +4906,8 @@ body.light-mode .stat-value { color: #1a1a1a; }
 
 .btn-icon:hover {
     background: var(--archie-bg-elevated);
-    border-color: var(--mh-accent);
-    color: var(--mh-accent);
+    border-color: var(--archie-gold);
+    color: var(--archie-gold);
 }
 
 .btn-icon i { width: 16px; height: 16px; }
@@ -5044,7 +5018,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
 
 .episode-tile-progress-fill {
     height: 100%;
-    background: var(--mh-accent);
+    background: var(--archie-gold);
     transition: width 0.3s ease;
 }
 
@@ -5197,7 +5171,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
 
 .episode-detail-show {
     font-size: 0.9rem;
-    color: var(--mh-accent);
+    color: var(--archie-gold);
     font-weight: 500;
     margin-bottom: 12px;
 }
@@ -5304,14 +5278,14 @@ body.light-mode .stat-value { color: #1a1a1a; }
 }
 
 .btn-primary {
-    background: var(--mh-accent);
+    background: var(--archie-gold);
     border: none;
     color: #000;
 }
 
 .btn-primary:hover {
-    background: var(--mh-accent-bright);
-    box-shadow: var(--mh-glow);
+    background: var(--archie-gold);
+    box-shadow: var(--archie-glow-orange);
 }
 
 .btn-secondary {
@@ -5321,8 +5295,8 @@ body.light-mode .stat-value { color: #1a1a1a; }
 }
 
 .btn-secondary:hover {
-    border-color: var(--mh-accent);
-    color: var(--mh-accent);
+    border-color: var(--archie-gold);
+    color: var(--archie-gold);
 }
 
 .btn i { width: 16px; height: 16px; }
@@ -5364,7 +5338,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
 
 .episode-meta {
     font-size: 0.7rem;
-    color: var(--mh-accent);
+    color: var(--archie-gold);
 }
 
 .episode-name {
@@ -5394,8 +5368,8 @@ body.light-mode .stat-value { color: #1a1a1a; }
 .loading-spinner {
     width: 32px;
     height: 32px;
-    border: 3px solid var(--mh-accent-alpha-30);
-    border-top-color: var(--mh-accent);
+    border: 3px solid var(--archie-orange-alpha-30);
+    border-top-color: var(--archie-gold);
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }
@@ -5415,8 +5389,8 @@ body.light-mode .stat-value { color: #1a1a1a; }
 
 .btn-small:hover {
     background: var(--archie-bg-elevated);
-    border-color: var(--mh-accent);
-    color: var(--mh-accent);
+    border-color: var(--archie-gold);
+    color: var(--archie-gold);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -5432,9 +5406,9 @@ body.light-mode .stat-value { color: #1a1a1a; }
     gap: 16px;
     padding: 16px 24px;
     background: var(--archie-bg-elevated);
-    border: 1px solid var(--mh-accent);
+    border: 1px solid var(--archie-gold);
     border-radius: 12px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), var(--mh-glow);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), var(--archie-glow-orange);
     z-index: 9999;
     opacity: 0;
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -5448,7 +5422,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
 .pwa-install-icon {
     width: 48px;
     height: 48px;
-    background: var(--mh-accent-alpha-20);
+    background: var(--archie-orange-alpha-20);
     border-radius: 12px;
     display: flex;
     align-items: center;
@@ -5456,7 +5430,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
     flex-shrink: 0;
 }
 
-.pwa-install-icon i { width: 24px; height: 24px; color: var(--mh-accent); }
+.pwa-install-icon i { width: 24px; height: 24px; color: var(--archie-gold); }
 
 .pwa-install-content { flex: 1; }
 
@@ -5487,12 +5461,12 @@ body.light-mode .stat-value { color: #1a1a1a; }
 }
 
 .pwa-install-btn.primary {
-    background: var(--mh-accent);
+    background: var(--archie-gold);
     border: none;
     color: #000;
 }
 
-.pwa-install-btn.primary:hover { background: var(--mh-accent-bright); }
+.pwa-install-btn.primary:hover { background: var(--archie-gold); }
 
 .pwa-install-btn.secondary {
     background: transparent;
@@ -5508,11 +5482,6 @@ body.light-mode .stat-value { color: #1a1a1a; }
    ───────────────────────────────────────────────────────────────────────────── */
 @media (min-width: 960px) and (hover: none) {
     /* TV mode - no hover, uses D-pad */
-    body.tv-mode {
-        --focus-ring-width: 4px;
-        --focus-ring-offset: 4px;
-    }
-
     body.tv-mode .poster-card,
     body.tv-mode .collection-card,
     body.tv-mode .continue-card,
@@ -5531,23 +5500,23 @@ body.light-mode .stat-value { color: #1a1a1a; }
     body.tv-mode .collection-card:focus,
     body.tv-mode .continue-card:focus,
     body.tv-mode .media-card:focus {
-        outline: var(--focus-ring-width) solid var(--mh-accent);
-        outline-offset: var(--focus-ring-offset);
+        outline: 4px solid var(--archie-gold);
+        outline-offset: 4px;
         transform: scale(1.05);
         z-index: 10;
     }
 
     body.tv-mode .nav-tab:focus {
-        outline: var(--focus-ring-width) solid var(--mh-accent);
+        outline: 4px solid var(--archie-gold);
         outline-offset: 2px;
-        background: var(--mh-accent-alpha-20);
+        background: var(--archie-orange-alpha-20);
     }
 
     body.tv-mode .btn:focus,
     body.tv-mode .filter-chip:focus,
     body.tv-mode .trending-tab:focus,
     body.tv-mode .service-card:focus {
-        outline: var(--focus-ring-width) solid var(--mh-accent);
+        outline: 4px solid var(--archie-gold);
         outline-offset: 2px;
     }
 
@@ -5599,7 +5568,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
         font-size: 0.9rem;
     }
     body.tv-mode .genre-filters .filter-chip:focus {
-        outline: var(--focus-ring-width) solid var(--mh-accent);
+        outline: 4px solid var(--archie-gold);
         outline-offset: 2px;
         transform: scale(1.05);
     }
@@ -5626,7 +5595,7 @@ body.light-mode .stat-value { color: #1a1a1a; }
     body.tv-mode .stats-chart-card { padding: 24px; }
     body.tv-mode .stats-chart-card h3 { font-size: 1rem; }
     body.tv-mode .top-rated-card:focus {
-        outline: var(--focus-ring-width) solid var(--mh-accent);
+        outline: 4px solid var(--archie-gold);
         transform: scale(1.05);
     }
 }

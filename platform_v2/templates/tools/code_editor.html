@@ -17,20 +17,7 @@
             padding-top: 60px;
             height: 100vh;
         }
-        :root {
-            --primary: #6366f1;
-            --primary-dark: #4f46e5;
-            --bg-dark: #0f0f1e;
-            --bg-darker: #0a0a14;
-            --bg-editor: #1e1e2e;
-            --text: #e4e4e7;
-            --text-dim: #a1a1aa;
-            --border: #27272a;
-            --success: #10b981;
-            --warning: #f59e0b;
-            --error: #ef4444;
-            --ai-bg: #18181b;
-        }
+        /* Custom vars migrated to --archie-* tokens */
 
         * {
             margin: 0;
@@ -40,8 +27,8 @@
 
         body {
             font-family: 'Space Grotesk', sans-serif;
-            background: var(--bg-dark);
-            color: var(--text);
+            background: var(--archie-bg-primary);
+            color: var(--archie-text-secondary);
             overflow: hidden;
             height: 100vh;
         }
@@ -66,7 +53,7 @@
             .container {
                 grid-template-columns: 180px 1fr 280px;
             }
-            
+
             .ai-sidebar {
                 font-size: 14px;
             }
@@ -86,7 +73,7 @@
                 grid-column: 1;
                 grid-row: 4;
             }
-            
+
             .terminal {
                 grid-row: 3;
             }
@@ -95,8 +82,8 @@
         /* Action Header */
         .header {
             grid-column: 1 / -1;
-            background: var(--bg-darker);
-            border-bottom: 1px solid var(--border);
+            background: var(--archie-bg-void);
+            border-bottom: 1px solid var(--archie-border-default);
             display: flex;
             align-items: center;
             padding: 0 20px;
@@ -105,7 +92,7 @@
 
         .header-info {
             font-size: 13px;
-            color: var(--text-dim);
+            color: var(--archie-text-tertiary);
             display: flex;
             align-items: center;
             gap: 15px;
@@ -121,13 +108,8 @@
             width: 8px;
             height: 8px;
             border-radius: 50%;
-            background: var(--success);
+            background: var(--archie-success);
             animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
         }
 
         .header-actions {
@@ -147,31 +129,31 @@
         }
 
         .btn-primary {
-            background: var(--primary);
+            background: var(--archie-purple);
             color: white;
         }
 
         .btn-primary:hover {
-            background: var(--primary-dark);
+            background: var(--archie-purple);
             transform: translateY(-1px);
         }
 
         .btn-secondary {
-            background: var(--bg-editor);
-            color: var(--text);
-            border: 1px solid var(--border);
+            background: var(--archie-bg-tertiary);
+            color: var(--archie-text-secondary);
+            border: 1px solid var(--archie-border-default);
         }
 
         .btn-secondary:hover {
-            background: var(--border);
+            background: var(--archie-border-default);
         }
 
         /* File Tree */
         .file-tree {
             grid-row: 2;
             grid-column: 1;
-            background: var(--bg-darker);
-            border-right: 1px solid var(--border);
+            background: var(--archie-bg-void);
+            border-right: 1px solid var(--archie-border-default);
             padding: 15px;
             overflow-y: auto;
             min-height: 0;
@@ -180,7 +162,7 @@
         .file-tree-title {
             font-weight: 600;
             margin-bottom: 15px;
-            color: var(--text-dim);
+            color: var(--archie-text-tertiary);
             text-transform: uppercase;
             font-size: 12px;
             letter-spacing: 1px;
@@ -200,11 +182,11 @@
         }
 
         .file-item:hover {
-            background: var(--bg-editor);
+            background: var(--archie-bg-tertiary);
         }
 
         .file-item.active {
-            background: var(--primary);
+            background: var(--archie-purple);
             color: white;
         }
 
@@ -217,7 +199,7 @@
         .editor-container {
             grid-row: 2;
             grid-column: 2;
-            background: var(--bg-editor);
+            background: var(--archie-bg-tertiary);
             position: relative;
             display: flex;
             flex-direction: column;
@@ -226,17 +208,17 @@
         }
 
         .editor-tabs {
-            background: var(--bg-darker);
+            background: var(--archie-bg-void);
             padding: 8px 15px;
             display: flex;
             gap: 5px;
-            border-bottom: 1px solid var(--border);
+            border-bottom: 1px solid var(--archie-border-default);
         }
 
         .editor-tab {
             padding: 6px 12px;
             border-radius: 6px 6px 0 0;
-            background: var(--bg-editor);
+            background: var(--archie-bg-tertiary);
             font-family: 'JetBrains Mono', monospace;
             font-size: 13px;
             display: flex;
@@ -247,11 +229,11 @@
         }
 
         .editor-tab:hover {
-            background: var(--border);
+            background: var(--archie-border-default);
         }
 
         .editor-tab.active {
-            background: var(--primary);
+            background: var(--archie-purple);
             color: white;
         }
 
@@ -273,8 +255,8 @@
         .ai-sidebar {
             grid-row: 2;
             grid-column: 3;
-            background: var(--ai-bg);
-            border-left: 1px solid var(--border);
+            background: var(--archie-bg-elevated);
+            border-left: 1px solid var(--archie-border-default);
             display: flex;
             flex-direction: column;
             min-height: 0;
@@ -283,8 +265,8 @@
 
         .ai-header {
             padding: 15px;
-            border-bottom: 1px solid var(--border);
-            background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 100%);
+            border-bottom: 1px solid var(--archie-border-default);
+            background: linear-gradient(135deg, var(--archie-purple) 0%, #8b5cf6 100%);
             color: white;
             flex-shrink: 0;
         }
@@ -341,9 +323,9 @@
         }
 
         .ai-message.user {
-            background: var(--bg-editor);
+            background: var(--archie-bg-tertiary);
             align-self: flex-end;
-            border: 1px solid var(--border);
+            border: 1px solid var(--archie-border-default);
         }
 
         .ai-message.assistant {
@@ -352,7 +334,7 @@
         }
 
         .ai-message pre {
-            background: var(--bg-darker);
+            background: var(--archie-bg-void);
             padding: 10px;
             border-radius: 6px;
             overflow-x: auto;
@@ -368,7 +350,7 @@
 
         .ai-input-container {
             padding: 15px;
-            border-top: 1px solid var(--border);
+            border-top: 1px solid var(--archie-border-default);
             flex-shrink: 0;
         }
 
@@ -380,10 +362,10 @@
         .ai-input {
             flex: 1;
             padding: 10px 12px;
-            background: var(--bg-darker);
-            border: 1px solid var(--border);
+            background: var(--archie-bg-void);
+            border: 1px solid var(--archie-border-default);
             border-radius: 6px;
-            color: var(--text);
+            color: var(--archie-text-secondary);
             font-family: 'Space Grotesk', sans-serif;
             font-size: 14px;
             resize: none;
@@ -391,12 +373,12 @@
 
         .ai-input:focus {
             outline: none;
-            border-color: var(--primary);
+            border-color: var(--archie-purple);
         }
 
         .ai-send-btn {
             padding: 10px 20px;
-            background: var(--primary);
+            background: var(--archie-purple);
             border: none;
             border-radius: 6px;
             color: white;
@@ -406,7 +388,7 @@
         }
 
         .ai-send-btn:hover {
-            background: var(--primary-dark);
+            background: var(--archie-purple);
         }
 
         .ai-send-btn:disabled {
@@ -418,8 +400,8 @@
         .terminal {
             grid-row: 3;
             grid-column: 1 / -1;
-            background: var(--bg-darker);
-            border-top: 1px solid var(--border);
+            background: var(--archie-bg-void);
+            border-top: 1px solid var(--archie-border-default);
             font-family: 'JetBrains Mono', monospace;
             display: flex;
             flex-direction: column;
@@ -433,18 +415,18 @@
             justify-content: space-between;
             align-items: center;
             padding: 10px 15px;
-            border-bottom: 1px solid var(--border);
+            border-bottom: 1px solid var(--archie-border-default);
             flex-shrink: 0;
         }
 
         .terminal-title {
             font-weight: 600;
-            color: var(--success);
+            color: var(--archie-success);
         }
 
         .terminal-content {
             font-size: 13px;
-            color: var(--text-dim);
+            color: var(--archie-text-tertiary);
             overflow-y: auto;
             flex: 1;
             padding: 15px;
@@ -458,12 +440,12 @@
         }
 
         .terminal-prompt {
-            color: var(--primary);
+            color: var(--archie-purple);
             font-weight: 600;
         }
 
         .terminal-output {
-            color: var(--text);
+            color: var(--archie-text-secondary);
         }
 
         /* Scrollbar */
@@ -473,16 +455,16 @@
         }
 
         ::-webkit-scrollbar-track {
-            background: var(--bg-darker);
+            background: var(--archie-bg-void);
         }
 
         ::-webkit-scrollbar-thumb {
-            background: var(--border);
+            background: var(--archie-border-default);
             border-radius: 4px;
         }
 
         ::-webkit-scrollbar-thumb:hover {
-            background: var(--primary);
+            background: var(--archie-purple);
         }
 
         /* Loading Spinner */
@@ -490,14 +472,10 @@
             display: inline-block;
             width: 16px;
             height: 16px;
-            border: 2px solid var(--border);
-            border-top-color: var(--primary);
+            border: 2px solid var(--archie-border-default);
+            border-top-color: var(--archie-purple);
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
         }
 
         /* Quick Actions */
@@ -512,8 +490,8 @@
 
         .quick-action {
             padding: 6px 12px;
-            background: var(--bg-editor);
-            border: 1px solid var(--border);
+            background: var(--archie-bg-tertiary);
+            border: 1px solid var(--archie-border-default);
             border-radius: 6px;
             font-size: 12px;
             cursor: pointer;
@@ -521,8 +499,8 @@
         }
 
         .quick-action:hover {
-            background: var(--primary);
-            border-color: var(--primary);
+            background: var(--archie-purple);
+            border-color: var(--archie-purple);
             color: white;
         }
     </style>
@@ -538,8 +516,8 @@
         <div class="header">
             <div class="header-info">
                 <div class="status-indicator">
-                    <span style="color: var(--text-dim);">File:</span>
-                    <span id="currentFileName" style="color: var(--primary); font-weight: 600;">main.py</span>
+                    <span style="color: var(--archie-text-tertiary);">File:</span>
+                    <span id="currentFileName" style="color: var(--archie-purple); font-weight: 600;">main.py</span>
                 </div>
             </div>
             <div class="header-actions">
@@ -640,7 +618,7 @@
                 scrollBeyondLastLine: false,
                 padding: { top: 15 }
             });
-            
+
             // Store initial content
             fileContents['main.py'] = editor.getValue();
         });
@@ -649,48 +627,48 @@
         async function newFile() {
             const fileName = prompt('Enter file name:');
             if (!fileName) return;
-            
+
             // Save current file before switching
             if (currentFile && editor) {
                 fileContents[currentFile] = editor.getValue();
             }
-            
+
             // Add to file tree
             const fileTree = document.querySelector('.file-tree');
             const fileItem = document.createElement('div');
             fileItem.className = 'file-item';
             fileItem.onclick = () => openFile(fileName);
-            
-            const icon = fileName.endsWith('.py') ? '🐍' : 
-                        fileName.endsWith('.json') ? '⚙️' : 
+
+            const icon = fileName.endsWith('.py') ? '🐍' :
+                        fileName.endsWith('.json') ? '⚙️' :
                         fileName.endsWith('.js') ? '📜' : '📄';
-            
+
             fileItem.innerHTML = `
                 <span class="file-icon">${icon}</span>
                 <span>${fileName}</span>
             `;
-            
+
             fileTree.appendChild(fileItem);
-            
+
             // Initialize file content
             fileContents[fileName] = '# New file\n';
-            
+
             // Switch to new file
             await openFile(fileName);
-            
+
             addTerminalLine(`Created new file: ${fileName}`, 'success');
         }
 
         async function saveFile() {
             if (!editor || !currentFile) return;
-            
+
             const content = editor.getValue();
             fileContents[currentFile] = content; // Save to memory
-            
+
             addTerminalLine(`Saving ${currentFile}...`, 'info');
-            
+
             const success = await saveFileToServer(currentFile, content);
-            
+
             if (success) {
                 addTerminalLine(`✓ Saved ${currentFile} (${content.length} bytes)`, 'success');
             } else {
@@ -710,7 +688,7 @@
                         content: content
                     })
                 });
-                
+
                 const data = await response.json();
                 return data.success;
             } catch (error) {
@@ -724,11 +702,11 @@
             if (fileContents[filename]) {
                 return fileContents[filename];
             }
-            
+
             try {
                 const response = await fetch(`/tools/code-editor/api/file/load?filename=${filename}`);
                 const data = await response.json();
-                
+
                 if (data.success) {
                     fileContents[filename] = data.content;
                     return data.content;
@@ -736,14 +714,14 @@
             } catch (error) {
                 console.error('Load error:', error);
             }
-            
+
             // Return mock content if server fails
             const mockContent = {
                 'main.py': '# Welcome to A.R.C.H.I.E. Code Editor\n# Write your code here\n\ndef hello_world():\n    return "Hello, World!"\n\nif __name__ == "__main__":\n    print(hello_world())',
                 'utils.py': '# Utility functions\n\ndef add(a, b):\n    return a + b\n\ndef multiply(a, b):\n    return a * b',
                 'config.json': '{\n  "name": "my-project",\n  "version": "1.0.0",\n  "author": "A.R.C.H.I.E."\n}'
             };
-            
+
             const content = mockContent[filename] || '# New file\n';
             fileContents[filename] = content;
             return content;
@@ -751,25 +729,25 @@
 
         async function openFile(fileName) {
             if (!editor) return;
-            
+
             // Save current file content before switching
             if (currentFile) {
                 fileContents[currentFile] = editor.getValue();
             }
-            
+
             currentFile = fileName;
-            
+
             // Update filename display in header
             const fileNameDisplay = document.getElementById('currentFileName');
             if (fileNameDisplay) {
                 fileNameDisplay.textContent = fileName;
             }
-            
+
             // Update active state in file tree
             document.querySelectorAll('.file-item').forEach(item => {
                 item.classList.remove('active');
             });
-            
+
             // Find and activate clicked item
             const clickedItem = Array.from(document.querySelectorAll('.file-item')).find(
                 item => item.textContent.trim() === fileName
@@ -777,60 +755,60 @@
             if (clickedItem) {
                 clickedItem.classList.add('active');
             }
-            
+
             // Check if tab exists, if not create it
             let existingTab = Array.from(document.querySelectorAll('.editor-tab')).find(
                 tab => tab.getAttribute('data-file') === fileName
             );
-            
+
             if (!existingTab) {
                 const tabsContainer = document.querySelector('.editor-tabs');
                 const newTab = document.createElement('div');
                 newTab.className = 'editor-tab';
                 newTab.setAttribute('data-file', fileName);
-                
+
                 // Get icon based on file type
-                const icon = fileName.endsWith('.py') ? '🐍' : 
-                            fileName.endsWith('.json') ? '⚙️' : 
+                const icon = fileName.endsWith('.py') ? '🐍' :
+                            fileName.endsWith('.json') ? '⚙️' :
                             fileName.endsWith('.js') ? '📜' : '📄';
-                
+
                 newTab.innerHTML = `
                     <span>${icon}</span>
                     <span>${fileName}</span>
                     <span class="close" onclick="closeTab(event)">×</span>
                 `;
-                
+
                 // Add click handler to tab
                 newTab.onclick = function(e) {
                     if (!e.target.classList.contains('close')) {
                         openFile(fileName);
                     }
                 };
-                
+
                 tabsContainer.appendChild(newTab);
                 existingTab = newTab;
             }
-            
+
             // Remove active from all tabs and activate this one
             document.querySelectorAll('.editor-tab').forEach(tab => {
                 tab.classList.remove('active');
             });
             existingTab.classList.add('active');
-            
+
             // Load file content
             addTerminalLine(`Loading ${fileName}...`, 'info');
             const content = await loadFileFromServer(fileName);
-            
+
             if (content) {
                 editor.setValue(content);
-                const language = fileName.endsWith('.py') ? 'python' : 
-                                fileName.endsWith('.json') ? 'json' : 
+                const language = fileName.endsWith('.py') ? 'python' :
+                                fileName.endsWith('.json') ? 'json' :
                                 fileName.endsWith('.js') ? 'javascript' :
                                 fileName.endsWith('.html') ? 'html' :
                                 fileName.endsWith('.css') ? 'css' : 'plaintext';
                 monaco.editor.setModelLanguage(editor.getModel(), language);
             }
-            
+
             addTerminalLine(`✓ Opened ${fileName}`, 'success');
         }
 
@@ -838,14 +816,14 @@
             event.stopPropagation();
             const tab = event.target.closest('.editor-tab');
             if (!tab) return;
-            
+
             const fileName = tab.getAttribute('data-file');
-            
+
             // If closing active tab, switch to another
             if (tab.classList.contains('active')) {
                 const allTabs = Array.from(document.querySelectorAll('.editor-tab'));
                 const index = allTabs.indexOf(tab);
-                
+
                 // Switch to previous or next tab
                 if (allTabs.length > 1) {
                     const nextTab = allTabs[index - 1] || allTabs[index + 1];
@@ -855,7 +833,7 @@
                     }
                 }
             }
-            
+
             tab.remove();
             addTerminalLine(`Closed ${fileName}`, 'info');
         }
@@ -872,7 +850,7 @@
         async function sendMessage() {
             const input = document.getElementById('aiInput');
             const message = input.value.trim();
-            
+
             if (!message) return;
 
             const sendBtn = document.getElementById('sendBtn');
@@ -904,7 +882,7 @@
                 });
 
                 const data = await response.json();
-                
+
                 if (data.success) {
                     addAIMessage(data.response, 'assistant');
                 } else {
@@ -928,35 +906,35 @@
             const messagesDiv = document.getElementById('aiMessages');
             const messageDiv = document.createElement('div');
             messageDiv.className = `ai-message ${sender}`;
-            
+
             // Extract code blocks
             const codeBlockRegex = /```(\w+)?\n([\s\S]+?)```/g;
             let match;
             let hasCode = false;
             let codeContent = '';
             let language = 'python';
-            
+
             while ((match = codeBlockRegex.exec(text)) !== null) {
                 hasCode = true;
                 language = match[1] || 'python';
                 codeContent = match[2];
             }
-            
+
             // Format code blocks
             const formattedText = text.replace(/```(\w+)?\n([\s\S]+?)```/g, '<pre><code>$2</code></pre>');
-            
+
             if (sender === 'user') {
                 messageDiv.innerHTML = `<strong>You</strong><br>${text}`;
             } else {
                 messageDiv.innerHTML = `<strong>A.R.C.H.I.E.</strong><br>${formattedText}`;
-                
+
                 // Add "Apply Code" button if code was found
                 if (hasCode && codeContent) {
                     const buttonContainer = document.createElement('div');
                     buttonContainer.style.marginTop = '10px';
                     buttonContainer.style.display = 'flex';
                     buttonContainer.style.gap = '8px';
-                    
+
                     const replaceBtn = document.createElement('button');
                     replaceBtn.className = 'btn btn-primary';
                     replaceBtn.style.fontSize = '13px';
@@ -969,7 +947,7 @@
                             fileContents[currentFile] = codeContent.trim();
                         }
                     };
-                    
+
                     const insertBtn = document.createElement('button');
                     insertBtn.className = 'btn btn-secondary';
                     insertBtn.style.fontSize = '13px';
@@ -992,13 +970,13 @@
                             fileContents[currentFile] = editor.getValue();
                         }
                     };
-                    
+
                     buttonContainer.appendChild(replaceBtn);
                     buttonContainer.appendChild(insertBtn);
                     messageDiv.appendChild(buttonContainer);
                 }
             }
-            
+
             messagesDiv.appendChild(messageDiv);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
@@ -1008,19 +986,19 @@
             const terminal = document.getElementById('terminalOutput');
             const line = document.createElement('div');
             line.className = 'terminal-line';
-            
+
             const prompt = document.createElement('span');
             prompt.className = 'terminal-prompt';
             prompt.textContent = type === 'output' ? '$' : '>';
-            
+
             const output = document.createElement('span');
             output.className = 'terminal-output';
             output.textContent = text;
-            
-            if (type === 'success') output.style.color = 'var(--success)';
-            if (type === 'error') output.style.color = 'var(--error)';
-            if (type === 'info') output.style.color = 'var(--warning)';
-            
+
+            if (type === 'success') output.style.color = 'var(--archie-success)';
+            if (type === 'error') output.style.color = 'var(--archie-danger)';
+            if (type === 'info') output.style.color = 'var(--archie-warning)';
+
             line.appendChild(prompt);
             line.appendChild(output);
             terminal.appendChild(line);

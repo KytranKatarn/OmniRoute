@@ -15,23 +15,12 @@
 /* ============================================================================
    BRIDGE NODE - Connected Node Dashboard (Business Node View)
    ============================================================================ */
-:root {
-    --node-bg: #000000;
-    --node-surface: #0a0a0f;
-    --node-border: #1a1a2e;
-    --node-cyan: #00FFFF;
-    --node-green: #00FF41;
-    --node-amber: #FFAA00;
-    --node-red: #ff4444;
-    --node-text: #c9d1d9;
-    --node-muted: #6e7681;
-}
 
 .node-dashboard {
     min-height: 100vh;
-    background: var(--node-bg);
+    background: var(--archie-bg-void);
     font-family: 'IBM Plex Mono', 'JetBrains Mono', monospace;
-    color: var(--node-text);
+    color: var(--archie-text-secondary);
     padding: 0 24px 48px;
     max-width: 900px;
     margin: 0 auto;
@@ -41,7 +30,7 @@
 .node-dash-header {
     text-align: center;
     padding: 32px 0 24px;
-    border-bottom: 1px solid var(--node-border);
+    border-bottom: 1px solid var(--archie-border-default);
     margin-bottom: 32px;
 }
 
@@ -50,7 +39,7 @@
     font-size: 1.4rem;
     font-weight: 800;
     letter-spacing: 0.15em;
-    color: var(--node-cyan);
+    color: var(--archie-cyan);
     text-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
     margin: 0 0 8px;
 }
@@ -66,12 +55,12 @@
 }
 
 .node-dash-badge.connected {
-    color: var(--node-green);
+    color: var(--archie-green);
     border: 1px solid rgba(0, 255, 65, 0.3);
 }
 
 .node-dash-badge.disconnected {
-    color: var(--node-red);
+    color: var(--archie-red);
     border: 1px solid rgba(255, 68, 68, 0.3);
 }
 
@@ -88,23 +77,23 @@
     align-items: center;
     gap: 6px;
     font-size: 0.72rem;
-    color: var(--node-muted);
+    color: var(--archie-text-muted);
     padding: 4px 12px;
-    border: 1px solid var(--node-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 6px;
-    background: var(--node-surface);
+    background: var(--archie-bg-secondary);
 }
 
 .node-stat-chip .chip-val {
-    color: var(--node-cyan);
+    color: var(--archie-cyan);
     font-weight: 600;
 }
 
 /* Sections */
 .node-section {
-    border: 1px solid var(--node-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 8px;
-    background: var(--node-surface);
+    background: var(--archie-bg-secondary);
     margin-bottom: 24px;
     overflow: hidden;
 }
@@ -114,12 +103,12 @@
     align-items: center;
     gap: 10px;
     padding: 14px 20px;
-    border-bottom: 1px solid var(--node-border);
+    border-bottom: 1px solid var(--archie-border-default);
     font-family: 'Orbitron', sans-serif;
     font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 0.12em;
-    color: var(--node-cyan);
+    color: var(--archie-cyan);
     text-transform: uppercase;
 }
 
@@ -142,7 +131,7 @@
 }
 
 .node-info-label {
-    color: var(--node-muted);
+    color: var(--archie-text-muted);
     text-transform: uppercase;
     font-size: 0.68rem;
     letter-spacing: 0.08em;
@@ -150,12 +139,12 @@
 }
 
 .node-info-value {
-    color: var(--node-text);
+    color: var(--archie-text-secondary);
     word-break: break-all;
 }
 
 .node-info-value.highlight {
-    color: var(--node-cyan);
+    color: var(--archie-cyan);
     font-weight: 500;
 }
 
@@ -174,14 +163,14 @@
 }
 
 .node-conn-dot.online {
-    background: var(--node-green);
-    box-shadow: 0 0 8px var(--node-green);
+    background: var(--archie-green);
+    box-shadow: 0 0 8px var(--archie-green);
     animation: pulse-dot 2s infinite;
 }
 
 .node-conn-dot.offline {
-    background: var(--node-red);
-    box-shadow: 0 0 8px var(--node-red);
+    background: var(--archie-red);
+    box-shadow: 0 0 8px var(--archie-red);
 }
 
 @keyframes pulse-dot {
@@ -202,26 +191,26 @@
     gap: 8px;
     padding: 6px 10px;
     background: rgba(255, 255, 255, 0.02);
-    border: 1px solid var(--node-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 6px;
     font-size: 0.75rem;
 }
 
 .node-model-item .model-name {
-    color: var(--node-cyan);
+    color: var(--archie-cyan);
     font-weight: 500;
 }
 
 .node-model-item .model-size {
     margin-left: auto;
-    color: var(--node-muted);
+    color: var(--archie-text-muted);
     font-size: 0.68rem;
 }
 
 .node-empty {
     text-align: center;
     padding: 24px;
-    color: var(--node-muted);
+    color: var(--archie-text-muted);
     font-size: 0.78rem;
     font-style: italic;
 }

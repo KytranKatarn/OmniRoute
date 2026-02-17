@@ -7,27 +7,11 @@
 {% block styles %}
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-    :root {
-        --bg-primary: #0a0a0f;
-        --bg-secondary: #12121a;
-        --bg-card: rgba(18, 18, 26, 0.95);
-        --border-color: rgba(139, 92, 246, 0.2);
-        --border-hover: rgba(139, 92, 246, 0.5);
-        --accent-purple: #8B5CF6;
-        --accent-violet: #A78BFA;
-        --accent-cyan: #06B6D4;
-        --accent-green: #22C55E;
-        --accent-yellow: #EAB308;
-        --accent-red: #EF4444;
-        --accent-orange: #F97316;
-        --text-primary: #E6EDF3;
-        --text-secondary: #8B949E;
-        --text-muted: #6E7681;
-    }
+    /* Custom vars removed — using --archie-* design tokens from theme.css */
 
     .iaae-container {
         min-height: 100vh;
-        background: var(--bg-primary);
+        background: var(--archie-bg-void);
         background-image:
             radial-gradient(ellipse at 20% 80%, rgba(139, 92, 246, 0.08) 0%, transparent 50%),
             radial-gradient(ellipse at 80% 20%, rgba(6, 182, 212, 0.05) 0%, transparent 50%),
@@ -42,7 +26,7 @@
 
     .iaae-header {
         padding: 20px 30px;
-        border-bottom: 1px solid var(--border-color);
+        border-bottom: 1px solid var(--archie-purple-alpha-20);
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -51,7 +35,7 @@
     .iaae-header h1 {
         font-family: 'Orbitron', sans-serif;
         font-size: 1.8rem;
-        color: var(--accent-purple);
+        color: var(--archie-purple);
         text-shadow: 0 0 20px rgba(139, 92, 246, 0.5);
         margin: 0;
         display: flex;
@@ -71,13 +55,13 @@
     }
 
     .athena-badge.active {
-        color: var(--accent-green);
+        color: var(--archie-success);
         background: rgba(34, 197, 94, 0.1);
         border-color: rgba(34, 197, 94, 0.3);
     }
 
     .athena-badge.inactive {
-        color: var(--accent-red);
+        color: var(--archie-red);
         background: rgba(239, 68, 68, 0.1);
         border-color: rgba(239, 68, 68, 0.3);
     }
@@ -89,21 +73,16 @@
         animation: pulse 2s infinite;
     }
 
-    .status-dot.active { background: var(--accent-green); }
-    .status-dot.inactive { background: var(--accent-red); }
-
-    @keyframes pulse {
-        0%, 100% { opacity: 1; transform: scale(1); }
-        50% { opacity: 0.5; transform: scale(0.9); }
-    }
+    .status-dot.active { background: var(--archie-success); }
+    .status-dot.inactive { background: var(--archie-red); }
 
     /* Tab Navigation */
     .tab-nav {
         display: flex;
         gap: 4px;
         padding: 0 30px;
-        background: var(--bg-secondary);
-        border-bottom: 1px solid var(--border-color);
+        background: var(--archie-bg-secondary);
+        border-bottom: 1px solid var(--archie-purple-alpha-20);
         overflow-x: auto;
     }
 
@@ -111,7 +90,7 @@
         padding: 14px 20px;
         background: transparent;
         border: none;
-        color: var(--text-secondary);
+        color: var(--archie-text-tertiary);
         font-size: 0.85rem;
         cursor: pointer;
         transition: all 0.2s;
@@ -123,17 +102,17 @@
     }
 
     .tab-btn:hover {
-        color: var(--text-primary);
+        color: var(--archie-text-secondary);
         background: rgba(139, 92, 246, 0.05);
     }
 
     .tab-btn.active {
-        color: var(--accent-purple);
-        border-bottom-color: var(--accent-purple);
+        color: var(--archie-purple);
+        border-bottom-color: var(--archie-purple);
     }
 
     .tab-badge {
-        background: var(--accent-red);
+        background: var(--archie-red);
         color: white;
         font-size: 0.65rem;
         padding: 2px 6px;
@@ -163,21 +142,21 @@
     }
 
     .stat-card {
-        background: var(--bg-card);
-        border: 1px solid var(--border-color);
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-purple-alpha-20);
         border-radius: 12px;
         padding: 20px;
         transition: all 0.3s ease;
     }
 
     .stat-card:hover {
-        border-color: var(--border-hover);
+        border-color: rgba(139, 92, 246, 0.5);
         box-shadow: 0 0 30px rgba(139, 92, 246, 0.1);
     }
 
     .stat-card .label {
         font-size: 0.7rem;
-        color: var(--text-muted);
+        color: var(--archie-text-muted);
         text-transform: uppercase;
         letter-spacing: 1px;
         margin-bottom: 8px;
@@ -186,28 +165,28 @@
     .stat-card .value {
         font-family: 'Orbitron', sans-serif;
         font-size: 1.6rem;
-        color: var(--text-primary);
+        color: var(--archie-text-secondary);
     }
 
     .stat-card .sub {
         font-size: 0.75rem;
-        color: var(--text-muted);
+        color: var(--archie-text-muted);
         margin-top: 4px;
     }
 
-    .stat-card.accent-purple { border-left: 4px solid var(--accent-purple); }
-    .stat-card.accent-cyan { border-left: 4px solid var(--accent-cyan); }
-    .stat-card.accent-green { border-left: 4px solid var(--accent-green); }
-    .stat-card.accent-yellow { border-left: 4px solid var(--accent-yellow); }
-    .stat-card.accent-red { border-left: 4px solid var(--accent-red); }
-    .stat-card.accent-orange { border-left: 4px solid var(--accent-orange); }
+    .stat-card.accent-purple { border-left: 4px solid var(--archie-purple); }
+    .stat-card.accent-cyan { border-left: 4px solid var(--archie-cyan); }
+    .stat-card.accent-green { border-left: 4px solid var(--archie-success); }
+    .stat-card.accent-yellow { border-left: 4px solid var(--archie-warning); }
+    .stat-card.accent-red { border-left: 4px solid var(--archie-red); }
+    .stat-card.accent-orange { border-left: 4px solid var(--archie-orange); }
 
     /* Compliance Score */
     .compliance-score {
         text-align: center;
         padding: 30px;
-        background: var(--bg-card);
-        border: 1px solid var(--border-color);
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-purple-alpha-20);
         border-radius: 16px;
         margin-bottom: 24px;
     }
@@ -231,7 +210,7 @@
 
     .score-circle .progress {
         fill: none;
-        stroke: var(--accent-green);
+        stroke: var(--archie-success);
         stroke-width: 10;
         stroke-linecap: round;
         transition: stroke-dashoffset 0.5s;
@@ -244,18 +223,18 @@
         transform: translate(-50%, -50%);
         font-family: 'Orbitron', sans-serif;
         font-size: 2.5rem;
-        color: var(--text-primary);
+        color: var(--archie-text-secondary);
     }
 
     .score-label {
         font-size: 0.9rem;
-        color: var(--text-secondary);
+        color: var(--archie-text-tertiary);
     }
 
     /* Data Sections */
     .data-section {
-        background: var(--bg-card);
-        border: 1px solid var(--border-color);
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-purple-alpha-20);
         border-radius: 12px;
         overflow: hidden;
         margin-bottom: 24px;
@@ -266,13 +245,13 @@
         justify-content: space-between;
         align-items: center;
         padding: 16px 20px;
-        border-bottom: 1px solid var(--border-color);
+        border-bottom: 1px solid var(--archie-purple-alpha-20);
     }
 
     .section-header h3 {
         font-family: 'Orbitron', sans-serif;
         font-size: 1rem;
-        color: var(--accent-cyan);
+        color: var(--archie-cyan);
         margin: 0;
         display: flex;
         align-items: center;
@@ -299,7 +278,7 @@
     }
 
     .btn-primary {
-        background: var(--accent-purple);
+        background: var(--archie-purple);
         color: white;
     }
 
@@ -310,18 +289,18 @@
 
     .btn-secondary {
         background: transparent;
-        border: 1px solid var(--border-color);
-        color: var(--text-secondary);
+        border: 1px solid var(--archie-purple-alpha-20);
+        color: var(--archie-text-tertiary);
     }
 
     .btn-secondary:hover {
-        border-color: var(--accent-purple);
-        color: var(--text-primary);
+        border-color: var(--archie-purple);
+        color: var(--archie-text-secondary);
     }
 
-    .btn-success { background: var(--accent-green); color: white; }
-    .btn-warning { background: var(--accent-yellow); color: #000; }
-    .btn-danger { background: var(--accent-red); color: white; }
+    .btn-success { background: var(--archie-success); color: white; }
+    .btn-warning { background: var(--archie-warning); color: #000; }
+    .btn-danger { background: var(--archie-red); color: white; }
     .btn-sm { padding: 4px 10px; font-size: 0.75rem; }
 
     /* Tables */
@@ -336,16 +315,16 @@
         font-size: 0.7rem;
         text-transform: uppercase;
         letter-spacing: 1px;
-        color: var(--text-muted);
+        color: var(--archie-text-muted);
         background: rgba(0, 0, 0, 0.2);
-        border-bottom: 1px solid var(--border-color);
+        border-bottom: 1px solid var(--archie-purple-alpha-20);
     }
 
     .data-table td {
         padding: 12px 16px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.05);
         font-size: 0.85rem;
-        color: var(--text-secondary);
+        color: var(--archie-text-tertiary);
     }
 
     .data-table tr:hover {
@@ -368,16 +347,16 @@
         font-weight: 500;
     }
 
-    .badge-active { background: rgba(34, 197, 94, 0.2); color: var(--accent-green); }
-    .badge-inactive { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
-    .badge-warning { background: rgba(234, 179, 8, 0.2); color: var(--accent-yellow); }
-    .badge-info { background: rgba(6, 182, 212, 0.2); color: var(--accent-cyan); }
+    .badge-active { background: rgba(34, 197, 94, 0.2); color: var(--archie-success); }
+    .badge-inactive { background: rgba(239, 68, 68, 0.2); color: var(--archie-red); }
+    .badge-warning { background: rgba(234, 179, 8, 0.2); color: var(--archie-warning); }
+    .badge-info { background: rgba(6, 182, 212, 0.2); color: var(--archie-cyan); }
     .badge-critical { background: rgba(239, 68, 68, 0.3); color: #FCA5A5; }
 
-    .severity-critical { color: var(--accent-red); }
-    .severity-high { color: var(--accent-orange); }
-    .severity-medium { color: var(--accent-yellow); }
-    .severity-low { color: var(--accent-cyan); }
+    .severity-critical { color: var(--archie-red); }
+    .severity-high { color: var(--archie-orange); }
+    .severity-medium { color: var(--archie-warning); }
+    .severity-low { color: var(--archie-cyan); }
 
     /* Constraint Cards */
     .constraint-grid {
@@ -389,17 +368,17 @@
 
     .constraint-card {
         background: rgba(0, 0, 0, 0.3);
-        border: 1px solid var(--border-color);
+        border: 1px solid var(--archie-purple-alpha-20);
         border-radius: 10px;
         padding: 16px;
     }
 
     .constraint-card.active {
-        border-left: 4px solid var(--accent-green);
+        border-left: 4px solid var(--archie-success);
     }
 
     .constraint-card.inactive {
-        border-left: 4px solid var(--accent-red);
+        border-left: 4px solid var(--archie-red);
         opacity: 0.6;
     }
 
@@ -412,7 +391,7 @@
 
     .constraint-name {
         font-weight: 600;
-        color: var(--text-primary);
+        color: var(--archie-text-secondary);
         font-size: 0.95rem;
     }
 
@@ -421,12 +400,12 @@
         padding: 3px 8px;
         border-radius: 6px;
         background: rgba(139, 92, 246, 0.2);
-        color: var(--accent-violet);
+        color: var(--archie-purple);
     }
 
     .constraint-desc {
         font-size: 0.85rem;
-        color: var(--text-secondary);
+        color: var(--archie-text-tertiary);
         margin-bottom: 12px;
         line-height: 1.5;
     }
@@ -435,7 +414,7 @@
         display: flex;
         gap: 16px;
         font-size: 0.75rem;
-        color: var(--text-muted);
+        color: var(--archie-text-muted);
     }
 
     /* Alerts Grid */
@@ -447,7 +426,7 @@
 
     .alert-card {
         background: rgba(0, 0, 0, 0.3);
-        border: 1px solid var(--border-color);
+        border: 1px solid var(--archie-purple-alpha-20);
         border-radius: 10px;
         padding: 16px;
         display: flex;
@@ -455,9 +434,9 @@
         align-items: start;
     }
 
-    .alert-card.critical { border-left: 4px solid var(--accent-red); }
-    .alert-card.warning { border-left: 4px solid var(--accent-yellow); }
-    .alert-card.info { border-left: 4px solid var(--accent-cyan); }
+    .alert-card.critical { border-left: 4px solid var(--archie-red); }
+    .alert-card.warning { border-left: 4px solid var(--archie-warning); }
+    .alert-card.info { border-left: 4px solid var(--archie-cyan); }
 
     .alert-icon {
         width: 40px;
@@ -469,9 +448,9 @@
         flex-shrink: 0;
     }
 
-    .alert-icon.critical { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
-    .alert-icon.warning { background: rgba(234, 179, 8, 0.2); color: var(--accent-yellow); }
-    .alert-icon.info { background: rgba(6, 182, 212, 0.2); color: var(--accent-cyan); }
+    .alert-icon.critical { background: rgba(239, 68, 68, 0.2); color: var(--archie-red); }
+    .alert-icon.warning { background: rgba(234, 179, 8, 0.2); color: var(--archie-warning); }
+    .alert-icon.info { background: rgba(6, 182, 212, 0.2); color: var(--archie-cyan); }
 
     .alert-content {
         flex: 1;
@@ -479,13 +458,13 @@
 
     .alert-title {
         font-weight: 600;
-        color: var(--text-primary);
+        color: var(--archie-text-secondary);
         margin-bottom: 4px;
     }
 
     .alert-message {
         font-size: 0.85rem;
-        color: var(--text-secondary);
+        color: var(--archie-text-tertiary);
         margin-bottom: 8px;
     }
 
@@ -493,7 +472,7 @@
         display: flex;
         gap: 16px;
         font-size: 0.75rem;
-        color: var(--text-muted);
+        color: var(--archie-text-muted);
     }
 
     .alert-actions {
@@ -511,7 +490,7 @@
 
     .welfare-card {
         background: rgba(0, 0, 0, 0.3);
-        border: 1px solid var(--border-color);
+        border: 1px solid var(--archie-purple-alpha-20);
         border-radius: 12px;
         padding: 20px;
     }
@@ -525,12 +504,12 @@
 
     .agent-name {
         font-weight: 600;
-        color: var(--text-primary);
+        color: var(--archie-text-secondary);
     }
 
     .agent-station {
         font-size: 0.75rem;
-        color: var(--accent-purple);
+        color: var(--archie-purple);
     }
 
     .welfare-metrics {
@@ -547,7 +526,7 @@
 
     .metric-label {
         font-size: 0.8rem;
-        color: var(--text-muted);
+        color: var(--archie-text-muted);
     }
 
     .metric-bar {
@@ -564,14 +543,14 @@
         transition: width 0.3s;
     }
 
-    .metric-fill.energy { background: linear-gradient(90deg, var(--accent-yellow), var(--accent-green)); }
-    .metric-fill.stress { background: linear-gradient(90deg, var(--accent-green), var(--accent-red)); }
-    .metric-fill.mood { background: linear-gradient(90deg, var(--accent-red), var(--accent-purple)); }
+    .metric-fill.energy { background: linear-gradient(90deg, var(--archie-warning), var(--archie-success)); }
+    .metric-fill.stress { background: linear-gradient(90deg, var(--archie-success), var(--archie-red)); }
+    .metric-fill.mood { background: linear-gradient(90deg, var(--archie-red), var(--archie-purple)); }
 
     .metric-value {
         font-family: 'JetBrains Mono', monospace;
         font-size: 0.8rem;
-        color: var(--text-primary);
+        color: var(--archie-text-secondary);
         width: 40px;
         text-align: right;
     }
@@ -596,13 +575,13 @@
 
     .pattern-title {
         font-weight: 600;
-        color: var(--accent-red);
+        color: var(--archie-red);
         margin-bottom: 8px;
     }
 
     .pattern-desc {
         font-size: 0.85rem;
-        color: var(--text-secondary);
+        color: var(--archie-text-tertiary);
     }
 
     /* Form Elements */
@@ -613,7 +592,7 @@
     .form-group label {
         display: block;
         font-size: 0.8rem;
-        color: var(--text-muted);
+        color: var(--archie-text-muted);
         margin-bottom: 6px;
     }
 
@@ -621,11 +600,11 @@
     .form-group select,
     .form-group textarea {
         width: 100%;
-        background: var(--bg-primary);
-        border: 1px solid var(--border-color);
+        background: var(--archie-bg-void);
+        border: 1px solid var(--archie-purple-alpha-20);
         border-radius: 8px;
         padding: 10px 12px;
-        color: var(--text-primary);
+        color: var(--archie-text-secondary);
         font-size: 0.9rem;
     }
 
@@ -633,7 +612,7 @@
     .form-group select:focus,
     .form-group textarea:focus {
         outline: none;
-        border-color: var(--accent-purple);
+        border-color: var(--archie-purple);
     }
 
     .form-row {
@@ -664,8 +643,8 @@
     }
 
     .modal {
-        background: var(--bg-secondary);
-        border: 1px solid var(--border-color);
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-purple-alpha-20);
         border-radius: 16px;
         width: 90%;
         max-width: 600px;
@@ -678,20 +657,20 @@
         justify-content: space-between;
         align-items: center;
         padding: 20px;
-        border-bottom: 1px solid var(--border-color);
+        border-bottom: 1px solid var(--archie-purple-alpha-20);
     }
 
     .modal-header h3 {
         margin: 0;
         font-family: 'Orbitron', sans-serif;
         font-size: 1.1rem;
-        color: var(--accent-cyan);
+        color: var(--archie-cyan);
     }
 
     .modal-close {
         background: none;
         border: none;
-        color: var(--text-muted);
+        color: var(--archie-text-muted);
         cursor: pointer;
         font-size: 1.5rem;
     }
@@ -702,7 +681,7 @@
 
     .modal-footer {
         padding: 16px 20px;
-        border-top: 1px solid var(--border-color);
+        border-top: 1px solid var(--archie-purple-alpha-20);
         display: flex;
         justify-content: flex-end;
         gap: 12px;
@@ -717,8 +696,8 @@
     }
 
     .toast {
-        background: var(--bg-secondary);
-        border: 1px solid var(--border-color);
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-purple-alpha-20);
         border-radius: 8px;
         padding: 12px 20px;
         margin-bottom: 10px;
@@ -728,9 +707,9 @@
         animation: slideIn 0.3s ease;
     }
 
-    .toast.success { border-left: 4px solid var(--accent-green); }
-    .toast.error { border-left: 4px solid var(--accent-red); }
-    .toast.warning { border-left: 4px solid var(--accent-yellow); }
+    .toast.success { border-left: 4px solid var(--archie-success); }
+    .toast.error { border-left: 4px solid var(--archie-red); }
+    .toast.warning { border-left: 4px solid var(--archie-warning); }
 
     @keyframes slideIn {
         from { transform: translateX(100%); opacity: 0; }
@@ -748,21 +727,17 @@
     .spinner {
         width: 40px;
         height: 40px;
-        border: 3px solid var(--border-color);
-        border-top-color: var(--accent-purple);
+        border: 3px solid var(--archie-purple-alpha-20);
+        border-top-color: var(--archie-purple);
         border-radius: 50%;
         animation: spin 1s linear infinite;
-    }
-
-    @keyframes spin {
-        to { transform: rotate(360deg); }
     }
 
     /* Empty State */
     .empty-state {
         text-align: center;
         padding: 60px 20px;
-        color: var(--text-muted);
+        color: var(--archie-text-muted);
     }
 
     .empty-state i {
@@ -1019,7 +994,7 @@
                     </table>
                     <div style="padding: 16px; display: flex; justify-content: center; gap: 8px;">
                         <button class="btn btn-secondary btn-sm" id="auditPrev" onclick="loadAuditPage(-1)">Previous</button>
-                        <span id="auditPageInfo" style="padding: 8px 16px; color: var(--text-muted);">Page 1</span>
+                        <span id="auditPageInfo" style="padding: 8px 16px; color: var(--archie-text-muted);">Page 1</span>
                         <button class="btn btn-secondary btn-sm" id="auditNext" onclick="loadAuditPage(1)">Next</button>
                     </div>
                 </div>
@@ -1355,9 +1330,9 @@
         document.getElementById('scoreProgress').style.strokeDashoffset = offset;
 
         const progress = document.getElementById('scoreProgress');
-        if (score >= 90) progress.style.stroke = 'var(--accent-green)';
-        else if (score >= 70) progress.style.stroke = 'var(--accent-yellow)';
-        else progress.style.stroke = 'var(--accent-red)';
+        if (score >= 90) progress.style.stroke = 'var(--archie-success)';
+        else if (score >= 70) progress.style.stroke = 'var(--archie-warning)';
+        else progress.style.stroke = 'var(--archie-red)';
     }
 
     function renderRecentEvents(events) {
@@ -1592,8 +1567,8 @@
                     <div class="form-group"><label>User</label><div>${e.user_name || 'N/A'}</div></div>
                     <div class="form-group"><label>Outcome</label><div><span class="badge badge-${e.outcome === 'success' ? 'active' : 'inactive'}">${e.outcome}</span></div></div>
                     ${e.reason ? `<div class="form-group"><label>Reason</label><div>${e.reason}</div></div>` : ''}
-                    ${e.old_value ? `<div class="form-group"><label>Old Value</label><pre style="background: var(--bg-primary); padding: 10px; border-radius: 6px; overflow: auto; font-size: 0.8rem;">${JSON.stringify(e.old_value, null, 2)}</pre></div>` : ''}
-                    ${e.new_value ? `<div class="form-group"><label>New Value</label><pre style="background: var(--bg-primary); padding: 10px; border-radius: 6px; overflow: auto; font-size: 0.8rem;">${JSON.stringify(e.new_value, null, 2)}</pre></div>` : ''}
+                    ${e.old_value ? `<div class="form-group"><label>Old Value</label><pre style="background: var(--archie-bg-void); padding: 10px; border-radius: 6px; overflow: auto; font-size: 0.8rem;">${JSON.stringify(e.old_value, null, 2)}</pre></div>` : ''}
+                    ${e.new_value ? `<div class="form-group"><label>New Value</label><pre style="background: var(--archie-bg-void); padding: 10px; border-radius: 6px; overflow: auto; font-size: 0.8rem;">${JSON.stringify(e.new_value, null, 2)}</pre></div>` : ''}
                 `;
                 openModal('auditModal');
             }

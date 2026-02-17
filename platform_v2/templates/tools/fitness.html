@@ -619,27 +619,11 @@
    FITNESS - AI COACH (RED THEME)
    ===================================================================== */
 
-:root {
-    --fitness-accent: #EF4444;
-    --fitness-accent-rgb: 239, 68, 68;
-    --fitness-accent-light: #FCA5A5;
-    --fitness-accent-dark: #DC2626;
-    --fitness-success: #10B981;
-    --fitness-warning: #F59E0B;
-    --fitness-info: #3B82F6;
-    --fitness-orange: #F97316;
-    --fitness-bg-primary: #0a0a0f;
-    --fitness-bg-secondary: #0d1117;
-    --fitness-bg-card: rgba(13, 17, 23, 0.95);
-    --fitness-border: rgba(239, 68, 68, 0.2);
-    --fitness-text-primary: #ffffff;
-    --fitness-text-secondary: rgba(255, 255, 255, 0.7);
-    --fitness-text-muted: rgba(255, 255, 255, 0.5);
-}
+/* Design Tokens - Inherits from theme.css */
 
 .fitness-container {
     min-height: 100vh;
-    background: var(--fitness-bg-primary);
+    background: var(--archie-bg-void);
     padding: 20px 30px 40px;
     padding-top: 80px;
 }
@@ -674,11 +658,11 @@
     font-family: 'Orbitron', sans-serif;
     font-size: 2rem;
     font-weight: 700;
-    color: var(--fitness-accent);
+    color: var(--archie-red);
     display: flex;
     align-items: center;
     gap: 15px;
-    text-shadow: 0 0 20px rgba(var(--fitness-accent-rgb), 0.5);
+    text-shadow: 0 0 20px var(--archie-red-alpha-30);
     margin: 0;
 }
 
@@ -690,7 +674,7 @@
 .fitness-subtitle {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.9rem;
-    color: var(--fitness-text-secondary);
+    color: var(--archie-text-tertiary);
     margin: 8px 0 0 51px;
 }
 
@@ -700,7 +684,7 @@
     gap: 8px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.85rem;
-    color: var(--fitness-success);
+    color: var(--archie-success);
 }
 
 .status-indicator {
@@ -711,13 +695,8 @@
 }
 
 .status-online {
-    background: var(--fitness-success);
-    box-shadow: 0 0 10px var(--fitness-success);
-}
-
-@keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+    background: var(--archie-success);
+    box-shadow: 0 0 10px var(--archie-success);
 }
 
 /* Motivation Banner */
@@ -732,7 +711,7 @@
     margin-bottom: 24px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.9rem;
-    color: var(--fitness-orange);
+    color: var(--archie-orange);
     animation: fadeInUp 0.5s ease-out 0.1s both;
 }
 
@@ -740,7 +719,7 @@
     width: 20px;
     height: 20px;
     flex-shrink: 0;
-    color: var(--fitness-accent);
+    color: var(--archie-red);
 }
 
 .fitness-motivation span {
@@ -750,14 +729,14 @@
 .motivation-refresh {
     background: transparent;
     border: none;
-    color: var(--fitness-text-muted);
+    color: var(--archie-text-muted);
     cursor: pointer;
     padding: 4px;
     transition: all 0.25s ease;
 }
 
 .motivation-refresh:hover {
-    color: var(--fitness-accent);
+    color: var(--archie-red);
     transform: rotate(180deg);
 }
 
@@ -775,8 +754,8 @@
 }
 
 .fitness-stat-card {
-    background: var(--fitness-bg-card);
-    border: 1px solid var(--fitness-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 12px;
     padding: 20px;
     display: flex;
@@ -788,8 +767,8 @@
 }
 
 .fitness-stat-card:hover {
-    border-color: rgba(var(--fitness-accent-rgb), 0.5);
-    box-shadow: 0 0 20px rgba(var(--fitness-accent-rgb), 0.15);
+    border-color: var(--archie-red-alpha-30);
+    box-shadow: 0 0 20px var(--archie-red-alpha-10);
     transform: translateY(-2px);
 }
 
@@ -800,8 +779,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(var(--fitness-accent-rgb), 0.1);
-    color: var(--fitness-accent);
+    background: var(--archie-red-alpha-10);
+    color: var(--archie-red);
 }
 
 .fitness-stat-icon i {
@@ -833,13 +812,13 @@
     font-family: 'Orbitron', sans-serif;
     font-size: 1.75rem;
     font-weight: 700;
-    color: var(--fitness-text-primary);
+    color: var(--archie-text-secondary);
 }
 
 .fitness-stat-label {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.7rem;
-    color: var(--fitness-text-muted);
+    color: var(--archie-text-muted);
     letter-spacing: 1px;
 }
 
@@ -848,7 +827,7 @@
     display: flex;
     gap: 8px;
     margin-bottom: 24px;
-    border-bottom: 1px solid var(--fitness-border);
+    border-bottom: 1px solid var(--archie-border-default);
 }
 
 .fitness-tab {
@@ -858,7 +837,7 @@
     padding: 12px 20px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.85rem;
-    color: var(--fitness-text-muted);
+    color: var(--archie-text-muted);
     background: transparent;
     border: none;
     cursor: pointer;
@@ -878,17 +857,17 @@
     left: 0;
     right: 0;
     height: 2px;
-    background: var(--fitness-accent);
+    background: var(--archie-red);
     transform: scaleX(0);
     transition: transform 0.25s ease;
 }
 
 .fitness-tab:hover {
-    color: var(--fitness-text-secondary);
+    color: var(--archie-text-tertiary);
 }
 
 .fitness-tab.active {
-    color: var(--fitness-accent);
+    color: var(--archie-red);
 }
 
 .fitness-tab.active::after {
@@ -917,8 +896,8 @@
 .fitness-chat-main {
     display: flex;
     flex-direction: column;
-    background: var(--fitness-bg-card);
-    border: 1px solid var(--fitness-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 12px;
     overflow: hidden;
 }
@@ -953,7 +932,7 @@
 }
 
 .fitness-message--assistant .fitness-message-avatar {
-    background: linear-gradient(135deg, var(--fitness-accent), #F97316);
+    background: linear-gradient(135deg, var(--archie-red), #F97316);
     color: white;
 }
 
@@ -977,15 +956,15 @@
 }
 
 .fitness-message--assistant .fitness-message-content {
-    background: rgba(var(--fitness-accent-rgb), 0.1);
-    border: 1px solid rgba(var(--fitness-accent-rgb), 0.2);
-    color: var(--fitness-text-primary);
+    background: var(--archie-red-alpha-10);
+    border: 1px solid var(--archie-red-alpha-20);
+    color: var(--archie-text-secondary);
 }
 
 .fitness-message--user .fitness-message-content {
     background: rgba(59, 130, 246, 0.1);
     border: 1px solid rgba(59, 130, 246, 0.2);
-    color: var(--fitness-text-primary);
+    color: var(--archie-text-secondary);
 }
 
 .fitness-message-content ul {
@@ -1008,14 +987,14 @@
     display: flex;
     gap: 4px;
     padding: 12px;
-    background: rgba(var(--fitness-accent-rgb), 0.1);
+    background: var(--archie-red-alpha-10);
     border-radius: 12px;
 }
 
 .fitness-typing-dots span {
     width: 8px;
     height: 8px;
-    background: var(--fitness-accent);
+    background: var(--archie-red);
     border-radius: 50%;
     animation: bounce 1.4s infinite;
 }
@@ -1033,25 +1012,25 @@
     display: flex;
     gap: 12px;
     padding: 16px 20px;
-    border-top: 1px solid var(--fitness-border);
+    border-top: 1px solid var(--archie-border-default);
     align-items: flex-end;
 }
 
 .fitness-chat-input textarea {
     flex: 1;
     background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--fitness-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 8px;
     padding: 12px 16px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.9rem;
-    color: var(--fitness-text-primary);
+    color: var(--archie-text-secondary);
     resize: none;
 }
 
 .fitness-chat-input textarea:focus {
     outline: none;
-    border-color: var(--fitness-accent);
+    border-color: var(--archie-red);
 }
 
 .fitness-chat-actions {
@@ -1081,25 +1060,25 @@
 
 .fitness-btn-primary {
     background: transparent;
-    color: var(--fitness-accent);
-    border: 2px solid var(--fitness-accent);
+    color: var(--archie-red);
+    border: 2px solid var(--archie-red);
 }
 
 .fitness-btn-primary:hover {
-    background: var(--fitness-accent);
+    background: var(--archie-red);
     color: white;
-    box-shadow: 0 0 20px rgba(var(--fitness-accent-rgb), 0.4);
+    box-shadow: 0 0 20px var(--archie-red-alpha-30);
 }
 
 .fitness-btn-outline {
     background: transparent;
-    color: var(--fitness-text-secondary);
-    border: 1px solid var(--fitness-border);
+    color: var(--archie-text-tertiary);
+    border: 1px solid var(--archie-border-default);
 }
 
 .fitness-btn-outline:hover {
-    border-color: var(--fitness-accent);
-    color: var(--fitness-accent);
+    border-color: var(--archie-red);
+    color: var(--archie-red);
 }
 
 .fitness-btn-icon {
@@ -1108,13 +1087,13 @@
     padding: 0;
     justify-content: center;
     background: transparent;
-    border: 1px solid var(--fitness-border);
-    color: var(--fitness-text-secondary);
+    border: 1px solid var(--archie-border-default);
+    color: var(--archie-text-tertiary);
 }
 
 .fitness-btn-icon:hover {
-    border-color: var(--fitness-accent);
-    color: var(--fitness-accent);
+    border-color: var(--archie-red);
+    color: var(--archie-red);
 }
 
 .fitness-btn-large {
@@ -1126,8 +1105,8 @@
 
 /* Sidebar */
 .fitness-sidebar {
-    background: var(--fitness-bg-card);
-    border: 1px solid var(--fitness-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 12px;
     padding: 20px;
     display: flex;
@@ -1138,7 +1117,7 @@
 .fitness-sidebar h4 {
     font-family: 'Orbitron', sans-serif;
     font-size: 0.9rem;
-    color: var(--fitness-text-primary);
+    color: var(--archie-text-secondary);
     margin: 0;
 }
 
@@ -1155,11 +1134,11 @@
     gap: 6px;
     padding: 12px 8px;
     background: transparent;
-    border: 1px solid var(--fitness-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 8px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.7rem;
-    color: var(--fitness-text-secondary);
+    color: var(--archie-text-tertiary);
     cursor: pointer;
     transition: all 0.25s ease;
 }
@@ -1167,22 +1146,22 @@
 .fitness-prompt-btn i {
     width: 20px;
     height: 20px;
-    color: var(--fitness-accent);
+    color: var(--archie-red);
 }
 
 .fitness-prompt-btn:hover {
-    border-color: var(--fitness-accent);
-    background: rgba(var(--fitness-accent-rgb), 0.05);
+    border-color: var(--archie-red);
+    background: var(--archie-red-alpha-10);
 }
 
 .fitness-select {
     background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--fitness-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 8px;
     padding: 10px 12px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.8rem;
-    color: var(--fitness-text-primary);
+    color: var(--archie-text-secondary);
     width: 100%;
 }
 
@@ -1200,11 +1179,11 @@
     gap: 8px;
     padding: 10px 20px;
     background: transparent;
-    border: 1px solid var(--fitness-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 8px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.85rem;
-    color: var(--fitness-text-secondary);
+    color: var(--archie-text-tertiary);
     cursor: pointer;
     transition: all 0.25s ease;
 }
@@ -1215,14 +1194,14 @@
 }
 
 .fitness-category-btn:hover {
-    border-color: var(--fitness-accent);
-    color: var(--fitness-accent);
+    border-color: var(--archie-red);
+    color: var(--archie-red);
 }
 
 .fitness-category-btn.active {
-    background: rgba(var(--fitness-accent-rgb), 0.1);
-    border-color: var(--fitness-accent);
-    color: var(--fitness-accent);
+    background: var(--archie-red-alpha-10);
+    border-color: var(--archie-red);
+    color: var(--archie-red);
 }
 
 .fitness-exercise-grid {
@@ -1232,15 +1211,15 @@
 }
 
 .fitness-exercise-card {
-    background: var(--fitness-bg-card);
-    border: 1px solid var(--fitness-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 12px;
     padding: 20px;
     transition: all 0.25s ease;
 }
 
 .fitness-exercise-card:hover {
-    border-color: rgba(var(--fitness-accent-rgb), 0.5);
+    border-color: var(--archie-red-alpha-30);
     transform: translateY(-2px);
 }
 
@@ -1255,8 +1234,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(var(--fitness-accent-rgb), 0.1);
-    color: var(--fitness-accent);
+    background: var(--archie-red-alpha-10);
+    color: var(--archie-red);
     margin-bottom: 12px;
 }
 
@@ -1268,14 +1247,14 @@
 .fitness-exercise-card h5 {
     font-family: 'Orbitron', sans-serif;
     font-size: 1rem;
-    color: var(--fitness-text-primary);
+    color: var(--archie-text-secondary);
     margin: 0 0 8px;
 }
 
 .exercise-muscles {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.75rem;
-    color: var(--fitness-text-muted);
+    color: var(--archie-text-muted);
     display: block;
     margin-bottom: 12px;
 }
@@ -1314,8 +1293,8 @@
     height: 32px;
     border-radius: 6px;
     background: transparent;
-    border: 1px solid var(--fitness-border);
-    color: var(--fitness-text-secondary);
+    border: 1px solid var(--archie-border-default);
+    color: var(--archie-text-tertiary);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -1324,8 +1303,8 @@
 }
 
 .exercise-add-btn:hover {
-    background: var(--fitness-accent);
-    border-color: var(--fitness-accent);
+    background: var(--archie-red);
+    border-color: var(--archie-red);
     color: white;
 }
 
@@ -1342,8 +1321,8 @@
 }
 
 .fitness-progress-card {
-    background: var(--fitness-bg-card);
-    border: 1px solid var(--fitness-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 12px;
     padding: 24px;
 }
@@ -1351,7 +1330,7 @@
 .fitness-progress-card h3 {
     font-family: 'Orbitron', sans-serif;
     font-size: 1rem;
-    color: var(--fitness-text-primary);
+    color: var(--archie-text-secondary);
     display: flex;
     align-items: center;
     gap: 10px;
@@ -1361,7 +1340,7 @@
 .fitness-progress-card h3 i {
     width: 20px;
     height: 20px;
-    color: var(--fitness-accent);
+    color: var(--archie-red);
 }
 
 .fitness-progress-input {
@@ -1378,7 +1357,7 @@
 
 .fitness-progress-chart {
     min-height: 150px;
-    border: 1px dashed var(--fitness-border);
+    border: 1px dashed var(--archie-border-default);
     border-radius: 8px;
     display: flex;
     align-items: center;
@@ -1387,7 +1366,7 @@
 
 .fitness-empty-chart {
     text-align: center;
-    color: var(--fitness-text-muted);
+    color: var(--archie-text-muted);
 }
 
 .fitness-empty-chart i {
@@ -1418,20 +1397,20 @@
     padding: 12px 16px;
     background: rgba(0, 0, 0, 0.2);
     border-radius: 8px;
-    border: 1px solid var(--fitness-border);
+    border: 1px solid var(--archie-border-default);
 }
 
 .pr-exercise {
     flex: 1;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.85rem;
-    color: var(--fitness-text-primary);
+    color: var(--archie-text-secondary);
 }
 
 .pr-value {
     font-family: 'Orbitron', sans-serif;
     font-size: 0.9rem;
-    color: var(--fitness-accent);
+    color: var(--archie-red);
     min-width: 80px;
     text-align: right;
 }
@@ -1442,7 +1421,7 @@
     border-radius: 4px;
     background: transparent;
     border: none;
-    color: var(--fitness-text-muted);
+    color: var(--archie-text-muted);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -1451,7 +1430,7 @@
 }
 
 .pr-edit-btn:hover {
-    color: var(--fitness-accent);
+    color: var(--archie-red);
 }
 
 .pr-edit-btn i {
@@ -1468,7 +1447,7 @@
     display: block;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.75rem;
-    color: var(--fitness-text-muted);
+    color: var(--archie-text-muted);
     margin-bottom: 6px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -1477,17 +1456,17 @@
 .fitness-form-group input {
     width: 100%;
     background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--fitness-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 6px;
     padding: 10px 12px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.9rem;
-    color: var(--fitness-text-primary);
+    color: var(--archie-text-secondary);
 }
 
 .fitness-form-group input:focus {
     outline: none;
-    border-color: var(--fitness-accent);
+    border-color: var(--archie-red);
 }
 
 .fitness-form-row {
@@ -1508,7 +1487,7 @@
 .fitness-schedule-header h3 {
     font-family: 'Orbitron', sans-serif;
     font-size: 1.2rem;
-    color: var(--fitness-text-primary);
+    color: var(--archie-text-secondary);
     margin: 0;
     min-width: 200px;
     text-align: center;
@@ -1522,8 +1501,8 @@
 }
 
 .fitness-calendar-day {
-    background: var(--fitness-bg-card);
-    border: 1px solid var(--fitness-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 12px;
     padding: 16px;
     min-height: 120px;
@@ -1532,12 +1511,12 @@
 }
 
 .fitness-calendar-day:hover {
-    border-color: rgba(var(--fitness-accent-rgb), 0.5);
+    border-color: var(--archie-red-alpha-30);
 }
 
 .fitness-calendar-day.today {
-    border-color: var(--fitness-accent);
-    box-shadow: 0 0 15px rgba(var(--fitness-accent-rgb), 0.2);
+    border-color: var(--archie-red);
+    box-shadow: 0 0 15px var(--archie-red-alpha-20);
 }
 
 .calendar-day-header {
@@ -1550,35 +1529,35 @@
 .calendar-day-name {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.7rem;
-    color: var(--fitness-text-muted);
+    color: var(--archie-text-muted);
     text-transform: uppercase;
 }
 
 .calendar-day-number {
     font-family: 'Orbitron', sans-serif;
     font-size: 1.1rem;
-    color: var(--fitness-text-primary);
+    color: var(--archie-text-secondary);
 }
 
 .calendar-day-content {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.75rem;
-    color: var(--fitness-text-secondary);
+    color: var(--archie-text-tertiary);
 }
 
 .calendar-workout-tag {
     display: inline-block;
     padding: 4px 8px;
-    background: rgba(var(--fitness-accent-rgb), 0.1);
+    background: var(--archie-red-alpha-10);
     border-radius: 4px;
-    color: var(--fitness-accent);
+    color: var(--archie-red);
     margin: 2px 0;
 }
 
 /* Plan Templates */
 .fitness-plan-templates {
-    background: var(--fitness-bg-card);
-    border: 1px solid var(--fitness-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 12px;
     padding: 24px;
 }
@@ -1586,7 +1565,7 @@
 .fitness-plan-templates h4 {
     font-family: 'Orbitron', sans-serif;
     font-size: 1rem;
-    color: var(--fitness-text-primary);
+    color: var(--archie-text-secondary);
     margin: 0 0 16px;
 }
 
@@ -1603,33 +1582,33 @@
     gap: 8px;
     padding: 20px;
     background: transparent;
-    border: 1px solid var(--fitness-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 10px;
     cursor: pointer;
     transition: all 0.25s ease;
 }
 
 .fitness-plan-btn:hover {
-    border-color: var(--fitness-accent);
-    background: rgba(var(--fitness-accent-rgb), 0.05);
+    border-color: var(--archie-red);
+    background: var(--archie-red-alpha-10);
 }
 
 .fitness-plan-btn i {
     width: 24px;
     height: 24px;
-    color: var(--fitness-accent);
+    color: var(--archie-red);
 }
 
 .fitness-plan-btn span {
     font-family: 'Orbitron', sans-serif;
     font-size: 0.9rem;
-    color: var(--fitness-text-primary);
+    color: var(--archie-text-secondary);
 }
 
 .fitness-plan-btn small {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.7rem;
-    color: var(--fitness-text-muted);
+    color: var(--archie-text-muted);
 }
 
 /* Modal */
@@ -1648,8 +1627,8 @@
 }
 
 .fitness-modal-content {
-    background: var(--fitness-bg-secondary);
-    border: 1px solid var(--fitness-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 16px;
     width: 90%;
     max-width: 400px;
@@ -1661,13 +1640,13 @@
     align-items: center;
     justify-content: space-between;
     padding: 20px 24px;
-    border-bottom: 1px solid var(--fitness-border);
+    border-bottom: 1px solid var(--archie-border-default);
 }
 
 .fitness-modal-header h3 {
     font-family: 'Orbitron', sans-serif;
     font-size: 1rem;
-    color: var(--fitness-text-primary);
+    color: var(--archie-text-secondary);
     margin: 0;
 }
 
@@ -1677,7 +1656,7 @@
     border-radius: 6px;
     background: transparent;
     border: none;
-    color: var(--fitness-text-muted);
+    color: var(--archie-text-muted);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -1686,7 +1665,7 @@
 }
 
 .fitness-modal-close:hover {
-    color: var(--fitness-accent);
+    color: var(--archie-red);
 }
 
 .fitness-modal-close i {
@@ -1703,25 +1682,10 @@
     gap: 12px;
     justify-content: flex-end;
     padding: 16px 24px;
-    border-top: 1px solid var(--fitness-border);
+    border-top: 1px solid var(--archie-border-default);
 }
 
-/* Animations */
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
-@keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
+/* Animations inherited from animations.css */
 
 /* =====================================================================
    LIGHT MODE

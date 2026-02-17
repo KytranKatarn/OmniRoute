@@ -27,7 +27,7 @@
 .dev-hq-header {
     text-align: center;
     padding: 32px 0 24px;
-    border-bottom: 1px solid var(--archie-border, #1a1a2e);
+    border-bottom: 1px solid var(--archie-border-default);
     margin-bottom: 0;
 }
 
@@ -50,7 +50,7 @@
 /* Tab Bar */
 .dev-hq-tabs {
     display: flex;
-    border-bottom: 1px solid var(--archie-border, #1a1a2e);
+    border-bottom: 1px solid var(--archie-border-default);
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
@@ -112,7 +112,7 @@
 
 .dev-hq-stat-card {
     background: var(--archie-bg-secondary, #0a0a0f);
-    border: 1px solid var(--archie-border, #1a1a2e);
+    border: 1px solid var(--archie-border-default);
     border-radius: var(--archie-radius-md, 8px);
     padding: 20px;
     text-align: center;
@@ -136,7 +136,7 @@
 /* Section cards (reusable) */
 .dev-hq-section {
     background: var(--archie-bg-secondary, #0a0a0f);
-    border: 1px solid var(--archie-border, #1a1a2e);
+    border: 1px solid var(--archie-border-default);
     border-radius: var(--archie-radius-md, 8px);
     margin-bottom: 20px;
     overflow: hidden;
@@ -147,7 +147,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 14px 20px;
-    border-bottom: 1px solid var(--archie-border, #1a1a2e);
+    border-bottom: 1px solid var(--archie-border-default);
     font-family: 'Orbitron', sans-serif;
     font-size: 0.72rem;
     font-weight: 600;
@@ -175,7 +175,7 @@
     gap: 12px;
     padding: 10px 14px;
     background: rgba(255, 255, 255, 0.02);
-    border: 1px solid var(--archie-border, #1a1a2e);
+    border: 1px solid var(--archie-border-default);
     border-radius: 6px;
     font-size: 0.78rem;
 }
@@ -210,7 +210,7 @@
 
 .dev-hq-project-card {
     background: var(--archie-bg-secondary, #0a0a0f);
-    border: 1px solid var(--archie-border, #1a1a2e);
+    border: 1px solid var(--archie-border-default);
     border-radius: var(--archie-radius-md, 8px);
     padding: 16px;
     cursor: pointer;
@@ -248,19 +248,19 @@
 
 .dev-hq-badge.active { color: var(--archie-green, #00FF41); border: 1px solid rgba(0,255,65,0.3); }
 .dev-hq-badge.completed { color: var(--archie-cyan, #00FFFF); border: 1px solid rgba(0,255,255,0.3); }
-.dev-hq-badge.on_hold { color: var(--archie-amber, #FFAA00); border: 1px solid rgba(255,170,0,0.3); }
+.dev-hq-badge.on_hold { color: var(--archie-orange); border: 1px solid rgba(255,170,0,0.3); }
 .dev-hq-badge.archived { color: var(--archie-text-muted, #6e7681); border: 1px solid rgba(110,118,129,0.3); }
 .dev-hq-badge.pending { color: var(--archie-text-secondary, #8b949e); border: 1px solid rgba(139,148,158,0.3); }
-.dev-hq-badge.in_progress { color: var(--archie-amber, #FFAA00); border: 1px solid rgba(255,170,0,0.3); }
+.dev-hq-badge.in_progress { color: var(--archie-orange); border: 1px solid rgba(255,170,0,0.3); }
 .dev-hq-badge.critical { color: var(--archie-danger, #ff4444); border: 1px solid rgba(255,68,68,0.3); }
-.dev-hq-badge.high { color: var(--archie-amber, #FFAA00); border: 1px solid rgba(255,170,0,0.3); }
+.dev-hq-badge.high { color: var(--archie-orange); border: 1px solid rgba(255,170,0,0.3); }
 .dev-hq-badge.medium { color: var(--archie-cyan, #00FFFF); border: 1px solid rgba(0,255,255,0.3); }
 .dev-hq-badge.low { color: var(--archie-text-muted, #6e7681); border: 1px solid rgba(110,118,129,0.3); }
 
 /* Progress bar */
 .dev-hq-progress {
     height: 4px;
-    background: var(--archie-border, #1a1a2e);
+    background: var(--archie-border-default);
     border-radius: 2px;
     overflow: hidden;
     margin-top: 8px;
@@ -298,7 +298,7 @@
 .dev-hq-btn.secondary {
     background: transparent;
     color: var(--archie-text-muted, #6e7681);
-    border-color: var(--archie-border, #1a1a2e);
+    border-color: var(--archie-border-default);
 }
 
 .dev-hq-btn.danger {
@@ -320,7 +320,7 @@
 
 .dev-hq-modal {
     background: var(--archie-bg-secondary, #0a0a0f);
-    border: 1px solid var(--archie-border, #1a1a2e);
+    border: 1px solid var(--archie-border-default);
     border-radius: var(--archie-radius-lg, 12px);
     width: 90%;
     max-width: 560px;
@@ -333,7 +333,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 16px 20px;
-    border-bottom: 1px solid var(--archie-border, #1a1a2e);
+    border-bottom: 1px solid var(--archie-border-default);
 }
 
 .dev-hq-modal-title {
@@ -362,7 +362,7 @@
     justify-content: flex-end;
     gap: 10px;
     padding: 16px 20px;
-    border-top: 1px solid var(--archie-border, #1a1a2e);
+    border-top: 1px solid var(--archie-border-default);
 }
 
 /* Form fields */
@@ -385,7 +385,7 @@
     width: 100%;
     padding: 8px 12px;
     background: var(--archie-bg-primary, #000);
-    border: 1px solid var(--archie-border, #1a1a2e);
+    border: 1px solid var(--archie-border-default);
     border-radius: 6px;
     color: var(--archie-text-primary, #c9d1d9);
     font-family: 'IBM Plex Mono', monospace;
@@ -413,7 +413,7 @@
     align-items: center;
     padding: 8px 12px;
     background: rgba(255, 255, 255, 0.02);
-    border: 1px solid var(--archie-border, #1a1a2e);
+    border: 1px solid var(--archie-border-default);
     border-radius: 6px;
     font-size: 0.75rem;
 }
@@ -440,7 +440,7 @@
 .dev-hq-filters input {
     padding: 6px 10px;
     background: var(--archie-bg-secondary, #0a0a0f);
-    border: 1px solid var(--archie-border, #1a1a2e);
+    border: 1px solid var(--archie-border-default);
     border-radius: 6px;
     color: var(--archie-text-primary, #c9d1d9);
     font-family: 'IBM Plex Mono', monospace;
@@ -457,7 +457,7 @@
 .dev-hq-knowledge-item {
     padding: 14px 16px;
     background: rgba(255, 255, 255, 0.02);
-    border: 1px solid var(--archie-border, #1a1a2e);
+    border: 1px solid var(--archie-border-default);
     border-radius: 6px;
     cursor: pointer;
     transition: border-color 0.2s;
@@ -549,7 +549,7 @@
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--archie-text-muted, #6e7681);
-    border-bottom: 1px solid var(--archie-border, #1a1a2e);
+    border-bottom: 1px solid var(--archie-border-default);
 }
 
 .dev-hq-columns-table td {
@@ -595,7 +595,7 @@
 
 .dev-hq-method-badge.get { background: rgba(0, 255, 65, 0.15); color: var(--archie-green, #00FF41); }
 .dev-hq-method-badge.post { background: rgba(0, 255, 255, 0.15); color: var(--archie-cyan, #00FFFF); }
-.dev-hq-method-badge.put { background: rgba(255, 170, 0, 0.15); color: var(--archie-amber, #FFAA00); }
+.dev-hq-method-badge.put { background: rgba(255, 170, 0, 0.15); color: var(--archie-orange); }
 .dev-hq-method-badge.delete { background: rgba(255, 68, 68, 0.15); color: var(--archie-danger, #ff4444); }
 
 /* Integrations */
@@ -632,7 +632,7 @@
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--archie-text-muted, #6e7681);
-    border-bottom: 1px solid var(--archie-border, #1a1a2e);
+    border-bottom: 1px solid var(--archie-border-default);
 }
 
 .dev-hq-tool-table td {
@@ -643,7 +643,7 @@
 /* Pre-formatted content */
 .dev-hq-pre {
     background: var(--archie-bg-primary, #000);
-    border: 1px solid var(--archie-border, #1a1a2e);
+    border: 1px solid var(--archie-border-default);
     border-radius: 6px;
     padding: 16px;
     font-size: 0.75rem;
@@ -691,7 +691,7 @@
     letter-spacing: 0.08em;
     color: var(--archie-text-muted, #6e7681);
     padding: 8px 4px 4px;
-    border-bottom: 1px solid var(--archie-border, #1a1a2e);
+    border-bottom: 1px solid var(--archie-border-default);
 }
 .docs-module-card {
     display: flex;
@@ -699,7 +699,7 @@
     gap: 12px;
     padding: 12px 14px;
     background: var(--archie-bg-secondary, #0d1117);
-    border: 1px solid var(--archie-border, #1a1a2e);
+    border: 1px solid var(--archie-border-default);
     border-radius: 8px;
     cursor: pointer;
     transition: border-color 0.15s, background 0.15s;
@@ -762,7 +762,7 @@
 }
 .docs-detail-panel {
     background: var(--archie-bg-secondary, #0d1117);
-    border: 1px solid var(--archie-border, #1a1a2e);
+    border: 1px solid var(--archie-border-default);
     border-radius: 8px;
     display: flex;
     flex-direction: column;
@@ -773,7 +773,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 16px 20px;
-    border-bottom: 1px solid var(--archie-border, #1a1a2e);
+    border-bottom: 1px solid var(--archie-border-default);
     flex-wrap: wrap;
     gap: 12px;
 }
@@ -790,7 +790,7 @@
 }
 .docs-sub-tabs {
     display: flex;
-    border-bottom: 1px solid var(--archie-border, #1a1a2e);
+    border-bottom: 1px solid var(--archie-border-default);
     padding: 0 20px;
 }
 .docs-sub-tab {
@@ -837,7 +837,7 @@
     font-size: 0.68rem;
     color: var(--archie-text-muted, #6e7681);
     padding: 10px 20px;
-    border-top: 1px solid var(--archie-border, #1a1a2e);
+    border-top: 1px solid var(--archie-border-default);
 }
 .docs-doc-list {
     padding: 12px 20px;
@@ -854,7 +854,7 @@
 }
 .docs-doc-list-item:hover {
     background: rgba(0, 255, 255, 0.04);
-    border-color: var(--archie-border, #1a1a2e);
+    border-color: var(--archie-border-default);
 }
 .docs-doc-list-item.selected {
     background: rgba(0, 255, 255, 0.08);
@@ -1900,7 +1900,7 @@ function loadDecisions() {
                 if (decStatus === 'accepted' || decStatus === 'approved') {
                     statusBadge.style.cssText = 'color:var(--archie-green,#00FF41); border:1px solid rgba(0,255,65,0.3);';
                 } else if (decStatus === 'proposed' || decStatus === 'pending') {
-                    statusBadge.style.cssText = 'color:var(--archie-amber,#FFAA00); border:1px solid rgba(255,170,0,0.3);';
+                    statusBadge.style.cssText = 'color:var(--archie-orange); border:1px solid rgba(255,170,0,0.3);';
                 } else if (decStatus === 'deprecated' || decStatus === 'rejected') {
                     statusBadge.style.cssText = 'color:var(--archie-danger,#ff4444); border:1px solid rgba(255,68,68,0.3);';
                 }
@@ -2059,7 +2059,7 @@ function showTableColumns(table) {
             tdNull.textContent = 'YES';
         } else if (nullable === 'NO' || nullable === false) {
             tdNull.textContent = 'NO';
-            tdNull.style.color = 'var(--archie-amber, #FFAA00)';
+            tdNull.style.color = 'var(--archie-orange)';
         } else {
             tdNull.textContent = String(nullable != null ? nullable : '--');
         }

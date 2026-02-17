@@ -12,28 +12,12 @@
    Pink Theme (#FF69B4) with Purple Accents (#8B5CF6)
    ═══════════════════════════════════════════════════════════════════════════════ */
 
-/* CSS Variables */
-:root {
-    --sm-accent: #FF69B4;
-    --sm-accent-rgb: 255, 105, 180;
-    --sm-secondary: #8B5CF6;
-    --sm-secondary-rgb: 139, 92, 246;
-    --sm-success: #00FF41;
-    --sm-warning: #FFAA00;
-    --sm-danger: #FF6B6B;
-    --sm-bg-primary: #010409;
-    --sm-bg-card: rgba(13, 17, 23, 0.95);
-    --sm-bg-elevated: rgba(22, 27, 34, 0.9);
-    --sm-border: rgba(255, 105, 180, 0.2);
-    --sm-border-hover: rgba(255, 105, 180, 0.4);
-    --sm-text-primary: #e6edf3;
-    --sm-text-secondary: #8b949e;
-}
+/* Custom variables replaced with --archie-* design tokens */
 
 /* Container */
 .sm-container {
     min-height: 100vh;
-    background: var(--sm-bg-primary);
+    background: var(--archie-bg-primary);
     position: relative;
 }
 
@@ -73,7 +57,7 @@
     align-items: center;
     margin-bottom: 24px;
     padding: 20px 0;
-    border-bottom: 1px solid var(--sm-border);
+    border-bottom: 1px solid var(--archie-border-default);
 }
 
 .sm-header-title {
@@ -89,9 +73,9 @@
     align-items: center;
     justify-content: center;
     background: linear-gradient(135deg, rgba(255, 105, 180, 0.2), rgba(139, 92, 246, 0.2));
-    border: 1px solid var(--sm-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 12px;
-    color: var(--sm-accent);
+    color: var(--archie-pink);
 }
 
 .sm-header-icon i {
@@ -104,7 +88,7 @@
     font-size: 1.5rem;
     font-weight: 700;
     letter-spacing: 0.1em;
-    color: var(--sm-text-primary);
+    color: var(--archie-text-secondary);
     margin: 0;
     text-shadow: 0 0 20px rgba(255, 105, 180, 0.3);
 }
@@ -112,7 +96,7 @@
 .sm-header p {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.75rem;
-    color: var(--sm-text-secondary);
+    color: var(--archie-text-tertiary);
     margin: 4px 0 0;
     letter-spacing: 0.05em;
 }
@@ -130,28 +114,28 @@
     gap: 8px;
     padding: 10px 20px;
     background: transparent;
-    border: 1px solid var(--sm-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 8px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.75rem;
     letter-spacing: 0.05em;
-    color: var(--sm-text-secondary);
+    color: var(--archie-text-tertiary);
     cursor: pointer;
     transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     text-decoration: none;
 }
 
 .sm-btn:hover {
-    color: var(--sm-accent);
-    border-color: var(--sm-border-hover);
+    color: var(--archie-pink);
+    border-color: var(--archie-border-emphasis);
     background: rgba(255, 105, 180, 0.1);
     box-shadow: 0 0 20px rgba(255, 105, 180, 0.15);
 }
 
 .sm-btn--primary {
     background: linear-gradient(135deg, rgba(255, 105, 180, 0.2), rgba(139, 92, 246, 0.2));
-    border-color: var(--sm-accent);
-    color: var(--sm-accent);
+    border-color: var(--archie-pink);
+    color: var(--archie-pink);
 }
 
 .sm-btn--primary:hover {
@@ -160,8 +144,8 @@
 }
 
 .sm-btn--success {
-    border-color: var(--sm-success);
-    color: var(--sm-success);
+    border-color: var(--archie-success);
+    color: var(--archie-success);
 }
 
 .sm-btn--success:hover {
@@ -170,8 +154,8 @@
 }
 
 .sm-btn--danger {
-    border-color: var(--sm-danger);
-    color: var(--sm-danger);
+    border-color: var(--archie-danger);
+    color: var(--archie-danger);
 }
 
 .sm-btn--danger:hover {
@@ -202,8 +186,8 @@
 }
 
 .sm-stat-card {
-    background: var(--sm-bg-card);
-    border: 1px solid var(--sm-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 12px;
     padding: 20px;
     display: flex;
@@ -222,7 +206,7 @@
 
 .sm-stat-card:hover {
     transform: translateY(-4px);
-    border-color: var(--sm-border-hover);
+    border-color: var(--archie-border-emphasis);
     box-shadow: 0 8px 30px rgba(255, 105, 180, 0.15);
 }
 
@@ -235,7 +219,7 @@
 .sm-stat-label {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.7rem;
-    color: var(--sm-text-secondary);
+    color: var(--archie-text-tertiary);
     letter-spacing: 0.1em;
     text-transform: uppercase;
 }
@@ -244,7 +228,7 @@
     font-family: 'Orbitron', sans-serif;
     font-size: 1.75rem;
     font-weight: 700;
-    color: var(--sm-text-primary);
+    color: var(--archie-text-secondary);
 }
 
 .sm-stat-icon {
@@ -264,33 +248,22 @@
 
 .sm-stat-icon--accounts {
     background: linear-gradient(135deg, rgba(255, 105, 180, 0.2), rgba(139, 92, 246, 0.2));
-    color: var(--sm-accent);
+    color: var(--archie-pink);
 }
 
 .sm-stat-icon--scheduled {
     background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(99, 102, 241, 0.2));
-    color: var(--sm-secondary);
+    color: var(--archie-purple);
 }
 
 .sm-stat-icon--published {
     background: rgba(0, 255, 65, 0.15);
-    color: var(--sm-success);
+    color: var(--archie-success);
 }
 
 .sm-stat-icon--engagement {
     background: rgba(255, 170, 0, 0.15);
-    color: var(--sm-warning);
-}
-
-@keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    color: var(--archie-warning);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
@@ -300,7 +273,7 @@
     display: flex;
     gap: 4px;
     margin-bottom: 24px;
-    border-bottom: 1px solid var(--sm-border);
+    border-bottom: 1px solid var(--archie-border-default);
     padding-bottom: 0;
 }
 
@@ -308,7 +281,7 @@
     padding: 12px 20px;
     background: transparent;
     border: none;
-    color: var(--sm-text-secondary);
+    color: var(--archie-text-tertiary);
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.75rem;
     letter-spacing: 0.05em;
@@ -329,12 +302,12 @@
     transform: translateX(-50%);
     width: 0;
     height: 2px;
-    background: var(--sm-accent);
+    background: var(--archie-pink);
     transition: width 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .sm-tab:hover {
-    color: var(--sm-text-primary);
+    color: var(--archie-text-secondary);
 }
 
 .sm-tab:hover::after {
@@ -342,7 +315,7 @@
 }
 
 .sm-tab.active {
-    color: var(--sm-accent);
+    color: var(--archie-pink);
 }
 
 .sm-tab.active::after {
@@ -364,17 +337,12 @@
     animation: fadeIn 0.3s ease;
 }
 
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
 /* ═══════════════════════════════════════════════════════════════════════════════
    CARDS & PANELS
    ═══════════════════════════════════════════════════════════════════════════════ */
 .sm-panel {
-    background: var(--sm-bg-card);
-    border: 1px solid var(--sm-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 12px;
     overflow: hidden;
     backdrop-filter: blur(10px);
@@ -385,14 +353,14 @@
     justify-content: space-between;
     align-items: center;
     padding: 16px 20px;
-    border-bottom: 1px solid var(--sm-border);
+    border-bottom: 1px solid var(--archie-border-default);
 }
 
 .sm-panel-title {
     font-family: 'Orbitron', sans-serif;
     font-size: 0.85rem;
     font-weight: 600;
-    color: var(--sm-text-primary);
+    color: var(--archie-text-secondary);
     letter-spacing: 0.1em;
     display: flex;
     align-items: center;
@@ -402,7 +370,7 @@
 .sm-panel-title i {
     width: 18px;
     height: 18px;
-    color: var(--sm-accent);
+    color: var(--archie-pink);
 }
 
 .sm-panel-body {
@@ -412,13 +380,13 @@
 .sm-panel-link {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.7rem;
-    color: var(--sm-accent);
+    color: var(--archie-pink);
     text-decoration: none;
     transition: color 0.2s;
 }
 
 .sm-panel-link:hover {
-    color: var(--sm-secondary);
+    color: var(--archie-purple);
     text-decoration: underline;
 }
 
@@ -444,7 +412,7 @@
    PLATFORM CARDS
    ═══════════════════════════════════════════════════════════════════════════════ */
 .sm-platform-card {
-    background: var(--sm-bg-elevated);
+    background: var(--archie-bg-tertiary);
     border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 10px;
     padding: 12px;
@@ -455,7 +423,7 @@
 }
 
 .sm-platform-card:hover {
-    border-color: var(--sm-border-hover);
+    border-color: var(--archie-border-emphasis);
     background: rgba(255, 105, 180, 0.05);
 }
 
@@ -492,7 +460,7 @@
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.8rem;
     font-weight: 600;
-    color: var(--sm-text-primary);
+    color: var(--archie-text-secondary);
 }
 
 .sm-platform-status {
@@ -503,18 +471,18 @@
 }
 
 .sm-platform-status--connected {
-    color: var(--sm-success);
+    color: var(--archie-success);
 }
 
 .sm-platform-status--disconnected {
-    color: var(--sm-text-secondary);
+    color: var(--archie-text-tertiary);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
    POST CARDS
    ═══════════════════════════════════════════════════════════════════════════════ */
 .sm-post-card {
-    background: var(--sm-bg-elevated);
+    background: var(--archie-bg-tertiary);
     border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 10px;
     padding: 16px;
@@ -523,7 +491,7 @@
 }
 
 .sm-post-card:hover {
-    border-color: var(--sm-border-hover);
+    border-color: var(--archie-border-emphasis);
     box-shadow: 0 4px 20px rgba(255, 105, 180, 0.1);
 }
 
@@ -537,7 +505,7 @@
 .sm-post-content {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.8rem;
-    color: var(--sm-text-primary);
+    color: var(--archie-text-secondary);
     line-height: 1.5;
     margin-bottom: 12px;
 }
@@ -556,7 +524,7 @@
 .sm-post-time {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.7rem;
-    color: var(--sm-text-secondary);
+    color: var(--archie-text-tertiary);
 }
 
 /* Status Badges */
@@ -585,12 +553,12 @@
 
 .sm-badge--published {
     background: rgba(0, 255, 65, 0.15);
-    color: var(--sm-success);
+    color: var(--archie-success);
 }
 
 .sm-badge--failed {
     background: rgba(255, 107, 107, 0.2);
-    color: var(--sm-danger);
+    color: var(--archie-danger);
 }
 
 .sm-badge--platform {
@@ -610,7 +578,7 @@
     gap: 4px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.7rem;
-    color: var(--sm-text-secondary);
+    color: var(--archie-text-tertiary);
 }
 
 .sm-engagement-item i {
@@ -622,8 +590,8 @@
    COMPOSER
    ═══════════════════════════════════════════════════════════════════════════════ */
 .sm-composer {
-    background: var(--sm-bg-card);
-    border: 1px solid var(--sm-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 12px;
     padding: 24px;
     backdrop-filter: blur(10px);
@@ -633,7 +601,7 @@
     font-family: 'Orbitron', sans-serif;
     font-size: 0.9rem;
     font-weight: 600;
-    color: var(--sm-text-primary);
+    color: var(--archie-text-secondary);
     margin-bottom: 20px;
     display: flex;
     align-items: center;
@@ -643,18 +611,18 @@
 .sm-composer-title i {
     width: 20px;
     height: 20px;
-    color: var(--sm-accent);
+    color: var(--archie-pink);
 }
 
 .sm-textarea {
     width: 100%;
-    background: var(--sm-bg-elevated);
+    background: var(--archie-bg-tertiary);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
     padding: 16px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.85rem;
-    color: var(--sm-text-primary);
+    color: var(--archie-text-secondary);
     resize: vertical;
     min-height: 120px;
     transition: border-color 0.2s;
@@ -662,52 +630,52 @@
 
 .sm-textarea:focus {
     outline: none;
-    border-color: var(--sm-accent);
+    border-color: var(--archie-pink);
 }
 
 .sm-textarea::placeholder {
-    color: var(--sm-text-secondary);
+    color: var(--archie-text-tertiary);
 }
 
 .sm-input {
     width: 100%;
-    background: var(--sm-bg-elevated);
+    background: var(--archie-bg-tertiary);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
     padding: 12px 16px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.8rem;
-    color: var(--sm-text-primary);
+    color: var(--archie-text-secondary);
     transition: border-color 0.2s;
 }
 
 .sm-input:focus {
     outline: none;
-    border-color: var(--sm-accent);
+    border-color: var(--archie-pink);
 }
 
 .sm-select {
     width: 100%;
-    background: var(--sm-bg-elevated);
+    background: var(--archie-bg-tertiary);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
     padding: 12px 16px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.8rem;
-    color: var(--sm-text-primary);
+    color: var(--archie-text-secondary);
     cursor: pointer;
 }
 
 .sm-select:focus {
     outline: none;
-    border-color: var(--sm-accent);
+    border-color: var(--archie-pink);
 }
 
 .sm-label {
     display: block;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.7rem;
-    color: var(--sm-text-secondary);
+    color: var(--archie-text-tertiary);
     margin-bottom: 8px;
     letter-spacing: 0.05em;
     text-transform: uppercase;
@@ -733,7 +701,7 @@
 .sm-char-count {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.7rem;
-    color: var(--sm-text-secondary);
+    color: var(--archie-text-tertiary);
 }
 
 /* Platform Toggles */
@@ -756,11 +724,11 @@
 }
 
 .sm-platform-toggle:hover {
-    border-color: var(--sm-border-hover);
+    border-color: var(--archie-border-emphasis);
 }
 
 .sm-platform-toggle.selected {
-    border-color: var(--sm-success);
+    border-color: var(--archie-success);
     background: rgba(0, 255, 65, 0.1);
 }
 
@@ -771,7 +739,7 @@
 .sm-platform-toggle span {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.75rem;
-    color: var(--sm-text-primary);
+    color: var(--archie-text-secondary);
 }
 
 .sm-composer-actions {
@@ -787,8 +755,8 @@
    ACCOUNT CARDS (for Accounts tab)
    ═══════════════════════════════════════════════════════════════════════════════ */
 .sm-account-card {
-    background: var(--sm-bg-card);
-    border: 1px solid var(--sm-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 12px;
     padding: 24px;
     text-align: center;
@@ -796,7 +764,7 @@
 }
 
 .sm-account-card:hover {
-    border-color: var(--sm-border-hover);
+    border-color: var(--archie-border-emphasis);
     box-shadow: 0 8px 30px rgba(255, 105, 180, 0.1);
 }
 
@@ -829,7 +797,7 @@
     font-family: 'Orbitron', sans-serif;
     font-size: 1rem;
     font-weight: 600;
-    color: var(--sm-text-primary);
+    color: var(--archie-text-secondary);
     margin-bottom: 4px;
 }
 
@@ -842,7 +810,7 @@
 .sm-account-username {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.8rem;
-    color: var(--sm-text-secondary);
+    color: var(--archie-text-tertiary);
     margin-bottom: 16px;
 }
 
@@ -856,7 +824,7 @@
    TEMPLATE CARDS
    ═══════════════════════════════════════════════════════════════════════════════ */
 .sm-template-card {
-    background: var(--sm-bg-elevated);
+    background: var(--archie-bg-tertiary);
     border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 10px;
     padding: 16px;
@@ -865,7 +833,7 @@
 }
 
 .sm-template-card:hover {
-    border-color: var(--sm-border-hover);
+    border-color: var(--archie-border-emphasis);
     transform: translateY(-2px);
     box-shadow: 0 8px 25px rgba(255, 105, 180, 0.15);
 }
@@ -881,7 +849,7 @@
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.85rem;
     font-weight: 600;
-    color: var(--sm-text-primary);
+    color: var(--archie-text-secondary);
 }
 
 .sm-template-category {
@@ -896,7 +864,7 @@
 .sm-template-desc {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.75rem;
-    color: var(--sm-text-secondary);
+    color: var(--archie-text-tertiary);
     margin-bottom: 12px;
     line-height: 1.4;
 }
@@ -910,7 +878,7 @@
 .sm-template-uses {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.65rem;
-    color: var(--sm-text-secondary);
+    color: var(--archie-text-tertiary);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
@@ -927,7 +895,7 @@
     font-family: 'Orbitron', sans-serif;
     font-size: 1rem;
     font-weight: 600;
-    color: var(--sm-text-primary);
+    color: var(--archie-text-secondary);
     display: flex;
     align-items: center;
     gap: 10px;
@@ -936,7 +904,7 @@
 .sm-analytics-title i {
     width: 20px;
     height: 20px;
-    color: var(--sm-accent);
+    color: var(--archie-pink);
 }
 
 .sm-period-selector {
@@ -947,29 +915,29 @@
 .sm-period-btn {
     padding: 8px 16px;
     background: transparent;
-    border: 1px solid var(--sm-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 6px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.7rem;
-    color: var(--sm-text-secondary);
+    color: var(--archie-text-tertiary);
     cursor: pointer;
     transition: all 0.2s;
 }
 
 .sm-period-btn:hover {
-    border-color: var(--sm-border-hover);
-    color: var(--sm-text-primary);
+    border-color: var(--archie-border-emphasis);
+    color: var(--archie-text-secondary);
 }
 
 .sm-period-btn.active {
     background: rgba(255, 105, 180, 0.1);
-    border-color: var(--sm-accent);
-    color: var(--sm-accent);
+    border-color: var(--archie-pink);
+    color: var(--archie-pink);
 }
 
 .sm-analytics-card {
-    background: var(--sm-bg-card);
-    border: 1px solid var(--sm-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 12px;
     padding: 24px;
     text-align: center;
@@ -988,14 +956,14 @@
     font-family: 'Orbitron', sans-serif;
     font-size: 2rem;
     font-weight: 700;
-    color: var(--sm-text-primary);
+    color: var(--archie-text-secondary);
     margin-bottom: 4px;
 }
 
 .sm-analytics-label {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.7rem;
-    color: var(--sm-text-secondary);
+    color: var(--archie-text-tertiary);
     text-transform: uppercase;
     letter-spacing: 0.1em;
 }
@@ -1004,50 +972,50 @@
    CALENDAR
    ═══════════════════════════════════════════════════════════════════════════════ */
 .sm-calendar-wrapper {
-    background: var(--sm-bg-card);
-    border: 1px solid var(--sm-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 12px;
     padding: 20px;
 }
 
 #calendar {
-    --fc-border-color: var(--sm-border);
-    --fc-button-bg-color: var(--sm-bg-elevated);
-    --fc-button-border-color: var(--sm-border);
-    --fc-button-text-color: var(--sm-text-primary);
+    --fc-border-color: var(--archie-border-default);
+    --fc-button-bg-color: var(--archie-bg-tertiary);
+    --fc-button-border-color: var(--archie-border-default);
+    --fc-button-text-color: var(--archie-text-secondary);
     --fc-button-hover-bg-color: rgba(255, 105, 180, 0.1);
-    --fc-button-hover-border-color: var(--sm-accent);
+    --fc-button-hover-border-color: var(--archie-pink);
     --fc-button-active-bg-color: rgba(255, 105, 180, 0.2);
-    --fc-button-active-border-color: var(--sm-accent);
-    --fc-event-bg-color: var(--sm-accent);
-    --fc-event-border-color: var(--sm-accent);
+    --fc-button-active-border-color: var(--archie-pink);
+    --fc-event-bg-color: var(--archie-pink);
+    --fc-event-border-color: var(--archie-pink);
     --fc-today-bg-color: rgba(255, 105, 180, 0.05);
 }
 
 .fc .fc-toolbar-title {
     font-family: 'Orbitron', sans-serif;
     font-size: 1.2rem;
-    color: var(--sm-text-primary);
+    color: var(--archie-text-secondary);
 }
 
 .fc .fc-col-header-cell-cushion {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.75rem;
-    color: var(--sm-text-secondary);
+    color: var(--archie-text-tertiary);
 }
 
 .fc .fc-daygrid-day-number {
     font-family: 'JetBrains Mono', monospace;
-    color: var(--sm-text-primary);
+    color: var(--archie-text-secondary);
 }
 
 .fc-theme-standard td,
 .fc-theme-standard th {
-    border-color: var(--sm-border);
+    border-color: var(--archie-border-default);
 }
 
 .fc-theme-standard .fc-scrollgrid {
-    border-color: var(--sm-border);
+    border-color: var(--archie-border-default);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
@@ -1063,7 +1031,7 @@
     height: 64px;
     margin: 0 auto 16px;
     opacity: 0.3;
-    color: var(--sm-text-secondary);
+    color: var(--archie-text-tertiary);
 }
 
 .sm-empty-icon i {
@@ -1074,7 +1042,7 @@
 .sm-empty-text {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.85rem;
-    color: var(--sm-text-secondary);
+    color: var(--archie-text-tertiary);
     margin-bottom: 16px;
 }
 
@@ -1089,24 +1057,24 @@
 .sm-filter-btn {
     padding: 6px 12px;
     background: transparent;
-    border: 1px solid var(--sm-border);
+    border: 1px solid var(--archie-border-default);
     border-radius: 6px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.7rem;
-    color: var(--sm-text-secondary);
+    color: var(--archie-text-tertiary);
     cursor: pointer;
     transition: all 0.2s;
 }
 
 .sm-filter-btn:hover {
-    border-color: var(--sm-border-hover);
-    color: var(--sm-text-primary);
+    border-color: var(--archie-border-emphasis);
+    color: var(--archie-text-secondary);
 }
 
 .sm-filter-btn.active {
     background: rgba(255, 105, 180, 0.1);
-    border-color: var(--sm-accent);
-    color: var(--sm-accent);
+    border-color: var(--archie-pink);
+    color: var(--archie-pink);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
@@ -1121,8 +1089,8 @@
     right: 0;
     top: 100%;
     min-width: 180px;
-    background: var(--sm-bg-card);
-    border: 1px solid var(--sm-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 8px;
     padding: 8px 0;
     z-index: 100;
@@ -1141,7 +1109,7 @@
     padding: 10px 16px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.75rem;
-    color: var(--sm-text-primary);
+    color: var(--archie-text-secondary);
     cursor: pointer;
     transition: background 0.2s;
     text-decoration: none;
@@ -1152,12 +1120,12 @@
 }
 
 .sm-dropdown-item--danger {
-    color: var(--sm-danger);
+    color: var(--archie-danger);
 }
 
 .sm-dropdown-divider {
     height: 1px;
-    background: var(--sm-border);
+    background: var(--archie-border-default);
     margin: 8px 0;
 }
 
@@ -1178,12 +1146,12 @@
 }
 
 .sm-scrollable::-webkit-scrollbar-thumb {
-    background: var(--sm-border);
+    background: var(--archie-border-default);
     border-radius: 3px;
 }
 
 .sm-scrollable::-webkit-scrollbar-thumb:hover {
-    background: var(--sm-border-hover);
+    background: var(--archie-border-emphasis);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
@@ -1240,21 +1208,6 @@
 /* ═══════════════════════════════════════════════════════════════════════════════
    LIGHT MODE
    ═══════════════════════════════════════════════════════════════════════════════ */
-body.light-mode {
-    --sm-bg-primary: #ffffff;
-    --sm-bg-card: rgba(255, 255, 255, 0.95);
-    --sm-bg-elevated: rgba(248, 249, 250, 0.9);
-    --sm-border: rgba(204, 68, 145, 0.2);
-    --sm-border-hover: rgba(204, 68, 145, 0.4);
-    --sm-text-primary: #1f2937;
-    --sm-text-secondary: #6b7280;
-    --sm-accent: #CC4491;
-    --sm-secondary: #7C3AED;
-    --sm-success: #059669;
-    --sm-warning: #D97706;
-    --sm-danger: #DC2626;
-}
-
 body.light-mode .sm-container {
     background: #f8f9fa;
 }
@@ -1672,7 +1625,7 @@ body.light-mode .sm-badge--published {
                     </div>
                     <div class="sm-account-name">{{ platform.name }}</div>
                     {% if account and account.is_active %}
-                    <div class="sm-account-status" style="color: var(--sm-success);">
+                    <div class="sm-account-status" style="color: var(--archie-success);">
                         <i data-lucide="check-circle" style="width: 14px; height: 14px; display: inline;"></i> Connected
                     </div>
                     <div class="sm-account-username">@{{ account.platform_username or 'unknown' }}</div>
@@ -1685,7 +1638,7 @@ body.light-mode .sm-badge--published {
                         </button>
                     </div>
                     {% else %}
-                    <div class="sm-account-status" style="color: var(--sm-text-secondary);">Not connected</div>
+                    <div class="sm-account-status" style="color: var(--archie-text-tertiary);">Not connected</div>
                     <div class="sm-account-username">&nbsp;</div>
                     <div class="sm-account-actions">
                         <button class="sm-btn sm-btn--primary" onclick="connectAccount('{{ key }}')">
@@ -1720,7 +1673,7 @@ body.light-mode .sm-badge--published {
                         <div class="sm-form-group">
                             <label class="sm-label">Content Template</label>
                             <textarea class="sm-textarea" id="templateContent" rows="4" placeholder="Use {{variable}} for dynamic content"></textarea>
-                            <small style="font-size: 0.7rem; color: var(--sm-text-secondary);">
+                            <small style="font-size: 0.7rem; color: var(--archie-text-tertiary);">
                                 Variables: {% raw %}{{product_name}}, {{description}}, {{link}}, {{brand}}{% endraw %}
                             </small>
                         </div>
@@ -2291,16 +2244,16 @@ function showToast(message, type = 'info') {
     }
 
     const colors = {
-        success: 'var(--sm-success)',
-        error: 'var(--sm-danger)',
-        warning: 'var(--sm-warning)',
-        info: 'var(--sm-accent)'
+        success: 'var(--archie-success)',
+        error: 'var(--archie-danger)',
+        warning: 'var(--archie-warning)',
+        info: 'var(--archie-pink)'
     };
 
     const toast = document.createElement('div');
     toast.style.cssText = `
         padding: 12px 20px;
-        background: var(--sm-bg-card);
+        background: var(--archie-bg-secondary);
         border: 1px solid ${colors[type]};
         border-radius: 8px;
         color: ${colors[type]};

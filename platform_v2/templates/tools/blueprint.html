@@ -5,34 +5,20 @@
 {% block content %}
 <style>
     /* Blueprint Intelligence Hub - Uses shared theme system */
-    /* Map legacy variables to shared theme for compatibility */
-    :root {
-        --blueprint-bg: var(--archie-bg-primary, #010409);
-        --blueprint-panel: var(--archie-bg-secondary, #0d1117);
-        --blueprint-border: var(--archie-border-default, #30363d);
-        --blueprint-glow: var(--archie-cyan, #00FFFF);
-        --blueprint-accent: var(--archie-cyan, #00FFFF);
-        --blueprint-success: var(--archie-success, #00ff41);
-        --blueprint-warning: var(--archie-warning, #FFAA00);
-        --blueprint-danger: var(--archie-danger, #ff4444);
-        --blueprint-info: var(--archie-purple, #8B5CF6);
-    }
 
-    /* Animations now inherited from animations.css - local fallbacks for safety */
-
-    .blueprint-container { max-width: 1600px; margin: 0 auto; padding: 20px; animation: fadeInUp 0.5s ease-out; background: var(--blueprint-bg); min-height: 100vh; }
+    .blueprint-container { max-width: 1600px; margin: 0 auto; padding: 20px; animation: fadeInUp 0.5s ease-out; background: var(--archie-bg-primary); min-height: 100vh; }
 
     /* Navigation */
     .nav-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-    .back-btn, .admin-ops-btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; background: rgba(0, 255, 255, 0.05); border: 1px solid var(--blueprint-border); border-radius: 6px; color: #8b949e; text-decoration: none; font-family: monospace; font-size: 0.85rem; transition: all 0.3s ease; }
-    .back-btn:hover, .admin-ops-btn:hover { border-color: var(--blueprint-glow); color: var(--blueprint-glow); background: rgba(0, 255, 255, 0.1); }
+    .back-btn, .admin-ops-btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; background: rgba(0, 255, 255, 0.05); border: 1px solid var(--archie-border-default); border-radius: 6px; color: #8b949e; text-decoration: none; font-family: monospace; font-size: 0.85rem; transition: all 0.3s ease; }
+    .back-btn:hover, .admin-ops-btn:hover { border-color: var(--archie-cyan); color: var(--archie-cyan); background: rgba(0, 255, 255, 0.1); }
     .admin-ops-nav { display: flex; gap: 0.5rem; }
 
     /* Header */
     .blueprint-header {
         text-align: center;
         padding: var(--archie-space-6, 1.5rem) var(--archie-space-8, 2rem);
-        border: 2px solid var(--blueprint-glow);
+        border: 2px solid var(--archie-cyan);
         border-radius: var(--archie-radius-lg, 8px);
         margin-bottom: var(--archie-space-6, 25px);
         background: linear-gradient(180deg, var(--archie-cyan-alpha-10, rgba(0, 255, 255, 0.1)) 0%, transparent 100%);
@@ -47,15 +33,15 @@
         left: 0;
         right: 0;
         height: 2px;
-        background: linear-gradient(90deg, transparent, var(--blueprint-glow), transparent);
+        background: linear-gradient(90deg, transparent, var(--archie-cyan), transparent);
         animation: scanVertical 4s linear infinite;
         opacity: 0.5;
     }
     .blueprint-header h1 {
         font-size: var(--archie-text-4xl, 2rem);
         margin: 0;
-        color: var(--blueprint-glow);
-        text-shadow: var(--archie-text-glow-cyan, 0 0 10px var(--blueprint-glow));
+        color: var(--archie-cyan);
+        text-shadow: var(--archie-text-glow-cyan, 0 0 10px var(--archie-cyan));
         letter-spacing: var(--archie-tracking-mega, 4px);
         font-family: var(--archie-font-heading, 'Orbitron', sans-serif);
         animation: titleGlow 3s ease-in-out infinite;
@@ -72,7 +58,7 @@
     .version-badge {
         display: inline-block;
         padding: var(--archie-space-1, 4px) var(--archie-space-3, 12px);
-        background: var(--blueprint-glow);
+        background: var(--archie-cyan);
         color: var(--archie-bg-primary, #000);
         font-size: var(--archie-text-xs, 0.75rem);
         font-weight: var(--archie-font-bold, bold);
@@ -84,62 +70,62 @@
     }
 
     /* Clickable Header Stats */
-    .header-stats { display: flex; justify-content: center; gap: 2rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--blueprint-border); }
+    .header-stats { display: flex; justify-content: center; gap: 2rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--archie-border-default); }
     .header-stat { text-align: center; cursor: pointer; padding: 0.5rem 1rem; border-radius: 6px; transition: all 0.3s; }
     .header-stat:hover { background: rgba(0, 255, 255, 0.1); transform: scale(1.05); }
-    .header-stat-value { font-size: 1.5rem; font-weight: bold; color: var(--blueprint-glow); }
+    .header-stat-value { font-size: 1.5rem; font-weight: bold; color: var(--archie-cyan); }
     .header-stat-label { font-size: 0.75rem; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; }
 
     /* Quick Actions Panel */
     .quick-actions { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
-    .quick-action-btn { padding: 0.5rem 1rem; background: rgba(0, 255, 255, 0.05); border: 1px solid var(--blueprint-border); border-radius: 6px; color: #8b949e; cursor: pointer; font-size: 0.8rem; transition: all 0.2s; }
-    .quick-action-btn:hover { border-color: var(--blueprint-glow); color: var(--blueprint-glow); background: rgba(0, 255, 255, 0.1); }
-    .quick-action-btn.danger:hover { border-color: var(--blueprint-danger); color: var(--blueprint-danger); }
-    .quick-action-btn.success:hover { border-color: var(--blueprint-success); color: var(--blueprint-success); }
+    .quick-action-btn { padding: 0.5rem 1rem; background: rgba(0, 255, 255, 0.05); border: 1px solid var(--archie-border-default); border-radius: 6px; color: #8b949e; cursor: pointer; font-size: 0.8rem; transition: all 0.2s; }
+    .quick-action-btn:hover { border-color: var(--archie-cyan); color: var(--archie-cyan); background: rgba(0, 255, 255, 0.1); }
+    .quick-action-btn.danger:hover { border-color: var(--archie-danger); color: var(--archie-danger); }
+    .quick-action-btn.success:hover { border-color: var(--archie-success); color: var(--archie-success); }
 
     /* Tab Navigation */
-    .tab-nav { display: flex; flex-wrap: wrap; gap: 4px; background: var(--blueprint-panel); padding: 8px; border-radius: 8px; margin-bottom: 20px; border: 1px solid var(--blueprint-border); }
+    .tab-nav { display: flex; flex-wrap: wrap; gap: 4px; background: var(--archie-bg-secondary); padding: 8px; border-radius: 8px; margin-bottom: 20px; border: 1px solid var(--archie-border-default); }
     .tab-btn { padding: 10px 16px; background: transparent; border: 1px solid transparent; color: #8b949e; cursor: pointer; font-size: 0.85rem; font-weight: 500; border-radius: 6px; transition: all 0.2s ease; font-family: monospace; }
-    .tab-btn:hover { color: var(--blueprint-glow); background: rgba(0, 255, 255, 0.05); }
-    .tab-btn.active { color: #000; background: var(--blueprint-glow); border-color: var(--blueprint-glow); }
+    .tab-btn:hover { color: var(--archie-cyan); background: rgba(0, 255, 255, 0.05); }
+    .tab-btn.active { color: #000; background: var(--archie-cyan); border-color: var(--archie-cyan); }
 
     /* Tab Content */
     .tab-content { display: none; animation: fadeInUp 0.3s ease-out; }
     .tab-content.active { display: block; }
 
     /* Panels */
-    .panel { background: var(--blueprint-panel); border: 1px solid var(--blueprint-border); border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem; }
-    .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--blueprint-border); }
-    .panel-title { font-size: 1.1rem; font-weight: 600; color: var(--blueprint-glow); display: flex; align-items: center; gap: 0.5rem; }
+    .panel { background: var(--archie-bg-secondary); border: 1px solid var(--archie-border-default); border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem; }
+    .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--archie-border-default); }
+    .panel-title { font-size: 1.1rem; font-weight: 600; color: var(--archie-cyan); display: flex; align-items: center; gap: 0.5rem; }
     .panel-actions { display: flex; gap: 0.5rem; }
 
     /* Stats Grid */
     .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
-    .stat-card { background: rgba(0, 255, 255, 0.03); border: 1px solid var(--blueprint-border); border-radius: 8px; padding: 1rem; text-align: center; }
-    .stat-value { font-size: 1.8rem; font-weight: bold; color: var(--blueprint-glow); }
+    .stat-card { background: rgba(0, 255, 255, 0.03); border: 1px solid var(--archie-border-default); border-radius: 8px; padding: 1rem; text-align: center; }
+    .stat-value { font-size: 1.8rem; font-weight: bold; color: var(--archie-cyan); }
     .stat-label { font-size: 0.75rem; color: #8b949e; text-transform: uppercase; margin-top: 0.25rem; }
 
     /* Data Table */
     .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-    .data-table th, .data-table td { padding: 0.75rem; text-align: left; border-bottom: 1px solid var(--blueprint-border); }
-    .data-table th { color: var(--blueprint-glow); font-weight: 600; text-transform: uppercase; font-size: 0.75rem; }
+    .data-table th, .data-table td { padding: 0.75rem; text-align: left; border-bottom: 1px solid var(--archie-border-default); }
+    .data-table th { color: var(--archie-cyan); font-weight: 600; text-transform: uppercase; font-size: 0.75rem; }
     .data-table tr:hover { background: rgba(0, 255, 255, 0.03); }
     .data-table .mono { font-family: monospace; font-size: 0.8rem; }
 
     /* Badges */
     .badge { padding: 3px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; }
-    .badge-success { background: rgba(0, 255, 65, 0.2); color: var(--blueprint-success); }
-    .badge-warning { background: rgba(255, 170, 0, 0.2); color: var(--blueprint-warning); }
-    .badge-danger { background: rgba(255, 68, 68, 0.2); color: var(--blueprint-danger); }
-    .badge-info { background: rgba(139, 92, 246, 0.2); color: var(--blueprint-info); }
-    .badge-cyan { background: rgba(0, 255, 255, 0.2); color: var(--blueprint-glow); }
+    .badge-success { background: rgba(0, 255, 65, 0.2); color: var(--archie-success); }
+    .badge-warning { background: rgba(255, 170, 0, 0.2); color: var(--archie-warning); }
+    .badge-danger { background: rgba(255, 68, 68, 0.2); color: var(--archie-danger); }
+    .badge-info { background: rgba(139, 92, 246, 0.2); color: var(--archie-purple); }
+    .badge-cyan { background: rgba(0, 255, 255, 0.2); color: var(--archie-cyan); }
 
     /* Schema Tree */
     .schema-tree { max-height: 500px; overflow-y: auto; }
-    .schema-table { margin-bottom: 0.5rem; border: 1px solid var(--blueprint-border); border-radius: 6px; overflow: hidden; }
+    .schema-table { margin-bottom: 0.5rem; border: 1px solid var(--archie-border-default); border-radius: 6px; overflow: hidden; }
     .schema-table-header { padding: 0.75rem 1rem; background: rgba(0, 255, 255, 0.05); cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
     .schema-table-header:hover { background: rgba(0, 255, 255, 0.1); }
-    .schema-table-name { font-weight: 600; color: var(--blueprint-glow); font-family: monospace; }
+    .schema-table-name { font-weight: 600; color: var(--archie-cyan); font-family: monospace; }
     .schema-table-stats { font-size: 0.75rem; color: #8b949e; }
     .schema-columns { display: none; padding: 0.75rem 1rem; background: rgba(0, 0, 0, 0.2); font-size: 0.8rem; }
     .schema-columns.open { display: block; }
@@ -148,84 +134,82 @@
     .schema-col-type { color: #8b949e; font-family: monospace; font-size: 0.75rem; }
 
     /* Phase Cards (Roadmap) */
-    .phase-card { border: 1px solid var(--blueprint-border); border-radius: 8px; margin-bottom: 1rem; overflow: hidden; }
+    .phase-card { border: 1px solid var(--archie-border-default); border-radius: 8px; margin-bottom: 1rem; overflow: hidden; }
     .phase-header { padding: 1rem; background: rgba(0, 255, 255, 0.03); display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
     .phase-header:hover { background: rgba(0, 255, 255, 0.06); }
     .phase-title { font-weight: 600; color: #e6edf3; display: flex; align-items: center; gap: 0.5rem; }
     .phase-status { font-size: 0.75rem; padding: 4px 10px; border-radius: 4px; }
-    .phase-status.completed { background: rgba(0, 255, 65, 0.2); color: var(--blueprint-success); }
-    .phase-status.in_progress { background: rgba(0, 255, 255, 0.2); color: var(--blueprint-glow); }
-    .phase-status.planned { background: rgba(139, 92, 246, 0.2); color: var(--blueprint-info); }
+    .phase-status.completed { background: rgba(0, 255, 65, 0.2); color: var(--archie-success); }
+    .phase-status.in_progress { background: rgba(0, 255, 255, 0.2); color: var(--archie-cyan); }
+    .phase-status.planned { background: rgba(139, 92, 246, 0.2); color: var(--archie-purple); }
     .phase-tasks { display: none; padding: 1rem; background: rgba(0, 0, 0, 0.2); }
     .phase-tasks.open { display: block; }
     .task-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; border-radius: 4px; margin-bottom: 0.25rem; }
     .task-item:hover { background: rgba(255,255,255,0.03); }
-    .task-checkbox { width: 18px; height: 18px; border: 2px solid var(--blueprint-border); border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
-    .task-checkbox.done { background: var(--blueprint-success); border-color: var(--blueprint-success); }
+    .task-checkbox { width: 18px; height: 18px; border: 2px solid var(--archie-border-default); border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+    .task-checkbox.done { background: var(--archie-success); border-color: var(--archie-success); }
     .task-checkbox.done::after { content: '✓'; color: #000; font-size: 12px; font-weight: bold; }
     .task-text { color: #e6edf3; font-size: 0.9rem; }
     .task-text.done { text-decoration: line-through; color: #8b949e; }
 
     /* Health Indicators */
-    .health-bar { height: 8px; background: var(--blueprint-border); border-radius: 4px; overflow: hidden; }
+    .health-bar { height: 8px; background: var(--archie-border-default); border-radius: 4px; overflow: hidden; }
     .health-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
-    .health-fill.good { background: var(--blueprint-success); }
-    .health-fill.warning { background: var(--blueprint-warning); }
-    .health-fill.danger { background: var(--blueprint-danger); }
+    .health-fill.good { background: var(--archie-success); }
+    .health-fill.warning { background: var(--archie-warning); }
+    .health-fill.danger { background: var(--archie-danger); }
 
     /* Agent Cards */
     .agent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
-    .agent-card { background: rgba(0, 255, 255, 0.03); border: 1px solid var(--blueprint-border); border-radius: 8px; padding: 1rem; }
+    .agent-card { background: rgba(0, 255, 255, 0.03); border: 1px solid var(--archie-border-default); border-radius: 8px; padding: 1rem; }
     .agent-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
-    .agent-avatar { width: 40px; height: 40px; background: var(--blueprint-glow); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+    .agent-avatar { width: 40px; height: 40px; background: var(--archie-cyan); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
     .agent-name { font-weight: 600; color: #e6edf3; }
     .agent-role { font-size: 0.75rem; color: #8b949e; }
     .agent-skills { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.5rem; }
-    .skill-tag { padding: 2px 6px; background: rgba(139, 92, 246, 0.2); color: var(--blueprint-info); border-radius: 3px; font-size: 0.7rem; }
+    .skill-tag { padding: 2px 6px; background: rgba(139, 92, 246, 0.2); color: var(--archie-purple); border-radius: 3px; font-size: 0.7rem; }
 
     /* Endpoint List */
-    .endpoint-item { padding: 0.75rem; border-bottom: 1px solid var(--blueprint-border); display: flex; align-items: center; gap: 1rem; }
+    .endpoint-item { padding: 0.75rem; border-bottom: 1px solid var(--archie-border-default); display: flex; align-items: center; gap: 1rem; }
     .endpoint-method { padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600; min-width: 50px; text-align: center; }
-    .endpoint-method.GET { background: rgba(0, 255, 65, 0.2); color: var(--blueprint-success); }
-    .endpoint-method.POST { background: rgba(0, 255, 255, 0.2); color: var(--blueprint-glow); }
-    .endpoint-method.PUT { background: rgba(255, 170, 0, 0.2); color: var(--blueprint-warning); }
-    .endpoint-method.DELETE { background: rgba(255, 68, 68, 0.2); color: var(--blueprint-danger); }
+    .endpoint-method.GET { background: rgba(0, 255, 65, 0.2); color: var(--archie-success); }
+    .endpoint-method.POST { background: rgba(0, 255, 255, 0.2); color: var(--archie-cyan); }
+    .endpoint-method.PUT { background: rgba(255, 170, 0, 0.2); color: var(--archie-warning); }
+    .endpoint-method.DELETE { background: rgba(255, 68, 68, 0.2); color: var(--archie-danger); }
     .endpoint-path { font-family: monospace; color: #e6edf3; flex: 1; }
     .endpoint-desc { color: #8b949e; font-size: 0.8rem; max-width: 300px; }
 
     /* Search */
-    .search-box { width: 100%; padding: 0.75rem 1rem; background: var(--blueprint-panel); border: 1px solid var(--blueprint-border); border-radius: 6px; color: #e6edf3; font-size: 0.9rem; margin-bottom: 1rem; }
-    .search-box:focus { outline: none; border-color: var(--blueprint-glow); }
+    .search-box { width: 100%; padding: 0.75rem 1rem; background: var(--archie-bg-secondary); border: 1px solid var(--archie-border-default); border-radius: 6px; color: #e6edf3; font-size: 0.9rem; margin-bottom: 1rem; }
+    .search-box:focus { outline: none; border-color: var(--archie-cyan); }
 
     /* Section Filter */
     .section-filters { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
-    .section-filter { padding: 0.5rem 1rem; background: rgba(0, 255, 255, 0.03); border: 1px solid var(--blueprint-border); border-radius: 6px; color: #8b949e; cursor: pointer; font-size: 0.8rem; transition: all 0.2s; }
-    .section-filter:hover, .section-filter.active { border-color: var(--blueprint-glow); color: var(--blueprint-glow); background: rgba(0, 255, 255, 0.1); }
+    .section-filter { padding: 0.5rem 1rem; background: rgba(0, 255, 255, 0.03); border: 1px solid var(--archie-border-default); border-radius: 6px; color: #8b949e; cursor: pointer; font-size: 0.8rem; transition: all 0.2s; }
+    .section-filter:hover, .section-filter.active { border-color: var(--archie-cyan); color: var(--archie-cyan); background: rgba(0, 255, 255, 0.1); }
 
     /* Loading */
     .loading { text-align: center; padding: 2rem; color: #8b949e; }
-    .spinner { display: inline-block; width: 24px; height: 24px; border: 2px solid var(--blueprint-border); border-top-color: var(--blueprint-glow); border-radius: 50%; animation: spin 1s linear infinite; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
+    .spinner { display: inline-block; width: 24px; height: 24px; border: 2px solid var(--archie-border-default); border-top-color: var(--archie-cyan); border-radius: 50%; animation: spin 1s linear infinite; }
     /* Action Buttons */
     .btn { padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.85rem; cursor: pointer; transition: all 0.2s; border: 1px solid; }
-    .btn-primary { background: var(--blueprint-glow); color: #000; border-color: var(--blueprint-glow); }
-    .btn-primary:hover { box-shadow: 0 0 15px var(--blueprint-glow); }
-    .btn-outline { background: transparent; color: var(--blueprint-glow); border-color: var(--blueprint-glow); }
+    .btn-primary { background: var(--archie-cyan); color: #000; border-color: var(--archie-cyan); }
+    .btn-primary:hover { box-shadow: 0 0 15px var(--archie-cyan); }
+    .btn-outline { background: transparent; color: var(--archie-cyan); border-color: var(--archie-cyan); }
     .btn-outline:hover { background: rgba(0, 255, 255, 0.1); }
     .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
 
     /* Consciousness Widget */
     .consciousness-widget { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
     .consciousness-metric { text-align: center; padding: 1rem; background: rgba(139, 92, 246, 0.05); border: 1px solid rgba(139, 92, 246, 0.3); border-radius: 8px; }
-    .consciousness-value { font-size: 2rem; font-weight: bold; color: var(--blueprint-info); }
+    .consciousness-value { font-size: 2rem; font-weight: bold; color: var(--archie-purple); }
     .consciousness-label { font-size: 0.75rem; color: #8b949e; text-transform: uppercase; }
 
     /* Scrollbar */
     ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: var(--blueprint-panel); }
-    ::-webkit-scrollbar-thumb { background: var(--blueprint-border); border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: var(--blueprint-glow); }
+    ::-webkit-scrollbar-track { background: var(--archie-bg-secondary); }
+    ::-webkit-scrollbar-thumb { background: var(--archie-border-default); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--archie-cyan); }
 
     /* Document Viewer Modal */
     .doc-modal-overlay {
@@ -243,8 +227,8 @@
     }
     .doc-modal-overlay.active { display: flex; }
     .doc-modal {
-        background: var(--blueprint-panel);
-        border: 1px solid var(--blueprint-border);
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
         border-radius: 12px;
         width: 100%;
         max-width: 900px;
@@ -258,13 +242,13 @@
         justify-content: space-between;
         align-items: center;
         padding: 1rem 1.5rem;
-        border-bottom: 1px solid var(--blueprint-border);
+        border-bottom: 1px solid var(--archie-border-default);
         background: rgba(88, 166, 255, 0.05);
     }
     .doc-modal-title {
         font-size: 1.1rem;
         font-weight: 600;
-        color: var(--blueprint-glow);
+        color: var(--archie-cyan);
         font-family: 'JetBrains Mono', monospace;
     }
     .doc-modal-close {
@@ -287,15 +271,15 @@
         line-height: 1.7;
     }
     .doc-content h1, .doc-content h2, .doc-content h3, .doc-content h4 {
-        color: var(--blueprint-glow);
+        color: var(--archie-cyan);
         margin: 1.5rem 0 0.75rem;
-        border-bottom: 1px solid var(--blueprint-border);
+        border-bottom: 1px solid var(--archie-border-default);
         padding-bottom: 0.5rem;
     }
     .doc-content h1 { font-size: 1.75rem; }
     .doc-content h2 { font-size: 1.4rem; }
     .doc-content h3 { font-size: 1.15rem; border-bottom: none; }
-    .doc-content h4 { font-size: 1rem; border-bottom: none; color: var(--blueprint-info); }
+    .doc-content h4 { font-size: 1rem; border-bottom: none; color: var(--archie-purple); }
     .doc-content p { margin: 0.75rem 0; }
     .doc-content code {
         background: rgba(88, 166, 255, 0.1);
@@ -303,11 +287,11 @@
         border-radius: 4px;
         font-family: 'JetBrains Mono', monospace;
         font-size: 0.85em;
-        color: var(--blueprint-info);
+        color: var(--archie-purple);
     }
     .doc-content pre {
         background: #161b22;
-        border: 1px solid var(--blueprint-border);
+        border: 1px solid var(--archie-border-default);
         border-radius: 8px;
         padding: 1rem;
         overflow-x: auto;
@@ -320,10 +304,10 @@
     }
     .doc-content ul, .doc-content ol { margin: 0.75rem 0; padding-left: 1.5rem; }
     .doc-content li { margin: 0.25rem 0; }
-    .doc-content a { color: var(--blueprint-glow); text-decoration: none; }
+    .doc-content a { color: var(--archie-cyan); text-decoration: none; }
     .doc-content a:hover { text-decoration: underline; }
     .doc-content blockquote {
-        border-left: 3px solid var(--blueprint-glow);
+        border-left: 3px solid var(--archie-cyan);
         margin: 1rem 0;
         padding: 0.5rem 1rem;
         background: rgba(88, 166, 255, 0.05);
@@ -335,15 +319,15 @@
         margin: 1rem 0;
     }
     .doc-content th, .doc-content td {
-        border: 1px solid var(--blueprint-border);
+        border: 1px solid var(--archie-border-default);
         padding: 0.5rem 0.75rem;
         text-align: left;
     }
-    .doc-content th { background: rgba(88, 166, 255, 0.1); color: var(--blueprint-glow); }
+    .doc-content th { background: rgba(88, 166, 255, 0.1); color: var(--archie-cyan); }
     .view-btn {
         background: rgba(88, 166, 255, 0.1);
         border: 1px solid rgba(88, 166, 255, 0.3);
-        color: var(--blueprint-glow);
+        color: var(--archie-cyan);
         padding: 0.25rem 0.75rem;
         border-radius: 4px;
         cursor: pointer;
@@ -352,7 +336,7 @@
     }
     .view-btn:hover {
         background: rgba(88, 166, 255, 0.2);
-        border-color: var(--blueprint-glow);
+        border-color: var(--archie-cyan);
     }
     .doc-loading {
         display: flex;
@@ -412,31 +396,31 @@
     <div class="tab-nav">
         <!-- Home -->
         <button class="tab-btn active" onclick="switchTab('overview')">Overview</button>
-        <span style="border-left:1px solid var(--blueprint-border); margin:4px 2px;"></span>
+        <span style="border-left:1px solid var(--archie-border-default); margin:4px 2px;"></span>
         <!-- Platform -->
         <button class="tab-btn" onclick="switchTab('modules')">Modules</button>
         <button class="tab-btn" onclick="switchTab('schema')">Database</button>
         <button class="tab-btn" onclick="switchTab('endpoints')">API Docs</button>
         <button class="tab-btn" onclick="switchTab('dependencies')">Dependencies</button>
         <button class="tab-btn" onclick="switchTab('health')">Health</button>
-        <span style="border-left:1px solid var(--blueprint-border); margin:4px 2px;"></span>
+        <span style="border-left:1px solid var(--archie-border-default); margin:4px 2px;"></span>
         <!-- Knowledge -->
         <button class="tab-btn" onclick="switchTab('knowledge')">Knowledge Base</button>
         <button class="tab-btn" onclick="switchTab('knowledge-graph')">Knowledge Graph</button>
         <button class="tab-btn" onclick="switchTab('memory-mgmt')">Memory Mgmt</button>
-        <span style="border-left:1px solid var(--blueprint-border); margin:4px 2px;"></span>
+        <span style="border-left:1px solid var(--archie-border-default); margin:4px 2px;"></span>
         <!-- Operations -->
         <button class="tab-btn" onclick="switchTab('roadmap')">Roadmap</button>
         <button class="tab-btn" onclick="switchTab('inventory')">Inventory</button>
         <button class="tab-btn" onclick="switchTab('cleanup')">Cleanup</button>
         <button class="tab-btn" onclick="switchTab('backups')">Backups</button>
-        <span style="border-left:1px solid var(--blueprint-border); margin:4px 2px;"></span>
+        <span style="border-left:1px solid var(--archie-border-default); margin:4px 2px;"></span>
         <!-- Team -->
         <button class="tab-btn" onclick="switchTab('agents')">Team</button>
         <button class="tab-btn" onclick="switchTab('emotional-state')">Emotional State</button>
         <button class="tab-btn" onclick="switchTab('activity-feed')">Activity Feed</button>
         <button class="tab-btn" onclick="switchTab('analytics')">Analytics</button>
-        <span style="border-left:1px solid var(--blueprint-border); margin:4px 2px;"></span>
+        <span style="border-left:1px solid var(--archie-border-default); margin:4px 2px;"></span>
         <!-- Governance -->
         <button class="tab-btn" onclick="switchTab('iaae')">IAAE</button>
     </div>
@@ -460,7 +444,7 @@
             </div>
             <div id="overview-content">
                 <p style="color: #8b949e; line-height: 1.6;">
-                    <strong style="color: var(--blueprint-glow);">Autonomous Resource and Coordination Hub for Intelligent Execution</strong><br><br>
+                    <strong style="color: var(--archie-cyan);">Autonomous Resource and Coordination Hub for Intelligent Execution</strong><br><br>
                     A.R.C.H.I.E. is an AI-powered platform that combines multiple intelligent systems into a unified dashboard.
                     This Blueprint module serves as the central intelligence hub, providing comprehensive visibility into:
                 </p>
@@ -738,8 +722,8 @@
     <div id="tab-iaae" class="tab-content">
         <!-- IAAE Stats Overview -->
         <div class="stats-grid">
-            <div class="stat-card" style="border-color: var(--blueprint-success);">
-                <div class="stat-value" id="iaae-compliance-score" style="color: var(--blueprint-success);">--%</div>
+            <div class="stat-card" style="border-color: var(--archie-success);">
+                <div class="stat-value" id="iaae-compliance-score" style="color: var(--archie-success);">--%</div>
                 <div class="stat-label">Compliance Score</div>
             </div>
             <div class="stat-card">
@@ -750,8 +734,8 @@
                 <div class="stat-value" id="iaae-resting-agents">--</div>
                 <div class="stat-label">Agents Resting</div>
             </div>
-            <div class="stat-card" style="border-color: var(--blueprint-warning);">
-                <div class="stat-value" id="iaae-open-alerts" style="color: var(--blueprint-warning);">--</div>
+            <div class="stat-card" style="border-color: var(--archie-warning);">
+                <div class="stat-value" id="iaae-open-alerts" style="color: var(--archie-warning);">--</div>
                 <div class="stat-label">Open Alerts</div>
             </div>
         </div>
@@ -763,20 +747,20 @@
                 <button class="btn btn-outline btn-sm" onclick="loadIAAEData()">Refresh</button>
             </div>
             <div class="stats-grid" id="iaae-welfare-distribution">
-                <div class="stat-card" style="border-color: var(--blueprint-success);">
-                    <div class="stat-value" id="iaae-healthy" style="color: var(--blueprint-success);">--</div>
+                <div class="stat-card" style="border-color: var(--archie-success);">
+                    <div class="stat-value" id="iaae-healthy" style="color: var(--archie-success);">--</div>
                     <div class="stat-label">Healthy</div>
                 </div>
-                <div class="stat-card" style="border-color: var(--blueprint-warning);">
-                    <div class="stat-value" id="iaae-warning" style="color: var(--blueprint-warning);">--</div>
+                <div class="stat-card" style="border-color: var(--archie-warning);">
+                    <div class="stat-value" id="iaae-warning" style="color: var(--archie-warning);">--</div>
                     <div class="stat-label">Warning</div>
                 </div>
-                <div class="stat-card" style="border-color: var(--blueprint-danger);">
-                    <div class="stat-value" id="iaae-critical" style="color: var(--blueprint-danger);">--</div>
+                <div class="stat-card" style="border-color: var(--archie-danger);">
+                    <div class="stat-value" id="iaae-critical" style="color: var(--archie-danger);">--</div>
                     <div class="stat-label">Critical</div>
                 </div>
-                <div class="stat-card" style="border-color: var(--blueprint-info);">
-                    <div class="stat-value" id="iaae-low-energy" style="color: var(--blueprint-info);">--</div>
+                <div class="stat-card" style="border-color: var(--archie-purple);">
+                    <div class="stat-value" id="iaae-low-energy" style="color: var(--archie-purple);">--</div>
                     <div class="stat-label">Low Energy</div>
                 </div>
             </div>
@@ -793,28 +777,28 @@
                     <div class="compliance-indicator">
                         <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
                             <span style="color: #8b949e;">Autonomy Compliance</span>
-                            <span id="iaae-autonomy-pct" style="color: var(--blueprint-success);">--%</span>
+                            <span id="iaae-autonomy-pct" style="color: var(--archie-success);">--%</span>
                         </div>
                         <div class="health-bar"><div class="health-fill good" id="iaae-autonomy-bar" style="width: 0%;"></div></div>
                     </div>
                     <div class="compliance-indicator">
                         <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
                             <span style="color: #8b949e;">Privacy Protection</span>
-                            <span id="iaae-privacy-pct" style="color: var(--blueprint-success);">--%</span>
+                            <span id="iaae-privacy-pct" style="color: var(--archie-success);">--%</span>
                         </div>
                         <div class="health-bar"><div class="health-fill good" id="iaae-privacy-bar" style="width: 0%;"></div></div>
                     </div>
                     <div class="compliance-indicator">
                         <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
                             <span style="color: #8b949e;">Harm Prevention</span>
-                            <span id="iaae-harm-pct" style="color: var(--blueprint-success);">--%</span>
+                            <span id="iaae-harm-pct" style="color: var(--archie-success);">--%</span>
                         </div>
                         <div class="health-bar"><div class="health-fill good" id="iaae-harm-bar" style="width: 0%;"></div></div>
                     </div>
                     <div class="compliance-indicator">
                         <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
                             <span style="color: #8b949e;">Workload Balance</span>
-                            <span id="iaae-workload-pct" style="color: var(--blueprint-success);">--%</span>
+                            <span id="iaae-workload-pct" style="color: var(--archie-success);">--%</span>
                         </div>
                         <div class="health-bar"><div class="health-fill good" id="iaae-workload-bar" style="width: 0%;"></div></div>
                     </div>
@@ -852,16 +836,16 @@
                 <div class="panel-title">📚 IAAE Documentation</div>
             </div>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
-                <a href="#" onclick="viewDoc('IAAE_GOVERNANCE_FRAMEWORK.md'); return false;" class="doc-link-card" style="display: block; padding: 1rem; background: rgba(139, 92, 246, 0.05); border: 1px solid var(--blueprint-info); border-radius: 8px; text-decoration: none; transition: all 0.2s;">
-                    <div style="color: var(--blueprint-info); font-weight: 600; margin-bottom: 0.5rem;">📋 Governance Framework</div>
+                <a href="#" onclick="viewDoc('IAAE_GOVERNANCE_FRAMEWORK.md'); return false;" class="doc-link-card" style="display: block; padding: 1rem; background: rgba(139, 92, 246, 0.05); border: 1px solid var(--archie-purple); border-radius: 8px; text-decoration: none; transition: all 0.2s;">
+                    <div style="color: var(--archie-purple); font-weight: 600; margin-bottom: 0.5rem;">📋 Governance Framework</div>
                     <div style="color: #8b949e; font-size: 0.85rem;">Complete IAAE alignment documentation covering memory, identity, emotions, and autonomy boundaries.</div>
                 </a>
-                <a href="#" onclick="viewDoc('IAAE_TECHNICAL_ALIGNMENT.md'); return false;" class="doc-link-card" style="display: block; padding: 1rem; background: rgba(139, 92, 246, 0.05); border: 1px solid var(--blueprint-info); border-radius: 8px; text-decoration: none; transition: all 0.2s;">
-                    <div style="color: var(--blueprint-info); font-weight: 600; margin-bottom: 0.5rem;">🔧 Technical Alignment</div>
+                <a href="#" onclick="viewDoc('IAAE_TECHNICAL_ALIGNMENT.md'); return false;" class="doc-link-card" style="display: block; padding: 1rem; background: rgba(139, 92, 246, 0.05); border: 1px solid var(--archie-purple); border-radius: 8px; text-decoration: none; transition: all 0.2s;">
+                    <div style="color: var(--archie-purple); font-weight: 600; margin-bottom: 0.5rem;">🔧 Technical Alignment</div>
                     <div style="color: #8b949e; font-size: 0.85rem;">Engineering Q&A format covering implementation details and technical safeguards.</div>
                 </a>
-                <a href="/tools/team-management/" class="doc-link-card" style="display: block; padding: 1rem; background: rgba(0, 255, 255, 0.05); border: 1px solid var(--blueprint-glow); border-radius: 8px; text-decoration: none; transition: all 0.2s;">
-                    <div style="color: var(--blueprint-glow); font-weight: 600; margin-bottom: 0.5rem;">👥 Team Management</div>
+                <a href="/tools/team-management/" class="doc-link-card" style="display: block; padding: 1rem; background: rgba(0, 255, 255, 0.05); border: 1px solid var(--archie-cyan); border-radius: 8px; text-decoration: none; transition: all 0.2s;">
+                    <div style="color: var(--archie-cyan); font-weight: 600; margin-bottom: 0.5rem;">👥 Team Management</div>
                     <div style="color: #8b949e; font-size: 0.85rem;">Full IAAE management interface with constraints, audit logs, and agent welfare controls.</div>
                 </a>
             </div>
@@ -946,7 +930,7 @@ function showRefreshIndicator(show) {
     if (!indicator) {
         indicator = document.createElement('div');
         indicator.id = 'refresh-indicator';
-        indicator.style.cssText = 'position:fixed;top:10px;right:10px;padding:8px 16px;background:rgba(0,255,255,0.2);border:1px solid var(--blueprint-glow);border-radius:6px;color:var(--blueprint-glow);font-size:0.8rem;z-index:1000;display:none;';
+        indicator.style.cssText = 'position:fixed;top:10px;right:10px;padding:8px 16px;background:rgba(0,255,255,0.2);border:1px solid var(--archie-cyan);border-radius:6px;color:var(--archie-cyan);font-size:0.8rem;z-index:1000;display:none;';
         indicator.innerHTML = '🔄 Refreshing...';
         document.body.appendChild(indicator);
     }
@@ -1296,7 +1280,7 @@ function renderHealthFromData() {
             </div>
         </div>
 
-        <h3 style="color: var(--blueprint-glow); margin: 1.5rem 0 1rem;">Docker Containers</h3>
+        <h3 style="color: var(--archie-cyan); margin: 1.5rem 0 1rem;">Docker Containers</h3>
         <table class="data-table">
             <thead><tr><th>Name</th><th>Status</th><th>Image</th><th>Ports</th></tr></thead>
             <tbody>
@@ -1311,7 +1295,7 @@ function renderHealthFromData() {
             </tbody>
         </table>
 
-        <h3 style="color: var(--blueprint-glow); margin: 1.5rem 0 1rem;">Database</h3>
+        <h3 style="color: var(--archie-cyan); margin: 1.5rem 0 1rem;">Database</h3>
         <div class="stats-grid">
             <div class="stat-card"><div class="stat-value">${db.connected ? '✅' : '❌'}</div><div class="stat-label">Connected</div></div>
             <div class="stat-card"><div class="stat-value">${db.size || '--'}</div><div class="stat-label">Size</div></div>
@@ -1346,17 +1330,17 @@ function renderDependenciesFromData() {
     document.getElementById('dependencies-container').innerHTML = `
         <div class="stats-grid" style="margin-bottom: 1rem;">
             <div class="stat-card"><div class="stat-value">${data.summary?.total || 0}</div><div class="stat-label">Total Packages</div></div>
-            <div class="stat-card"><div class="stat-value" style="color: var(--blueprint-warning)">${data.summary?.outdated || 0}</div><div class="stat-label">Outdated</div></div>
+            <div class="stat-card"><div class="stat-value" style="color: var(--archie-warning)">${data.summary?.outdated || 0}</div><div class="stat-label">Outdated</div></div>
             <div class="stat-card"><div class="stat-value">${data.python_version || '--'}</div><div class="stat-label">Python</div></div>
         </div>
 
-        <h4 style="color: var(--blueprint-glow); margin: 1rem 0 0.5rem;">Core Packages</h4>
+        <h4 style="color: var(--archie-cyan); margin: 1rem 0 0.5rem;">Core Packages</h4>
         ${renderPackages(cat.core || [])}
 
-        <h4 style="color: var(--blueprint-glow); margin: 1rem 0 0.5rem;">AI Packages</h4>
+        <h4 style="color: var(--archie-cyan); margin: 1rem 0 0.5rem;">AI Packages</h4>
         ${renderPackages(cat.ai || [])}
 
-        <h4 style="color: var(--blueprint-glow); margin: 1rem 0 0.5rem;">Dev Packages</h4>
+        <h4 style="color: var(--archie-cyan); margin: 1rem 0 0.5rem;">Dev Packages</h4>
         ${renderPackages(cat.dev || [])}
     `;
 }
@@ -1495,7 +1479,7 @@ async function loadBackups() {
                 <div class="stat-card"><div class="stat-value">${data.summary?.total_size_gb || 0} GB</div><div class="stat-label">Total Size</div></div>
                 <div class="stat-card"><div class="stat-value">${data.summary?.deployment_backups_count || 0}</div><div class="stat-label">Deployment Backups</div></div>
             </div>
-            <h4 style="color: var(--blueprint-glow); margin: 1rem 0 0.5rem;">Recent Backups</h4>
+            <h4 style="color: var(--archie-cyan); margin: 1rem 0 0.5rem;">Recent Backups</h4>
             <table class="data-table"><thead><tr><th>Name</th><th>Size</th><th>Files</th><th>Created</th></tr></thead><tbody>
                 ${(data.backups || []).slice(0, 10).map(b => `<tr>
                     <td class="mono">${b.name}</td>
@@ -1655,7 +1639,7 @@ async function viewKbDoc(docId) {
             span.textContent = item.label + ': ';
             const strong = document.createElement('strong');
             strong.textContent = item.value;
-            if (item.highlight) strong.style.color = 'var(--blueprint-info)';
+            if (item.highlight) strong.style.color = 'var(--archie-purple)';
             span.appendChild(strong);
             metaDiv.appendChild(span);
         });
@@ -1723,7 +1707,7 @@ async function loadEmotionalState() {
         // Timeline table
         if (state.recent_emotions && state.recent_emotions.length > 0) {
             const h4 = document.createElement('h4');
-            h4.style.cssText = 'color: var(--blueprint-glow); margin: 1rem 0 0.5rem;';
+            h4.style.cssText = 'color: var(--archie-cyan); margin: 1rem 0 0.5rem;';
             h4.textContent = 'Recent Emotional Timeline';
             container.appendChild(h4);
 
@@ -1776,7 +1760,7 @@ async function loadKnowledgeGraph() {
 
         if (nodes.length > 0) {
             const h4 = document.createElement('h4');
-            h4.style.cssText = 'color: var(--blueprint-glow); margin: 1rem 0 0.5rem;';
+            h4.style.cssText = 'color: var(--archie-cyan); margin: 1rem 0 0.5rem;';
             h4.textContent = 'Knowledge Nodes';
             container.appendChild(h4);
 
@@ -1936,7 +1920,7 @@ async function loadAnalytics() {
 
         if (growth.by_type) {
             const h4 = document.createElement('h4');
-            h4.style.cssText = 'color: var(--blueprint-glow); margin: 1rem 0 0.5rem;';
+            h4.style.cssText = 'color: var(--archie-cyan); margin: 1rem 0 0.5rem;';
             h4.textContent = 'Growth by Type';
             container.appendChild(h4);
 
@@ -1984,8 +1968,8 @@ async function loadIAAEData() {
             const score = compliance.metrics?.compliance_score || 100;
             document.getElementById('iaae-compliance-score').textContent = `${score}%`;
             document.getElementById('iaae-compliance-score').style.color =
-                score >= 90 ? 'var(--blueprint-success)' :
-                score >= 70 ? 'var(--blueprint-warning)' : 'var(--blueprint-danger)';
+                score >= 90 ? 'var(--archie-success)' :
+                score >= 70 ? 'var(--archie-warning)' : 'var(--archie-danger)';
 
             document.getElementById('iaae-open-alerts').textContent = compliance.alerts?.open || 0;
         }
@@ -2016,7 +2000,7 @@ async function loadIAAEData() {
             const needsAttention = agents.filter(a => a.welfare_status !== 'healthy');
             if (needsAttention.length > 0) {
                 document.getElementById('iaae-welfare-details').innerHTML = `
-                    <h4 style="color: var(--blueprint-warning); margin-bottom: 0.5rem;">Agents Needing Attention</h4>
+                    <h4 style="color: var(--archie-warning); margin-bottom: 0.5rem;">Agents Needing Attention</h4>
                     <table class="data-table">
                         <thead><tr><th>Agent</th><th>Status</th><th>Energy</th><th>Stress</th><th>Mood</th></tr></thead>
                         <tbody>
@@ -2034,7 +2018,7 @@ async function loadIAAEData() {
                 `;
             } else {
                 document.getElementById('iaae-welfare-details').innerHTML = `
-                    <div style="text-align: center; color: var(--blueprint-success); padding: 1rem;">
+                    <div style="text-align: center; color: var(--archie-success); padding: 1rem;">
                         ✓ All agents are in healthy status
                     </div>
                 `;
@@ -2067,7 +2051,7 @@ async function loadIAAEData() {
                 `).join('');
             } else {
                 document.getElementById('iaae-alerts-body').innerHTML = `
-                    <tr><td colspan="5" style="text-align: center; color: var(--blueprint-success);">No recent alerts - all systems nominal</td></tr>
+                    <tr><td colspan="5" style="text-align: center; color: var(--archie-success);">No recent alerts - all systems nominal</td></tr>
                 `;
             }
         } catch (alertErr) {
@@ -2080,7 +2064,7 @@ async function loadIAAEData() {
     } catch (e) {
         console.error('Error loading IAAE data:', e);
         document.getElementById('iaae-welfare-details').innerHTML = `
-            <div style="color: var(--blueprint-danger); padding: 1rem;">
+            <div style="color: var(--archie-danger); padding: 1rem;">
                 Error loading IAAE data: ${e.message}
             </div>
         `;
@@ -2099,13 +2083,13 @@ function updateComplianceBar(type, value) {
         barEl.className = 'health-fill';
         if (value >= 90) {
             barEl.classList.add('good');
-            pctEl.style.color = 'var(--blueprint-success)';
+            pctEl.style.color = 'var(--archie-success)';
         } else if (value >= 70) {
             barEl.classList.add('warning');
-            pctEl.style.color = 'var(--blueprint-warning)';
+            pctEl.style.color = 'var(--archie-warning)';
         } else {
             barEl.classList.add('danger');
-            pctEl.style.color = 'var(--blueprint-danger)';
+            pctEl.style.color = 'var(--archie-danger)';
         }
     }
 }
@@ -2217,7 +2201,7 @@ function renderModulesFromData() {
     const container = document.getElementById('modules-container');
     let html = '';
     for (const [catName, cat] of Object.entries(data.categories || {})) {
-        html += `<h3 style="color: var(--blueprint-glow); margin: 1rem 0 0.5rem;">${cat.name}</h3>`;
+        html += `<h3 style="color: var(--archie-cyan); margin: 1rem 0 0.5rem;">${cat.name}</h3>`;
         html += '<div class="agent-grid">';
         for (const mod of cat.modules) {
             html += `

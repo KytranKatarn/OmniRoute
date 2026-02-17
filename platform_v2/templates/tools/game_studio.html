@@ -464,19 +464,7 @@
    GAME STUDIO - ARCADE COMMAND CENTER THEME
    ═══════════════════════════════════════════════════════════════════════════════ */
 
-:root {
-    --gs-primary: #F59E0B;
-    --gs-primary-dim: rgba(245, 158, 11, 0.2);
-    --gs-primary-glow: rgba(245, 158, 11, 0.5);
-    --gs-secondary: #EF4444;
-    --gs-success: #10B981;
-    --gs-bg-dark: #0a0a0f;
-    --gs-bg-card: #111118;
-    --gs-bg-panel: #16161f;
-    --gs-border: rgba(245, 158, 11, 0.15);
-    --gs-text: #f0f0f0;
-    --gs-text-dim: rgba(240, 240, 240, 0.6);
-}
+/* Design Tokens - Inherits from theme.css */
 
 .gs-container {
     max-width: 1600px;
@@ -491,18 +479,18 @@
     align-items: center;
     margin-bottom: 24px;
     padding: 20px 0;
-    border-bottom: 1px solid var(--gs-border);
+    border-bottom: 1px solid var(--archie-border-default);
 }
 
 .gs-title {
     font-family: 'Orbitron', sans-serif;
     font-size: 2rem;
     font-weight: 900;
-    color: var(--gs-primary);
+    color: var(--archie-orange);
     display: flex;
     align-items: center;
     gap: 12px;
-    text-shadow: 0 0 30px var(--gs-primary-glow);
+    text-shadow: 0 0 30px var(--archie-glow-orange-sm);
     margin: 0;
 }
 
@@ -512,7 +500,7 @@
 }
 
 .gs-subtitle {
-    color: var(--gs-text-dim);
+    color: var(--archie-text-muted);
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.85rem;
     margin-top: 4px;
@@ -544,24 +532,24 @@
 }
 
 .gs-btn-primary {
-    background: linear-gradient(135deg, var(--gs-primary), #D97706);
+    background: linear-gradient(135deg, var(--archie-orange), #D97706);
     color: #000;
-    border-color: var(--gs-primary);
+    border-color: var(--archie-orange);
 }
 
 .gs-btn-primary:hover {
-    box-shadow: 0 0 25px var(--gs-primary-glow);
+    box-shadow: 0 0 25px var(--archie-glow-orange-sm);
     transform: translateY(-2px);
 }
 
 .gs-btn-secondary {
     background: transparent;
-    color: var(--gs-primary);
-    border-color: var(--gs-primary);
+    color: var(--archie-orange);
+    border-color: var(--archie-orange);
 }
 
 .gs-btn-secondary:hover {
-    background: var(--gs-primary-dim);
+    background: var(--archie-orange-alpha-20);
 }
 
 /* Stats Cards */
@@ -573,8 +561,8 @@
 }
 
 .gs-stat-card {
-    background: var(--gs-bg-card);
-    border: 1px solid var(--gs-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 12px;
     padding: 20px;
     display: flex;
@@ -592,12 +580,12 @@
 .gs-stat-icon {
     width: 48px;
     height: 48px;
-    background: var(--gs-primary-dim);
+    background: var(--archie-orange-alpha-20);
     border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--gs-primary);
+    color: var(--archie-orange);
 }
 
 .gs-stat-icon i {
@@ -618,13 +606,13 @@
     font-family: 'Orbitron', sans-serif;
     font-size: 1.75rem;
     font-weight: 700;
-    color: var(--gs-text);
+    color: var(--archie-text-secondary);
 }
 
 .gs-stat-label {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.7rem;
-    color: var(--gs-text-dim);
+    color: var(--archie-text-muted);
     letter-spacing: 0.1em;
 }
 
@@ -632,11 +620,11 @@
 .gs-tabs {
     display: flex;
     gap: 4px;
-    background: var(--gs-bg-card);
+    background: var(--archie-bg-secondary);
     padding: 6px;
     border-radius: 12px;
     margin-bottom: 20px;
-    border: 1px solid var(--gs-border);
+    border: 1px solid var(--archie-border-default);
 }
 
 .gs-tab {
@@ -649,7 +637,7 @@
     background: transparent;
     border: none;
     border-radius: 8px;
-    color: var(--gs-text-dim);
+    color: var(--archie-text-muted);
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.8rem;
     cursor: pointer;
@@ -662,12 +650,12 @@
 }
 
 .gs-tab:hover {
-    color: var(--gs-text);
+    color: var(--archie-text-secondary);
     background: rgba(255,255,255,0.05);
 }
 
 .gs-tab.active {
-    background: var(--gs-primary);
+    background: var(--archie-orange);
     color: #000;
     font-weight: 600;
 }
@@ -680,11 +668,6 @@
 .gs-tab-panel.active {
     display: block;
     animation: fadeIn 0.3s ease;
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
 }
 
 /* Toolbar */
@@ -700,8 +683,8 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    background: var(--gs-bg-card);
-    border: 1px solid var(--gs-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 8px;
     padding: 10px 16px;
     flex: 1;
@@ -711,14 +694,14 @@
 .gs-search i {
     width: 18px;
     height: 18px;
-    color: var(--gs-text-dim);
+    color: var(--archie-text-muted);
 }
 
 .gs-search input {
     flex: 1;
     background: none;
     border: none;
-    color: var(--gs-text);
+    color: var(--archie-text-secondary);
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.85rem;
     outline: none;
@@ -731,11 +714,11 @@
 }
 
 .gs-select {
-    background: var(--gs-bg-card);
-    border: 1px solid var(--gs-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 8px;
     padding: 10px 16px;
-    color: var(--gs-text);
+    color: var(--archie-text-secondary);
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.85rem;
     cursor: pointer;
@@ -749,8 +732,8 @@
 }
 
 .gs-project-card {
-    background: var(--gs-bg-card);
-    border: 1px solid var(--gs-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 12px;
     overflow: hidden;
     cursor: pointer;
@@ -758,14 +741,14 @@
 }
 
 .gs-project-card:hover {
-    border-color: var(--gs-primary);
-    box-shadow: 0 0 30px var(--gs-primary-dim);
+    border-color: var(--archie-orange);
+    box-shadow: 0 0 30px var(--archie-orange-alpha-20);
     transform: translateY(-4px);
 }
 
 .gs-project-thumb {
     height: 160px;
-    background: var(--gs-bg-panel);
+    background: var(--archie-bg-tertiary);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -775,7 +758,7 @@
 .gs-project-thumb i {
     width: 48px;
     height: 48px;
-    color: var(--gs-text-dim);
+    color: var(--archie-text-muted);
 }
 
 .gs-project-info {
@@ -785,7 +768,7 @@
 .gs-project-title {
     font-family: 'Orbitron', sans-serif;
     font-size: 1rem;
-    color: var(--gs-text);
+    color: var(--archie-text-secondary);
     margin-bottom: 8px;
 }
 
@@ -798,27 +781,27 @@
 
 .gs-project-engine {
     font-size: 0.75rem;
-    color: var(--gs-primary);
-    background: var(--gs-primary-dim);
+    color: var(--archie-orange);
+    background: var(--archie-orange-alpha-20);
     padding: 4px 8px;
     border-radius: 4px;
 }
 
 .gs-project-status {
     font-size: 0.7rem;
-    color: var(--gs-text-dim);
+    color: var(--archie-text-muted);
 }
 
 .gs-project-progress {
     height: 4px;
-    background: var(--gs-bg-panel);
+    background: var(--archie-bg-tertiary);
     border-radius: 2px;
     overflow: hidden;
 }
 
 .gs-project-progress-bar {
     height: 100%;
-    background: linear-gradient(90deg, var(--gs-primary), var(--gs-secondary));
+    background: linear-gradient(90deg, var(--archie-orange), var(--archie-red));
     transition: width 0.5s ease;
 }
 
@@ -826,14 +809,14 @@
 .gs-empty-state {
     text-align: center;
     padding: 60px 20px;
-    color: var(--gs-text-dim);
+    color: var(--archie-text-muted);
 }
 
 .gs-empty-icon {
     width: 80px;
     height: 80px;
     margin: 0 auto 20px;
-    background: var(--gs-primary-dim);
+    background: var(--archie-orange-alpha-20);
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -843,12 +826,12 @@
 .gs-empty-icon i {
     width: 40px;
     height: 40px;
-    color: var(--gs-primary);
+    color: var(--archie-orange);
 }
 
 .gs-empty-state h3 {
     font-family: 'Orbitron', sans-serif;
-    color: var(--gs-text);
+    color: var(--archie-text-secondary);
     margin-bottom: 8px;
 }
 
@@ -872,8 +855,8 @@
 }
 
 .gs-panel {
-    background: var(--gs-bg-card);
-    border: 1px solid var(--gs-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 10px;
     overflow: hidden;
 }
@@ -883,11 +866,11 @@
     align-items: center;
     gap: 8px;
     padding: 12px 16px;
-    background: var(--gs-bg-panel);
-    border-bottom: 1px solid var(--gs-border);
+    background: var(--archie-bg-tertiary);
+    border-bottom: 1px solid var(--archie-border-default);
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.8rem;
-    color: var(--gs-primary);
+    color: var(--archie-orange);
 }
 
 .gs-panel-header i {
@@ -902,7 +885,7 @@
 }
 
 .gs-hint {
-    color: var(--gs-text-dim);
+    color: var(--archie-text-muted);
     font-size: 0.8rem;
     text-align: center;
     padding: 20px;
@@ -916,7 +899,7 @@
     border-radius: 6px;
     cursor: pointer;
     font-size: 0.85rem;
-    color: var(--gs-text-dim);
+    color: var(--archie-text-muted);
 }
 
 .gs-layer-item:hover {
@@ -924,8 +907,8 @@
 }
 
 .gs-layer-item.active {
-    background: var(--gs-primary-dim);
-    color: var(--gs-primary);
+    background: var(--archie-orange-alpha-20);
+    color: var(--archie-orange);
 }
 
 .gs-layer-item i {
@@ -935,8 +918,8 @@
 
 /* Canvas Area */
 .gs-editor-canvas {
-    background: var(--gs-bg-card);
-    border: 1px solid var(--gs-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 10px;
     overflow: hidden;
     display: flex;
@@ -947,8 +930,8 @@
     display: flex;
     gap: 4px;
     padding: 8px 12px;
-    background: var(--gs-bg-panel);
-    border-bottom: 1px solid var(--gs-border);
+    background: var(--archie-bg-tertiary);
+    border-bottom: 1px solid var(--archie-border-default);
 }
 
 .gs-tool-btn {
@@ -960,7 +943,7 @@
     background: transparent;
     border: 1px solid transparent;
     border-radius: 6px;
-    color: var(--gs-text-dim);
+    color: var(--archie-text-muted);
     cursor: pointer;
     transition: all 0.2s ease;
 }
@@ -972,17 +955,17 @@
 
 .gs-tool-btn:hover {
     background: rgba(255,255,255,0.05);
-    color: var(--gs-text);
+    color: var(--archie-text-secondary);
 }
 
 .gs-tool-btn.active {
-    background: var(--gs-primary);
+    background: var(--archie-orange);
     color: #000;
 }
 
 .gs-tool-divider {
     width: 1px;
-    background: var(--gs-border);
+    background: var(--archie-border-default);
     margin: 0 8px;
 }
 
@@ -998,15 +981,15 @@
     position: absolute;
     inset: 0;
     background-image:
-        linear-gradient(var(--gs-border) 1px, transparent 1px),
-        linear-gradient(90deg, var(--gs-border) 1px, transparent 1px);
+        linear-gradient(var(--archie-border-default) 1px, transparent 1px),
+        linear-gradient(90deg, var(--archie-border-default) 1px, transparent 1px);
     background-size: 40px 40px;
     opacity: 0.5;
 }
 
 .gs-canvas-placeholder {
     text-align: center;
-    color: var(--gs-text-dim);
+    color: var(--archie-text-muted);
     z-index: 1;
 }
 
@@ -1025,8 +1008,8 @@
 }
 
 .gs-asset-card {
-    background: var(--gs-bg-card);
-    border: 1px solid var(--gs-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 10px;
     padding: 16px;
     text-align: center;
@@ -1035,7 +1018,7 @@
 }
 
 .gs-asset-card:hover {
-    border-color: var(--gs-primary);
+    border-color: var(--archie-orange);
     transform: translateY(-2px);
 }
 
@@ -1043,7 +1026,7 @@
     width: 80px;
     height: 80px;
     margin: 0 auto 12px;
-    background: var(--gs-bg-panel);
+    background: var(--archie-bg-tertiary);
     border-radius: 8px;
     display: flex;
     align-items: center;
@@ -1053,12 +1036,12 @@
 .gs-asset-preview i {
     width: 32px;
     height: 32px;
-    color: var(--gs-text-dim);
+    color: var(--archie-text-muted);
 }
 
 .gs-asset-name {
     font-size: 0.8rem;
-    color: var(--gs-text);
+    color: var(--archie-text-secondary);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1066,7 +1049,7 @@
 
 .gs-asset-type {
     font-size: 0.7rem;
-    color: var(--gs-text-dim);
+    color: var(--archie-text-muted);
     margin-top: 4px;
 }
 
@@ -1080,8 +1063,8 @@
 }
 
 .gs-ai-chat {
-    background: var(--gs-bg-card);
-    border: 1px solid var(--gs-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 12px;
     display: flex;
     flex-direction: column;
@@ -1103,7 +1086,7 @@
     width: 80px;
     height: 80px;
     margin: 0 auto 20px;
-    background: var(--gs-primary-dim);
+    background: var(--archie-orange-alpha-20);
     border-radius: 50%;
     display: flex;
     align-items: center;
@@ -1113,17 +1096,17 @@
 .gs-ai-avatar i {
     width: 40px;
     height: 40px;
-    color: var(--gs-primary);
+    color: var(--archie-orange);
 }
 
 .gs-chat-welcome h3 {
     font-family: 'Orbitron', sans-serif;
-    color: var(--gs-text);
+    color: var(--archie-text-secondary);
     margin-bottom: 8px;
 }
 
 .gs-chat-welcome p {
-    color: var(--gs-text-dim);
+    color: var(--archie-text-muted);
     margin-bottom: 24px;
 }
 
@@ -1136,41 +1119,41 @@
 
 .gs-quick-prompts button {
     padding: 8px 16px;
-    background: var(--gs-bg-panel);
-    border: 1px solid var(--gs-border);
+    background: var(--archie-bg-tertiary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 20px;
-    color: var(--gs-text);
+    color: var(--archie-text-secondary);
     font-size: 0.8rem;
     cursor: pointer;
     transition: all 0.2s ease;
 }
 
 .gs-quick-prompts button:hover {
-    border-color: var(--gs-primary);
-    color: var(--gs-primary);
+    border-color: var(--archie-orange);
+    color: var(--archie-orange);
 }
 
 .gs-chat-input {
     display: flex;
     gap: 12px;
     padding: 16px;
-    border-top: 1px solid var(--gs-border);
+    border-top: 1px solid var(--archie-border-default);
 }
 
 .gs-chat-input input {
     flex: 1;
-    background: var(--gs-bg-panel);
-    border: 1px solid var(--gs-border);
+    background: var(--archie-bg-tertiary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 8px;
     padding: 12px 16px;
-    color: var(--gs-text);
+    color: var(--archie-text-secondary);
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.9rem;
 }
 
 .gs-chat-input input:focus {
     outline: none;
-    border-color: var(--gs-primary);
+    border-color: var(--archie-orange);
 }
 
 .gs-ai-sidebar {
@@ -1187,8 +1170,8 @@
 }
 
 .gs-settings-section {
-    background: var(--gs-bg-card);
-    border: 1px solid var(--gs-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 12px;
     padding: 24px;
 }
@@ -1199,7 +1182,7 @@
     gap: 10px;
     font-family: 'Orbitron', sans-serif;
     font-size: 1rem;
-    color: var(--gs-primary);
+    color: var(--archie-orange);
     margin-bottom: 20px;
 }
 
@@ -1213,7 +1196,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 12px 0;
-    border-bottom: 1px solid var(--gs-border);
+    border-bottom: 1px solid var(--archie-border-default);
 }
 
 .gs-setting-row:last-child {
@@ -1221,7 +1204,7 @@
 }
 
 .gs-setting-row label {
-    color: var(--gs-text);
+    color: var(--archie-text-secondary);
     font-size: 0.9rem;
 }
 
@@ -1252,8 +1235,8 @@
 }
 
 .gs-modal-content {
-    background: var(--gs-bg-card);
-    border: 1px solid var(--gs-border);
+    background: var(--archie-bg-secondary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 16px;
     width: 90%;
     max-width: 500px;
@@ -1272,7 +1255,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 20px 24px;
-    border-bottom: 1px solid var(--gs-border);
+    border-bottom: 1px solid var(--archie-border-default);
 }
 
 .gs-modal-header h2 {
@@ -1281,7 +1264,7 @@
     gap: 10px;
     font-family: 'Orbitron', sans-serif;
     font-size: 1.2rem;
-    color: var(--gs-primary);
+    color: var(--archie-orange);
     margin: 0;
 }
 
@@ -1293,7 +1276,7 @@
 .gs-modal-close {
     background: none;
     border: none;
-    color: var(--gs-text-dim);
+    color: var(--archie-text-muted);
     cursor: pointer;
     padding: 8px;
     border-radius: 6px;
@@ -1302,7 +1285,7 @@
 
 .gs-modal-close:hover {
     background: rgba(255,255,255,0.1);
-    color: var(--gs-text);
+    color: var(--archie-text-secondary);
 }
 
 .gs-modal-close i {
@@ -1320,7 +1303,7 @@
     justify-content: flex-end;
     gap: 12px;
     padding: 20px 24px;
-    border-top: 1px solid var(--gs-border);
+    border-top: 1px solid var(--archie-border-default);
 }
 
 .gs-form-group {
@@ -1329,25 +1312,25 @@
 
 .gs-form-group label {
     display: block;
-    color: var(--gs-text);
+    color: var(--archie-text-secondary);
     font-size: 0.9rem;
     margin-bottom: 8px;
 }
 
 .gs-form-group input {
     width: 100%;
-    background: var(--gs-bg-panel);
-    border: 1px solid var(--gs-border);
+    background: var(--archie-bg-tertiary);
+    border: 1px solid var(--archie-border-default);
     border-radius: 8px;
     padding: 12px 16px;
-    color: var(--gs-text);
+    color: var(--archie-text-secondary);
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.9rem;
 }
 
 .gs-form-group input:focus {
     outline: none;
-    border-color: var(--gs-primary);
+    border-color: var(--archie-orange);
 }
 
 .gs-form-group .gs-select {
@@ -1361,8 +1344,8 @@
 }
 
 .gs-template-card {
-    background: var(--gs-bg-panel);
-    border: 2px solid var(--gs-border);
+    background: var(--archie-bg-tertiary);
+    border: 2px solid var(--archie-border-default);
     border-radius: 10px;
     padding: 20px 12px;
     text-align: center;
@@ -1371,33 +1354,33 @@
 }
 
 .gs-template-card:hover {
-    border-color: var(--gs-primary);
+    border-color: var(--archie-orange);
 }
 
 .gs-template-card.active {
-    border-color: var(--gs-primary);
-    background: var(--gs-primary-dim);
+    border-color: var(--archie-orange);
+    background: var(--archie-orange-alpha-20);
 }
 
 .gs-template-card i {
     width: 28px;
     height: 28px;
-    color: var(--gs-text-dim);
+    color: var(--archie-text-muted);
     margin-bottom: 8px;
 }
 
 .gs-template-card.active i {
-    color: var(--gs-primary);
+    color: var(--archie-orange);
 }
 
 .gs-template-card span {
     display: block;
     font-size: 0.75rem;
-    color: var(--gs-text);
+    color: var(--archie-text-secondary);
 }
 
 .gs-upload-zone {
-    border: 2px dashed var(--gs-border);
+    border: 2px dashed var(--archie-border-default);
     border-radius: 12px;
     padding: 40px;
     text-align: center;
@@ -1406,25 +1389,25 @@
 }
 
 .gs-upload-zone:hover {
-    border-color: var(--gs-primary);
-    background: var(--gs-primary-dim);
+    border-color: var(--archie-orange);
+    background: var(--archie-orange-alpha-20);
 }
 
 .gs-upload-zone i {
     width: 48px;
     height: 48px;
-    color: var(--gs-text-dim);
+    color: var(--archie-text-muted);
     margin-bottom: 16px;
 }
 
 .gs-upload-zone p {
-    color: var(--gs-text);
+    color: var(--archie-text-secondary);
     margin-bottom: 8px;
 }
 
 .gs-upload-zone span {
     font-size: 0.8rem;
-    color: var(--gs-text-dim);
+    color: var(--archie-text-muted);
 }
 
 /* Responsive */
@@ -1756,18 +1739,18 @@ function initUploadZone() {
 
     zone.addEventListener('dragover', (e) => {
         e.preventDefault();
-        zone.style.borderColor = 'var(--gs-primary)';
-        zone.style.background = 'var(--gs-primary-dim)';
+        zone.style.borderColor = 'var(--archie-orange)';
+        zone.style.background = 'var(--archie-orange-alpha-20)';
     });
 
     zone.addEventListener('dragleave', () => {
-        zone.style.borderColor = 'var(--gs-border)';
+        zone.style.borderColor = 'var(--archie-border-default)';
         zone.style.background = 'transparent';
     });
 
     zone.addEventListener('drop', (e) => {
         e.preventDefault();
-        zone.style.borderColor = 'var(--gs-border)';
+        zone.style.borderColor = 'var(--archie-border-default)';
         zone.style.background = 'transparent';
         handleFiles(e.dataTransfer.files);
     });

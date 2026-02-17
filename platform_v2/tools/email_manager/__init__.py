@@ -1,11 +1,8 @@
 """
-Email Manager Module (Placeholder)
-Status: Coming Soon
+Email Manager Module
 """
 
-from flask import Blueprint
+from .routes import email_manager_bp  # noqa: F401
 
-email_manager_bp = Blueprint("email_manager", __name__, url_prefix="/tools/email-manager")
-
-from . import routes  # noqa: F401, E402
-from . import imap_routes  # noqa: F401, E402 - Email Intelligence IMAP routes
+# Import IMAP routes to register them on the same blueprint
+from . import imap_routes  # noqa: F401, E402

@@ -17,7 +17,7 @@ from psycopg2.extras import RealDictCursor
 from flask import current_app, jsonify, request
 from flask_login import current_user, login_required
 
-from . import email_manager_bp
+from .routes import email_manager_bp
 
 logger = logging.getLogger("email_imap")
 

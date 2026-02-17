@@ -290,6 +290,32 @@ def get_inbox():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@email_manager_bp.route("/api/inbox/stats", methods=["GET"])
+@login_required
+def get_inbox_stats():
+    """Get inbox stats: total fetched, analyzed, unread."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT
+                COUNT(*) as total,
+                COUNT(ai_analyzed_at) as analyzed,
+                COUNT(*) FILTER (WHERE is_read = FALSE AND is_archived = FALSE) as unread,
+                COUNT(*) FILTER (WHERE is_archived = TRUE) as archived
+            FROM email_inbox
+        """
+        )
+        stats = dict(cur.fetchone())
+        cur.close()
+        conn.close()
+        return jsonify({"success": True, **stats})
+    except Exception as e:
+        logger.error(f"Failed to get inbox stats: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @email_manager_bp.route("/api/inbox/<int:email_id>", methods=["GET"])
 @login_required
 def get_email_detail(email_id):

@@ -143,6 +143,35 @@
                         </button>
                     </div>
                 </div>
+                <!-- Stats Bar -->
+                <div class="inbox-stats-bar" id="inbox-stats-bar">
+                    <div class="inbox-stats-left">
+                        <span class="inbox-stat">
+                            <i data-lucide="download"></i>
+                            <span id="stat-total">—</span> fetched
+                        </span>
+                        <span class="inbox-stat-divider">|</span>
+                        <span class="inbox-stat">
+                            <i data-lucide="brain"></i>
+                            <span id="stat-analyzed">—</span> analyzed
+                            <span class="inbox-stat-pct" id="stat-pct"></span>
+                        </span>
+                        <span class="inbox-stat-divider">|</span>
+                        <span class="inbox-stat">
+                            <i data-lucide="mail"></i>
+                            <span id="stat-unread">—</span> unread
+                        </span>
+                    </div>
+                    <div class="inbox-stats-right">
+                        <div class="inbox-stats-progress">
+                            <div class="inbox-stats-progress-fill" id="stat-progress-fill" style="width: 0%"></div>
+                        </div>
+                        <button class="em-btn em-btn--sm em-btn--outline" id="analyze-remaining-btn" onclick="analyzeRemaining()" style="display: none;">
+                            <i data-lucide="sparkles"></i>
+                            <span>Analyze Remaining</span>
+                        </button>
+                    </div>
+                </div>
                 <!-- Category Filter Bar -->
                 <div class="inbox-filters" id="inbox-filters">
                     <button class="inbox-filter-btn active" data-category="" onclick="setInboxFilter('')">
@@ -1901,6 +1930,55 @@
     display: none;
 }
 
+/* Stats Bar */
+.inbox-stats-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: rgba(0, 255, 255, 0.03);
+    border: 1px solid rgba(0, 255, 255, 0.1);
+    border-radius: 8px;
+    margin-bottom: 12px;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+.inbox-stats-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.inbox-stat {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    color: rgba(0, 255, 255, 0.7);
+}
+.inbox-stat i { width: 14px; height: 14px; }
+.inbox-stat span { font-weight: 600; color: #00FFFF; }
+.inbox-stat-pct { font-weight: 400 !important; color: rgba(0, 255, 255, 0.5) !important; font-size: 12px; }
+.inbox-stat-divider { color: rgba(0, 255, 255, 0.2); }
+.inbox-stats-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.inbox-stats-progress {
+    width: 120px;
+    height: 6px;
+    background: rgba(0, 255, 255, 0.1);
+    border-radius: 3px;
+    overflow: hidden;
+}
+.inbox-stats-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #00FFFF, #00CC99);
+    border-radius: 3px;
+    transition: width 0.5s ease;
+}
+
 /* Inbox Row Styles */
 .inbox-row {
     cursor: pointer;
@@ -2786,6 +2864,40 @@ function buildInboxRow(email) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// INBOX - STATS BAR
+// ═══════════════════════════════════════════════════════════════════════════════
+async function loadInboxStats() {
+    try {
+        const resp = await fetch('/tools/email-manager/api/inbox/stats');
+        const data = await resp.json();
+        if (!data.success) return;
+
+        document.getElementById('stat-total').textContent = data.total;
+        document.getElementById('stat-analyzed').textContent = data.analyzed;
+        document.getElementById('stat-unread').textContent = data.unread;
+
+        const pct = data.total > 0 ? Math.round((data.analyzed / data.total) * 100) : 0;
+        document.getElementById('stat-pct').textContent = '(' + pct + '%)';
+        document.getElementById('stat-progress-fill').style.width = pct + '%';
+
+        // Show analyze button if there are unanalyzed emails
+        const btn = document.getElementById('analyze-remaining-btn');
+        if (data.total > data.analyzed) {
+            btn.style.display = '';
+            btn.querySelector('span').textContent = 'Analyze ' + (data.total - data.analyzed) + ' Remaining';
+        } else {
+            btn.style.display = 'none';
+        }
+    } catch (e) {
+        console.error('Stats load error:', e);
+    }
+}
+
+async function analyzeRemaining() {
+    showToast('Batch analysis coming soon', 'info');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // INBOX - LOAD
 // ═══════════════════════════════════════════════════════════════════════════════
 async function loadInbox(page) {
@@ -2871,6 +2983,9 @@ async function loadInbox(page) {
         }
 
         if (typeof lucide !== 'undefined') lucide.createIcons();
+
+        // Refresh stats bar
+        loadInboxStats();
 
     } catch (error) {
         console.error('Inbox load error:', error);
@@ -3232,6 +3347,7 @@ function stopInboxAutoRefresh() {
 document.addEventListener('DOMContentLoaded', function() {
     // Load inbox since it is the default active tab
     loadInbox(1);
+    loadInboxStats();
     startInboxAutoRefresh();
 });
 

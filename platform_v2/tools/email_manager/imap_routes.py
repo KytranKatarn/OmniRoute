@@ -222,44 +222,52 @@ def get_inbox():
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        where = ["is_archived = FALSE"]
+        where = ["e.is_archived = FALSE"]
         params = []
 
         if category:
-            where.append("ai_category = %s")
+            where.append("e.ai_category = %s")
             params.append(category)
         if is_read is not None:
-            where.append("is_read = %s")
+            where.append("e.is_read = %s")
             params.append(is_read.lower() == "true")
         if is_starred is not None:
-            where.append("is_starred = %s")
+            where.append("e.is_starred = %s")
             params.append(is_starred.lower() == "true")
         if search:
-            where.append("(subject ILIKE %s OR from_address ILIKE %s OR from_name ILIKE %s)")
+            where.append("(e.subject ILIKE %s OR e.from_address ILIKE %s OR e.from_name ILIKE %s)")
             params.extend([f"%{search}%"] * 3)
 
         where_clause = " AND ".join(where) if where else "TRUE"
 
         sort_map = {
-            "date_desc": "received_at DESC",
-            "date_asc": "received_at ASC",
-            "priority_asc": "COALESCE(ai_priority, 99) ASC, received_at DESC",
-            "unread_first": "is_read ASC, received_at DESC",
-            "sentiment": "CASE ai_sentiment WHEN 'negative' THEN 1 WHEN 'mixed' THEN 2 WHEN 'neutral' THEN 3 WHEN 'positive' THEN 4 ELSE 5 END, received_at DESC",
+            "date_desc": "e.received_at DESC",
+            "date_asc": "e.received_at ASC",
+            "priority_asc": "COALESCE(e.ai_priority, 99) ASC, e.received_at DESC",
+            "unread_first": "e.is_read ASC, e.received_at DESC",
+            "sentiment": "CASE e.ai_sentiment WHEN 'negative' THEN 1 WHEN 'mixed' THEN 2 WHEN 'neutral' THEN 3 WHEN 'positive' THEN 4 ELSE 5 END, e.received_at DESC",
         }
-        order_clause = sort_map.get(sort, "received_at DESC")
+        order_clause = sort_map.get(sort, "e.received_at DESC")
 
         # Count
-        cur.execute(f"SELECT COUNT(*) as total FROM email_inbox WHERE {where_clause}", params)
+        cur.execute(
+            f"""SELECT COUNT(*) as total
+            FROM email_inbox e
+            LEFT JOIN email_imap_settings eis ON e.imap_setting_id = eis.id
+            WHERE {where_clause}""",
+            params,
+        )
         total = cur.fetchone()["total"]
 
         # Fetch
         cur.execute(
             f"""
-            SELECT id, from_address, from_name, subject, received_at,
-                   has_attachments, ai_category, ai_summary, ai_priority, ai_sentiment,
-                   is_read, is_starred, crm_customer_id, kb_entry_id, created_at
-            FROM email_inbox
+            SELECT e.id, e.from_address, e.from_name, e.subject, e.received_at,
+                   e.has_attachments, e.ai_category, e.ai_summary, e.ai_priority, e.ai_sentiment,
+                   e.is_read, e.is_starred, e.crm_customer_id, e.kb_entry_id, e.created_at,
+                   eis.name as account_name
+            FROM email_inbox e
+            LEFT JOIN email_imap_settings eis ON e.imap_setting_id = eis.id
             WHERE {where_clause}
             ORDER BY {order_clause}
             LIMIT %s OFFSET %s
@@ -271,19 +279,19 @@ def get_inbox():
         # Category counts
         cur.execute(
             """
-            SELECT ai_category, COUNT(*) as count
-            FROM email_inbox WHERE is_archived = FALSE
-            GROUP BY ai_category
+            SELECT e.ai_category, COUNT(*) as count
+            FROM email_inbox e WHERE e.is_archived = FALSE
+            GROUP BY e.ai_category
             """
         )
         categories = {r["ai_category"]: r["count"] for r in cur.fetchall() if r["ai_category"]}
 
         # Unread count
-        cur.execute("SELECT COUNT(*) as c FROM email_inbox WHERE is_read = FALSE AND is_archived = FALSE")
+        cur.execute("SELECT COUNT(*) as c FROM email_inbox e WHERE e.is_read = FALSE AND e.is_archived = FALSE")
         unread = cur.fetchone()["c"]
 
         # Starred count
-        cur.execute("SELECT COUNT(*) as c FROM email_inbox WHERE is_starred = TRUE AND is_archived = FALSE")
+        cur.execute("SELECT COUNT(*) as c FROM email_inbox e WHERE e.is_starred = TRUE AND e.is_archived = FALSE")
         starred = cur.fetchone()["c"]
 
         cur.close()
@@ -436,7 +444,13 @@ def get_email_detail(email_id):
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT * FROM email_inbox WHERE id = %s", (email_id,))
+        cur.execute(
+            """SELECT e.*, eis.name as account_name
+            FROM email_inbox e
+            LEFT JOIN email_imap_settings eis ON e.imap_setting_id = eis.id
+            WHERE e.id = %s""",
+            (email_id,),
+        )
         email_row = cur.fetchone()
 
         if not email_row:

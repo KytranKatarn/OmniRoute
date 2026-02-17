@@ -253,11 +253,12 @@
                                 <th style="width: 80px;">Priority</th>
                                 <th style="width: 80px;">Sentiment</th>
                                 <th style="width: 100px;">Date</th>
+                                <th style="width: 100px;">Account</th>
                             </tr>
                         </thead>
                         <tbody id="inbox-tbody">
                             <tr>
-                                <td colspan="8">
+                                <td colspan="9">
                                     <div class="em-loading">
                                         <i data-lucide="loader-2" class="em-spinner"></i>
                                         <span>Loading inbox...</span>
@@ -287,6 +288,9 @@
                         </div>
                         <div class="email-detail-date">
                             <strong>Date:</strong> <span id="detail-date"></span>
+                        </div>
+                        <div class="email-detail-account" id="detail-account-row" style="display: none;">
+                            <strong>Account:</strong> <span id="detail-account"></span>
                         </div>
                         <div class="email-detail-attachments" id="detail-attachments-row" style="display: none;">
                             <strong>Attachments:</strong> <span id="detail-attachments"></span>
@@ -2249,6 +2253,17 @@
     margin-right: 6px;
 }
 
+.account-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    background: rgba(0, 255, 255, 0.1);
+    color: #88cccc;
+    border: 1px solid rgba(0, 255, 255, 0.2);
+    white-space: nowrap;
+}
+
 /* AI Analysis Section */
 .email-detail-ai {
     padding: 16px 20px;
@@ -3028,6 +3043,16 @@ function buildInboxRow(email) {
     tdDate.appendChild(dateSpan);
     tr.appendChild(tdDate);
 
+    // Account cell
+    const tdAcct = document.createElement('td');
+    if (email.account_name) {
+        const acctBadge = document.createElement('span');
+        acctBadge.className = 'account-badge';
+        acctBadge.textContent = email.account_name;
+        tdAcct.appendChild(acctBadge);
+    }
+    tr.appendChild(tdAcct);
+
     return tr;
 }
 
@@ -3123,7 +3148,7 @@ async function loadInbox(page) {
     tbody.textContent = '';
     const loadingRow = document.createElement('tr');
     const loadingCell = document.createElement('td');
-    loadingCell.colSpan = 8;
+    loadingCell.colSpan = 9;
     loadingCell.innerHTML = '<div class="em-loading"><i data-lucide="loader-2" class="em-spinner"></i><span>Loading inbox...</span></div>';
     loadingRow.appendChild(loadingCell);
     tbody.appendChild(loadingRow);
@@ -3146,7 +3171,7 @@ async function loadInbox(page) {
             tbody.textContent = '';
             var errRow = document.createElement('tr');
             var errCell = document.createElement('td');
-            errCell.colSpan = 8;
+            errCell.colSpan = 9;
             var errDiv = document.createElement('div');
             errDiv.className = 'em-empty-state em-empty-state--inline';
             var errIcon = document.createElement('i');
@@ -3173,7 +3198,7 @@ async function loadInbox(page) {
         if (!data.emails || data.emails.length === 0) {
             var emptyRow = document.createElement('tr');
             var emptyCell = document.createElement('td');
-            emptyCell.colSpan = 8;
+            emptyCell.colSpan = 9;
             var emptyDiv = document.createElement('div');
             emptyDiv.className = 'em-empty-state em-empty-state--inline';
             var emptyIcon = document.createElement('i');
@@ -3213,7 +3238,7 @@ async function loadInbox(page) {
         tbody.textContent = '';
         var failRow = document.createElement('tr');
         var failCell = document.createElement('td');
-        failCell.colSpan = 8;
+        failCell.colSpan = 9;
         var failDiv = document.createElement('div');
         failDiv.className = 'em-empty-state em-empty-state--inline';
         var failIcon = document.createElement('i');
@@ -3276,6 +3301,20 @@ async function viewEmail(id) {
             document.getElementById('detail-cc').textContent = email.cc_address;
         } else {
             ccRow.style.display = 'none';
+        }
+
+        // Account
+        var acctRow = document.getElementById('detail-account-row');
+        if (email.account_name) {
+            acctRow.style.display = '';
+            var acctSpan = document.getElementById('detail-account');
+            acctSpan.textContent = '';
+            var acctBadge = document.createElement('span');
+            acctBadge.className = 'account-badge';
+            acctBadge.textContent = email.account_name;
+            acctSpan.appendChild(acctBadge);
+        } else {
+            acctRow.style.display = 'none';
         }
 
         // Attachments

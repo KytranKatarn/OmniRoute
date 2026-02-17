@@ -181,6 +181,14 @@ class AgentLoop:
         )
 
         self.scheduler.add_job(
+            with_app_context(self._auto_analyze_emails),
+            trigger=IntervalTrigger(minutes=10),
+            id="agent_email_analyze",
+            name="Agent Loop: Auto-Analyze Emails",
+            replace_existing=True,
+        )
+
+        self.scheduler.add_job(
             with_app_context(self._forward_notifications_to_telegram),
             trigger=IntervalTrigger(seconds=15),
             id="agent_telegram_notify",
@@ -221,7 +229,7 @@ class AgentLoop:
         )
 
         self._running = True
-        logger.info("Agent loop started with 10 jobs")
+        logger.info("Agent loop started with 11 jobs")
 
     def stop(self):
         """Remove agent loop jobs from the scheduler."""
@@ -231,6 +239,7 @@ class AgentLoop:
             "agent_reminders",
             "agent_approvals",
             "agent_email_inbox",
+            "agent_email_analyze",
             "agent_telegram_notify",
             "agent_browser_tasks",
             "agent_briefings",
@@ -257,6 +266,7 @@ class AgentLoop:
             "agent_reminders",
             "agent_approvals",
             "agent_email_inbox",
+            "agent_email_analyze",
             "agent_telegram_notify",
             "agent_browser_tasks",
             "agent_briefings",
@@ -677,6 +687,55 @@ class AgentLoop:
             logger.error(f"Email inbox check error: {e}")
             duration_ms = int((time.time() - start) * 1000)
             self._log_cycle("email_inbox", 0, 1, duration_ms, error_message=str(e))
+
+    # ------------------------------------------------------------------
+    # Email Auto-Analysis (background batch)
+    # ------------------------------------------------------------------
+
+    def _auto_analyze_emails(self):
+        """Auto-analyze unanalyzed emails in background (3 per batch, GPU-safe)."""
+        cur = None
+        conn = None
+        try:
+            from email_intelligence import EmailIntelligence
+            ei = EmailIntelligence()
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute("""
+                SELECT id FROM email_inbox
+                WHERE ai_analyzed_at IS NULL AND is_archived = FALSE
+                ORDER BY received_at DESC LIMIT 3
+            """)
+            rows = cur.fetchall()
+            if not rows:
+                return
+
+            analyzed = 0
+            for row in rows:
+                try:
+                    ei.analyze_email(row["id"])
+                    analyzed += 1
+                    time.sleep(1)  # GPU safety delay for Quadro M4000
+                except Exception as e:
+                    logger.error(f"Auto-analyze email {row['id']} failed: {e}")
+                    break  # Stop batch on error (GPU may be overloaded)
+
+            if analyzed > 0:
+                log_governance_event(
+                    "email_auto_analyze", "execute", "success",
+                    {"analyzed": analyzed, "remaining": len(rows) - analyzed}
+                )
+                logger.info(f"Auto-analyzed {analyzed} emails")
+        except Exception as e:
+            logger.error(f"Auto-analyze job failed: {e}")
+        finally:
+            try:
+                if cur:
+                    cur.close()
+                if conn:
+                    conn.close()
+            except Exception:
+                pass
 
     # ------------------------------------------------------------------
     # Telegram Notification Forwarding (Phase 3)

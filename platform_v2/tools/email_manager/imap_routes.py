@@ -72,6 +72,14 @@ def create_imap_setting():
     """Create a new IMAP setting."""
     try:
         data = request.json
+        if not data:
+            return jsonify({"success": False, "error": "Request body required"}), 400
+
+        # Validate required fields
+        missing = [f for f in ("imap_host", "imap_user", "imap_password") if not data.get(f)]
+        if missing:
+            return jsonify({"success": False, "error": f"Missing required fields: {', '.join(missing)}"}), 400
+
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute(
@@ -156,6 +164,50 @@ def update_imap_setting(setting_id):
         return jsonify({"success": True})
     except Exception as e:
         logger.error(f"Failed to update IMAP setting: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@email_manager_bp.route("/api/imap/settings/<int:setting_id>", methods=["DELETE"])
+@login_required
+def delete_imap_setting(setting_id):
+    """Delete an IMAP setting (only if no emails reference it)."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Check for dependent emails
+        cur.execute(
+            "SELECT COUNT(*) as cnt FROM email_inbox WHERE imap_setting_id = %s",
+            (setting_id,),
+        )
+        count = cur.fetchone()["cnt"]
+        if count > 0:
+            cur.close()
+            conn.close()
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"Cannot delete: {count} emails reference this mailbox. Remove emails first.",
+                    }
+                ),
+                409,
+            )
+
+        cur.execute(
+            "DELETE FROM email_imap_settings WHERE id = %s RETURNING id",
+            (setting_id,),
+        )
+        result = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        if not result:
+            return jsonify({"success": False, "error": "Setting not found"}), 404
+        return jsonify({"success": True, "message": "IMAP setting deleted"})
+    except Exception as e:
+        logger.error(f"Failed to delete IMAP setting: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -878,9 +930,11 @@ def send_draft(draft_id):
                 server = smtplib.SMTP(smtp["smtp_host"], smtp["smtp_port"])
                 if smtp["encryption"] == "tls":
                     server.starttls()
-            server.login(smtp["smtp_user"], smtp["smtp_password_encrypted"])
-            server.send_message(msg)
-            server.quit()
+            try:
+                server.login(smtp["smtp_user"], smtp["smtp_password_encrypted"])
+                server.send_message(msg)
+            finally:
+                server.quit()
 
             cur.execute(
                 "UPDATE email_drafts SET status = 'sent', updated_at = NOW() WHERE id = %s",

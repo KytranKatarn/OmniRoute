@@ -183,168 +183,178 @@ class EmailIntelligence:
                 mailbox.starttls()
 
         mailbox.login(user, password)
-        mailbox.select(folder, readonly=True)
+        try:
+            mailbox.select(folder, readonly=True)
 
-        # Search for UIDs greater than last_uid
-        if last_uid > 0:
-            status, data = mailbox.uid("search", None, f"UID {last_uid + 1}:*")
-        else:
-            # First run: get last 50 emails
-            status, data = mailbox.uid("search", None, "ALL")
+            # Search for UIDs greater than last_uid
+            if last_uid > 0:
+                status, data = mailbox.uid("search", None, f"UID {last_uid + 1}:*")
+            else:
+                # First run: get last 50 emails
+                status, data = mailbox.uid("search", None, "ALL")
 
-        if status != "OK" or not data[0]:
-            mailbox.close()
-            mailbox.logout()
-            return 0, 0
+            if status != "OK" or not data[0]:
+                return 0, 0
 
-        uid_list = data[0].split()
+            uid_list = data[0].split()
 
-        # On first run, take all emails (up to 500)
-        if last_uid == 0 and len(uid_list) > 500:
-            uid_list = uid_list[-500:]
+            # On first run, take all emails (up to 500)
+            if last_uid == 0 and len(uid_list) > 500:
+                uid_list = uid_list[-500:]
 
-        fetched = 0
-        analyzed = 0
-        max_uid = last_uid
+            fetched = 0
+            analyzed = 0
+            max_uid = last_uid
 
-        for uid_bytes in uid_list:
-            uid = int(uid_bytes)
-            if uid <= last_uid:
-                continue
-
-            try:
-                status, msg_data = mailbox.uid("fetch", str(uid), "(RFC822)")
-                if status != "OK" or not msg_data[0]:
+            for uid_bytes in uid_list:
+                uid = int(uid_bytes)
+                if uid <= last_uid:
                     continue
 
-                raw_email = msg_data[0][1]
-                msg = email.message_from_bytes(raw_email)
-
-                # Parse headers
-                from_raw = msg.get("From", "")
-                from_name, from_addr = email.utils.parseaddr(from_raw)
-                from_name = _decode_header(from_name)
-                subject = _decode_header(msg.get("Subject", "(no subject)"))
-                to_addr = msg.get("To", "")
-                cc_addr = msg.get("Cc", "")
-                date_str = msg.get("Date", "")
-                message_id = msg.get("Message-ID", "")
-                in_reply_to = msg.get("In-Reply-To", "").strip()
-                references_header = msg.get("References", "").strip()
-
-                # Compute thread_id from References chain
-                thread_id = None
-                if references_header:
-                    # First reference is the original thread starter
-                    first_ref = references_header.split()[0].strip("<>")
-                    thread_id = first_ref
-                elif in_reply_to:
-                    thread_id = in_reply_to.strip("<>")
-                else:
-                    # This email starts a new thread
-                    thread_id = message_id
-
-                # Parse date
-                received_at = None
-                if date_str:
-                    try:
-                        parsed = email.utils.parsedate_to_datetime(date_str)
-                        received_at = parsed.strftime("%Y-%m-%d %H:%M:%S")
-                    except Exception:
-                        received_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-                # Body
-                body_text, body_html = _get_body(msg)
-
-                # Attachments
-                attachments = _get_attachments(msg)
-
-                # Check for duplicate by message_id
-                if message_id:
-                    cur.execute(
-                        "SELECT id FROM email_inbox WHERE message_id = %s",
-                        (message_id,),
-                    )
-                    if cur.fetchone():
+                try:
+                    status, msg_data = mailbox.uid("fetch", str(uid), "(RFC822)")
+                    if status != "OK" or not msg_data[0]:
                         continue
 
-                # Try CRM match
-                crm_customer_id = None
-                if from_addr:
-                    cur.execute(
-                        "SELECT id FROM crm_customers WHERE email = %s LIMIT 1",
-                        (from_addr.lower(),),
-                    )
-                    crm_row = cur.fetchone()
-                    if crm_row:
-                        crm_customer_id = crm_row["id"]
+                    raw_email = msg_data[0][1]
+                    msg = email.message_from_bytes(raw_email)
 
-                # Insert
+                    # Parse headers
+                    from_raw = msg.get("From", "")
+                    from_name, from_addr = email.utils.parseaddr(from_raw)
+                    from_name = _decode_header(from_name)
+                    subject = _decode_header(msg.get("Subject", "(no subject)"))
+                    to_addr = msg.get("To", "")
+                    cc_addr = msg.get("Cc", "")
+                    date_str = msg.get("Date", "")
+                    message_id = msg.get("Message-ID", "")
+                    in_reply_to = msg.get("In-Reply-To", "").strip()
+                    references_header = msg.get("References", "").strip()
+
+                    # Compute thread_id from References chain
+                    thread_id = None
+                    if references_header:
+                        # First reference is the original thread starter
+                        first_ref = references_header.split()[0].strip("<>")
+                        thread_id = first_ref
+                    elif in_reply_to:
+                        thread_id = in_reply_to.strip("<>")
+                    else:
+                        # This email starts a new thread
+                        thread_id = message_id
+
+                    # Parse date
+                    received_at = None
+                    if date_str:
+                        try:
+                            parsed = email.utils.parsedate_to_datetime(date_str)
+                            received_at = parsed.strftime("%Y-%m-%d %H:%M:%S")
+                        except Exception:
+                            received_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+                    # Body
+                    body_text, body_html = _get_body(msg)
+
+                    # Attachments
+                    attachments = _get_attachments(msg)
+
+                    # Check for duplicate by message_id
+                    if message_id:
+                        cur.execute(
+                            "SELECT id FROM email_inbox WHERE message_id = %s",
+                            (message_id,),
+                        )
+                        if cur.fetchone():
+                            continue
+
+                    # Try CRM match
+                    crm_customer_id = None
+                    if from_addr:
+                        cur.execute(
+                            "SELECT id FROM crm_customers WHERE email = %s LIMIT 1",
+                            (from_addr.lower(),),
+                        )
+                        crm_row = cur.fetchone()
+                        if crm_row:
+                            crm_customer_id = crm_row["id"]
+
+                    # Insert
+                    cur.execute(
+                        """
+                        INSERT INTO email_inbox
+                        (imap_setting_id, uid, message_id, from_address, from_name, to_address,
+                         cc_address, subject, body_text, body_html, received_at,
+                         has_attachments, attachment_names, crm_customer_id,
+                         in_reply_to, references_header, thread_id)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        RETURNING id
+                        """,
+                        (
+                            setting["id"],
+                            uid,
+                            message_id,
+                            from_addr,
+                            from_name,
+                            to_addr,
+                            cc_addr,
+                            subject,
+                            body_text[:50000] if body_text else None,
+                            body_html[:50000] if body_html else None,
+                            received_at,
+                            len(attachments) > 0,
+                            json.dumps(attachments),
+                            crm_customer_id,
+                            in_reply_to or None,
+                            references_header or None,
+                            thread_id,
+                        ),
+                    )
+                    email_id = cur.fetchone()["id"]
+                    conn.commit()
+                    fetched += 1
+
+                    if uid > max_uid:
+                        max_uid = uid
+
+                    # Auto-analyze: only analyze first 10 during fetch, rest queued for background
+                    if setting.get("auto_analyze", True) and analyzed < 10:
+                        try:
+                            self.analyze_email(email_id)
+                            analyzed += 1
+                            time.sleep(1)  # GPU safety between AI calls
+                        except Exception as e:
+                            logger.warning(
+                                f"Auto-analysis failed for email #{email_id}: {e}"
+                            )
+
+                except Exception as e:
+                    logger.error(f"Failed to fetch UID {uid}: {e}")
+
+            # Update last_uid and last_check
+            if max_uid > last_uid:
                 cur.execute(
                     """
-                    INSERT INTO email_inbox
-                    (imap_setting_id, uid, message_id, from_address, from_name, to_address,
-                     cc_address, subject, body_text, body_html, received_at,
-                     has_attachments, attachment_names, crm_customer_id,
-                     in_reply_to, references_header, thread_id)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    RETURNING id
+                    UPDATE email_imap_settings
+                    SET last_uid = %s, last_check_at = NOW(), updated_at = NOW()
+                    WHERE id = %s
                     """,
-                    (
-                        setting["id"], uid, message_id, from_addr, from_name,
-                        to_addr, cc_addr, subject,
-                        body_text[:50000] if body_text else None,
-                        body_html[:50000] if body_html else None,
-                        received_at,
-                        len(attachments) > 0,
-                        json.dumps(attachments),
-                        crm_customer_id,
-                        in_reply_to or None,
-                        references_header or None,
-                        thread_id,
-                    ),
+                    (max_uid, setting["id"]),
                 )
-                email_id = cur.fetchone()["id"]
                 conn.commit()
-                fetched += 1
+            else:
+                cur.execute(
+                    "UPDATE email_imap_settings SET last_check_at = NOW() WHERE id = %s",
+                    (setting["id"],),
+                )
+                conn.commit()
 
-                if uid > max_uid:
-                    max_uid = uid
-
-                # Auto-analyze: only analyze first 10 during fetch, rest queued for background
-                if setting.get("auto_analyze", True) and analyzed < 10:
-                    try:
-                        self.analyze_email(email_id)
-                        analyzed += 1
-                        time.sleep(1)  # GPU safety between AI calls
-                    except Exception as e:
-                        logger.warning(f"Auto-analysis failed for email #{email_id}: {e}")
-
-            except Exception as e:
-                logger.error(f"Failed to fetch UID {uid}: {e}")
-
-        # Update last_uid and last_check
-        if max_uid > last_uid:
-            cur.execute(
-                """
-                UPDATE email_imap_settings
-                SET last_uid = %s, last_check_at = NOW(), updated_at = NOW()
-                WHERE id = %s
-                """,
-                (max_uid, setting["id"]),
-            )
-            conn.commit()
-        else:
-            cur.execute(
-                "UPDATE email_imap_settings SET last_check_at = NOW() WHERE id = %s",
-                (setting["id"],),
-            )
-            conn.commit()
-
-        mailbox.close()
-        mailbox.logout()
-
-        return fetched, analyzed
+            return fetched, analyzed
+        finally:
+            try:
+                mailbox.close()
+            except Exception:
+                pass
+            mailbox.logout()
 
     def analyze_email(self, email_id: int) -> dict:
         """
@@ -356,9 +366,7 @@ class EmailIntelligence:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute(
-            "SELECT * FROM email_inbox WHERE id = %s", (email_id,)
-        )
+        cur.execute("SELECT * FROM email_inbox WHERE id = %s", (email_id,))
         email_row = cur.fetchone()
         if not email_row:
             cur.close()
@@ -392,6 +400,7 @@ Respond with ONLY a JSON object:
 
         try:
             import requests
+
             resp = requests.post(
                 f"{self._ollama_url}/api/generate",
                 json={
@@ -437,7 +446,9 @@ Respond with ONLY a JSON object:
             conn.close()
             return {"error": str(e)}
 
-    def generate_draft_reply(self, email_id: int, instructions: str = "") -> Optional[int]:
+    def generate_draft_reply(
+        self, email_id: int, instructions: str = ""
+    ) -> Optional[int]:
         """
         Generate an AI draft reply for an email.
 
@@ -478,6 +489,7 @@ Respond with ONLY the email body text, no JSON."""
 
         try:
             import requests
+
             resp = requests.post(
                 f"{self._ollama_url}/api/generate",
                 json={
@@ -603,7 +615,7 @@ Respond with ONLY the email body text, no JSON."""
             pass
 
         # Try to find JSON block
-        match = re.search(r'\{[^{}]*\}', text, re.DOTALL)
+        match = re.search(r"\{[^{}]*\}", text, re.DOTALL)
         if match:
             try:
                 return json.loads(match.group())

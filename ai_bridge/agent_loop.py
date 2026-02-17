@@ -57,9 +57,14 @@ def log_governance_event(event_type, action, outcome, details=None):
         logger.error(f"Failed to log governance event: {e}")
 
 
-def request_approval(action_type: str, action_data: dict, reason: str,
-                     requested_by: str = "agent_loop", priority: int = 5,
-                     tier: int = 2) -> Optional[int]:
+def request_approval(
+    action_type: str,
+    action_data: dict,
+    reason: str,
+    requested_by: str = "agent_loop",
+    priority: int = 5,
+    tier: int = 2,
+) -> Optional[int]:
     """
     Submit an action to the approval queue.
 
@@ -94,8 +99,15 @@ def request_approval(action_type: str, action_data: dict, reason: str,
                     NOW() + INTERVAL '24 hours')
             RETURNING id
             """,
-            (action_type, json.dumps(action_data), effective_tier, status,
-             priority, requested_by, reason),
+            (
+                action_type,
+                json.dumps(action_data),
+                effective_tier,
+                status,
+                priority,
+                requested_by,
+                reason,
+            ),
         )
         approval_id = cur.fetchone()["id"]
         conn.commit()
@@ -134,9 +146,11 @@ class AgentLoop:
 
         def with_app_context(fn):
             """Wrap a function to run inside Flask app context."""
+
             def wrapper():
                 with flask_app.app_context():
                     fn()
+
             wrapper.__name__ = fn.__name__
             return wrapper
 
@@ -286,11 +300,15 @@ class AgentLoop:
             try:
                 job = self.scheduler.get_job(job_id)
                 if job:
-                    jobs.append({
-                        "id": job.id,
-                        "name": job.name,
-                        "next_run": str(job.next_run_time) if job.next_run_time else None,
-                    })
+                    jobs.append(
+                        {
+                            "id": job.id,
+                            "name": job.name,
+                            "next_run": (
+                                str(job.next_run_time) if job.next_run_time else None
+                            ),
+                        }
+                    )
             except Exception:
                 pass
 
@@ -352,7 +370,9 @@ class AgentLoop:
             smtp_settings = cur.fetchone()
 
             if not smtp_settings:
-                logger.warning("Agent loop: No active SMTP settings, skipping email queue")
+                logger.warning(
+                    "Agent loop: No active SMTP settings, skipping email queue"
+                )
                 cur.close()
                 conn.close()
                 return
@@ -384,11 +404,21 @@ class AgentLoop:
                     # Simple variable substitution
                     if variables:
                         for key, val in variables.items():
-                            subject = subject.replace(f"{{{{{key}}}}}", str(val)) if subject else subject
-                            body_html = body_html.replace(f"{{{{{key}}}}}", str(val)) if body_html else body_html
+                            subject = (
+                                subject.replace(f"{{{{{key}}}}}", str(val))
+                                if subject
+                                else subject
+                            )
+                            body_html = (
+                                body_html.replace(f"{{{{{key}}}}}", str(val))
+                                if body_html
+                                else body_html
+                            )
 
                     # Send via SMTP
-                    self._send_smtp(smtp_settings, email["recipient"], subject, body_html)
+                    self._send_smtp(
+                        smtp_settings, email["recipient"], subject, body_html
+                    )
 
                     # Log success
                     cur.execute(
@@ -432,9 +462,13 @@ class AgentLoop:
         duration_ms = int((time.time() - start) * 1000)
         if processed > 0 or failed > 0:
             self._log_cycle("email_queue", processed, failed, duration_ms)
-            logger.info(f"Email queue: {processed} sent, {failed} failed ({duration_ms}ms)")
+            logger.info(
+                f"Email queue: {processed} sent, {failed} failed ({duration_ms}ms)"
+            )
 
-    def _send_smtp(self, smtp_settings: dict, recipient: str, subject: str, body_html: str):
+    def _send_smtp(
+        self, smtp_settings: dict, recipient: str, subject: str, body_html: str
+    ):
         """Send a single email via SMTP. Reuses logic from email_manager."""
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject or "(no subject)"
@@ -461,13 +495,15 @@ class AgentLoop:
             if encryption == "tls":
                 server.starttls()
 
-        user = smtp_settings.get("smtp_user")
-        password = smtp_settings.get("smtp_password_encrypted")
-        if user and password:
-            server.login(user, password)
+        try:
+            user = smtp_settings.get("smtp_user")
+            password = smtp_settings.get("smtp_password_encrypted")
+            if user and password:
+                server.login(user, password)
 
-        server.sendmail(from_email, recipient, msg.as_string())
-        server.quit()
+            server.sendmail(from_email, recipient, msg.as_string())
+        finally:
+            server.quit()
 
     # ------------------------------------------------------------------
     # Scheduled Task Processor
@@ -497,7 +533,9 @@ class AgentLoop:
                     self._execute_scheduled_task(cur, conn, task)
                     processed += 1
                 except Exception as e:
-                    logger.error(f"Failed to execute scheduled task #{task['id']} ({task['name']}): {e}")
+                    logger.error(
+                        f"Failed to execute scheduled task #{task['id']} ({task['name']}): {e}"
+                    )
                     cur.execute(
                         """
                         UPDATE scheduled_tasks
@@ -519,7 +557,9 @@ class AgentLoop:
         duration_ms = int((time.time() - start) * 1000)
         if processed > 0 or failed > 0:
             self._log_cycle("scheduled_tasks", processed, failed, duration_ms)
-            logger.info(f"Scheduled tasks: {processed} executed, {failed} failed ({duration_ms}ms)")
+            logger.info(
+                f"Scheduled tasks: {processed} executed, {failed} failed ({duration_ms}ms)"
+            )
 
     def _execute_scheduled_task(self, cur, conn, task: dict):
         """Dispatch a scheduled task by its task_type."""
@@ -573,7 +613,9 @@ class AgentLoop:
             )
 
         else:
-            logger.warning(f"Unknown scheduled task type: {task_type} (task #{task['id']})")
+            logger.warning(
+                f"Unknown scheduled task type: {task_type} (task #{task['id']})"
+            )
 
         # Mark task complete
         cur.execute(
@@ -619,12 +661,14 @@ class AgentLoop:
                         message=reminder.get("message", "You have a reminder"),
                         source="agent_loop",
                         priority="normal",
-                        related_action=json.dumps({
-                            "reminder_id": reminder["id"],
-                            "reminder_type": reminder.get("reminder_type"),
-                            "related_type": reminder.get("related_type"),
-                            "related_id": reminder.get("related_id"),
-                        }),
+                        related_action=json.dumps(
+                            {
+                                "reminder_id": reminder["id"],
+                                "reminder_type": reminder.get("reminder_type"),
+                                "related_type": reminder.get("related_type"),
+                                "related_id": reminder.get("related_id"),
+                            }
+                        ),
                     )
 
                     # Mark reminder as sent
@@ -649,7 +693,9 @@ class AgentLoop:
         duration_ms = int((time.time() - start) * 1000)
         if processed > 0 or failed > 0:
             self._log_cycle("reminders", processed, failed, duration_ms)
-            logger.info(f"Reminders: {processed} notified, {failed} failed ({duration_ms}ms)")
+            logger.info(
+                f"Reminders: {processed} notified, {failed} failed ({duration_ms}ms)"
+            )
 
     # ------------------------------------------------------------------
     # Email Inbox Check (Phase 2)
@@ -660,6 +706,7 @@ class AgentLoop:
         start = time.time()
         try:
             from email_intelligence import EmailIntelligence
+
             ei = EmailIntelligence()
             result = ei.check_inbox()
 
@@ -674,9 +721,14 @@ class AgentLoop:
                     fetched,
                     len(errors),
                     duration_ms,
-                    details={"analyzed": analyzed, "settings_checked": result.get("settings_checked", 0)},
+                    details={
+                        "analyzed": analyzed,
+                        "settings_checked": result.get("settings_checked", 0),
+                    },
                 )
-                logger.info(f"Email inbox: {fetched} fetched, {analyzed} analyzed ({duration_ms}ms)")
+                logger.info(
+                    f"Email inbox: {fetched} fetched, {analyzed} analyzed ({duration_ms}ms)"
+                )
 
                 # Create notification for new emails
                 if fetched > 0:
@@ -708,6 +760,7 @@ class AgentLoop:
         conn = None
         try:
             from email_intelligence import EmailIntelligence
+
             ei = EmailIntelligence()
             conn = get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -732,8 +785,10 @@ class AgentLoop:
 
             if analyzed > 0:
                 log_governance_event(
-                    "email_auto_analyze", "execute", "success",
-                    {"analyzed": analyzed, "remaining": len(rows) - analyzed}
+                    "email_auto_analyze",
+                    "execute",
+                    "success",
+                    {"analyzed": analyzed, "remaining": len(rows) - analyzed},
                 )
                 logger.info(f"Auto-analyzed {analyzed} emails")
         except Exception as e:
@@ -775,15 +830,13 @@ class AgentLoop:
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
             # Get pending tasks that are due
-            cur.execute(
-                """
+            cur.execute("""
                 SELECT id FROM browser_tasks
                 WHERE status = 'pending'
                   AND (next_run_at IS NULL OR next_run_at <= NOW())
                 ORDER BY priority ASC, created_at ASC
                 LIMIT 5
-                """
-            )
+                """)
             tasks = cur.fetchall()
             cur.close()
             conn.close()
@@ -792,6 +845,7 @@ class AgentLoop:
                 return
 
             from browser_automation import BrowserAutomation
+
             ba = BrowserAutomation()
 
             for task in tasks:
@@ -812,7 +866,9 @@ class AgentLoop:
         duration_ms = int((time.time() - start) * 1000)
         if processed > 0 or failed > 0:
             self._log_cycle("browser_tasks", processed, failed, duration_ms)
-            logger.info(f"Browser tasks: {processed} completed, {failed} failed ({duration_ms}ms)")
+            logger.info(
+                f"Browser tasks: {processed} completed, {failed} failed ({duration_ms}ms)"
+            )
 
     # ------------------------------------------------------------------
     # Proactive Intelligence (Phase 5)
@@ -822,6 +878,7 @@ class AgentLoop:
         """Generate any due briefings."""
         try:
             from proactive_intelligence import BriefingGenerator
+
             bg = BriefingGenerator()
             count = bg.generate_due_briefings()
             if count > 0:
@@ -835,6 +892,7 @@ class AgentLoop:
         start = time.time()
         try:
             from proactive_intelligence import AnomalyDetector
+
             detector = AnomalyDetector()
             result = detector.check_all_rules()
             duration_ms = int((time.time() - start) * 1000)
@@ -847,7 +905,9 @@ class AgentLoop:
                     duration_ms,
                     details=result,
                 )
-                logger.info(f"Anomaly detection: {result['checked']} checked, {result['triggered']} triggered ({duration_ms}ms)")
+                logger.info(
+                    f"Anomaly detection: {result['checked']} checked, {result['triggered']} triggered ({duration_ms}ms)"
+                )
         except Exception as e:
             logger.error(f"Anomaly detection error: {e}")
 
@@ -855,6 +915,7 @@ class AgentLoop:
         """Generate any due scheduled reports."""
         try:
             from proactive_intelligence import ReportEngine
+
             re = ReportEngine()
             count = re.generate_due_reports()
             if count > 0:
@@ -904,7 +965,8 @@ class AgentLoop:
 
                 if categories_instant:
                     placeholders = ",".join(["%s"] * len(categories_instant))
-                    cur.execute(f"""
+                    cur.execute(
+                        f"""
                         SELECT id, from_name, from_address, subject, ai_category, ai_summary, ai_priority
                         FROM email_inbox
                         WHERE ai_category IN ({placeholders})
@@ -912,12 +974,19 @@ class AgentLoop:
                         AND telegram_notified_at IS NULL
                         AND is_archived = FALSE
                         ORDER BY received_at DESC LIMIT 5
-                    """, categories_instant)
+                    """,
+                        categories_instant,
+                    )
                     urgent_emails = cur.fetchall()
 
                     for email in urgent_emails:
-                        self._send_email_telegram_notification(gateway, user["telegram_id"], email)
-                        cur.execute("UPDATE email_inbox SET telegram_notified_at = NOW() WHERE id = %s", (email["id"],))
+                        self._send_email_telegram_notification(
+                            gateway, user["telegram_id"], email
+                        )
+                        cur.execute(
+                            "UPDATE email_inbox SET telegram_notified_at = NOW() WHERE id = %s",
+                            (email["id"],),
+                        )
                     conn.commit()
 
                 # --- Digest for non-urgent emails ---
@@ -926,6 +995,7 @@ class AgentLoop:
                     interval = user.get("digest_interval", 60)
                     if last_digest:
                         from datetime import timedelta
+
                         if datetime.now() - last_digest < timedelta(minutes=interval):
                             continue  # Not time for digest yet
 
@@ -941,18 +1011,26 @@ class AgentLoop:
                     digest_emails = cur.fetchall()
 
                     if digest_emails:
-                        self._send_email_telegram_digest(gateway, user["telegram_id"], digest_emails)
+                        self._send_email_telegram_digest(
+                            gateway, user["telegram_id"], digest_emails
+                        )
                         ids = [e["id"] for e in digest_emails]
                         id_placeholders = ",".join(["%s"] * len(ids))
-                        cur.execute(f"UPDATE email_inbox SET telegram_notified_at = NOW() WHERE id IN ({id_placeholders})", ids)
+                        cur.execute(
+                            f"UPDATE email_inbox SET telegram_notified_at = NOW() WHERE id IN ({id_placeholders})",
+                            ids,
+                        )
 
                         # Update last_digest_at
-                        cur.execute("""
+                        cur.execute(
+                            """
                             INSERT INTO telegram_email_prefs (telegram_user_id, last_digest_at, created_at, updated_at)
                             VALUES (%s, NOW(), NOW(), NOW())
                             ON CONFLICT ON CONSTRAINT uq_tep_telegram_user
                             DO UPDATE SET last_digest_at = NOW(), updated_at = NOW()
-                        """, (user["tg_user_id"],))
+                        """,
+                            (user["tg_user_id"],),
+                        )
                         conn.commit()
 
         except Exception as e:
@@ -973,15 +1051,15 @@ class AgentLoop:
             from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
             category_emoji = {
-                "urgent": "\U0001F6A8",
-                "action_required": "\u26A0\uFE0F",
-                "informational": "\u2139\uFE0F",
-                "newsletter": "\U0001F4F0",
-                "spam": "\U0001F6AB",
+                "urgent": "\U0001f6a8",
+                "action_required": "\u26a0\ufe0f",
+                "informational": "\u2139\ufe0f",
+                "newsletter": "\U0001f4f0",
+                "spam": "\U0001f6ab",
             }
-            emoji = category_emoji.get(email.get("ai_category", ""), "\U0001F4E7")
+            emoji = category_emoji.get(email.get("ai_category", ""), "\U0001f4e7")
             priority = email.get("ai_priority", 3)
-            priority_str = "\u2B50" * min(priority, 5) if priority else ""
+            priority_str = "\u2b50" * min(priority, 5) if priority else ""
 
             sender = email.get("from_name") or email.get("from_address", "Unknown")
             text = f"{emoji} *New Email*\n\n"
@@ -992,24 +1070,36 @@ class AgentLoop:
             if email.get("ai_summary"):
                 text += f"\n_{email['ai_summary']}_\n"
 
-            keyboard = InlineKeyboardMarkup([
+            keyboard = InlineKeyboardMarkup(
                 [
-                    InlineKeyboardButton("Reply", callback_data=f"email_reply_{email['id']}"),
-                    InlineKeyboardButton("Archive", callback_data=f"email_archive_{email['id']}"),
-                    InlineKeyboardButton("Star", callback_data=f"email_star_{email['id']}"),
-                ],
-                [
-                    InlineKeyboardButton("Mark Read", callback_data=f"email_read_{email['id']}"),
+                    [
+                        InlineKeyboardButton(
+                            "Reply", callback_data=f"email_reply_{email['id']}"
+                        ),
+                        InlineKeyboardButton(
+                            "Archive", callback_data=f"email_archive_{email['id']}"
+                        ),
+                        InlineKeyboardButton(
+                            "Star", callback_data=f"email_star_{email['id']}"
+                        ),
+                    ],
+                    [
+                        InlineKeyboardButton(
+                            "Mark Read", callback_data=f"email_read_{email['id']}"
+                        ),
+                    ],
                 ]
-            ])
+            )
 
             loop = gateway._loop
             asyncio.run_coroutine_threadsafe(
                 gateway._application.bot.send_message(
-                    chat_id=telegram_id, text=text, parse_mode="Markdown",
-                    reply_markup=keyboard
+                    chat_id=telegram_id,
+                    text=text,
+                    parse_mode="Markdown",
+                    reply_markup=keyboard,
                 ),
-                loop
+                loop,
             )
         except Exception as e:
             logger.error(f"Send email notification failed: {e}")
@@ -1019,7 +1109,7 @@ class AgentLoop:
         try:
             import asyncio
 
-            text = f"\U0001F4EC *Email Digest* ({len(emails)} new)\n\n"
+            text = f"\U0001f4ec *Email Digest* ({len(emails)} new)\n\n"
             for i, email in enumerate(emails[:10], 1):
                 sender = email.get("from_name") or email.get("from_address", "Unknown")
                 subject = email.get("subject", "(no subject)")
@@ -1036,7 +1126,7 @@ class AgentLoop:
                 gateway._application.bot.send_message(
                     chat_id=telegram_id, text=text, parse_mode="Markdown"
                 ),
-                loop
+                loop,
             )
         except Exception as e:
             logger.error(f"Send email digest failed: {e}")
@@ -1061,14 +1151,12 @@ class AgentLoop:
                 return
 
             # 1. Expire stale pending tier-2 items
-            cur.execute(
-                """
+            cur.execute("""
                 UPDATE autonomy_approval_queue
                 SET status = 'expired', updated_at = NOW()
                 WHERE status = 'pending' AND expires_at < NOW()
                 RETURNING id, action_type
-                """
-            )
+                """)
             expired = cur.fetchall()
             for item in expired:
                 logger.info(f"Expired approval #{item['id']}: {item['action_type']}")
@@ -1081,15 +1169,13 @@ class AgentLoop:
             conn.commit()
 
             # 2. Execute approved items
-            cur.execute(
-                """
+            cur.execute("""
                 SELECT id, action_type, action_data, tier, requested_by, reason
                 FROM autonomy_approval_queue
                 WHERE status = 'approved'
                 ORDER BY priority ASC, created_at ASC
                 LIMIT 10
-                """
-            )
+                """)
             approved = cur.fetchall()
 
             for item in approved:
@@ -1115,7 +1201,9 @@ class AgentLoop:
                     )
 
                 except Exception as e:
-                    logger.error(f"Failed to execute approved action #{item['id']}: {e}")
+                    logger.error(
+                        f"Failed to execute approved action #{item['id']}: {e}"
+                    )
                     cur.execute(
                         """
                         UPDATE autonomy_approval_queue
@@ -1135,13 +1223,17 @@ class AgentLoop:
             failed += 1
 
         duration_ms = int((time.time() - start) * 1000)
-        if processed > 0 or failed > 0 or (expired if 'expired' in dir() else []):
+        if processed > 0 or failed > 0 or (expired if "expired" in dir() else []):
             self._log_cycle("approvals", processed, failed, duration_ms)
 
     def _execute_approved_action(self, cur, conn, item: dict) -> dict:
         """Execute an approved action from the approval queue."""
         action_type = item["action_type"]
-        data = item["action_data"] if isinstance(item["action_data"], dict) else json.loads(item["action_data"])
+        data = (
+            item["action_data"]
+            if isinstance(item["action_data"], dict)
+            else json.loads(item["action_data"])
+        )
 
         if action_type == "send_email":
             # Queue the email
@@ -1173,6 +1265,7 @@ class AgentLoop:
 
         elif action_type == "external_webhook":
             import requests
+
             resp = requests.post(
                 data.get("url", ""),
                 json=data.get("payload", {}),
@@ -1215,9 +1308,16 @@ class AgentLoop:
         except Exception:
             return {}
 
-    def _create_notification(self, cur, notification_type: str, title: str,
-                             message: str, source: str, priority: str = "normal",
-                             related_action: str = None):
+    def _create_notification(
+        self,
+        cur,
+        notification_type: str,
+        title: str,
+        message: str,
+        source: str,
+        priority: str = "normal",
+        related_action: str = None,
+    ):
         """Create a system notification with deduplication."""
         # Deduplication: check for same message in last 5 minutes
         cur.execute(
@@ -1259,11 +1359,21 @@ class AgentLoop:
                 ),
             )
 
-    def _log_cycle(self, job_name: str, items_processed: int, items_failed: int,
-                   duration_ms: int, details: dict = None, error_message: str = None):
+    def _log_cycle(
+        self,
+        job_name: str,
+        items_processed: int,
+        items_failed: int,
+        duration_ms: int,
+        details: dict = None,
+        error_message: str = None,
+    ):
         """Log an agent loop execution cycle."""
-        status = "error" if items_failed > 0 and items_processed == 0 else \
-                 "partial" if items_failed > 0 else "success"
+        status = (
+            "error"
+            if items_failed > 0 and items_processed == 0
+            else "partial" if items_failed > 0 else "success"
+        )
         try:
             conn = get_db()
             cur = conn.cursor()
@@ -1273,8 +1383,15 @@ class AgentLoop:
                 (job_name, status, items_processed, items_failed, duration_ms, details, error_message)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """,
-                (job_name, status, items_processed, items_failed, duration_ms,
-                 json.dumps(details or {}), error_message),
+                (
+                    job_name,
+                    status,
+                    items_processed,
+                    items_failed,
+                    duration_ms,
+                    json.dumps(details or {}),
+                    error_message,
+                ),
             )
             conn.commit()
             cur.close()

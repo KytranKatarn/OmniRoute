@@ -57,7 +57,9 @@ class TelegramGateway:
             logger.warning("Telegram bot already running")
             return
 
-        self._thread = threading.Thread(target=self._run_bot, daemon=True, name="telegram-bot")
+        self._thread = threading.Thread(
+            target=self._run_bot, daemon=True, name="telegram-bot"
+        )
         self._thread.start()
         self._running = True
         logger.info("Telegram gateway started")
@@ -107,9 +109,13 @@ class TelegramGateway:
             app.add_handler(CommandHandler("inbox", self._cmd_inbox))
             app.add_handler(CommandHandler("briefing", self._cmd_briefing))
             app.add_handler(CommandHandler("cancel", self._cmd_cancel))
-            app.add_handler(CallbackQueryHandler(self._email_callback, pattern=r"^email_"))
+            app.add_handler(
+                CallbackQueryHandler(self._email_callback, pattern=r"^email_")
+            )
             app.add_handler(CallbackQueryHandler(self._callback_handler))
-            app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_message))
+            app.add_handler(
+                MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_message)
+            )
             app.add_handler(MessageHandler(filters.VOICE, self._handle_voice))
 
             logger.info("Telegram bot polling started")
@@ -162,7 +168,9 @@ class TelegramGateway:
         args = context.args
 
         if not args:
-            await update.message.reply_text("Usage: /link YOUR_CODE\nGet a code from the web dashboard.")
+            await update.message.reply_text(
+                "Usage: /link YOUR_CODE\nGet a code from the web dashboard."
+            )
             return
 
         code = args[0].strip()
@@ -182,7 +190,9 @@ class TelegramGateway:
             row = cur.fetchone()
 
             if not row:
-                await update.message.reply_text("Invalid or expired code. Please generate a new one.")
+                await update.message.reply_text(
+                    "Invalid or expired code. Please generate a new one."
+                )
                 cur.close()
                 conn.close()
                 return
@@ -195,7 +205,13 @@ class TelegramGateway:
                     is_authorized = TRUE, link_code = NULL, link_code_expires_at = NULL, updated_at = NOW()
                 WHERE id = %s
                 """,
-                (tg_user.id, tg_user.username, tg_user.first_name, tg_user.last_name, row["id"]),
+                (
+                    tg_user.id,
+                    tg_user.username,
+                    tg_user.first_name,
+                    tg_user.last_name,
+                    row["id"],
+                ),
             )
 
             # Create default notification rule (all notifications)
@@ -235,15 +251,21 @@ class TelegramGateway:
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
             # Unread notifications
-            cur.execute("SELECT COUNT(*) as c FROM system_notifications WHERE is_read = FALSE")
+            cur.execute(
+                "SELECT COUNT(*) as c FROM system_notifications WHERE is_read = FALSE"
+            )
             unread = cur.fetchone()["c"]
 
             # Pending approvals
-            cur.execute("SELECT COUNT(*) as c FROM autonomy_approval_queue WHERE status = 'pending'")
+            cur.execute(
+                "SELECT COUNT(*) as c FROM autonomy_approval_queue WHERE status = 'pending'"
+            )
             pending = cur.fetchone()["c"]
 
             # Unread emails
-            cur.execute("SELECT COUNT(*) as c FROM email_inbox WHERE is_read = FALSE AND is_archived = FALSE")
+            cur.execute(
+                "SELECT COUNT(*) as c FROM email_inbox WHERE is_read = FALSE AND is_archived = FALSE"
+            )
             unread_emails = cur.fetchone()["c"]
 
             cur.close()
@@ -271,15 +293,13 @@ class TelegramGateway:
 
             conn = get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute(
-                """
+            cur.execute("""
                 SELECT id, action_type, reason, priority, created_at
                 FROM autonomy_approval_queue
                 WHERE status = 'pending'
                 ORDER BY priority ASC, created_at ASC
                 LIMIT 5
-                """
-            )
+                """)
             items = cur.fetchall()
             cur.close()
             conn.close()
@@ -289,12 +309,18 @@ class TelegramGateway:
                 return
 
             for item in items:
-                keyboard = InlineKeyboardMarkup([
+                keyboard = InlineKeyboardMarkup(
                     [
-                        InlineKeyboardButton("Approve", callback_data=f"approve_{item['id']}"),
-                        InlineKeyboardButton("Reject", callback_data=f"reject_{item['id']}"),
+                        [
+                            InlineKeyboardButton(
+                                "Approve", callback_data=f"approve_{item['id']}"
+                            ),
+                            InlineKeyboardButton(
+                                "Reject", callback_data=f"reject_{item['id']}"
+                            ),
+                        ]
                     ]
-                ])
+                )
                 await update.message.reply_text(
                     f"#{item['id']} | {item['action_type']}\n"
                     f"Priority: {item['priority']} | {item['reason'] or 'No reason'}\n"
@@ -316,15 +342,13 @@ class TelegramGateway:
         try:
             conn = get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute(
-                """
+            cur.execute("""
                 SELECT from_name, from_address, subject, ai_category, ai_priority, received_at
                 FROM email_inbox
                 WHERE is_read = FALSE AND is_archived = FALSE
                 ORDER BY received_at DESC
                 LIMIT 10
-                """
-            )
+                """)
             emails = cur.fetchall()
             cur.close()
             conn.close()
@@ -358,7 +382,9 @@ class TelegramGateway:
             user_info["user_id"],
             voice_mode=True,
         )
-        await update.message.reply_text(response or "Unable to generate briefing right now.")
+        await update.message.reply_text(
+            response or "Unable to generate briefing right now."
+        )
 
     # ------------------------------------------------------------------
     # Message Handlers
@@ -382,12 +408,16 @@ class TelegramGateway:
         text = update.message.text
         self._log_message(user_info["id"], "in", "text", text)
 
-        response = self._orchestrate_message(text, user_info["user_id"], voice_mode=True)
+        response = self._orchestrate_message(
+            text, user_info["user_id"], voice_mode=True
+        )
         if response:
             self._log_message(user_info["id"], "out", "text", response)
             await update.message.reply_text(response)
         else:
-            await update.message.reply_text("I couldn't process that right now. Please try again.")
+            await update.message.reply_text(
+                "I couldn't process that right now. Please try again."
+            )
 
     async def _handle_voice(self, update, context):
         """Handle voice messages — download, transcribe, respond."""
@@ -398,7 +428,9 @@ class TelegramGateway:
             await update.message.reply_text("Please link your account first with /link")
             return
 
-        await update.message.reply_text("Voice messages are not yet supported. Please send text.")
+        await update.message.reply_text(
+            "Voice messages are not yet supported. Please send text."
+        )
 
     async def _callback_handler(self, update, context):
         """Handle inline keyboard callbacks (approve/reject)."""
@@ -445,7 +477,9 @@ class TelegramGateway:
 
         user = self._get_authorized_user(query.from_user.id)
         if not user:
-            await query.message.reply_text("Not authorized. Use /link to connect your account.")
+            await query.message.reply_text(
+                "Not authorized. Use /link to connect your account."
+            )
             return
 
         try:
@@ -453,7 +487,10 @@ class TelegramGateway:
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
             if action == "archive":
-                cur.execute("UPDATE email_inbox SET is_archived = TRUE, updated_at = NOW() WHERE id = %s", (email_id,))
+                cur.execute(
+                    "UPDATE email_inbox SET is_archived = TRUE, updated_at = NOW() WHERE id = %s",
+                    (email_id,),
+                )
                 conn.commit()
                 await query.edit_message_text(query.message.text + "\n\nArchived")
 
@@ -468,14 +505,20 @@ class TelegramGateway:
                 await query.edit_message_text(query.message.text + "\n\n" + status)
 
             elif action == "read":
-                cur.execute("UPDATE email_inbox SET is_read = TRUE, updated_at = NOW() WHERE id = %s", (email_id,))
+                cur.execute(
+                    "UPDATE email_inbox SET is_read = TRUE, updated_at = NOW() WHERE id = %s",
+                    (email_id,),
+                )
                 conn.commit()
                 await query.edit_message_text(query.message.text + "\n\nMarked as read")
 
             elif action == "reply":
                 # Set user into reply mode
                 context.user_data["pending_reply_email_id"] = email_id
-                cur.execute("SELECT from_address, from_name, subject FROM email_inbox WHERE id = %s", (email_id,))
+                cur.execute(
+                    "SELECT from_address, from_name, subject FROM email_inbox WHERE id = %s",
+                    (email_id,),
+                )
                 email = cur.fetchone()
                 if email:
                     reply_to = email.get("from_name") or email["from_address"]
@@ -512,7 +555,10 @@ class TelegramGateway:
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
             # Get original email
-            cur.execute("SELECT from_address, subject, message_id FROM email_inbox WHERE id = %s", (email_id,))
+            cur.execute(
+                "SELECT from_address, subject, message_id FROM email_inbox WHERE id = %s",
+                (email_id,),
+            )
             email = cur.fetchone()
             if not email:
                 await update.message.reply_text("Original email not found.")
@@ -520,10 +566,14 @@ class TelegramGateway:
                 return
 
             # Get SMTP settings
-            cur.execute("SELECT * FROM email_settings WHERE is_default = TRUE AND is_active = TRUE LIMIT 1")
+            cur.execute(
+                "SELECT * FROM email_settings WHERE is_default = TRUE AND is_active = TRUE LIMIT 1"
+            )
             smtp = cur.fetchone()
             if not smtp:
-                await update.message.reply_text("No SMTP configured. Cannot send reply.")
+                await update.message.reply_text(
+                    "No SMTP configured. Cannot send reply."
+                )
                 del context.user_data["pending_reply_email_id"]
                 return
 
@@ -543,10 +593,13 @@ class TelegramGateway:
                 server = smtplib.SMTP_SSL(smtp["smtp_host"], smtp["smtp_port"])
             else:
                 server = smtplib.SMTP(smtp["smtp_host"], smtp["smtp_port"])
-                server.starttls()
-            server.login(smtp["smtp_user"], smtp["smtp_password_encrypted"])
-            server.send_message(msg)
-            server.quit()
+                if smtp["encryption"] == "tls":
+                    server.starttls()
+            try:
+                server.login(smtp["smtp_user"], smtp["smtp_password_encrypted"])
+                server.send_message(msg)
+            finally:
+                server.quit()
 
             # Log the send
             cur.execute(
@@ -558,15 +611,25 @@ class TelegramGateway:
             )
 
             # Mark original as read
-            cur.execute("UPDATE email_inbox SET is_read = TRUE, updated_at = NOW() WHERE id = %s", (email_id,))
+            cur.execute(
+                "UPDATE email_inbox SET is_read = TRUE, updated_at = NOW() WHERE id = %s",
+                (email_id,),
+            )
             conn.commit()
 
             # Log governance event
             try:
                 from ai_bridge.agent_loop import log_governance_event
+
                 log_governance_event(
-                    "email_sent_telegram", "execute", "success",
-                    {"email_id": email_id, "to": email["from_address"], "method": "telegram"},
+                    "email_sent_telegram",
+                    "execute",
+                    "success",
+                    {
+                        "email_id": email_id,
+                        "to": email["from_address"],
+                        "method": "telegram",
+                    },
                 )
             except Exception:
                 pass
@@ -607,15 +670,13 @@ class TelegramGateway:
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
             # Get un-forwarded notifications
-            cur.execute(
-                """
+            cur.execute("""
                 SELECT n.id, n.type, n.title, n.message, n.priority, n.source, n.created_at
                 FROM system_notifications n
                 WHERE n.telegram_forwarded = FALSE AND n.is_read = FALSE
                 ORDER BY n.created_at DESC
                 LIMIT 20
-                """
-            )
+                """)
             notifications = cur.fetchall()
 
             if not notifications:
@@ -624,16 +685,14 @@ class TelegramGateway:
                 return
 
             # Get authorized users with rules
-            cur.execute(
-                """
+            cur.execute("""
                 SELECT tu.id, tu.telegram_id, tu.user_id,
                        tnr.notification_type, tnr.priority_min, tnr.source_filter,
                        tnr.quiet_hours_start, tnr.quiet_hours_end
                 FROM telegram_users tu
                 JOIN telegram_notification_rules tnr ON tnr.telegram_user_id = tu.id
                 WHERE tu.is_authorized = TRUE AND tu.telegram_id IS NOT NULL AND tnr.is_active = TRUE
-                """
-            )
+                """)
             rules = cur.fetchall()
 
             forwarded_ids = set()
@@ -648,7 +707,9 @@ class TelegramGateway:
                             )
                             forwarded_ids.add(notif["id"])
                         except Exception as e:
-                            logger.warning(f"Failed to forward notification #{notif['id']}: {e}")
+                            logger.warning(
+                                f"Failed to forward notification #{notif['id']}: {e}"
+                            )
 
             # Mark as forwarded
             if forwarded_ids:
@@ -667,11 +728,16 @@ class TelegramGateway:
     def _matches_rule(self, notification: dict, rule: dict) -> bool:
         """Check if a notification matches a forwarding rule."""
         # Type filter
-        if rule["notification_type"] and rule["notification_type"] != notification["type"]:
+        if (
+            rule["notification_type"]
+            and rule["notification_type"] != notification["type"]
+        ):
             return False
 
         # Source filter
-        if rule["source_filter"] and rule["source_filter"] != notification.get("source"):
+        if rule["source_filter"] and rule["source_filter"] != notification.get(
+            "source"
+        ):
             return False
 
         # Priority filter
@@ -743,10 +809,13 @@ class TelegramGateway:
             logger.error(f"Failed to get authorized user: {e}")
             return None
 
-    def _orchestrate_message(self, message: str, user_id: int, voice_mode: bool = False) -> Optional[str]:
+    def _orchestrate_message(
+        self, message: str, user_id: int, voice_mode: bool = False
+    ) -> Optional[str]:
         """Route a message through the orchestration engine."""
         try:
             import sys
+
             sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
             from orchestration_engine import OrchestrationEngine
 
@@ -793,7 +862,9 @@ class TelegramGateway:
         except Exception as e:
             logger.error(f"Failed to process approval: {e}")
 
-    def _log_message(self, telegram_user_id: int, direction: str, msg_type: str, content: str):
+    def _log_message(
+        self, telegram_user_id: int, direction: str, msg_type: str, content: str
+    ):
         """Log a Telegram message."""
         try:
             conn = get_db()
@@ -803,7 +874,12 @@ class TelegramGateway:
                 INSERT INTO telegram_messages (telegram_user_id, direction, message_type, content)
                 VALUES (%s, %s, %s, %s)
                 """,
-                (telegram_user_id, direction, msg_type, content[:5000] if content else ""),
+                (
+                    telegram_user_id,
+                    direction,
+                    msg_type,
+                    content[:5000] if content else "",
+                ),
             )
             conn.commit()
             cur.close()
@@ -814,6 +890,7 @@ class TelegramGateway:
     def _send_telegram_message(self, chat_id: int, text: str):
         """Send a message via Telegram Bot API (sync, for use from agent loop)."""
         import requests
+
         resp = requests.post(
             f"https://api.telegram.org/bot{self.bot_token}/sendMessage",
             json={"chat_id": chat_id, "text": text},

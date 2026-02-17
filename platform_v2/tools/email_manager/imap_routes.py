@@ -52,7 +52,10 @@ def get_imap_settings():
             """
             SELECT id, name, imap_host, imap_port, imap_user, encryption, folder,
                    is_active, last_uid, last_check_at, check_interval_minutes,
-                   auto_analyze, auto_file_kb, created_at
+                   auto_analyze, auto_file_kb, created_at,
+                   smtp_host, smtp_port, smtp_user, smtp_encryption,
+                   from_email, from_name, reply_to,
+                   smtp_test_result, smtp_test_message, smtp_tested_at
             FROM email_imap_settings
             ORDER BY id
             """
@@ -86,8 +89,11 @@ def create_imap_setting():
             """
             INSERT INTO email_imap_settings
             (name, imap_host, imap_port, imap_user, imap_password_encrypted,
-             encryption, folder, check_interval_minutes, auto_analyze, auto_file_kb)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             encryption, folder, check_interval_minutes, auto_analyze, auto_file_kb,
+             smtp_host, smtp_port, smtp_user, smtp_password_encrypted,
+             smtp_encryption, from_email, from_name, reply_to)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
             """,
             (
@@ -101,6 +107,14 @@ def create_imap_setting():
                 data.get("check_interval_minutes", 5),
                 data.get("auto_analyze", True),
                 data.get("auto_file_kb", False),
+                data.get("smtp_host"),
+                data.get("smtp_port"),
+                data.get("smtp_user"),
+                data.get("smtp_password"),
+                data.get("smtp_encryption"),
+                data.get("from_email"),
+                data.get("from_name"),
+                data.get("reply_to"),
             ),
         )
         setting_id = cur.fetchone()["id"]
@@ -135,6 +149,13 @@ def update_imap_setting(setting_id):
             "check_interval_minutes",
             "auto_analyze",
             "auto_file_kb",
+            "smtp_host",
+            "smtp_port",
+            "smtp_user",
+            "smtp_encryption",
+            "from_email",
+            "from_name",
+            "reply_to",
         ]:
             if field in data:
                 updates.append(f"{field} = %s")
@@ -143,6 +164,10 @@ def update_imap_setting(setting_id):
         if "imap_password" in data and data["imap_password"]:
             updates.append("imap_password_encrypted = %s")
             params.append(data["imap_password"])
+
+        if "smtp_password" in data and data["smtp_password"]:
+            updates.append("smtp_password_encrypted = %s")
+            params.append(data["smtp_password"])
 
         if not updates:
             return jsonify({"success": False, "error": "No fields to update"}), 400
@@ -250,6 +275,114 @@ def test_imap_setting(setting_id):
         )
     except Exception as e:
         return jsonify({"success": False, "error": f"Connection failed: {str(e)}"}), 400
+
+
+@email_manager_bp.route("/api/imap/settings/<int:setting_id>/test-smtp", methods=["POST"])
+@login_required
+def test_smtp_setting(setting_id):
+    """Test SMTP connection for an IMAP account."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """SELECT smtp_host, smtp_port, smtp_user, smtp_password_encrypted,
+                      smtp_encryption, from_email
+               FROM email_imap_settings WHERE id = %s""",
+            (setting_id,),
+        )
+        setting = cur.fetchone()
+
+        if not setting:
+            cur.close()
+            conn.close()
+            return jsonify({"success": False, "error": "Setting not found"}), 404
+
+        if not setting.get("smtp_host"):
+            cur.close()
+            conn.close()
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "No SMTP host configured for this account",
+                    }
+                ),
+                400,
+            )
+
+        import smtplib
+
+        test_result = "failed"
+        test_message = ""
+
+        try:
+            encryption = setting.get("smtp_encryption", "tls")
+            if encryption == "ssl":
+                server = smtplib.SMTP_SSL(setting["smtp_host"], setting["smtp_port"], timeout=10)
+            else:
+                server = smtplib.SMTP(setting["smtp_host"], setting["smtp_port"], timeout=10)
+                if encryption == "tls":
+                    server.starttls()
+
+            if setting.get("smtp_user") and setting.get("smtp_password_encrypted"):
+                server.login(setting["smtp_user"], setting["smtp_password_encrypted"])
+
+            server.quit()
+            test_result = "success"
+            test_message = "SMTP connection successful"
+
+        except smtplib.SMTPAuthenticationError:
+            test_message = "Authentication failed - check username and password"
+        except smtplib.SMTPConnectError:
+            test_message = "Could not connect to SMTP server"
+        except Exception as e:
+            test_message = f"Connection error: {str(e)}"
+
+        # Update test result columns
+        cur.execute(
+            """UPDATE email_imap_settings
+               SET smtp_test_result = %s, smtp_test_message = %s, smtp_tested_at = NOW()
+               WHERE id = %s""",
+            (test_result, test_message, setting_id),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify(
+            {
+                "success": test_result == "success",
+                "result": test_result,
+                "message": test_message,
+            }
+        )
+    except Exception as e:
+        logger.error(f"SMTP test failed for setting {setting_id}: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@email_manager_bp.route("/api/smtp-accounts", methods=["GET"])
+@login_required
+def get_smtp_accounts():
+    """Get IMAP accounts that have SMTP configured (for From dropdown)."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT id, name, from_email, from_name, smtp_test_result
+            FROM email_imap_settings
+            WHERE is_active = true AND smtp_host IS NOT NULL AND from_email IS NOT NULL
+            ORDER BY id
+            """
+        )
+        accounts = [dict(r) for r in cur.fetchall()]
+        cur.close()
+        conn.close()
+        return jsonify({"success": True, "accounts": accounts})
+    except Exception as e:
+        logger.error(f"Failed to get SMTP accounts: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================

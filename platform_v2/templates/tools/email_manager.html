@@ -2367,6 +2367,35 @@
     overflow-y: auto;
 }
 
+.email-draft-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--em-border);
+}
+
+.email-draft-status {
+    display: inline-block;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-left: auto;
+    text-transform: uppercase;
+}
+
+.email-draft-status--sent {
+    background: rgba(0, 255, 65, 0.15);
+    color: var(--em-success);
+}
+
+.email-draft-status--queued {
+    background: rgba(255, 170, 0, 0.15);
+    color: var(--em-warning);
+}
+
 /* Action Buttons */
 .email-detail-actions {
     display: flex;
@@ -3288,9 +3317,19 @@ async function viewEmail(id) {
             email.drafts.forEach(function(d) {
                 var card = document.createElement('div');
                 card.className = 'email-draft-card';
+                var subjRow = document.createElement('div');
+                subjRow.style.cssText = 'display:flex;align-items:center;gap:8px;';
                 var subj = document.createElement('div');
                 subj.className = 'email-draft-subject';
                 subj.textContent = d.subject || '';
+                subj.style.flex = '1';
+                subjRow.appendChild(subj);
+                if (d.status && d.status !== 'draft') {
+                    var badge = document.createElement('span');
+                    badge.className = 'email-draft-status email-draft-status--' + d.status;
+                    badge.textContent = d.status;
+                    subjRow.appendChild(badge);
+                }
                 var body = document.createElement('div');
                 body.className = 'email-draft-body';
                 if (d.body_html) {
@@ -3303,8 +3342,24 @@ async function viewEmail(id) {
                 } else {
                     body.textContent = d.body_text || '';
                 }
-                card.appendChild(subj);
+                card.appendChild(subjRow);
                 card.appendChild(body);
+                // Send buttons (only for drafts in 'draft' status)
+                if (d.status === 'draft') {
+                    var actions = document.createElement('div');
+                    actions.className = 'email-draft-actions';
+                    var sendBtn = document.createElement('button');
+                    sendBtn.className = 'em-btn em-btn--sm em-btn--primary';
+                    sendBtn.innerHTML = '<i data-lucide="send"></i> Send Now';
+                    sendBtn.onclick = (function(draftId) { return function() { sendDraft(draftId, true); }; })(d.id);
+                    var approvalBtn = document.createElement('button');
+                    approvalBtn.className = 'em-btn em-btn--sm em-btn--outline';
+                    approvalBtn.innerHTML = '<i data-lucide="shield-check"></i> Send via Approval';
+                    approvalBtn.onclick = (function(draftId) { return function() { sendDraft(draftId, false); }; })(d.id);
+                    actions.appendChild(sendBtn);
+                    actions.appendChild(approvalBtn);
+                    card.appendChild(actions);
+                }
                 draftsContent.appendChild(card);
             });
         } else {
@@ -3507,6 +3562,23 @@ async function generateDraft(id) {
             }
             card.appendChild(subj);
             card.appendChild(body);
+            // Add send buttons for the new draft
+            var draftId = data.draft.id || data.draft_id;
+            if (draftId) {
+                var actions = document.createElement('div');
+                actions.className = 'email-draft-actions';
+                var sendBtn = document.createElement('button');
+                sendBtn.className = 'em-btn em-btn--sm em-btn--primary';
+                sendBtn.innerHTML = '<i data-lucide="send"></i> Send Now';
+                sendBtn.onclick = (function(id) { return function() { sendDraft(id, true); }; })(draftId);
+                var approvalBtn = document.createElement('button');
+                approvalBtn.className = 'em-btn em-btn--sm em-btn--outline';
+                approvalBtn.innerHTML = '<i data-lucide="shield-check"></i> Send via Approval';
+                approvalBtn.onclick = (function(id) { return function() { sendDraft(id, false); }; })(draftId);
+                actions.appendChild(sendBtn);
+                actions.appendChild(approvalBtn);
+                card.appendChild(actions);
+            }
             draftsContent.insertBefore(card, draftsContent.firstChild);
             showToast('Draft reply generated', 'success');
             if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -3516,6 +3588,33 @@ async function generateDraft(id) {
     } catch (error) {
         showToast('Error generating draft', 'error');
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INBOX - SEND DRAFT
+// ═══════════════════════════════════════════════════════════════════════════════
+async function sendDraft(draftId, direct) {
+    if (!draftId) return;
+    var action = direct ? 'send this email now' : 'queue this for approval';
+    showConfirm('Send Email', 'Are you sure you want to ' + action + '?', async function() {
+        try {
+            var resp = await fetch('/tools/email-manager/api/drafts/' + draftId + '/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ direct: direct })
+            });
+            var data = await resp.json();
+            if (data.success) {
+                showToast(data.message, 'success');
+                viewEmail(currentEmailId); // Refresh to update draft status
+            } else {
+                showToast('Error: ' + (data.error || 'Send failed'), 'error');
+            }
+        } catch (e) {
+            console.error('Send failed:', e);
+            showToast('Network error sending email', 'error');
+        }
+    });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

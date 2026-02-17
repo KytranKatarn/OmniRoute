@@ -697,43 +697,100 @@ def update_draft(draft_id):
 @email_manager_bp.route("/api/drafts/<int:draft_id>/send", methods=["POST"])
 @login_required
 def send_draft(draft_id):
-    """Queue a draft for sending (goes through approval for tier 2)."""
+    """Send a draft directly via SMTP or queue for approval."""
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute("SELECT * FROM email_drafts WHERE id = %s AND status = 'draft'", (draft_id,))
         draft = cur.fetchone()
-
         if not draft:
-            cur.close()
-            conn.close()
-            return jsonify({"success": False, "error": "Draft not found"}), 404
+            return jsonify({"success": False, "error": "Draft not found or already sent"}), 404
 
-        # Submit to approval queue
-        from agent_loop import request_approval
+        # Get SMTP settings
+        cur.execute("SELECT * FROM email_settings WHERE is_default = TRUE AND is_active = TRUE LIMIT 1")
+        smtp = cur.fetchone()
+        if not smtp:
+            return jsonify({"success": False, "error": "No default SMTP configured"}), 400
 
-        approval_id = request_approval(
-            action_type="send_email",
-            action_data={
-                "recipient": draft["to_address"],
-                "subject": draft["subject"],
-                "body_html": draft["body_html"] or draft["body_text"],
-                "draft_id": draft_id,
-            },
-            reason=f"Send email reply to {draft['to_address']}: {draft['subject']}",
-            requested_by="email_intelligence",
-            tier=2,
-        )
+        direct = False
+        if request.is_json:
+            direct = request.json.get("direct", False)
 
-        cur.execute(
-            "UPDATE email_drafts SET status = 'queued', approval_id = %s, updated_at = NOW() WHERE id = %s",
-            (approval_id, draft_id),
-        )
-        conn.commit()
+        if direct:
+            # Direct send via SMTP
+            import smtplib
+            from email.mime.text import MIMEText
+            from email.mime.multipart import MIMEMultipart
+
+            msg = MIMEMultipart("alternative")
+            msg["From"] = f"{smtp['from_name']} <{smtp['from_email']}>"
+            msg["To"] = draft["to_address"]
+            msg["Subject"] = draft["subject"]
+            if draft.get("body_text"):
+                msg.attach(MIMEText(draft["body_text"], "plain"))
+            if draft.get("body_html"):
+                msg.attach(MIMEText(draft["body_html"], "html"))
+
+            # Add In-Reply-To header if replying
+            if draft.get("inbox_email_id"):
+                cur.execute("SELECT message_id FROM email_inbox WHERE id = %s", (draft["inbox_email_id"],))
+                orig = cur.fetchone()
+                if orig and orig.get("message_id"):
+                    msg["In-Reply-To"] = orig["message_id"]
+                    msg["References"] = orig["message_id"]
+
+            if smtp["encryption"] == "ssl":
+                server = smtplib.SMTP_SSL(smtp["smtp_host"], smtp["smtp_port"])
+            else:
+                server = smtplib.SMTP(smtp["smtp_host"], smtp["smtp_port"])
+                if smtp["encryption"] == "tls":
+                    server.starttls()
+            server.login(smtp["smtp_user"], smtp["smtp_password_encrypted"])
+            server.send_message(msg)
+            server.quit()
+
+            cur.execute("UPDATE email_drafts SET status = 'sent', updated_at = NOW() WHERE id = %s", (draft_id,))
+
+            # Log the send
+            cur.execute(
+                """
+                INSERT INTO email_logs (recipient, subject, body_preview, status, sent_at, created_by, created_at)
+                VALUES (%s, %s, %s, 'sent', NOW(), %s, NOW())
+            """,
+                (draft["to_address"], draft["subject"], (draft.get("body_text") or "")[:200], current_user.id),
+            )
+
+            conn.commit()
+            return jsonify({"success": True, "message": "Email sent successfully", "method": "direct"})
+        else:
+            # Approval flow
+            from agent_loop import request_approval
+
+            approval_id = request_approval(
+                action_type="send_email",
+                action_data={
+                    "recipient": draft["to_address"],
+                    "subject": draft["subject"],
+                    "body_html": draft["body_html"] or draft["body_text"],
+                    "draft_id": draft_id,
+                },
+                reason=f"Send email reply to {draft['to_address']}: {draft['subject']}",
+                requested_by="email_intelligence",
+                tier=2,
+            )
+
+            cur.execute(
+                "UPDATE email_drafts SET status = 'queued', approval_id = %s, updated_at = NOW() WHERE id = %s",
+                (approval_id, draft_id),
+            )
+            conn.commit()
+            return jsonify(
+                {"success": True, "message": "Queued for approval", "approval_id": approval_id, "method": "approval"}
+            )
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Send draft failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
         cur.close()
         conn.close()
-
-        return jsonify({"success": True, "approval_id": approval_id, "message": "Draft queued for approval"})
-    except Exception as e:
-        logger.error(f"Draft send failed: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500

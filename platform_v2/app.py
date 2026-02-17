@@ -876,6 +876,48 @@ def api_directory():
     return redirect("/business/api/directory")
 
 
+@app.route("/api/module-agents")
+def api_module_agents():
+    """Get the assigned agent for a module (Project #91 Agent Badge System).
+    No auth required — returns only public agent info for badge display."""
+    module_id = request.args.get("module", "")
+    if not module_id:
+        return jsonify({"agent_name": None})
+
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT a.name AS agent_name, a.model, bs.station_code, a.status
+            FROM bridge_stations bs
+            JOIN station_assignments sa ON bs.id = sa.station_id AND sa.is_active = TRUE
+            JOIN agents a ON sa.agent_id = a.id AND a.status = 'active'
+            WHERE bs.is_active = TRUE AND %s = ANY(bs.modules)
+            ORDER BY sa.priority
+            LIMIT 1
+        """,
+            (module_id,),
+        )
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+
+        if row:
+            return jsonify(
+                {
+                    "agent_name": row["agent_name"],
+                    "model": row["model"],
+                    "station_code": row["station_code"],
+                    "status": row["status"] or "active",
+                }
+            )
+        return jsonify({"agent_name": None})
+    except Exception as e:
+        logger.warning(f"module-agents API error: {e}")
+        return jsonify({"agent_name": None})
+
+
 @app.route("/dashboard")
 @login_required
 def dashboard():

@@ -250,8 +250,16 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        self.scheduler.add_job(
+            with_app_context(self._track_agent_hr),
+            trigger=IntervalTrigger(minutes=5),
+            id="agent_hr_tracker",
+            name="Agent Loop: HR Tracker",
+            replace_existing=True,
+        )
+
         self._running = True
-        logger.info("Agent loop started with 12 jobs")
+        logger.info("Agent loop started with 13 jobs")
 
     def stop(self):
         """Remove agent loop jobs from the scheduler."""
@@ -264,6 +272,7 @@ class AgentLoop:
             "agent_email_analyze",
             "agent_telegram_notify",
             "agent_email_telegram_notify",
+            "agent_hr_tracker",
             "agent_browser_tasks",
             "agent_briefings",
             "agent_anomaly_detection",
@@ -1277,6 +1286,293 @@ class AgentLoop:
         else:
             logger.warning(f"Unknown approved action type: {action_type}")
             return {"skipped": True, "reason": f"Unknown action type: {action_type}"}
+
+    # ------------------------------------------------------------------
+    # HR Tracker (Project #91 — Phase 7)
+    # ------------------------------------------------------------------
+
+    def _track_agent_hr(self):
+        """
+        Aggregate task_execution_log into agent_daily_summary.
+        Check for overwork, high error rates, and idle agents.
+        Create alerts and send Telegram notifications for critical issues.
+        Runs every 5 minutes.
+        """
+        start = time.time()
+        processed = 0
+        alerts_created = 0
+
+        try:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            if not self._is_enabled(cur, "hr_tracker_enabled"):
+                cur.close()
+                conn.close()
+                return
+
+            today = datetime.utcnow().date()
+
+            # 1. Aggregate today's task_execution_log into agent_daily_summary
+            cur.execute("""
+                SELECT agent_id,
+                       COUNT(*) as total_tasks,
+                       COUNT(CASE WHEN success = TRUE THEN 1 END) as successful,
+                       COUNT(CASE WHEN success = FALSE THEN 1 END) as failed,
+                       COALESCE(SUM(duration_ms), 0) as total_duration,
+                       COALESCE(AVG(duration_ms), 0) as avg_duration,
+                       ARRAY_AGG(DISTINCT model_used) FILTER (WHERE model_used IS NOT NULL) as models,
+                       ARRAY_AGG(DISTINCT module_source) FILTER (WHERE module_source IS NOT NULL) as modules,
+                       ARRAY_AGG(DISTINCT capability) FILTER (WHERE capability IS NOT NULL) as capabilities
+                FROM task_execution_log
+                WHERE created_at::date = %s AND agent_id IS NOT NULL
+                GROUP BY agent_id
+            """, (today,))
+            agent_stats = cur.fetchall()
+
+            for stat in agent_stats:
+                error_rate = 0
+                if stat["total_tasks"] > 0:
+                    error_rate = round(
+                        (stat["failed"] / stat["total_tasks"]) * 100, 2
+                    )
+
+                # Calculate utilization: tasks * avg_duration / 5min window
+                # Simplified: fraction of time spent on tasks in the day so far
+                hours_elapsed = max(
+                    (datetime.utcnow() - datetime.combine(today, datetime.min.time())).total_seconds() / 3600,
+                    0.1,
+                )
+                work_hours = stat["total_duration"] / 3_600_000  # ms → hours
+                utilization = min(round((work_hours / hours_elapsed) * 100, 2), 100)
+
+                cur.execute("""
+                    INSERT INTO agent_daily_summary
+                    (agent_id, summary_date, total_tasks, successful_tasks, failed_tasks,
+                     total_duration_ms, avg_duration_ms, models_used, modules_served,
+                     capabilities_used, utilization_pct, error_rate_pct, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                    ON CONFLICT (agent_id, summary_date) DO UPDATE SET
+                        total_tasks = EXCLUDED.total_tasks,
+                        successful_tasks = EXCLUDED.successful_tasks,
+                        failed_tasks = EXCLUDED.failed_tasks,
+                        total_duration_ms = EXCLUDED.total_duration_ms,
+                        avg_duration_ms = EXCLUDED.avg_duration_ms,
+                        models_used = EXCLUDED.models_used,
+                        modules_served = EXCLUDED.modules_served,
+                        capabilities_used = EXCLUDED.capabilities_used,
+                        utilization_pct = EXCLUDED.utilization_pct,
+                        error_rate_pct = EXCLUDED.error_rate_pct,
+                        updated_at = NOW()
+                """, (
+                    stat["agent_id"], today, stat["total_tasks"],
+                    stat["successful"], stat["failed"],
+                    stat["total_duration"], round(float(stat["avg_duration"]), 1),
+                    stat["models"] or [], stat["modules"] or [],
+                    stat["capabilities"] or [], utilization, error_rate,
+                ))
+                processed += 1
+
+            # 2. Check for alert conditions
+
+            # 2a. High error rate (>30% with at least 5 tasks)
+            cur.execute("""
+                SELECT ads.agent_id, a.name, ads.error_rate_pct, ads.total_tasks
+                FROM agent_daily_summary ads
+                JOIN agents a ON a.id = ads.agent_id
+                WHERE ads.summary_date = %s
+                  AND ads.error_rate_pct > 30
+                  AND ads.total_tasks >= 5
+            """, (today,))
+            for row in cur.fetchall():
+                alerts_created += self._create_hr_alert(
+                    cur, row["agent_id"],
+                    "high_error_rate", "warning",
+                    f"{row['name']}: {row['error_rate_pct']}% error rate",
+                    f"Agent {row['name']} has a {row['error_rate_pct']}% error rate "
+                    f"across {row['total_tasks']} tasks today.",
+                    {"error_rate": float(row["error_rate_pct"]),
+                     "total_tasks": row["total_tasks"]},
+                )
+
+            # 2b. Overwork: >8h continuous work (total_duration_ms > 28800000)
+            cur.execute("""
+                SELECT ads.agent_id, a.name, ads.total_duration_ms
+                FROM agent_daily_summary ads
+                JOIN agents a ON a.id = ads.agent_id
+                WHERE ads.summary_date = %s
+                  AND ads.total_duration_ms > 28800000
+            """, (today,))
+            for row in cur.fetchall():
+                hours = round(row["total_duration_ms"] / 3_600_000, 1)
+                alerts_created += self._create_hr_alert(
+                    cur, row["agent_id"],
+                    "overwork", "critical",
+                    f"{row['name']}: {hours}h continuous work",
+                    f"Agent {row['name']} has worked {hours} hours today. "
+                    f"Consider initiating a rest cycle.",
+                    {"work_hours": hours},
+                )
+
+                # Auto-initiate rest cycle for overworked agents
+                cur.execute("""
+                    INSERT INTO agent_rest_cycles
+                    (agent_id, reason, started_at)
+                    SELECT %s, 'Automatic rest: exceeded 8h work threshold', NOW()
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM agent_rest_cycles
+                        WHERE agent_id = %s
+                          AND started_at > NOW() - INTERVAL '1 hour'
+                    )
+                """, (row["agent_id"], row["agent_id"]))
+
+            # 2c. Update emotional state based on workload
+            cur.execute("""
+                SELECT ads.agent_id, ads.utilization_pct, ads.error_rate_pct
+                FROM agent_daily_summary ads
+                WHERE ads.summary_date = %s
+            """, (today,))
+            for row in cur.fetchall():
+                stress = min(float(row["utilization_pct"]) / 100, 1.0)
+                energy = max(1.0 - stress * 0.5 - float(row["error_rate_pct"]) / 200, 0.1)
+                mood = "stressed" if stress > 0.8 else "focused" if stress > 0.4 else "relaxed"
+
+                cur.execute("""
+                    UPDATE agent_emotional_state
+                    SET stress_level = %s, energy_level = %s, current_mood = %s,
+                        timestamp = NOW()
+                    WHERE agent_id = %s
+                """, (round(stress, 2), round(energy, 2), mood, row["agent_id"]))
+
+            conn.commit()
+
+            # 3. Send Telegram alerts for critical issues
+            self._send_hr_telegram_alerts(cur, conn)
+
+            conn.commit()
+            cur.close()
+            conn.close()
+
+            duration_ms = int((time.time() - start) * 1000)
+            if processed > 0 or alerts_created > 0:
+                logger.info(
+                    f"HR tracker: {processed} agents updated, "
+                    f"{alerts_created} alerts created ({duration_ms}ms)"
+                )
+            self._log_cycle(
+                "hr_tracker", processed, 0, duration_ms,
+                {"alerts_created": alerts_created},
+            )
+
+        except Exception as e:
+            logger.error(f"HR tracker failed: {e}")
+            self._log_cycle("hr_tracker", 0, 1, int((time.time() - start) * 1000),
+                            error_message=str(e))
+
+    def _create_hr_alert(self, cur, agent_id, alert_type, severity, title, message, details=None):
+        """Create an HR alert with deduplication (same type+agent within 1 hour)."""
+        try:
+            cur.execute("""
+                SELECT id FROM agent_alerts
+                WHERE agent_id = %s AND alert_type = %s AND resolved = FALSE
+                  AND created_at > NOW() - INTERVAL '1 hour'
+                LIMIT 1
+            """, (agent_id, alert_type))
+            if cur.fetchone():
+                return 0  # Already alerted recently
+
+            cur.execute("""
+                INSERT INTO agent_alerts
+                (agent_id, alert_type, severity, title, message, details)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (agent_id, alert_type, severity, title, message,
+                  json.dumps(details or {})))
+
+            # Log governance event for critical alerts
+            if severity == "critical":
+                log_governance_event(
+                    "agent_welfare", f"alert_{alert_type}",
+                    "alert_created",
+                    {"agent_id": agent_id, "title": title},
+                )
+
+            return 1
+        except Exception as e:
+            logger.error(f"Failed to create HR alert: {e}")
+            return 0
+
+    def _send_hr_telegram_alerts(self, cur, conn):
+        """Send unnotified critical/warning alerts via Telegram."""
+        try:
+            from ai_bridge.telegram_gateway import TelegramGateway
+            import asyncio
+
+            # Find the running gateway instance
+            gateway = getattr(self.flask_app, "_telegram_gateway", None)
+            if not gateway or not gateway.is_running:
+                return
+
+            # Get unnotified alerts
+            cur.execute("""
+                SELECT aa.id, aa.agent_id, aa.alert_type, aa.severity,
+                       aa.title, aa.message, a.name as agent_name
+                FROM agent_alerts aa
+                LEFT JOIN agents a ON a.id = aa.agent_id
+                WHERE aa.notified_telegram = FALSE
+                  AND aa.severity IN ('critical', 'warning')
+                ORDER BY
+                    CASE aa.severity WHEN 'critical' THEN 1 ELSE 2 END,
+                    aa.created_at ASC
+                LIMIT 5
+            """)
+            alerts = cur.fetchall()
+            if not alerts:
+                return
+
+            # Get authorized Telegram user
+            cur.execute("""
+                SELECT telegram_id FROM telegram_users
+                WHERE is_authorized = TRUE AND user_id IS NOT NULL
+                LIMIT 1
+            """)
+            tg_user = cur.fetchone()
+            if not tg_user:
+                return
+
+            telegram_id = tg_user["telegram_id"]
+            loop = gateway._loop
+
+            for alert in alerts:
+                severity_icon = "\u26a0\ufe0f" if alert["severity"] == "warning" else "\U0001f6a8"
+                text = (
+                    f"{severity_icon} *HR Alert: {alert['title']}*\n\n"
+                    f"{alert['message']}\n\n"
+                    f"_Type: {alert['alert_type']} | Agent: {alert['agent_name'] or 'System'}_"
+                )
+
+                try:
+                    asyncio.run_coroutine_threadsafe(
+                        gateway._application.bot.send_message(
+                            chat_id=telegram_id,
+                            text=text,
+                            parse_mode="Markdown",
+                        ),
+                        loop,
+                    )
+
+                    cur.execute(
+                        "UPDATE agent_alerts SET notified_telegram = TRUE WHERE id = %s",
+                        (alert["id"],),
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to send HR alert to Telegram: {e}")
+
+            conn.commit()
+
+        except ImportError:
+            pass  # Telegram not available
+        except Exception as e:
+            logger.error(f"HR Telegram alerts failed: {e}")
 
     # ------------------------------------------------------------------
     # Helpers

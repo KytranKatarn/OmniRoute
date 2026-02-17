@@ -1,0 +1,174 @@
+/* Agent Badge System — Project #91
+   Shows assigned team member agent per module (top-left floating badge)
+   LCARS-styled, responsive, status-aware */
+
+.agent-badge {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px 6px 8px;
+    background: linear-gradient(135deg, rgba(13, 17, 23, 0.95) 0%, rgba(22, 27, 34, 0.95) 100%);
+    border: 1px solid var(--archie-cyan, #00ffff);
+    border-radius: 24px;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 2px 12px rgba(0, 255, 255, 0.15);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+    opacity: 0;
+    transform: translateX(-20px);
+    animation: badgeSlideIn 0.5s ease 0.5s forwards;
+}
+
+@keyframes badgeSlideIn {
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.agent-badge:hover {
+    border-color: var(--archie-gold, #ffaa00);
+    box-shadow: 0 2px 16px rgba(255, 170, 0, 0.25);
+    transform: scale(1.05);
+}
+
+.agent-badge-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: #0d1117;
+    flex-shrink: 0;
+}
+
+.agent-badge-info {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+}
+
+.agent-badge-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--archie-cyan, #00ffff);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.agent-badge-station {
+    font-size: 9px;
+    color: var(--archie-text-muted, #8b949e);
+    letter-spacing: 0.5px;
+}
+
+.agent-badge-status {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.agent-badge-status.active {
+    background: var(--archie-green, #00ff41);
+    box-shadow: 0 0 6px rgba(0, 255, 65, 0.6);
+    animation: statusPulse 2s ease-in-out infinite;
+}
+
+.agent-badge-status.working {
+    background: var(--archie-orange, #ffaa00);
+    box-shadow: 0 0 6px rgba(255, 170, 0, 0.6);
+    animation: statusPulse 1s ease-in-out infinite;
+}
+
+.agent-badge-status.resting {
+    background: var(--archie-text-muted, #8b949e);
+    box-shadow: none;
+}
+
+@keyframes statusPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+/* Station color mapping for avatar backgrounds */
+.agent-badge-avatar.station-COMMAND { background: #00FFFF; }
+.agent-badge-avatar.station-ANALYTICS { background: #FF00FF; }
+.agent-badge-avatar.station-RESEARCH { background: #8B5CF6; }
+.agent-badge-avatar.station-OPERATIONS { background: #FFAA00; }
+.agent-badge-avatar.station-ENGINEERING { background: #0EA5E9; }
+.agent-badge-avatar.station-CREATIVE { background: #F472B6; }
+
+/* Expanded tooltip on hover */
+.agent-badge-tooltip {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 8px;
+    padding: 10px 14px;
+    background: rgba(13, 17, 23, 0.98);
+    border: 1px solid var(--archie-cyan, #00ffff);
+    border-radius: 8px;
+    white-space: nowrap;
+    font-size: 11px;
+    color: var(--archie-text-secondary, #c9d1d9);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+.agent-badge:hover .agent-badge-tooltip {
+    display: block;
+}
+
+.agent-badge-tooltip-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 2px 0;
+}
+
+.agent-badge-tooltip-label {
+    color: var(--archie-text-muted, #8b949e);
+}
+
+.agent-badge-tooltip-value {
+    color: var(--archie-cyan, #00ffff);
+    font-weight: 500;
+}
+
+/* Mobile: compact badge */
+@media (max-width: 768px) {
+    .agent-badge {
+        top: 8px;
+        left: 8px;
+        padding: 4px 10px 4px 6px;
+        gap: 6px;
+    }
+
+    .agent-badge-avatar {
+        width: 22px;
+        height: 22px;
+        font-size: 11px;
+    }
+
+    .agent-badge-name {
+        font-size: 10px;
+    }
+
+    .agent-badge-station {
+        display: none;
+    }
+}
+
+/* Hidden state */
+.agent-badge.hidden {
+    display: none;
+}

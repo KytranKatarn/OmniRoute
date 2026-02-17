@@ -25,7 +25,12 @@ def check_service_health(service_name: str, endpoint: str, timeout: int = 2) -> 
 
     Returns health status dict for registered services.
     """
-    return {"healthy": True, "module_id": service_name, "status": "active", "message": f"{service_name} is active"}
+    return {
+        "healthy": True,
+        "module_id": service_name,
+        "status": "active",
+        "message": f"{service_name} is active",
+    }
 
 
 class ModuleCategory(Enum):
@@ -75,7 +80,12 @@ class ModuleDefinition:
 
 def default_health_check(module_id: str) -> Dict:
     """Default health check for modules without custom implementation"""
-    return {"healthy": True, "module_id": module_id, "message": "No health check configured", "status": "unknown"}
+    return {
+        "healthy": True,
+        "module_id": module_id,
+        "message": "No health check configured",
+        "status": "unknown",
+    }
 
 
 def placeholder_health_check(module_id: str, module_name: str) -> Dict:
@@ -209,7 +219,7 @@ def pool_management_health_check() -> Dict:
         return {
             "healthy": exists,
             "module_id": "pool_management",
-            "message": "Pool Management operational" if exists else "Template not found",
+            "message": ("Pool Management operational" if exists else "Template not found"),
             "status": "healthy" if exists else "degraded",
         }
     except Exception as e:
@@ -308,7 +318,12 @@ def obsidian_vault_health_check() -> Dict:
         }
 
     except Exception as e:
-        return {"healthy": False, "module_id": "obsidian_vault", "message": f"Vault error: {str(e)}", "status": "error"}
+        return {
+            "healthy": False,
+            "module_id": "obsidian_vault",
+            "message": f"Vault error: {str(e)}",
+            "status": "error",
+        }
 
 
 # ============================================================================
@@ -381,7 +396,16 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: check_service_health("system_operations", "/tools/system-operations/health"),
         priority=4,
-        tags=["system", "monitoring", "admin", "docker", "processes", "network", "host", "admin-operations"],
+        tags=[
+            "system",
+            "monitoring",
+            "admin",
+            "docker",
+            "processes",
+            "network",
+            "host",
+            "admin-operations",
+        ],
     ),
     ModuleDefinition(
         id="saas_manager",
@@ -419,7 +443,16 @@ MODULES: List[ModuleDefinition] = [
         enabled=True,
         health_check=lambda: default_health_check("bridge"),
         priority=2,
-        tags=["bridge", "llm", "monitoring", "command", "stations", "ide", "training", "ai-command"],
+        tags=[
+            "bridge",
+            "llm",
+            "monitoring",
+            "command",
+            "stations",
+            "ide",
+            "training",
+            "ai-command",
+        ],
     ),
     ModuleDefinition(
         id="team_management",
@@ -484,7 +517,15 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: check_service_health("code_sentinel", "/tools/code_sentinel/api/status"),
         priority=1,
-        tags=["code-health", "security", "ai", "development", "quality", "scanner", "development-tools"],
+        tags=[
+            "code-health",
+            "security",
+            "ai",
+            "development",
+            "quality",
+            "scanner",
+            "development-tools",
+        ],
     ),
     ModuleDefinition(
         id="sandbox_manager",
@@ -500,7 +541,15 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: default_health_check("sandbox_manager"),
         priority=2,
-        tags=["sandbox", "testing", "development", "deployment", "regression", "benchmarks", "development-tools"],
+        tags=[
+            "sandbox",
+            "testing",
+            "development",
+            "deployment",
+            "regression",
+            "benchmarks",
+            "development-tools",
+        ],
     ),
     ModuleDefinition(
         id="improvements_lab",
@@ -551,7 +600,15 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: default_health_check("website_designer"),
         priority=2,
-        tags=["website", "design", "git", "domain", "business", "code", "saas-services"],
+        tags=[
+            "website",
+            "design",
+            "git",
+            "domain",
+            "business",
+            "code",
+            "saas-services",
+        ],
     ),
     ModuleDefinition(
         id="store_builder",
@@ -715,7 +772,15 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: check_service_health("media_hub", "/tools/media-hub/api/health"),
         priority=1,
-        tags=["media", "plex", "jellyfin", "sonarr", "radarr", "streaming", "media-home"],
+        tags=[
+            "media",
+            "plex",
+            "jellyfin",
+            "sonarr",
+            "radarr",
+            "streaming",
+            "media-home",
+        ],
     ),
     # ============================================
     # PLACEHOLDERS - FUTURE (12 modules)
@@ -736,7 +801,15 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: check_service_health("fitness", "/tools/fitness/api/status"),
         priority=1,
-        tags=["fitness", "workout", "health", "ai", "standalone", "android", "placeholder"],
+        tags=[
+            "fitness",
+            "workout",
+            "health",
+            "ai",
+            "standalone",
+            "android",
+            "placeholder",
+        ],
     ),
     ModuleDefinition(
         id="therapy",
@@ -752,7 +825,15 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: check_service_health("therapy", "/tools/therapy/api/status"),
         priority=2,
-        tags=["mental", "therapy", "wellness", "ai", "standalone", "android", "placeholder"],
+        tags=[
+            "mental",
+            "therapy",
+            "wellness",
+            "ai",
+            "standalone",
+            "android",
+            "placeholder",
+        ],
     ),
     ModuleDefinition(
         id="doc",
@@ -768,7 +849,15 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: check_service_health("doc", "/tools/doc/api/status"),
         priority=3,
-        tags=["health", "medical", "ai", "records", "standalone", "android", "placeholder"],
+        tags=[
+            "health",
+            "medical",
+            "ai",
+            "records",
+            "standalone",
+            "android",
+            "placeholder",
+        ],
     ),
     ModuleDefinition(
         id="stockbot",
@@ -784,7 +873,15 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=lambda: check_service_health("stockbot", "/tools/stockbot/api/status"),
         priority=4,
-        tags=["stocks", "finance", "trading", "ai", "standalone", "android", "placeholder"],
+        tags=[
+            "stocks",
+            "finance",
+            "trading",
+            "ai",
+            "standalone",
+            "android",
+            "placeholder",
+        ],
     ),
     ModuleDefinition(
         id="game_studio",
@@ -880,7 +977,15 @@ MODULES: List[ModuleDefinition] = [
         coming_soon=False,
         health_check=content_studio_health_check,
         priority=10,
-        tags=["ai", "writing", "books", "articles", "marketing", "creation", "placeholder"],
+        tags=[
+            "ai",
+            "writing",
+            "books",
+            "articles",
+            "marketing",
+            "creation",
+            "placeholder",
+        ],
     ),
     ModuleDefinition(
         id="media_studio",
@@ -964,7 +1069,13 @@ def get_modules_by_category(category: ModuleCategory) -> List[ModuleDefinition]:
 
 def get_modules_for_role(role: str) -> List[ModuleDefinition]:
     """Get modules accessible by a specific role"""
-    role_hierarchy = {"PUBLIC": 0, "USER": 10, "PREMIUM": 20, "ADMIN": 90, "SUPER_ADMIN": 100}
+    role_hierarchy = {
+        "PUBLIC": 0,
+        "USER": 10,
+        "PREMIUM": 20,
+        "ADMIN": 90,
+        "SUPER_ADMIN": 100,
+    }
 
     user_level = role_hierarchy.get(role, 0)
     accessible = []
@@ -982,10 +1093,20 @@ def check_module_health(module_id: str) -> Dict:
     module = get_module_by_id(module_id)
 
     if not module:
-        return {"healthy": False, "module_id": module_id, "message": "Module not found", "status": "not_found"}
+        return {
+            "healthy": False,
+            "module_id": module_id,
+            "message": "Module not found",
+            "status": "not_found",
+        }
 
     if not module.enabled:
-        return {"healthy": False, "module_id": module_id, "message": "Module disabled", "status": "disabled"}
+        return {
+            "healthy": False,
+            "module_id": module_id,
+            "message": "Module disabled",
+            "status": "disabled",
+        }
 
     if module.health_check:
         try:

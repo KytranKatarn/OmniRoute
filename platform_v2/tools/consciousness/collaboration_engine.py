@@ -20,6 +20,13 @@ from enum import Enum
 
 logger = logging.getLogger(__name__)
 
+try:
+    from ai_bridge.bridge_dispatcher import get_dispatcher
+
+    _dispatcher = get_dispatcher()
+except Exception:
+    _dispatcher = None
+
 
 def get_db():
     """Get database connection"""
@@ -119,7 +126,11 @@ class CollaborationEngine:
         return self._claude
 
     def start_session(
-        self, topic: str, max_turns: int = 10, user_id: int = None, system_hint: str = ""
+        self,
+        topic: str,
+        max_turns: int = 10,
+        user_id: int = None,
+        system_hint: str = "",
     ) -> CollabSession:
         """Start a new collaboration session — creates DB record + in-memory cache"""
         session_uuid = str(uuid.uuid4())
@@ -139,7 +150,13 @@ class CollaborationEngine:
                 VALUES (%s, %s, %s, %s, %s)
                 RETURNING id
             """,
-                (session_uuid, user_id, topic, capped_turns, psycopg2.extras.Json(metadata) if metadata else None),
+                (
+                    session_uuid,
+                    user_id,
+                    topic,
+                    capped_turns,
+                    psycopg2.extras.Json(metadata) if metadata else None,
+                ),
             )
             db_id = cur.fetchone()["id"]
             conn.commit()
@@ -198,7 +215,7 @@ class CollaborationEngine:
                     role="archie",
                     content=archie_response,
                     turn=session.current_turn,
-                    model_used="dolphin3:latest",
+                    model_used=(_dispatcher.get_model_for_capability("conversation") if _dispatcher else "unknown"),
                     duration_ms=archie_ms,
                 )
                 session.messages.append(archie_msg)
@@ -482,7 +499,7 @@ Summary (bullet points only):"""
                     role="archie",
                     content=archie_response,
                     turn=session.current_turn,
-                    model_used="dolphin3:latest",
+                    model_used=(_dispatcher.get_model_for_capability("conversation") if _dispatcher else "unknown"),
                     duration_ms=archie_ms,
                 )
                 session.messages.append(archie_msg)
@@ -579,7 +596,14 @@ Summary (bullet points only):"""
                 (session_id, role, content, turn, model_used, duration_ms)
                 VALUES (%s, %s, %s, %s, %s, %s)
             """,
-                (session.db_id, msg.role, msg.content, msg.turn, msg.model_used or None, msg.duration_ms),
+                (
+                    session.db_id,
+                    msg.role,
+                    msg.content,
+                    msg.turn,
+                    msg.model_used or None,
+                    msg.duration_ms,
+                ),
             )
             conn.commit()
             cur.close()
@@ -723,7 +747,7 @@ Summary (bullet points only):"""
                     "status": r["status"],
                     "current_turn": r["current_turn"],
                     "max_turns": r["max_turns"],
-                    "created_at": r["created_at"].isoformat() if r["created_at"] else "",
+                    "created_at": (r["created_at"].isoformat() if r["created_at"] else ""),
                     "message_count": r["message_count"],
                     "messages": [],  # Not loaded for list view
                 }
@@ -774,7 +798,7 @@ Summary (bullet points only):"""
                 role="archie",
                 content=f"**Execution Plan:**\n\n{plan}",
                 turn=1,
-                model_used="dolphin3:latest",
+                model_used=(_dispatcher.get_model_for_capability("conversation") if _dispatcher else "unknown"),
                 duration_ms=plan_ms,
             )
             session.messages.append(plan_msg)
@@ -817,7 +841,7 @@ Summary (bullet points only):"""
                 if i % 2 == 0:
                     result = await self._archie_execute_step(session, step)
                     author = "archie"
-                    model = "dolphin3:latest"
+                    model = _dispatcher.get_model_for_capability("conversation") if _dispatcher else "unknown"
                 else:
                     result = await self._claude_execute_step(session, step)
                     author = "claude"
@@ -852,7 +876,7 @@ Summary (bullet points only):"""
                 role="archie",
                 content=synthesis,
                 turn=session.current_turn,
-                model_used="dolphin3:latest",
+                model_used=(_dispatcher.get_model_for_capability("conversation") if _dispatcher else "unknown"),
                 duration_ms=synth_ms,
             )
             session.messages.append(synth_msg)
@@ -1020,7 +1044,18 @@ Keep concise (2-3 paragraphs)."""
     def _classify_work_product(self, step: str, content: str) -> str:
         """Classify the type of work product based on step description and content"""
         step_lower = (step + " " + content[:200]).lower()
-        if any(kw in step_lower for kw in ["code", "implement", "function", "class", "script", "def ", "import "]):
+        if any(
+            kw in step_lower
+            for kw in [
+                "code",
+                "implement",
+                "function",
+                "class",
+                "script",
+                "def ",
+                "import ",
+            ]
+        ):
             return "code"
         elif any(kw in step_lower for kw in ["plan", "roadmap", "strategy", "steps", "approach"]):
             return "plan"
@@ -1037,7 +1072,13 @@ Keep concise (2-3 paragraphs)."""
     # =========================================================================
 
     def _save_work_product(
-        self, session: CollabSession, product_type: str, title: str, content: str, author: str, parent_id: int = None
+        self,
+        session: CollabSession,
+        product_type: str,
+        title: str,
+        content: str,
+        author: str,
+        parent_id: int = None,
     ) -> Optional[int]:
         """Save a work product to DB"""
         if not session.db_id:
@@ -1115,9 +1156,9 @@ Keep concise (2-3 paragraphs)."""
                         "parent_id": r["parent_id"],
                         "approved": r["approved"],
                         "approved_by": r["approved_by"],
-                        "approved_at": r["approved_at"].isoformat() if r["approved_at"] else None,
+                        "approved_at": (r["approved_at"].isoformat() if r["approved_at"] else None),
                         "metadata": r["metadata"],
-                        "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                        "created_at": (r["created_at"].isoformat() if r["created_at"] else None),
                     }
                 )
             return products

@@ -13,7 +13,10 @@ class Config:
     """Base configuration"""
 
     # App
-    SECRET_KEY = os.getenv("SECRET_KEY", os.getenv("FLASK_SECRET_KEY", "dev-secret-key-change-in-production"))
+    SECRET_KEY = os.getenv(
+        "SECRET_KEY",
+        os.getenv("FLASK_SECRET_KEY", "dev-secret-key-change-in-production"),
+    )
     DEBUG = os.getenv("FLASK_ENV") == "development"
 
     # Deployment Mode: 'hub' for ARCHIE Hub, 'business_node' for business instances

@@ -2604,6 +2604,209 @@ def health_check():
 
 
 # ============================================================================
+# BRIDGE DISPATCHER ENDPOINTS - Project #91
+# ============================================================================
+
+
+@team_management_bp.route("/api/dispatch/status", methods=["GET"])
+@login_required
+@api_admin_required
+def get_dispatch_status():
+    """Get current BridgeDispatcher status — agents, stations, queue."""
+    try:
+        sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
+        from bridge_dispatcher import get_dispatcher
+
+        dispatcher = get_dispatcher()
+        status = dispatcher.get_dispatch_status()
+        return jsonify(status)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@team_management_bp.route("/api/dispatch/work-queue", methods=["GET"])
+@login_required
+@api_admin_required
+def get_work_queue():
+    """Get recent task_execution_log entries (work queue for Phase 5 UI)."""
+    try:
+        limit = request.args.get("limit", 50, type=int)
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT id, agent_name, module_source, task_type, capability,
+                   model_used, provider, duration_ms, success, error_message,
+                   station_code, created_at
+            FROM task_execution_log
+            ORDER BY created_at DESC
+            LIMIT %s
+        """,
+            (limit,),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({"tasks": [dict(r) for r in rows], "count": len(rows)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@team_management_bp.route("/api/dispatch/agent-summary", methods=["GET"])
+@login_required
+@api_admin_required
+def get_agent_summary():
+    """Get per-agent work summary from v_agent_work_summary view."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT * FROM v_agent_work_summary ORDER BY total_tasks DESC")
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({"agents": [dict(r) for r in rows]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@team_management_bp.route("/api/dispatch/station-summary", methods=["GET"])
+@login_required
+@api_admin_required
+def get_station_summary():
+    """Get station summary with agent counts and activity."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT bs.id, bs.station_code, bs.station_name, bs.full_name,
+                   bs.color, bs.icon, bs.default_llm, bs.modules,
+                   COUNT(sa.id) FILTER (WHERE sa.is_active = TRUE) AS agent_count,
+                   ARRAY_AGG(a.name ORDER BY a.name) FILTER (WHERE a.name IS NOT NULL AND sa.is_active = TRUE) AS agents
+            FROM bridge_stations bs
+            LEFT JOIN station_assignments sa ON bs.id = sa.station_id
+            LEFT JOIN agents a ON sa.agent_id = a.id AND a.status = 'active'
+            WHERE bs.is_active = TRUE
+            GROUP BY bs.id, bs.station_code, bs.station_name, bs.full_name,
+                     bs.color, bs.icon, bs.default_llm, bs.modules
+            ORDER BY bs.id
+        """
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({"stations": [dict(r) for r in rows]})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ============================================================================
+# HR DAILY SUMMARY + ALERTS (Project #91 — Phase 7)
+# ============================================================================
+
+
+@team_management_bp.route("/api/hr/daily-summary", methods=["GET"])
+@login_required
+@api_admin_required
+def get_hr_daily_summary():
+    """Get today's agent daily summaries from agent_daily_summary."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT ads.*, a.name as agent_name, a.model,
+                   bs.station_code, bs.color as station_color
+            FROM agent_daily_summary ads
+            JOIN agents a ON a.id = ads.agent_id
+            LEFT JOIN station_assignments sa ON sa.agent_id = a.id AND sa.is_active = TRUE
+            LEFT JOIN bridge_stations bs ON bs.id = sa.station_id
+            WHERE ads.summary_date = CURRENT_DATE
+            ORDER BY ads.total_tasks DESC
+        """
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({"success": True, "summaries": [dict(r) for r in rows]})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@team_management_bp.route("/api/hr/weekly-performance", methods=["GET"])
+@login_required
+@api_admin_required
+def get_hr_weekly_performance():
+    """Get weekly agent performance from v_agent_weekly_performance view."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT * FROM v_agent_weekly_performance")
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({"success": True, "performance": [dict(r) for r in rows]})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@team_management_bp.route("/api/hr/alerts", methods=["GET"])
+@login_required
+@api_admin_required
+def get_hr_alerts():
+    """Get active (unresolved) agent alerts."""
+    try:
+        include_resolved = request.args.get("include_resolved", "false") == "true"
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        if include_resolved:
+            cur.execute(
+                """
+                SELECT aa.*, a.name as agent_name, bs.station_code
+                FROM agent_alerts aa
+                LEFT JOIN agents a ON a.id = aa.agent_id
+                LEFT JOIN station_assignments sa ON sa.agent_id = a.id AND sa.is_active = TRUE
+                LEFT JOIN bridge_stations bs ON bs.id = sa.station_id
+                ORDER BY aa.created_at DESC LIMIT 100
+            """
+            )
+        else:
+            cur.execute("SELECT * FROM v_active_alerts LIMIT 50")
+
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify({"success": True, "alerts": [dict(r) for r in rows]})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@team_management_bp.route("/api/hr/alerts/<int:alert_id>/resolve", methods=["POST"])
+@login_required
+@api_admin_required
+def resolve_hr_alert(alert_id):
+    """Resolve an agent alert."""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            UPDATE agent_alerts
+            SET resolved = TRUE, resolved_at = NOW(), resolved_by = %s
+            WHERE id = %s
+        """,
+            (current_user.username, alert_id),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
 # SHIFT SCHEDULER ENDPOINTS - Phase 28
 # ============================================================================
 

@@ -25,6 +25,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/admin-ops.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/light-mode.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/agent-badge.css') }}">
 
     <!-- A.R.C.H.I.E. Theme System (light/dark mode) -->
     <script src="{{ url_for('static', filename='js/archie-theme.js') }}"></script>
@@ -282,6 +283,9 @@
 
     <!-- Bootstrap JS (for legacy modules) -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Agent Badge System (Project #91) -->
+    <script src="{{ url_for('static', filename='js/agent-badge.js') }}"></script>
 
     <!-- Extra JS Block -->
     {% block extra_js %}{% endblock %}

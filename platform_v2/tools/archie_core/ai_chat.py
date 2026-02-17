@@ -8,6 +8,14 @@ import json
 import os
 from datetime import datetime
 
+# BridgeDispatcher for centralized model selection
+try:
+    from ai_bridge.bridge_dispatcher import get_dispatcher as _get_dispatcher
+
+    _dispatcher = _get_dispatcher()
+except Exception:
+    _dispatcher = None
+
 
 class ArchieAI:
     """A.R.C.H.I.E.'s AI brain powered by Ollama"""
@@ -16,9 +24,11 @@ class ArchieAI:
         # Local Ollama on the ARCHIE host (reached via host.docker.internal from container)
         primary = os.getenv("OLLAMA_PRIMARY", "host.docker.internal:11434")
         self.primary_url = primary if primary.startswith("http") else f"http://{primary}"
-        # Use conversational models for personality-rich chat (not coding models)
-        self.model = os.getenv("ARCHIE_CHAT_MODEL", "dolphin3-8k:latest")
-        self.fallback_model = os.getenv("ARCHIE_CHAT_FALLBACK", "qwen3-coder-cpu:latest")
+        # Use BridgeDispatcher for model defaults, env vars still override
+        _chat_model = _dispatcher.get_model_for_capability("conversation") if _dispatcher else ""
+        _fallback_model = _dispatcher.get_model_for_capability("code_analysis") if _dispatcher else ""
+        self.model = os.getenv("ARCHIE_CHAT_MODEL", _chat_model or "dolphin3-8k:latest")
+        self.fallback_model = os.getenv("ARCHIE_CHAT_FALLBACK", _fallback_model or "qwen3-coder-cpu:latest")
 
     def chat(self, message, user_context=None, conversation_history=None):
         """

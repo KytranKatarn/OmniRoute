@@ -12,6 +12,14 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
 
+# BridgeDispatcher for centralized model selection
+try:
+    from ai_bridge.bridge_dispatcher import get_dispatcher as _get_dispatcher
+
+    _dispatcher = _get_dispatcher()
+except Exception:
+    _dispatcher = None
+
 
 class IntentParser:
     """Parse natural language into structured intents using local Ollama"""
@@ -37,7 +45,9 @@ class IntentParser:
         ollama_host = os.getenv("OLLAMA_PRIMARY", "host.docker.internal:11434")
         # Ensure http:// prefix
         self.ollama_url = ollama_host if ollama_host.startswith("http") else f"http://{ollama_host}"
-        self.classification_model = "dolphin3-8k:latest"  # Fast classification on GPU
+        # Use BridgeDispatcher for model selection, fall back to hardcoded default
+        _classify_model = _dispatcher.get_model_for_capability("classify") if _dispatcher else ""
+        self.classification_model = _classify_model or "dolphin3-8k:latest"
         self.db_config = {
             "host": os.getenv("DB_HOST", "archie_database"),
             "port": os.getenv("DB_PORT", "5432"),

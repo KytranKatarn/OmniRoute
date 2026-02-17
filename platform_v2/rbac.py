@@ -535,7 +535,10 @@ def log_permission_check(permission: Permission, granted: bool, user=None):
         details = f"Permission check: {permission.value} - {'GRANTED' if granted else 'DENIED'}"
 
         with db.engine.connect() as conn:
-            conn.execute(db.text(query), (user_id, username, "PERMISSION_CHECK", details, datetime.now()))
+            conn.execute(
+                db.text(query),
+                (user_id, username, "PERMISSION_CHECK", details, datetime.now()),
+            )
             conn.commit()
 
     except Exception as e:

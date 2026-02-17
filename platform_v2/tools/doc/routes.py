@@ -3,18 +3,27 @@ DOC Routes - Medical AI Assistant
 Phase 7: Standalone Apps - Uses archie_bridge for local-first AI with team agents
 Updated: 2026-01-21 - Now uses Dr. Amara (Medical Advisor) via archie_bridge
 """
+
 from flask import render_template, jsonify, request
 from . import doc_bp
 import sys
 import logging
 
 # Add ai_bridge to path for archie_bridge import
-sys.path.insert(0, '/mnt/archie_brain/ai_bridge')
+sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
 try:
     from archie_bridge import archie_bridge
+
     BRIDGE_AVAILABLE = True
 except ImportError:
     BRIDGE_AVAILABLE = False
+
+try:
+    from ai_bridge.bridge_dispatcher import get_dispatcher
+
+    _dispatcher = get_dispatcher()
+except Exception:
+    _dispatcher = None
 
 logger = logging.getLogger(__name__)
 
@@ -47,16 +56,17 @@ You can help with:
 Keep responses helpful but concise. Format with bullet points when listing multiple items."""
 
 
-@doc_bp.route('/')
+@doc_bp.route("/")
 def index():
     """DOC main page"""
-    return render_template('tools/doc.html')
+    return render_template("tools/doc.html")
 
 
-@doc_bp.route('/api/status')
+@doc_bp.route("/api/status")
 def status():
     """API endpoint for module health check"""
     import requests as req
+
     # Check Ollama connection (fallback)
     ollama_healthy = False
     try:
@@ -65,29 +75,32 @@ def status():
     except:
         pass
 
-    return jsonify({
-        'module': 'doc',
-        'status': 'active',
-        'healthy': True,
-        'bridge_available': BRIDGE_AVAILABLE,
-        'ollama_connected': ollama_healthy,
-        'agent': 'Dr. Amara - Medical Advisor' if BRIDGE_AVAILABLE else 'Direct Ollama',
-        'message': 'DOC Medical AI is operational via A.R.C.H.I.E. Bridge' if BRIDGE_AVAILABLE else 'DOC Medical AI is operational (fallback mode)'
-    })
+    return jsonify(
+        {
+            "module": "doc",
+            "status": "active",
+            "healthy": True,
+            "bridge_available": BRIDGE_AVAILABLE,
+            "ollama_connected": ollama_healthy,
+            "agent": ("Dr. Amara - Medical Advisor" if BRIDGE_AVAILABLE else "Direct Ollama"),
+            "message": (
+                "DOC Medical AI is operational via A.R.C.H.I.E. Bridge"
+                if BRIDGE_AVAILABLE
+                else "DOC Medical AI is operational (fallback mode)"
+            ),
+        }
+    )
 
 
-@doc_bp.route('/api/chat', methods=['POST'])
+@doc_bp.route("/api/chat", methods=["POST"])
 def chat():
     """Send message to medical AI via archie_bridge"""
     data = request.get_json() or {}
-    message = data.get('message', '')
-    user_id = data.get('user_id', 1)  # Default to admin user
+    message = data.get("message", "")
+    user_id = data.get("user_id", 1)  # Default to admin user
 
     if not message:
-        return jsonify({
-            'success': False,
-            'error': 'Message is required'
-        }), 400
+        return jsonify({"success": False, "error": "Message is required"}), 400
 
     try:
         if BRIDGE_AVAILABLE:
@@ -99,90 +112,104 @@ def chat():
                 system_prompt=MEDICAL_SYSTEM_PROMPT,
                 enable_memory=True,
                 try_local_first=True,  # Check knowledge base first
-                task_type='medical_consultation'
+                task_type="medical_consultation",
             )
 
-            if result.get('success'):
-                ai_response = result.get('response', '').strip()
+            if _dispatcher:
+                try:
+                    _dispatcher.log_external_call(
+                        capability="conversation",
+                        module_id="doc",
+                        model_used=result.get("model_used", ""),
+                        success=bool(result.get("response")),
+                    )
+                except Exception:
+                    pass
+
+            if result.get("success"):
+                ai_response = result.get("response", "").strip()
 
                 # Add disclaimer if not present
-                if 'consult' not in ai_response.lower() and 'healthcare' not in ai_response.lower():
+                if "consult" not in ai_response.lower() and "healthcare" not in ai_response.lower():
                     ai_response += "\n\n*Remember: This is general information only. Please consult a healthcare professional for personal medical advice.*"
 
-                return jsonify({
-                    'success': True,
-                    'response': ai_response,
-                    'model': result.get('model_used', 'archie_bridge'),
-                    'agent': 'Dr. Amara - Medical Advisor',
-                    'source': result.get('source', 'ai_bridge'),
-                    'tokens_used': result.get('tokens_used', 0)
-                })
+                return jsonify(
+                    {
+                        "success": True,
+                        "response": ai_response,
+                        "model": result.get("model_used", "archie_bridge"),
+                        "agent": "Dr. Amara - Medical Advisor",
+                        "source": result.get("source", "ai_bridge"),
+                        "tokens_used": result.get("tokens_used", 0),
+                    }
+                )
             else:
                 logger.warning(f"archie_bridge returned error, falling back to direct Ollama")
                 # Fall through to direct Ollama call
 
         # Fallback: Direct Ollama call
         import requests as req
-        model = data.get('model', 'llama3.2:latest')
+
+        _default_model = _dispatcher.get_model_for_capability("conversation") if _dispatcher else ""
+        model = data.get("model") or _default_model
         response = req.post(
             f"{OLLAMA_URL}/api/generate",
             json={
-                'model': model,
-                'prompt': f"{MEDICAL_SYSTEM_PROMPT}\n\nUser: {message}\n\nDOC:",
-                'stream': False,
-                'options': {
-                    'temperature': 0.7,
-                    'num_predict': 1000
-                }
+                "model": model,
+                "prompt": f"{MEDICAL_SYSTEM_PROMPT}\n\nUser: {message}\n\nDOC:",
+                "stream": False,
+                "options": {"temperature": 0.7, "num_predict": 1000},
             },
-            timeout=60
+            timeout=60,
         )
 
         if response.status_code == 200:
             result = response.json()
-            ai_response = result.get('response', '').strip()
+            ai_response = result.get("response", "").strip()
 
             # Add disclaimer if not present
-            if 'consult' not in ai_response.lower() and 'healthcare' not in ai_response.lower():
+            if "consult" not in ai_response.lower() and "healthcare" not in ai_response.lower():
                 ai_response += "\n\n*Remember: This is general information only. Please consult a healthcare professional for personal medical advice.*"
 
-            return jsonify({
-                'success': True,
-                'response': ai_response,
-                'model': model,
-                'agent': 'Direct Ollama (fallback)',
-                'source': 'ollama_direct'
-            })
+            return jsonify(
+                {
+                    "success": True,
+                    "response": ai_response,
+                    "model": model,
+                    "agent": "Direct Ollama (fallback)",
+                    "source": "ollama_direct",
+                }
+            )
         else:
             logger.error(f"Ollama error: {response.status_code}")
-            return jsonify({
-                'success': False,
-                'error': 'AI service temporarily unavailable'
-            }), 503
+            return (
+                jsonify({"success": False, "error": "AI service temporarily unavailable"}),
+                503,
+            )
 
     except Exception as e:
         logger.error(f"DOC chat error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': f'An unexpected error occurred: {str(e)}'
-        }), 500
+        return (
+            jsonify({"success": False, "error": f"An unexpected error occurred: {str(e)}"}),
+            500,
+        )
 
 
-@doc_bp.route('/api/symptoms', methods=['POST'])
+@doc_bp.route("/api/symptoms", methods=["POST"])
 def analyze_symptoms():
     """Analyze symptoms (educational purposes only) via archie_bridge"""
     data = request.get_json() or {}
-    symptoms = data.get('symptoms', '')
-    severity = data.get('severity', 5)
-    duration = data.get('duration', 'unknown')
-    areas = data.get('areas', [])
-    user_id = data.get('user_id', 1)
+    symptoms = data.get("symptoms", "")
+    severity = data.get("severity", 5)
+    duration = data.get("duration", "unknown")
+    areas = data.get("areas", [])
+    user_id = data.get("user_id", 1)
 
     if not symptoms:
-        return jsonify({
-            'success': False,
-            'error': 'Symptoms description is required'
-        }), 400
+        return (
+            jsonify({"success": False, "error": "Symptoms description is required"}),
+            400,
+        )
 
     # Build prompt
     prompt = f"""Based on the following symptoms, provide educational information:
@@ -210,83 +237,83 @@ Remember to emphasize consulting a healthcare professional."""
                 system_prompt=MEDICAL_SYSTEM_PROMPT,
                 enable_memory=True,
                 try_local_first=True,
-                task_type='symptom_analysis'
+                task_type="symptom_analysis",
             )
 
-            if result.get('success'):
-                return jsonify({
-                    'success': True,
-                    'analysis': result.get('response', '').strip(),
-                    'agent': 'Dr. Amara - Medical Advisor',
-                    'source': result.get('source', 'ai_bridge')
-                })
+            if result.get("success"):
+                return jsonify(
+                    {
+                        "success": True,
+                        "analysis": result.get("response", "").strip(),
+                        "agent": "Dr. Amara - Medical Advisor",
+                        "source": result.get("source", "ai_bridge"),
+                    }
+                )
 
         # Fallback: Direct Ollama call
         import requests as req
+
+        _default_model = _dispatcher.get_model_for_capability("conversation") if _dispatcher else ""
+        _fallback_model = _default_model or "dolphin3-8k:latest"
         response = req.post(
             f"{OLLAMA_URL}/api/generate",
             json={
-                'model': 'llama3.2:latest',
-                'prompt': f"{MEDICAL_SYSTEM_PROMPT}\n\n{prompt}\n\nDOC:",
-                'stream': False,
-                'options': {
-                    'temperature': 0.5,
-                    'num_predict': 1500
-                }
+                "model": _fallback_model,
+                "prompt": f"{MEDICAL_SYSTEM_PROMPT}\n\n{prompt}\n\nDOC:",
+                "stream": False,
+                "options": {"temperature": 0.5, "num_predict": 1500},
             },
-            timeout=90
+            timeout=90,
         )
 
         if response.status_code == 200:
             result = response.json()
-            return jsonify({
-                'success': True,
-                'analysis': result.get('response', '').strip(),
-                'agent': 'Direct Ollama (fallback)',
-                'source': 'ollama_direct'
-            })
+            if _dispatcher:
+                try:
+                    _dispatcher.log_external_call(
+                        capability="conversation",
+                        module_id="doc",
+                        model_used=_fallback_model,
+                        success=True,
+                    )
+                except Exception:
+                    pass
+            return jsonify(
+                {
+                    "success": True,
+                    "analysis": result.get("response", "").strip(),
+                    "agent": "Direct Ollama (fallback)",
+                    "source": "ollama_direct",
+                }
+            )
         else:
-            return jsonify({
-                'success': False,
-                'error': 'Analysis service unavailable'
-            }), 503
+            return (
+                jsonify({"success": False, "error": "Analysis service unavailable"}),
+                503,
+            )
 
     except Exception as e:
         logger.error(f"Symptom analysis error: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': 'Could not complete analysis'
-        }), 500
+        return jsonify({"success": False, "error": "Could not complete analysis"}), 500
 
 
-@doc_bp.route('/api/models', methods=['GET'])
+@doc_bp.route("/api/models", methods=["GET"])
 def get_available_models():
-    """Get available AI models from Ollama"""
-    try:
-        response = requests.get(f"{OLLAMA_URL}/api/tags", timeout=10)
-        if response.status_code == 200:
-            data = response.json()
-            models = [
-                {
-                    'name': model['name'],
-                    'size': model.get('size', 0),
-                    'modified': model.get('modified_at', '')
-                }
-                for model in data.get('models', [])
-            ]
-            return jsonify({
-                'success': True,
-                'models': models
-            })
-    except:
-        pass
-
-    # Return defaults if Ollama unavailable
-    return jsonify({
-        'success': True,
-        'models': [
-            {'name': 'llama3.2:latest', 'size': 0, 'modified': ''},
-            {'name': 'mistral:latest', 'size': 0, 'modified': ''},
-            {'name': 'deepseek-coder-v2:16b', 'size': 0, 'modified': ''}
-        ]
-    })
+    """Get available AI models via BridgeDispatcher"""
+    # Models come from the bridge dispatcher
+    models = []
+    if _dispatcher:
+        try:
+            status = _dispatcher.get_dispatch_status()
+            seen = set()
+            for station_info in status.get("stations", {}).values():
+                for agent in station_info.get("agents", []):
+                    m = agent.get("model", "")
+                    if m and m not in seen:
+                        models.append({"name": m, "size": 0, "modified": ""})
+                        seen.add(m)
+        except Exception:
+            pass
+    if not models:
+        models = [{"name": "default", "size": 0, "modified": ""}]
+    return jsonify({"success": True, "models": models})

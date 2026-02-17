@@ -30,6 +30,14 @@ if not logger.handlers:
 sys.path.insert(0, "/mnt/archie_brain")
 sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
 
+# BridgeDispatcher for centralized model selection
+try:
+    from ai_bridge.bridge_dispatcher import get_dispatcher as _get_dispatcher
+
+    _dispatcher = _get_dispatcher()
+except Exception:
+    _dispatcher = None
+
 
 class CommandRouter:
     """Route parsed intents to appropriate handlers"""
@@ -46,13 +54,21 @@ class CommandRouter:
             "password": os.getenv("DB_PASSWORD", ""),
         }
 
-        # Model selection based on task complexity (local hub models)
-        self.model_map = {
-            "fast": "dolphin3-8k:latest",
-            "standard": "dolphin3-8k:latest",
-            "powerful": "qwen3-coder-cpu:latest",
-            "code": "qwen3-coder-cpu:latest",
-        }
+        # Model selection based on task complexity (via BridgeDispatcher or fallback)
+        if _dispatcher:
+            self.model_map = {
+                "fast": _dispatcher.get_model_for_capability("conversation") or "dolphin3-8k:latest",
+                "standard": _dispatcher.get_model_for_capability("conversation") or "dolphin3-8k:latest",
+                "powerful": _dispatcher.get_model_for_capability("code_analysis") or "qwen3-coder-cpu:latest",
+                "code": _dispatcher.get_model_for_capability("code") or "qwen3-coder-cpu:latest",
+            }
+        else:
+            self.model_map = {
+                "fast": "dolphin3-8k:latest",
+                "standard": "dolphin3-8k:latest",
+                "powerful": "qwen3-coder-cpu:latest",
+                "code": "qwen3-coder-cpu:latest",
+            }
 
     def get_db(self):
         """Get database connection"""

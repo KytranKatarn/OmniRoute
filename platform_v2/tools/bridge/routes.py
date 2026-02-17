@@ -65,87 +65,73 @@ def get_stations_from_db():
         return {}
 
 
-# Fallback stations if DB unavailable
+# Fallback stations if DB unavailable (6 consolidated stations — Project #91)
 STATIONS_FALLBACK = {
     "COMMAND": {
         "station_name": "Command",
-        "full_name": "A.R.C.H.I.E. Command Center",
+        "full_name": "A.R.C.H.I.E. Command & Dispatch",
         "color": "#00FFFF",
         "icon": "🎯",
-        "default_llm": "archie_core",
-        "modules": ["archie_core", "archie_chat"],
+        "default_llm": "dolphin3-8k:latest",
+        "modules": ["archie_core", "archie_chat", "bridge", "team_management", "security_network"],
     },
-    "CONSCIOUSNESS": {
-        "station_name": "Consciousness",
-        "full_name": "Warp Core",
+    "ANALYTICS": {
+        "station_name": "Analytics",
+        "full_name": "Analytics & Intelligence Hub",
         "color": "#FF00FF",
-        "icon": "🧠",
-        "default_llm": "deepseek-coder-v2:16b",
-        "modules": ["consciousness", "knowledge_base"],
+        "icon": "📊",
+        "default_llm": "qwen25-classify",
+        "modules": ["consciousness", "knowledge_base", "analytics", "improvements_lab"],
     },
-    "HR": {
-        "station_name": "HR",
-        "full_name": "Human Resources & Ethics",
-        "color": "#10B981",
-        "icon": "👥",
-        "default_llm": "qwen2.5-coder:7b",
-        "modules": ["team_management", "ethics_agent"],
-    },
-    "RND": {
-        "station_name": "R&D",
-        "full_name": "Research & Development",
+    "RESEARCH": {
+        "station_name": "Research",
+        "full_name": "Research & Knowledge Center",
         "color": "#8B5CF6",
         "icon": "🔬",
-        "default_llm": "claude-sonnet-4",
-        "modules": ["code_sentinel", "improvements", "sandbox_manager"],
+        "default_llm": "qwen3-coder-cpu:latest",
+        "modules": ["obsidian_vault", "api_docs", "dev_hq"],
     },
     "OPERATIONS": {
         "station_name": "Operations",
-        "full_name": "Business Operations",
+        "full_name": "Operations & Communications Center",
         "color": "#FFAA00",
-        "icon": "📊",
-        "default_llm": "qwen2.5-coder:7b",
-        "modules": ["crm", "invoicing", "scheduler"],
+        "icon": "📡",
+        "default_llm": "dolphin3-8k:latest",
+        "modules": [
+            "system_operations",
+            "backup_manager",
+            "saas_manager",
+            "email_manager",
+            "automations",
+            "scheduler",
+            "autonomy",
+        ],
     },
     "ENGINEERING": {
         "station_name": "Engineering",
-        "full_name": "Engineering & Development",
+        "full_name": "Engineering & Development Lab",
         "color": "#0EA5E9",
         "icon": "⚙️",
-        "default_llm": "deepseek-coder-v2:16b",
-        "modules": ["project_manager", "website_designer", "bridge"],
+        "default_llm": "qwen3-coder-cpu:latest",
+        "modules": ["code_sentinel", "sandbox_manager", "project_manager", "website_studio", "store_builder"],
     },
     "CREATIVE": {
         "station_name": "Creative",
-        "full_name": "Creative & Media",
+        "full_name": "Creative & Wellness Studio",
         "color": "#F472B6",
         "icon": "🎨",
-        "default_llm": "gpt-4",
-        "modules": ["media_studio", "content_studio", "social_media"],
-    },
-    "SECURITY": {
-        "station_name": "Security",
-        "full_name": "Security & Backup",
-        "color": "#EF4444",
-        "icon": "🛡️",
-        "default_llm": "claude-opus-4",
-        "modules": ["backup_manager", "security_network"],
-    },
-    "MEDICAL": {
-        "station_name": "Medical",
-        "full_name": "Medical & Wellness",
-        "color": "#84CC16",
-        "icon": "🏥",
-        "default_llm": "llama3.1:8b",
-        "modules": ["doc", "therapy", "fitness"],
-    },
-    "AWAY_TEAM": {
-        "station_name": "Away Team",
-        "full_name": "External Operations",
-        "color": "#F59E0B",
-        "icon": "🚀",
-        "default_llm": "grok-beta",
-        "modules": ["web_scraper", "research_agent"],
+        "default_llm": "dolphin3-8k:latest",
+        "modules": [
+            "content_studio",
+            "social_media",
+            "media_hub",
+            "crm",
+            "call_center",
+            "invoicing",
+            "fitness",
+            "therapy",
+            "doc",
+        ],
     },
 }
 
@@ -1172,9 +1158,9 @@ def request_station_support(station_code):
         # Define capability keywords and their model mappings
         # Bridge interprets the capability_needed string to find appropriate agents
         fast_coder_models = [
-            "qwen2.5-coder:7b",
-            "starcoder2:7b",
-            "deepseek-coder-v2:16b",
+            "qwen25-classify",
+            "dolphin3-8k:latest",
+            "qwen3-coder-cpu:latest",
         ]  # noqa: F841
 
         # Determine what kind of agent is needed based on capability description
@@ -1182,9 +1168,9 @@ def request_station_support(station_code):
         target_models = []
 
         if "fast" in capability_lower or "speed" in capability_lower or "batch" in capability_lower:
-            # Need a fast coder - prioritize 7b models (rank 1-2)
-            target_models = ["qwen2.5-coder:7b", "starcoder2:7b"]
-            logger.info(f"Bridge: Looking for fast coder models: {target_models}")
+            # Need a fast classifier/tagger
+            target_models = ["qwen25-classify", "dolphin3-8k:latest"]
+            logger.info(f"Bridge: Looking for fast models: {target_models}")
         elif "thorough" in capability_lower or "security" in capability_lower or "deep" in capability_lower:
             # Need a thorough/security agent - will use tier-based search
             target_models = []
@@ -5023,7 +5009,11 @@ Code after cursor:
 Provide the code completion (just the code, nothing else):"""
 
         # Get completion from AI
-        result = archie_bridge(prompt=prompt, user_id=1, enable_memory=False, force_model="llama3.1:8b")
+        from ai_bridge.bridge_dispatcher import get_dispatcher
+
+        _disp = get_dispatcher()
+        _completion_model = _disp.get_model_for_capability("code") if _disp else ""
+        result = archie_bridge(prompt=prompt, user_id=1, enable_memory=False, force_model=_completion_model or None)
 
         if result.get("success"):
             completion = result["response"].strip()
@@ -5206,7 +5196,11 @@ Provide the corrected code only, no explanations."""
             )
 
         # Execute with AI
-        result = archie_bridge(prompt=prompt, user_id=1, enable_memory=True, force_model="llama3.1:8b")
+        from ai_bridge.bridge_dispatcher import get_dispatcher
+
+        _disp = get_dispatcher()
+        _action_model = _disp.get_model_for_capability("code") if _disp else ""
+        result = archie_bridge(prompt=prompt, user_id=1, enable_memory=True, force_model=_action_model or None)
 
         if result.get("success"):
             return jsonify(
@@ -6279,6 +6273,273 @@ def test_trained_model(model_id):
         )
     except Exception as e:
         logger.error(f"Failed to test model: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# DISPATCH ACTIVITY API (Project #91 — Phase 6)
+# ============================================================================
+
+
+@bridge_bp.route("/api/bridge/dispatch-status")
+@login_required
+def get_dispatch_status():
+    """Get current BridgeDispatcher status: active agents, assignments, queue depth"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Active agents with their station assignments
+        cur.execute(
+            """
+            SELECT a.id, a.name, a.first_name, a.last_name, a.title, a.model,
+                   a.status, a.avatar_url,
+                   bs.station_code, bs.station_name, bs.color,
+                   sa.assignment_type
+            FROM agents a
+            LEFT JOIN station_assignments sa ON sa.agent_id = a.id AND sa.is_active = TRUE
+            LEFT JOIN bridge_stations bs ON bs.id = sa.station_id AND bs.is_active = TRUE
+            WHERE a.status = 'active'
+            ORDER BY bs.position_row, bs.position_order, a.name
+        """
+        )
+        agents = cur.fetchall()
+
+        # Recent dispatch activity (last 1 hour)
+        cur.execute(
+            """
+            SELECT COUNT(*) as total_dispatches,
+                   COUNT(CASE WHEN success = TRUE THEN 1 END) as successful,
+                   COUNT(CASE WHEN success = FALSE THEN 1 END) as failed,
+                   COALESCE(AVG(duration_ms), 0) as avg_duration_ms
+            FROM task_execution_log
+            WHERE created_at > NOW() - INTERVAL '1 hour'
+        """
+        )
+        dispatch_stats = cur.fetchone()
+
+        # Active tasks (in-progress right now — last 2 minutes)
+        cur.execute(
+            """
+            SELECT tel.id, a.name as agent_name, tel.module_source,
+                   tel.task_type, tel.model_used, tel.created_at
+            FROM task_execution_log tel
+            LEFT JOIN agents a ON a.id = tel.agent_id
+            WHERE tel.created_at > NOW() - INTERVAL '2 minutes'
+                  AND tel.success IS NULL
+            ORDER BY tel.created_at DESC
+            LIMIT 10
+        """
+        )
+        active_tasks = cur.fetchall()
+
+        # Per-station dispatch counts (last 24h)
+        cur.execute(
+            """
+            SELECT bs.station_code, bs.station_name, bs.color,
+                   COUNT(tel.id) as dispatch_count,
+                   COALESCE(AVG(tel.duration_ms), 0) as avg_ms
+            FROM bridge_stations bs
+            LEFT JOIN station_assignments sa ON sa.station_id = bs.id AND sa.is_active = TRUE
+            LEFT JOIN task_execution_log tel ON tel.agent_id = sa.agent_id
+                  AND tel.created_at > NOW() - INTERVAL '24 hours'
+            WHERE bs.is_active = TRUE
+            GROUP BY bs.station_code, bs.station_name, bs.color
+            ORDER BY dispatch_count DESC
+        """
+        )
+        station_activity = cur.fetchall()
+
+        cur.close()
+        conn.close()
+
+        return jsonify(
+            {
+                "success": True,
+                "agents": [
+                    {
+                        "id": a["id"],
+                        "name": a["name"],
+                        "first_name": a.get("first_name"),
+                        "last_name": a.get("last_name"),
+                        "title": a["title"],
+                        "model": a["model"],
+                        "status": a["status"],
+                        "avatar_url": a.get("avatar_url"),
+                        "station_code": a.get("station_code"),
+                        "station_name": a.get("station_name"),
+                        "station_color": a.get("color"),
+                        "assignment_type": a.get("assignment_type"),
+                    }
+                    for a in agents
+                ],
+                "dispatch_stats": {
+                    "total_1h": dispatch_stats["total_dispatches"],
+                    "successful_1h": dispatch_stats["successful"],
+                    "failed_1h": dispatch_stats["failed"],
+                    "avg_duration_ms": round(float(dispatch_stats["avg_duration_ms"]), 1),
+                },
+                "active_tasks": [
+                    {
+                        "id": t["id"],
+                        "agent_name": t["agent_name"],
+                        "module": t["module_source"],
+                        "task_type": t["task_type"],
+                        "model": t["model_used"],
+                        "started": t["created_at"].isoformat() if t["created_at"] else None,
+                    }
+                    for t in active_tasks
+                ],
+                "station_activity": [
+                    {
+                        "station_code": s["station_code"],
+                        "station_name": s["station_name"],
+                        "color": s["color"],
+                        "dispatch_count": s["dispatch_count"],
+                        "avg_ms": round(float(s["avg_ms"]), 1),
+                    }
+                    for s in station_activity
+                ],
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error getting dispatch status: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/bridge/dispatch-history")
+@login_required
+def get_dispatch_history():
+    """Get recent task execution history for the Bridge dispatch panel"""
+    try:
+        limit = request.args.get("limit", 50, type=int)
+        limit = min(limit, 200)
+
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute(
+            """
+            SELECT tel.id, a.name as agent_name, a.avatar_url,
+                   tel.module_source, tel.task_type, tel.capability,
+                   tel.model_used, tel.duration_ms, tel.success,
+                   tel.error_message, tel.created_at,
+                   bs.station_code, bs.color as station_color
+            FROM task_execution_log tel
+            LEFT JOIN agents a ON a.id = tel.agent_id
+            LEFT JOIN station_assignments sa ON sa.agent_id = a.id AND sa.is_active = TRUE
+            LEFT JOIN bridge_stations bs ON bs.id = sa.station_id
+            ORDER BY tel.created_at DESC
+            LIMIT %s
+        """,
+            (limit,),
+        )
+        history = cur.fetchall()
+
+        cur.close()
+        conn.close()
+
+        return jsonify(
+            {
+                "success": True,
+                "history": [
+                    {
+                        "id": h["id"],
+                        "agent_name": h["agent_name"],
+                        "avatar_url": h.get("avatar_url"),
+                        "module": h["module_source"],
+                        "task_type": h["task_type"],
+                        "capability": h.get("capability"),
+                        "model": h["model_used"],
+                        "duration_ms": h["duration_ms"],
+                        "success": h["success"],
+                        "error": h.get("error_message"),
+                        "timestamp": h["created_at"].isoformat() if h["created_at"] else None,
+                        "station_code": h.get("station_code"),
+                        "station_color": h.get("station_color"),
+                    }
+                    for h in history
+                ],
+                "total": len(history),
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error getting dispatch history: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@bridge_bp.route("/api/bridge/reassign", methods=["POST"])
+@login_required
+def reassign_agent():
+    """Manually reassign an agent to a different station (admin only)"""
+    try:
+        if not current_user.is_admin:
+            return jsonify({"success": False, "error": "Admin access required"}), 403
+
+        data = request.get_json() or {}
+        agent_id = data.get("agent_id")
+        new_station_code = data.get("station_code")
+
+        if not agent_id or not new_station_code:
+            return jsonify({"success": False, "error": "agent_id and station_code required"}), 400
+
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Verify agent exists
+        cur.execute("SELECT id, name FROM agents WHERE id = %s AND status = 'active'", (agent_id,))
+        agent = cur.fetchone()
+        if not agent:
+            cur.close()
+            conn.close()
+            return jsonify({"success": False, "error": "Agent not found or inactive"}), 404
+
+        # Verify station exists
+        cur.execute(
+            "SELECT id, station_name FROM bridge_stations WHERE station_code = %s AND is_active = TRUE",
+            (new_station_code,),
+        )
+        station = cur.fetchone()
+        if not station:
+            cur.close()
+            conn.close()
+            return jsonify({"success": False, "error": "Station not found or inactive"}), 404
+
+        # Deactivate old assignments
+        cur.execute(
+            "UPDATE station_assignments SET is_active = FALSE WHERE agent_id = %s AND is_active = TRUE",
+            (agent_id,),
+        )
+
+        # Create new assignment
+        cur.execute(
+            """
+            INSERT INTO station_assignments (agent_id, station_id, assignment_type, is_active, priority)
+            VALUES (%s, %s, 'primary', TRUE, 1)
+            ON CONFLICT (agent_id, station_id) DO UPDATE SET is_active = TRUE, assignment_type = 'primary'
+        """,
+            (agent_id, station["id"]),
+        )
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        logger.info(f"Agent {agent['name']} reassigned to {station['station_name']} by {current_user.username}")
+
+        return jsonify(
+            {
+                "success": True,
+                "message": f"{agent['name']} reassigned to {station['station_name']}",
+                "agent_id": agent_id,
+                "station_code": new_station_code,
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Error reassigning agent: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 

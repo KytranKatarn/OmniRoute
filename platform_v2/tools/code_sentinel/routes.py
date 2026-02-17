@@ -29,7 +29,11 @@ sys.path.insert(0, "/mnt/archie_brain/platform_v2")
 
 # Import Bridge routing functions for proper team member routing
 try:
-    from ai_bridge.archie_bridge import route_task_to_station, execute_agent_task, get_available_agent_for_station
+    from ai_bridge.archie_bridge import (
+        route_task_to_station,
+        execute_agent_task,
+        get_available_agent_for_station,
+    )
 
     BRIDGE_ROUTING_AVAILABLE = True
 except ImportError:
@@ -48,7 +52,12 @@ def check_ollama_status():
             r = requests.get(f"http://{host}/api/tags", timeout=2)
             if r.status_code == 200:
                 models = [m["name"] for m in r.json().get("models", [])]
-                return {"available": True, "host": host, "models": models[:5], "model_count": len(models)}
+                return {
+                    "available": True,
+                    "host": host,
+                    "models": models[:5],
+                    "model_count": len(models),
+                }
         except Exception:
             continue
     return {"available": False, "host": None, "models": [], "model_count": 0}
@@ -189,7 +198,7 @@ def basic_static_analysis(code_content, file_path):
     return {
         "quality_score": score,
         "issues": issues,
-        "summary": f"Static analysis found {len(issues)} issues" if issues else "No issues found",
+        "summary": (f"Static analysis found {len(issues)} issues" if issues else "No issues found"),
         "analysis_type": "static",
     }
 
@@ -313,7 +322,10 @@ def ai_status():
         {
             "ollama": ollama,
             "archie_bridge": {"available": True, "path": "/mnt/archie_brain/ai_bridge"},
-            "analysis_modes": {"ai_powered": ollama["available"], "static_analysis": True},
+            "analysis_modes": {
+                "ai_powered": ollama["available"],
+                "static_analysis": True,
+            },
             "recommended_mode": "ai_powered" if ollama["available"] else "static",
         }
     )
@@ -666,7 +678,11 @@ def batch_scan_files():
                 full_path = f"/mnt/archie_brain/{file_path}"
 
             if not os.path.exists(full_path):
-                return {"file_path": file_path, "error": "File not found", "success": False}
+                return {
+                    "file_path": file_path,
+                    "error": "File not found",
+                    "success": False,
+                }
 
             with open(full_path, "r") as f:
                 code_content = f.read()
@@ -768,8 +784,8 @@ def get_scan_history():
                 "scans": [
                     {
                         **dict(s),
-                        "scanned_at": s["scanned_at"].isoformat() if s["scanned_at"] else None,
-                        "quality_score": float(s["quality_score"]) if s["quality_score"] else None,
+                        "scanned_at": (s["scanned_at"].isoformat() if s["scanned_at"] else None),
+                        "quality_score": (float(s["quality_score"]) if s["quality_score"] else None),
                         "scan_result": s["scan_result"] if s["scan_result"] else {},
                     }
                     for s in scans
@@ -841,9 +857,9 @@ def get_issues():
                 "issues": [
                     {
                         **dict(i),
-                        "created_at": i["created_at"].isoformat() if i["created_at"] else None,
-                        "fixed_at": i["fixed_at"].isoformat() if i["fixed_at"] else None,
-                        "scanned_at": i["scanned_at"].isoformat() if i["scanned_at"] else None,
+                        "created_at": (i["created_at"].isoformat() if i["created_at"] else None),
+                        "fixed_at": (i["fixed_at"].isoformat() if i["fixed_at"] else None),
+                        "scanned_at": (i["scanned_at"].isoformat() if i["scanned_at"] else None),
                     }
                     for i in issues
                 ],
@@ -934,7 +950,13 @@ def get_fixes():
         return jsonify(
             {
                 "success": True,
-                "fixes": [{**dict(f), "fixed_at": f["fixed_at"].isoformat() if f["fixed_at"] else None} for f in fixes],
+                "fixes": [
+                    {
+                        **dict(f),
+                        "fixed_at": (f["fixed_at"].isoformat() if f["fixed_at"] else None),
+                    }
+                    for f in fixes
+                ],
             }
         )
 
@@ -979,8 +1001,8 @@ def get_file_health():
                     {
                         **dict(f),
                         "open_issues": open_issues.get(f["file_path"], 0),
-                        "quality_score": float(f["quality_score"]) if f["quality_score"] else None,
-                        "scanned_at": f["scanned_at"].isoformat() if f["scanned_at"] else None,
+                        "quality_score": (float(f["quality_score"]) if f["quality_score"] else None),
+                        "scanned_at": (f["scanned_at"].isoformat() if f["scanned_at"] else None),
                     }
                     for f in files
                 ],
@@ -1085,22 +1107,46 @@ multi_agent_reviews = {}
 REVIEW_SKILL_MAPPING = {
     "security": {
         "skills": ["security", "cybersecurity", "penetration_testing"],
-        "focus": ["SQL injection", "XSS", "auth bypass", "secrets exposure", "OWASP top 10"],
+        "focus": [
+            "SQL injection",
+            "XSS",
+            "auth bypass",
+            "secrets exposure",
+            "OWASP top 10",
+        ],
         "prompt_prefix": "You are a security expert reviewing code for vulnerabilities. Focus on: ",
     },
     "code_review": {
         "skills": ["code_review", "code_quality", "best_practices"],
-        "focus": ["SOLID principles", "DRY violations", "code smells", "naming conventions", "documentation"],
+        "focus": [
+            "SOLID principles",
+            "DRY violations",
+            "code smells",
+            "naming conventions",
+            "documentation",
+        ],
         "prompt_prefix": "You are a senior developer reviewing code quality. Focus on: ",
     },
     "architecture": {
         "skills": ["architecture", "system_design", "api_design"],
-        "focus": ["design patterns", "separation of concerns", "modularity", "dependencies", "scalability"],
+        "focus": [
+            "design patterns",
+            "separation of concerns",
+            "modularity",
+            "dependencies",
+            "scalability",
+        ],
         "prompt_prefix": "You are a software architect reviewing code structure. Focus on: ",
     },
     "bug_fixing": {
         "skills": ["bug_fixing", "debugging", "testing"],
-        "focus": ["edge cases", "error handling", "null checks", "race conditions", "memory leaks"],
+        "focus": [
+            "edge cases",
+            "error handling",
+            "null checks",
+            "race conditions",
+            "memory leaks",
+        ],
         "prompt_prefix": "You are a QA engineer reviewing code for potential bugs. Focus on: ",
     },
 }
@@ -1109,16 +1155,19 @@ REVIEW_SKILL_MAPPING = {
 REVIEW_AGENTS = {
     "security_expert": {
         "name": "Security Expert",
-        "model": "deepseek-coder-v2:16b",
         "specialty": "security",
         "focus": ["SQL injection", "XSS", "auth bypass", "secrets exposure"],
         "prompt_prefix": "You are a security expert. Analyze this code for security vulnerabilities. Focus on: ",
     },
     "code_quality": {
         "name": "Code Quality Reviewer",
-        "model": "deepseek-coder-v2:16b",
         "specialty": "code_review",
-        "focus": ["SOLID principles", "DRY violations", "code smells", "maintainability"],
+        "focus": [
+            "SOLID principles",
+            "DRY violations",
+            "code smells",
+            "maintainability",
+        ],
         "prompt_prefix": "You are a senior developer reviewing code quality. Focus on: ",
     },
 }
@@ -1352,7 +1401,8 @@ def start_multi_agent_review():
 
         # Start async review
         thread = threading.Thread(
-            target=_run_multi_agent_review, args=(review_id, code, file_path, selected_agents, context)
+            target=_run_multi_agent_review,
+            args=(review_id, code, file_path, selected_agents, context),
         )
         thread.daemon = True
         thread.start()
@@ -1404,7 +1454,10 @@ def _run_multi_agent_review(review_id: str, code: str, file_path: str, agents: l
                 else:
                     return None
 
-            model = agent_config.get("model", "deepseek-coder-v2:16b")
+            from ai_bridge.bridge_dispatcher import get_dispatcher
+
+            _dispatcher = get_dispatcher()
+            model = agent_config.get("model") or _dispatcher.get_model_for_capability("code_review")
             agent_name = agent_config.get("name", "Unknown Agent")
 
             prompt_prefix = agent_config.get("prompt_prefix", "You are reviewing code. Focus on: ")
@@ -1439,6 +1492,16 @@ Return only valid JSON."""
 
             try:
                 response = archie_bridge(prompt, try_local_first=True, model=model)
+                # Log to dispatcher for HR tracking
+                try:
+                    _dispatcher.log_external_call(
+                        capability="code_review",
+                        module_id="code_sentinel",
+                        model_used=model,
+                        success=bool(response.get("response")),
+                    )
+                except Exception:
+                    pass
                 response_text = response.get("response", "{}")
 
                 if "```json" in response_text:

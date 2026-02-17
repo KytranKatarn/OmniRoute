@@ -2566,6 +2566,44 @@
             </form>
         </div>
         </div>
+
+        <!-- Side-by-Side Mode -->
+        <div id="dual-chat-container">
+            <div class="chat-panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <i data-lucide="bot"></i>
+                        <span>A.R.C.H.I.E. Chat</span>
+                    </div>
+                    <div class="panel-actions">
+                        <button class="panel-action-btn" onclick="syncContextToClaude()">Sync Context</button>
+                        <button class="panel-action-btn" onclick="clearSideChat()">Clear</button>
+                    </div>
+                </div>
+                <div class="messages-container" id="archie-side-messages"></div>
+            </div>
+            <div class="resize-handle"></div>
+            <div class="chat-panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <i data-lucide="terminal"></i>
+                        <span>Claude Terminal</span>
+                        <span id="claude-cli-status"></span>
+                    </div>
+                    <div class="panel-actions">
+                        <button class="panel-action-btn" onclick="reconnectClaudeTerminal()">Reconnect</button>
+                        <button class="panel-action-btn" onclick="openClaudeTerminal()">Pop Out</button>
+                    </div>
+                </div>
+                <iframe id="claude-terminal-iframe" title="Claude Terminal"></iframe>
+                <div class="terminal-offline" id="claude-terminal-offline" style="display: none;">
+                    <i data-lucide="wifi-off"></i>
+                    <span>Terminal offline</span>
+                    <button class="panel-action-btn" onclick="reconnectClaudeTerminal()">Reconnect</button>
+                </div>
+            </div>
+        </div>
+
     </main>
 </div>
 
@@ -3081,6 +3119,12 @@ function clearChat() {
     container.appendChild(typing);
     welcome.style.display = 'block';
     conversationId = null;
+}
+
+// Clear side-by-side chat
+function clearSideChat() {
+    var container = document.getElementById('archie-side-messages');
+    if (container) container.textContent = '';
 }
 
 // Toast notification system

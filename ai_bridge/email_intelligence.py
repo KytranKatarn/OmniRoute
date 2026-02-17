@@ -229,6 +229,20 @@ class EmailIntelligence:
                 cc_addr = msg.get("Cc", "")
                 date_str = msg.get("Date", "")
                 message_id = msg.get("Message-ID", "")
+                in_reply_to = msg.get("In-Reply-To", "").strip()
+                references_header = msg.get("References", "").strip()
+
+                # Compute thread_id from References chain
+                thread_id = None
+                if references_header:
+                    # First reference is the original thread starter
+                    first_ref = references_header.split()[0].strip("<>")
+                    thread_id = first_ref
+                elif in_reply_to:
+                    thread_id = in_reply_to.strip("<>")
+                else:
+                    # This email starts a new thread
+                    thread_id = message_id
 
                 # Parse date
                 received_at = None
@@ -271,8 +285,9 @@ class EmailIntelligence:
                     INSERT INTO email_inbox
                     (imap_setting_id, uid, message_id, from_address, from_name, to_address,
                      cc_address, subject, body_text, body_html, received_at,
-                     has_attachments, attachment_names, crm_customer_id)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                     has_attachments, attachment_names, crm_customer_id,
+                     in_reply_to, references_header, thread_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                     """,
                     (
@@ -284,6 +299,9 @@ class EmailIntelligence:
                         len(attachments) > 0,
                         json.dumps(attachments),
                         crm_customer_id,
+                        in_reply_to or None,
+                        references_header or None,
+                        thread_id,
                     ),
                 )
                 email_id = cur.fetchone()["id"]

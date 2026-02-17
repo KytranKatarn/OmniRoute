@@ -481,6 +481,45 @@ def get_email_detail(email_id):
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@email_manager_bp.route("/api/inbox/<int:email_id>/thread", methods=["GET"])
+@login_required
+def get_email_thread(email_id):
+    """Get all emails in the same conversation thread."""
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        # Get thread_id for this email
+        cur.execute("SELECT thread_id FROM email_inbox WHERE id = %s", (email_id,))
+        row = cur.fetchone()
+        if not row or not row.get("thread_id"):
+            return jsonify({"success": True, "thread": [], "count": 0})
+
+        # Get all emails in this thread
+        cur.execute(
+            """
+            SELECT id, from_address, from_name, subject, received_at, is_read, ai_summary,
+                   LEFT(body_text, 200) as preview
+            FROM email_inbox
+            WHERE thread_id = %s
+            ORDER BY received_at ASC
+        """,
+            (row["thread_id"],),
+        )
+        thread = cur.fetchall()
+
+        # Convert timestamps for JSON serialization
+        for t in thread:
+            if t.get("received_at"):
+                t["received_at"] = t["received_at"].isoformat()
+
+        return jsonify({"success": True, "thread": thread, "count": len(thread)})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
 @email_manager_bp.route("/api/inbox/<int:email_id>/star", methods=["POST"])
 @login_required
 def toggle_star(email_id):

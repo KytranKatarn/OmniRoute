@@ -329,6 +329,8 @@
                         <h4><i data-lucide="edit-3"></i> Draft Reply</h4>
                         <div id="detail-draft-content"></div>
                     </div>
+                    <!-- Thread View -->
+                    <div id="email-thread-container"></div>
                     <!-- Action Buttons -->
                     <div class="email-detail-actions">
                         <button class="em-btn em-btn--primary" onclick="generateDraft(currentEmailId)">
@@ -2419,6 +2421,19 @@
     flex-wrap: wrap;
 }
 
+/* Thread View */
+.thread-section { margin-top: 16px; border-top: 1px solid #333; padding: 12px 20px 0; }
+.thread-section h4 { color: #00FFFF; font-size: 14px; margin-bottom: 8px; font-family: 'Orbitron', sans-serif; }
+.thread-msg {
+    padding: 8px 12px; border-left: 2px solid #333; margin-bottom: 4px;
+    cursor: pointer; transition: all 0.2s;
+}
+.thread-msg:hover { border-left-color: #00FFFF; background: rgba(0,255,255,0.05); }
+.thread-msg--active { border-left-color: #FFC800; background: rgba(255,200,0,0.05); }
+.thread-from { color: #aaa; font-size: 13px; margin-right: 8px; }
+.thread-date { color: #666; font-size: 11px; float: right; }
+.thread-preview { color: #888; font-size: 12px; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 /* Pagination */
 .inbox-pagination {
     display: flex;
@@ -3413,6 +3428,49 @@ async function viewEmail(id) {
             // After viewing, the email is marked as read by the backend
             readIcon.setAttribute('data-lucide', 'mail-open');
             readLabel.textContent = 'Mark Unread';
+        }
+
+        // Load thread
+        var threadContainer = document.getElementById('email-thread-container');
+        threadContainer.textContent = '';
+        try {
+            var threadResp = await fetch('/tools/email-manager/api/inbox/' + id + '/thread');
+            var threadData = await threadResp.json();
+            if (threadData.success && threadData.count > 1) {
+                var section = document.createElement('div');
+                section.className = 'thread-section';
+
+                var h4 = document.createElement('h4');
+                h4.textContent = 'Thread (' + threadData.count + ' messages)';
+                section.appendChild(h4);
+
+                threadData.thread.forEach(function(t) {
+                    var msgDiv = document.createElement('div');
+                    msgDiv.className = 'thread-msg' + (t.id === id ? ' thread-msg--active' : '');
+                    msgDiv.onclick = function() { viewEmail(t.id); };
+
+                    var fromSpan = document.createElement('span');
+                    fromSpan.className = 'thread-from';
+                    fromSpan.textContent = t.from_name || t.from_address;
+                    msgDiv.appendChild(fromSpan);
+
+                    var dateSpan = document.createElement('span');
+                    dateSpan.className = 'thread-date';
+                    dateSpan.textContent = formatRelativeDate(t.received_at);
+                    msgDiv.appendChild(dateSpan);
+
+                    var previewDiv = document.createElement('div');
+                    previewDiv.className = 'thread-preview';
+                    previewDiv.textContent = t.ai_summary || t.preview || '';
+                    msgDiv.appendChild(previewDiv);
+
+                    section.appendChild(msgDiv);
+                });
+
+                threadContainer.appendChild(section);
+            }
+        } catch (e) {
+            console.error('Load thread failed:', e);
         }
 
         // Scroll to detail panel

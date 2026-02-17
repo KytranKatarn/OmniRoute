@@ -18,14 +18,14 @@ from typing import Dict, List, Optional, Tuple
 import logging
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger('insights_extractor')
+logger = logging.getLogger("insights_extractor")
 
 # Database configuration
 DB_CONFIG = {
-    'host': os.getenv('DB_HOST', 'archie_database'),
-    'database': os.getenv('DB_NAME', 'archie'),
-    'user': os.getenv('DB_USER', 'archie'),
-    'password': os.getenv('DB_PASSWORD', 'archie_secure_2024')
+    "host": os.getenv("DB_HOST", "archie_database"),
+    "database": os.getenv("DB_NAME", "archie"),
+    "user": os.getenv("DB_USER", "archie"),
+    "password": os.getenv("DB_PASSWORD", "archie_secure_2024"),
 }
 
 
@@ -77,9 +77,149 @@ ERROR_PATTERNS = [
 ]
 
 
-def extract_insights(transcript: str) -> Dict[str, List[Dict]]:
+def _regex_extract_insights(transcript: str) -> Dict[str, List[Dict]]:
+    """Fast regex-based insight extraction (original implementation)."""
+    insights = {"decisions": [], "learnings": [], "todos": [], "errors": []}
+
+    clean_text = re.sub(r"```[\s\S]*?```", "[CODE BLOCK]", transcript)
+    clean_text = re.sub(r"`[^`]+`", "[CODE]", clean_text)
+
+    for pattern in DECISION_PATTERNS:
+        matches = re.findall(pattern, clean_text, re.IGNORECASE | re.MULTILINE)
+        for match in matches:
+            if len(match) > 25:
+                insights["decisions"].append({"content": match.strip(), "pattern": "decision", "source": "regex"})
+
+    for pattern in LEARNING_PATTERNS:
+        matches = re.findall(pattern, clean_text, re.IGNORECASE | re.MULTILINE)
+        for match in matches:
+            if len(match) > 25:
+                insights["learnings"].append({"content": match.strip(), "pattern": "learning", "source": "regex"})
+
+    for pattern in TODO_PATTERNS:
+        matches = re.findall(pattern, clean_text, re.IGNORECASE | re.MULTILINE)
+        for match in matches:
+            if len(match) > 15:
+                insights["todos"].append({"content": match.strip(), "pattern": "todo", "source": "regex"})
+
+    for pattern in ERROR_PATTERNS:
+        matches = re.findall(pattern, clean_text, re.IGNORECASE | re.MULTILINE)
+        for match in matches:
+            if len(match) > 20:
+                insights["errors"].append({"content": match.strip(), "pattern": "error_fix", "source": "regex"})
+
+    for key in insights:
+        seen = set()
+        unique = []
+        for item in insights[key]:
+            content_key = item["content"][:100].lower()
+            if content_key not in seen:
+                seen.add(content_key)
+                unique.append(item)
+        insights[key] = unique[:10]
+
+    return insights
+
+
+def _llm_enrich_insights(transcript: str, regex_insights: Dict[str, List[Dict]]) -> Dict[str, List[Dict]]:
+    """
+    Use qwen25-classify to find insights that regex missed.
+    Merges LLM-found insights with regex results.
+    """
+    CLASSIFIER_MODEL = os.getenv("OLLAMA_CLASSIFIER_MODEL", "qwen25-classify")
+    OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
+    if not OLLAMA_HOST.startswith("http"):
+        OLLAMA_HOST = f"http://{OLLAMA_HOST}"
+
+    try:
+        import requests as req
+
+        # Smart truncation: first 30% + last 50% (solutions live at the end)
+        max_len = 2000
+        if len(transcript) > max_len:
+            head = transcript[: int(max_len * 0.3)]
+            tail = transcript[-int(max_len * 0.5) :]
+            truncated = head + "\n...[truncated]...\n" + tail
+        else:
+            truncated = transcript
+
+        # Remove code blocks for cleaner analysis
+        clean = re.sub(r"```[\s\S]*?```", "[CODE]", truncated)
+
+        regex_summary = []
+        for cat, items in regex_insights.items():
+            if items:
+                regex_summary.append(f"{cat}: {len(items)} found")
+
+        prompt = (
+            "Extract key insights from this development conversation. "
+            f"Regex already found: {', '.join(regex_summary) if regex_summary else 'nothing'}.\n"
+            "Find any IMPLICIT decisions, learnings, or action items that regex missed.\n\n"
+            f"Text: {clean}\n\n"
+            "Respond with JSON only:\n"
+            '{"decisions": [{"content": "...", "confidence": 0.8}], '
+            '"learnings": [{"content": "...", "confidence": 0.7}], '
+            '"todos": [{"content": "...", "confidence": 0.6}], '
+            '"errors": [{"content": "...", "confidence": 0.9}]}'
+        )
+
+        resp = req.post(
+            f"{OLLAMA_HOST}/api/generate",
+            json={
+                "model": CLASSIFIER_MODEL,
+                "prompt": prompt,
+                "stream": False,
+                "format": "json",
+                "options": {"temperature": 0.2, "num_predict": 500},
+            },
+            timeout=15,
+        )
+
+        if resp.status_code != 200:
+            return regex_insights
+
+        raw = resp.json().get("response", "")
+        result = json.loads(raw)
+
+        # Merge LLM findings with regex results
+        merged = {k: list(v) for k, v in regex_insights.items()}
+        for category in ["decisions", "learnings", "todos", "errors"]:
+            llm_items = result.get(category, [])
+            if not isinstance(llm_items, list):
+                continue
+            existing_content = {item["content"][:80].lower() for item in merged.get(category, [])}
+            for item in llm_items:
+                content = item.get("content", "")
+                if content and len(content) > 15 and content[:80].lower() not in existing_content:
+                    merged.setdefault(category, []).append(
+                        {
+                            "content": content,
+                            "pattern": category,
+                            "source": "llm",
+                            "confidence": item.get("confidence", 0.5),
+                        }
+                    )
+                    existing_content.add(content[:80].lower())
+
+        # Cap at 10 per category
+        for key in merged:
+            merged[key] = merged[key][:10]
+
+        return merged
+
+    except Exception as e:
+        logger.debug(f"LLM insight enrichment failed: {e}")
+        return regex_insights
+
+
+def extract_insights(transcript: str, use_llm: bool = True) -> Dict[str, List[Dict]]:
     """
     Extract key insights from a conversation transcript.
+    Hybrid: regex pre-filter + LLM enrichment for implicit insights.
+
+    Args:
+        transcript: Full conversation text
+        use_llm: Whether to use LLM enrichment (default True)
 
     Returns dict with:
     - decisions: Key decisions made
@@ -87,68 +227,12 @@ def extract_insights(transcript: str) -> Dict[str, List[Dict]]:
     - todos: Action items mentioned
     - errors: Error patterns and fixes
     """
+    # Step 1: Fast regex extraction
+    insights = _regex_extract_insights(transcript)
 
-    insights = {
-        'decisions': [],
-        'learnings': [],
-        'todos': [],
-        'errors': []
-    }
-
-    # Remove code blocks to avoid false matches
-    clean_text = re.sub(r'```[\s\S]*?```', '[CODE BLOCK]', transcript)
-    clean_text = re.sub(r'`[^`]+`', '[CODE]', clean_text)
-
-    # Extract decisions
-    for pattern in DECISION_PATTERNS:
-        matches = re.findall(pattern, clean_text, re.IGNORECASE | re.MULTILINE)
-        for match in matches:
-            if len(match) > 25:  # Filter noise
-                insights['decisions'].append({
-                    'content': match.strip(),
-                    'pattern': 'decision'
-                })
-
-    # Extract learnings
-    for pattern in LEARNING_PATTERNS:
-        matches = re.findall(pattern, clean_text, re.IGNORECASE | re.MULTILINE)
-        for match in matches:
-            if len(match) > 25:
-                insights['learnings'].append({
-                    'content': match.strip(),
-                    'pattern': 'learning'
-                })
-
-    # Extract TODOs
-    for pattern in TODO_PATTERNS:
-        matches = re.findall(pattern, clean_text, re.IGNORECASE | re.MULTILINE)
-        for match in matches:
-            if len(match) > 15:
-                insights['todos'].append({
-                    'content': match.strip(),
-                    'pattern': 'todo'
-                })
-
-    # Extract errors/fixes
-    for pattern in ERROR_PATTERNS:
-        matches = re.findall(pattern, clean_text, re.IGNORECASE | re.MULTILINE)
-        for match in matches:
-            if len(match) > 20:
-                insights['errors'].append({
-                    'content': match.strip(),
-                    'pattern': 'error_fix'
-                })
-
-    # Deduplicate
-    for key in insights:
-        seen = set()
-        unique = []
-        for item in insights[key]:
-            content_key = item['content'][:100].lower()
-            if content_key not in seen:
-                seen.add(content_key)
-                unique.append(item)
-        insights[key] = unique[:10]  # Limit to top 10 per category
+    # Step 2: LLM enrichment for implicit insights
+    if use_llm and os.getenv("LLM_INSIGHTS_ENABLED", "true").lower() == "true":
+        insights = _llm_enrich_insights(transcript, insights)
 
     return insights
 
@@ -157,7 +241,7 @@ def store_insights(
     insights: Dict[str, List[Dict]],
     session_name: str,
     git_branch: str,
-    session_id: Optional[int] = None
+    session_id: Optional[int] = None,
 ) -> Tuple[int, List[int]]:
     """
     Store extracted insights in knowledge_base.
@@ -176,100 +260,115 @@ def store_insights(
         cur = conn.cursor()
 
         # Store decisions as code snippets (high value)
-        for decision in insights.get('decisions', [])[:5]:
-            cur.execute("""
+        for decision in insights.get("decisions", [])[:5]:
+            cur.execute(
+                """
                 INSERT INTO knowledge_base
                 (title, content, knowledge_type, category, tags, importance_score,
                  source_type, source_id, memory_metadata)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
-            """, (
-                f"Decision: {decision['content'][:80]}...",
-                f"## Decision Made\n\n{decision['content']}\n\n**Session:** {session_name}\n**Branch:** {git_branch}\n**Date:** {timestamp[:10]}",
-                'code_snippet',  # Use high-weight type
-                'Decisions/Architecture',
-                ['decision', 'extracted', git_branch, session_name[:20]],
-                0.85,
-                'insights_extractor',
-                f"decision-{timestamp[:19].replace(':', '-')}",
-                Json({'session_id': session_id, 'extraction_time': timestamp})
-            ))
+            """,
+                (
+                    f"Decision: {decision['content'][:80]}...",
+                    f"## Decision Made\n\n{decision['content']}\n\n**Session:** {session_name}\n**Branch:** {git_branch}\n**Date:** {timestamp[:10]}",
+                    "code_snippet",  # Use high-weight type
+                    "Decisions/Architecture",
+                    ["decision", "extracted", git_branch, session_name[:20]],
+                    0.85,
+                    "insights_extractor",
+                    f"decision-{timestamp[:19].replace(':', '-')}",
+                    Json({"session_id": session_id, "extraction_time": timestamp}),
+                ),
+            )
             stored_ids.append(cur.fetchone()[0])
 
         # Store learnings as conversation_memory
-        for learning in insights.get('learnings', [])[:5]:
-            cur.execute("""
+        for learning in insights.get("learnings", [])[:5]:
+            cur.execute(
+                """
                 INSERT INTO knowledge_base
                 (title, content, knowledge_type, category, tags, importance_score,
                  source_type, source_id, memory_metadata)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
-            """, (
-                f"Learning: {learning['content'][:80]}...",
-                f"## Learning\n\n{learning['content']}\n\n**Session:** {session_name}\n**Branch:** {git_branch}",
-                'conversation_memory',
-                'Learnings/Insights',
-                ['learning', 'extracted', git_branch],
-                0.75,
-                'insights_extractor',
-                f"learning-{timestamp[:19].replace(':', '-')}",
-                Json({'session_id': session_id})
-            ))
+            """,
+                (
+                    f"Learning: {learning['content'][:80]}...",
+                    f"## Learning\n\n{learning['content']}\n\n**Session:** {session_name}\n**Branch:** {git_branch}",
+                    "conversation_memory",
+                    "Learnings/Insights",
+                    ["learning", "extracted", git_branch],
+                    0.75,
+                    "insights_extractor",
+                    f"learning-{timestamp[:19].replace(':', '-')}",
+                    Json({"session_id": session_id}),
+                ),
+            )
             stored_ids.append(cur.fetchone()[0])
 
         # Store errors/fixes as mistake_learned (highest weight!)
-        for error in insights.get('errors', [])[:3]:
+        for error in insights.get("errors", [])[:3]:
             # Check if similar mistake already exists
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT id FROM knowledge_base
                 WHERE knowledge_type = 'mistake_learned'
                 AND content ILIKE %s
                 LIMIT 1
-            """, (f"%{error['content'][:50]}%",))
+            """,
+                (f"%{error['content'][:50]}%",),
+            )
 
             if not cur.fetchone():  # Only add if not duplicate
-                cur.execute("""
+                cur.execute(
+                    """
                     INSERT INTO knowledge_base
                     (title, content, knowledge_type, category, tags, importance_score,
                      source_type, source_id, memory_metadata)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
-                """, (
-                    f"Error Pattern: {error['content'][:60]}...",
-                    f"## Error/Fix Pattern\n\n{error['content']}\n\n**Extracted from:** {session_name}\n**Branch:** {git_branch}",
-                    'mistake_learned',
-                    'Errors/Patterns',
-                    ['error', 'fix', 'extracted', git_branch],
-                    0.9,  # High importance for errors
-                    'insights_extractor',
-                    f"error-{timestamp[:19].replace(':', '-')}",
-                    Json({'session_id': session_id})
-                ))
+                """,
+                    (
+                        f"Error Pattern: {error['content'][:60]}...",
+                        f"## Error/Fix Pattern\n\n{error['content']}\n\n**Extracted from:** {session_name}\n**Branch:** {git_branch}",
+                        "mistake_learned",
+                        "Errors/Patterns",
+                        ["error", "fix", "extracted", git_branch],
+                        0.9,  # High importance for errors
+                        "insights_extractor",
+                        f"error-{timestamp[:19].replace(':', '-')}",
+                        Json({"session_id": session_id}),
+                    ),
+                )
                 stored_ids.append(cur.fetchone()[0])
 
         # Store TODOs in a summary entry
-        if insights.get('todos'):
+        if insights.get("todos"):
             todo_content = "## TODOs Mentioned in Session\n\n"
-            for i, todo in enumerate(insights['todos'][:10], 1):
+            for i, todo in enumerate(insights["todos"][:10], 1):
                 todo_content += f"{i}. {todo['content']}\n"
 
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO knowledge_base
                 (title, content, knowledge_type, category, tags, importance_score,
                  source_type, source_id, memory_metadata)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
-            """, (
-                f"Session TODOs: {session_name} ({timestamp[:10]})",
-                todo_content + f"\n\n**Branch:** {git_branch}",
-                'conversation_memory',
-                'TODOs/ActionItems',
-                ['todo', 'action-item', 'extracted', git_branch],
-                0.7,
-                'insights_extractor',
-                f"todos-{timestamp[:19].replace(':', '-')}",
-                Json({'session_id': session_id, 'todo_count': len(insights['todos'])})
-            ))
+            """,
+                (
+                    f"Session TODOs: {session_name} ({timestamp[:10]})",
+                    todo_content + f"\n\n**Branch:** {git_branch}",
+                    "conversation_memory",
+                    "TODOs/ActionItems",
+                    ["todo", "action-item", "extracted", git_branch],
+                    0.7,
+                    "insights_extractor",
+                    f"todos-{timestamp[:19].replace(':', '-')}",
+                    Json({"session_id": session_id, "todo_count": len(insights["todos"])}),
+                ),
+            )
             stored_ids.append(cur.fetchone()[0])
 
         conn.commit()
@@ -290,18 +389,18 @@ def process_transcript_file(filepath: str) -> Dict:
     """Process a transcript file and extract/store insights"""
 
     if not os.path.exists(filepath):
-        return {'success': False, 'error': 'File not found'}
+        return {"success": False, "error": "File not found"}
 
-    with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
+    with open(filepath, "r", encoding="utf-8", errors="replace") as f:
         transcript = f.read()
 
     # Extract session info from filename or content
     filename = os.path.basename(filepath)
-    session_name = filename.replace('transcript_', '').replace('.md', '')
+    session_name = filename.replace("transcript_", "").replace(".md", "")
 
     # Try to get git branch from transcript or default
-    git_branch_match = re.search(r'Branch:\s*(\S+)', transcript)
-    git_branch = git_branch_match.group(1) if git_branch_match else 'unknown'
+    git_branch_match = re.search(r"Branch:\s*(\S+)", transcript)
+    git_branch = git_branch_match.group(1) if git_branch_match else "unknown"
 
     # Extract insights
     insights = extract_insights(transcript)
@@ -311,24 +410,20 @@ def process_transcript_file(filepath: str) -> Dict:
 
     if total_found == 0:
         return {
-            'success': True,
-            'message': 'No significant insights found',
-            'insights': insights
+            "success": True,
+            "message": "No significant insights found",
+            "insights": insights,
         }
 
     # Store in database
-    stored_count, stored_ids = store_insights(
-        insights,
-        session_name,
-        git_branch
-    )
+    stored_count, stored_ids = store_insights(insights, session_name, git_branch)
 
     return {
-        'success': True,
-        'insights_found': {k: len(v) for k, v in insights.items()},
-        'total_found': total_found,
-        'stored': stored_count,
-        'stored_ids': stored_ids
+        "success": True,
+        "insights_found": {k: len(v) for k, v in insights.items()},
+        "total_found": total_found,
+        "stored": stored_count,
+        "stored_ids": stored_ids,
     }
 
 
@@ -339,13 +434,13 @@ def main():
         print("  or: python conversation_insights_extractor.py --recent")
         sys.exit(1)
 
-    if sys.argv[1] == '--recent':
+    if sys.argv[1] == "--recent":
         # Process most recent transcript
-        log_dir = '/mnt/archie_brain/conversation_logs'
-        transcripts = sorted([
-            f for f in os.listdir(log_dir)
-            if f.startswith('transcript_') and f.endswith('.md')
-        ], reverse=True)
+        log_dir = "/mnt/archie_brain/conversation_logs"
+        transcripts = sorted(
+            [f for f in os.listdir(log_dir) if f.startswith("transcript_") and f.endswith(".md")],
+            reverse=True,
+        )
 
         if transcripts:
             filepath = os.path.join(log_dir, transcripts[0])
@@ -353,13 +448,13 @@ def main():
             result = process_transcript_file(filepath)
         else:
             print("No transcripts found")
-            result = {'success': False, 'error': 'No transcripts'}
+            result = {"success": False, "error": "No transcripts"}
     else:
         result = process_transcript_file(sys.argv[1])
 
     print(json.dumps(result, indent=2))
-    return 0 if result.get('success') else 1
+    return 0 if result.get("success") else 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

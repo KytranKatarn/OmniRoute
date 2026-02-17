@@ -1,73 +1,244 @@
 """
 A.R.C.H.I.E. Auto-Tagging Engine
 Automatically analyzes conversations and generates relevant tags for knowledge storage
+
+Hybrid: fast regex pre-filter + optional LLM enrichment via qwen25-classify.
 """
+
+import os
 import re
-from typing import List, Dict, Set
+import json
+import logging
+from typing import List, Dict, Set, Optional
+
+logger = logging.getLogger(__name__)
+
+CLASSIFIER_MODEL = os.getenv("OLLAMA_CLASSIFIER_MODEL", "qwen25-classify")
+OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
+if not OLLAMA_HOST.startswith("http"):
+    OLLAMA_HOST = f"http://{OLLAMA_HOST}"
+LLM_TAGGING_ENABLED = os.getenv("LLM_TAGGING_ENABLED", "true").lower() == "true"
 
 # Knowledge domains and their keywords
 KNOWLEDGE_DOMAINS = {
-    'python': {
-        'keywords': ['python', 'def ', 'class ', 'import ', 'pip', 'django', 'flask', 'fastapi', 'numpy', 'pandas'],
-        'patterns': [r'\bdef\s+\w+', r'\bclass\s+\w+', r'\.py\b', r'import\s+\w+']
+    "python": {
+        "keywords": [
+            "python",
+            "def ",
+            "class ",
+            "import ",
+            "pip",
+            "django",
+            "flask",
+            "fastapi",
+            "numpy",
+            "pandas",
+        ],
+        "patterns": [r"\bdef\s+\w+", r"\bclass\s+\w+", r"\.py\b", r"import\s+\w+"],
     },
-    'javascript': {
-        'keywords': ['javascript', 'js', 'node', 'npm', 'react', 'vue', 'angular', 'function ', 'const ', 'let ', 'var '],
-        'patterns': [r'function\s+\w+', r'const\s+\w+', r'\.js\b', r'=>']
+    "javascript": {
+        "keywords": [
+            "javascript",
+            "js",
+            "node",
+            "npm",
+            "react",
+            "vue",
+            "angular",
+            "function ",
+            "const ",
+            "let ",
+            "var ",
+        ],
+        "patterns": [r"function\s+\w+", r"const\s+\w+", r"\.js\b", r"=>"],
     },
-    'database': {
-        'keywords': ['sql', 'database', 'postgres', 'mysql', 'mongodb', 'query', 'table', 'select', 'insert', 'update', 'delete'],
-        'patterns': [r'\bSELECT\b', r'\bINSERT\b', r'\bUPDATE\b', r'\bCREATE TABLE\b', r'\.sql\b']
+    "database": {
+        "keywords": [
+            "sql",
+            "database",
+            "postgres",
+            "mysql",
+            "mongodb",
+            "query",
+            "table",
+            "select",
+            "insert",
+            "update",
+            "delete",
+        ],
+        "patterns": [
+            r"\bSELECT\b",
+            r"\bINSERT\b",
+            r"\bUPDATE\b",
+            r"\bCREATE TABLE\b",
+            r"\.sql\b",
+        ],
     },
-    'api': {
-        'keywords': ['api', 'endpoint', 'rest', 'graphql', 'json', 'request', 'response', 'get', 'post', 'put', 'delete'],
-        'patterns': [r'/api/', r'@app\.route', r'@api_bp\.route', r'HTTP', r'REST']
+    "api": {
+        "keywords": [
+            "api",
+            "endpoint",
+            "rest",
+            "graphql",
+            "json",
+            "request",
+            "response",
+            "get",
+            "post",
+            "put",
+            "delete",
+        ],
+        "patterns": [r"/api/", r"@app\.route", r"@api_bp\.route", r"HTTP", r"REST"],
     },
-    'frontend': {
-        'keywords': ['html', 'css', 'template', 'ui', 'interface', 'button', 'form', 'style', 'component'],
-        'patterns': [r'<\w+>', r'\.html\b', r'\.css\b', r'class=', r'id=']
+    "frontend": {
+        "keywords": [
+            "html",
+            "css",
+            "template",
+            "ui",
+            "interface",
+            "button",
+            "form",
+            "style",
+            "component",
+        ],
+        "patterns": [r"<\w+>", r"\.html\b", r"\.css\b", r"class=", r"id="],
     },
-    'docker': {
-        'keywords': ['docker', 'container', 'dockerfile', 'compose', 'image', 'volume', 'network'],
-        'patterns': [r'docker-compose', r'FROM\s+\w+', r'RUN\s+', r'COPY\s+']
+    "docker": {
+        "keywords": [
+            "docker",
+            "container",
+            "dockerfile",
+            "compose",
+            "image",
+            "volume",
+            "network",
+        ],
+        "patterns": [r"docker-compose", r"FROM\s+\w+", r"RUN\s+", r"COPY\s+"],
     },
-    'deployment': {
-        'keywords': ['deploy', 'production', 'staging', 'environment', 'server', 'cloud', 'aws', 'heroku', 'netlify'],
-        'patterns': [r'\.env\b', r'config', r'production', r'staging']
+    "deployment": {
+        "keywords": [
+            "deploy",
+            "production",
+            "staging",
+            "environment",
+            "server",
+            "cloud",
+            "aws",
+            "heroku",
+            "netlify",
+        ],
+        "patterns": [r"\.env\b", r"config", r"production", r"staging"],
     },
-    'security': {
-        'keywords': ['security', 'auth', 'authentication', 'authorization', 'password', 'token', 'jwt', 'encryption', 'ssl', 'https'],
-        'patterns': [r'password', r'token', r'auth', r'secure', r'encrypt']
+    "security": {
+        "keywords": [
+            "security",
+            "auth",
+            "authentication",
+            "authorization",
+            "password",
+            "token",
+            "jwt",
+            "encryption",
+            "ssl",
+            "https",
+        ],
+        "patterns": [r"password", r"token", r"auth", r"secure", r"encrypt"],
     },
-    'testing': {
-        'keywords': ['test', 'pytest', 'unittest', 'jest', 'mocha', 'assert', 'mock', 'fixture'],
-        'patterns': [r'def test_', r'test\(', r'assert\s+', r'\.test\.']
+    "testing": {
+        "keywords": [
+            "test",
+            "pytest",
+            "unittest",
+            "jest",
+            "mocha",
+            "assert",
+            "mock",
+            "fixture",
+        ],
+        "patterns": [r"def test_", r"test\(", r"assert\s+", r"\.test\."],
     },
-    'git': {
-        'keywords': ['git', 'commit', 'branch', 'merge', 'pull', 'push', 'clone', 'repository', 'github'],
-        'patterns': [r'git\s+', r'\.git/', r'commit', r'branch']
+    "git": {
+        "keywords": [
+            "git",
+            "commit",
+            "branch",
+            "merge",
+            "pull",
+            "push",
+            "clone",
+            "repository",
+            "github",
+        ],
+        "patterns": [r"git\s+", r"\.git/", r"commit", r"branch"],
     },
-    'performance': {
-        'keywords': ['performance', 'optimization', 'cache', 'speed', 'memory', 'cpu', 'efficient', 'fast', 'slow'],
-        'patterns': [r'optimize', r'performance', r'cache', r'memory']
+    "performance": {
+        "keywords": [
+            "performance",
+            "optimization",
+            "cache",
+            "speed",
+            "memory",
+            "cpu",
+            "efficient",
+            "fast",
+            "slow",
+        ],
+        "patterns": [r"optimize", r"performance", r"cache", r"memory"],
     },
-    'error-handling': {
-        'keywords': ['error', 'exception', 'try', 'catch', 'except', 'finally', 'raise', 'throw'],
-        'patterns': [r'try:', r'except\s+\w+:', r'raise\s+', r'Error\b', r'Exception\b']
+    "error-handling": {
+        "keywords": [
+            "error",
+            "exception",
+            "try",
+            "catch",
+            "except",
+            "finally",
+            "raise",
+            "throw",
+        ],
+        "patterns": [
+            r"try:",
+            r"except\s+\w+:",
+            r"raise\s+",
+            r"Error\b",
+            r"Exception\b",
+        ],
     },
-    'ai-ml': {
-        'keywords': ['ai', 'ml', 'machine learning', 'neural', 'model', 'training', 'llm', 'ollama', 'openai', 'claude', 'gpt'],
-        'patterns': [r'\bollama\b', r'\bllm\b', r'\bgpt\b', r'\bclaude\b', r'model\.']
+    "ai-ml": {
+        "keywords": [
+            "ai",
+            "ml",
+            "machine learning",
+            "neural",
+            "model",
+            "training",
+            "llm",
+            "ollama",
+            "openai",
+            "claude",
+            "gpt",
+        ],
+        "patterns": [r"\bollama\b", r"\bllm\b", r"\bgpt\b", r"\bclaude\b", r"model\."],
     },
-    'consciousness': {
-        'keywords': ['memory', 'consciousness', 'awareness', 'knowledge', 'learning', 'archie', 'brain'],
-        'patterns': [r'long_term_memory', r'consciousness', r'knowledge', r'learn']
+    "consciousness": {
+        "keywords": [
+            "memory",
+            "consciousness",
+            "awareness",
+            "knowledge",
+            "learning",
+            "archie",
+            "brain",
+        ],
+        "patterns": [r"long_term_memory", r"consciousness", r"knowledge", r"learn"],
     },
-    'backup': {
-        'keywords': ['backup', 'restore', 'recovery', 'snapshot', 'archive'],
-        'patterns': [r'backup', r'restore', r'\.sql\b', r'pg_dump']
-    }
+    "backup": {
+        "keywords": ["backup", "restore", "recovery", "snapshot", "archive"],
+        "patterns": [r"backup", r"restore", r"\.sql\b", r"pg_dump"],
+    },
 }
+
 
 def analyze_content(text: str) -> Dict[str, any]:
     """
@@ -94,13 +265,13 @@ def analyze_content(text: str) -> Dict[str, any]:
         score = 0
 
         # Check keywords
-        for keyword in config['keywords']:
+        for keyword in config["keywords"]:
             if keyword.lower() in text_lower:
                 score += 1
                 keywords_found.add(keyword)
 
         # Check patterns
-        for pattern in config['patterns']:
+        for pattern in config["patterns"]:
             if re.search(pattern, text, re.IGNORECASE):
                 score += 2  # Patterns are stronger signals
 
@@ -108,12 +279,12 @@ def analyze_content(text: str) -> Dict[str, any]:
             domain_scores[domain] = score
 
     # Detect programming languages
-    if any(kw in text_lower for kw in ['python', 'def ', '.py']):
-        detected_languages.add('python')
-    if any(kw in text_lower for kw in ['javascript', 'node', '.js']):
-        detected_languages.add('javascript')
-    if any(kw in text_lower for kw in ['sql', 'database', 'select']):
-        detected_languages.add('sql')
+    if any(kw in text_lower for kw in ["python", "def ", ".py"]):
+        detected_languages.add("python")
+    if any(kw in text_lower for kw in ["javascript", "node", ".js"]):
+        detected_languages.add("javascript")
+    if any(kw in text_lower for kw in ["sql", "database", "select"]):
+        detected_languages.add("sql")
 
     # Determine final tags (domains with score >= 2)
     tags = [domain for domain, score in domain_scores.items() if score >= 2]
@@ -122,8 +293,10 @@ def analyze_content(text: str) -> Dict[str, any]:
     tags.extend(detected_languages)
 
     # Detect code blocks
-    code_detected = bool(re.search(r'```[\s\S]*```', text) or
-                        re.search(r'def \w+|class \w+|function \w+', text))
+    code_detected = bool(
+        re.search(r"```[\s\S]*```", text)
+        or re.search(r"def \w+|class \w+|function \w+", text)
+    )
 
     # Calculate confidence scores
     confidence = {}
@@ -132,42 +305,105 @@ def analyze_content(text: str) -> Dict[str, any]:
         confidence[domain] = min(score / max_score, 1.0)
 
     return {
-        'tags': list(set(tags)),  # Remove duplicates
-        'confidence': confidence,
-        'keywords': list(keywords_found),
-        'code_detected': code_detected,
-        'languages': list(detected_languages),
-        'domain_scores': domain_scores
+        "tags": list(set(tags)),  # Remove duplicates
+        "confidence": confidence,
+        "keywords": list(keywords_found),
+        "code_detected": code_detected,
+        "languages": list(detected_languages),
+        "domain_scores": domain_scores,
     }
 
-def generate_tags_from_conversation(user_message: str, ai_response: str) -> List[str]:
+
+def _llm_enrich_tags(text: str, regex_tags: List[str]) -> List[str]:
     """
-    Generate tags from a complete conversation (user message + AI response)
+    Use qwen25-classify to discover tags that regex missed.
+    Returns enriched tag list or original tags on failure.
+    """
+    if not LLM_TAGGING_ENABLED:
+        return regex_tags
+
+    try:
+        import requests as req
+
+        domains = ", ".join(KNOWLEDGE_DOMAINS.keys())
+        prompt = (
+            f"Classify this text into relevant knowledge domains. "
+            f"Available domains: {domains}, plus any other relevant tags.\n"
+            f"Already detected: {', '.join(regex_tags) if regex_tags else 'none'}\n"
+            f"Add any domains the text relates to that are missing.\n\n"
+            f"Text: {text[:800]}\n\n"
+            f'Respond with JSON only: {{"tags": ["tag1", "tag2"]}}'
+        )
+
+        resp = req.post(
+            f"{OLLAMA_HOST}/api/generate",
+            json={
+                "model": CLASSIFIER_MODEL,
+                "prompt": prompt,
+                "stream": False,
+                "format": "json",
+                "options": {"temperature": 0.1, "num_predict": 150},
+            },
+            timeout=10,
+        )
+
+        if resp.status_code == 200:
+            raw = resp.json().get("response", "")
+            result = json.loads(raw)
+            llm_tags = result.get("tags", [])
+            if isinstance(llm_tags, list):
+                # Merge: keep all regex tags + add new LLM-discovered ones
+                combined = list(set(regex_tags + [t.lower().strip() for t in llm_tags if isinstance(t, str)]))
+                return combined
+
+    except Exception as e:
+        logger.debug(f"LLM tag enrichment failed, using regex only: {e}")
+
+    return regex_tags
+
+
+def generate_tags_from_conversation(
+    user_message: str, ai_response: str, use_llm: bool = True
+) -> List[str]:
+    """
+    Generate tags from a complete conversation (user message + AI response).
+    Hybrid approach: regex pre-filter + optional LLM enrichment.
+
+    Args:
+        user_message: User's message text
+        ai_response: AI's response text
+        use_llm: Whether to use LLM for tag enrichment (default True)
 
     Returns:
         List of relevant tags
     """
-    # Analyze both messages
+    # Analyze both messages with regex
     combined_text = f"{user_message}\n\n{ai_response}"
     analysis = analyze_content(combined_text)
 
-    tags = analysis['tags']
+    tags = analysis["tags"]
 
     # Add context-based tags
-    if 'how' in user_message.lower() or 'explain' in user_message.lower():
-        tags.append('explanation')
+    if "how" in user_message.lower() or "explain" in user_message.lower():
+        tags.append("explanation")
 
-    if 'error' in combined_text.lower() or 'fix' in combined_text.lower():
-        tags.append('troubleshooting')
+    if "error" in combined_text.lower() or "fix" in combined_text.lower():
+        tags.append("troubleshooting")
 
-    if 'implement' in user_message.lower() or 'create' in user_message.lower():
-        tags.append('implementation')
+    if "implement" in user_message.lower() or "create" in user_message.lower():
+        tags.append("implementation")
 
-    if 'optimize' in combined_text.lower() or 'improve' in combined_text.lower():
-        tags.append('optimization')
+    if "optimize" in combined_text.lower() or "improve" in combined_text.lower():
+        tags.append("optimization")
 
-    # Deduplicate
-    return list(set(tags))
+    tags = list(set(tags))
+
+    # Enrich with LLM if enabled
+    if use_llm:
+        tags = _llm_enrich_tags(combined_text, tags)
+
+    return tags
+
 
 def extract_code_snippets(text: str) -> List[Dict[str, str]]:
     """
@@ -179,18 +415,18 @@ def extract_code_snippets(text: str) -> List[Dict[str, str]]:
     snippets = []
 
     # Extract fenced code blocks
-    pattern = r'```(\w+)?\n(.*?)\n```'
+    pattern = r"```(\w+)?\n(.*?)\n```"
     matches = re.findall(pattern, text, re.DOTALL)
 
     for lang, code in matches:
-        snippets.append({
-            'language': lang or 'unknown',
-            'code': code.strip()
-        })
+        snippets.append({"language": lang or "unknown", "code": code.strip()})
 
     return snippets
 
-def summarize_conversation(user_message: str, ai_response: str, max_length: int = 200) -> str:
+
+def summarize_conversation(
+    user_message: str, ai_response: str, max_length: int = 200
+) -> str:
     """
     Generate a brief summary of the conversation
 
@@ -198,15 +434,16 @@ def summarize_conversation(user_message: str, ai_response: str, max_length: int 
         Summary string
     """
     # Extract first sentence of user message
-    user_summary = user_message.split('.')[0][:100]
+    user_summary = user_message.split(".")[0][:100]
 
     # Extract key points from AI response
-    ai_sentences = ai_response.split('.')
+    ai_sentences = ai_response.split(".")
     ai_summary = ai_sentences[0][:100] if ai_sentences else ""
 
     summary = f"Q: {user_summary}... A: {ai_summary}..."
 
     return summary[:max_length]
+
 
 def should_store_knowledge(user_message: str, ai_response: str) -> bool:
     """
@@ -220,7 +457,7 @@ def should_store_knowledge(user_message: str, ai_response: str) -> bool:
         return False
 
     # Don't store simple greetings
-    greetings = ['hello', 'hi', 'hey', 'thanks', 'thank you']
+    greetings = ["hello", "hi", "hey", "thanks", "thank you"]
     if user_message.lower().strip() in greetings:
         return False
 
@@ -228,15 +465,28 @@ def should_store_knowledge(user_message: str, ai_response: str) -> bool:
     combined = f"{user_message} {ai_response}".lower()
 
     valuable_indicators = [
-        'how to', 'why', 'what is', 'explain', 'implement',
-        'function', 'class', 'method', 'code', 'error',
-        'fix', 'solve', 'create', 'build', 'database'
+        "how to",
+        "why",
+        "what is",
+        "explain",
+        "implement",
+        "function",
+        "class",
+        "method",
+        "code",
+        "error",
+        "fix",
+        "solve",
+        "create",
+        "build",
+        "database",
     ]
 
     return any(indicator in combined for indicator in valuable_indicators)
 
+
 # Example usage
-if __name__ == '__main__':
+if __name__ == "__main__":
     test_conversation = """
     User: How do I create a database backup in PostgreSQL?
 
@@ -254,6 +504,6 @@ if __name__ == '__main__':
 
     tags = generate_tags_from_conversation(
         "How do I create a database backup in PostgreSQL?",
-        "To create a database backup... use pg_dump..."
+        "To create a database backup... use pg_dump...",
     )
     print("Tags:", tags)

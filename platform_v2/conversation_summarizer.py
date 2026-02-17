@@ -1,27 +1,37 @@
 """
 Conversation Summarizer (Phase 6)
 
-Uses Claude API to summarize development conversations and extract:
-- Key insights
-- Decisions made
-- Code patterns learned
-- Action items
-- Knowledge to preserve
+Uses tiered model selection to summarize development conversations:
+- Short transcripts (<5K chars): dolphin3-8k locally (FREE)
+- Medium transcripts (5K-20K): Claude Haiku (cheap)
+- Long/complex transcripts (>20K): Claude Sonnet (powerful)
+
+Extracts: key insights, decisions, code patterns, action items.
 
 Author: A.R.C.H.I.E. Platform
-Date: 2026-01-10
-Phase: 6 - Full Conversation Memory System
 """
 
 import sys
-sys.path.insert(0, '/mnt/archie_brain/ai_bridge')
+
+sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
 
 import json
 import logging
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
-logger = logging.getLogger('archie_platform')
+logger = logging.getLogger("archie_platform")
+
+# Import smart truncation
+try:
+    from text_utils import smart_truncate, truncate_for_model
+except ImportError:
+
+    def smart_truncate(text, max_length=12000, **kwargs):
+        return text[:max_length] if len(text) > max_length else text
+
+    def truncate_for_model(text, model_context=8192):
+        return text[: model_context * 3]
 
 
 class ConversationSummarizer:
@@ -35,23 +45,42 @@ class ConversationSummarizer:
     - Calculate productivity and learning scores
     """
 
+    # Summary tiering thresholds
+    TIER_LOCAL_MAX = 5000  # <5K chars → dolphin3-8k (free)
+    TIER_HAIKU_MAX = 20000  # 5K-20K → Claude Haiku (cheap)
+    # >20K → Claude Sonnet (powerful)
+
     def __init__(self):
         """Initialize summarizer"""
         try:
             from archie_bridge import archie_bridge
+
             self.archie_bridge = archie_bridge
             self.available = True
         except ImportError:
             logger.warning("[Conversation Summarizer] archie_bridge not available")
             self.available = False
 
-    def summarize_conversation(
-        self,
-        transcript: str,
-        session_metadata: Optional[Dict] = None
-    ) -> Dict[str, Any]:
+    def _select_summary_tier(self, transcript_len: int) -> tuple:
         """
-        Summarize a conversation transcript using Claude API.
+        Select model tier based on transcript length.
+        Returns (model_name, max_context_chars, tier_name).
+        """
+        if transcript_len <= self.TIER_LOCAL_MAX:
+            return "dolphin3-8k:latest", 6000, "local"
+        elif transcript_len <= self.TIER_HAIKU_MAX:
+            return "claude-haiku-4-5", 16000, "haiku"
+        else:
+            return "claude-sonnet-4", 30000, "sonnet"
+
+    def summarize_conversation(self, transcript: str, session_metadata: Optional[Dict] = None) -> Dict[str, Any]:
+        """
+        Summarize a conversation transcript using tiered model selection.
+
+        Tiering:
+        - Short (<5K chars): dolphin3-8k locally (FREE)
+        - Medium (5K-20K): Claude Haiku (~70% cheaper than Sonnet)
+        - Long (>20K): Claude Sonnet (full power)
 
         Args:
             transcript: Full conversation text
@@ -69,35 +98,49 @@ class ConversationSummarizer:
             return self._fallback_summary(transcript)
 
         try:
-            logger.info(f"[Conversation Summarizer] Summarizing conversation ({len(transcript)} chars)")
+            # Select model tier based on complexity
+            model, max_context, tier = self._select_summary_tier(len(transcript))
+            logger.info(f"[Conversation Summarizer] {tier} tier ({model}) for {len(transcript)} char transcript")
+
+            # Smart truncation instead of naive slice
+            truncated = smart_truncate(
+                transcript,
+                max_length=max_context,
+                head_ratio=0.3,
+                tail_ratio=0.5,
+            )
 
             # Build summarization prompt
-            prompt = self._build_summarization_prompt(transcript, session_metadata)
+            prompt = self._build_summarization_prompt(truncated, session_metadata)
 
-            # Call Claude API via archie_bridge
+            # Call via archie_bridge
             result = self.archie_bridge(
                 prompt=prompt,
                 context="",
-                user_id=2,  # Admin
-                force_model='claude-sonnet-4',  # Use powerful model for summarization
-                enable_memory=False  # Don't store this meta-conversation
+                user_id=2,
+                force_model=model,
+                enable_memory=False,
             )
 
-            if not result.get('success'):
-                logger.error(f"[Conversation Summarizer] Claude API call failed: {result.get('error')}")
+            if not result.get("success"):
+                logger.error(f"[Conversation Summarizer] {model} call failed: {result.get('error')}")
                 return self._fallback_summary(transcript)
 
-            response = result.get('response', '')
+            response = result.get("response", "")
 
             # Parse structured response
             summary_data = self._parse_summary_response(response)
+            summary_data["model_used"] = model
+            summary_data["tier"] = tier
 
             # Calculate scores
-            summary_data['productivity_score'] = self._calculate_productivity_score(summary_data)
-            summary_data['learning_value'] = self._calculate_learning_value(summary_data)
-            summary_data['code_quality'] = self._calculate_code_quality(summary_data)
+            summary_data["productivity_score"] = self._calculate_productivity_score(summary_data)
+            summary_data["learning_value"] = self._calculate_learning_value(summary_data)
+            summary_data["code_quality"] = self._calculate_code_quality(summary_data)
 
-            logger.info(f"[Conversation Summarizer] Summary complete - {len(summary_data.get('key_insights', []))} insights extracted")
+            logger.info(
+                f"[Conversation Summarizer] Summary complete ({tier}) - {len(summary_data.get('key_insights', []))} insights"
+            )
 
             return summary_data
 
@@ -105,11 +148,7 @@ class ConversationSummarizer:
             logger.error(f"[Conversation Summarizer] Error summarizing conversation: {e}")
             return self._fallback_summary(transcript)
 
-    def _build_summarization_prompt(
-        self,
-        transcript: str,
-        session_metadata: Optional[Dict]
-    ) -> str:
+    def _build_summarization_prompt(self, transcript: str, session_metadata: Optional[Dict]) -> str:
         """Build prompt for Claude to summarize conversation"""
 
         metadata_context = ""
@@ -162,8 +201,7 @@ Analyze the following conversation transcript and extract:
 
 **Conversation Transcript:**
 ```
-{transcript[:8000]}  # Limit to 8000 chars to avoid token limits
-{f'... (truncated, full length: {len(transcript)} chars)' if len(transcript) > 8000 else ''}
+{transcript}
 ```
 
 **Respond with ONLY the JSON, no other text.**
@@ -175,8 +213,8 @@ Analyze the following conversation transcript and extract:
         """Parse Claude's structured JSON response"""
         try:
             # Extract JSON from response (might be wrapped in ```json```)
-            json_start = response.find('{')
-            json_end = response.rfind('}') + 1
+            json_start = response.find("{")
+            json_end = response.rfind("}") + 1
 
             if json_start >= 0 and json_end > json_start:
                 json_str = response[json_start:json_end]
@@ -184,13 +222,13 @@ Analyze the following conversation transcript and extract:
 
                 # Validate structure
                 return {
-                    'summary': data.get('summary', ''),
-                    'key_insights': data.get('key_insights', []),
-                    'decisions_made': data.get('decisions_made', []),
-                    'code_patterns_learned': data.get('code_patterns_learned', []),
-                    'action_items': data.get('action_items', []),
-                    'tags': data.get('tags', []),
-                    'raw_response': response
+                    "summary": data.get("summary", ""),
+                    "key_insights": data.get("key_insights", []),
+                    "decisions_made": data.get("decisions_made", []),
+                    "code_patterns_learned": data.get("code_patterns_learned", []),
+                    "action_items": data.get("action_items", []),
+                    "tags": data.get("tags", []),
+                    "raw_response": response,
                 }
             else:
                 logger.warning("[Conversation Summarizer] No JSON found in response")
@@ -206,14 +244,14 @@ Analyze the following conversation transcript and extract:
     def _extract_fallback_insights(self, response: str) -> Dict[str, Any]:
         """Extract insights from non-JSON response"""
         return {
-            'summary': response[:500] if response else 'No summary available',
-            'key_insights': [],
-            'decisions_made': [],
-            'code_patterns_learned': [],
-            'action_items': [],
-            'tags': [],
-            'raw_response': response,
-            'fallback': True
+            "summary": response[:500] if response else "No summary available",
+            "key_insights": [],
+            "decisions_made": [],
+            "code_patterns_learned": [],
+            "action_items": [],
+            "tags": [],
+            "raw_response": response,
+            "fallback": True,
         }
 
     def _calculate_productivity_score(self, summary_data: Dict) -> float:
@@ -228,17 +266,17 @@ Analyze the following conversation transcript and extract:
         score = 0.5  # Base score
 
         # Decisions add to productivity
-        decisions = len(summary_data.get('decisions_made', []))
+        decisions = len(summary_data.get("decisions_made", []))
         if decisions > 0:
             score += min(decisions * 0.1, 0.3)  # Max +0.3
 
         # Code patterns indicate productive coding
-        patterns = len(summary_data.get('code_patterns_learned', []))
+        patterns = len(summary_data.get("code_patterns_learned", []))
         if patterns > 0:
             score += min(patterns * 0.05, 0.15)  # Max +0.15
 
         # Insights suggest deep work
-        insights = len(summary_data.get('key_insights', []))
+        insights = len(summary_data.get("key_insights", []))
         if insights > 0:
             score += min(insights * 0.02, 0.1)  # Max +0.1
 
@@ -256,16 +294,16 @@ Analyze the following conversation transcript and extract:
         score = 0.3  # Base score
 
         # Insights are primary learning indicator
-        insights = summary_data.get('key_insights', [])
+        insights = summary_data.get("key_insights", [])
         if insights:
             # Weight by importance
-            avg_importance = sum(i.get('importance', 0.5) for i in insights) / len(insights)
+            avg_importance = sum(i.get("importance", 0.5) for i in insights) / len(insights)
             score += avg_importance * 0.4  # Max +0.4
 
         # Code patterns add learning value
-        patterns = summary_data.get('code_patterns_learned', [])
+        patterns = summary_data.get("code_patterns_learned", [])
         if patterns:
-            avg_usefulness = sum(p.get('usefulness', 0.5) for p in patterns) / len(patterns)
+            avg_usefulness = sum(p.get("usefulness", 0.5) for p in patterns) / len(patterns)
             score += avg_usefulness * 0.3  # Max +0.3
 
         return min(score, 1.0)
@@ -282,13 +320,13 @@ Analyze the following conversation transcript and extract:
         score = 0.6  # Base score (assume decent quality)
 
         # High-impact decisions suggest good quality
-        decisions = summary_data.get('decisions_made', [])
-        high_impact = sum(1 for d in decisions if d.get('impact') == 'high')
+        decisions = summary_data.get("decisions_made", [])
+        high_impact = sum(1 for d in decisions if d.get("impact") == "high")
         if high_impact > 0:
             score += min(high_impact * 0.1, 0.2)  # Max +0.2
 
         # Code patterns suggest quality
-        patterns = summary_data.get('code_patterns_learned', [])
+        patterns = summary_data.get("code_patterns_learned", [])
         if patterns:
             score += min(len(patterns) * 0.05, 0.2)  # Max +0.2
 
@@ -300,22 +338,23 @@ Analyze the following conversation transcript and extract:
         word_count = len(words)
 
         return {
-            'summary': f"Development session with {word_count} words of conversation",
-            'key_insights': [],
-            'decisions_made': [],
-            'code_patterns_learned': [],
-            'action_items': [],
-            'tags': [],
-            'productivity_score': 0.5,
-            'learning_value': 0.5,
-            'code_quality': 0.6,
-            'fallback': True,
-            'error': 'Claude API not available'
+            "summary": f"Development session with {word_count} words of conversation",
+            "key_insights": [],
+            "decisions_made": [],
+            "code_patterns_learned": [],
+            "action_items": [],
+            "tags": [],
+            "productivity_score": 0.5,
+            "learning_value": 0.5,
+            "code_quality": 0.6,
+            "fallback": True,
+            "error": "Claude API not available",
         }
 
 
 # Singleton instance
 _summarizer_instance = None
+
 
 def get_conversation_summarizer():
     """Get singleton conversation summarizer instance"""

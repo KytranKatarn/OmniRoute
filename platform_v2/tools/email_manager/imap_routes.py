@@ -396,7 +396,7 @@ def bulk_action():
         if len(ids) > 200:
             return jsonify({"success": False, "error": "Max 200 emails per bulk action"}), 400
 
-        valid_actions = ["mark_read", "mark_unread", "archive", "star", "unstar"]
+        valid_actions = ["mark_read", "mark_unread", "archive", "star", "unstar", "delete"]
         if action not in valid_actions:
             return jsonify({"success": False, "error": f"Invalid action: {action}"}), 400
 
@@ -415,6 +415,8 @@ def bulk_action():
             cur.execute(f"UPDATE email_inbox SET is_starred = TRUE WHERE id IN ({placeholders})", ids)
         elif action == "unstar":
             cur.execute(f"UPDATE email_inbox SET is_starred = FALSE WHERE id IN ({placeholders})", ids)
+        elif action == "delete":
+            cur.execute(f"DELETE FROM email_inbox WHERE id IN ({placeholders})", ids)
 
         affected = cur.rowcount
         conn.commit()
@@ -523,6 +525,26 @@ def archive_email(email_id):
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
+
+
+@email_manager_bp.route("/api/inbox/<int:email_id>/delete", methods=["DELETE"])
+@login_required
+def delete_email(email_id):
+    """Permanently delete an email."""
+    conn = get_db()
+    cur = conn.cursor()
+    try:
+        cur.execute("DELETE FROM email_inbox WHERE id = %s", (email_id,))
+        if cur.rowcount == 0:
+            return jsonify({"success": False, "error": "Email not found"}), 404
+        conn.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
 
 
 # ============================================================================

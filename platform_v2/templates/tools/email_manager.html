@@ -199,6 +199,9 @@
                         <button class="em-btn em-btn--sm em-btn--outline" onclick="bulkAnalyzeSelected()">
                             <i data-lucide="sparkles"></i> Analyze Selected
                         </button>
+                        <button class="em-btn em-btn--sm em-btn--danger" onclick="bulkDelete()">
+                            <i data-lucide="trash-2"></i> Delete
+                        </button>
                         <button class="em-btn em-btn--sm em-btn--outline" onclick="clearSelection()">
                             <i data-lucide="x"></i> Clear
                         </button>
@@ -339,6 +342,10 @@
                         <button class="em-btn em-btn--outline" onclick="saveToKB(currentEmailId)">
                             <i data-lucide="database"></i>
                             <span>Save to KB</span>
+                        </button>
+                        <button class="em-btn em-btn--danger" onclick="deleteEmail()" title="Delete email">
+                            <i data-lucide="trash-2"></i>
+                            <span>Delete</span>
                         </button>
                     </div>
                 </div>
@@ -1072,6 +1079,22 @@
     padding: 6px 12px;
     font-size: 0.75rem;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   CONFIRMATION DIALOG
+   ═══════════════════════════════════════════════════════════════════════════════ */
+.em-confirm-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.7); display: flex; align-items: center;
+    justify-content: center; z-index: 1000;
+}
+.em-confirm-dialog {
+    background: #1a1a2e; border: 1px solid var(--em-accent, #00FFFF); border-radius: 8px;
+    padding: 24px; min-width: 320px; max-width: 480px;
+}
+.em-confirm-title { color: var(--em-accent, #00FFFF); font-size: 16px; font-weight: 600; margin-bottom: 12px; }
+.em-confirm-message { color: #ccc; margin-bottom: 20px; line-height: 1.5; }
+.em-confirm-actions { display: flex; gap: 12px; justify-content: flex-end; }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
    STATS GRID
@@ -2765,6 +2788,18 @@ body.light-mode .em-table tbody tr:nth-child(even):hover {
 }
 </style>
 
+<!-- Confirmation Dialog -->
+<div class="em-confirm-overlay" id="confirm-overlay" style="display:none">
+    <div class="em-confirm-dialog">
+        <div class="em-confirm-title" id="confirm-title">Confirm Delete</div>
+        <div class="em-confirm-message" id="confirm-message">Are you sure?</div>
+        <div class="em-confirm-actions">
+            <button class="em-btn em-btn--sm em-btn--outline" onclick="closeConfirm()">Cancel</button>
+            <button class="em-btn em-btn--sm em-btn--danger" id="confirm-action-btn">Confirm</button>
+        </div>
+    </div>
+</div>
+
 <script>
 // ═══════════════════════════════════════════════════════════════════════════════
 // EMAIL MANAGER - JAVASCRIPT
@@ -3384,6 +3419,58 @@ async function archiveEmail(id) {
     } catch (error) {
         showToast('Failed to archive email', 'error');
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CONFIRMATION DIALOG
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function showConfirm(title, message, onConfirm) {
+    document.getElementById('confirm-title').textContent = title;
+    document.getElementById('confirm-message').textContent = message;
+    var btn = document.getElementById('confirm-action-btn');
+    btn.onclick = function() {
+        closeConfirm();
+        onConfirm();
+    };
+    document.getElementById('confirm-overlay').style.display = 'flex';
+}
+
+function closeConfirm() {
+    document.getElementById('confirm-overlay').style.display = 'none';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INBOX - DELETE EMAIL
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function deleteEmail() {
+    if (!currentEmailId) return;
+    showConfirm('Delete Email', 'Are you sure you want to permanently delete this email?', async function() {
+        try {
+            var resp = await fetch('/tools/email-manager/api/inbox/' + currentEmailId + '/delete', { method: 'DELETE' });
+            var data = await resp.json();
+            if (data.success) {
+                showToast('Email deleted', 'success');
+                closeEmailDetail();
+                currentEmailId = null;
+                loadInbox(inboxCurrentPage);
+                loadInboxStats();
+            } else {
+                showToast(data.error || 'Failed to delete', 'error');
+            }
+        } catch (e) {
+            showToast('Failed to delete email', 'error');
+        }
+    });
+}
+
+function bulkDelete() {
+    var ids = getSelectedIds();
+    if (!ids.length) return;
+    showConfirm('Delete Emails', 'Permanently delete ' + ids.length + ' email(s)? This cannot be undone.', function() {
+        bulkAction('delete');
+    });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -4259,6 +4346,7 @@ document.querySelectorAll('.em-modal-backdrop').forEach(backdrop => {
 // Close modals with Escape key
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+        closeConfirm();
         document.querySelectorAll('.em-modal.active').forEach(modal => {
             modal.classList.remove('active');
         });

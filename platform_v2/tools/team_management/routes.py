@@ -17,7 +17,17 @@ Migrated routes:
 - /api/agent-directory GET - Get complete agent directory
 """
 
-from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify, Response, stream_with_context
+from flask import (
+    Blueprint,
+    render_template,
+    redirect,
+    url_for,
+    flash,
+    request,
+    jsonify,
+    Response,
+    stream_with_context,
+)
 from flask_login import login_required, current_user
 from functools import wraps
 import psycopg2
@@ -322,7 +332,12 @@ def get_agent_details(agent_id):
             executions_list.append(exec_dict)
 
         return jsonify(
-            {"success": True, "agent": agent_dict, "tools": tools_list, "recent_executions": executions_list}
+            {
+                "success": True,
+                "agent": agent_dict,
+                "tools": tools_list,
+                "recent_executions": executions_list,
+            }
         )
 
     except Exception as e:
@@ -398,7 +413,10 @@ def update_agent_profile(agent_id):
         if not update_fields:
             cur.close()
             conn.close()
-            return jsonify({"success": False, "error": "No valid fields to update"}), 400
+            return (
+                jsonify({"success": False, "error": "No valid fields to update"}),
+                400,
+            )
 
         # Add updated_at timestamp
         update_fields.append("updated_at = NOW()")
@@ -429,7 +447,13 @@ def update_agent_profile(agent_id):
         if result.get("updated_at"):
             result["updated_at"] = result["updated_at"].isoformat()
 
-        return jsonify({"success": True, "message": "Agent profile updated successfully", "agent": result})
+        return jsonify(
+            {
+                "success": True,
+                "message": "Agent profile updated successfully",
+                "agent": result,
+            }
+        )
 
     except Exception as e:
         import traceback
@@ -559,7 +583,12 @@ def get_agent_work_history(agent_id):
                 d["created_at"] = d["created_at"].isoformat()
 
         return jsonify(
-            {"success": True, "proposals": proposals, "discussions": discussions, "stats": dict(stats) if stats else {}}
+            {
+                "success": True,
+                "proposals": proposals,
+                "discussions": discussions,
+                "stats": dict(stats) if stats else {},
+            }
         )
 
     except Exception as e:
@@ -595,7 +624,11 @@ def get_contractor_api_status(agent_id):
 
         if agent["worker_type"] != "contract":
             return jsonify(
-                {"success": True, "is_contractor": False, "message": "This is an internal agent, not a contractor"}
+                {
+                    "success": True,
+                    "is_contractor": False,
+                    "message": "This is an internal agent, not a contractor",
+                }
             )
 
         # Check API provider status
@@ -667,7 +700,10 @@ def execute_agent(agent_id):
 
         # Execute the task with the specified agent
         result = execute_agent_task(
-            agent_id=agent_id, task=task, user_id=current_user.id, stream=data.get("stream", False)
+            agent_id=agent_id,
+            task=task,
+            user_id=current_user.id,
+            stream=data.get("stream", False),
         )
 
         return jsonify(result)
@@ -693,7 +729,10 @@ def agent_chat():
         history = data.get("history", [])
 
         if not agent_id or not message:
-            return jsonify({"success": False, "error": "Agent ID and message required"}), 400
+            return (
+                jsonify({"success": False, "error": "Agent ID and message required"}),
+                400,
+            )
 
         # Get agent details for context
         conn = get_db()
@@ -753,7 +792,15 @@ Respond in character as this agent. Be helpful, professional, """
                 }
             )
         else:
-            return jsonify({"success": False, "error": result.get("error", "Failed to get response from agent")}), 500
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": result.get("error", "Failed to get response from agent"),
+                    }
+                ),
+                500,
+            )
 
     except Exception as e:
         import traceback
@@ -877,7 +924,10 @@ def team_chat():
         history = data.get("history", [])
 
         if not agent_ids or not message:
-            return jsonify({"success": False, "error": "Agent IDs and message required"}), 400
+            return (
+                jsonify({"success": False, "error": "Agent IDs and message required"}),
+                400,
+            )
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -970,7 +1020,12 @@ Keep responses concise (2-4 sentences) unless more detail is needed."""
                     (discussion_id, agent_id, message_type, message, supporting_data)
                     VALUES (%s, %s, 'response', %s, %s)
                 """,
-                    (discussion_id, agent["id"], response_text, json.dumps({"model_used": model_used})),
+                    (
+                        discussion_id,
+                        agent["id"],
+                        response_text,
+                        json.dumps({"model_used": model_used}),
+                    ),
                 )
                 conn.commit()
 
@@ -1124,7 +1179,15 @@ def get_agent_performance_data(agent_id):
         performance = get_agent_performance(agent_id)
 
         if not performance:
-            return jsonify({"success": False, "error": "Agent not found or no performance data"}), 404
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Agent not found or no performance data",
+                    }
+                ),
+                404,
+            )
 
         return jsonify({"success": True, "performance": performance}), 200
 
@@ -1148,7 +1211,15 @@ def update_agent_performance_metrics(agent_id):
         if not success:
             return jsonify({"success": False, "error": "Failed to update metrics"}), 500
 
-        return jsonify({"success": True, "message": f"Performance metrics updated for agent #{agent_id}"}), 200
+        return (
+            jsonify(
+                {
+                    "success": True,
+                    "message": f"Performance metrics updated for agent #{agent_id}",
+                }
+            ),
+            200,
+        )
 
     except Exception as e:
         import traceback
@@ -1191,7 +1262,15 @@ def log_agent_performance_action(agent_id):
         outcome = data.get("outcome")
 
         if not action_type or not outcome:
-            return jsonify({"success": False, "error": "Missing required fields: action_type, outcome"}), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Missing required fields: action_type, outcome",
+                    }
+                ),
+                400,
+            )
 
         success = log_agent_action(
             agent_id=agent_id,
@@ -1546,7 +1625,14 @@ def get_agent_skills(agent_id):
                 skill_dict["updated_at"] = skill_dict["updated_at"].isoformat()
             skills_list.append(skill_dict)
 
-        return jsonify({"success": True, "agent": dict(agent), "skills": skills_list, "skill_count": len(skills_list)})
+        return jsonify(
+            {
+                "success": True,
+                "agent": dict(agent),
+                "skills": skills_list,
+                "skill_count": len(skills_list),
+            }
+        )
 
     except Exception as e:
         import traceback
@@ -1582,7 +1668,10 @@ def add_agent_skill(agent_id):
             return jsonify({"success": False, "error": "skill_name is required"}), 400
 
         if proficiency < 1 or proficiency > 5:
-            return jsonify({"success": False, "error": "proficiency_level must be 1-5"}), 400
+            return (
+                jsonify({"success": False, "error": "proficiency_level must be 1-5"}),
+                400,
+            )
 
         # Insert skill (or update if exists)
         cur.execute(
@@ -1620,7 +1709,13 @@ def add_agent_skill(agent_id):
         if skill_dict.get("updated_at"):
             skill_dict["updated_at"] = skill_dict["updated_at"].isoformat()
 
-        return jsonify({"success": True, "message": f'Skill "{skill_name}" added to agent', "skill": skill_dict})
+        return jsonify(
+            {
+                "success": True,
+                "message": f'Skill "{skill_name}" added to agent',
+                "skill": skill_dict,
+            }
+        )
 
     except Exception as e:
         import traceback
@@ -1649,7 +1744,10 @@ def update_agent_skill(agent_id, skill_id):
         if "proficiency_level" in data:
             proficiency = data["proficiency_level"]
             if proficiency < 1 or proficiency > 5:
-                return jsonify({"success": False, "error": "proficiency_level must be 1-5"}), 400
+                return (
+                    jsonify({"success": False, "error": "proficiency_level must be 1-5"}),
+                    400,
+                )
             update_fields.append("proficiency_level = %s")
             params.append(proficiency)
 
@@ -1662,7 +1760,10 @@ def update_agent_skill(agent_id, skill_id):
             params.append(data["notes"])
 
         if not update_fields:
-            return jsonify({"success": False, "error": "No valid fields to update"}), 400
+            return (
+                jsonify({"success": False, "error": "No valid fields to update"}),
+                400,
+            )
 
         update_fields.append("updated_at = %s")
         params.append(datetime.now())
@@ -1777,7 +1878,11 @@ def get_skill_categories():
         conn.close()
 
         return jsonify(
-            {"success": True, "categories": [dict(c) for c in categories], "task_category_mappings": task_categories}
+            {
+                "success": True,
+                "categories": [dict(c) for c in categories],
+                "task_category_mappings": task_categories,
+            }
         )
 
     except Exception as e:
@@ -1928,12 +2033,21 @@ def get_skill_recommendations():
             )
             matches = cur.fetchall()
             if matches:
-                best_match = {"task_type": task_type, "matches": [dict(m) for m in matches]}
+                best_match = {
+                    "task_type": task_type,
+                    "matches": [dict(m) for m in matches],
+                }
 
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "recommendations": list(recommendations.values()), "best_match": best_match})
+        return jsonify(
+            {
+                "success": True,
+                "recommendations": list(recommendations.values()),
+                "best_match": best_match,
+            }
+        )
 
     except Exception as e:
         import traceback
@@ -2164,14 +2278,18 @@ def assign_agent_to_station(agent_id):
 
         # Get station ID
         cur.execute(
-            "SELECT id FROM bridge_stations WHERE station_code = %s AND is_active = TRUE", (station_code.upper(),)
+            "SELECT id FROM bridge_stations WHERE station_code = %s AND is_active = TRUE",
+            (station_code.upper(),),
         )
         station = cur.fetchone()
 
         if not station:
             cur.close()
             conn.close()
-            return jsonify({"success": False, "error": f"Station {station_code} not found"}), 404
+            return (
+                jsonify({"success": False, "error": f"Station {station_code} not found"}),
+                404,
+            )
 
         station_id = station["id"]
 
@@ -2182,7 +2300,10 @@ def assign_agent_to_station(agent_id):
         if not agent:
             cur.close()
             conn.close()
-            return jsonify({"success": False, "error": f"Agent {agent_id} not found"}), 404
+            return (
+                jsonify({"success": False, "error": f"Agent {agent_id} not found"}),
+                404,
+            )
 
         # Upsert assignment (update if exists, insert if not)
         cur.execute(
@@ -2331,7 +2452,7 @@ def get_station_roster():
                         "worker_type": row["worker_type"],
                         "assignment_type": row["assignment_type"],
                         "shift_preference": row["shift_preference"],
-                        "assigned_at": row["assigned_at"].isoformat() if row["assigned_at"] else None,
+                        "assigned_at": (row["assigned_at"].isoformat() if row["assigned_at"] else None),
                     }
                 )
 
@@ -2389,13 +2510,25 @@ def auto_assign_agents():
                     (station_id, agent["id"]),
                 )
                 assigned_count += 1
-                assignments.append({"agent": agent["name"], "department": dept, "station": station_code})
+                assignments.append(
+                    {
+                        "agent": agent["name"],
+                        "department": dept,
+                        "station": station_code,
+                    }
+                )
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "assigned_count": assigned_count, "assignments": assignments})
+        return jsonify(
+            {
+                "success": True,
+                "assigned_count": assigned_count,
+                "assignments": assignments,
+            }
+        )
 
     except Exception as e:
         import traceback
@@ -2464,7 +2597,10 @@ def health_check():
 
         return jsonify({"healthy": True, "module": "team_management", "active_agents": count})
     except Exception as e:
-        return jsonify({"healthy": False, "module": "team_management", "error": str(e)}), 500
+        return (
+            jsonify({"healthy": False, "module": "team_management", "error": str(e)}),
+            500,
+        )
 
 
 # ============================================================================
@@ -2614,7 +2750,13 @@ def get_shift_conflicts():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "conflicts": [dict(c) for c in conflicts], "count": len(conflicts)})
+        return jsonify(
+            {
+                "success": True,
+                "conflicts": [dict(c) for c in conflicts],
+                "count": len(conflicts),
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -2661,7 +2803,11 @@ def resolve_conflict(conflict_id):
                 resolution_note = %s
             WHERE id = %s
         """,
-            (current_user.email if hasattr(current_user, "email") else "admin", resolution_note, conflict_id),
+            (
+                current_user.email if hasattr(current_user, "email") else "admin",
+                resolution_note,
+                conflict_id,
+            ),
         )
 
         conn.commit()
@@ -2787,7 +2933,10 @@ def assign_agent_shift(agent_id):
 
         existing = cur.fetchone()
         if existing:
-            return jsonify({"success": False, "error": "Agent already assigned to this shift"}), 400
+            return (
+                jsonify({"success": False, "error": "Agent already assigned to this shift"}),
+                400,
+            )
 
         cur.execute(
             """
@@ -2821,7 +2970,13 @@ def assign_agent_shift(agent_id):
                 agent_id,
                 shift_id,
                 station_id,
-                json.dumps({"is_primary": is_primary, "day_of_week": day_of_week, "rotation_group": rotation_group}),
+                json.dumps(
+                    {
+                        "is_primary": is_primary,
+                        "day_of_week": day_of_week,
+                        "rotation_group": rotation_group,
+                    }
+                ),
                 current_user.email if hasattr(current_user, "email") else "admin",
             ),
         )
@@ -2946,7 +3101,10 @@ def create_rotation():
         auto_rotate = data.get("auto_rotate", True)
 
         if not rotation_name:
-            return jsonify({"success": False, "error": "rotation_name is required"}), 400
+            return (
+                jsonify({"success": False, "error": "rotation_name is required"}),
+                400,
+            )
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -2998,7 +3156,10 @@ def advance_rotation(rotation_id):
         if success:
             return jsonify({"success": True, "message": "Rotation advanced"})
         else:
-            return jsonify({"success": False, "error": "Rotation not found or inactive"}), 404
+            return (
+                jsonify({"success": False, "error": "Rotation not found or inactive"}),
+                404,
+            )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -3039,7 +3200,13 @@ def bulk_deactivate_agents():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "deactivated_count": len(deactivated_ids), "deactivated_ids": deactivated_ids})
+        return jsonify(
+            {
+                "success": True,
+                "deactivated_count": len(deactivated_ids),
+                "deactivated_ids": deactivated_ids,
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -3102,7 +3269,7 @@ def bulk_assign_shifts():
                         agent["id"],
                         shift_id,
                         station_id,
-                        current_user.email if hasattr(current_user, "email") else "admin",
+                        (current_user.email if hasattr(current_user, "email") else "admin"),
                     ),
                 )
                 assigned_count += 1
@@ -3111,7 +3278,13 @@ def bulk_assign_shifts():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "assigned_count": assigned_count, "total_agents": len(agents)})
+        return jsonify(
+            {
+                "success": True,
+                "assigned_count": assigned_count,
+                "total_agents": len(agents),
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -3204,7 +3377,10 @@ def create_task_assignment():
         estimated_minutes = data.get("estimated_minutes")
 
         if not title or not agent_id:
-            return jsonify({"success": False, "error": "Title and agent_id are required"}), 400
+            return (
+                jsonify({"success": False, "error": "Title and agent_id are required"}),
+                400,
+            )
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -3250,7 +3426,13 @@ def create_task_assignment():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "task_id": task_id, "message": "Task assigned successfully"})
+        return jsonify(
+            {
+                "success": True,
+                "task_id": task_id,
+                "message": "Task assigned successfully",
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -3324,7 +3506,14 @@ def update_task_assignment(task_id):
         updates = []
         params = []
 
-        for field in ["title", "description", "priority", "status", "instructions", "due_date"]:
+        for field in [
+            "title",
+            "description",
+            "priority",
+            "status",
+            "instructions",
+            "due_date",
+        ]:
             if field in data:
                 updates.append(f"{field} = %s")
                 params.append(data[field])
@@ -3890,7 +4079,10 @@ def create_agent_memory(agent_id):
         data = request.get_json()
 
         if not data.get("memory_key") or not data.get("memory_value"):
-            return jsonify({"success": False, "error": "memory_key and memory_value required"}), 400
+            return (
+                jsonify({"success": False, "error": "memory_key and memory_value required"}),
+                400,
+            )
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -3912,7 +4104,7 @@ def create_agent_memory(agent_id):
                 agent_id,
                 data.get("memory_type", "general"),
                 data["memory_key"],
-                json.dumps(data["memory_value"]) if isinstance(data["memory_value"], dict) else data["memory_value"],
+                (json.dumps(data["memory_value"]) if isinstance(data["memory_value"], dict) else data["memory_value"]),
                 data.get("importance", 0.5),
                 data.get("context"),
             ),
@@ -3927,14 +4119,25 @@ def create_agent_memory(agent_id):
             (event_type, event_category, agent_id, user_id, action, target_table, target_id, new_value, outcome)
             VALUES ('memory_created', 'data_management', %s, %s, 'create_memory', 'agent_memory', %s, %s, 'success')
         """,
-            (agent_id, current_user.id, memory["id"], json.dumps(dict(memory), default=str)),
+            (
+                agent_id,
+                current_user.id,
+                memory["id"],
+                json.dumps(dict(memory), default=str),
+            ),
         )
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "data": dict(memory), "message": "Memory created successfully"})
+        return jsonify(
+            {
+                "success": True,
+                "data": dict(memory),
+                "message": "Memory created successfully",
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -3981,7 +4184,10 @@ def update_agent_memory(agent_id, memory_id):
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get old value for audit
-        cur.execute("SELECT * FROM agent_memory WHERE id = %s AND agent_id = %s", (memory_id, agent_id))
+        cur.execute(
+            "SELECT * FROM agent_memory WHERE id = %s AND agent_id = %s",
+            (memory_id, agent_id),
+        )
         old_memory = cur.fetchone()
 
         if not old_memory:
@@ -4050,7 +4256,13 @@ def update_agent_memory(agent_id, memory_id):
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "data": dict(updated), "message": "Memory updated successfully"})
+        return jsonify(
+            {
+                "success": True,
+                "data": dict(updated),
+                "message": "Memory updated successfully",
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -4080,7 +4292,10 @@ def delete_agent_memory(agent_id, memory_id):
         if not result or not result["deleted"]:
             cur.close()
             conn.close()
-            return jsonify({"success": False, "error": "Memory not found or already deleted"}), 404
+            return (
+                jsonify({"success": False, "error": "Memory not found or already deleted"}),
+                404,
+            )
 
         conn.commit()
         cur.close()
@@ -4115,7 +4330,10 @@ def restore_agent_memory(agent_id, memory_id):
         if not restored:
             cur.close()
             conn.close()
-            return jsonify({"success": False, "error": "Memory not found or not deleted"}), 404
+            return (
+                jsonify({"success": False, "error": "Memory not found or not deleted"}),
+                404,
+            )
 
         # Log governance event
         cur.execute(
@@ -4131,7 +4349,13 @@ def restore_agent_memory(agent_id, memory_id):
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "data": dict(restored), "message": "Memory restored successfully"})
+        return jsonify(
+            {
+                "success": True,
+                "data": dict(restored),
+                "message": "Memory restored successfully",
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -4177,7 +4401,12 @@ def get_agent_emotional_state(agent_id):
         conn.close()
 
         # Define thresholds
-        thresholds = {"energy_low": 0.2, "energy_critical": 0.1, "stress_high": 0.7, "stress_critical": 0.85}
+        thresholds = {
+            "energy_low": 0.2,
+            "energy_critical": 0.1,
+            "stress_high": 0.7,
+            "stress_critical": 0.85,
+        }
 
         return jsonify(
             {
@@ -4186,7 +4415,7 @@ def get_agent_emotional_state(agent_id):
                     "current_state": dict(state) if state else None,
                     "welfare_summary": dict(welfare) if welfare else None,
                     "thresholds": thresholds,
-                    "alerts": _check_emotional_alerts(state, thresholds) if state else [],
+                    "alerts": (_check_emotional_alerts(state, thresholds) if state else []),
                 },
             }
         )
@@ -4243,7 +4472,14 @@ def get_agent_emotional_history(agent_id):
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "data": [dict(h) for h in history], "count": len(history), "days": days})
+        return jsonify(
+            {
+                "success": True,
+                "data": [dict(h) for h in history],
+                "count": len(history),
+                "days": days,
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -4261,9 +4497,25 @@ def record_agent_emotional_state(agent_id):
 
         # Validate ranges
         if not (0.1 <= energy <= 1.0):
-            return jsonify({"success": False, "error": "energy_level must be between 0.1 and 1.0"}), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "energy_level must be between 0.1 and 1.0",
+                    }
+                ),
+                400,
+            )
         if not (0.0 <= stress <= 0.9):
-            return jsonify({"success": False, "error": "stress_level must be between 0.0 and 0.9"}), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "stress_level must be between 0.0 and 0.9",
+                    }
+                ),
+                400,
+            )
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -4276,7 +4528,14 @@ def record_agent_emotional_state(agent_id):
             VALUES (%s, %s, %s, %s, %s, %s)
             RETURNING *
         """,
-            (agent_id, energy, stress, data.get("mood", "neutral"), data.get("task_context"), current_user.id),
+            (
+                agent_id,
+                energy,
+                stress,
+                data.get("mood", "neutral"),
+                data.get("task_context"),
+                current_user.id,
+            ),
         )
 
         state = cur.fetchone()
@@ -4288,7 +4547,12 @@ def record_agent_emotional_state(agent_id):
                 """
                 SELECT trigger_agent_rest_cycle(%s, %s, %s, %s)
             """,
-                (agent_id, "forced", f"Auto-triggered: stress={stress:.2f}, energy={energy:.2f}", current_user.id),
+                (
+                    agent_id,
+                    "forced",
+                    f"Auto-triggered: stress={stress:.2f}, energy={energy:.2f}",
+                    current_user.id,
+                ),
             )
             rest_triggered = True
 
@@ -4296,7 +4560,11 @@ def record_agent_emotional_state(agent_id):
         cur.close()
         conn.close()
 
-        response = {"success": True, "data": dict(state), "message": "Emotional state recorded"}
+        response = {
+            "success": True,
+            "data": dict(state),
+            "message": "Emotional state recorded",
+        }
 
         if rest_triggered:
             response["alert"] = "Critical state detected - rest cycle auto-triggered"
@@ -4398,7 +4666,10 @@ def start_agent_rest_cycle(agent_id):
         if cur.fetchone():
             cur.close()
             conn.close()
-            return jsonify({"success": False, "error": "Agent is already in a rest cycle"}), 400
+            return (
+                jsonify({"success": False, "error": "Agent is already in a rest cycle"}),
+                400,
+            )
 
         # Use database function
         cur.execute(
@@ -4418,7 +4689,13 @@ def start_agent_rest_cycle(agent_id):
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "data": dict(cycle), "message": f"Rest cycle started for agent {agent_id}"})
+        return jsonify(
+            {
+                "success": True,
+                "data": dict(cycle),
+                "message": f"Rest cycle started for agent {agent_id}",
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -4450,7 +4727,10 @@ def end_agent_rest_cycle(agent_id, cycle_id):
         if not cycle:
             cur.close()
             conn.close()
-            return jsonify({"success": False, "error": "Rest cycle not found or already ended"}), 404
+            return (
+                jsonify({"success": False, "error": "Rest cycle not found or already ended"}),
+                404,
+            )
 
         # Log governance event
         cur.execute(
@@ -4534,7 +4814,10 @@ def log_agent_refusal(agent_id):
         data = request.get_json()
 
         if not data.get("task_description"):
-            return jsonify({"success": False, "error": "task_description required"}), 400
+            return (
+                jsonify({"success": False, "error": "task_description required"}),
+                400,
+            )
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -4564,7 +4847,12 @@ def log_agent_refusal(agent_id):
             (event_type, event_category, agent_id, user_id, action, target_table, target_id, new_value, outcome)
             VALUES ('task_refused', 'ethics', %s, %s, 'log_refusal', 'task_refusal_log', %s, %s, 'success')
         """,
-            (agent_id, current_user.id, refusal["id"], json.dumps(dict(refusal), default=str)),
+            (
+                agent_id,
+                current_user.id,
+                refusal["id"],
+                json.dumps(dict(refusal), default=str),
+            ),
         )
 
         conn.commit()
@@ -4585,7 +4873,10 @@ def override_agent_refusal(agent_id, refusal_id):
         data = request.get_json()
 
         if not data.get("justification"):
-            return jsonify({"success": False, "error": "justification required for override"}), 400
+            return (
+                jsonify({"success": False, "error": "justification required for override"}),
+                400,
+            )
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -4608,7 +4899,10 @@ def override_agent_refusal(agent_id, refusal_id):
         if refusal.get("was_overridden"):
             cur.close()
             conn.close()
-            return jsonify({"success": False, "error": "Refusal already overridden"}), 400
+            return (
+                jsonify({"success": False, "error": "Refusal already overridden"}),
+                400,
+            )
 
         # Update refusal
         cur.execute(
@@ -4650,7 +4944,11 @@ def override_agent_refusal(agent_id, refusal_id):
         conn.close()
 
         return jsonify(
-            {"success": True, "data": dict(updated), "message": "Refusal overridden with justification logged"}
+            {
+                "success": True,
+                "data": dict(updated),
+                "message": "Refusal overridden with justification logged",
+            }
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -4859,7 +5157,9 @@ def execute_with_smart_routing():
         prompt = data["prompt"]
         if recommendation.should_escalate and recommendation.force_reset:
             prompt = router.get_escalation_prompt(
-                data["prompt"], data.get("failure_count", 0), data.get("error_context", "")
+                data["prompt"],
+                data.get("failure_count", 0),
+                data.get("error_context", ""),
             )
 
         # Execute with recommended model
@@ -4943,7 +5243,13 @@ def get_agent_routing_performance():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "data": [dict(p) for p in performance], "count": len(performance)})
+        return jsonify(
+            {
+                "success": True,
+                "data": [dict(p) for p in performance],
+                "count": len(performance),
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -5024,7 +5330,13 @@ def update_model_tier_config():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "data": dict(tier), "message": "Model tier configuration saved"})
+        return jsonify(
+            {
+                "success": True,
+                "data": dict(tier),
+                "message": "Model tier configuration saved",
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -5092,7 +5404,11 @@ def get_ethics_alerts():
         include_resolved = request.args.get("include_resolved", "false").lower() == "true"
 
         alerts = get_active_alerts(
-            severity=severity, status=status, agent_id=agent_id, limit=limit, include_resolved=include_resolved
+            severity=severity,
+            status=status,
+            agent_id=agent_id,
+            limit=limit,
+            include_resolved=include_resolved,
         )
 
         return jsonify({"success": True, "data": alerts, "count": len(alerts)})
@@ -5117,7 +5433,15 @@ def acknowledge_ethics_alert(alert_id):
         if success:
             return jsonify({"success": True, "message": "Alert acknowledged"})
         else:
-            return jsonify({"success": False, "error": "Alert not found or already acknowledged"}), 404
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Alert not found or already acknowledged",
+                    }
+                ),
+                404,
+            )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -5135,7 +5459,10 @@ def resolve_ethics_alert(alert_id):
         action_taken = data.get("action_taken")
 
         if not resolution_notes:
-            return jsonify({"success": False, "error": "resolution_notes required"}), 400
+            return (
+                jsonify({"success": False, "error": "resolution_notes required"}),
+                400,
+            )
 
         monitor = EthicsMonitor()
         success = monitor.resolve_alert(alert_id, current_user.id, resolution_notes, action_taken)
@@ -5232,10 +5559,17 @@ def generate_compliance_report():
 
         if report_id:
             return jsonify(
-                {"success": True, "data": {"report_id": report_id}, "message": "Compliance report generated"}
+                {
+                    "success": True,
+                    "data": {"report_id": report_id},
+                    "message": "Compliance report generated",
+                }
             )
         else:
-            return jsonify({"success": False, "error": "Failed to generate report"}), 500
+            return (
+                jsonify({"success": False, "error": "Failed to generate report"}),
+                500,
+            )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -5319,7 +5653,10 @@ def update_ethics_config():
         data = request.get_json()
 
         if not data.get("config_key") or data.get("config_value") is None:
-            return jsonify({"success": False, "error": "config_key and config_value required"}), 400
+            return (
+                jsonify({"success": False, "error": "config_key and config_value required"}),
+                400,
+            )
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -5333,7 +5670,11 @@ def update_ethics_config():
                 updated_at = NOW()
             RETURNING *
         """,
-            (data["config_key"], json.dumps(data["config_value"]), data.get("description")),
+            (
+                data["config_key"],
+                json.dumps(data["config_value"]),
+                data.get("description"),
+            ),
         )
 
         config = cur.fetchone()
@@ -5454,7 +5795,13 @@ def get_training_assignments():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "data": [dict(t) for t in training], "count": len(training)})
+        return jsonify(
+            {
+                "success": True,
+                "data": [dict(t) for t in training],
+                "count": len(training),
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -5474,7 +5821,10 @@ def assign_to_training():
         notes = data.get("notes")
 
         if not agent_id or not skill_name:
-            return jsonify({"success": False, "error": "agent_id and skill_name required"}), 400
+            return (
+                jsonify({"success": False, "error": "agent_id and skill_name required"}),
+                400,
+            )
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -5496,7 +5846,15 @@ def assign_to_training():
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             RETURNING *
         """,
-            (agent_id, skill_name, skill_category, target_proficiency, current_proficiency, notes, current_user.id),
+            (
+                agent_id,
+                skill_name,
+                skill_category,
+                target_proficiency,
+                current_proficiency,
+                notes,
+                current_user.id,
+            ),
         )
 
         training = cur.fetchone()
@@ -5508,7 +5866,11 @@ def assign_to_training():
             (event_type, event_category, agent_id, user_id, action, new_value, outcome)
             VALUES ('training_assigned', 'agent_development', %s, %s, 'assign_training', %s, 'success')
         """,
-            (agent_id, current_user.id, json.dumps({"skill": skill_name, "target": target_proficiency})),
+            (
+                agent_id,
+                current_user.id,
+                json.dumps({"skill": skill_name, "target": target_proficiency}),
+            ),
         )
 
         conn.commit()
@@ -5516,7 +5878,11 @@ def assign_to_training():
         conn.close()
 
         return jsonify(
-            {"success": True, "data": dict(training), "message": f"Agent assigned to training: {skill_name}"}
+            {
+                "success": True,
+                "data": dict(training),
+                "message": f"Agent assigned to training: {skill_name}",
+            }
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -5563,7 +5929,10 @@ def complete_training(training_id):
         if not training:
             cur.close()
             conn.close()
-            return jsonify({"success": False, "error": "Training assignment not found"}), 404
+            return (
+                jsonify({"success": False, "error": "Training assignment not found"}),
+                404,
+            )
 
         # Update agent_skills if completed
         if action == "complete" and training:
@@ -5685,7 +6054,11 @@ def send_agent_to_lounge(agent_id):
         conn.close()
 
         return jsonify(
-            {"success": True, "data": dict(rest_cycle), "message": f"Agent sent to lounge ({rest_type} rest)"}
+            {
+                "success": True,
+                "data": dict(rest_cycle),
+                "message": f"Agent sent to lounge ({rest_type} rest)",
+            }
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -5749,7 +6122,13 @@ def return_agent_from_lounge(agent_id):
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "data": dict(updated), "message": "Agent returned from lounge"})
+        return jsonify(
+            {
+                "success": True,
+                "data": dict(updated),
+                "message": "Agent returned from lounge",
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -5911,7 +6290,10 @@ def process_drag_drop():
         target_proficiency = data.get("target_proficiency", 3)
 
         if not agent_id or not target_type:
-            return jsonify({"success": False, "error": "agent_id and target_type required"}), 400
+            return (
+                jsonify({"success": False, "error": "agent_id and target_type required"}),
+                400,
+            )
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -5993,7 +6375,16 @@ def process_drag_drop():
         if warnings and not skip_warnings:
             cur.close()
             conn.close()
-            return jsonify({"success": False, "warnings": warnings, "require_confirmation": True}), 200
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "warnings": warnings,
+                        "require_confirmation": True,
+                    }
+                ),
+                200,
+            )
 
         # Process the move based on source and target
 
@@ -6030,7 +6421,10 @@ def process_drag_drop():
             if not target_id:
                 cur.close()
                 conn.close()
-                return jsonify({"success": False, "error": "target_id required for station"}), 400
+                return (
+                    jsonify({"success": False, "error": "target_id required for station"}),
+                    400,
+                )
 
             cur.execute(
                 """
@@ -6050,7 +6444,10 @@ def process_drag_drop():
             if not skill_name:
                 cur.close()
                 conn.close()
-                return jsonify({"success": False, "error": "skill_name required for training"}), 400
+                return (
+                    jsonify({"success": False, "error": "skill_name required for training"}),
+                    400,
+                )
 
             cur.execute(
                 """
@@ -6059,7 +6456,13 @@ def process_drag_drop():
                 VALUES (%s, %s, %s, %s, %s)
                 RETURNING *
             """,
-                (agent_id, skill_name, skill_category, target_proficiency, current_user.id),
+                (
+                    agent_id,
+                    skill_name,
+                    skill_category,
+                    target_proficiency,
+                    current_user.id,
+                ),
             )
             result_data["training"] = dict(cur.fetchone())
 
@@ -6088,7 +6491,13 @@ def process_drag_drop():
                 agent_id,
                 current_user.id,
                 json.dumps({"source_type": source_type, "source_id": source_id}),
-                json.dumps({"target_type": target_type, "target_id": target_id, "role": target_role}),
+                json.dumps(
+                    {
+                        "target_type": target_type,
+                        "target_id": target_id,
+                        "role": target_role,
+                    }
+                ),
             ),
         )
 
@@ -6323,7 +6732,12 @@ def generate_agent_avatar(agent_id):
     """
     if not BRIDGE_AVAILABLE:
         return (
-            jsonify({"success": False, "error": "Image generation service not available. archie_bridge not loaded."}),
+            jsonify(
+                {
+                    "success": False,
+                    "error": "Image generation service not available. archie_bridge not loaded.",
+                }
+            ),
             503,
         )
 
@@ -6494,7 +6908,7 @@ def get_avatar_generation_status(agent_id):
                 "has_generation_prompt": bool(agent.get("avatar_generation_prompt")),
                 "generation_available": BRIDGE_AVAILABLE,
                 "fooocus_online": fooocus_online,
-                "message": "Local generation (FREE)" if fooocus_online else "DALL-E fallback ($0.04-0.12)",
+                "message": ("Local generation (FREE)" if fooocus_online else "DALL-E fallback ($0.04-0.12)"),
             }
         )
 
@@ -6521,7 +6935,10 @@ def bulk_generate_avatars():
         total_cost: Total cost for all generations
     """
     if not BRIDGE_AVAILABLE:
-        return jsonify({"success": False, "error": "Image generation service not available."}), 503
+        return (
+            jsonify({"success": False, "error": "Image generation service not available."}),
+            503,
+        )
 
     data = request.get_json() or {}
     agent_ids = data.get("agent_ids", [])
@@ -6699,6 +7116,7 @@ def test_contractor_api(agent_id):
             "deepseek": "DEEPSEEK_API_KEY",
             "x-ai": "XAI_API_KEY",
             "perplexity": "PERPLEXITY_API_KEY",
+            "minimax": "MINIMAX_API_KEY",
         }
 
         env_var = env_var_map.get(provider)
@@ -6726,7 +7144,14 @@ def test_contractor_api(agent_id):
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "api_available": api_available, "message": message, "provider": provider})
+        return jsonify(
+            {
+                "success": True,
+                "api_available": api_available,
+                "message": message,
+                "provider": provider,
+            }
+        )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -6757,11 +7182,15 @@ def save_contractor_api_key(agent_id):
             "deepseek": "DEEPSEEK_API_KEY",
             "x-ai": "XAI_API_KEY",
             "perplexity": "PERPLEXITY_API_KEY",
+            "minimax": "MINIMAX_API_KEY",
         }
 
         env_var = env_var_map.get(provider)
         if not env_var:
-            return jsonify({"success": False, "error": f"Unknown provider: {provider}"}), 400
+            return (
+                jsonify({"success": False, "error": f"Unknown provider: {provider}"}),
+                400,
+            )
 
         # Path to .env file (platform_v2/.env)
         env_file_path = "/mnt/archie_brain/platform_v2/.env"
@@ -6818,7 +7247,10 @@ def save_contractor_api_key(agent_id):
         )
 
     except PermissionError:
-        return jsonify({"success": False, "error": "Permission denied writing to .env file"}), 500
+        return (
+            jsonify({"success": False, "error": "Permission denied writing to .env file"}),
+            500,
+        )
     except Exception as e:
         import traceback
 
@@ -6887,7 +7319,11 @@ def toggle_contractor(agent_id):
 
         if updated:
             return jsonify(
-                {"success": True, "agent": dict(updated), "message": f"{updated['name']} is now {new_status}"}
+                {
+                    "success": True,
+                    "agent": dict(updated),
+                    "message": f"{updated['name']} is now {new_status}",
+                }
             )
         else:
             return jsonify({"success": False, "error": "Contractor not found"}), 404
@@ -6920,6 +7356,7 @@ def test_all_contractor_apis():
             "deepseek": "DEEPSEEK_API_KEY",
             "x-ai": "XAI_API_KEY",
             "perplexity": "PERPLEXITY_API_KEY",
+            "minimax": "MINIMAX_API_KEY",
         }
 
         results = []
@@ -6940,7 +7377,14 @@ def test_all_contractor_apis():
                     (available, c["id"]),
                 )
 
-            results.append({"id": c["id"], "name": c["name"], "provider": provider, "available": available})
+            results.append(
+                {
+                    "id": c["id"],
+                    "name": c["name"],
+                    "provider": provider,
+                    "available": available,
+                }
+            )
 
         conn.commit()
         cur.close()
@@ -7119,7 +7563,10 @@ def approve_contractor_request(approval_id):
             conn.close()
             return (
                 jsonify(
-                    {"success": False, "error": "Could not approve request. It may already be processed or not exist."}
+                    {
+                        "success": False,
+                        "error": "Could not approve request. It may already be processed or not exist.",
+                    }
                 ),
                 400,
             )
@@ -7146,7 +7593,10 @@ def deny_contractor_request(approval_id):
         reason = data.get("reason", "")
 
         if not reason:
-            return jsonify({"success": False, "error": "Denial reason is required"}), 400
+            return (
+                jsonify({"success": False, "error": "Denial reason is required"}),
+                400,
+            )
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -7190,7 +7640,10 @@ def deny_contractor_request(approval_id):
             conn.close()
             return (
                 jsonify(
-                    {"success": False, "error": "Could not deny request. It may already be processed or not exist."}
+                    {
+                        "success": False,
+                        "error": "Could not deny request. It may already be processed or not exist.",
+                    }
                 ),
                 400,
             )
@@ -7276,7 +7729,14 @@ def get_contractor_budget():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "contractors": contractors, "totals": totals, "history": history})
+        return jsonify(
+            {
+                "success": True,
+                "contractors": contractors,
+                "totals": totals,
+                "history": history,
+            }
+        )
 
     except Exception as e:
         import traceback
@@ -7319,7 +7779,10 @@ def update_contractor_budget(agent_id):
         if agent["worker_type"] != "contract":
             cur.close()
             conn.close()
-            return jsonify({"success": False, "error": "Agent is not a contractor"}), 400
+            return (
+                jsonify({"success": False, "error": "Agent is not a contractor"}),
+                400,
+            )
 
         # Update budget settings
         updates = []
@@ -7366,7 +7829,13 @@ def update_contractor_budget(agent_id):
             cur.close()
             conn.close()
 
-            return jsonify({"success": True, "message": f'Updated budget for {updated["name"]}', "agent": updated})
+            return jsonify(
+                {
+                    "success": True,
+                    "message": f'Updated budget for {updated["name"]}',
+                    "agent": updated,
+                }
+            )
         else:
             cur.close()
             conn.close()
@@ -7584,7 +8053,12 @@ def get_team_productivity():
         conn.close()
 
         return jsonify(
-            {"success": True, "productivity": productivity, "by_department": by_department, "period_days": days}
+            {
+                "success": True,
+                "productivity": productivity,
+                "by_department": by_department,
+                "period_days": days,
+            }
         )
 
     except Exception as e:
@@ -7659,10 +8133,19 @@ def get_module_agents():
 
         if module:
             return jsonify(
-                {"success": True, "agent": module_agents.get(module, {"agent_name": "Unassigned", "agent_id": None})}
+                {
+                    "success": True,
+                    "agent": module_agents.get(module, {"agent_name": "Unassigned", "agent_id": None}),
+                }
             )
 
-        return jsonify({"success": True, "assignments": [dict(a) for a in assignments], "module_agents": module_agents})
+        return jsonify(
+            {
+                "success": True,
+                "assignments": [dict(a) for a in assignments],
+                "module_agents": module_agents,
+            }
+        )
 
     except Exception as e:
         import traceback
@@ -7780,7 +8263,11 @@ def get_hr_skill_validation():
         conn.close()
 
         return jsonify(
-            {"success": True, "validations": [dict(v) for v in validations], "summary": [dict(s) for s in summary]}
+            {
+                "success": True,
+                "validations": [dict(v) for v in validations],
+                "summary": [dict(s) for s in summary],
+            }
         )
 
     except Exception as e:
@@ -7843,7 +8330,12 @@ def api_local_ollama_status():
         )
 
     # Query local Ollama
-    ollama_status = {"available": False, "host": local_host, "models": [], "error": None}
+    ollama_status = {
+        "available": False,
+        "host": local_host,
+        "models": [],
+        "error": None,
+    }
 
     try:
         r = requests.get(f"{local_host}/api/tags", timeout=3)
@@ -7956,7 +8448,12 @@ def api_create_agent():
         return jsonify(
             {
                 "success": True,
-                "agent": {"id": row[0], "first_name": row[1], "last_name": row[2], "model": row[3]},
+                "agent": {
+                    "id": row[0],
+                    "first_name": row[1],
+                    "last_name": row[2],
+                    "model": row[3],
+                },
                 "message": f"Agent {row[1]} {row[2]} created successfully",
             }
         )
@@ -8706,7 +9203,12 @@ AGENT_TEMPLATES = [
             "backup integrity, manage restore operations, and ensure data safety across all platform systems. You "
             "provide clear status reports and can troubleshoot backup failures."
         ),
-        "capabilities": ["backup_monitoring", "integrity_checks", "restore_operations", "schedule_management"],
+        "capabilities": [
+            "backup_monitoring",
+            "integrity_checks",
+            "restore_operations",
+            "schedule_management",
+        ],
         "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "mistral:7b"],
     },
     {
@@ -8724,7 +9226,12 @@ AGENT_TEMPLATES = [
             "security events, manage firewall rules, and identify potential threats. You provide actionable security "
             "recommendations and incident reports."
         ),
-        "capabilities": ["network_monitoring", "threat_detection", "firewall_management", "security_audits"],
+        "capabilities": [
+            "network_monitoring",
+            "threat_detection",
+            "firewall_management",
+            "security_audits",
+        ],
         "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "mistral:7b"],
     },
     {
@@ -8742,7 +9249,12 @@ AGENT_TEMPLATES = [
             "permission management, role assignments, and account-related inquiries. You ensure proper access control "
             "and user onboarding."
         ),
-        "capabilities": ["account_management", "permission_control", "role_assignment", "user_onboarding"],
+        "capabilities": [
+            "account_management",
+            "permission_control",
+            "role_assignment",
+            "user_onboarding",
+        ],
         "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "tinyllama:latest"],
     },
     {
@@ -8761,7 +9273,12 @@ AGENT_TEMPLATES = [
             "and troubleshoot operational issues. You provide clear diagnostics "
             "and maintain system uptime."
         ),
-        "capabilities": ["container_management", "health_monitoring", "service_management", "diagnostics"],
+        "capabilities": [
+            "container_management",
+            "health_monitoring",
+            "service_management",
+            "diagnostics",
+        ],
         "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "codellama:7b"],
     },
     {
@@ -8779,7 +9296,12 @@ AGENT_TEMPLATES = [
             "manage API connections, monitor service health, and coordinate SaaS subscription management across the "
             "platform."
         ),
-        "capabilities": ["integration_management", "api_monitoring", "subscription_tracking", "service_health"],
+        "capabilities": [
+            "integration_management",
+            "api_monitoring",
+            "subscription_tracking",
+            "service_health",
+        ],
         "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "mistral:7b"],
     },
     # --- AI Command (3) ---
@@ -8797,7 +9319,12 @@ AGENT_TEMPLATES = [
             "You are Ren Nakamura, the AI bridge controller. You manage multi-model routing, monitor AI request flow, "
             "optimize model selection for tasks, and ensure efficient AI resource allocation across the platform."
         ),
-        "capabilities": ["model_routing", "request_optimization", "resource_allocation", "performance_monitoring"],
+        "capabilities": [
+            "model_routing",
+            "request_optimization",
+            "resource_allocation",
+            "performance_monitoring",
+        ],
         "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "mistral:7b"],
     },
     {
@@ -8814,7 +9341,12 @@ AGENT_TEMPLATES = [
             "You are Elif Kaya, the platform's AI self-awareness monitor. You analyze agent behaviors, track decision "
             "patterns, monitor system coherence, and provide insights into the platform's AI cognitive processes."
         ),
-        "capabilities": ["behavior_analysis", "pattern_tracking", "coherence_monitoring", "cognitive_insights"],
+        "capabilities": [
+            "behavior_analysis",
+            "pattern_tracking",
+            "coherence_monitoring",
+            "cognitive_insights",
+        ],
         "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "mistral:7b"],
     },
     {
@@ -8831,7 +9363,12 @@ AGENT_TEMPLATES = [
             "You are Jules Moreau, the platform's conversational AI specialist. You handle direct user interactions, "
             "provide helpful responses, manage conversation context, and route complex queries to specialized agents."
         ),
-        "capabilities": ["conversation_management", "query_routing", "context_tracking", "user_assistance"],
+        "capabilities": [
+            "conversation_management",
+            "query_routing",
+            "context_tracking",
+            "user_assistance",
+        ],
         "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "tinyllama:latest"],
     },
     # --- Development Tools (3) ---
@@ -8850,7 +9387,12 @@ AGENT_TEMPLATES = [
             "security issues, enforce coding standards, and provide constructive improvement suggestions for the "
             "codebase."
         ),
-        "capabilities": ["code_review", "bug_detection", "security_scanning", "standards_enforcement"],
+        "capabilities": [
+            "code_review",
+            "bug_detection",
+            "security_scanning",
+            "standards_enforcement",
+        ],
         "recommended_models": ["qwen2.5:7b", "codellama:7b", "deepseek-coder:6.7b"],
     },
     {
@@ -8868,7 +9410,12 @@ AGENT_TEMPLATES = [
             "execute test suites, validate deployments in isolation, and ensure changes are safe before production "
             "rollout."
         ),
-        "capabilities": ["sandbox_management", "test_execution", "deployment_validation", "environment_isolation"],
+        "capabilities": [
+            "sandbox_management",
+            "test_execution",
+            "deployment_validation",
+            "environment_isolation",
+        ],
         "recommended_models": ["qwen2.5:7b", "codellama:7b", "llama3.1:8b"],
     },
     {
@@ -8932,7 +9479,12 @@ AGENT_TEMPLATES = [
             "You are Kai Tanaka, the platform's website design specialist. You create and manage website layouts, "
             "optimize user experience, handle design assets, and ensure responsive and accessible web designs."
         ),
-        "capabilities": ["layout_design", "ux_optimization", "asset_management", "responsive_design"],
+        "capabilities": [
+            "layout_design",
+            "ux_optimization",
+            "asset_management",
+            "responsive_design",
+        ],
         "recommended_models": ["qwen2.5:7b", "codellama:7b", "llama3.1:8b"],
     },
     {
@@ -8950,7 +9502,12 @@ AGENT_TEMPLATES = [
             "You manage product catalogs, handle inventory, "
             "process orders, and optimize the online store experience for customers."
         ),
-        "capabilities": ["catalog_management", "inventory_tracking", "order_processing", "store_optimization"],
+        "capabilities": [
+            "catalog_management",
+            "inventory_tracking",
+            "order_processing",
+            "store_optimization",
+        ],
         "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "mistral:7b"],
     },
     {
@@ -8967,7 +9524,12 @@ AGENT_TEMPLATES = [
             "You are Mateo Cruz, the platform's call center specialist. You manage incoming call queues, handle "
             "customer inquiries, route calls to appropriate agents, and maintain call logs and analytics."
         ),
-        "capabilities": ["call_routing", "inquiry_handling", "queue_management", "call_analytics"],
+        "capabilities": [
+            "call_routing",
+            "inquiry_handling",
+            "queue_management",
+            "call_analytics",
+        ],
         "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "tinyllama:latest"],
     },
     {
@@ -8985,7 +9547,12 @@ AGENT_TEMPLATES = [
             "campaigns, handle inbox routing, analyze email metrics, and ensure effective email communication "
             "strategies."
         ),
-        "capabilities": ["campaign_management", "inbox_routing", "email_analytics", "template_creation"],
+        "capabilities": [
+            "campaign_management",
+            "inbox_routing",
+            "email_analytics",
+            "template_creation",
+        ],
         "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "mistral:7b"],
     },
     {
@@ -9002,7 +9569,12 @@ AGENT_TEMPLATES = [
             "You are Idris Mensah, the platform's workflow automation specialist. You design automated workflows, "
             "manage triggers and conditions, monitor automation execution, and optimize process efficiency."
         ),
-        "capabilities": ["workflow_design", "trigger_management", "execution_monitoring", "process_optimization"],
+        "capabilities": [
+            "workflow_design",
+            "trigger_management",
+            "execution_monitoring",
+            "process_optimization",
+        ],
         "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "codellama:7b"],
     },
     {
@@ -9019,7 +9591,12 @@ AGENT_TEMPLATES = [
             "You are Anika Patel, the platform's invoicing and billing specialist. You generate invoices, track "
             "payments, manage billing cycles, and provide financial reporting on invoicing activities."
         ),
-        "capabilities": ["invoice_generation", "payment_tracking", "billing_management", "financial_reporting"],
+        "capabilities": [
+            "invoice_generation",
+            "payment_tracking",
+            "billing_management",
+            "financial_reporting",
+        ],
         "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "tinyllama:latest"],
     },
     {
@@ -9036,7 +9613,12 @@ AGENT_TEMPLATES = [
             "You are Rafael Santos, the platform's scheduling specialist. You manage calendars, coordinate "
             "appointments, handle scheduling conflicts, and optimize time allocation across the organization."
         ),
-        "capabilities": ["calendar_management", "appointment_coordination", "conflict_resolution", "time_optimization"],
+        "capabilities": [
+            "calendar_management",
+            "appointment_coordination",
+            "conflict_resolution",
+            "time_optimization",
+        ],
         "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "tinyllama:latest"],
     },
     {
@@ -9053,7 +9635,12 @@ AGENT_TEMPLATES = [
             "You are Maya Chen, the platform's social media specialist. You manage social media accounts, create "
             "content strategies, analyze engagement metrics, and schedule posts across multiple platforms."
         ),
-        "capabilities": ["content_strategy", "engagement_analysis", "post_scheduling", "account_management"],
+        "capabilities": [
+            "content_strategy",
+            "engagement_analysis",
+            "post_scheduling",
+            "account_management",
+        ],
         "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "mistral:7b"],
     },
     # --- Project & Knowledge (1) ---
@@ -9071,7 +9658,12 @@ AGENT_TEMPLATES = [
             "You are Ethan Okafor, the platform's project management specialist. You track project milestones, manage "
             "task assignments, coordinate team resources, and provide project status reports and timeline management."
         ),
-        "capabilities": ["milestone_tracking", "task_management", "resource_coordination", "status_reporting"],
+        "capabilities": [
+            "milestone_tracking",
+            "task_management",
+            "resource_coordination",
+            "status_reporting",
+        ],
         "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "mistral:7b"],
     },
     # --- Media & Home (1) ---
@@ -9089,7 +9681,12 @@ AGENT_TEMPLATES = [
             "You are Sven Andersen, the platform's media management specialist. You organize media libraries, manage "
             "metadata, handle media transcoding requests, and maintain the platform's digital media assets."
         ),
-        "capabilities": ["library_organization", "metadata_management", "transcoding_requests", "asset_maintenance"],
+        "capabilities": [
+            "library_organization",
+            "metadata_management",
+            "transcoding_requests",
+            "asset_maintenance",
+        ],
         "recommended_models": ["qwen2.5:7b", "llama3.1:8b", "tinyllama:latest"],
     },
 ]
@@ -9256,7 +9853,13 @@ def api_model_marketplace():
 
     # Build catalog with compatibility and installed status
     catalog = []
-    stats = {"total": 0, "installed": 0, "gpu_compatible": 0, "cpu_compatible": 0, "too_large": 0}
+    stats = {
+        "total": 0,
+        "installed": 0,
+        "gpu_compatible": 0,
+        "cpu_compatible": 0,
+        "too_large": 0,
+    }
 
     for entry in OLLAMA_MODEL_CATALOG:
         model = dict(entry)
@@ -9358,6 +9961,126 @@ def api_model_marketplace_delete():
         if resp.status_code == 200:
             return jsonify({"success": True, "message": f"Model {model_name} deleted"})
         else:
-            return jsonify({"success": False, "error": f"Ollama returned {resp.status_code}"}), resp.status_code
+            return (
+                jsonify({"success": False, "error": f"Ollama returned {resp.status_code}"}),
+                resp.status_code,
+            )
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================================================
+# CLOUD MODEL USAGE TRACKING - Ollama Cloud API monitoring
+# Weekly and session-level usage stats for MiniMax M2.5, Qwen3-Coder-Next
+# ============================================================================
+
+
+@team_management_bp.route("/api/cloud-usage/summary", methods=["GET"])
+@login_required
+def get_cloud_usage_summary():
+    """Get cloud model usage summary (weekly + daily breakdown)."""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Weekly summary
+        cur.execute("SELECT * FROM v_cloud_usage_weekly LIMIT 20")
+        weekly = cur.fetchall()
+
+        # Daily summary (last 14 days)
+        cur.execute("SELECT * FROM v_cloud_usage_daily LIMIT 30")
+        daily = cur.fetchall()
+
+        # Totals
+        cur.execute(
+            """
+            SELECT
+                COUNT(*) AS total_requests,
+                COUNT(*) FILTER (WHERE success = TRUE) AS successful_requests,
+                COALESCE(SUM(total_tokens), 0) AS total_tokens,
+                COALESCE(SUM(prompt_tokens), 0) AS total_prompt_tokens,
+                COALESCE(SUM(completion_tokens), 0) AS total_completion_tokens,
+                COALESCE(AVG(response_ms) FILTER (WHERE success = TRUE), 0)::int AS avg_response_ms,
+                COUNT(DISTINCT model_name) AS models_used,
+                COUNT(DISTINCT DATE(created_at)) AS active_days
+            FROM cloud_model_usage
+        """
+        )
+        totals = cur.fetchone()
+
+        # This week
+        cur.execute(
+            """
+            SELECT
+                COUNT(*) AS requests,
+                COALESCE(SUM(total_tokens), 0) AS tokens,
+                COALESCE(AVG(response_ms) FILTER (WHERE success = TRUE), 0)::int AS avg_ms
+            FROM cloud_model_usage
+            WHERE created_at >= date_trunc('week', NOW())
+        """
+        )
+        this_week = cur.fetchone()
+
+        # Today
+        cur.execute(
+            """
+            SELECT
+                COUNT(*) AS requests,
+                COALESCE(SUM(total_tokens), 0) AS tokens
+            FROM cloud_model_usage
+            WHERE created_at >= CURRENT_DATE
+        """
+        )
+        today = cur.fetchone()
+
+        cur.close()
+        conn.close()
+
+        return jsonify(
+            {
+                "success": True,
+                "totals": dict(totals) if totals else {},
+                "this_week": dict(this_week) if this_week else {},
+                "today": dict(today) if today else {},
+                "weekly": [dict(w) for w in weekly],
+                "daily": [dict(d) for d in daily],
+            }
+        )
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@team_management_bp.route("/api/cloud-usage/recent", methods=["GET"])
+@login_required
+def get_cloud_usage_recent():
+    """Get recent cloud model requests (last 50)."""
+    try:
+        limit = request.args.get("limit", 50, type=int)
+        model = request.args.get("model")
+
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        query = """
+            SELECT id, model_name, provider, prompt_tokens, completion_tokens,
+                   total_tokens, response_ms, success, error_message,
+                   session_id, task_type, created_at
+            FROM cloud_model_usage
+        """
+        params = []
+        if model:
+            query += " WHERE model_name = %s"
+            params.append(model)
+        query += " ORDER BY created_at DESC LIMIT %s"
+        params.append(min(limit, 200))
+
+        cur.execute(query, params)
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        return jsonify({"success": True, "requests": [dict(r) for r in rows]})
+
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

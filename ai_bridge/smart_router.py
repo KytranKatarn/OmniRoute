@@ -33,7 +33,11 @@ logger = logging.getLogger(__name__)
 
 class ModelTier(Enum):
     """Model tier hierarchy (lower = cheaper, higher = more capable)"""
+
     LOCAL = "local"
+    LOCAL_ANALYSIS = "local_analysis"
+    MINIMAX_CLOUD = "minimax_cloud"
+    QWEN3_CLOUD = "qwen3_cloud"
     HAIKU = "haiku"
     SONNET = "sonnet"
     OPUS = "opus"
@@ -42,6 +46,7 @@ class ModelTier(Enum):
 @dataclass
 class ModelConfig:
     """Configuration for a model tier"""
+
     tier: str
     provider: str
     model_name: str
@@ -54,6 +59,7 @@ class ModelConfig:
 @dataclass
 class RoutingRecommendation:
     """Recommendation from the smart router"""
+
     tier: str
     provider: str
     model_name: str
@@ -66,42 +72,66 @@ class RoutingRecommendation:
 
 # Default model configurations
 DEFAULT_MODEL_CONFIGS = {
-    'local': ModelConfig(
-        tier='local',
-        provider='ollama',
-        model_name='dolphin3:latest',
+    "local": ModelConfig(
+        tier="local",
+        provider="ollama",
+        model_name="dolphin3:latest",
         input_cost_per_1m=0.0,
         output_cost_per_1m=0.0,
-        max_tokens=8192
+        max_tokens=8192,
     ),
-    'haiku': ModelConfig(
-        tier='haiku',
-        provider='claude',
-        model_name='claude-3-haiku-20240307',
+    "local_analysis": ModelConfig(
+        tier="local_analysis",
+        provider="ollama",
+        model_name="qwen3-coder-next:q4_K_M",
+        input_cost_per_1m=0.0,
+        output_cost_per_1m=0.0,
+        max_tokens=32768,
+    ),
+    "minimax_cloud": ModelConfig(
+        tier="minimax_cloud",
+        provider="ollama_cloud",
+        model_name="minimax-m2.5",
+        input_cost_per_1m=0.0,
+        output_cost_per_1m=0.0,
+        max_tokens=32768,
+    ),
+    "qwen3_cloud": ModelConfig(
+        tier="qwen3_cloud",
+        provider="ollama_cloud",
+        model_name="qwen3-coder-next",
+        input_cost_per_1m=0.0,
+        output_cost_per_1m=0.0,
+        max_tokens=32768,
+    ),
+    "haiku": ModelConfig(
+        tier="haiku",
+        provider="claude",
+        model_name="claude-3-haiku-20240307",
         input_cost_per_1m=0.25,
         output_cost_per_1m=1.25,
-        max_tokens=4096
+        max_tokens=4096,
     ),
-    'sonnet': ModelConfig(
-        tier='sonnet',
-        provider='claude',
-        model_name='claude-sonnet-4-20250514',
+    "sonnet": ModelConfig(
+        tier="sonnet",
+        provider="claude",
+        model_name="claude-sonnet-4-20250514",
         input_cost_per_1m=3.00,
         output_cost_per_1m=15.00,
-        max_tokens=8192
+        max_tokens=8192,
     ),
-    'opus': ModelConfig(
-        tier='opus',
-        provider='claude',
-        model_name='claude-opus-4-20250514',
+    "opus": ModelConfig(
+        tier="opus",
+        provider="claude",
+        model_name="claude-opus-4-20250514",
         input_cost_per_1m=15.00,
         output_cost_per_1m=75.00,
-        max_tokens=16384
-    )
+        max_tokens=16384,
+    ),
 }
 
 # Tier escalation order
-TIER_ORDER = ['local', 'haiku', 'sonnet', 'opus']
+TIER_ORDER = ["local", "local_analysis", "minimax_cloud", "qwen3_cloud", "haiku", "sonnet", "opus"]
 
 
 class SmartRouter:
@@ -146,14 +176,14 @@ class SmartRouter:
 
             configs = {}
             for row in rows:
-                configs[row['tier_name']] = ModelConfig(
-                    tier=row['tier_name'],
-                    provider=row['provider'],
-                    model_name=row['model_name'],
-                    input_cost_per_1m=float(row['input_cost_per_1m'] or 0),
-                    output_cost_per_1m=float(row['output_cost_per_1m'] or 0),
-                    max_tokens=row['max_tokens'] or 4096,
-                    fallback_model=row['fallback_model']
+                configs[row["tier_name"]] = ModelConfig(
+                    tier=row["tier_name"],
+                    provider=row["provider"],
+                    model_name=row["model_name"],
+                    input_cost_per_1m=float(row["input_cost_per_1m"] or 0),
+                    output_cost_per_1m=float(row["output_cost_per_1m"] or 0),
+                    max_tokens=row["max_tokens"] or 4096,
+                    fallback_model=row["fallback_model"],
                 )
 
             self._model_configs = configs
@@ -187,7 +217,7 @@ class SmartRouter:
             cur.close()
             conn.close()
 
-            rules = {row['task_type']: dict(row) for row in rows}
+            rules = {row["task_type"]: dict(row) for row in rows}
             self._routing_rules = rules
             return rules
 
@@ -198,22 +228,102 @@ class SmartRouter:
     def _default_routing_rules(self) -> Dict[str, dict]:
         """Default routing rules if database not available"""
         return {
-            'conversation': {'preferred_tier': 'local', 'fallback_tier': 'local', 'complexity_threshold': 7, 'claude_as_judge': False},
-            'format': {'preferred_tier': 'local', 'fallback_tier': 'haiku', 'complexity_threshold': 3, 'claude_as_judge': False},
-            'rewrite': {'preferred_tier': 'local', 'fallback_tier': 'sonnet', 'complexity_threshold': 4, 'claude_as_judge': True},
-            'summarize': {'preferred_tier': 'local', 'fallback_tier': 'haiku', 'complexity_threshold': 3, 'claude_as_judge': False},
-            'code_simple': {'preferred_tier': 'sonnet', 'fallback_tier': 'sonnet', 'complexity_threshold': 5, 'claude_as_judge': False},
-            'code_complex': {'preferred_tier': 'sonnet', 'fallback_tier': 'opus', 'complexity_threshold': 7, 'claude_as_judge': False},
-            'refactor': {'preferred_tier': 'sonnet', 'fallback_tier': 'opus', 'complexity_threshold': 6, 'claude_as_judge': False},
-            'architecture': {'preferred_tier': 'opus', 'fallback_tier': 'opus', 'complexity_threshold': 8, 'claude_as_judge': False},
-            'debug_simple': {'preferred_tier': 'sonnet', 'fallback_tier': 'sonnet', 'complexity_threshold': 5, 'claude_as_judge': False},
-            'debug_hard': {'preferred_tier': 'opus', 'fallback_tier': 'opus', 'complexity_threshold': 8, 'claude_as_judge': False},
-            'review': {'preferred_tier': 'sonnet', 'fallback_tier': 'sonnet', 'complexity_threshold': 5, 'claude_as_judge': True},
-            'test_scaffold': {'preferred_tier': 'haiku', 'fallback_tier': 'sonnet', 'complexity_threshold': 3, 'claude_as_judge': False},
-            'documentation': {'preferred_tier': 'local', 'fallback_tier': 'sonnet', 'complexity_threshold': 4, 'claude_as_judge': True},
-            'sql': {'preferred_tier': 'sonnet', 'fallback_tier': 'sonnet', 'complexity_threshold': 5, 'claude_as_judge': False},
-            'api_design': {'preferred_tier': 'sonnet', 'fallback_tier': 'opus', 'complexity_threshold': 6, 'claude_as_judge': False},
-            'security_audit': {'preferred_tier': 'opus', 'fallback_tier': 'opus', 'complexity_threshold': 7, 'claude_as_judge': False},
+            "conversation": {
+                "preferred_tier": "local",
+                "fallback_tier": "local",
+                "complexity_threshold": 7,
+                "claude_as_judge": False,
+            },
+            "format": {
+                "preferred_tier": "local",
+                "fallback_tier": "haiku",
+                "complexity_threshold": 3,
+                "claude_as_judge": False,
+            },
+            "rewrite": {
+                "preferred_tier": "local",
+                "fallback_tier": "sonnet",
+                "complexity_threshold": 4,
+                "claude_as_judge": True,
+            },
+            "summarize": {
+                "preferred_tier": "local",
+                "fallback_tier": "haiku",
+                "complexity_threshold": 3,
+                "claude_as_judge": False,
+            },
+            "code_simple": {
+                "preferred_tier": "sonnet",
+                "fallback_tier": "sonnet",
+                "complexity_threshold": 5,
+                "claude_as_judge": False,
+            },
+            "code_complex": {
+                "preferred_tier": "sonnet",
+                "fallback_tier": "opus",
+                "complexity_threshold": 7,
+                "claude_as_judge": False,
+            },
+            "refactor": {
+                "preferred_tier": "sonnet",
+                "fallback_tier": "opus",
+                "complexity_threshold": 6,
+                "claude_as_judge": False,
+            },
+            "architecture": {
+                "preferred_tier": "opus",
+                "fallback_tier": "opus",
+                "complexity_threshold": 8,
+                "claude_as_judge": False,
+            },
+            "debug_simple": {
+                "preferred_tier": "sonnet",
+                "fallback_tier": "sonnet",
+                "complexity_threshold": 5,
+                "claude_as_judge": False,
+            },
+            "debug_hard": {
+                "preferred_tier": "opus",
+                "fallback_tier": "opus",
+                "complexity_threshold": 8,
+                "claude_as_judge": False,
+            },
+            "review": {
+                "preferred_tier": "sonnet",
+                "fallback_tier": "sonnet",
+                "complexity_threshold": 5,
+                "claude_as_judge": True,
+            },
+            "test_scaffold": {
+                "preferred_tier": "haiku",
+                "fallback_tier": "sonnet",
+                "complexity_threshold": 3,
+                "claude_as_judge": False,
+            },
+            "documentation": {
+                "preferred_tier": "local",
+                "fallback_tier": "sonnet",
+                "complexity_threshold": 4,
+                "claude_as_judge": True,
+            },
+            "sql": {
+                "preferred_tier": "sonnet",
+                "fallback_tier": "sonnet",
+                "complexity_threshold": 5,
+                "claude_as_judge": False,
+            },
+            "api_design": {
+                "preferred_tier": "sonnet",
+                "fallback_tier": "opus",
+                "complexity_threshold": 6,
+                "claude_as_judge": False,
+            },
+            "security_audit": {
+                "preferred_tier": "opus",
+                "fallback_tier": "opus",
+                "complexity_threshold": 7,
+                "claude_as_judge": False,
+            },
         }
 
     def suggest_model(
@@ -222,7 +332,7 @@ class SmartRouter:
         complexity: int = 5,
         context_tokens: int = 0,
         agent_id: Optional[int] = None,
-        failure_count: int = 0
+        failure_count: int = 0,
     ) -> RoutingRecommendation:
         """
         Get recommended model for a task.
@@ -241,44 +351,56 @@ class SmartRouter:
         rules = self._get_routing_rules()
 
         # Get routing rule for task type
-        rule = rules.get(task_type, rules.get('code_simple', {
-            'preferred_tier': 'sonnet',
-            'fallback_tier': 'sonnet',
-            'complexity_threshold': 5,
-            'claude_as_judge': False
-        }))
+        rule = rules.get(
+            task_type,
+            rules.get(
+                "code_simple",
+                {
+                    "preferred_tier": "sonnet",
+                    "fallback_tier": "sonnet",
+                    "complexity_threshold": 5,
+                    "claude_as_judge": False,
+                },
+            ),
+        )
 
         # Start with preferred tier
-        tier = rule.get('preferred_tier', 'sonnet')
+        tier = rule.get("preferred_tier", "sonnet")
         reason_parts = [f"Task type '{task_type}' maps to {tier}"]
-        use_judge = rule.get('claude_as_judge', False)
+        use_judge = rule.get("claude_as_judge", False)
         force_reset = False
 
         # Check complexity threshold
-        threshold = rule.get('complexity_threshold', 5)
+        threshold = rule.get("complexity_threshold", 5)
         if complexity > threshold:
-            fallback = rule.get('fallback_tier')
+            fallback = rule.get("fallback_tier")
             if fallback and fallback != tier:
                 tier = fallback
-                reason_parts.append(f"complexity {complexity} > threshold {threshold} → {tier}")
+                reason_parts.append(
+                    f"complexity {complexity} > threshold {threshold} → {tier}"
+                )
 
         # Check for escalation based on failures
         should_escalate = False
-        if failure_count >= 3 and tier != 'opus':
+        if failure_count >= 3 and tier != "opus":
             tier = self._escalate_tier(tier)
             should_escalate = True
-            force_reset = rule.get('require_reset_on_escalate', True)
+            force_reset = rule.get("require_reset_on_escalate", True)
             reason_parts.append(f"{failure_count} failures → escalated to {tier}")
 
         # Check agent's Opus budget if trying to use Opus
-        if tier == 'opus' and agent_id:
+        if tier == "opus" and agent_id:
             over_budget, budget_info = self._check_opus_budget(agent_id)
             if over_budget:
-                tier = 'sonnet'
-                reason_parts.append(f"Opus budget exceeded ({budget_info}) → downgraded to sonnet")
+                tier = "sonnet"
+                reason_parts.append(
+                    f"Opus budget exceeded ({budget_info}) → downgraded to sonnet"
+                )
 
         # Get model config
-        config = configs.get(tier, DEFAULT_MODEL_CONFIGS.get(tier, DEFAULT_MODEL_CONFIGS['sonnet']))
+        config = configs.get(
+            tier, DEFAULT_MODEL_CONFIGS.get(tier, DEFAULT_MODEL_CONFIGS["sonnet"])
+        )
 
         # Estimate cost
         estimated_cost = self._estimate_cost(config, context_tokens)
@@ -289,9 +411,9 @@ class SmartRouter:
             model_name=config.model_name,
             reason="; ".join(reason_parts),
             should_escalate=should_escalate,
-            use_claude_as_judge=use_judge and tier == 'local',
+            use_claude_as_judge=use_judge and tier == "local",
             estimated_cost=estimated_cost,
-            force_reset=force_reset
+            force_reset=force_reset,
         )
 
     def _escalate_tier(self, current_tier: str) -> str:
@@ -313,10 +435,13 @@ class SmartRouter:
             conn = get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT max_opus_percentage, opus_usage_this_month, total_tasks_this_month
                 FROM agents WHERE id = %s
-            """, (agent_id,))
+            """,
+                (agent_id,),
+            )
 
             agent = cur.fetchone()
             cur.close()
@@ -325,9 +450,9 @@ class SmartRouter:
             if not agent:
                 return False, "Agent not found"
 
-            max_pct = float(agent['max_opus_percentage'] or 0.15)
-            usage = int(agent['opus_usage_this_month'] or 0)
-            total = int(agent['total_tasks_this_month'] or 0)
+            max_pct = float(agent["max_opus_percentage"] or 0.15)
+            usage = int(agent["opus_usage_this_month"] or 0)
+            total = int(agent["total_tasks_this_month"] or 0)
 
             if total == 0:
                 return False, "0 tasks"
@@ -351,7 +476,9 @@ class SmartRouter:
 
         return round(input_cost + output_cost, 6)
 
-    def get_escalation_prompt(self, original_prompt: str, failures: int, error_context: str = "") -> str:
+    def get_escalation_prompt(
+        self, original_prompt: str, failures: int, error_context: str = ""
+    ) -> str:
         """
         Generate an enhanced prompt for Opus escalation.
 
@@ -382,7 +509,7 @@ Original task:
         cost: float = 0.0,
         escalated: bool = False,
         claude_as_judge: bool = False,
-        error_message: str = None
+        error_message: str = None,
     ) -> Optional[int]:
         """
         Track task execution for analytics.
@@ -396,23 +523,36 @@ Original task:
             conn = get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO task_executions
                 (agent_id, task_type, model_tier_used, model_name, provider,
                  outcome, total_tokens, cost, escalated, claude_as_judge_used, error_message)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
-            """, (
-                agent_id, task_type, tier, model, provider,
-                outcome, tokens, cost, escalated, claude_as_judge, error_message
-            ))
+            """,
+                (
+                    agent_id,
+                    task_type,
+                    tier,
+                    model,
+                    provider,
+                    outcome,
+                    tokens,
+                    cost,
+                    escalated,
+                    claude_as_judge,
+                    error_message,
+                ),
+            )
 
             result = cur.fetchone()
-            execution_id = result['id'] if result else None
+            execution_id = result["id"] if result else None
 
             # Update agent stats
             if agent_id:
-                cur.execute("""
+                cur.execute(
+                    """
                     UPDATE agents SET
                         total_tasks_this_month = COALESCE(total_tasks_this_month, 0) + 1,
                         opus_usage_this_month = CASE
@@ -421,7 +561,9 @@ Original task:
                             ELSE COALESCE(opus_usage_this_month, 0)
                         END
                     WHERE id = %s
-                """, (tier, agent_id))
+                """,
+                    (tier, agent_id),
+                )
 
             conn.commit()
             cur.close()
@@ -437,7 +579,7 @@ Original task:
         """Get model usage analytics for the past N days"""
         try:
             if get_db is None:
-                return {'error': 'Database not available'}
+                return {"error": "Database not available"}
 
             conn = get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -447,7 +589,8 @@ Original task:
             tier_summary = cur.fetchall()
 
             # Get cost savings estimate
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     SUM(cost) as actual_cost,
                     SUM(total_tokens) as total_tokens,
@@ -456,7 +599,9 @@ Original task:
                     COUNT(*) FILTER (WHERE model_tier_used = 'opus') as opus_tasks
                 FROM task_executions
                 WHERE started_at >= NOW() - INTERVAL '%s days'
-            """, (days,))
+            """,
+                (days,),
+            )
 
             cost_data = cur.fetchone()
 
@@ -464,24 +609,24 @@ Original task:
             conn.close()
 
             # Calculate estimated savings vs all-Opus
-            total_tokens = cost_data['total_tokens'] or 0
-            actual_cost = float(cost_data['actual_cost'] or 0)
+            total_tokens = cost_data["total_tokens"] or 0
+            actual_cost = float(cost_data["actual_cost"] or 0)
             opus_cost_estimate = total_tokens * 0.000045  # Rough Opus estimate
 
             return {
-                'tier_summary': [dict(t) for t in tier_summary],
-                'total_cost': actual_cost,
-                'estimated_opus_cost': opus_cost_estimate,
-                'estimated_savings': opus_cost_estimate - actual_cost,
-                'local_tasks': cost_data['local_tasks'] or 0,
-                'judge_tasks': cost_data['judge_tasks'] or 0,
-                'opus_tasks': cost_data['opus_tasks'] or 0,
-                'days': days
+                "tier_summary": [dict(t) for t in tier_summary],
+                "total_cost": actual_cost,
+                "estimated_opus_cost": opus_cost_estimate,
+                "estimated_savings": opus_cost_estimate - actual_cost,
+                "local_tasks": cost_data["local_tasks"] or 0,
+                "judge_tasks": cost_data["judge_tasks"] or 0,
+                "opus_tasks": cost_data["opus_tasks"] or 0,
+                "days": days,
             }
 
         except Exception as e:
             logger.error(f"Error getting analytics: {e}")
-            return {'error': str(e)}
+            return {"error": str(e)}
 
     def classify_task(self, prompt: str, context: dict = None) -> str:
         """
@@ -494,64 +639,105 @@ Original task:
         prompt_lower = prompt.lower()
 
         # Architecture/design tasks
-        if any(kw in prompt_lower for kw in ['architecture', 'design system', 'high-level', 'system design']):
-            return 'architecture'
+        if any(
+            kw in prompt_lower
+            for kw in ["architecture", "design system", "high-level", "system design"]
+        ):
+            return "architecture"
 
         # Security tasks
-        if any(kw in prompt_lower for kw in ['security', 'vulnerability', 'audit', 'penetration', 'cve']):
-            return 'security_audit'
+        if any(
+            kw in prompt_lower
+            for kw in ["security", "vulnerability", "audit", "penetration", "cve"]
+        ):
+            return "security_audit"
 
         # Complex debugging
-        if any(kw in prompt_lower for kw in ['race condition', 'memory leak', 'deadlock', 'crash', 'intermittent']):
-            return 'debug_hard'
+        if any(
+            kw in prompt_lower
+            for kw in [
+                "race condition",
+                "memory leak",
+                "deadlock",
+                "crash",
+                "intermittent",
+            ]
+        ):
+            return "debug_hard"
 
         # Simple debugging
-        if any(kw in prompt_lower for kw in ['debug', 'fix bug', 'error', 'exception', 'traceback']):
-            return 'debug_simple'
+        if any(
+            kw in prompt_lower
+            for kw in ["debug", "fix bug", "error", "exception", "traceback"]
+        ):
+            return "debug_simple"
 
         # Refactoring
-        if any(kw in prompt_lower for kw in ['refactor', 'restructure', 'clean up', 'improve code']):
-            return 'refactor'
+        if any(
+            kw in prompt_lower
+            for kw in ["refactor", "restructure", "clean up", "improve code"]
+        ):
+            return "refactor"
 
         # Code review
-        if any(kw in prompt_lower for kw in ['review', 'code review', 'pr review', 'pull request']):
-            return 'review'
+        if any(
+            kw in prompt_lower
+            for kw in ["review", "code review", "pr review", "pull request"]
+        ):
+            return "review"
 
         # API design
-        if any(kw in prompt_lower for kw in ['api design', 'endpoint design', 'rest api', 'graphql']):
-            return 'api_design'
+        if any(
+            kw in prompt_lower
+            for kw in ["api design", "endpoint design", "rest api", "graphql"]
+        ):
+            return "api_design"
 
         # SQL
-        if any(kw in prompt_lower for kw in ['sql', 'query', 'database', 'migration']):
-            return 'sql'
+        if any(kw in prompt_lower for kw in ["sql", "query", "database", "migration"]):
+            return "sql"
 
         # Documentation
-        if any(kw in prompt_lower for kw in ['document', 'readme', 'docstring', 'jsdoc', 'comment']):
-            return 'documentation'
+        if any(
+            kw in prompt_lower
+            for kw in ["document", "readme", "docstring", "jsdoc", "comment"]
+        ):
+            return "documentation"
 
         # Tests
-        if any(kw in prompt_lower for kw in ['test', 'unit test', 'integration test', 'spec']):
-            return 'test_scaffold'
+        if any(
+            kw in prompt_lower
+            for kw in ["test", "unit test", "integration test", "spec"]
+        ):
+            return "test_scaffold"
 
         # Formatting
-        if any(kw in prompt_lower for kw in ['format', 'lint', 'prettier', 'style']):
-            return 'format'
+        if any(kw in prompt_lower for kw in ["format", "lint", "prettier", "style"]):
+            return "format"
 
         # Summarization
-        if any(kw in prompt_lower for kw in ['summarize', 'summary', 'tldr', 'overview']):
-            return 'summarize'
+        if any(
+            kw in prompt_lower for kw in ["summarize", "summary", "tldr", "overview"]
+        ):
+            return "summarize"
 
         # Rewrite
-        if any(kw in prompt_lower for kw in ['rewrite', 'rephrase', 'improve writing']):
-            return 'rewrite'
+        if any(kw in prompt_lower for kw in ["rewrite", "rephrase", "improve writing"]):
+            return "rewrite"
 
         # Check complexity indicators for code tasks
-        complexity_indicators = ['multiple files', 'across', 'entire', 'whole codebase', 'full implementation']
+        complexity_indicators = [
+            "multiple files",
+            "across",
+            "entire",
+            "whole codebase",
+            "full implementation",
+        ]
         if any(kw in prompt_lower for kw in complexity_indicators):
-            return 'code_complex'
+            return "code_complex"
 
         # Default to simple coding
-        return 'code_simple'
+        return "code_simple"
 
     def get_loaded_model(self) -> Optional[str]:
         """
@@ -563,15 +749,16 @@ Original task:
         """
         try:
             import os
+
             # Check local Ollama (where the GPU lives), not remote nodes
-            local_host = os.getenv('OLLAMA_LOCAL_HOST', 'host.docker.internal')
-            local_port = os.getenv('OLLAMA_LOCAL_PORT', '11434')
+            local_host = os.getenv("OLLAMA_LOCAL_HOST", "host.docker.internal")
+            local_port = os.getenv("OLLAMA_LOCAL_PORT", "11434")
             resp = requests.get(f"http://{local_host}:{local_port}/api/ps", timeout=5)
             if resp.status_code == 200:
                 data = resp.json()
-                models = data.get('models', [])
+                models = data.get("models", [])
                 if models:
-                    return models[0].get('name')
+                    return models[0].get("name")
         except Exception as e:
             logger.debug(f"Could not check loaded Ollama model: {e}")
         return None
@@ -590,15 +777,21 @@ Original task:
         """
         # Tasks that any general model can handle
         simple_tasks = {
-            'conversation', 'format', 'code_simple', 'documentation',
-            'summarize', 'rewrite', 'sql', 'test_scaffold',
+            "conversation",
+            "format",
+            "code_simple",
+            "documentation",
+            "summarize",
+            "rewrite",
+            "sql",
+            "test_scaffold",
         }
         if task_type in simple_tasks:
             return True
 
         # dolphin3 can handle moderate tasks
-        if 'dolphin3' in loaded_model:
-            moderate_tasks = {'refactor', 'review', 'debug_simple', 'api_design'}
+        if "dolphin3" in loaded_model:
+            moderate_tasks = {"refactor", "review", "debug_simple", "api_design"}
             if task_type in moderate_tasks:
                 return True
 
@@ -619,11 +812,19 @@ Original task:
         routes to Claude proxy instead of swapping models.
         """
         # Get base recommendation
-        rec = self.suggest_model(task_type, complexity=complexity,
-                                 agent_id=agent_id, failure_count=failure_count)
+        rec = self.suggest_model(
+            task_type,
+            complexity=complexity,
+            agent_id=agent_id,
+            failure_count=failure_count,
+        )
 
-        # Only applies to local/ollama tier
-        if rec.provider != 'ollama' or rec.tier != 'local':
+        # Cloud tiers don't use local GPU — pass through
+        if rec.provider == "ollama_cloud":
+            return rec
+
+        # Only apply GPU-awareness to local ollama tiers
+        if rec.provider != "ollama" or rec.tier not in ("local", "local_analysis"):
             return rec
 
         loaded = self.get_loaded_model()
@@ -632,15 +833,15 @@ Original task:
 
         requested = rec.model_name
         # If already loaded, great
-        if loaded == requested or loaded.split(':')[0] == requested.split(':')[0]:
+        if loaded == requested or loaded.split(":")[0] == requested.split(":")[0]:
             rec.reason += f"; {loaded} already loaded (fast path)"
             return rec
 
         # Can the loaded model handle it?
         if self.can_downgrade(loaded, task_type):
             return RoutingRecommendation(
-                tier='local',
-                provider='ollama',
+                tier="local",
+                provider="ollama",
                 model_name=loaded,
                 reason=f"{loaded} already loaded, can handle '{task_type}' (avoiding swap)",
                 should_escalate=False,
@@ -649,9 +850,9 @@ Original task:
 
         # Swap would be needed — route to Claude proxy instead
         return RoutingRecommendation(
-            tier='sonnet',
-            provider='claude',
-            model_name='claude-sonnet-4-20250514',
+            tier="sonnet",
+            provider="claude",
+            model_name="claude-sonnet-4-20250514",
             reason=f"Task '{task_type}' needs model swap ({loaded} → {requested}); routing to Claude to avoid GPU crash",
             should_escalate=True,
             estimated_cost=rec.estimated_cost,
@@ -660,6 +861,7 @@ Original task:
 
 # Singleton instance
 _router_instance = None
+
 
 def get_router() -> SmartRouter:
     """Get singleton router instance"""

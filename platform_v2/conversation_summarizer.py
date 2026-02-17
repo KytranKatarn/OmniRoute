@@ -67,7 +67,13 @@ class ConversationSummarizer:
         Returns (model_name, max_context_chars, tier_name).
         """
         if transcript_len <= self.TIER_LOCAL_MAX:
-            return "dolphin3-8k:latest", 6000, "local"
+            try:
+                from ai_bridge.bridge_dispatcher import get_dispatcher
+
+                local_model = get_dispatcher().get_model_for_capability("conversation") or "dolphin3-8k:latest"
+            except Exception:
+                local_model = "dolphin3-8k:latest"
+            return local_model, 6000, "local"
         elif transcript_len <= self.TIER_HAIKU_MAX:
             return "claude-haiku-4-5", 16000, "haiku"
         else:

@@ -13,10 +13,6 @@ from typing import List, Dict, Set, Optional
 
 logger = logging.getLogger(__name__)
 
-CLASSIFIER_MODEL = os.getenv("OLLAMA_CLASSIFIER_MODEL", "qwen25-classify")
-OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
-if not OLLAMA_HOST.startswith("http"):
-    OLLAMA_HOST = f"http://{OLLAMA_HOST}"
 LLM_TAGGING_ENABLED = os.getenv("LLM_TAGGING_ENABLED", "true").lower() == "true"
 
 # Knowledge domains and their keywords
@@ -323,7 +319,7 @@ def _llm_enrich_tags(text: str, regex_tags: List[str]) -> List[str]:
         return regex_tags
 
     try:
-        import requests as req
+        from bridge_dispatcher import get_dispatcher
 
         domains = ", ".join(KNOWLEDGE_DOMAINS.keys())
         prompt = (
@@ -335,24 +331,15 @@ def _llm_enrich_tags(text: str, regex_tags: List[str]) -> List[str]:
             f'Respond with JSON only: {{"tags": ["tag1", "tag2"]}}'
         )
 
-        resp = req.post(
-            f"{OLLAMA_HOST}/api/generate",
-            json={
-                "model": CLASSIFIER_MODEL,
-                "prompt": prompt,
-                "stream": False,
-                "format": "json",
-                "options": {"temperature": 0.1, "num_predict": 150},
-            },
-            timeout=10,
+        dispatcher = get_dispatcher()
+        result = dispatcher.request_work(
+            "classify", prompt, "auto_tagger", json_mode=True, timeout=10
         )
 
-        if resp.status_code == 200:
-            raw = resp.json().get("response", "")
-            result = json.loads(raw)
-            llm_tags = result.get("tags", [])
+        if result.success:
+            data = json.loads(result.response)
+            llm_tags = data.get("tags", [])
             if isinstance(llm_tags, list):
-                # Merge: keep all regex tags + add new LLM-discovered ones
                 combined = list(set(regex_tags + [t.lower().strip() for t in llm_tags if isinstance(t, str)]))
                 return combined
 

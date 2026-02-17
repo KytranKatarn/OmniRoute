@@ -54,21 +54,20 @@ class CommandRouter:
             "password": os.getenv("DB_PASSWORD", ""),
         }
 
-        # Model selection based on task complexity (via BridgeDispatcher or fallback)
-        if _dispatcher:
-            self.model_map = {
-                "fast": _dispatcher.get_model_for_capability("conversation") or "dolphin3-8k:latest",
-                "standard": _dispatcher.get_model_for_capability("conversation") or "dolphin3-8k:latest",
-                "powerful": _dispatcher.get_model_for_capability("code_analysis") or "qwen3-coder-cpu:latest",
-                "code": _dispatcher.get_model_for_capability("code") or "qwen3-coder-cpu:latest",
-            }
-        else:
-            self.model_map = {
-                "fast": "dolphin3-8k:latest",
-                "standard": "dolphin3-8k:latest",
-                "powerful": "qwen3-coder-cpu:latest",
-                "code": "qwen3-coder-cpu:latest",
-            }
+        # Model selection based on task complexity (via BridgeDispatcher)
+        def _model(capability, fallback):
+            if _dispatcher:
+                m = _dispatcher.get_model_for_capability(capability)
+                if m:
+                    return m
+            return fallback
+
+        self.model_map = {
+            "fast": _model("conversation", "dolphin3-8k:latest"),
+            "standard": _model("conversation", "dolphin3-8k:latest"),
+            "powerful": _model("code_analysis", "qwen3-coder-cpu:latest"),
+            "code": _model("code", "qwen3-coder-cpu:latest"),
+        }
 
     def get_db(self):
         """Get database connection"""

@@ -29,6 +29,11 @@ import os
 import traceback
 import logging
 
+from ai_bridge.bridge_dispatcher import get_dispatcher
+
+_dispatcher = get_dispatcher()
+_code_model = _dispatcher.get_model_for_capability("code_analysis")
+
 logger = logging.getLogger("improvements_lab")
 
 # Import improvement modules
@@ -955,7 +960,7 @@ def improvements_create_plan():
         result = archie_bridge_with_planning(
             prompt=user_request,
             user_id=current_user.id,
-            force_model="qwen3-coder-cpu:latest",
+            force_model=_code_model or _dispatcher.get_model_for_capability("code") or "qwen3-coder-cpu:latest",
         )
 
         return jsonify(result)

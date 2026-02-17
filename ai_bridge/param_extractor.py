@@ -14,9 +14,15 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-_raw_host = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
-OLLAMA_HOST = _raw_host if _raw_host.startswith("http") else f"http://{_raw_host}"
-EXTRACTION_MODEL = os.getenv("ARCHIE_CHAT_MODEL", "dolphin3-8k:latest")
+def _get_extraction_model():
+    try:
+        from bridge_dispatcher import get_dispatcher
+        model = get_dispatcher().get_model_for_capability("conversation")
+        return model or "dolphin3-8k:latest"
+    except Exception:
+        return os.getenv("ARCHIE_CHAT_MODEL", "dolphin3-8k:latest")
+
+EXTRACTION_MODEL = _get_extraction_model()
 
 AVAILABLE_DEPARTMENTS = [
     "Engineering",
@@ -48,7 +54,17 @@ AVAILABLE_STATIONS = [
     "AWAY_TEAM",
 ]
 
-AVAILABLE_MODELS = ["dolphin3-8k:latest", "qwen3-coder-cpu:latest", "arctic-embed-cpu", "qwen25-classify", "minicpm-v-cpu"]
+def _get_available_models():
+    """Get available model names from smart router tiers."""
+    try:
+        from smart_router import SmartRouter
+        router = SmartRouter()
+        configs = router._get_model_configs()
+        return [c.model_name for c in configs.values() if c.provider == "ollama"]
+    except Exception:
+        return ["dolphin3-8k:latest", "qwen3-coder-cpu:latest", "arctic-embed-cpu", "qwen25-classify", "minicpm-v-cpu"]
+
+AVAILABLE_MODELS = _get_available_models()
 
 # Template prompts for different action types
 TEMPLATES = {
@@ -136,19 +152,17 @@ def extract_params(message: str, action_type: str) -> dict:
     )
 
     try:
-        resp = requests.post(
-            f"{OLLAMA_HOST}/api/generate",
-            json={
-                "model": EXTRACTION_MODEL,
-                "prompt": prompt,
-                "stream": False,
-                "options": {"temperature": 0.1, "num_ctx": 4096},
-            },
-            timeout=120,  # M4000 cold starts can be slow
-        )
-        resp.raise_for_status()
+        from bridge_dispatcher import get_dispatcher
 
-        text = resp.json().get("response", "").strip()
+        dispatcher = get_dispatcher()
+        dispatch_result = dispatcher.request_work(
+            "conversation", prompt, "param_extractor", json_mode=True, timeout=120
+        )
+
+        if not dispatch_result.success:
+            return {"error": f"Extraction failed: {dispatch_result.error}"}
+
+        text = dispatch_result.response.strip()
         logger.info("Param extraction response: %s", text[:300])
 
         result = _parse_json_from_response(text)

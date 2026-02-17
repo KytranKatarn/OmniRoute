@@ -33,6 +33,16 @@ logger = logging.getLogger(__name__)
 
 # Ensure ai_bridge is on path
 sys.path.insert(0, os.path.dirname(__file__))
+
+
+def _default_conversation_model():
+    """Get conversation model from BridgeDispatcher (lazy, with fallback)."""
+    try:
+        from bridge_dispatcher import get_dispatcher
+        model = get_dispatcher().get_model_for_capability("conversation")
+        return model or "dolphin3-8k:latest"
+    except Exception:
+        return "dolphin3-8k:latest"
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "platform_v2"))
 
 
@@ -573,7 +583,7 @@ class OrchestrationEngine:
             routing = {
                 "tier": "local",
                 "provider": "ollama",
-                "model_name": "dolphin3-8k:latest",
+                "model_name": _default_conversation_model(),
                 "reason": "Smart router unavailable, using default local model",
                 "task_type": "conversation",
                 "should_escalate": False,
@@ -733,7 +743,7 @@ class OrchestrationEngine:
                 "name": "ARCHIE",
                 "department": "Command",
                 "worker_type": "internal",
-                "model": "dolphin3-8k:latest",
+                "model": _default_conversation_model(),
                 "tier": 1,
             }
 
@@ -897,7 +907,7 @@ class OrchestrationEngine:
                 )
                 response_text, actual_model = self._execute_ollama(
                     message,
-                    "dolphin3-8k:latest",
+                    _default_conversation_model(),
                     user_id,
                     conversation_id,
                     voice_mode,
@@ -1066,7 +1076,7 @@ Please try again or use the Team Management module directly.""",
             return self.TEAM_RESPONSE_TEMPLATES["error"].format(error=params["error"])
 
         # Build agent creation payload
-        model = params.get("model", "dolphin3-8k:latest")
+        model = params.get("model", _default_conversation_model())
         first_name = params.get("first_name", "New")
         last_name = params.get("last_name", "Agent")
         department = params.get("department", "AI Operations")
@@ -1807,17 +1817,18 @@ You can ask me to:
         self, routing: Optional[Dict], gpu_info: Dict, intent: Optional[Dict] = None
     ) -> str:
         """Resolve final model name, preferring loaded model to avoid swaps"""
+        conv_model = _default_conversation_model()
         if routing is None:
-            return "dolphin3-8k:latest"
+            return conv_model
 
-        requested = routing.get("model_name", "dolphin3-8k:latest")
+        requested = routing.get("model_name", conv_model)
 
         # If provider is not ollama, use the requested model as-is
         if routing.get("provider") != "ollama":
             return requested
 
-        # Conversation MUST use dolphin3 — it follows personality system prompts
-        # faithfully. qwen2.5 ignores them and produces generic AI disclaimers.
+        # Conversation MUST use the designated conversation model — it follows
+        # personality system prompts faithfully.
         intent_type = intent.get("type", "") if intent else ""
         if intent_type in (
             "conversation",
@@ -1826,10 +1837,10 @@ You can ask me to:
             "status_query",
             "dev_hq_status",
         ):
-            return "dolphin3-8k:latest"
+            return conv_model
 
         # Models that cannot be used for chat/generation (embedding-only)
-        non_chat_models = {"arctic-embed-cpu", "nomic-embed-text:latest"}
+        non_chat_models = {"arctic-embed-cpu"}
 
         loaded = gpu_info.get("loaded_model")
 

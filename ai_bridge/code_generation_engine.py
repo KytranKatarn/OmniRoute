@@ -38,7 +38,17 @@ class CodeGenerationEngine:
 
     # V2 Configuration
     MAX_RETRIES = 3
-    DEFAULT_MODEL = "qwen3-coder-cpu:latest"  # Fallback if Team Management unavailable
+    DEFAULT_MODEL = None  # Resolved dynamically via BridgeDispatcher
+
+    @classmethod
+    def _get_code_model(cls):
+        """Get the code model from BridgeDispatcher."""
+        try:
+            from bridge_dispatcher import get_dispatcher
+            model = get_dispatcher().get_model_for_capability("code")
+            return model or "qwen3-coder-cpu:latest"
+        except Exception:
+            return "qwen3-coder-cpu:latest"
 
     # Prompts for architect/editor pattern
     ARCHITECT_PROMPT = """You are analyzing a code issue to plan a MINIMAL fix.
@@ -443,7 +453,7 @@ NEW_CONTENT:
             elif os.getenv("OPENAI_API_KEY"):
                 return "gpt-4-turbo"
 
-        return self.DEFAULT_MODEL
+        return self._get_code_model()
 
     def _detect_language(self, file_path: str) -> str:
         """Detect language from file extension"""
@@ -920,7 +930,7 @@ NEW_CONTENT:
             prompt=prompt,
             user_id=4,  # admin user
             enable_memory=True,
-            force_model="qwen3-coder-cpu:latest",  # Use capable model for code generation
+            force_model=self._get_code_model(),
         )
 
         if not result.get("success"):

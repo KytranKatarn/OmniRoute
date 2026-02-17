@@ -45,9 +45,11 @@ class IntentParser:
         ollama_host = os.getenv("OLLAMA_PRIMARY", "host.docker.internal:11434")
         # Ensure http:// prefix
         self.ollama_url = ollama_host if ollama_host.startswith("http") else f"http://{ollama_host}"
-        # Use BridgeDispatcher for model selection, fall back to hardcoded default
+        # Use BridgeDispatcher for model selection
         _classify_model = _dispatcher.get_model_for_capability("classify") if _dispatcher else ""
-        self.classification_model = _classify_model or "dolphin3-8k:latest"
+        self.classification_model = _classify_model or (
+            _dispatcher.get_model_for_capability("conversation") if _dispatcher else "dolphin3-8k:latest"
+        )
         self.db_config = {
             "host": os.getenv("DB_HOST", "archie_database"),
             "port": os.getenv("DB_PORT", "5432"),

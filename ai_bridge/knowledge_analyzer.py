@@ -33,8 +33,16 @@ CLAUDE_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 CLAUDE_MODEL = "claude-sonnet-4-20250514"
 
 # Ollama configuration (fallback when no Claude API key)
-# qwen3-coder-cpu runs on CPU/RAM only (num_gpu=0), 80B MoE with 32K context
-OLLAMA_MODEL = os.getenv("OLLAMA_ANALYSIS_MODEL", "qwen3-coder-cpu:latest")
+# Model resolved via BridgeDispatcher for knowledge_analysis capability
+def _get_analysis_model():
+    try:
+        from bridge_dispatcher import get_dispatcher
+        model = get_dispatcher().get_model_for_capability("knowledge_analysis")
+        return model or "qwen3-coder-cpu:latest"
+    except Exception:
+        return os.getenv("OLLAMA_ANALYSIS_MODEL", "qwen3-coder-cpu:latest")
+
+OLLAMA_MODEL = _get_analysis_model()
 # Fast model for short entries (disabled by default — model swapping crashes on small-VRAM GPUs)
 # Set OLLAMA_FAST_MODEL=tinyllama:latest to enable on systems with >=16GB VRAM
 OLLAMA_FAST_MODEL = os.getenv("OLLAMA_FAST_MODEL", "")

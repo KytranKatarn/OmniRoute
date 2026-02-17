@@ -176,7 +176,12 @@ class {class_name}:
     }
 
     def __init__(self):
-        self.model = "qwen3-coder-cpu:latest"
+        try:
+            from bridge_dispatcher import get_dispatcher
+            model = get_dispatcher().get_model_for_capability("code")
+            self.model = model or "qwen3-coder-cpu:latest"
+        except Exception:
+            self.model = "qwen3-coder-cpu:latest"
 
     def generate(
         self,

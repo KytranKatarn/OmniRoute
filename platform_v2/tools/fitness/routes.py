@@ -229,7 +229,9 @@ Include form tips for complex exercises."""
 
     try:
         _default_model = _dispatcher.get_model_for_capability("conversation") if _dispatcher else ""
-        _workout_model = _default_model or "dolphin3-8k:latest"
+        _workout_model = _default_model or (
+            _dispatcher.get_model_for_capability("conversation") if _dispatcher else "dolphin3-8k:latest"
+        )
         response = requests.post(
             f"{OLLAMA_URL}/api/generate",
             json={

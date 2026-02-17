@@ -233,7 +233,9 @@ Remember: This is educational only, not a trading recommendation.""",
 
     try:
         _default_model = _dispatcher.get_model_for_capability("conversation") if _dispatcher else ""
-        _analyze_model = _default_model or "dolphin3-8k:latest"
+        _analyze_model = _default_model or (
+            _dispatcher.get_model_for_capability("conversation") if _dispatcher else "dolphin3-8k:latest"
+        )
         response = requests.post(
             f"{OLLAMA_URL}/api/generate",
             json={
@@ -408,7 +410,9 @@ def explain_concept(concept_id):
 
     try:
         _default_model = _dispatcher.get_model_for_capability("conversation") if _dispatcher else ""
-        _concept_model = _default_model or "dolphin3-8k:latest"
+        _concept_model = _default_model or (
+            _dispatcher.get_model_for_capability("conversation") if _dispatcher else "dolphin3-8k:latest"
+        )
         response = requests.post(
             f"{OLLAMA_URL}/api/generate",
             json={

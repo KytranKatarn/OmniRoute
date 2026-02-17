@@ -399,23 +399,20 @@ Respond with ONLY a JSON object:
 }}"""
 
         try:
-            import requests
+            from bridge_dispatcher import get_dispatcher
 
-            resp = requests.post(
-                f"{self._ollama_url}/api/generate",
-                json={
-                    "model": "dolphin3",
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {"temperature": 0.3, "num_ctx": 4096},
-                },
-                timeout=120,
+            dispatcher = get_dispatcher()
+            dispatch_result = dispatcher.request_work(
+                "classify", prompt, "email_intelligence", json_mode=True, timeout=120
             )
-            resp.raise_for_status()
-            raw_response = resp.json().get("response", "")
+
+            if not dispatch_result.success:
+                cur.close()
+                conn.close()
+                return {"error": "AI analysis failed"}
 
             # Parse JSON from response
-            analysis = self._parse_json_response(raw_response)
+            analysis = self._parse_json_response(dispatch_result.response)
 
             # Update email record
             cur.execute(
@@ -488,20 +485,19 @@ Sign as "ARCHIE" (AI Assistant for Kytran Empowerment).
 Respond with ONLY the email body text, no JSON."""
 
         try:
-            import requests
+            from bridge_dispatcher import get_dispatcher
 
-            resp = requests.post(
-                f"{self._ollama_url}/api/generate",
-                json={
-                    "model": "dolphin3",
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {"temperature": 0.7, "num_ctx": 4096},
-                },
-                timeout=120,
+            dispatcher = get_dispatcher()
+            dispatch_result = dispatcher.request_work(
+                "email_composition", prompt, "email_intelligence", timeout=120
             )
-            resp.raise_for_status()
-            draft_text = resp.json().get("response", "").strip()
+
+            if not dispatch_result.success:
+                cur.close()
+                conn.close()
+                return None
+
+            draft_text = dispatch_result.response.strip()
 
             if not draft_text:
                 cur.close()

@@ -15,13 +15,7 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-# LLM classifier config
-CLASSIFIER_MODEL = os.getenv("OLLAMA_CLASSIFIER_MODEL", "qwen25-classify")
-OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
-if not OLLAMA_HOST.startswith("http"):
-    OLLAMA_HOST = f"http://{OLLAMA_HOST}"
 LLM_SENTIMENT_ENABLED = os.getenv("LLM_SENTIMENT_ENABLED", "true").lower() == "true"
-LLM_TIMEOUT = 10  # seconds — fast classifier should respond quickly
 
 # Sentiment indicators
 POSITIVE_INDICATORS = [
@@ -160,7 +154,7 @@ def _llm_classify_sentiment(text: str) -> Optional[Dict[str, any]]:
         return None
 
     try:
-        import requests as req
+        from bridge_dispatcher import get_dispatcher
 
         prompt = (
             "Analyze the emotional sentiment of this text. "
@@ -174,23 +168,15 @@ def _llm_classify_sentiment(text: str) -> Optional[Dict[str, any]]:
             '"signals":["list","of","detected","signals"]}'
         )
 
-        resp = req.post(
-            f"{OLLAMA_HOST}/api/generate",
-            json={
-                "model": CLASSIFIER_MODEL,
-                "prompt": prompt,
-                "stream": False,
-                "format": "json",
-                "options": {"temperature": 0.1, "num_predict": 200},
-            },
-            timeout=LLM_TIMEOUT,
+        dispatcher = get_dispatcher()
+        dispatch_result = dispatcher.request_work(
+            "classify", prompt, "emotional_intelligence", json_mode=True, timeout=10
         )
 
-        if resp.status_code != 200:
+        if not dispatch_result.success:
             return None
 
-        raw = resp.json().get("response", "")
-        result = json.loads(raw)
+        result = json.loads(dispatch_result.response)
 
         # Validate required fields
         sentiment = result.get("sentiment", "neutral")

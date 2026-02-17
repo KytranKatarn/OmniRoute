@@ -126,13 +126,8 @@ def _llm_enrich_insights(transcript: str, regex_insights: Dict[str, List[Dict]])
     Use qwen25-classify to find insights that regex missed.
     Merges LLM-found insights with regex results.
     """
-    CLASSIFIER_MODEL = os.getenv("OLLAMA_CLASSIFIER_MODEL", "qwen25-classify")
-    OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
-    if not OLLAMA_HOST.startswith("http"):
-        OLLAMA_HOST = f"http://{OLLAMA_HOST}"
-
     try:
-        import requests as req
+        from bridge_dispatcher import get_dispatcher
 
         # Smart truncation: first 30% + last 50% (solutions live at the end)
         max_len = 2000
@@ -163,23 +158,15 @@ def _llm_enrich_insights(transcript: str, regex_insights: Dict[str, List[Dict]])
             '"errors": [{"content": "...", "confidence": 0.9}]}'
         )
 
-        resp = req.post(
-            f"{OLLAMA_HOST}/api/generate",
-            json={
-                "model": CLASSIFIER_MODEL,
-                "prompt": prompt,
-                "stream": False,
-                "format": "json",
-                "options": {"temperature": 0.2, "num_predict": 500},
-            },
-            timeout=15,
+        dispatcher = get_dispatcher()
+        dispatch_result = dispatcher.request_work(
+            "classify", prompt, "conversation_insights", json_mode=True, timeout=15
         )
 
-        if resp.status_code != 200:
+        if not dispatch_result.success:
             return regex_insights
 
-        raw = resp.json().get("response", "")
-        result = json.loads(raw)
+        result = json.loads(dispatch_result.response)
 
         # Merge LLM findings with regex results
         merged = {k: list(v) for k, v in regex_insights.items()}

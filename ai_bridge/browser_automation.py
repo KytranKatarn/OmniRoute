@@ -23,7 +23,9 @@ from psycopg2.extras import RealDictCursor
 
 logger = logging.getLogger("browser_automation")
 
-SCREENSHOT_DIR = os.getenv("BROWSER_SCREENSHOT_DIR", "/mnt/archie_brain/platform_v2/static/screenshots")
+SCREENSHOT_DIR = os.getenv(
+    "BROWSER_SCREENSHOT_DIR", "/mnt/archie_brain/platform_v2/static/screenshots"
+)
 
 
 def get_db():
@@ -74,6 +76,7 @@ class BrowserAutomation:
         if not self._is_domain_approved(cur, domain):
             # Request approval
             from agent_loop import request_approval
+
             approval_id = request_approval(
                 action_type="browser_new_domain",
                 action_data={"domain": domain, "url": task["url"], "task_id": task_id},
@@ -93,7 +96,11 @@ class BrowserAutomation:
             conn.commit()
             cur.close()
             conn.close()
-            return {"status": "awaiting_approval", "domain": domain, "approval_id": approval_id}
+            return {
+                "status": "awaiting_approval",
+                "domain": domain,
+                "approval_id": approval_id,
+            }
 
         # Mark running
         cur.execute(
@@ -132,7 +139,11 @@ class BrowserAutomation:
                     task_id,
                     "success" if not result.get("error") else "failed",
                     result.get("screenshot_path"),
-                    json.dumps(result.get("scraped_data")) if result.get("scraped_data") else None,
+                    (
+                        json.dumps(result.get("scraped_data"))
+                        if result.get("scraped_data")
+                        else None
+                    ),
                     result.get("page_title"),
                     result.get("page_url"),
                     duration_ms,
@@ -217,7 +228,11 @@ class BrowserAutomation:
                 scraped = {"text": text_content[:10000]}
 
                 if instructions:
-                    selectors = re.findall(r'selector[:\s]*["\']([^"\']+)["\']', instructions, re.IGNORECASE)
+                    selectors = re.findall(
+                        r'selector[:\s]*["\']([^"\']+)["\']',
+                        instructions,
+                        re.IGNORECASE,
+                    )
                     for sel in selectors:
                         try:
                             elements = page.query_selector_all(sel)
@@ -303,8 +318,6 @@ class BrowserAutomation:
     def generate_script(self, instructions: str, url: str) -> Optional[str]:
         """Generate a Playwright script from natural language instructions."""
         try:
-            import requests
-
             prompt = f"""Generate a Playwright Python script for this task.
 The script will be executed with a `page` variable already navigated to {url}.
 Store results in a `result` dict variable.
@@ -319,21 +332,18 @@ Task: {instructions}
 
 Respond with ONLY the Python code, no markdown fences."""
 
-            resp = requests.post(
-                f"{self._ollama_url}/api/generate",
-                json={
-                    "model": "dolphin3",
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {"temperature": 0.3, "num_ctx": 4096},
-                },
-                timeout=120,
-            )
-            resp.raise_for_status()
-            script = resp.json().get("response", "").strip()
+            from bridge_dispatcher import get_dispatcher
 
-            script = re.sub(r'^```python\s*\n?', '', script)
-            script = re.sub(r'\n?```\s*$', '', script)
+            dispatcher = get_dispatcher()
+            result = dispatcher.request_work(
+                "code", prompt, "browser_automation", timeout=120
+            )
+            if not result.success:
+                return None
+            script = result.response.strip()
+
+            script = re.sub(r"^```python\s*\n?", "", script)
+            script = re.sub(r"\n?```\s*$", "", script)
 
             if self._validate_script(script):
                 return script
@@ -346,10 +356,22 @@ Respond with ONLY the Python code, no markdown fences."""
     def _validate_script(self, script: str) -> bool:
         """Validate a Playwright script for safety."""
         forbidden = [
-            "import ", "from ", "__import__", "eval(", "exec(",
-            "open(", "os.", "sys.", "subprocess", "shutil",
-            "requests.", "urllib", "socket",
-            "rmdir", "unlink", "remove(",
+            "import ",
+            "from ",
+            "__import__",
+            "eval(",
+            "exec(",
+            "open(",
+            "os.",
+            "sys.",
+            "subprocess",
+            "shutil",
+            "requests.",
+            "urllib",
+            "socket",
+            "rmdir",
+            "unlink",
+            "remove(",
         ]
         script_lower = script.lower()
         for pattern in forbidden:

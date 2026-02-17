@@ -25,6 +25,16 @@ sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "platform_v2"))
 
 
+def _default_conversation_model():
+    """Get conversation model from BridgeDispatcher (lazy, with fallback)."""
+    try:
+        from bridge_dispatcher import get_dispatcher
+        model = get_dispatcher().get_model_for_capability("conversation")
+        return model or "dolphin3-8k:latest"
+    except Exception:
+        return "dolphin3-8k:latest"
+
+
 @dataclass
 class SubTask:
     index: int
@@ -305,7 +315,7 @@ class MultiAgentOrchestrator:
                 "name": "ARCHIE",
                 "department": "Command",
                 "worker_type": "internal",
-                "model": "dolphin3-8k:latest",
+                "model": _default_conversation_model(),
                 "tier": 1,
             }
             for st in sub_tasks:
@@ -334,7 +344,7 @@ class MultiAgentOrchestrator:
                     "name": agent.get("name", "Unknown"),
                     "department": agent.get("department", dept),
                     "worker_type": agent.get("worker_type", "internal"),
-                    "model": agent.get("model", "dolphin3-8k:latest"),
+                    "model": agent.get("model", _default_conversation_model()),
                     "tier": agent.get("tier", 1),
                 }
             else:
@@ -345,7 +355,7 @@ class MultiAgentOrchestrator:
                     "name": "ARCHIE",
                     "department": "Command",
                     "worker_type": "internal",
-                    "model": "dolphin3-8k:latest",
+                    "model": _default_conversation_model(),
                     "tier": 1,
                 }
 
@@ -393,7 +403,7 @@ class MultiAgentOrchestrator:
         for st in sub_tasks:
             if not st.assigned_agent:
                 continue
-            model = st.assigned_agent.get("model", "dolphin3-8k:latest")
+            model = st.assigned_agent.get("model", _default_conversation_model())
             worker_type = st.assigned_agent.get("worker_type", "internal")
 
             # Internal agents use Ollama, contract agents use Claude proxy
@@ -428,7 +438,7 @@ class MultiAgentOrchestrator:
 
         t0 = time.time()
         agent = sub_task.assigned_agent or {}
-        model = agent.get("model", "dolphin3-8k:latest")
+        model = agent.get("model", _default_conversation_model())
         worker_type = agent.get("worker_type", "internal")
         agent_name = agent.get("name", "Unknown")
 

@@ -328,6 +328,10 @@
                             <i data-lucide="reply"></i>
                             <span>Generate Reply</span>
                         </button>
+                        <button class="em-btn em-btn--outline" id="detail-read-toggle" onclick="toggleDetailRead()" title="Toggle read/unread">
+                            <i data-lucide="mail-open" id="detail-read-icon"></i>
+                            <span id="detail-read-label">Mark Unread</span>
+                        </button>
                         <button class="em-btn em-btn--outline" onclick="archiveEmail(currentEmailId)">
                             <i data-lucide="archive"></i>
                             <span>Archive</span>
@@ -3273,6 +3277,15 @@ async function viewEmail(id) {
             draftsContent.textContent = '';
         }
 
+        // Set read/unread toggle button state
+        var readIcon = document.getElementById('detail-read-icon');
+        var readLabel = document.getElementById('detail-read-label');
+        if (readIcon && readLabel) {
+            // After viewing, the email is marked as read by the backend
+            readIcon.setAttribute('data-lucide', 'mail-open');
+            readLabel.textContent = 'Mark Unread';
+        }
+
         // Scroll to detail panel
         panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
@@ -3307,6 +3320,46 @@ async function toggleStar(id) {
         }
     } catch (error) {
         showToast('Failed to toggle star', 'error');
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INBOX - TOGGLE READ/UNREAD
+// ═══════════════════════════════════════════════════════════════════════════════
+async function toggleDetailRead() {
+    if (!currentEmailId) return;
+    try {
+        var response = await fetch('/tools/email-manager/api/inbox/' + currentEmailId + '/read', { method: 'POST' });
+        var data = await response.json();
+
+        if (data.success) {
+            var icon = document.getElementById('detail-read-icon');
+            var label = document.getElementById('detail-read-label');
+            if (data.is_read) {
+                icon.setAttribute('data-lucide', 'mail-open');
+                label.textContent = 'Mark Unread';
+            } else {
+                icon.setAttribute('data-lucide', 'mail');
+                label.textContent = 'Mark Read';
+            }
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+
+            // Update inbox row styling
+            var row = document.querySelector('tr[data-email-id="' + currentEmailId + '"]');
+            if (row) {
+                if (data.is_read) {
+                    row.classList.remove('inbox-row--unread');
+                } else {
+                    row.classList.add('inbox-row--unread');
+                }
+            }
+
+            loadInbox();
+            loadInboxStats();
+        }
+    } catch (error) {
+        console.error('Toggle read failed:', error);
+        showToast('Failed to toggle read status', 'error');
     }
 }
 

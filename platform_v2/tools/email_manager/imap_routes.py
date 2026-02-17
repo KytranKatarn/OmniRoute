@@ -485,6 +485,30 @@ def toggle_star(email_id):
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@email_manager_bp.route("/api/inbox/<int:email_id>/read", methods=["POST"])
+@login_required
+def toggle_read(email_id):
+    """Toggle read/unread on an email."""
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute(
+            "UPDATE email_inbox SET is_read = NOT is_read, updated_at = NOW() WHERE id = %s RETURNING is_read",
+            (email_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return jsonify({"success": False, "error": "Email not found"}), 404
+        conn.commit()
+        return jsonify({"success": True, "is_read": row["is_read"]})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
 @email_manager_bp.route("/api/inbox/<int:email_id>/archive", methods=["POST"])
 @login_required
 def archive_email(email_id):

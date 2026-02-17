@@ -282,6 +282,10 @@ def get_inbox():
         cur.execute("SELECT COUNT(*) as c FROM email_inbox WHERE is_read = FALSE AND is_archived = FALSE")
         unread = cur.fetchone()["c"]
 
+        # Starred count
+        cur.execute("SELECT COUNT(*) as c FROM email_inbox WHERE is_starred = TRUE AND is_archived = FALSE")
+        starred = cur.fetchone()["c"]
+
         cur.close()
         conn.close()
 
@@ -294,6 +298,7 @@ def get_inbox():
                 "per_page": per_page,
                 "categories": categories,
                 "unread": unread,
+                "starred": starred,
             }
         )
     except Exception as e:
@@ -314,7 +319,8 @@ def get_inbox_stats():
                 COUNT(*) as total,
                 COUNT(ai_analyzed_at) as analyzed,
                 COUNT(*) FILTER (WHERE is_read = FALSE AND is_archived = FALSE) as unread,
-                COUNT(*) FILTER (WHERE is_archived = TRUE) as archived
+                COUNT(*) FILTER (WHERE is_archived = TRUE) as archived,
+                COUNT(*) FILTER (WHERE is_starred = TRUE AND is_archived = FALSE) as starred
             FROM email_inbox
         """
         )

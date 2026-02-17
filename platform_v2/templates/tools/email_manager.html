@@ -210,6 +210,10 @@
                         All
                         <span class="inbox-filter-count" id="filter-count-all"></span>
                     </button>
+                    <button class="inbox-filter-btn inbox-filter--starred" data-category="starred" onclick="setInboxFilter('starred')">
+                        <i data-lucide="star" style="width:14px;height:14px;fill:#FFC800;color:#FFC800"></i> Starred
+                        <span class="inbox-filter-count" id="filter-count-starred"></span>
+                    </button>
                     <button class="inbox-filter-btn inbox-filter--urgent" data-category="urgent" onclick="setInboxFilter('urgent')">
                         Urgent
                         <span class="inbox-filter-count" id="filter-count-urgent"></span>
@@ -1956,6 +1960,8 @@
     color: var(--em-accent);
 }
 
+.inbox-filter--starred { border-color: #FFC800; }
+.inbox-filter--starred.active { background: rgba(255, 200, 0, 0.15); color: #FFC800; border-color: #FFC800; }
 .inbox-filter--urgent.active { background: rgba(255, 65, 54, 0.15); border-color: #ff4136; color: #ff4136; }
 .inbox-filter--action.active { background: rgba(255, 133, 27, 0.15); border-color: #ff851b; color: #ff851b; }
 .inbox-filter--info.active   { background: rgba(0, 255, 255, 0.15); border-color: #00FFFF; color: #00FFFF; }
@@ -2974,6 +2980,11 @@ async function loadInboxStats() {
         document.getElementById('stat-pct').textContent = '(' + pct + '%)';
         document.getElementById('stat-progress-fill').style.width = pct + '%';
 
+        const starredEl = document.getElementById('filter-count-starred');
+        if (starredEl && data.starred !== undefined) {
+            starredEl.textContent = data.starred > 0 ? '(' + data.starred + ')' : '';
+        }
+
         // Show analyze button if there are unanalyzed emails
         const btn = document.getElementById('analyze-remaining-btn');
         if (data.total > data.analyzed) {
@@ -3051,7 +3062,11 @@ async function loadInbox(page) {
     if (typeof lucide !== 'undefined') lucide.createIcons();
 
     var params = new URLSearchParams({ page: page, per_page: 25 });
-    if (inboxCurrentFilter) params.set('category', inboxCurrentFilter);
+    if (inboxCurrentFilter === 'starred') {
+        params.set('is_starred', 'true');
+    } else if (inboxCurrentFilter) {
+        params.set('category', inboxCurrentFilter);
+    }
     if (inboxCurrentSearch) params.set('search', inboxCurrentSearch);
     if (inboxCurrentSort && inboxCurrentSort !== 'date_desc') params.set('sort', inboxCurrentSort);
 
@@ -3083,7 +3098,7 @@ async function loadInbox(page) {
         updateUnreadBadge(data.unread || 0);
 
         // Update filter counts
-        updateFilterCounts(data.categories || {}, data.total || 0);
+        updateFilterCounts(data.categories || {}, data.total || 0, data.starred || 0);
 
         // Render emails
         tbody.textContent = '';
@@ -3580,9 +3595,12 @@ function updateUnreadBadge(count) {
     }
 }
 
-function updateFilterCounts(categories, total) {
+function updateFilterCounts(categories, total, starredCount) {
     var allEl = document.getElementById('filter-count-all');
     if (allEl) allEl.textContent = total > 0 ? '(' + total + ')' : '';
+
+    var starredEl = document.getElementById('filter-count-starred');
+    if (starredEl) starredEl.textContent = starredCount > 0 ? '(' + starredCount + ')' : '';
 
     var catKeys = ['urgent', 'action_required', 'informational', 'spam', 'newsletter'];
     catKeys.forEach(function(key) {

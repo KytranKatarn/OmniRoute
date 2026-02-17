@@ -106,6 +106,8 @@ class TelegramGateway:
             app.add_handler(CommandHandler("approve", self._cmd_approve))
             app.add_handler(CommandHandler("inbox", self._cmd_inbox))
             app.add_handler(CommandHandler("briefing", self._cmd_briefing))
+            app.add_handler(CommandHandler("cancel", self._cmd_cancel))
+            app.add_handler(CallbackQueryHandler(self._email_callback, pattern=r"^email_"))
             app.add_handler(CallbackQueryHandler(self._callback_handler))
             app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_message))
             app.add_handler(MessageHandler(filters.VOICE, self._handle_voice))
@@ -364,6 +366,12 @@ class TelegramGateway:
 
     async def _handle_message(self, update, context):
         """Handle regular text messages — route through orchestration."""
+        # Check for pending email reply FIRST
+        pending_reply_id = context.user_data.get("pending_reply_email_id")
+        if pending_reply_id:
+            await self._send_email_reply(update, context, pending_reply_id)
+            return
+
         tg_user = update.effective_user
         user_info = self._get_authorized_user(tg_user.id)
 
@@ -412,6 +420,175 @@ class TelegramGateway:
             approval_id = int(data.split("_")[1])
             self._process_approval(approval_id, user_info["user_id"], approved=False)
             await query.edit_message_text(f"Rejected #{approval_id}")
+
+    # ------------------------------------------------------------------
+    # Email Interaction via Telegram
+    # ------------------------------------------------------------------
+
+    async def _email_callback(self, update, context):
+        """Handle email action buttons from Telegram notifications."""
+        query = update.callback_query
+        await query.answer()
+
+        data = query.data  # e.g. "email_reply_123"
+        parts = data.split("_", 2)  # ["email", "reply", "123"]
+        if len(parts) < 3:
+            await query.edit_message_text("Invalid action")
+            return
+
+        action = parts[1]
+        try:
+            email_id = int(parts[2])
+        except ValueError:
+            await query.edit_message_text("Invalid email ID")
+            return
+
+        user = self._get_authorized_user(query.from_user.id)
+        if not user:
+            await query.message.reply_text("Not authorized. Use /link to connect your account.")
+            return
+
+        try:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            if action == "archive":
+                cur.execute("UPDATE email_inbox SET is_archived = TRUE, updated_at = NOW() WHERE id = %s", (email_id,))
+                conn.commit()
+                await query.edit_message_text(query.message.text + "\n\nArchived")
+
+            elif action == "star":
+                cur.execute(
+                    "UPDATE email_inbox SET is_starred = NOT is_starred, updated_at = NOW() WHERE id = %s RETURNING is_starred",
+                    (email_id,),
+                )
+                row = cur.fetchone()
+                conn.commit()
+                status = "Starred" if row and row["is_starred"] else "Unstarred"
+                await query.edit_message_text(query.message.text + "\n\n" + status)
+
+            elif action == "read":
+                cur.execute("UPDATE email_inbox SET is_read = TRUE, updated_at = NOW() WHERE id = %s", (email_id,))
+                conn.commit()
+                await query.edit_message_text(query.message.text + "\n\nMarked as read")
+
+            elif action == "reply":
+                # Set user into reply mode
+                context.user_data["pending_reply_email_id"] = email_id
+                cur.execute("SELECT from_address, from_name, subject FROM email_inbox WHERE id = %s", (email_id,))
+                email = cur.fetchone()
+                if email:
+                    reply_to = email.get("from_name") or email["from_address"]
+                    await query.message.reply_text(
+                        f"Replying to: {reply_to}\n"
+                        f"Subject: Re: {email['subject']}\n\n"
+                        "Type your reply message now. Send /cancel to abort."
+                    )
+                else:
+                    await query.message.reply_text("Email not found.")
+            else:
+                await query.message.reply_text(f"Unknown action: {action}")
+
+            cur.close()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Email callback failed: {e}")
+            try:
+                await query.message.reply_text(f"Error: {str(e)}")
+            except Exception:
+                pass
+
+    async def _send_email_reply(self, update, context, email_id):
+        """Send an email reply from Telegram message text via SMTP."""
+        reply_text = update.message.text
+
+        if reply_text.strip().lower() == "/cancel":
+            del context.user_data["pending_reply_email_id"]
+            await update.message.reply_text("Reply cancelled.")
+            return
+
+        try:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Get original email
+            cur.execute("SELECT from_address, subject, message_id FROM email_inbox WHERE id = %s", (email_id,))
+            email = cur.fetchone()
+            if not email:
+                await update.message.reply_text("Original email not found.")
+                del context.user_data["pending_reply_email_id"]
+                return
+
+            # Get SMTP settings
+            cur.execute("SELECT * FROM email_settings WHERE is_default = TRUE AND is_active = TRUE LIMIT 1")
+            smtp = cur.fetchone()
+            if not smtp:
+                await update.message.reply_text("No SMTP configured. Cannot send reply.")
+                del context.user_data["pending_reply_email_id"]
+                return
+
+            # Build and send email
+            import smtplib
+            from email.mime.text import MIMEText
+
+            msg = MIMEText(reply_text, "plain")
+            msg["From"] = f"{smtp['from_name']} <{smtp['from_email']}>"
+            msg["To"] = email["from_address"]
+            msg["Subject"] = f"Re: {email['subject']}"
+            if email.get("message_id"):
+                msg["In-Reply-To"] = email["message_id"]
+                msg["References"] = email["message_id"]
+
+            if smtp["encryption"] == "ssl":
+                server = smtplib.SMTP_SSL(smtp["smtp_host"], smtp["smtp_port"])
+            else:
+                server = smtplib.SMTP(smtp["smtp_host"], smtp["smtp_port"])
+                server.starttls()
+            server.login(smtp["smtp_user"], smtp["smtp_password_encrypted"])
+            server.send_message(msg)
+            server.quit()
+
+            # Log the send
+            cur.execute(
+                """
+                INSERT INTO email_logs (recipient, subject, body_preview, status, sent_at, created_by, created_at)
+                VALUES (%s, %s, %s, 'sent', NOW(), %s, NOW())
+                """,
+                (email["from_address"], f"Re: {email['subject']}", reply_text[:200], 1),
+            )
+
+            # Mark original as read
+            cur.execute("UPDATE email_inbox SET is_read = TRUE, updated_at = NOW() WHERE id = %s", (email_id,))
+            conn.commit()
+
+            # Log governance event
+            try:
+                from ai_bridge.agent_loop import log_governance_event
+                log_governance_event(
+                    "email_sent_telegram", "execute", "success",
+                    {"email_id": email_id, "to": email["from_address"], "method": "telegram"},
+                )
+            except Exception:
+                pass
+
+            del context.user_data["pending_reply_email_id"]
+            await update.message.reply_text(f"Reply sent to {email['from_address']}")
+
+            cur.close()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Telegram email reply failed: {e}")
+            await update.message.reply_text(f"Failed to send reply: {str(e)}")
+            if "pending_reply_email_id" in context.user_data:
+                del context.user_data["pending_reply_email_id"]
+
+    async def _cmd_cancel(self, update, context):
+        """Cancel any pending operation."""
+        if "pending_reply_email_id" in context.user_data:
+            del context.user_data["pending_reply_email_id"]
+            await update.message.reply_text("Reply cancelled.")
+        else:
+            await update.message.reply_text("Nothing to cancel.")
 
     # ------------------------------------------------------------------
     # Notification Forwarding

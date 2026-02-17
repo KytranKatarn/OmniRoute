@@ -2466,6 +2466,20 @@
                     <span>Escalation:</span>
                     <strong>Pending</strong>
                 </div>
+                <div class="mode-tabs">
+                    <button class="chat-mode-btn active" data-mode="solo" onclick="switchChatMode('solo')">
+                        <i data-lucide="message-square"></i>
+                        Solo
+                    </button>
+                    <button class="chat-mode-btn" data-mode="side-by-side" onclick="switchChatMode('side-by-side')">
+                        <i data-lucide="columns"></i>
+                        Side-by-Side
+                    </button>
+                    <button class="chat-mode-btn" data-mode="collab" onclick="switchChatMode('collab')">
+                        <i data-lucide="users"></i>
+                        Collaborate
+                    </button>
+                </div>
             </div>
             <div class="status-right">
                 <button class="voice-toggle-btn active" onclick="toggleVoice()" title="Toggle Voice (Phase 64)">
@@ -2489,6 +2503,7 @@
             </div>
         </div>
 
+        <div id="solo-chat-container" style="display: flex; flex: 1; flex-direction: column; overflow: hidden;">
         <div class="messages-container" id="messagesContainer">
             <!-- Welcome Message -->
             <div class="welcome-message" id="welcomeMessage">
@@ -2549,6 +2564,7 @@
                     <i data-lucide="send"></i>
                 </button>
             </form>
+        </div>
         </div>
     </main>
 </div>

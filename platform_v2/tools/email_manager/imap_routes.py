@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import sys
+import time
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -313,6 +314,54 @@ def get_inbox_stats():
         return jsonify({"success": True, **stats})
     except Exception as e:
         logger.error(f"Failed to get inbox stats: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@email_manager_bp.route("/api/inbox/batch-analyze", methods=["POST"])
+@login_required
+def batch_analyze():
+    """Analyze a batch of unanalyzed emails (5 at a time)."""
+    try:
+        from email_intelligence import EmailIntelligence
+
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT id FROM email_inbox
+            WHERE ai_analyzed_at IS NULL
+            ORDER BY received_at DESC
+            LIMIT 5
+        """
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        if not rows:
+            return jsonify({"success": True, "analyzed": 0, "remaining": 0})
+
+        ei = EmailIntelligence()
+        analyzed = 0
+        for row in rows:
+            try:
+                ei.analyze_email(row["id"])
+                analyzed += 1
+                time.sleep(1)  # GPU safety
+            except Exception as e:
+                logger.warning(f"Batch analysis failed for #{row['id']}: {e}")
+
+        # Get remaining count
+        conn2 = get_db()
+        cur2 = conn2.cursor(cursor_factory=RealDictCursor)
+        cur2.execute("SELECT COUNT(*) as remaining FROM email_inbox WHERE ai_analyzed_at IS NULL")
+        remaining = cur2.fetchone()["remaining"]
+        cur2.close()
+        conn2.close()
+
+        return jsonify({"success": True, "analyzed": analyzed, "remaining": remaining})
+    except Exception as e:
+        logger.error(f"Batch analysis failed: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 

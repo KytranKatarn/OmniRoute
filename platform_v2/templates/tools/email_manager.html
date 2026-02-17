@@ -2727,6 +2727,7 @@ let inboxCurrentFilter = '';
 let inboxCurrentSearch = '';
 let currentEmailId = null;
 let inboxAutoRefreshTimer = null;
+let analysisRunning = false;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // INBOX - RELATIVE DATE FORMATTING
@@ -2894,7 +2895,50 @@ async function loadInboxStats() {
 }
 
 async function analyzeRemaining() {
-    showToast('Batch analysis coming soon', 'info');
+    if (analysisRunning) return;
+    analysisRunning = true;
+
+    const btn = document.getElementById('analyze-remaining-btn');
+    btn.disabled = true;
+    const originalText = btn.querySelector('span').textContent;
+
+    async function processBatch() {
+        try {
+            btn.querySelector('span').textContent = 'Analyzing...';
+            const resp = await fetch('/tools/email-manager/api/inbox/batch-analyze', { method: 'POST' });
+            const data = await resp.json();
+
+            if (!data.success) {
+                showToast(data.error || 'Analysis failed', 'error');
+                analysisRunning = false;
+                btn.disabled = false;
+                btn.querySelector('span').textContent = originalText;
+                return;
+            }
+
+            // Update stats
+            loadInboxStats();
+
+            if (data.remaining > 0) {
+                btn.querySelector('span').textContent = 'Analyzing... ' + data.remaining + ' left';
+                // Continue with next batch after a short delay
+                setTimeout(processBatch, 500);
+            } else {
+                showToast('All emails analyzed!', 'success');
+                analysisRunning = false;
+                btn.disabled = false;
+                btn.style.display = 'none';
+                loadInbox(inboxCurrentPage);
+            }
+        } catch (e) {
+            showToast('Analysis error: ' + e.message, 'error');
+            analysisRunning = false;
+            btn.disabled = false;
+            btn.querySelector('span').textContent = originalText;
+        }
+    }
+
+    processBatch();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

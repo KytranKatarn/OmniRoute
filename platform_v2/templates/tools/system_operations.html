@@ -6492,7 +6492,7 @@ function updateDashboard(data) {
             const key = `gpu_${idx}`;
             if (!gpuHistory[key]) gpuHistory[key] = [];
             gpuHistory[key].push({ time: now, value: gpu.vram_percent });
-            if (gpuHistory[key].length > 30) gpuHistory[key].shift();
+            if (gpuHistory[key].length > 720) gpuHistory[key].shift();
         }
     });
     // Track device count for chart updates
@@ -6500,8 +6500,8 @@ function updateDashboard(data) {
         gpuDeviceCount = gpus.filter(g => g.has_detailed_stats).length;
     }
 
-    if (cpuHistory.length > 30) cpuHistory.shift();
-    if (memHistory.length > 30) memHistory.shift();
+    if (cpuHistory.length > 720) cpuHistory.shift();
+    if (memHistory.length > 720) memHistory.shift();
 
     if (cpuChart) {
         cpuChart.data.labels = cpuHistory.map(h => h.time);

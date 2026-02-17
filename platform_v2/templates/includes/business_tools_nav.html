@@ -84,6 +84,9 @@
            title="Email Manager">
             <i data-lucide="mail"></i>
             <span>Email</span>
+            {% if email_unread_count is defined and email_unread_count > 0 %}
+            <span class="nav-badge">{{ email_unread_count if email_unread_count < 100 else '99+' }}</span>
+            {% endif %}
         </a>
         <a href="{{ url_for('store_builder.index') }}"
            class="nav-module-btn {% if request.endpoint and 'store_builder' in request.endpoint %}active{% endif %}"
@@ -309,6 +312,25 @@ body.light-mode .business-transition .transition-progress {
 
 body.light-mode .business-transition .transition-text {
     color: rgba(204, 68, 145, 0.7);
+}
+
+/* Unread Badge */
+.nav-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: #FF4444;
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    min-width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    line-height: 1;
 }
 </style>
 

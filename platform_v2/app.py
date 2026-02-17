@@ -2002,7 +2002,40 @@ def init_consciousness_scheduler(flask_app):
 
 # Initialize scheduler when not in debug reload mode
 if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
-    init_consciousness_scheduler(app)
+    _scheduler = init_consciousness_scheduler(app)
+
+    # Initialize Agent Loop (Project Autonomy)
+    if _scheduler:
+        try:
+            import sys
+
+            sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
+            from agent_loop import AgentLoop
+
+            _agent_loop = AgentLoop(scheduler=_scheduler, flask_app=app)
+            _agent_loop.start()
+            app.config["AGENT_LOOP"] = _agent_loop
+            logger.info("Agent loop initialized and started")
+        except Exception as e:
+            logger.error(f"Failed to initialize agent loop: {e}")
+            app.config["AGENT_LOOP"] = None
+
+        # Initialize Telegram Gateway (Project Autonomy Phase 3)
+        _tg_token = os.getenv("TELEGRAM_BOT_TOKEN")
+        if _tg_token:
+            try:
+                from telegram_gateway import TelegramGateway
+
+                _telegram = TelegramGateway(bot_token=_tg_token, flask_app=app)
+                _telegram.start()
+                app.config["TELEGRAM_GATEWAY"] = _telegram
+                logger.info("Telegram gateway initialized and started")
+            except Exception as e:
+                logger.error(f"Failed to initialize Telegram gateway: {e}")
+                app.config["TELEGRAM_GATEWAY"] = None
+        else:
+            app.config["TELEGRAM_GATEWAY"] = None
+            logger.info("Telegram gateway not configured (no TELEGRAM_BOT_TOKEN)")
 
 
 # ============================================================================

@@ -119,6 +119,9 @@ class Permission(Enum):
     READ_ALL = "read:all"
     WRITE_ALL = "write:all"
 
+    # Autonomy permissions
+    AUTONOMY_MANAGE = "autonomy:manage"
+
     # Super Admin permissions
     ADMIN_MINING = "admin:mining"
     ADMIN_SYSTEM = "admin:system"
@@ -249,6 +252,7 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         Permission.ADMIN_PROJECTS,  # Phase 65: Unified Project Management
         Permission.ADMIN_SYSTEM,  # Phase 78: System Operations access
         Permission.ADMIN_SAAS,  # SaaS Manager access
+        Permission.AUTONOMY_MANAGE,  # Project Autonomy: Agent Loop
         Permission.READ_ALL,
         Permission.WRITE_ALL,
         Permission.OBSIDIAN_DELETE,  # Delete notes

@@ -898,6 +898,22 @@ MODULES: List[ModuleDefinition] = [
         priority=11,
         tags=["ai", "images", "video", "shorts", "creative", "creation", "placeholder"],
     ),
+    # Autonomy — Proactive Agent Loop
+    ModuleDefinition(
+        id="autonomy",
+        name="Autonomy",
+        description="Proactive agent loop & approvals<br>Email queue • Scheduled tasks • Reminders • Approval queue",
+        icon="bot",
+        category=ModuleCategory.AI_COMMAND,
+        route="/tools/autonomy",
+        blueprint_import="tools.autonomy:autonomy_bp",
+        required_permissions=["autonomy:manage"],
+        minimum_role="ADMIN",
+        enabled=True,
+        health_check=lambda: default_health_check("autonomy"),
+        priority=6,
+        tags=["autonomy", "agent-loop", "proactive", "approvals", "ai-command"],
+    ),
     # app_builder placeholder - not yet implemented
     # ModuleDefinition(
     #     id="app_builder",

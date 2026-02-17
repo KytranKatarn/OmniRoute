@@ -60,6 +60,7 @@ services:
       NPM_ADMIN_PASSWORD: ${NPM_ADMIN_PASSWORD}
       DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-hub}
       OLLAMA_MODELS: /mnt/data2/ollama/models
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -109,6 +110,8 @@ services:
       - /mnt/data2/ollama/models:/mnt/data2/ollama/models:ro
       # Google Drive credentials for cloud backup (rw: OAuth token written at runtime)
       - ./credentials:/app/credentials:rw
+      # Browser automation screenshots (Project Autonomy Phase 4)
+      - ./platform_v2/static/screenshots:/app/static/screenshots:rw
     ports:
       - "3000:3000"
     networks:

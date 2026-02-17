@@ -1,0 +1,667 @@
+"""
+Telegram Gateway — Bot handlers, message routing, notification forwarding
+
+Uses python-telegram-bot v21+ (async).
+Messages route through the orchestration engine for AI responses.
+
+Author: A.R.C.H.I.E. Platform
+Created: 2026-02-17
+"""
+
+import asyncio
+import json
+import logging
+import os
+import secrets
+import threading
+import time
+from datetime import datetime, timedelta
+from typing import Optional
+
+import psycopg2
+from psycopg2.extras import RealDictCursor
+
+logger = logging.getLogger("telegram_gateway")
+
+
+def get_db():
+    """Get database connection"""
+    return psycopg2.connect(
+        host=os.getenv("DB_HOST", "archie_database"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", "archiepass"),
+    )
+
+
+class TelegramGateway:
+    """
+    Telegram bot gateway for ARCHIE.
+
+    Commands: /start, /link, /status, /approve, /inbox, /briefing
+    Messages route through orchestration engine.
+    Notifications forwarded based on user rules.
+    """
+
+    def __init__(self, bot_token: str, flask_app=None):
+        self.bot_token = bot_token
+        self.flask_app = flask_app
+        self._running = False
+        self._thread = None
+        self._application = None
+
+    def start(self):
+        """Start the Telegram bot in a background thread."""
+        if self._running:
+            logger.warning("Telegram bot already running")
+            return
+
+        self._thread = threading.Thread(target=self._run_bot, daemon=True, name="telegram-bot")
+        self._thread.start()
+        self._running = True
+        logger.info("Telegram gateway started")
+
+    def stop(self):
+        """Stop the Telegram bot."""
+        self._running = False
+        if self._application:
+            try:
+                asyncio.run_coroutine_threadsafe(
+                    self._application.stop(), self._application.loop
+                )
+            except Exception:
+                pass
+        logger.info("Telegram gateway stopped")
+
+    @property
+    def is_running(self):
+        return self._running
+
+    def _run_bot(self):
+        """Run the bot event loop in a separate thread."""
+        try:
+            from telegram import Update
+            from telegram.ext import (
+                ApplicationBuilder,
+                CallbackQueryHandler,
+                CommandHandler,
+                MessageHandler,
+                filters,
+            )
+
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+            app = ApplicationBuilder().token(self.bot_token).build()
+            self._application = app
+
+            # Register handlers
+            app.add_handler(CommandHandler("start", self._cmd_start))
+            app.add_handler(CommandHandler("link", self._cmd_link))
+            app.add_handler(CommandHandler("status", self._cmd_status))
+            app.add_handler(CommandHandler("approve", self._cmd_approve))
+            app.add_handler(CommandHandler("inbox", self._cmd_inbox))
+            app.add_handler(CommandHandler("briefing", self._cmd_briefing))
+            app.add_handler(CallbackQueryHandler(self._callback_handler))
+            app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_message))
+            app.add_handler(MessageHandler(filters.VOICE, self._handle_voice))
+
+            logger.info("Telegram bot polling started")
+            loop.run_until_complete(app.run_polling(drop_pending_updates=True))
+
+        except Exception as e:
+            logger.error(f"Telegram bot crashed: {e}")
+            self._running = False
+
+    # ------------------------------------------------------------------
+    # Command Handlers
+    # ------------------------------------------------------------------
+
+    async def _cmd_start(self, update, context):
+        """Handle /start command."""
+        tg_user = update.effective_user
+        self._ensure_telegram_user(tg_user)
+
+        await update.message.reply_text(
+            f"Hello {tg_user.first_name}! I'm A.R.C.H.I.E.\n\n"
+            "To get started, link your account:\n"
+            "1. Go to the ARCHIE web dashboard > Autonomy > Telegram\n"
+            "2. Generate a link code\n"
+            "3. Send: /link YOUR_CODE\n\n"
+            "Commands:\n"
+            "/link CODE - Link your ARCHIE account\n"
+            "/status - System status\n"
+            "/approve - View pending approvals\n"
+            "/inbox - Recent emails\n"
+            "/briefing - Daily briefing\n\n"
+            "Or just send me a message!"
+        )
+
+    async def _cmd_link(self, update, context):
+        """Handle /link CODE command to link Telegram to ARCHIE user."""
+        tg_user = update.effective_user
+        args = context.args
+
+        if not args:
+            await update.message.reply_text("Usage: /link YOUR_CODE\nGet a code from the web dashboard.")
+            return
+
+        code = args[0].strip()
+
+        try:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Find matching code
+            cur.execute(
+                """
+                SELECT id, user_id FROM telegram_users
+                WHERE link_code = %s AND link_code_expires_at > NOW()
+                """,
+                (code,),
+            )
+            row = cur.fetchone()
+
+            if not row:
+                await update.message.reply_text("Invalid or expired code. Please generate a new one.")
+                cur.close()
+                conn.close()
+                return
+
+            # Update with Telegram info
+            cur.execute(
+                """
+                UPDATE telegram_users
+                SET telegram_id = %s, telegram_username = %s, first_name = %s, last_name = %s,
+                    is_authorized = TRUE, link_code = NULL, link_code_expires_at = NULL, updated_at = NOW()
+                WHERE id = %s
+                """,
+                (tg_user.id, tg_user.username, tg_user.first_name, tg_user.last_name, row["id"]),
+            )
+
+            # Create default notification rule (all notifications)
+            cur.execute(
+                """
+                INSERT INTO telegram_notification_rules (telegram_user_id, is_active)
+                VALUES (%s, TRUE)
+                ON CONFLICT DO NOTHING
+                """,
+                (row["id"],),
+            )
+
+            conn.commit()
+            cur.close()
+            conn.close()
+
+            await update.message.reply_text(
+                "Account linked successfully! You'll now receive notifications here.\n"
+                "Send me any message to chat with ARCHIE."
+            )
+
+        except Exception as e:
+            logger.error(f"Link failed: {e}")
+            await update.message.reply_text(f"Link failed: {e}")
+
+    async def _cmd_status(self, update, context):
+        """Handle /status command."""
+        tg_user = update.effective_user
+        user_info = self._get_authorized_user(tg_user.id)
+
+        if not user_info:
+            await update.message.reply_text("Please link your account first with /link")
+            return
+
+        try:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Unread notifications
+            cur.execute("SELECT COUNT(*) as c FROM system_notifications WHERE is_read = FALSE")
+            unread = cur.fetchone()["c"]
+
+            # Pending approvals
+            cur.execute("SELECT COUNT(*) as c FROM autonomy_approval_queue WHERE status = 'pending'")
+            pending = cur.fetchone()["c"]
+
+            # Unread emails
+            cur.execute("SELECT COUNT(*) as c FROM email_inbox WHERE is_read = FALSE AND is_archived = FALSE")
+            unread_emails = cur.fetchone()["c"]
+
+            cur.close()
+            conn.close()
+
+            await update.message.reply_text(
+                "ARCHIE Status\n"
+                f"Notifications: {unread} unread\n"
+                f"Approvals: {pending} pending\n"
+                f"Emails: {unread_emails} unread"
+            )
+        except Exception as e:
+            await update.message.reply_text(f"Error: {e}")
+
+    async def _cmd_approve(self, update, context):
+        """Handle /approve command — show pending approvals with inline keyboards."""
+        tg_user = update.effective_user
+        user_info = self._get_authorized_user(tg_user.id)
+        if not user_info:
+            await update.message.reply_text("Please link your account first with /link")
+            return
+
+        try:
+            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                """
+                SELECT id, action_type, reason, priority, created_at
+                FROM autonomy_approval_queue
+                WHERE status = 'pending'
+                ORDER BY priority ASC, created_at ASC
+                LIMIT 5
+                """
+            )
+            items = cur.fetchall()
+            cur.close()
+            conn.close()
+
+            if not items:
+                await update.message.reply_text("No pending approvals.")
+                return
+
+            for item in items:
+                keyboard = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("Approve", callback_data=f"approve_{item['id']}"),
+                        InlineKeyboardButton("Reject", callback_data=f"reject_{item['id']}"),
+                    ]
+                ])
+                await update.message.reply_text(
+                    f"#{item['id']} | {item['action_type']}\n"
+                    f"Priority: {item['priority']} | {item['reason'] or 'No reason'}\n"
+                    f"Created: {item['created_at']}",
+                    reply_markup=keyboard,
+                )
+
+        except Exception as e:
+            await update.message.reply_text(f"Error: {e}")
+
+    async def _cmd_inbox(self, update, context):
+        """Handle /inbox command — show recent unread emails."""
+        tg_user = update.effective_user
+        user_info = self._get_authorized_user(tg_user.id)
+        if not user_info:
+            await update.message.reply_text("Please link your account first with /link")
+            return
+
+        try:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                """
+                SELECT from_name, from_address, subject, ai_category, ai_priority, received_at
+                FROM email_inbox
+                WHERE is_read = FALSE AND is_archived = FALSE
+                ORDER BY received_at DESC
+                LIMIT 10
+                """
+            )
+            emails = cur.fetchall()
+            cur.close()
+            conn.close()
+
+            if not emails:
+                await update.message.reply_text("No unread emails.")
+                return
+
+            lines = ["Unread Emails:\n"]
+            for e in emails:
+                cat = f"[{e['ai_category']}]" if e.get("ai_category") else ""
+                pri = f"P{e['ai_priority']}" if e.get("ai_priority") else ""
+                name = e["from_name"] or e["from_address"]
+                lines.append(f"{cat}{pri} {name}: {e['subject'] or '(no subject)'}")
+
+            await update.message.reply_text("\n".join(lines))
+        except Exception as e:
+            await update.message.reply_text(f"Error: {e}")
+
+    async def _cmd_briefing(self, update, context):
+        """Handle /briefing command — generate a quick status briefing."""
+        tg_user = update.effective_user
+        user_info = self._get_authorized_user(tg_user.id)
+        if not user_info:
+            await update.message.reply_text("Please link your account first with /link")
+            return
+
+        # Route through orchestration engine for a briefing
+        response = self._orchestrate_message(
+            "Give me a brief status update. Include unread notifications, pending approvals, and any important alerts.",
+            user_info["user_id"],
+            voice_mode=True,
+        )
+        await update.message.reply_text(response or "Unable to generate briefing right now.")
+
+    # ------------------------------------------------------------------
+    # Message Handlers
+    # ------------------------------------------------------------------
+
+    async def _handle_message(self, update, context):
+        """Handle regular text messages — route through orchestration."""
+        tg_user = update.effective_user
+        user_info = self._get_authorized_user(tg_user.id)
+
+        if not user_info:
+            await update.message.reply_text("Please link your account first with /link")
+            return
+
+        text = update.message.text
+        self._log_message(user_info["id"], "in", "text", text)
+
+        response = self._orchestrate_message(text, user_info["user_id"], voice_mode=True)
+        if response:
+            self._log_message(user_info["id"], "out", "text", response)
+            await update.message.reply_text(response)
+        else:
+            await update.message.reply_text("I couldn't process that right now. Please try again.")
+
+    async def _handle_voice(self, update, context):
+        """Handle voice messages — download, transcribe, respond."""
+        tg_user = update.effective_user
+        user_info = self._get_authorized_user(tg_user.id)
+
+        if not user_info:
+            await update.message.reply_text("Please link your account first with /link")
+            return
+
+        await update.message.reply_text("Voice messages are not yet supported. Please send text.")
+
+    async def _callback_handler(self, update, context):
+        """Handle inline keyboard callbacks (approve/reject)."""
+        query = update.callback_query
+        await query.answer()
+
+        tg_user = query.from_user
+        user_info = self._get_authorized_user(tg_user.id)
+        if not user_info:
+            await query.edit_message_text("Unauthorized.")
+            return
+
+        data = query.data
+        if data.startswith("approve_"):
+            approval_id = int(data.split("_")[1])
+            self._process_approval(approval_id, user_info["user_id"], approved=True)
+            await query.edit_message_text(f"Approved #{approval_id}")
+        elif data.startswith("reject_"):
+            approval_id = int(data.split("_")[1])
+            self._process_approval(approval_id, user_info["user_id"], approved=False)
+            await query.edit_message_text(f"Rejected #{approval_id}")
+
+    # ------------------------------------------------------------------
+    # Notification Forwarding
+    # ------------------------------------------------------------------
+
+    def forward_notifications(self):
+        """
+        Forward unread system notifications to linked Telegram users.
+        Called by the agent loop every 15s.
+        """
+        if not self._running:
+            return
+
+        try:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Get un-forwarded notifications
+            cur.execute(
+                """
+                SELECT n.id, n.type, n.title, n.message, n.priority, n.source, n.created_at
+                FROM system_notifications n
+                WHERE n.telegram_forwarded = FALSE AND n.is_read = FALSE
+                ORDER BY n.created_at DESC
+                LIMIT 20
+                """
+            )
+            notifications = cur.fetchall()
+
+            if not notifications:
+                cur.close()
+                conn.close()
+                return
+
+            # Get authorized users with rules
+            cur.execute(
+                """
+                SELECT tu.id, tu.telegram_id, tu.user_id,
+                       tnr.notification_type, tnr.priority_min, tnr.source_filter,
+                       tnr.quiet_hours_start, tnr.quiet_hours_end
+                FROM telegram_users tu
+                JOIN telegram_notification_rules tnr ON tnr.telegram_user_id = tu.id
+                WHERE tu.is_authorized = TRUE AND tu.telegram_id IS NOT NULL AND tnr.is_active = TRUE
+                """
+            )
+            rules = cur.fetchall()
+
+            forwarded_ids = set()
+
+            for notif in notifications:
+                for rule in rules:
+                    if self._matches_rule(notif, rule):
+                        try:
+                            self._send_telegram_message(
+                                rule["telegram_id"],
+                                f"[{notif['type'].upper()}] {notif['title']}\n{notif['message']}",
+                            )
+                            forwarded_ids.add(notif["id"])
+                        except Exception as e:
+                            logger.warning(f"Failed to forward notification #{notif['id']}: {e}")
+
+            # Mark as forwarded
+            if forwarded_ids:
+                cur.execute(
+                    "UPDATE system_notifications SET telegram_forwarded = TRUE WHERE id = ANY(%s)",
+                    (list(forwarded_ids),),
+                )
+                conn.commit()
+
+            cur.close()
+            conn.close()
+
+        except Exception as e:
+            logger.error(f"Notification forwarding error: {e}")
+
+    def _matches_rule(self, notification: dict, rule: dict) -> bool:
+        """Check if a notification matches a forwarding rule."""
+        # Type filter
+        if rule["notification_type"] and rule["notification_type"] != notification["type"]:
+            return False
+
+        # Source filter
+        if rule["source_filter"] and rule["source_filter"] != notification.get("source"):
+            return False
+
+        # Priority filter
+        priority_order = {"low": 0, "normal": 1, "high": 2, "critical": 3}
+        min_pri = priority_order.get(rule.get("priority_min", "normal"), 1)
+        notif_pri = priority_order.get(notification.get("priority", "normal"), 1)
+        if notif_pri < min_pri:
+            return False
+
+        # Quiet hours
+        if rule.get("quiet_hours_start") and rule.get("quiet_hours_end"):
+            now = datetime.now().time()
+            start = rule["quiet_hours_start"]
+            end = rule["quiet_hours_end"]
+            if start <= end:
+                if start <= now <= end:
+                    return False
+            else:
+                if now >= start or now <= end:
+                    return False
+
+        return True
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def _ensure_telegram_user(self, tg_user) -> dict:
+        """Create or update Telegram user record."""
+        try:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                """
+                INSERT INTO telegram_users (telegram_id, telegram_username, first_name, last_name)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (telegram_id) DO UPDATE
+                SET telegram_username = EXCLUDED.telegram_username,
+                    first_name = EXCLUDED.first_name,
+                    last_name = EXCLUDED.last_name,
+                    updated_at = NOW()
+                RETURNING id, user_id, is_authorized
+                """,
+                (tg_user.id, tg_user.username, tg_user.first_name, tg_user.last_name),
+            )
+            result = cur.fetchone()
+            conn.commit()
+            cur.close()
+            conn.close()
+            return dict(result) if result else {}
+        except Exception as e:
+            logger.error(f"Failed to ensure telegram user: {e}")
+            return {}
+
+    def _get_authorized_user(self, telegram_id: int) -> Optional[dict]:
+        """Get authorized Telegram user info."""
+        try:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                "SELECT * FROM telegram_users WHERE telegram_id = %s AND is_authorized = TRUE",
+                (telegram_id,),
+            )
+            result = cur.fetchone()
+            cur.close()
+            conn.close()
+            return dict(result) if result else None
+        except Exception as e:
+            logger.error(f"Failed to get authorized user: {e}")
+            return None
+
+    def _orchestrate_message(self, message: str, user_id: int, voice_mode: bool = False) -> Optional[str]:
+        """Route a message through the orchestration engine."""
+        try:
+            import sys
+            sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
+            from orchestration_engine import OrchestrationEngine
+
+            engine = OrchestrationEngine()
+            result = engine.orchestrate(
+                message=message,
+                user_id=user_id,
+                voice_mode=voice_mode,
+            )
+
+            if result.success:
+                return result.response
+            return result.error or "Processing failed"
+        except Exception as e:
+            logger.error(f"Orchestration failed: {e}")
+            return f"Error: {e}"
+
+    def _process_approval(self, approval_id: int, user_id: int, approved: bool):
+        """Process an approval/rejection from Telegram."""
+        try:
+            conn = get_db()
+            cur = conn.cursor()
+            if approved:
+                cur.execute(
+                    """
+                    UPDATE autonomy_approval_queue
+                    SET status = 'approved', approved_by = %s, approved_at = NOW(), updated_at = NOW()
+                    WHERE id = %s AND status = 'pending'
+                    """,
+                    (user_id, approval_id),
+                )
+            else:
+                cur.execute(
+                    """
+                    UPDATE autonomy_approval_queue
+                    SET status = 'rejected', approved_by = %s, rejected_reason = 'Rejected via Telegram', updated_at = NOW()
+                    WHERE id = %s AND status = 'pending'
+                    """,
+                    (user_id, approval_id),
+                )
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Failed to process approval: {e}")
+
+    def _log_message(self, telegram_user_id: int, direction: str, msg_type: str, content: str):
+        """Log a Telegram message."""
+        try:
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute(
+                """
+                INSERT INTO telegram_messages (telegram_user_id, direction, message_type, content)
+                VALUES (%s, %s, %s, %s)
+                """,
+                (telegram_user_id, direction, msg_type, content[:5000] if content else ""),
+            )
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            logger.error(f"Failed to log telegram message: {e}")
+
+    def _send_telegram_message(self, chat_id: int, text: str):
+        """Send a message via Telegram Bot API (sync, for use from agent loop)."""
+        import requests
+        resp = requests.post(
+            f"https://api.telegram.org/bot{self.bot_token}/sendMessage",
+            json={"chat_id": chat_id, "text": text},
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            logger.warning(f"Telegram send failed: {resp.text}")
+
+
+def generate_link_code(user_id: int) -> str:
+    """Generate a one-time link code for Telegram account linking."""
+    code = secrets.token_hex(4).upper()  # 8 char hex code
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        # Check if user already has a telegram_users entry
+        cur.execute("SELECT id FROM telegram_users WHERE user_id = %s", (user_id,))
+        existing = cur.fetchone()
+
+        if existing:
+            cur.execute(
+                """
+                UPDATE telegram_users
+                SET link_code = %s, link_code_expires_at = NOW() + INTERVAL '15 minutes', updated_at = NOW()
+                WHERE id = %s
+                """,
+                (code, existing["id"]),
+            )
+        else:
+            cur.execute(
+                """
+                INSERT INTO telegram_users (telegram_id, user_id, link_code, link_code_expires_at)
+                VALUES (0, %s, %s, NOW() + INTERVAL '15 minutes')
+                """,
+                (user_id, code),
+            )
+
+        conn.commit()
+        cur.close()
+        conn.close()
+        return code
+    except Exception as e:
+        logger.error(f"Failed to generate link code: {e}")
+        return ""

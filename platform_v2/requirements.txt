@@ -93,3 +93,9 @@ websockets>=12.0
 PyPDF2>=3.0.0
 python-docx>=1.0.0
 Pillow>=10.0.0
+
+# Telegram Gateway (Project Autonomy)
+python-telegram-bot>=21.0
+
+# Browser Automation (Project Autonomy)
+playwright>=1.40.0

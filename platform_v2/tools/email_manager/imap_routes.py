@@ -216,6 +216,7 @@ def get_inbox():
         is_read = request.args.get("is_read")
         is_starred = request.args.get("is_starred")
         search = request.args.get("search")
+        sort = request.args.get("sort", "date_desc")
         offset = (page - 1) * per_page
 
         conn = get_db()
@@ -239,6 +240,15 @@ def get_inbox():
 
         where_clause = " AND ".join(where) if where else "TRUE"
 
+        sort_map = {
+            "date_desc": "received_at DESC",
+            "date_asc": "received_at ASC",
+            "priority_asc": "COALESCE(ai_priority, 99) ASC, received_at DESC",
+            "unread_first": "is_read ASC, received_at DESC",
+            "sentiment": "CASE ai_sentiment WHEN 'negative' THEN 1 WHEN 'mixed' THEN 2 WHEN 'neutral' THEN 3 WHEN 'positive' THEN 4 ELSE 5 END, received_at DESC",
+        }
+        order_clause = sort_map.get(sort, "received_at DESC")
+
         # Count
         cur.execute(f"SELECT COUNT(*) as total FROM email_inbox WHERE {where_clause}", params)
         total = cur.fetchone()["total"]
@@ -251,7 +261,7 @@ def get_inbox():
                    is_read, is_starred, crm_customer_id, kb_entry_id, created_at
             FROM email_inbox
             WHERE {where_clause}
-            ORDER BY received_at DESC
+            ORDER BY {order_clause}
             LIMIT %s OFFSET %s
             """,
             params + [per_page, offset],

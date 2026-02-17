@@ -131,6 +131,13 @@
                         Inbox
                     </h2>
                     <div class="inbox-header-actions">
+                        <select id="inbox-sort-select" class="em-select em-select--compact" onchange="sortInbox()">
+                            <option value="date_desc">Newest First</option>
+                            <option value="date_asc">Oldest First</option>
+                            <option value="priority_asc">Highest Priority</option>
+                            <option value="unread_first">Unread First</option>
+                            <option value="sentiment">By Sentiment</option>
+                        </select>
                         <div class="inbox-search-group">
                             <input type="text" id="inbox-search-input" class="em-input" placeholder="Search emails..." onkeydown="if(event.key==='Enter')searchInbox()">
                             <button class="em-btn em-btn--sm em-btn--outline" onclick="searchInbox()">
@@ -1618,6 +1625,12 @@
     min-width: 150px;
 }
 
+.em-select--compact {
+    padding: 6px 10px;
+    font-size: 12px;
+    min-width: 140px;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════════
    MODALS
    ═══════════════════════════════════════════════════════════════════════════════ */
@@ -2725,6 +2738,7 @@ document.querySelectorAll('.em-tab').forEach(tab => {
 let inboxCurrentPage = 1;
 let inboxCurrentFilter = '';
 let inboxCurrentSearch = '';
+let inboxCurrentSort = 'date_desc';
 let currentEmailId = null;
 let inboxAutoRefreshTimer = null;
 let analysisRunning = false;
@@ -2960,6 +2974,7 @@ async function loadInbox(page) {
     var params = new URLSearchParams({ page: page, per_page: 25 });
     if (inboxCurrentFilter) params.set('category', inboxCurrentFilter);
     if (inboxCurrentSearch) params.set('search', inboxCurrentSearch);
+    if (inboxCurrentSort && inboxCurrentSort !== 'date_desc') params.set('sort', inboxCurrentSort);
 
     try {
         var response = await fetch('/tools/email-manager/api/inbox?' + params.toString());
@@ -3335,6 +3350,11 @@ function setInboxFilter(category) {
 function searchInbox() {
     inboxCurrentSearch = document.getElementById('inbox-search-input').value.trim();
     closeEmailDetail();
+    loadInbox(1);
+}
+
+function sortInbox() {
+    inboxCurrentSort = document.getElementById('inbox-sort-select').value;
     loadInbox(1);
 }
 

@@ -2834,7 +2834,7 @@
                 <canvas id="memChart"></canvas>
             </div>
             <div class="chart-card">
-                <h3>GPU VRAM History</h3>
+                <h3>GPU History</h3>
                 <canvas id="gpuChart"></canvas>
             </div>
         </div>
@@ -5187,6 +5187,13 @@ const deviceColors = [
     { border: '#10b981', bg: 'rgba(16, 185, 129, 0.15)' },  // Emerald (GPU 2)
     { border: '#ef4444', bg: 'rgba(239, 68, 68, 0.15)' },   // Red (GPU 3)
 ];
+// Compute line colors (lighter/dashed variants per GPU)
+const computeColors = [
+    { border: '#06b6d4', bg: 'rgba(6, 182, 212, 0.08)' },   // Cyan (GPU 0 compute)
+    { border: '#fb923c', bg: 'rgba(251, 146, 60, 0.08)' },   // Orange (GPU 1 compute)
+    { border: '#34d399', bg: 'rgba(52, 211, 153, 0.08)' },   // Mint (GPU 2 compute)
+    { border: '#f87171', bg: 'rgba(248, 113, 113, 0.08)' },  // Light red (GPU 3 compute)
+];
 let pendingAction = null;
 
 // ===== Operation Tracker System =====
@@ -5767,7 +5774,7 @@ function initCharts() {
         }
     });
 
-    // GPU VRAM chart config - supports multiple GPUs with legend
+    // GPU chart config - VRAM (solid) + Compute (dashed) per GPU
     const gpuChartConfig = {
         type: 'line',
         options: {
@@ -5775,7 +5782,7 @@ function initCharts() {
             maintainAspectRatio: false,
             plugins: {
                 legend: {
-                    display: false,  // Will enable dynamically when multiple GPUs
+                    display: true,
                     position: 'top',
                     labels: { color: '#8b949e', boxWidth: 12, padding: 8, font: { size: 10 } }
                 },
@@ -5796,6 +5803,14 @@ function initCharts() {
                 backgroundColor: 'rgba(139, 92, 246, 0.1)',
                 fill: true,
                 borderWidth: 2
+            }, {
+                label: 'GPU 0 Compute',
+                data: [null],
+                borderColor: '#06b6d4',
+                backgroundColor: 'rgba(6, 182, 212, 0.08)',
+                fill: false,
+                borderWidth: 1.5,
+                borderDash: [5, 3]
             }]
         }
     };
@@ -5968,64 +5983,78 @@ async function loadHistoricalData() {
         console.error('loadHistoricalData: Memory error:', e);
     }
 
-    // Load GPU VRAM history (multi-device support), fall back to compute if sparse
+    // Load GPU history — BOTH VRAM and Compute lines per GPU
     try {
-        let gpuType = 'gpu_vram';
-        let gpuLabel = 'VRAM';
-        const gpuRes = await fetch('/tools/system-operations/api/history/multi?type=gpu_vram&hours=' + hours);
-        let gpuJson = gpuRes.ok ? await gpuRes.json() : null;
+        const [vramRes, computeRes] = await Promise.all([
+            fetch('/tools/system-operations/api/history/multi?type=gpu_vram&hours=' + hours),
+            fetch('/tools/system-operations/api/history/multi?type=gpu&hours=' + hours)
+        ]);
+        const vramJson = vramRes.ok ? await vramRes.json() : null;
+        const computeJson = computeRes.ok ? await computeRes.json() : null;
 
-        // Check if VRAM data is sparse (< 10 points) — fall back to compute history
-        let hasEnoughData = false;
-        if (gpuJson && gpuJson.success && gpuJson.data && gpuJson.data.devices) {
-            const keys = Object.keys(gpuJson.data.devices);
-            hasEnoughData = keys.length > 0 && keys.some(k => gpuJson.data.devices[k].values.length >= 10);
-        }
-        if (!hasEnoughData) {
-            const fallbackRes = await fetch('/tools/system-operations/api/history/multi?type=gpu&hours=' + hours);
-            if (fallbackRes.ok) {
-                const fallbackJson = await fallbackRes.json();
-                if (fallbackJson.success && fallbackJson.data && fallbackJson.data.devices) {
-                    const fKeys = Object.keys(fallbackJson.data.devices);
-                    if (fKeys.length > 0 && fKeys.some(k => fallbackJson.data.devices[k].values.length >= 10)) {
-                        gpuJson = fallbackJson;
-                        gpuType = 'gpu';
-                        gpuLabel = 'Compute';
-                    }
-                }
-            }
-        }
+        gpuHistory = {};
+        const datasets = [];
+        let longestLabels = [];
 
-        if (gpuJson && gpuJson.success && gpuJson.data && gpuJson.data.devices) {
-            const devices = gpuJson.data.devices;
-            const deviceKeys = Object.keys(devices).sort();
-            gpuDeviceCount = deviceKeys.length;
-
-            gpuHistory = {};
-            deviceKeys.forEach(key => {
-                // Remap device keys to gpu_0, gpu_1 for consistency with live updates
-                const normKey = key.replace(gpuType + '_', 'gpu_');
-                gpuHistory[normKey] = devices[key].labels.map((label, i) => ({
+        // VRAM datasets (solid lines)
+        if (vramJson && vramJson.success && vramJson.data && vramJson.data.devices) {
+            const vDevices = vramJson.data.devices;
+            Object.keys(vDevices).sort().forEach(key => {
+                const idx = parseInt(key.replace('gpu_vram_', ''));
+                const histKey = `gpu_${idx}_vram`;
+                gpuHistory[histKey] = vDevices[key].labels.map((label, i) => ({
                     time: formatHistoryTime(label, hours),
-                    value: devices[key].values[i]
+                    value: vDevices[key].values[i]
                 }));
-            });
-
-            if (gpuChart && deviceKeys.length > 0) {
-                const normKeys = Object.keys(gpuHistory).sort();
-                const labels = gpuHistory[normKeys[0]].map(h => h.time);
-                gpuChart.data.labels = labels;
-                gpuChart.data.datasets = normKeys.map((key, idx) => ({
-                    label: `GPU ${idx} ${gpuLabel}`,
-                    data: gpuHistory[key].map(h => h.value),
+                if (gpuHistory[histKey].length > longestLabels.length) {
+                    longestLabels = gpuHistory[histKey].map(h => h.time);
+                }
+                datasets.push({
+                    label: `GPU ${idx} VRAM`,
+                    data: gpuHistory[histKey].map(h => h.value),
                     borderColor: deviceColors[idx % deviceColors.length].border,
                     backgroundColor: deviceColors[idx % deviceColors.length].bg,
                     fill: true,
                     borderWidth: 2
+                });
+            });
+        }
+
+        // Compute datasets (dashed lines)
+        if (computeJson && computeJson.success && computeJson.data && computeJson.data.devices) {
+            const cDevices = computeJson.data.devices;
+            Object.keys(cDevices).sort().forEach(key => {
+                const idx = parseInt(key.replace('gpu_', ''));
+                const histKey = `gpu_${idx}_compute`;
+                gpuHistory[histKey] = cDevices[key].labels.map((label, i) => ({
+                    time: formatHistoryTime(label, hours),
+                    value: cDevices[key].values[i]
                 }));
-                gpuChart.options.plugins.legend.display = deviceKeys.length > 1;
-                gpuChart.update('none');
-            }
+                if (gpuHistory[histKey].length > longestLabels.length) {
+                    longestLabels = gpuHistory[histKey].map(h => h.time);
+                }
+                datasets.push({
+                    label: `GPU ${idx} Compute`,
+                    data: gpuHistory[histKey].map(h => h.value),
+                    borderColor: computeColors[idx % computeColors.length].border,
+                    backgroundColor: computeColors[idx % computeColors.length].bg,
+                    fill: false,
+                    borderWidth: 1.5,
+                    borderDash: [5, 3]
+                });
+            });
+        }
+
+        gpuDeviceCount = Math.max(
+            Object.keys(gpuHistory).filter(k => k.endsWith('_vram')).length,
+            Object.keys(gpuHistory).filter(k => k.endsWith('_compute')).length
+        );
+
+        if (gpuChart && datasets.length > 0) {
+            gpuChart.data.labels = longestLabels;
+            gpuChart.data.datasets = datasets;
+            gpuChart.options.plugins.legend.display = true;
+            gpuChart.update('none');
         }
     } catch (e) {
         console.error('loadHistoricalData: GPU error:', e);
@@ -6509,17 +6538,24 @@ function updateDashboard(data) {
     cpuHistory.push({ time: now, value: cpuPct });
     memHistory.push({ time: now, value: memPct });
 
-    // Multi-GPU history collection (VRAM as primary metric)
+    // Multi-GPU history collection — VRAM and Compute per GPU
     const gpus = data.gpus || (data.gpu?.available ? [data.gpu] : []);
     gpus.forEach((gpu, idx) => {
-        if (gpu.has_detailed_stats && gpu.vram_percent != null) {
-            const key = `gpu_${idx}`;
-            if (!gpuHistory[key]) gpuHistory[key] = [];
-            gpuHistory[key].push({ time: now, value: gpu.vram_percent });
-            if (gpuHistory[key].length > 720) gpuHistory[key].shift();
+        if (gpu.has_detailed_stats) {
+            if (gpu.vram_percent != null) {
+                const vKey = `gpu_${idx}_vram`;
+                if (!gpuHistory[vKey]) gpuHistory[vKey] = [];
+                gpuHistory[vKey].push({ time: now, value: gpu.vram_percent });
+                if (gpuHistory[vKey].length > 720) gpuHistory[vKey].shift();
+            }
+            if (gpu.usage_percent != null) {
+                const cKey = `gpu_${idx}_compute`;
+                if (!gpuHistory[cKey]) gpuHistory[cKey] = [];
+                gpuHistory[cKey].push({ time: now, value: gpu.usage_percent });
+                if (gpuHistory[cKey].length > 720) gpuHistory[cKey].shift();
+            }
         }
     });
-    // Track device count for chart updates
     if (gpus.length > 0 && gpus.some(g => g.has_detailed_stats)) {
         gpuDeviceCount = gpus.filter(g => g.has_detailed_stats).length;
     }
@@ -6539,32 +6575,46 @@ function updateDashboard(data) {
         memChart.update('none');
     }
 
-    // Update multi-GPU chart
+    // Update multi-GPU chart (VRAM + Compute per GPU)
     if (gpuChart) {
-        const deviceKeys = Object.keys(gpuHistory).sort();
-        if (deviceKeys.length > 0 && gpuHistory[deviceKeys[0]].length > 0) {
-            gpuChart.data.labels = gpuHistory[deviceKeys[0]].map(h => h.time);
+        const allKeys = Object.keys(gpuHistory).sort();
+        // Find longest array for labels
+        const longestKey = allKeys.reduce((a, b) =>
+            (gpuHistory[a] || []).length >= (gpuHistory[b] || []).length ? a : b, allKeys[0]);
+        if (allKeys.length > 0 && gpuHistory[longestKey] && gpuHistory[longestKey].length > 0) {
+            gpuChart.data.labels = gpuHistory[longestKey].map(h => h.time);
 
-            // Ensure we have the right number of datasets
-            while (gpuChart.data.datasets.length < deviceKeys.length) {
-                const idx = gpuChart.data.datasets.length;
-                gpuChart.data.datasets.push({
-                    label: `GPU ${idx}`,
-                    data: [],
+            // Build datasets: VRAM lines first (solid), then Compute (dashed)
+            const vramKeys = allKeys.filter(k => k.endsWith('_vram')).sort();
+            const computeKeys = allKeys.filter(k => k.endsWith('_compute')).sort();
+            const datasets = [];
+
+            vramKeys.forEach(key => {
+                const idx = parseInt(key.replace('gpu_', '').replace('_vram', ''));
+                datasets.push({
+                    label: `GPU ${idx} VRAM`,
+                    data: gpuHistory[key].map(h => h.value),
                     borderColor: deviceColors[idx % deviceColors.length].border,
                     backgroundColor: deviceColors[idx % deviceColors.length].bg,
                     fill: true,
                     borderWidth: 2
                 });
-            }
-
-            // Update each dataset
-            deviceKeys.forEach((key, idx) => {
-                gpuChart.data.datasets[idx].data = gpuHistory[key].map(h => h.value);
+            });
+            computeKeys.forEach(key => {
+                const idx = parseInt(key.replace('gpu_', '').replace('_compute', ''));
+                datasets.push({
+                    label: `GPU ${idx} Compute`,
+                    data: gpuHistory[key].map(h => h.value),
+                    borderColor: computeColors[idx % computeColors.length].border,
+                    backgroundColor: computeColors[idx % computeColors.length].bg,
+                    fill: false,
+                    borderWidth: 1.5,
+                    borderDash: [5, 3]
+                });
             });
 
-            // Enable legend if multiple GPUs
-            gpuChart.options.plugins.legend.display = deviceKeys.length > 1;
+            gpuChart.data.datasets = datasets;
+            gpuChart.options.plugins.legend.display = true;
             gpuChart.update('none');
         }
     }

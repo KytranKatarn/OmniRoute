@@ -12,7 +12,8 @@ body {
 
 .signup-container {
     width: 550px;
-    border: 2px solid #00FF00;
+    max-width: 100%;
+    border: 2px solid var(--archie-green);
     padding: 40px;
 }
 
@@ -25,7 +26,7 @@ body {
     font-size: 2.5rem;
     letter-spacing: 15px;
     margin-bottom: 10px;
-    text-shadow: 0 0 10px #00FF00;
+    text-shadow: 0 0 10px var(--archie-green);
 }
 
 .signup-header p {
@@ -48,17 +49,17 @@ body {
 .form-group input {
     width: 100%;
     padding: 12px;
-    background: #000000;
-    border: 1px solid #00FF00;
-    color: #00FF00;
-    font-family: 'Courier New', monospace;
+    background: var(--archie-bg-void);
+    border: 1px solid var(--archie-green);
+    color: var(--archie-green);
+    font-family: var(--archie-font-mono);
     font-size: 1rem;
     letter-spacing: 2px;
 }
 
 .form-group input:focus {
     outline: none;
-    box-shadow: 0 0 10px #00FF00;
+    box-shadow: 0 0 10px var(--archie-green);
 }
 
 .form-note {
@@ -71,10 +72,10 @@ body {
 .signup-btn {
     width: 100%;
     padding: 15px;
-    background: #000000;
-    border: 2px solid #00FF00;
-    color: #00FF00;
-    font-family: 'Courier New', monospace;
+    background: var(--archie-bg-void);
+    border: 2px solid var(--archie-green);
+    color: var(--archie-green);
+    font-family: var(--archie-font-mono);
     font-size: 1rem;
     letter-spacing: 5px;
     cursor: pointer;
@@ -83,9 +84,9 @@ body {
 }
 
 .signup-btn:hover {
-    background: #00FF00;
-    color: #000000;
-    box-shadow: 0 0 20px #00FF00;
+    background: var(--archie-green);
+    color: var(--archie-bg-void);
+    box-shadow: 0 0 20px var(--archie-green);
 }
 
 .back-link {
@@ -94,23 +95,23 @@ body {
 }
 
 .back-link a {
-    color: #00FF00;
+    color: var(--archie-green);
     text-decoration: none;
     letter-spacing: 2px;
     font-size: 0.9rem;
 }
 
 .back-link a:hover {
-    text-shadow: 0 0 10px #00FF00;
+    text-shadow: 0 0 10px var(--archie-green);
 }
 
 .approval-notice {
     margin-top: 30px;
     padding: 20px;
-    border: 1px solid #FFD700;
+    border: 1px solid var(--archie-gold, #fbbf24);
     font-size: 0.75rem;
     line-height: 1.8;
-    color: #FFD700;
+    color: var(--archie-gold, #fbbf24);
 }
 
 .blink {

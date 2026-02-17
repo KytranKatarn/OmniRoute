@@ -17,13 +17,6 @@ body.light-mode {
     --archie-bg-elevated: #ffffff;
     --archie-bg-hover: rgba(0, 0, 0, 0.04);
 
-    /* Neo variables (for dashboard compatibility) */
-    --neo-void: #f8f9fa;
-    --neo-deep: #ffffff;
-    --neo-surface: #ffffff;
-    --neo-elevated: #f0f2f5;
-    --neo-border: rgba(0, 0, 0, 0.12);
-
     /* Primary Colors - Darkened for contrast on light */
     --archie-green: #00aa33;
     --archie-green-bright: #00cc44;
@@ -36,32 +29,16 @@ body.light-mode {
     --archie-blue: #0077cc;
     --archie-pink: #db2777;
 
-    /* Neo color compatibility */
-    --neo-green: #00aa33;
-    --neo-green-bright: #00cc44;
-    --neo-green-dim: #008828;
-    --neo-cyan: #00a0a0;
-    --neo-cyan-dim: #008080;
-
     /* Status Colors */
     --archie-success: #00aa33;
     --archie-warning: #cc7700;
     --archie-danger: #cc2244;
     --archie-info: #0077cc;
-    --neo-success: #00aa33;
-    --neo-warning: #cc7700;
-    --neo-danger: #cc2244;
-    --neo-info: #0077cc;
-
     /* Text Colors - High Contrast */
     --archie-text-primary: #111827;
     --archie-text-secondary: #374151;
     --archie-text-tertiary: #6b7280;
     --archie-text-muted: #9ca3af;
-    --neo-text: #111827;
-    --neo-text-dim: #374151;
-    --neo-text-muted: #6b7280;
-
     /* Border Colors */
     --archie-border-default: rgba(0, 0, 0, 0.12);
     --archie-border-muted: rgba(0, 0, 0, 0.08);
@@ -79,10 +56,6 @@ body.light-mode {
     --archie-glow-orange: 0 2px 12px rgba(204, 119, 0, 0.25);
     --archie-glow-red-sm: 0 2px 8px rgba(204, 34, 68, 0.2);
     --archie-glow-red: 0 2px 12px rgba(204, 34, 68, 0.25);
-    --neo-green-glow: 0 2px 8px rgba(0, 170, 51, 0.3);
-    --neo-green-glow-intense: 0 4px 16px rgba(0, 170, 51, 0.4);
-    --neo-cyan-glow: 0 2px 8px rgba(0, 160, 160, 0.3);
-
     /* Shadows - Lighter for light mode */
     --archie-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.06);
     --archie-shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.08);

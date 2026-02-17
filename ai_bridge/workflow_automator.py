@@ -9,6 +9,7 @@ Features:
 - Auto-completion on success
 - Workflow state tracking
 """
+
 import os
 import sys
 import psycopg2
@@ -17,8 +18,8 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 import json
 
-sys.path.insert(0, '/mnt/archie_brain/platform_v2')
-sys.path.insert(0, '/mnt/archie_brain/ai_bridge')
+sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
 
 try:
     from escalation_handler import EscalationHandler
@@ -47,23 +48,23 @@ class WorkflowAutomator:
 
         # Timeout thresholds (in hours)
         self.timeouts = {
-            'proposed': 48,              # Must be reviewed within 48hrs
-            'pending_approval': 72,      # Must be approved/rejected within 72hrs
-            'in_progress': 168,          # Must make progress within 7 days
-            'ready_for_test': 24,        # Must be tested within 24hrs
-            'tested': 12,                # Must deploy within 12hrs (if approved)
-            'deploying': 2,              # Deployment should complete in 2hrs
-            'monitoring': 24             # Monitoring completes after 24hrs
+            "proposed": 48,  # Must be reviewed within 48hrs
+            "pending_approval": 72,  # Must be approved/rejected within 72hrs
+            "in_progress": 168,  # Must make progress within 7 days
+            "ready_for_test": 24,  # Must be tested within 24hrs
+            "tested": 12,  # Must deploy within 12hrs (if approved)
+            "deploying": 2,  # Deployment should complete in 2hrs
+            "monitoring": 24,  # Monitoring completes after 24hrs
         }
 
     def get_db(self):
         """Get database connection"""
         return psycopg2.connect(
-            host=os.getenv('DB_HOST', 'archie_database'),
-            port=os.getenv('DB_PORT', '5432'),
-            database=os.getenv('DB_NAME', 'archie'),
-            user=os.getenv('DB_USER', 'archie'),
-            password=os.getenv('DB_PASSWORD', '')
+            host=os.getenv("DB_HOST", "archie_database"),
+            port=os.getenv("DB_PORT", "5432"),
+            database=os.getenv("DB_NAME", "archie"),
+            user=os.getenv("DB_USER", "archie"),
+            password=os.getenv("DB_PASSWORD", ""),
         )
 
     def run_workflow_automation(self) -> Dict:
@@ -84,10 +85,10 @@ class WorkflowAutomator:
             }
         """
         actions_taken = {
-            'auto_progressed': 0,
-            'escalated': 0,
-            'completed': 0,
-            'stuck_detected': 0
+            "auto_progressed": 0,
+            "escalated": 0,
+            "completed": 0,
+            "stuck_detected": 0,
         }
 
         stuck_proposals = []
@@ -108,58 +109,57 @@ class WorkflowAutomator:
             for proposal in proposals:
                 # Check if stuck
                 if self._is_stuck(proposal):
-                    stuck_proposals.append({
-                        'id': proposal['id'],
-                        'title': proposal['title'],
-                        'status': proposal['status'],
-                        'stuck_duration': self._get_stuck_duration(proposal)
-                    })
-                    actions_taken['stuck_detected'] += 1
+                    stuck_proposals.append(
+                        {
+                            "id": proposal["id"],
+                            "title": proposal["title"],
+                            "status": proposal["status"],
+                            "stuck_duration": self._get_stuck_duration(proposal),
+                        }
+                    )
+                    actions_taken["stuck_detected"] += 1
 
                     # Escalate stuck proposals
                     if self.escalation_handler:
                         escalate_result = self.escalation_handler.escalate_stuck_proposal(
-                            proposal['id'],
-                            reason=f"Stuck in '{proposal['status']}' status for too long"
+                            proposal["id"],
+                            reason=f"Stuck in '{proposal['status']}' status for too long",
                         )
-                        if escalate_result.get('success'):
-                            actions_taken['escalated'] += 1
+                        if escalate_result.get("success"):
+                            actions_taken["escalated"] += 1
 
                 # Check for auto-progression opportunities
                 progression = self._check_auto_progression(proposal)
-                if progression['can_progress']:
+                if progression["can_progress"]:
                     progress_result = self._progress_proposal(
-                        proposal['id'],
-                        progression['next_status'],
-                        progression['reason']
+                        proposal["id"],
+                        progression["next_status"],
+                        progression["reason"],
                     )
-                    if progress_result['success']:
-                        actions_taken['auto_progressed'] += 1
+                    if progress_result["success"]:
+                        actions_taken["auto_progressed"] += 1
 
                 # Check for auto-completion
                 if self._can_complete(proposal):
-                    complete_result = self._complete_proposal(proposal['id'])
-                    if complete_result['success']:
-                        actions_taken['completed'] += 1
+                    complete_result = self._complete_proposal(proposal["id"])
+                    if complete_result["success"]:
+                        actions_taken["completed"] += 1
 
             cur.close()
             conn.close()
 
             return {
-                'success': True,
-                'proposals_processed': len(proposals),
-                'actions_taken': actions_taken,
-                'stuck_proposals': stuck_proposals,
-                'timestamp': datetime.now().isoformat()
+                "success": True,
+                "proposals_processed": len(proposals),
+                "actions_taken": actions_taken,
+                "stuck_proposals": stuck_proposals,
+                "timestamp": datetime.now().isoformat(),
             }
 
         except Exception as e:
             cur.close()
             conn.close()
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     def _is_stuck(self, proposal: Dict) -> bool:
         """
@@ -171,22 +171,28 @@ class WorkflowAutomator:
         Returns:
             True if stuck, False otherwise
         """
-        status = proposal['status']
+        status = proposal["status"]
 
         # Get timeout threshold for this status
         timeout_hours = self.timeouts.get(status, 168)  # Default 7 days
 
         # Get last status change
-        created_at = proposal.get('created_at')
-        approved_at = proposal.get('approved_at')
-        deployed_at = proposal.get('deployed_at')
+        created_at = proposal.get("created_at")
+        approved_at = proposal.get("approved_at")
+        deployed_at = proposal.get("deployed_at")
 
         # Determine reference time based on status
-        if status == 'proposed':
+        if status == "proposed":
             ref_time = created_at
-        elif status in ['pending_approval', 'approved', 'in_progress', 'ready_for_test', 'tested']:
+        elif status in [
+            "pending_approval",
+            "approved",
+            "in_progress",
+            "ready_for_test",
+            "tested",
+        ]:
             ref_time = approved_at or created_at
-        elif status in ['deploying', 'deployed', 'monitoring']:
+        elif status in ["deploying", "deployed", "monitoring"]:
             ref_time = deployed_at or created_at
         else:
             ref_time = created_at
@@ -200,11 +206,11 @@ class WorkflowAutomator:
 
     def _get_stuck_duration(self, proposal: Dict) -> str:
         """Get human-readable stuck duration"""
-        status = proposal['status']
-        created_at = proposal.get('created_at')
+        status = proposal["status"]
+        created_at = proposal.get("created_at")
 
         if not created_at:
-            return 'Unknown'
+            return "Unknown"
 
         duration = datetime.now() - created_at
 
@@ -227,100 +233,106 @@ class WorkflowAutomator:
                 'reason': 'Auto-approved: low risk + tests passed'
             }
         """
-        status = proposal['status']
-        proposal_id = proposal['id']
+        status = proposal["status"]
+        proposal_id = proposal["id"]
 
         # proposed → pending_approval (if team assigned)
-        if status == 'proposed':
-            if proposal.get('team_assigned_at'):
+        if status == "proposed":
+            if proposal.get("team_assigned_at"):
                 return {
-                    'can_progress': True,
-                    'next_status': 'pending_approval',
-                    'reason': 'Team assigned, ready for approval'
+                    "can_progress": True,
+                    "next_status": "pending_approval",
+                    "reason": "Team assigned, ready for approval",
                 }
 
         # pending_approval → approved (if low risk and tests passed)
-        elif status == 'pending_approval':
+        elif status == "pending_approval":
             # Check if already has sandbox tests
             conn = self.get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT test_results FROM sandbox_instances
                 WHERE proposal_id = %s
                 AND status = 'tested'
                 ORDER BY created_at DESC
                 LIMIT 1
-            """, (proposal_id,))
+            """,
+                (proposal_id,),
+            )
 
             sandbox = cur.fetchone()
             cur.close()
             conn.close()
 
-            if sandbox and sandbox.get('test_results', {}).get('success'):
+            if sandbox and sandbox.get("test_results", {}).get("success"):
                 # Check risk level
                 try:
-                    sys.path.insert(0, '/mnt/archie_brain/platform_v2')
+                    sys.path.insert(0, "/mnt/archie_brain/platform_v2")
                     from deployment_decision import DeploymentDecisionEngine
 
                     engine = DeploymentDecisionEngine()
                     decision = engine.can_auto_deploy(proposal_id)
 
-                    if decision.get('can_auto_deploy') and decision.get('risk_level') == 'low':
+                    if (
+                        decision.get("can_auto_deploy")
+                        and decision.get("risk_level") == "low"
+                    ):
                         return {
-                            'can_progress': True,
-                            'next_status': 'approved',
-                            'reason': 'Auto-approved: low risk + tests passed'
+                            "can_progress": True,
+                            "next_status": "approved",
+                            "reason": "Auto-approved: low risk + tests passed",
                         }
                 except:
                     pass
 
         # tested → ready_for_deployment (if tests passed)
-        elif status == 'tested':
+        elif status == "tested":
             conn = self.get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT test_results FROM sandbox_instances
                 WHERE proposal_id = %s
                 AND status = 'tested'
                 ORDER BY created_at DESC
                 LIMIT 1
-            """, (proposal_id,))
+            """,
+                (proposal_id,),
+            )
 
             sandbox = cur.fetchone()
             cur.close()
             conn.close()
 
-            if sandbox and sandbox.get('test_results', {}).get('success'):
-                pass_rate = sandbox['test_results'].get('pass_rate', 0)
+            if sandbox and sandbox.get("test_results", {}).get("success"):
+                pass_rate = sandbox["test_results"].get("pass_rate", 0)
                 if pass_rate >= 95:  # 95% or higher
                     return {
-                        'can_progress': True,
-                        'next_status': 'ready_for_deployment',
-                        'reason': f'Tests passed with {pass_rate}% success rate'
+                        "can_progress": True,
+                        "next_status": "ready_for_deployment",
+                        "reason": f"Tests passed with {pass_rate}% success rate",
                     }
 
         # deployed → monitoring (immediately after deployment)
-        elif status == 'deployed':
-            if proposal.get('deployed_at'):
+        elif status == "deployed":
+            if proposal.get("deployed_at"):
                 return {
-                    'can_progress': True,
-                    'next_status': 'monitoring',
-                    'reason': 'Deployment complete, starting monitoring'
+                    "can_progress": True,
+                    "next_status": "monitoring",
+                    "reason": "Deployment complete, starting monitoring",
                 }
 
         return {
-            'can_progress': False,
-            'next_status': None,
-            'reason': 'No auto-progression criteria met'
+            "can_progress": False,
+            "next_status": None,
+            "reason": "No auto-progression criteria met",
         }
 
     def _progress_proposal(
-        self,
-        proposal_id: int,
-        next_status: str,
-        reason: str
+        self, proposal_id: int, next_status: str, reason: str
     ) -> Dict:
         """
         Progress proposal to next status.
@@ -338,53 +350,59 @@ class WorkflowAutomator:
 
         try:
             # Get current status
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT status FROM improvement_proposals
                 WHERE id = %s
-            """, (proposal_id,))
+            """,
+                (proposal_id,),
+            )
 
             result = cur.fetchone()
             if not result:
                 cur.close()
                 conn.close()
-                return {'success': False, 'error': 'Proposal not found'}
+                return {"success": False, "error": "Proposal not found"}
 
-            old_status = result['status']
+            old_status = result["status"]
 
             # Update status
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE improvement_proposals
                 SET status = %s
                 WHERE id = %s
-            """, (next_status, proposal_id))
+            """,
+                (next_status, proposal_id),
+            )
 
             # Record in workflow states
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO improvement_workflow_states
                 (proposal_id, from_status, to_status, reason, automated, changed_at)
                 VALUES (%s, %s, %s, %s, true, NOW())
-            """, (proposal_id, old_status, next_status, reason))
+            """,
+                (proposal_id, old_status, next_status, reason),
+            )
 
             conn.commit()
             cur.close()
             conn.close()
 
             return {
-                'success': True,
-                'proposal_id': proposal_id,
-                'old_status': old_status,
-                'new_status': next_status,
-                'reason': reason
+                "success": True,
+                "proposal_id": proposal_id,
+                "old_status": old_status,
+                "new_status": next_status,
+                "reason": reason,
             }
 
         except Exception as e:
             conn.rollback()
             cur.close()
             conn.close()
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     def _can_complete(self, proposal: Dict) -> bool:
         """
@@ -395,10 +413,10 @@ class WorkflowAutomator:
         - Deployed >24 hours ago
         - No rollbacks
         """
-        if proposal['status'] != 'monitoring':
+        if proposal["status"] != "monitoring":
             return False
 
-        deployed_at = proposal.get('deployed_at')
+        deployed_at = proposal.get("deployed_at")
         if not deployed_at:
             return False
 
@@ -411,18 +429,21 @@ class WorkflowAutomator:
         conn = self.get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT status FROM improvement_deployments
             WHERE proposal_id = %s
             ORDER BY deployed_at DESC
             LIMIT 1
-        """, (proposal['id'],))
+        """,
+            (proposal["id"],),
+        )
 
         deployment = cur.fetchone()
         cur.close()
         conn.close()
 
-        if deployment and deployment['status'] == 'rolled_back':
+        if deployment and deployment["status"] == "rolled_back":
             return False
 
         return True
@@ -441,42 +462,45 @@ class WorkflowAutomator:
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         try:
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE improvement_proposals
                 SET status = 'completed',
                     completed_at = NOW()
                 WHERE id = %s
                 RETURNING completed_at
-            """, (proposal_id,))
+            """,
+                (proposal_id,),
+            )
 
             result = cur.fetchone()
-            completed_at = result['completed_at']
+            completed_at = result["completed_at"]
 
             # Record in workflow states
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO improvement_workflow_states
                 (proposal_id, from_status, to_status, reason, automated, changed_at)
                 VALUES (%s, 'monitoring', 'completed', 'Auto-completed: 24hr monitoring passed', true, NOW())
-            """, (proposal_id,))
+            """,
+                (proposal_id,),
+            )
 
             conn.commit()
             cur.close()
             conn.close()
 
             return {
-                'success': True,
-                'proposal_id': proposal_id,
-                'completed_at': completed_at.isoformat()
+                "success": True,
+                "proposal_id": proposal_id,
+                "completed_at": completed_at.isoformat(),
             }
 
         except Exception as e:
             conn.rollback()
             cur.close()
             conn.close()
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     def get_workflow_stats(self) -> Dict:
         """
@@ -496,7 +520,7 @@ class WorkflowAutomator:
         try:
             # Total proposals
             cur.execute("SELECT COUNT(*) as total FROM improvement_proposals")
-            total = cur.fetchone()['total']
+            total = cur.fetchone()["total"]
 
             # By status
             cur.execute("""
@@ -504,7 +528,7 @@ class WorkflowAutomator:
                 FROM improvement_proposals
                 GROUP BY status
             """)
-            by_status = {row['status']: row['count'] for row in cur.fetchall()}
+            by_status = {row["status"]: row["count"] for row in cur.fetchall()}
 
             # Average completion time
             cur.execute("""
@@ -513,7 +537,9 @@ class WorkflowAutomator:
                 WHERE status = 'completed'
             """)
             avg_result = cur.fetchone()
-            avg_days = avg_result['avg_days'] if avg_result and avg_result['avg_days'] else 0
+            avg_days = (
+                avg_result["avg_days"] if avg_result and avg_result["avg_days"] else 0
+            )
 
             # Stuck count
             cur.execute("""
@@ -521,32 +547,30 @@ class WorkflowAutomator:
                 FROM improvement_proposals
                 WHERE status NOT IN ('completed', 'rejected', 'cancelled')
             """)
-            stuck = cur.fetchone()['stuck']
+            stuck = cur.fetchone()["stuck"]
 
             cur.close()
             conn.close()
 
             return {
-                'success': True,
-                'total_proposals': total,
-                'by_status': by_status,
-                'avg_completion_time_days': round(avg_days, 1),
-                'stuck_count': stuck,
-                'timestamp': datetime.now().isoformat()
+                "success": True,
+                "total_proposals": total,
+                "by_status": by_status,
+                "avg_completion_time_days": round(avg_days, 1),
+                "stuck_count": stuck,
+                "timestamp": datetime.now().isoformat(),
             }
 
         except Exception as e:
             cur.close()
             conn.close()
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
 
 # ============================================================================
 # BACKGROUND SERVICE
 # ============================================================================
+
 
 def run_automation_loop(check_interval: int = 3600):
     """
@@ -569,17 +593,21 @@ def run_automation_loop(check_interval: int = 3600):
 
             result = automator.run_workflow_automation()
 
-            if result['success']:
+            if result["success"]:
                 print(f"✓ Processed {result['proposals_processed']} proposals")
                 print(f"  Actions taken:")
-                for action, count in result['actions_taken'].items():
+                for action, count in result["actions_taken"].items():
                     if count > 0:
                         print(f"    - {action}: {count}")
 
-                if result['stuck_proposals']:
-                    print(f"\n⚠️  {len(result['stuck_proposals'])} stuck proposals detected:")
-                    for stuck in result['stuck_proposals'][:5]:  # Show first 5
-                        print(f"    - #{stuck['id']}: {stuck['title']} (stuck {stuck['stuck_duration']})")
+                if result["stuck_proposals"]:
+                    print(
+                        f"\n⚠️  {len(result['stuck_proposals'])} stuck proposals detected:"
+                    )
+                    for stuck in result["stuck_proposals"][:5]:  # Show first 5
+                        print(
+                            f"    - #{stuck['id']}: {stuck['title']} (stuck {stuck['stuck_duration']})"
+                        )
             else:
                 print(f"✗ Automation failed: {result.get('error')}")
 
@@ -599,6 +627,7 @@ def run_automation_loop(check_interval: int = 3600):
 # CONVENIENCE FUNCTIONS
 # ============================================================================
 
+
 def run_once() -> Dict:
     """Quick function to run automation once"""
     automator = WorkflowAutomator()
@@ -615,14 +644,18 @@ def get_stats() -> Dict:
 # TESTING
 # ============================================================================
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description='Workflow Automator')
-    parser.add_argument('--service', action='store_true', help='Run as background service')
-    parser.add_argument('--once', action='store_true', help='Run once and exit')
-    parser.add_argument('--stats', action='store_true', help='Show workflow statistics')
-    parser.add_argument('--interval', type=int, default=3600, help='Check interval in seconds')
+    parser = argparse.ArgumentParser(description="Workflow Automator")
+    parser.add_argument(
+        "--service", action="store_true", help="Run as background service"
+    )
+    parser.add_argument("--once", action="store_true", help="Run once and exit")
+    parser.add_argument("--stats", action="store_true", help="Show workflow statistics")
+    parser.add_argument(
+        "--interval", type=int, default=3600, help="Check interval in seconds"
+    )
 
     args = parser.parse_args()
 
@@ -648,12 +681,12 @@ if __name__ == '__main__':
         print("\n2. WORKFLOW STATISTICS:")
         print("-" * 60)
         stats = automator.get_workflow_stats()
-        if stats['success']:
+        if stats["success"]:
             print(f"Total proposals: {stats['total_proposals']}")
             print(f"Average completion time: {stats['avg_completion_time_days']} days")
             print(f"Stuck proposals: {stats['stuck_count']}")
             print(f"\nBy status:")
-            for status, count in stats['by_status'].items():
+            for status, count in stats["by_status"].items():
                 print(f"  {status}: {count}")
 
         print("\n✅ Workflow Automator loaded successfully!")

@@ -8,6 +8,7 @@ Features:
 - Escalation tracking and notifications
 - Automatic reassignment
 """
+
 import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -39,11 +40,11 @@ class EscalationHandler:
     def get_db(self):
         """Get database connection"""
         return psycopg2.connect(
-            host=os.getenv('DB_HOST', 'archie_database'),
-            port=os.getenv('DB_PORT', '5432'),
-            database=os.getenv('DB_NAME', 'archie'),
-            user=os.getenv('DB_USER', 'archie'),
-            password=os.getenv('DB_PASSWORD', '')
+            host=os.getenv("DB_HOST", "archie_database"),
+            port=os.getenv("DB_PORT", "5432"),
+            database=os.getenv("DB_NAME", "archie"),
+            user=os.getenv("DB_USER", "archie"),
+            password=os.getenv("DB_PASSWORD", ""),
         )
 
     def escalate_proposal(
@@ -51,7 +52,7 @@ class EscalationHandler:
         proposal_id: int,
         reason: str,
         escalated_by_user_id: int = None,
-        auto_triggered: bool = False
+        auto_triggered: bool = False,
     ) -> Dict:
         """
         Escalate a proposal to higher level.
@@ -75,90 +76,103 @@ class EscalationHandler:
 
         try:
             # Get proposal details
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT * FROM improvement_proposals
                 WHERE id = %s
-            """, (proposal_id,))
+            """,
+                (proposal_id,),
+            )
 
             proposal = cur.fetchone()
 
             if not proposal:
-                return {
-                    'success': False,
-                    'error': f'Proposal {proposal_id} not found'
-                }
+                return {"success": False, "error": f"Proposal {proposal_id} not found"}
 
             # Determine escalation level
-            current_escalation = proposal.get('metadata', {}).get('escalation_level', 0)
+            current_escalation = proposal.get("metadata", {}).get("escalation_level", 0)
             next_escalation_level = current_escalation + 1
 
             # Find escalation target
             escalation_target = self._find_escalation_target(
-                proposal_id,
-                proposal['category'],
-                next_escalation_level
+                proposal_id, proposal["category"], next_escalation_level
             )
 
-            if not escalation_target['success']:
+            if not escalation_target["success"]:
                 return escalation_target
 
             # Update proposal metadata
-            metadata = proposal.get('metadata', {})
+            metadata = proposal.get("metadata", {})
             if isinstance(metadata, str):
                 metadata = json.loads(metadata)
 
-            metadata['escalation_level'] = next_escalation_level
-            metadata['escalation_history'] = metadata.get('escalation_history', [])
-            metadata['escalation_history'].append({
-                'level': next_escalation_level,
-                'reason': reason,
-                'escalated_at': datetime.now().isoformat(),
-                'escalated_by': escalated_by_user_id,
-                'auto_triggered': auto_triggered,
-                'escalated_to': escalation_target.get('agent_name')
-            })
+            metadata["escalation_level"] = next_escalation_level
+            metadata["escalation_history"] = metadata.get("escalation_history", [])
+            metadata["escalation_history"].append(
+                {
+                    "level": next_escalation_level,
+                    "reason": reason,
+                    "escalated_at": datetime.now().isoformat(),
+                    "escalated_by": escalated_by_user_id,
+                    "auto_triggered": auto_triggered,
+                    "escalated_to": escalation_target.get("agent_name"),
+                }
+            )
 
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE improvement_proposals
                 SET metadata = %s,
                     status = 'escalated'
                 WHERE id = %s
-            """, (json.dumps(metadata), proposal_id))
+            """,
+                (json.dumps(metadata), proposal_id),
+            )
 
             # Reassign team if needed
-            if escalation_target.get('agent_id'):
+            if escalation_target.get("agent_id"):
                 # Remove old team lead
-                cur.execute("""
+                cur.execute(
+                    """
                     DELETE FROM improvement_team_assignments
                     WHERE proposal_id = %s
                     AND role = 'lead'
-                """, (proposal_id,))
+                """,
+                    (proposal_id,),
+                )
 
                 # Assign new team lead
-                cur.execute("""
+                cur.execute(
+                    """
                     INSERT INTO improvement_team_assignments
                     (proposal_id, agent_id, role, assigned_at, status)
                     VALUES (%s, %s, 'lead', NOW(), 'assigned')
-                """, (proposal_id, escalation_target['agent_id']))
+                """,
+                    (proposal_id, escalation_target["agent_id"]),
+                )
 
             # Create notification
             try:
-                cur.execute("""
+                cur.execute(
+                    """
                     INSERT INTO notifications
                     (user_id, type, title, message, created_at)
                     VALUES (%s, 'escalation', %s, %s, NOW())
-                """, (
-                    escalated_by_user_id or 1,  # Default to admin
-                    f'Proposal Escalated to Level {next_escalation_level}',
-                    f'Proposal #{proposal_id} has been escalated. Reason: {reason}'
-                ))
+                """,
+                    (
+                        escalated_by_user_id or 1,  # Default to admin
+                        f"Proposal Escalated to Level {next_escalation_level}",
+                        f"Proposal #{proposal_id} has been escalated. Reason: {reason}",
+                    ),
+                )
             except:
                 pass  # Notifications table might not exist
 
             conn.commit()
 
             # Get new team
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     ta.*,
                     a.name as agent_name,
@@ -166,7 +180,9 @@ class EscalationHandler:
                 FROM improvement_team_assignments ta
                 JOIN agents a ON ta.agent_id = a.id
                 WHERE ta.proposal_id = %s
-            """, (proposal_id,))
+            """,
+                (proposal_id,),
+            )
 
             new_team = [dict(row) for row in cur.fetchall()]
 
@@ -174,29 +190,23 @@ class EscalationHandler:
             conn.close()
 
             return {
-                'success': True,
-                'proposal_id': proposal_id,
-                'escalation_level': next_escalation_level,
-                'escalated_to': escalation_target.get('agent_name'),
-                'reason': reason,
-                'new_team': new_team,
-                'auto_triggered': auto_triggered
+                "success": True,
+                "proposal_id": proposal_id,
+                "escalation_level": next_escalation_level,
+                "escalated_to": escalation_target.get("agent_name"),
+                "reason": reason,
+                "new_team": new_team,
+                "auto_triggered": auto_triggered,
             }
 
         except Exception as e:
             conn.rollback()
             cur.close()
             conn.close()
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     def _find_escalation_target(
-        self,
-        proposal_id: int,
-        category: str,
-        escalation_level: int
+        self, proposal_id: int, category: str, escalation_level: int
     ) -> Dict:
         """
         Find appropriate escalation target based on level and category.
@@ -224,7 +234,8 @@ class EscalationHandler:
         try:
             if escalation_level == 2:
                 # Find senior agent through can_escalate_to
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT DISTINCT
                         se.id as agent_id,
                         se.name as agent_name,
@@ -238,7 +249,9 @@ class EscalationHandler:
                     AND se.worker_type = 'internal'  -- Prefer internal first
                     ORDER BY se.id
                     LIMIT 1
-                """, (proposal_id,))
+                """,
+                    (proposal_id,),
+                )
 
                 senior = cur.fetchone()
 
@@ -246,25 +259,26 @@ class EscalationHandler:
                     cur.close()
                     conn.close()
                     return {
-                        'success': True,
-                        'agent_id': senior['agent_id'],
-                        'agent_name': senior['agent_name'],
-                        'escalation_level': 2
+                        "success": True,
+                        "agent_id": senior["agent_id"],
+                        "agent_name": senior["agent_name"],
+                        "escalation_level": 2,
                     }
 
                 # Fallback: find any senior agent with matching skills
                 # Map category to skill
                 skill_mapping = {
-                    'security': 'security',
-                    'database': 'database',
-                    'performance': 'performance',
-                    'ui': 'frontend',
-                    'api': 'backend'
+                    "security": "security",
+                    "database": "database",
+                    "performance": "performance",
+                    "ui": "frontend",
+                    "api": "backend",
                 }
 
-                skill = skill_mapping.get(category, 'general')
+                skill = skill_mapping.get(category, "general")
 
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT
                         a.id as agent_id,
                         a.name as agent_name
@@ -276,7 +290,9 @@ class EscalationHandler:
                     AND a.worker_type = 'internal'
                     ORDER BY askill.proficiency_level DESC
                     LIMIT 1
-                """, (skill,))
+                """,
+                    (skill,),
+                )
 
                 fallback_senior = cur.fetchone()
 
@@ -284,10 +300,10 @@ class EscalationHandler:
                     cur.close()
                     conn.close()
                     return {
-                        'success': True,
-                        'agent_id': fallback_senior['agent_id'],
-                        'agent_name': fallback_senior['agent_name'],
-                        'escalation_level': 2
+                        "success": True,
+                        "agent_id": fallback_senior["agent_id"],
+                        "agent_name": fallback_senior["agent_name"],
+                        "escalation_level": 2,
                     }
 
             elif escalation_level == 3:
@@ -311,10 +327,10 @@ class EscalationHandler:
                     cur.close()
                     conn.close()
                     return {
-                        'success': True,
-                        'agent_id': manager['agent_id'],
-                        'agent_name': manager['agent_name'],
-                        'escalation_level': 3
+                        "success": True,
+                        "agent_id": manager["agent_id"],
+                        "agent_name": manager["agent_name"],
+                        "escalation_level": 3,
                     }
 
             elif escalation_level >= 4:
@@ -322,33 +338,26 @@ class EscalationHandler:
                 cur.close()
                 conn.close()
                 return {
-                    'success': True,
-                    'agent_id': None,
-                    'agent_name': 'Admin',
-                    'escalation_level': 4
+                    "success": True,
+                    "agent_id": None,
+                    "agent_name": "Admin",
+                    "escalation_level": 4,
                 }
 
             # No escalation target found
             cur.close()
             conn.close()
             return {
-                'success': False,
-                'error': f'No escalation target found for level {escalation_level}'
+                "success": False,
+                "error": f"No escalation target found for level {escalation_level}",
             }
 
         except Exception as e:
             cur.close()
             conn.close()
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
-    def escalate_stuck_proposal(
-        self,
-        proposal_id: int,
-        reason: str
-    ) -> Dict:
+    def escalate_stuck_proposal(self, proposal_id: int, reason: str) -> Dict:
         """
         Escalate a stuck proposal.
 
@@ -360,16 +369,10 @@ class EscalationHandler:
             Escalation result
         """
         return self.escalate_proposal(
-            proposal_id=proposal_id,
-            reason=reason,
-            auto_triggered=True
+            proposal_id=proposal_id, reason=reason, auto_triggered=True
         )
 
-    def get_escalation_history(
-        self,
-        proposal_id: int = None,
-        limit: int = 20
-    ) -> Dict:
+    def get_escalation_history(self, proposal_id: int = None, limit: int = 20) -> Dict:
         """
         Get escalation history.
 
@@ -389,39 +392,40 @@ class EscalationHandler:
 
         try:
             if proposal_id:
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT * FROM improvement_proposals
                     WHERE id = %s
-                """, (proposal_id,))
+                """,
+                    (proposal_id,),
+                )
 
                 proposal = cur.fetchone()
 
                 if not proposal:
-                    return {
-                        'success': False,
-                        'error': 'Proposal not found'
-                    }
+                    return {"success": False, "error": "Proposal not found"}
 
-                metadata = proposal.get('metadata', {})
+                metadata = proposal.get("metadata", {})
                 if isinstance(metadata, str):
                     metadata = json.loads(metadata)
 
-                escalations = metadata.get('escalation_history', [])
+                escalations = metadata.get("escalation_history", [])
 
                 cur.close()
                 conn.close()
 
                 return {
-                    'success': True,
-                    'proposal_id': proposal_id,
-                    'escalations': escalations,
-                    'total': len(escalations),
-                    'current_level': metadata.get('escalation_level', 0)
+                    "success": True,
+                    "proposal_id": proposal_id,
+                    "escalations": escalations,
+                    "total": len(escalations),
+                    "current_level": metadata.get("escalation_level", 0),
                 }
 
             else:
                 # Get all escalated proposals
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT
                         id,
                         title,
@@ -434,46 +438,50 @@ class EscalationHandler:
                     OR metadata::text LIKE '%escalation_level%'
                     ORDER BY created_at DESC
                     LIMIT %s
-                """, (limit,))
+                """,
+                    (limit,),
+                )
 
                 proposals = cur.fetchall()
 
                 escalations = []
                 for p in proposals:
-                    metadata = p.get('metadata', {})
+                    metadata = p.get("metadata", {})
                     if isinstance(metadata, str):
                         metadata = json.loads(metadata)
 
-                    if 'escalation_level' in metadata:
-                        escalations.append({
-                            'proposal_id': p['id'],
-                            'title': p['title'],
-                            'status': p['status'],
-                            'escalation_level': metadata.get('escalation_level'),
-                            'escalation_history': metadata.get('escalation_history', [])
-                        })
+                    if "escalation_level" in metadata:
+                        escalations.append(
+                            {
+                                "proposal_id": p["id"],
+                                "title": p["title"],
+                                "status": p["status"],
+                                "escalation_level": metadata.get("escalation_level"),
+                                "escalation_history": metadata.get(
+                                    "escalation_history", []
+                                ),
+                            }
+                        )
 
                 cur.close()
                 conn.close()
 
                 return {
-                    'success': True,
-                    'escalations': escalations,
-                    'total': len(escalations)
+                    "success": True,
+                    "escalations": escalations,
+                    "total": len(escalations),
                 }
 
         except Exception as e:
             cur.close()
             conn.close()
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
 
 # ============================================================================
 # CONVENIENCE FUNCTIONS
 # ============================================================================
+
 
 def escalate_to_senior(proposal_id: int, reason: str) -> Dict:
     """Quick function to escalate proposal"""
@@ -491,7 +499,7 @@ def get_escalations() -> Dict:
 # TESTING
 # ============================================================================
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("Escalation Handler - Test Mode")
     print("=" * 60)
 
@@ -500,9 +508,9 @@ if __name__ == '__main__':
     print("\n1. ESCALATION HISTORY:")
     print("-" * 60)
     history = handler.get_escalation_history()
-    if history['success']:
+    if history["success"]:
         print(f"Total escalations: {history['total']}")
-        for esc in history['escalations'][:5]:  # Show first 5
+        for esc in history["escalations"][:5]:  # Show first 5
             print(f"  #{esc['proposal_id']}: {esc['title']}")
             print(f"    Level: {esc['escalation_level']}")
     else:

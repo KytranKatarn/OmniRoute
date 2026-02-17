@@ -17,7 +17,7 @@ import json
 from unified_knowledge_search import unified_knowledge_search
 from mistake_detector import get_mistake_detector
 
-logger = logging.getLogger('archie_platform')
+logger = logging.getLogger("archie_platform")
 
 
 class ImprovementWorkflow:
@@ -41,9 +41,9 @@ class ImprovementWorkflow:
         title: str,
         description: str,
         category: str,
-        priority: str = 'medium',
+        priority: str = "medium",
         proposed_by: int = None,
-        user_id: int = None
+        user_id: int = None,
     ) -> Dict[str, Any]:
         """
         Create improvement proposal with relevant knowledge context.
@@ -63,10 +63,7 @@ class ImprovementWorkflow:
             logger.info(f"[Improvement Workflow] Creating proposal with knowledge context: {title}")
 
             # STEP 1: Search unified knowledge base for relevant context
-            knowledge_context = self._retrieve_relevant_knowledge(
-                query=f"{title} {description}",
-                category=category
-            )
+            knowledge_context = self._retrieve_relevant_knowledge(query=f"{title} {description}", category=category)
 
             # STEP 2: Check for known mistakes related to this improvement
             mistake_warnings = self._check_for_related_mistakes(description)
@@ -76,11 +73,11 @@ class ImprovementWorkflow:
 
             # STEP 4: Compile context metadata
             context_metadata = {
-                'knowledge_entries': [k['id'] for k in knowledge_context],
-                'mistake_warnings': mistake_warnings,
-                'similar_improvements': [s['id'] for s in similar_improvements],
-                'context_retrieved_at': datetime.now().isoformat(),
-                'knowledge_quality_score': self._calculate_context_quality(knowledge_context)
+                "knowledge_entries": [k["id"] for k in knowledge_context],
+                "mistake_warnings": mistake_warnings,
+                "similar_improvements": [s["id"] for s in similar_improvements],
+                "context_retrieved_at": datetime.now().isoformat(),
+                "knowledge_quality_score": self._calculate_context_quality(knowledge_context),
             }
 
             # STEP 5: Create enriched proposal description
@@ -88,7 +85,7 @@ class ImprovementWorkflow:
                 description=description,
                 knowledge_context=knowledge_context,
                 mistake_warnings=mistake_warnings,
-                similar_improvements=similar_improvements
+                similar_improvements=similar_improvements,
             )
 
             # STEP 6: Insert proposal into database
@@ -97,7 +94,8 @@ class ImprovementWorkflow:
 
                 cur = self.db.cursor(cursor_factory=RealDictCursor)
 
-                cur.execute("""
+                cur.execute(
+                    """
                     INSERT INTO improvement_proposals (
                         title,
                         description,
@@ -110,53 +108,49 @@ class ImprovementWorkflow:
                     ) VALUES (
                         %s, %s, %s, %s, 'proposed', %s, NOW(), %s
                     ) RETURNING id
-                """, (
-                    title,
-                    enriched_description,
-                    category,
-                    priority,
-                    proposed_by or user_id,
-                    json.dumps(context_metadata)
-                ))
+                """,
+                    (
+                        title,
+                        enriched_description,
+                        category,
+                        priority,
+                        proposed_by or user_id,
+                        json.dumps(context_metadata),
+                    ),
+                )
 
                 result = cur.fetchone()
-                proposal_id = result['id']
+                proposal_id = result["id"]
 
                 self.db.commit()
                 cur.close()
 
-                logger.info(f"[Improvement Workflow] Created proposal #{proposal_id} with {len(knowledge_context)} knowledge entries")
+                logger.info(
+                    f"[Improvement Workflow] Created proposal #{proposal_id} with {len(knowledge_context)} knowledge entries"
+                )
 
                 return {
-                    'success': True,
-                    'proposal_id': proposal_id,
-                    'knowledge_context': knowledge_context,
-                    'mistake_warnings': mistake_warnings,
-                    'similar_improvements': similar_improvements,
-                    'context_quality_score': context_metadata['knowledge_quality_score']
+                    "success": True,
+                    "proposal_id": proposal_id,
+                    "knowledge_context": knowledge_context,
+                    "mistake_warnings": mistake_warnings,
+                    "similar_improvements": similar_improvements,
+                    "context_quality_score": context_metadata["knowledge_quality_score"],
                 }
             else:
                 logger.warning("[Improvement Workflow] No database connection - returning context only")
                 return {
-                    'success': False,
-                    'error': 'No database connection',
-                    'knowledge_context': knowledge_context,
-                    'mistake_warnings': mistake_warnings
+                    "success": False,
+                    "error": "No database connection",
+                    "knowledge_context": knowledge_context,
+                    "mistake_warnings": mistake_warnings,
                 }
 
         except Exception as e:
             logger.error(f"[Improvement Workflow] Error creating proposal: {e}")
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
-    def _retrieve_relevant_knowledge(
-        self,
-        query: str,
-        category: str,
-        limit: int = 10
-    ) -> List[Dict[str, Any]]:
+    def _retrieve_relevant_knowledge(self, query: str, category: str, limit: int = 10) -> List[Dict[str, Any]]:
         """
         Retrieve relevant knowledge from unified knowledge base.
 
@@ -178,15 +172,15 @@ class ImprovementWorkflow:
             # Search with type priority weighting
             result = unified_knowledge_search(
                 query=query,
-                types=['mistake_learned', 'vault_note', 'code_snippet', 'improvement'],
-                category=category if category != 'all' else None,
+                types=["mistake_learned", "vault_note", "code_snippet", "improvement"],
+                category=category if category != "all" else None,
                 limit=limit,
-                offset=0
+                offset=0,
             )
 
-            if result and 'results' in result:
+            if result and "results" in result:
                 logger.info(f"[Improvement Workflow] Found {len(result['results'])} relevant knowledge entries")
-                return result['results']
+                return result["results"]
             else:
                 logger.warning(f"[Improvement Workflow] Knowledge search returned no results")
                 return []
@@ -211,11 +205,13 @@ class ImprovementWorkflow:
 
             if mistake_solution:
                 logger.warning(f"[Improvement Workflow] Found related mistake: {mistake_solution}")
-                return [{
-                    'type': 'known_mistake',
-                    'solution': mistake_solution,
-                    'severity': 'high'
-                }]
+                return [
+                    {
+                        "type": "known_mistake",
+                        "solution": mistake_solution,
+                        "severity": "high",
+                    }
+                ]
 
             # Get all mistakes for manual checking
             all_mistakes = self.mistake_detector.get_all_mistakes(limit=20)
@@ -223,19 +219,21 @@ class ImprovementWorkflow:
             related = []
             for mistake in all_mistakes:
                 # Simple keyword matching (could be enhanced with embeddings)
-                mistake_content = mistake.get('content', '').lower()
+                mistake_content = mistake.get("content", "").lower()
                 desc_lower = description.lower()
 
                 # Check for keyword overlap
                 common_keywords = set(mistake_content.split()) & set(desc_lower.split())
                 if len(common_keywords) >= 3:  # At least 3 common words
-                    related.append({
-                        'type': 'potential_mistake',
-                        'mistake_id': mistake.get('id'),
-                        'title': mistake.get('title'),
-                        'content': mistake.get('content')[:200] + '...',
-                        'severity': 'medium'
-                    })
+                    related.append(
+                        {
+                            "type": "potential_mistake",
+                            "mistake_id": mistake.get("id"),
+                            "title": mistake.get("title"),
+                            "content": mistake.get("content")[:200] + "...",
+                            "severity": "medium",
+                        }
+                    )
 
             if related:
                 logger.info(f"[Improvement Workflow] Found {len(related)} potentially related mistakes")
@@ -246,12 +244,7 @@ class ImprovementWorkflow:
             logger.error(f"[Improvement Workflow] Error checking mistakes: {e}")
             return []
 
-    def _find_similar_improvements(
-        self,
-        title: str,
-        description: str,
-        limit: int = 5
-    ) -> List[Dict[str, Any]]:
+    def _find_similar_improvements(self, title: str, description: str, limit: int = 5) -> List[Dict[str, Any]]:
         """
         Find similar past improvements.
 
@@ -274,7 +267,8 @@ class ImprovementWorkflow:
             # Search for similar proposals by keywords
             search_terms = f"%{title.lower()}%"
 
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     id,
                     title,
@@ -289,7 +283,9 @@ class ImprovementWorkflow:
                     AND status IN ('deployed', 'executed', 'approved')
                 ORDER BY implemented_at DESC NULLS LAST
                 LIMIT %s
-            """, (search_terms, search_terms, limit))
+            """,
+                (search_terms, search_terms, limit),
+            )
 
             results = cur.fetchall()
             cur.close()
@@ -330,27 +326,28 @@ class ImprovementWorkflow:
             entry_score = 0.0
 
             # Importance weighting
-            importance = entry.get('importance_score', 0.5)
+            importance = entry.get("importance_score", 0.5)
             if importance >= 0.8:
                 entry_score += 0.3
             elif importance >= 0.6:
                 entry_score += 0.2
 
             # Type weighting
-            knowledge_type = entry.get('knowledge_type', '')
-            if knowledge_type == 'vault_note':
+            knowledge_type = entry.get("knowledge_type", "")
+            if knowledge_type == "vault_note":
                 entry_score += 0.2
-            elif knowledge_type == 'mistake_learned':
+            elif knowledge_type == "mistake_learned":
                 entry_score += 0.3
-            elif knowledge_type == 'code_snippet':
+            elif knowledge_type == "code_snippet":
                 entry_score += 0.15
 
             # Recency bonus
-            created_at = entry.get('created_at')
+            created_at = entry.get("created_at")
             if created_at:
                 try:
                     from datetime import datetime, timedelta
-                    created_date = datetime.fromisoformat(str(created_at).replace('Z', '+00:00'))
+
+                    created_date = datetime.fromisoformat(str(created_at).replace("Z", "+00:00"))
                     if datetime.now().astimezone() - created_date < timedelta(days=30):
                         entry_score += 0.05
                 except:
@@ -367,7 +364,7 @@ class ImprovementWorkflow:
         description: str,
         knowledge_context: List[Dict],
         mistake_warnings: List[Dict],
-        similar_improvements: List[Dict]
+        similar_improvements: List[Dict],
     ) -> str:
         """
         Enrich proposal description with knowledge context.
@@ -394,17 +391,17 @@ class ImprovementWorkflow:
         if knowledge_context:
             enriched += "## 📚 Relevant Knowledge\n\n"
             for entry in knowledge_context[:5]:  # Top 5
-                knowledge_type = entry.get('knowledge_type', 'knowledge').replace('_', ' ').title()
-                title = entry.get('title', 'Untitled')
-                content = entry.get('content', '')[:150] + '...'
+                knowledge_type = entry.get("knowledge_type", "knowledge").replace("_", " ").title()
+                title = entry.get("title", "Untitled")
+                content = entry.get("content", "")[:150] + "..."
                 enriched += f"- **[{knowledge_type}]** {title}\n  {content}\n\n"
 
         # Add similar improvements
         if similar_improvements:
             enriched += "## 🔧 Similar Past Improvements\n\n"
             for improvement in similar_improvements[:3]:  # Top 3
-                title = improvement.get('title', 'Untitled')
-                status = improvement.get('status', 'unknown')
+                title = improvement.get("title", "Untitled")
+                status = improvement.get("status", "unknown")
                 enriched += f"- {title} (Status: {status})\n"
             enriched += "\n"
 
@@ -416,10 +413,10 @@ class ImprovementWorkflow:
         self,
         proposal_id: int,
         agent_id: Optional[int] = None,
-        action: str = 'execute',
+        action: str = "execute",
         success: bool = True,
         error_message: Optional[str] = None,
-        metadata: Optional[Dict] = None
+        metadata: Optional[Dict] = None,
     ) -> Dict[str, Any]:
         """
         Track improvement execution and learn from failures.
@@ -436,17 +433,19 @@ class ImprovementWorkflow:
             Tracking result with learning status
         """
         try:
-            logger.info(f"[Improvement Workflow] Tracking execution for proposal #{proposal_id}: {action} (success={success})")
+            logger.info(
+                f"[Improvement Workflow] Tracking execution for proposal #{proposal_id}: {action} (success={success})"
+            )
 
             # STEP 1: Log execution
             execution_log = {
-                'proposal_id': proposal_id,
-                'agent_id': agent_id,
-                'action': action,
-                'timestamp': datetime.now().isoformat(),
-                'success': success,
-                'error_message': error_message,
-                'metadata': metadata or {}
+                "proposal_id": proposal_id,
+                "agent_id": agent_id,
+                "action": action,
+                "timestamp": datetime.now().isoformat(),
+                "success": success,
+                "error_message": error_message,
+                "metadata": metadata or {},
             }
 
             # STEP 2: If failed, create mistake_learned entry
@@ -456,7 +455,7 @@ class ImprovementWorkflow:
                     proposal_id=proposal_id,
                     error_message=error_message,
                     action=action,
-                    metadata=metadata
+                    metadata=metadata,
                 )
 
             # STEP 3: Update proposal status
@@ -466,46 +465,46 @@ class ImprovementWorkflow:
                 cur = self.db.cursor(cursor_factory=RealDictCursor)
 
                 # Update proposal metadata with execution log
-                cur.execute("""
+                cur.execute(
+                    """
                     UPDATE improvement_proposals
                     SET metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
                     WHERE id = %s
-                """, (
-                    json.dumps({'last_execution': execution_log}),
-                    proposal_id
-                ))
+                """,
+                    (json.dumps({"last_execution": execution_log}), proposal_id),
+                )
 
                 # If failed, update status
                 if not success:
-                    cur.execute("""
+                    cur.execute(
+                        """
                         UPDATE improvement_proposals
                         SET status = 'failed'
                         WHERE id = %s
-                    """, (proposal_id,))
+                    """,
+                        (proposal_id,),
+                    )
 
                 self.db.commit()
                 cur.close()
 
             return {
-                'success': True,
-                'execution_logged': True,
-                'mistake_learned': mistake_entry is not None,
-                'mistake_entry_id': mistake_entry.get('id') if mistake_entry else None
+                "success": True,
+                "execution_logged": True,
+                "mistake_learned": mistake_entry is not None,
+                "mistake_entry_id": mistake_entry.get("id") if mistake_entry else None,
             }
 
         except Exception as e:
             logger.error(f"[Improvement Workflow] Error tracking execution: {e}")
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     def _learn_from_failure(
         self,
         proposal_id: int,
         error_message: str,
         action: str,
-        metadata: Optional[Dict]
+        metadata: Optional[Dict],
     ) -> Optional[Dict[str, Any]]:
         """
         Create mistake_learned entry from failed improvement.
@@ -524,17 +523,14 @@ class ImprovementWorkflow:
 
             # Use mistake detector to analyze and store
             context = {
-                'source': 'improvement_workflow',
-                'proposal_id': proposal_id,
-                'action': action,
-                'metadata': metadata or {}
+                "source": "improvement_workflow",
+                "proposal_id": proposal_id,
+                "action": action,
+                "metadata": metadata or {},
             }
 
             # Detect and learn
-            mistake = self.mistake_detector.detect_and_learn(
-                error_message=error_message,
-                context=context
-            )
+            mistake = self.mistake_detector.detect_and_learn(error_message=error_message, context=context)
 
             if mistake:
                 logger.info(f"[Improvement Workflow] Created mistake_learned entry: {mistake.get('title')}")
@@ -561,64 +557,68 @@ class ImprovementWorkflow:
         """
         try:
             if not self.db:
-                return {'success': False, 'error': 'No database connection'}
+                return {"success": False, "error": "No database connection"}
 
             from psycopg2.extras import RealDictCursor
 
             cur = self.db.cursor(cursor_factory=RealDictCursor)
 
             # Get proposal
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT * FROM improvement_proposals WHERE id = %s
-            """, (proposal_id,))
+            """,
+                (proposal_id,),
+            )
 
             proposal = cur.fetchone()
 
             if not proposal:
                 cur.close()
-                return {'success': False, 'error': 'Proposal not found'}
+                return {"success": False, "error": "Proposal not found"}
 
             proposal = dict(proposal)
 
             # Extract knowledge IDs from metadata
-            metadata = proposal.get('metadata', {})
+            metadata = proposal.get("metadata", {})
             if isinstance(metadata, str):
                 metadata = json.loads(metadata)
 
-            knowledge_ids = metadata.get('knowledge_entries', [])
+            knowledge_ids = metadata.get("knowledge_entries", [])
 
             # Fetch knowledge entries
             knowledge_context = []
             if knowledge_ids:
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT * FROM knowledge_base
                     WHERE id = ANY(%s)
                     ORDER BY importance_score DESC
-                """, (knowledge_ids,))
+                """,
+                    (knowledge_ids,),
+                )
 
                 knowledge_context = [dict(r) for r in cur.fetchall()]
 
             cur.close()
 
             return {
-                'success': True,
-                'proposal': proposal,
-                'knowledge_context': knowledge_context,
-                'mistake_warnings': metadata.get('mistake_warnings', []),
-                'similar_improvements': metadata.get('similar_improvements', []),
-                'context_quality_score': metadata.get('knowledge_quality_score', 0.0)
+                "success": True,
+                "proposal": proposal,
+                "knowledge_context": knowledge_context,
+                "mistake_warnings": metadata.get("mistake_warnings", []),
+                "similar_improvements": metadata.get("similar_improvements", []),
+                "context_quality_score": metadata.get("knowledge_quality_score", 0.0),
             }
 
         except Exception as e:
             logger.error(f"[Improvement Workflow] Error getting proposal context: {e}")
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
 
 # Singleton instance
 _workflow_instance = None
+
 
 def get_improvement_workflow(db_connection=None):
     """Get singleton improvement workflow instance"""

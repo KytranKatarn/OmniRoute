@@ -80,7 +80,10 @@ def index():
 def get_sandboxes():
     """Get all module sandboxes with status"""
     if not SandboxManager:
-        return jsonify({"success": False, "error": "Sandbox manager not available"}), 500
+        return (
+            jsonify({"success": False, "error": "Sandbox manager not available"}),
+            500,
+        )
 
     manager = SandboxManager()
     result = manager.get_module_sandboxes()
@@ -93,7 +96,10 @@ def get_sandboxes():
 def get_sandbox(module_id):
     """Get specific module sandbox"""
     if not SandboxManager:
-        return jsonify({"success": False, "error": "Sandbox manager not available"}), 500
+        return (
+            jsonify({"success": False, "error": "Sandbox manager not available"}),
+            500,
+        )
 
     manager = SandboxManager()
     result = manager.get_module_sandbox(module_id)
@@ -106,7 +112,10 @@ def get_sandbox(module_id):
 def create_sandbox(module_id):
     """Create/activate a module sandbox"""
     if not SandboxManager:
-        return jsonify({"success": False, "error": "Sandbox manager not available"}), 500
+        return (
+            jsonify({"success": False, "error": "Sandbox manager not available"}),
+            500,
+        )
 
     data = request.get_json() or {}
     proposal_id = data.get("proposal_id")
@@ -122,7 +131,10 @@ def create_sandbox(module_id):
 def destroy_sandbox(module_id):
     """Destroy/deactivate a module sandbox"""
     if not SandboxManager:
-        return jsonify({"success": False, "error": "Sandbox manager not available"}), 500
+        return (
+            jsonify({"success": False, "error": "Sandbox manager not available"}),
+            500,
+        )
 
     manager = SandboxManager()
     result = manager.destroy_module_sandbox(module_id)
@@ -135,7 +147,10 @@ def destroy_sandbox(module_id):
 def get_sandbox_status(module_id):
     """Get detailed sandbox status"""
     if not SandboxManager:
-        return jsonify({"success": False, "error": "Sandbox manager not available"}), 500
+        return (
+            jsonify({"success": False, "error": "Sandbox manager not available"}),
+            500,
+        )
 
     manager = SandboxManager()
     result = manager.get_module_sandbox(module_id)
@@ -155,7 +170,10 @@ def get_sandbox_status(module_id):
 def run_sandbox_tests(module_id):
     """Run tests in a module sandbox"""
     if not SandboxManager:
-        return jsonify({"success": False, "error": "Sandbox manager not available"}), 500
+        return (
+            jsonify({"success": False, "error": "Sandbox manager not available"}),
+            500,
+        )
 
     data = request.get_json() or {}
     test_suite = data.get("test_suite", "default")
@@ -171,7 +189,10 @@ def run_sandbox_tests(module_id):
 def reset_sandbox(module_id):
     """Reset a sandbox to clean state"""
     if not SandboxManager:
-        return jsonify({"success": False, "error": "Sandbox manager not available"}), 500
+        return (
+            jsonify({"success": False, "error": "Sandbox manager not available"}),
+            500,
+        )
 
     manager = SandboxManager()
 
@@ -355,7 +376,10 @@ def apply_from_code_sentinel():
     else:
         cur.close()
         conn.close()
-        return jsonify({"success": False, "error": "Sandbox manager not available"}), 500
+        return (
+            jsonify({"success": False, "error": "Sandbox manager not available"}),
+            500,
+        )
 
 
 @sandbox_manager_bp.route("/api/apply-from-improvements", methods=["POST"])
@@ -388,7 +412,10 @@ def apply_from_improvements():
     if not proposal:
         cur.close()
         conn.close()
-        return jsonify({"success": False, "error": f"Proposal not found: {proposal_id}"}), 404
+        return (
+            jsonify({"success": False, "error": f"Proposal not found: {proposal_id}"}),
+            404,
+        )
 
     # Detect module from metadata or default to platform
     module_id = "platform"
@@ -412,7 +439,10 @@ def apply_from_improvements():
     else:
         cur.close()
         conn.close()
-        return jsonify({"success": False, "error": "Sandbox manager not available"}), 500
+        return (
+            jsonify({"success": False, "error": "Sandbox manager not available"}),
+            500,
+        )
 
 
 @sandbox_manager_bp.route("/api/deploy-to-production", methods=["POST"])
@@ -449,7 +479,9 @@ def deploy_to_production():
         # =====================================================================
         if not skip_backup:
             try:
-                from tools.backup_manager.backup_manager_routes import create_backup_programmatic
+                from tools.backup_manager.backup_manager_routes import (
+                    create_backup_programmatic,
+                )
 
                 backup_description = f"pre_deploy_{module_id}"
                 if proposal_id:
@@ -457,7 +489,7 @@ def deploy_to_production():
 
                 backup_result = create_backup_programmatic(
                     description=backup_description,
-                    created_by_username=current_user.username if current_user else "system",
+                    created_by_username=(current_user.username if current_user else "system"),
                     proposal_id=proposal_id,
                 )
 
@@ -479,7 +511,12 @@ def deploy_to_production():
             VALUES (%s, %s, %s, %s, 'sandbox_tested', 'deploying')
             RETURNING id
         """,
-            (proposal_id, module_id, current_user.id if current_user else None, backup_name),
+            (
+                proposal_id,
+                module_id,
+                current_user.id if current_user else None,
+                backup_name,
+            ),
         )
         result = cur.fetchone()
         deployment_id = result["id"] if result else None
@@ -569,7 +606,12 @@ def deploy_to_production():
                     deployment_duration_ms = %s
                 WHERE id = %s
             """,
-                (health_check_passed, json.dumps(health_check_details), deployment_duration_ms, deployment_id),
+                (
+                    health_check_passed,
+                    json.dumps(health_check_details),
+                    deployment_duration_ms,
+                    deployment_id,
+                ),
             )
 
         # =====================================================================
@@ -844,7 +886,11 @@ def discover_tests():
         discovered = {"python": [], "javascript": [], "shell": [], "total": 0}
 
         # Python test files
-        python_patterns = [f"{BASE_PATH}/**/test_*.py", f"{BASE_PATH}/**/*_test.py", f"{BASE_PATH}/**/tests/*.py"]
+        python_patterns = [
+            f"{BASE_PATH}/**/test_*.py",
+            f"{BASE_PATH}/**/*_test.py",
+            f"{BASE_PATH}/**/tests/*.py",
+        ]
         for pattern in python_patterns:
             for path in glob_module.glob(pattern, recursive=True):
                 if "backups" not in path and "__pycache__" not in path:
@@ -854,7 +900,11 @@ def discover_tests():
                         discovered["python"].append(test_info)
 
         # JavaScript test files
-        js_patterns = [f"{BASE_PATH}/**/*.test.js", f"{BASE_PATH}/**/*.spec.js", f"{BASE_PATH}/**/tests/*.js"]
+        js_patterns = [
+            f"{BASE_PATH}/**/*.test.js",
+            f"{BASE_PATH}/**/*.spec.js",
+            f"{BASE_PATH}/**/tests/*.js",
+        ]
         for pattern in js_patterns:
             for path in glob_module.glob(pattern, recursive=True):
                 if "backups" not in path and "node_modules" not in path:
@@ -971,7 +1021,10 @@ def create_test_suite():
         required = data.get("required", False)
 
         if not name or not test_command:
-            return jsonify({"success": False, "error": "name and test_command are required"}), 400
+            return (
+                jsonify({"success": False, "error": "name and test_command are required"}),
+                400,
+            )
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -1014,7 +1067,15 @@ def update_test_suite(suite_id):
         updates = []
         values = []
 
-        for field in ["name", "description", "test_type", "test_command", "timeout_seconds", "required", "enabled"]:
+        for field in [
+            "name",
+            "description",
+            "test_type",
+            "test_command",
+            "timeout_seconds",
+            "required",
+            "enabled",
+        ]:
             if field in data:
                 updates.append(f"{field} = %s")
                 values.append(data[field])
@@ -1106,7 +1167,13 @@ def run_tests():
             "status": "running",
             "started_at": datetime.now().isoformat(),
             "tests": [],
-            "summary": {"total": 0, "passed": 0, "failed": 0, "skipped": 0, "errors": 0},
+            "summary": {
+                "total": 0,
+                "passed": 0,
+                "failed": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
         }
         active_test_runs[run_id] = run_info
 
@@ -1384,7 +1451,14 @@ def _execute_test_command(command: str, timeout: int) -> Dict:
     start_time = time.time()
 
     try:
-        result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=timeout, cwd=BASE_PATH)
+        result = subprocess.run(
+            command,
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            cwd=BASE_PATH,
+        )
 
         duration_ms = int((time.time() - start_time) * 1000)
 
@@ -1403,7 +1477,12 @@ def _execute_test_command(command: str, timeout: int) -> Dict:
             "duration_ms": timeout * 1000,
         }
     except Exception as e:
-        return {"exit_code": -1, "output": "", "error": str(e), "duration_ms": int((time.time() - start_time) * 1000)}
+        return {
+            "exit_code": -1,
+            "output": "",
+            "error": str(e),
+            "duration_ms": int((time.time() - start_time) * 1000),
+        }
 
 
 def _save_test_run(run_id: str, run: Dict):
@@ -1604,7 +1683,13 @@ def run_benchmark():
         target = data.get("target", "/")
         iterations = min(data.get("iterations", 10), 100)
 
-        results = {"type": bench_type, "target": target, "iterations": iterations, "timings": [], "summary": {}}
+        results = {
+            "type": bench_type,
+            "target": target,
+            "iterations": iterations,
+            "timings": [],
+            "summary": {},
+        }
 
         if bench_type == "api":
             results = _benchmark_api(target, iterations)
@@ -1632,9 +1717,22 @@ def _benchmark_api(endpoint: str, iterations: int) -> Dict:
         try:
             response = req.get(f"{base_url}{endpoint}", timeout=30)
             duration = (time.time() - start) * 1000
-            timings.append({"iteration": i + 1, "duration_ms": round(duration, 2), "status": response.status_code})
+            timings.append(
+                {
+                    "iteration": i + 1,
+                    "duration_ms": round(duration, 2),
+                    "status": response.status_code,
+                }
+            )
         except Exception as e:
-            timings.append({"iteration": i + 1, "duration_ms": 0, "status": "error", "error": str(e)})
+            timings.append(
+                {
+                    "iteration": i + 1,
+                    "duration_ms": 0,
+                    "status": "error",
+                    "error": str(e),
+                }
+            )
 
     valid_timings = [t["duration_ms"] for t in timings if t.get("status") != "error"]
 
@@ -1646,7 +1744,7 @@ def _benchmark_api(endpoint: str, iterations: int) -> Dict:
         "summary": {
             "min_ms": min(valid_timings) if valid_timings else 0,
             "max_ms": max(valid_timings) if valid_timings else 0,
-            "avg_ms": round(sum(valid_timings) / len(valid_timings), 2) if valid_timings else 0,
+            "avg_ms": (round(sum(valid_timings) / len(valid_timings), 2) if valid_timings else 0),
             "errors": len([t for t in timings if t.get("status") == "error"]),
         },
     }
@@ -1668,7 +1766,14 @@ def _benchmark_database(iterations: int) -> Dict:
             duration = (time.time() - start) * 1000
             timings.append({"iteration": i + 1, "duration_ms": round(duration, 2), "status": "ok"})
         except Exception as e:
-            timings.append({"iteration": i + 1, "duration_ms": 0, "status": "error", "error": str(e)})
+            timings.append(
+                {
+                    "iteration": i + 1,
+                    "duration_ms": 0,
+                    "status": "error",
+                    "error": str(e),
+                }
+            )
 
     valid_timings = [t["duration_ms"] for t in timings if t.get("status") != "error"]
 
@@ -1680,7 +1785,7 @@ def _benchmark_database(iterations: int) -> Dict:
         "summary": {
             "min_ms": min(valid_timings) if valid_timings else 0,
             "max_ms": max(valid_timings) if valid_timings else 0,
-            "avg_ms": round(sum(valid_timings) / len(valid_timings), 2) if valid_timings else 0,
+            "avg_ms": (round(sum(valid_timings) / len(valid_timings), 2) if valid_timings else 0),
             "errors": len([t for t in timings if t.get("status") == "error"]),
         },
     }
@@ -1698,9 +1803,22 @@ def _benchmark_module(module_name: str, iterations: int) -> Dict:
         try:
             response = req.get(f"{base_url}/tools/{module_name}/api/status", timeout=30)
             duration = (time.time() - start) * 1000
-            timings.append({"iteration": i + 1, "duration_ms": round(duration, 2), "status": response.status_code})
+            timings.append(
+                {
+                    "iteration": i + 1,
+                    "duration_ms": round(duration, 2),
+                    "status": response.status_code,
+                }
+            )
         except Exception as e:
-            timings.append({"iteration": i + 1, "duration_ms": 0, "status": "error", "error": str(e)})
+            timings.append(
+                {
+                    "iteration": i + 1,
+                    "duration_ms": 0,
+                    "status": "error",
+                    "error": str(e),
+                }
+            )
 
     valid_timings = [t["duration_ms"] for t in timings if t.get("status") != "error"]
 
@@ -1712,7 +1830,7 @@ def _benchmark_module(module_name: str, iterations: int) -> Dict:
         "summary": {
             "min_ms": min(valid_timings) if valid_timings else 0,
             "max_ms": max(valid_timings) if valid_timings else 0,
-            "avg_ms": round(sum(valid_timings) / len(valid_timings), 2) if valid_timings else 0,
+            "avg_ms": (round(sum(valid_timings) / len(valid_timings), 2) if valid_timings else 0),
             "errors": len([t for t in timings if t.get("status") == "error"]),
         },
     }

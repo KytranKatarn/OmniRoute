@@ -173,7 +173,11 @@ def get_learning_stats() -> dict:
         """
         )
         recent = [
-            {"title": row[0], "summary": row[1], "created_at": row[2].isoformat() if row[2] else None}
+            {
+                "title": row[0],
+                "summary": row[1],
+                "created_at": row[2].isoformat() if row[2] else None,
+            }
             for row in cur.fetchall()
         ]
 

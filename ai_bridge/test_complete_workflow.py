@@ -13,14 +13,14 @@ import time
 from datetime import datetime
 
 # Set up environment
-os.environ['DB_HOST'] = 'archie_database'
-os.environ['DB_PORT'] = '5432'
-os.environ['DB_NAME'] = 'archie'
-os.environ['DB_USER'] = 'archie'
-os.environ['DB_PASSWORD'] = 'CTIf6MjCwuGUwVR_sWNNVIaMB6G7wnZ3RinJ_Cr6jwI'
+os.environ["DB_HOST"] = "archie_database"
+os.environ["DB_PORT"] = "5432"
+os.environ["DB_NAME"] = "archie"
+os.environ["DB_USER"] = "archie"
+os.environ["DB_PASSWORD"] = "CTIf6MjCwuGUwVR_sWNNVIaMB6G7wnZ3RinJ_Cr6jwI"
 
-sys.path.insert(0, '/mnt/archie_brain')
-sys.path.insert(0, '/app')  # Add /app (platform_v2) to path
+sys.path.insert(0, "/mnt/archie_brain")
+sys.path.insert(0, "/app")  # Add /app (platform_v2) to path
 
 print("=" * 80)
 print("COMPLETE WORKFLOW END-TO-END TEST")
@@ -31,6 +31,7 @@ print()
 # Import required modules
 try:
     from database import get_db
+
     print("✅ Database connection module imported")
 except Exception as e:
     print(f"❌ Failed to import database module: {e}")
@@ -43,6 +44,7 @@ print("=" * 80)
 
 try:
     from ai_bridge.team_consensus_orchestrator import TeamConsensusOrchestrator
+
     print("✅ Team consensus orchestrator imported")
 
     # Get an existing proposal to test on
@@ -77,9 +79,7 @@ try:
     orchestrator = TeamConsensusOrchestrator()
 
     discussion_id = orchestrator.orchestrate_team_evaluation(
-        proposal_id=test_proposal_id,
-        auto_generate_report=True,
-        auto_notify_admin=True
+        proposal_id=test_proposal_id, auto_generate_report=True, auto_notify_admin=True
     )
 
     if discussion_id:
@@ -88,7 +88,7 @@ try:
         # Get discussion summary
         summary = orchestrator.discussion_engine.get_discussion_summary(discussion_id)
         if summary:
-            consensus = summary.get('consensus')
+            consensus = summary.get("consensus")
             if consensus:
                 print(f"   • Team Recommendation: {consensus['final_recommendation']}")
                 print(f"   • Consensus Score: {consensus['score']:.2f}")
@@ -96,15 +96,20 @@ try:
                 print(f"   • Rejections: {consensus['rejections']}")
 
         # Get consensus from database
-        cur.execute("""
+        cur.execute(
+            """
             SELECT tc.final_recommendation, tc.consensus_score, tc.approval_count
             FROM team_consensus tc
             WHERE tc.discussion_id = %s
-        """, (discussion_id,))
+        """,
+            (discussion_id,),
+        )
 
         consensus_data = cur.fetchone()
         if consensus_data:
-            print(f"   • Database Verification: {consensus_data[0]} (Score: {consensus_data[1]:.2f})")
+            print(
+                f"   • Database Verification: {consensus_data[0]} (Score: {consensus_data[1]:.2f})"
+            )
     else:
         print("❌ PHASE 1 FAILED: No discussion created")
         cur.close()
@@ -114,6 +119,7 @@ try:
 except Exception as e:
     print(f"❌ PHASE 1 ERROR: {e}")
     import traceback
+
     traceback.print_exc()
     sys.exit(1)
 
@@ -124,11 +130,13 @@ print("=" * 80)
 
 try:
     from ai_bridge.sandbox_test_runner import SandboxTestRunner
+
     print("✅ Sandbox test runner imported")
 
     # Create a sandbox instance
     print("\n📦 Creating sandbox instance...")
-    cur.execute("""
+    cur.execute(
+        """
         INSERT INTO sandbox_instances (
             proposal_id,
             sandbox_type,
@@ -136,7 +144,9 @@ try:
             metadata
         ) VALUES (%s, 'schema_separation', 'ready', '{}'::jsonb)
         RETURNING id
-    """, (test_proposal_id,))
+    """,
+        (test_proposal_id,),
+    )
 
     sandbox_id = cur.fetchone()[0]
     conn.commit()
@@ -149,38 +159,48 @@ try:
     result = runner.run_all_test_suites(
         sandbox_id=sandbox_id,
         proposal_id=test_proposal_id,
-        sandbox_type='schema_separation',
-        required_only=False
+        sandbox_type="schema_separation",
+        required_only=False,
     )
 
-    if result.get('success'):
+    if result.get("success"):
         print(f"✅ PHASE 2 SUCCESS: Tests completed")
-        summary = result.get('summary', {})
-        print(f"   • Overall Status: {summary.get('overall_status', 'unknown').upper()}")
+        summary = result.get("summary", {})
+        print(
+            f"   • Overall Status: {summary.get('overall_status', 'unknown').upper()}"
+        )
         print(f"   • Total Tests: {summary.get('total_tests', 0)}")
         print(f"   • Passed: {summary.get('passed', 0)}")
         print(f"   • Failed: {summary.get('failed', 0)}")
-        print(f"   • Required Passed: {'YES' if summary.get('required_passed') else 'NO'}")
+        print(
+            f"   • Required Passed: {'YES' if summary.get('required_passed') else 'NO'}"
+        )
         print(f"   • Duration: {summary.get('duration_seconds', 0)}s")
     else:
         print(f"❌ PHASE 2 FAILED: {result.get('error', 'Unknown error')}")
 
     # Get test results from database
-    cur.execute("""
+    cur.execute(
+        """
         SELECT COUNT(*) as total,
                SUM(CASE WHEN status = 'passed' THEN 1 ELSE 0 END) as passed,
                SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed
         FROM sandbox_test_results
         WHERE sandbox_id = %s
-    """, (sandbox_id,))
+    """,
+        (sandbox_id,),
+    )
 
     test_stats = cur.fetchone()
     if test_stats and test_stats[0] > 0:
-        print(f"   • Database Verification: {test_stats[0]} tests ({test_stats[1]} passed, {test_stats[2]} failed)")
+        print(
+            f"   • Database Verification: {test_stats[0]} tests ({test_stats[1]} passed, {test_stats[2]} failed)"
+        )
 
 except Exception as e:
     print(f"❌ PHASE 2 ERROR: {e}")
     import traceback
+
     traceback.print_exc()
 
 # Test Phase 3: Performance Tracking
@@ -190,16 +210,20 @@ print("=" * 80)
 
 try:
     from ai_bridge.agent_performance_tracker import AgentPerformanceTracker
+
     print("✅ Agent performance tracker imported")
 
     # Get agents who participated in the evaluation
     print("\n📊 Tracking agent performance...")
-    cur.execute("""
+    cur.execute(
+        """
         SELECT DISTINCT agent_id
         FROM proposal_evaluations
         WHERE proposal_id = %s
         LIMIT 3
-    """, (test_proposal_id,))
+    """,
+        (test_proposal_id,),
+    )
 
     agent_ids = [row[0] for row in cur.fetchall()]
 
@@ -212,16 +236,16 @@ try:
             # Log the evaluation action
             tracker.log_agent_action(
                 agent_id=agent_id,
-                action_type='evaluation',
-                outcome='success',
+                action_type="evaluation",
+                outcome="success",
                 proposal_id=test_proposal_id,
                 discussion_id=discussion_id,
-                task_description=f'Evaluated proposal #{test_proposal_id}',
+                task_description=f"Evaluated proposal #{test_proposal_id}",
                 duration_seconds=180,
                 quality_score=0.85,
                 accuracy_score=0.90,
                 timeliness_score=0.95,
-                complexity_level='moderate'
+                complexity_level="moderate",
             )
 
             # Update metrics
@@ -243,7 +267,9 @@ try:
         print("\n🏆 Performance Leaderboard (Top 5):")
         leaderboard = tracker.get_performance_leaderboard(limit=5)
         for agent in leaderboard:
-            print(f"   #{agent['overall_rank']} {agent['agent_name']:30s} - {agent['current_grade']} ({agent['performance_score']:.1f})")
+            print(
+                f"   #{agent['overall_rank']} {agent['agent_name']:30s} - {agent['current_grade']} ({agent['performance_score']:.1f})"
+            )
     else:
         print("⚠️  No agents found to track (may be normal for new proposal)")
         print("✅ PHASE 3 SUCCESS: Tracking system operational")
@@ -251,6 +277,7 @@ try:
 except Exception as e:
     print(f"❌ PHASE 3 ERROR: {e}")
     import traceback
+
     traceback.print_exc()
 
 # Final verification
@@ -260,7 +287,8 @@ print("=" * 80)
 
 try:
     # Verify proposal status
-    cur.execute("""
+    cur.execute(
+        """
         SELECT
             p.id,
             p.title,
@@ -273,7 +301,9 @@ try:
         FROM improvement_proposals p
         LEFT JOIN team_consensus tc ON p.consensus_id = tc.id
         WHERE p.id = %s
-    """, (test_proposal_id,))
+    """,
+        (test_proposal_id,),
+    )
 
     proposal = cur.fetchone()
 
@@ -290,25 +320,46 @@ try:
     # Check database records created
     print("\n📊 Database Records Created:")
 
-    cur.execute("SELECT COUNT(*) FROM agent_discussions WHERE proposal_id = %s", (test_proposal_id,))
+    cur.execute(
+        "SELECT COUNT(*) FROM agent_discussions WHERE proposal_id = %s",
+        (test_proposal_id,),
+    )
     print(f"   • Discussions: {cur.fetchone()[0]}")
 
-    cur.execute("SELECT COUNT(*) FROM agent_discussion_messages WHERE discussion_id = %s", (discussion_id,))
+    cur.execute(
+        "SELECT COUNT(*) FROM agent_discussion_messages WHERE discussion_id = %s",
+        (discussion_id,),
+    )
     print(f"   • Discussion Messages: {cur.fetchone()[0]}")
 
-    cur.execute("SELECT COUNT(*) FROM proposal_evaluations WHERE proposal_id = %s", (test_proposal_id,))
+    cur.execute(
+        "SELECT COUNT(*) FROM proposal_evaluations WHERE proposal_id = %s",
+        (test_proposal_id,),
+    )
     print(f"   • Evaluations: {cur.fetchone()[0]}")
 
-    cur.execute("SELECT COUNT(*) FROM team_consensus WHERE proposal_id = %s", (test_proposal_id,))
+    cur.execute(
+        "SELECT COUNT(*) FROM team_consensus WHERE proposal_id = %s",
+        (test_proposal_id,),
+    )
     print(f"   • Consensus Records: {cur.fetchone()[0]}")
 
-    cur.execute("SELECT COUNT(*) FROM sandbox_instances WHERE proposal_id = %s", (test_proposal_id,))
+    cur.execute(
+        "SELECT COUNT(*) FROM sandbox_instances WHERE proposal_id = %s",
+        (test_proposal_id,),
+    )
     print(f"   • Sandboxes: {cur.fetchone()[0]}")
 
-    cur.execute("SELECT COUNT(*) FROM sandbox_test_results WHERE proposal_id = %s", (test_proposal_id,))
+    cur.execute(
+        "SELECT COUNT(*) FROM sandbox_test_results WHERE proposal_id = %s",
+        (test_proposal_id,),
+    )
     print(f"   • Test Results: {cur.fetchone()[0]}")
 
-    cur.execute("SELECT COUNT(*) FROM agent_performance_logs WHERE proposal_id = %s", (test_proposal_id,))
+    cur.execute(
+        "SELECT COUNT(*) FROM agent_performance_logs WHERE proposal_id = %s",
+        (test_proposal_id,),
+    )
     print(f"   • Performance Logs: {cur.fetchone()[0]}")
 
     cur.close()

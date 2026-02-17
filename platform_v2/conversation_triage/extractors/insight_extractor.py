@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ExtractedInsight:
     """An extracted insight or decision."""
+
     title: str
     content: str
     insight_type: str  # decision, insight, todo, learning
@@ -51,15 +52,15 @@ class InsightExtractor:
 
     # Category detection
     CATEGORY_KEYWORDS = {
-        'architecture': ['architecture', 'design', 'pattern', 'structure', 'refactor'],
-        'database': ['database', 'sql', 'table', 'migration', 'schema'],
-        'api': ['api', 'endpoint', 'route', 'request', 'response'],
-        'performance': ['performance', 'optimize', 'speed', 'cache', 'slow'],
-        'security': ['security', 'auth', 'permission', 'token', 'password'],
-        'ui': ['ui', 'template', 'frontend', 'css', 'button', 'form'],
-        'testing': ['test', 'coverage', 'mock', 'fixture'],
-        'deployment': ['deploy', 'docker', 'production', 'release'],
-        'workflow': ['workflow', 'process', 'pipeline', 'hook'],
+        "architecture": ["architecture", "design", "pattern", "structure", "refactor"],
+        "database": ["database", "sql", "table", "migration", "schema"],
+        "api": ["api", "endpoint", "route", "request", "response"],
+        "performance": ["performance", "optimize", "speed", "cache", "slow"],
+        "security": ["security", "auth", "permission", "token", "password"],
+        "ui": ["ui", "template", "frontend", "css", "button", "form"],
+        "testing": ["test", "coverage", "mock", "fixture"],
+        "deployment": ["deploy", "docker", "production", "release"],
+        "workflow": ["workflow", "process", "pipeline", "hook"],
     }
 
     def extract(self, content: str) -> List[ExtractedInsight]:
@@ -67,19 +68,13 @@ class InsightExtractor:
         insights = []
 
         # Extract decisions
-        insights.extend(self._extract_pattern_type(
-            content, self.DECISION_PATTERNS, 'decision'
-        ))
+        insights.extend(self._extract_pattern_type(content, self.DECISION_PATTERNS, "decision"))
 
         # Extract learnings
-        insights.extend(self._extract_pattern_type(
-            content, self.INSIGHT_PATTERNS, 'learning'
-        ))
+        insights.extend(self._extract_pattern_type(content, self.INSIGHT_PATTERNS, "learning"))
 
         # Extract TODOs
-        insights.extend(self._extract_pattern_type(
-            content, self.TODO_PATTERNS, 'todo'
-        ))
+        insights.extend(self._extract_pattern_type(content, self.TODO_PATTERNS, "todo"))
 
         # Extract summary sections
         insights.extend(self._extract_summaries(content))
@@ -87,9 +82,7 @@ class InsightExtractor:
         # Deduplicate
         return self._deduplicate(insights)
 
-    def _extract_pattern_type(
-        self, content: str, patterns: List[str], insight_type: str
-    ) -> List[ExtractedInsight]:
+    def _extract_pattern_type(self, content: str, patterns: List[str], insight_type: str) -> List[ExtractedInsight]:
         """Extract insights matching specific patterns."""
         insights = []
 
@@ -100,7 +93,7 @@ class InsightExtractor:
                 if len(extracted) < 15:  # Skip very short matches
                     continue
                 if len(extracted) > 500:  # Truncate very long matches
-                    extracted = extracted[:500] + '...'
+                    extracted = extracted[:500] + "..."
 
                 # Get context for category detection
                 start = max(0, match.start() - 200)
@@ -116,14 +109,16 @@ class InsightExtractor:
                 # Generate title
                 title = self._generate_title(extracted, insight_type)
 
-                insights.append(ExtractedInsight(
-                    title=title,
-                    content=extracted,
-                    insight_type=insight_type,
-                    category=category,
-                    related_files=related_files,
-                    confidence=0.75
-                ))
+                insights.append(
+                    ExtractedInsight(
+                        title=title,
+                        content=extracted,
+                        insight_type=insight_type,
+                        category=category,
+                        related_files=related_files,
+                        confidence=0.75,
+                    )
+                )
 
         return insights
 
@@ -132,7 +127,9 @@ class InsightExtractor:
         insights = []
 
         # Look for summary headers
-        summary_pattern = r'(?:#{1,3}\s*)?(?:Summary|Key (?:Points|Takeaways)|Conclusion)[:\s]*\n(.+?)(?=\n#{1,3}|\n\n\n|\Z)'
+        summary_pattern = (
+            r"(?:#{1,3}\s*)?(?:Summary|Key (?:Points|Takeaways)|Conclusion)[:\s]*\n(.+?)(?=\n#{1,3}|\n\n\n|\Z)"
+        )
         matches = re.finditer(summary_pattern, content, re.IGNORECASE | re.DOTALL)
 
         for match in matches:
@@ -141,28 +138,32 @@ class InsightExtractor:
                 continue
 
             # Parse bullet points if present
-            bullets = re.findall(r'[-*]\s+(.+)', summary_text)
+            bullets = re.findall(r"[-*]\s+(.+)", summary_text)
             if bullets:
                 for bullet in bullets[:5]:  # Max 5 bullets
                     if len(bullet) > 15:
-                        insights.append(ExtractedInsight(
-                            title=f"Learning: {bullet[:50]}",
-                            content=bullet,
-                            insight_type='learning',
-                            category=self._detect_category(bullet),
-                            related_files=self._find_related_files(content),
-                            confidence=0.8
-                        ))
+                        insights.append(
+                            ExtractedInsight(
+                                title=f"Learning: {bullet[:50]}",
+                                content=bullet,
+                                insight_type="learning",
+                                category=self._detect_category(bullet),
+                                related_files=self._find_related_files(content),
+                                confidence=0.8,
+                            )
+                        )
             else:
                 # Single summary block
-                insights.append(ExtractedInsight(
-                    title="Session Summary",
-                    content=summary_text[:500],
-                    insight_type='learning',
-                    category=self._detect_category(summary_text),
-                    related_files=self._find_related_files(content),
-                    confidence=0.85
-                ))
+                insights.append(
+                    ExtractedInsight(
+                        title="Session Summary",
+                        content=summary_text[:500],
+                        insight_type="learning",
+                        category=self._detect_category(summary_text),
+                        related_files=self._find_related_files(content),
+                        confidence=0.85,
+                    )
+                )
 
         return insights
 
@@ -178,15 +179,15 @@ class InsightExtractor:
 
         if scores:
             return max(scores, key=scores.get)
-        return 'general'
+        return "general"
 
     def _find_related_files(self, text: str) -> List[str]:
         """Find file paths mentioned in text."""
         # Match common file patterns
         patterns = [
-            r'/[\w/.-]+\.\w+',  # Absolute paths
-            r'[\w/]+/[\w.-]+\.(?:py|js|ts|html|sql|md)',  # Relative paths
-            r'`([^`]+\.(?:py|js|ts|html|sql|md))`',  # Backtick-wrapped
+            r"/[\w/.-]+\.\w+",  # Absolute paths
+            r"[\w/]+/[\w.-]+\.(?:py|js|ts|html|sql|md)",  # Relative paths
+            r"`([^`]+\.(?:py|js|ts|html|sql|md))`",  # Backtick-wrapped
         ]
 
         files = set()
@@ -203,17 +204,17 @@ class InsightExtractor:
         """Generate a title for the insight."""
         # Extract first meaningful phrase
         words = content.split()[:8]
-        base = ' '.join(words)
+        base = " ".join(words)
         if len(content) > len(base):
-            base += '...'
+            base += "..."
 
         type_labels = {
-            'decision': 'Decision',
-            'learning': 'Learned',
-            'todo': 'TODO',
-            'insight': 'Insight'
+            "decision": "Decision",
+            "learning": "Learned",
+            "todo": "TODO",
+            "insight": "Insight",
         }
-        prefix = type_labels.get(insight_type, 'Note')
+        prefix = type_labels.get(insight_type, "Note")
 
         return f"{prefix}: {base}"
 

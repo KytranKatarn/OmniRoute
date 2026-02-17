@@ -95,8 +95,8 @@ def get_active_connections() -> List[Dict[str, Any]]:
                 connections.append(
                     {
                         "protocol": "tcp" if conn.type == socket.SOCK_STREAM else "udp",
-                        "local_address": f"{conn.laddr.ip}:{conn.laddr.port}" if conn.laddr else "",
-                        "foreign_address": f"{conn.raddr.ip}:{conn.raddr.port}" if conn.raddr else "",
+                        "local_address": (f"{conn.laddr.ip}:{conn.laddr.port}" if conn.laddr else ""),
+                        "foreign_address": (f"{conn.raddr.ip}:{conn.raddr.port}" if conn.raddr else ""),
                         "state": conn.status,
                         "pid": conn.pid,
                     }
@@ -160,13 +160,13 @@ def analyze_failed_logins(hours: int = 24) -> Dict[str, Any]:
                     {
                         "ip_address": ip["ip_address"],
                         "attempts": ip["attempt_count"],
-                        "first_seen": ip["first_attempt"].isoformat() if ip["first_attempt"] else None,
-                        "last_seen": ip["last_attempt"].isoformat() if ip["last_attempt"] else None,
+                        "first_seen": (ip["first_attempt"].isoformat() if ip["first_attempt"] else None),
+                        "last_seen": (ip["last_attempt"].isoformat() if ip["last_attempt"] else None),
                         "usernames": ip["usernames"],
                         "severity": (
                             "critical"
                             if ip["attempt_count"] > threshold * 3
-                            else "high" if ip["attempt_count"] > threshold * 2 else "medium"
+                            else ("high" if ip["attempt_count"] > threshold * 2 else "medium")
                         ),
                     }
                 )
@@ -476,7 +476,14 @@ def create_security_event(
             VALUES (%s, %s, %s, %s::inet, %s::inet, %s)
             RETURNING *
         """,
-            (event_type, severity, description, source_ip, target_ip, Json(raw_data) if raw_data else None),
+            (
+                event_type,
+                severity,
+                description,
+                source_ip,
+                target_ip,
+                Json(raw_data) if raw_data else None,
+            ),
         )
 
         event = cur.fetchone()
@@ -564,7 +571,13 @@ def check_ssl_certificate(domain: str, port: int = 443) -> Dict[str, Any]:
             "grade": grade,
         }
     except ssl.SSLCertVerificationError as e:
-        return {"success": True, "domain": domain, "valid": False, "error": str(e), "grade": "F"}
+        return {
+            "success": True,
+            "domain": domain,
+            "valid": False,
+            "error": str(e),
+            "grade": "F",
+        }
     except Exception as e:
         return {"success": False, "domain": domain, "error": str(e)}
 
@@ -615,7 +628,11 @@ def add_ssl_monitor(domain: str, user_id: int, alert_days: int = 30) -> Dict[str
         monitor = cur.fetchone()
         conn.commit()
 
-        return {"success": True, "monitor": dict(monitor) if monitor else None, "check": check_result}
+        return {
+            "success": True,
+            "monitor": dict(monitor) if monitor else None,
+            "check": check_result,
+        }
     except Exception as e:
         conn.rollback()
         return {"success": False, "error": str(e)}
@@ -682,7 +699,13 @@ def refresh_ssl_monitors() -> Dict[str, Any]:
                 # Check if alert needed
                 days = check.get("days_until_expiry", 0)
                 if days <= monitor.get("alert_days_before", 30):
-                    alerts.append({"domain": monitor["domain"], "days_until_expiry": days, "grade": check.get("grade")})
+                    alerts.append(
+                        {
+                            "domain": monitor["domain"],
+                            "days_until_expiry": days,
+                            "grade": check.get("grade"),
+                        }
+                    )
 
         conn.commit()
         return {"success": True, "updated": updated, "alerts": alerts}

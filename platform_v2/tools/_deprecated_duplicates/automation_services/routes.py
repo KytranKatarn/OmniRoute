@@ -14,7 +14,10 @@ from flask import Blueprint, render_template, jsonify
 from flask_login import login_required, current_user
 
 automation_services_bp = Blueprint(
-    "automation_services", __name__, url_prefix="/tools/automation-services", template_folder="templates"
+    "automation_services",
+    __name__,
+    url_prefix="/tools/automation-services",
+    template_folder="templates",
 )
 
 

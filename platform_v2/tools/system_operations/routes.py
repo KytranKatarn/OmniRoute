@@ -77,7 +77,13 @@ def get_db():
     )
 
 
-def audit_log(action_type: str, target: str, details: dict = None, success: bool = True, error_message: str = None):
+def audit_log(
+    action_type: str,
+    target: str,
+    details: dict = None,
+    success: bool = True,
+    error_message: str = None,
+):
     """Log system operation to audit table"""
     try:
         conn = get_db()
@@ -145,7 +151,13 @@ def require_reauth():
     if reauth_time and (time_mod.time() - reauth_time) < 300:
         return None
     return (
-        jsonify({"success": False, "error": "Re-authentication required for this operation", "requires_reauth": True}),
+        jsonify(
+            {
+                "success": False,
+                "error": "Re-authentication required for this operation",
+                "requires_reauth": True,
+            }
+        ),
         401,
     )
 
@@ -178,7 +190,12 @@ def parse_compose_host_port(port_entry):
 
 def find_compose_file(compose_dir):
     """Find the docker-compose file in a directory. Returns path or None."""
-    for fname in ["docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"]:
+    for fname in [
+        "docker-compose.yml",
+        "docker-compose.yaml",
+        "compose.yml",
+        "compose.yaml",
+    ]:
         candidate = os.path.join(compose_dir, fname)
         if os.path.exists(candidate):
             return candidate
@@ -347,7 +364,12 @@ def api_memory_hardware():
         if host_data and host_data.get("memory_hardware"):
             mem_hw = host_data["memory_hardware"]
             return jsonify(
-                {"success": True, "data": mem_hw, "source": "host", "data_age": int(host_age) if host_age else None}
+                {
+                    "success": True,
+                    "data": mem_hw,
+                    "source": "host",
+                    "data_age": int(host_age) if host_age else None,
+                }
             )
         else:
             return jsonify(
@@ -371,7 +393,10 @@ def api_hardware():
         if not host_data:
             return (
                 jsonify(
-                    {"success": False, "error": "Host monitor data not available. Ensure host_monitor.py is running."}
+                    {
+                        "success": False,
+                        "error": "Host monitor data not available. Ensure host_monitor.py is running.",
+                    }
                 ),
                 503,
             )
@@ -411,7 +436,12 @@ def api_hardware():
         }
 
         return jsonify(
-            {"success": True, "data": result, "source": "host", "data_age": int(host_age) if host_age else None}
+            {
+                "success": True,
+                "data": result,
+                "source": "host",
+                "data_age": int(host_age) if host_age else None,
+            }
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -731,7 +761,10 @@ def api_processes():
                 # Sort by category: docker first, then user, system, kernel
                 category_order = {"docker": 0, "user": 1, "system": 2, "kernel": 3}
                 processes.sort(
-                    key=lambda x: (category_order.get(x.get("category", "user"), 1), -(x.get("cpu_percent", 0)))
+                    key=lambda x: (
+                        category_order.get(x.get("category", "user"), 1),
+                        -(x.get("cpu_percent", 0)),
+                    )
                 )
 
             return jsonify(
@@ -948,7 +981,11 @@ def api_network_port_map():
         # Build unassigned ports list
         assigned_ports = {p["port"] for s in stacks for p in s["ports"]}
         unassigned = [
-            {"port": p["port"], "process": p.get("process"), "ip": p.get("ip", "0.0.0.0")}
+            {
+                "port": p["port"],
+                "process": p.get("process"),
+                "ip": p.get("ip", "0.0.0.0"),
+            }
             for p in host_ports_list
             if p["port"] not in assigned_ports
         ]
@@ -1012,7 +1049,10 @@ def api_port_usage():
     try:
         host_data, host_age = load_host_monitor_data()
         if not host_data:
-            return jsonify({"success": False, "error": "Host monitor data not available"}), 503
+            return (
+                jsonify({"success": False, "error": "Host monitor data not available"}),
+                503,
+            )
 
         port_usage = host_data.get("port_usage", {})
 
@@ -1030,7 +1070,13 @@ def api_port_usage():
             for port in ports:
                 if str(port) in port_usage or port in port_usage:
                     port_info = port_usage.get(str(port)) or port_usage.get(port, {})
-                    conflicts.append({"port": port, "planned_service": service, "current_usage": port_info})
+                    conflicts.append(
+                        {
+                            "port": port,
+                            "planned_service": service,
+                            "current_usage": port_info,
+                        }
+                    )
 
         return jsonify(
             {
@@ -1052,7 +1098,10 @@ def api_docker_health():
     try:
         host_data, host_age = load_host_monitor_data()
         if not host_data:
-            return jsonify({"success": False, "error": "Host monitor data not available"}), 503
+            return (
+                jsonify({"success": False, "error": "Host monitor data not available"}),
+                503,
+            )
 
         docker_health = host_data.get("docker_health", [])
 
@@ -1088,7 +1137,10 @@ def api_docker_health():
                 stacks[stack_name]["health_summary"] = "unhealthy"
             elif health == "starting" and current != "unhealthy":
                 stacks[stack_name]["health_summary"] = "starting"
-            elif container.get("state") != "running" and current not in ["unhealthy", "starting"]:
+            elif container.get("state") != "running" and current not in [
+                "unhealthy",
+                "starting",
+            ]:
                 stacks[stack_name]["health_summary"] = "degraded"
 
         return jsonify(
@@ -1136,17 +1188,31 @@ def api_update_web_ui_ports(stack_name):
         if not isinstance(web_ui_ports, list):
             cur.close()
             conn.close()
-            return jsonify({"success": False, "error": "web_ui_ports must be an array"}), 400
+            return (
+                jsonify({"success": False, "error": "web_ui_ports must be an array"}),
+                400,
+            )
 
         for entry in web_ui_ports:
             if not isinstance(entry, dict) or "port" not in entry:
                 cur.close()
                 conn.close()
-                return jsonify({"success": False, "error": "Each entry must have a 'port' field"}), 400
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": "Each entry must have a 'port' field",
+                        }
+                    ),
+                    400,
+                )
             if not isinstance(entry["port"], int):
                 cur.close()
                 conn.close()
-                return jsonify({"success": False, "error": "Port must be an integer"}), 400
+                return (
+                    jsonify({"success": False, "error": "Port must be an integer"}),
+                    400,
+                )
 
         cur.execute(
             "UPDATE docker_stacks SET web_ui_ports = %s WHERE name = %s",
@@ -1302,7 +1368,14 @@ def api_history_multi():
         conn.close()
 
         return jsonify(
-            {"success": True, "data": {"devices": devices, "base_type": base_type, "device_count": len(devices)}}
+            {
+                "success": True,
+                "data": {
+                    "devices": devices,
+                    "base_type": base_type,
+                    "device_count": len(devices),
+                },
+            }
         )
     except Exception as e:
         import traceback
@@ -1327,7 +1400,16 @@ def api_kill_process(pid):
 
         # Require confirmation
         if not data.get("confirm"):
-            return jsonify({"success": False, "error": "Confirmation required", "requires_confirm": True}), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Confirmation required",
+                        "requires_confirm": True,
+                    }
+                ),
+                400,
+            )
 
         signal = data.get("signal", "SIGTERM")
         service = get_system_service()
@@ -1359,7 +1441,16 @@ def api_service_action(service_name):
 
         # Require confirmation
         if not data.get("confirm"):
-            return jsonify({"success": False, "error": "Confirmation required", "requires_confirm": True}), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Confirmation required",
+                        "requires_confirm": True,
+                    }
+                ),
+                400,
+            )
 
         action = data.get("action", "restart")
         service = get_system_service()
@@ -1391,7 +1482,16 @@ def api_docker_action(container_id):
 
         # Require confirmation
         if not data.get("confirm"):
-            return jsonify({"success": False, "error": "Confirmation required", "requires_confirm": True}), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Confirmation required",
+                        "requires_confirm": True,
+                    }
+                ),
+                400,
+            )
 
         action = data.get("action", "restart")
         service = get_system_service()
@@ -1422,12 +1522,29 @@ def api_docker_compose():
         data = request.get_json() or {}
 
         if not data.get("confirm"):
-            return jsonify({"success": False, "error": "Confirmation required", "requires_confirm": True}), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Confirmation required",
+                        "requires_confirm": True,
+                    }
+                ),
+                400,
+            )
 
         action = data.get("action", "up")
         allowed_actions = ["up", "down", "restart", "pull"]
         if action not in allowed_actions:
-            return jsonify({"success": False, "error": f"Invalid action. Allowed: {allowed_actions}"}), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"Invalid action. Allowed: {allowed_actions}",
+                    }
+                ),
+                400,
+            )
 
         import subprocess
 
@@ -1451,7 +1568,13 @@ def api_docker_compose():
             error_message=result.stderr if not success else None,
         )
 
-        return jsonify({"success": success, "output": result.stdout, "error": result.stderr if not success else None})
+        return jsonify(
+            {
+                "success": success,
+                "output": result.stdout,
+                "error": result.stderr if not success else None,
+            }
+        )
     except subprocess.TimeoutExpired:
         return jsonify({"success": False, "error": "Command timed out"}), 500
     except Exception as e:
@@ -1470,7 +1593,10 @@ def api_docker_logs(container_id):
         tail = request.args.get("tail", "100")
 
         result = subprocess.run(
-            ["docker", "logs", "--tail", tail, container_id], capture_output=True, text=True, timeout=30
+            ["docker", "logs", "--tail", tail, container_id],
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
 
         # Return as plain text
@@ -1517,7 +1643,10 @@ def api_get_compose():
                 import subprocess
 
                 result = subprocess.run(
-                    ["docker", "ps", "--format", "{{.Names}}"], capture_output=True, text=True, timeout=10
+                    ["docker", "ps", "--format", "{{.Names}}"],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
                 )
                 running_containers = set(result.stdout.strip().split("\n")) if result.stdout.strip() else set()
 
@@ -1536,7 +1665,13 @@ def api_get_compose():
             pass
 
         return jsonify(
-            {"success": True, "content": content, "modified": modified, "services": services, "file": compose_file}
+            {
+                "success": True,
+                "content": content,
+                "modified": modified,
+                "services": services,
+                "file": compose_file,
+            }
         )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -1566,13 +1701,19 @@ def api_save_compose():
         ]
 
         if compose_file not in allowed_files:
-            return jsonify({"success": False, "error": "File not allowed to be edited"}), 403
+            return (
+                jsonify({"success": False, "error": "File not allowed to be edited"}),
+                403,
+            )
 
         # Validate YAML syntax
         try:
             yaml.safe_load(content)
         except yaml.YAMLError as ye:
-            return jsonify({"success": False, "error": f"Invalid YAML syntax: {str(ye)}"}), 400
+            return (
+                jsonify({"success": False, "error": f"Invalid YAML syntax: {str(ye)}"}),
+                400,
+            )
 
         # Create backup
         backup_file = f"{compose_file}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -1627,7 +1768,14 @@ def api_get_env():
         stat = os.stat(env_file)
         modified = datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S")
 
-        return jsonify({"success": True, "content": content, "modified": modified, "file": env_file})
+        return jsonify(
+            {
+                "success": True,
+                "content": content,
+                "modified": modified,
+                "file": env_file,
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -1649,7 +1797,10 @@ def api_save_env():
         ]
 
         if filename not in allowed_files:
-            return jsonify({"success": False, "error": "File not allowed to be edited"}), 403
+            return (
+                jsonify({"success": False, "error": "File not allowed to be edited"}),
+                403,
+            )
 
         # Create backup
         backup_file = f"{filename}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -1663,9 +1814,20 @@ def api_save_env():
             f.write(content)
 
         # Audit log
-        audit_log(action_type="env_file_edit", target=filename, details={"backup_file": backup_file}, success=True)
+        audit_log(
+            action_type="env_file_edit",
+            target=filename,
+            details={"backup_file": backup_file},
+            success=True,
+        )
 
-        return jsonify({"success": True, "message": "Environment file saved", "backup": backup_file})
+        return jsonify(
+            {
+                "success": True,
+                "message": "Environment file saved",
+                "backup": backup_file,
+            }
+        )
     except Exception as e:
         audit_log("env_file_edit", filename, success=False, error_message=str(e))
         return jsonify({"success": False, "error": str(e)}), 500
@@ -1820,7 +1982,12 @@ def api_create_stack():
         stack_dir = f"/mnt/stacks/{name}"
         if os.path.exists(stack_dir):
             return (
-                jsonify({"success": False, "error": f"Stack directory already exists: {stack_dir}"}),
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"Stack directory already exists: {stack_dir}",
+                    }
+                ),
                 409,
             )
 
@@ -1888,7 +2055,12 @@ def api_create_stack():
         if conn:
             conn.close()
         return (
-            jsonify({"success": False, "error": f"A stack with name '{name}' already exists"}),
+            jsonify(
+                {
+                    "success": False,
+                    "error": f"A stack with name '{name}' already exists",
+                }
+            ),
             409,
         )
     except Exception as e:
@@ -1912,7 +2084,12 @@ def api_create_stack():
             import shutil
 
             shutil.rmtree(stack_dir, ignore_errors=True)
-        audit_log("stack_create", data.get("name", "unknown"), success=False, error_message=str(e))
+        audit_log(
+            "stack_create",
+            data.get("name", "unknown"),
+            success=False,
+            error_message=str(e),
+        )
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2010,7 +2187,13 @@ def api_delete_stack(stack_name):
 
         if not data.get("confirm"):
             return (
-                jsonify({"success": False, "error": "Confirmation required", "requires_confirm": True}),
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Confirmation required",
+                        "requires_confirm": True,
+                    }
+                ),
                 400,
             )
 
@@ -2036,7 +2219,10 @@ def api_delete_stack(stack_name):
         if stack["is_system"]:
             cur.close()
             conn.close()
-            return jsonify({"success": False, "error": "Cannot delete system stack"}), 403
+            return (
+                jsonify({"success": False, "error": "Cannot delete system stack"}),
+                403,
+            )
 
         compose_dir = stack.get("compose_directory", "")
         compose_file = os.path.join(compose_dir, "docker-compose.yml") if compose_dir else ""
@@ -2117,10 +2303,27 @@ def api_stack_action(stack_name):
 
         allowed_actions = ["up", "down", "restart", "pull"]
         if action not in allowed_actions:
-            return jsonify({"success": False, "error": f"Invalid action. Allowed: {allowed_actions}"}), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"Invalid action. Allowed: {allowed_actions}",
+                    }
+                ),
+                400,
+            )
 
         if not confirm:
-            return jsonify({"success": False, "error": "Confirmation required", "requires_confirm": True}), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Confirmation required",
+                        "requires_confirm": True,
+                    }
+                ),
+                400,
+            )
 
         # Look up stack from DB
         conn = get_db()
@@ -2151,7 +2354,10 @@ def api_stack_action(stack_name):
         compose_file = os.path.join(compose_dir, "docker-compose.yml")
 
         if not os.path.exists(compose_file):
-            return jsonify({"success": False, "error": "Compose file not found for this stack"}), 404
+            return (
+                jsonify({"success": False, "error": "Compose file not found for this stack"}),
+                404,
+            )
 
         # Build command
         cmd = [
@@ -2176,7 +2382,10 @@ def api_stack_action(stack_name):
                 success=False,
                 error_message="Command timed out after 120 seconds",
             )
-            return jsonify({"success": False, "error": "Command timed out after 120 seconds"}), 500
+            return (
+                jsonify({"success": False, "error": "Command timed out after 120 seconds"}),
+                500,
+            )
 
         success = result.returncode == 0
         audit_log(
@@ -2200,7 +2409,11 @@ def api_stack_action(stack_name):
         )
     except Exception as e:
         audit_log(
-            "stack_action", stack_name, details={"action": data.get("action")}, success=False, error_message=str(e)
+            "stack_action",
+            stack_name,
+            details={"action": data.get("action")},
+            success=False,
+            error_message=str(e),
         )
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -2343,7 +2556,10 @@ def api_save_stack_compose(stack_name):
         try:
             yaml.safe_load(content)
         except yaml.YAMLError as ye:
-            return jsonify({"success": False, "error": f"Invalid YAML syntax: {str(ye)}"}), 400
+            return (
+                jsonify({"success": False, "error": f"Invalid YAML syntax: {str(ye)}"}),
+                400,
+            )
 
         compose_dir = stack["compose_directory"]
         compose_file = os.path.join(compose_dir, "docker-compose.yml")
@@ -2362,7 +2578,11 @@ def api_save_stack_compose(stack_name):
         audit_log(
             action_type="stack_compose_edit",
             target=stack_name,
-            details={"backup_file": backup_file, "file": compose_file, "content_length": len(content)},
+            details={
+                "backup_file": backup_file,
+                "file": compose_file,
+                "content_length": len(content),
+            },
             success=True,
         )
 
@@ -2486,7 +2706,15 @@ def api_save_stack_env(stack_name):
         real_compose_dir = os.path.realpath(compose_dir)
 
         if not real_target.startswith(real_compose_dir + os.sep) and real_target != real_compose_dir:
-            return jsonify({"success": False, "error": "Invalid file path - directory traversal not allowed"}), 403
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Invalid file path - directory traversal not allowed",
+                    }
+                ),
+                403,
+            )
 
         # Create backup with timestamp
         backup_file = f"{real_target}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -2502,11 +2730,21 @@ def api_save_stack_env(stack_name):
         audit_log(
             action_type="stack_env_edit",
             target=stack_name,
-            details={"filename": filename, "file": real_target, "backup_file": backup_file},
+            details={
+                "filename": filename,
+                "file": real_target,
+                "backup_file": backup_file,
+            },
             success=True,
         )
 
-        return jsonify({"success": True, "message": "Environment file saved", "backup": backup_file})
+        return jsonify(
+            {
+                "success": True,
+                "message": "Environment file saved",
+                "backup": backup_file,
+            }
+        )
     except Exception as e:
         audit_log("stack_env_edit", stack_name, success=False, error_message=str(e))
         return jsonify({"success": False, "error": str(e)}), 500
@@ -2579,7 +2817,16 @@ def api_mount_disk(device):
         data = request.get_json() or {}
 
         if not data.get("confirm"):
-            return jsonify({"success": False, "error": "Confirmation required", "requires_confirm": True}), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Confirmation required",
+                        "requires_confirm": True,
+                    }
+                ),
+                400,
+            )
 
         mountpoint = data.get("mountpoint")
         if not mountpoint:
@@ -2600,20 +2847,32 @@ def api_mount_disk(device):
         audit_log(
             action_type="disk_mount",
             target=device,
-            details={"mountpoint": mountpoint, "command_id": result_data.get("command_id")},
+            details={
+                "mountpoint": mountpoint,
+                "command_id": result_data.get("command_id"),
+            },
             success=cmd_result.get("success", False),
             error_message=cmd_result.get("error"),
         )
 
         if cmd_result.get("success"):
             return jsonify(
-                {"success": True, "message": cmd_result.get("message", f"Mounted /dev/{device} at {mountpoint}")}
+                {
+                    "success": True,
+                    "message": cmd_result.get("message", f"Mounted /dev/{device} at {mountpoint}"),
+                }
             )
         else:
-            return jsonify({"success": False, "error": cmd_result.get("error", "mount failed")}), 500
+            return (
+                jsonify({"success": False, "error": cmd_result.get("error", "mount failed")}),
+                500,
+            )
 
     except HostCommandQueueUnavailable as e:
-        return jsonify({"success": False, "error": str(e), "queue_unavailable": True}), 503
+        return (
+            jsonify({"success": False, "error": str(e), "queue_unavailable": True}),
+            503,
+        )
     except HostCommandTimeout as e:
         audit_log("disk_mount", device, success=False, error_message=str(e))
         return jsonify({"success": False, "error": str(e)}), 504
@@ -2631,7 +2890,16 @@ def api_unmount_disk(device):
         data = request.get_json() or {}
 
         if not data.get("confirm"):
-            return jsonify({"success": False, "error": "Confirmation required", "requires_confirm": True}), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Confirmation required",
+                        "requires_confirm": True,
+                    }
+                ),
+                400,
+            )
 
         params = {"device": f"/dev/{device}"}
         if data.get("force"):
@@ -2654,12 +2922,28 @@ def api_unmount_disk(device):
         )
 
         if cmd_result.get("success"):
-            return jsonify({"success": True, "message": cmd_result.get("message", f"Unmounted /dev/{device}")})
+            return jsonify(
+                {
+                    "success": True,
+                    "message": cmd_result.get("message", f"Unmounted /dev/{device}"),
+                }
+            )
         else:
-            return jsonify({"success": False, "error": cmd_result.get("error", "umount failed")}), 500
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": cmd_result.get("error", "umount failed"),
+                    }
+                ),
+                500,
+            )
 
     except HostCommandQueueUnavailable as e:
-        return jsonify({"success": False, "error": str(e), "queue_unavailable": True}), 503
+        return (
+            jsonify({"success": False, "error": str(e), "queue_unavailable": True}),
+            503,
+        )
     except HostCommandTimeout as e:
         audit_log("disk_unmount", device, success=False, error_message=str(e))
         return jsonify({"success": False, "error": str(e)}), 504
@@ -2683,13 +2967,25 @@ def api_extend_lvm(vg_name, lv_name):
 
         # Require confirmation
         if not data.get("confirm"):
-            return jsonify({"success": False, "error": "Confirmation required", "requires_confirm": True}), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Confirmation required",
+                        "requires_confirm": True,
+                    }
+                ),
+                400,
+            )
 
         size_gb = data.get("size_gb")
         extend_all = data.get("extend_all", False)
 
         if not size_gb and not extend_all:
-            return jsonify({"success": False, "error": "Must specify size_gb or extend_all"}), 400
+            return (
+                jsonify({"success": False, "error": "Must specify size_gb or extend_all"}),
+                400,
+            )
 
         params = {"vg_name": vg_name, "lv_name": lv_name}
         if extend_all:
@@ -2707,7 +3003,11 @@ def api_extend_lvm(vg_name, lv_name):
         audit_id = audit_log(
             action_type="lvm_extend",
             target=f"{vg_name}/{lv_name}",
-            details={"size_gb": size_gb, "extend_all": extend_all, "command_id": result_data.get("command_id")},
+            details={
+                "size_gb": size_gb,
+                "extend_all": extend_all,
+                "command_id": result_data.get("command_id"),
+            },
             success=cmd_result.get("success", False),
             error_message=cmd_result.get("error"),
         )
@@ -2724,14 +3024,23 @@ def api_extend_lvm(vg_name, lv_name):
             audit_id = audit_log(
                 action_type="lvm_extend",
                 target=f"{vg_name}/{lv_name}",
-                details={"size_gb": size_gb, "extend_all": extend_all, "fallback": True},
+                details={
+                    "size_gb": size_gb,
+                    "extend_all": extend_all,
+                    "fallback": True,
+                },
                 success=result["success"],
                 error_message=result.get("error"),
             )
             result["audit_id"] = audit_id
             return jsonify(result)
         except Exception as inner_e:
-            audit_log("lvm_extend", f"{vg_name}/{lv_name}", success=False, error_message=str(inner_e))
+            audit_log(
+                "lvm_extend",
+                f"{vg_name}/{lv_name}",
+                success=False,
+                error_message=str(inner_e),
+            )
             return jsonify({"success": False, "error": str(inner_e)}), 500
     except HostCommandTimeout as e:
         audit_log("lvm_extend", f"{vg_name}/{lv_name}", success=False, error_message=str(e))
@@ -2770,7 +3079,10 @@ def api_filesystem_resize():
             return jsonify({"success": False, "error": "Invalid device path"}), 400
 
         if not is_queue_available():
-            return jsonify({"success": False, "error": "Host command queue not available"}), 503
+            return (
+                jsonify({"success": False, "error": "Host command queue not available"}),
+                503,
+            )
 
         result_data = submit_and_wait("filesystem_resize", {"device": device}, timeout=120)
         result = result_data.get("result", {"success": False, "error": "No result from host"})
@@ -2789,9 +3101,17 @@ def api_filesystem_resize():
         audit_log("filesystem_resize", device, success=False, error_message=str(e))
         return jsonify({"success": False, "error": str(e)}), 504
     except HostCommandQueueUnavailable:
-        return jsonify({"success": False, "error": "Host command queue not available"}), 503
+        return (
+            jsonify({"success": False, "error": "Host command queue not available"}),
+            503,
+        )
     except Exception as e:
-        audit_log("filesystem_resize", data.get("device", "unknown"), success=False, error_message=str(e))
+        audit_log(
+            "filesystem_resize",
+            data.get("device", "unknown"),
+            success=False,
+            error_message=str(e),
+        )
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -2854,7 +3174,16 @@ def api_host_command_submit():
             return jsonify({"success": False, "error": "command_type is required"}), 400
 
         if not confirm:
-            return jsonify({"success": False, "error": "Confirmation required", "requires_confirm": True}), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Confirmation required",
+                        "requires_confirm": True,
+                    }
+                ),
+                400,
+            )
 
         # Dangerous commands require re-authentication
         if command_type in DANGEROUS_COMMAND_TYPES:
@@ -2883,7 +3212,10 @@ def api_host_command_submit():
         return jsonify({"success": True, "command_id": command_id})
 
     except HostCommandQueueUnavailable as e:
-        return jsonify({"success": False, "error": str(e), "queue_unavailable": True}), 503
+        return (
+            jsonify({"success": False, "error": str(e), "queue_unavailable": True}),
+            503,
+        )
     except Exception as e:
         audit_log(
             action_type="host_command_submit",
@@ -2905,7 +3237,10 @@ def api_host_command_result(command_id):
         import re as re_mod
 
         if not re_mod.match(r"^[0-9a-f\-]{36}$", command_id):
-            return jsonify({"success": False, "error": "Invalid command ID format"}), 400
+            return (
+                jsonify({"success": False, "error": "Invalid command ID format"}),
+                400,
+            )
 
         result = get_command_result(command_id)
         if result is not None:
@@ -2914,12 +3249,24 @@ def api_host_command_result(command_id):
         else:
             # Check if it's still pending
             pending_path = os.path.join(
-                os.environ.get("ARCHIE_BASE_DIR", "/mnt/archie_brain"), "host_commands", "pending", f"{command_id}.json"
+                os.environ.get("ARCHIE_BASE_DIR", "/mnt/archie_brain"),
+                "host_commands",
+                "pending",
+                f"{command_id}.json",
             )
             if os.path.exists(pending_path):
                 return jsonify({"success": True, "status": "pending"}), 202
             else:
-                return jsonify({"success": False, "error": "Command not found", "status": "unknown"}), 404
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": "Command not found",
+                            "status": "unknown",
+                        }
+                    ),
+                    404,
+                )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -2938,7 +3285,10 @@ def api_storage_drives():
     try:
         host_data, age = load_host_monitor_data()
         if not host_data:
-            return jsonify({"success": False, "error": "Host monitor data not available"}), 503
+            return (
+                jsonify({"success": False, "error": "Host monitor data not available"}),
+                503,
+            )
 
         disks = host_data.get("disks", [])
         lvm = host_data.get("lvm")
@@ -3070,7 +3420,10 @@ def api_register_storage_mount():
         audit_log(
             "storage_mount_register",
             device,
-            details={"mount_point": data.get("mount_point"), "label": data.get("label")},
+            details={
+                "mount_point": data.get("mount_point"),
+                "label": data.get("label"),
+            },
         )
 
         return jsonify({"success": True, "data": dict(result)})
@@ -3238,7 +3591,12 @@ def api_storage_docker_mounts():
 
         # Group by mount point (find which partition each path belongs to)
         # This will be matched on the frontend with partition mountpoints
-        return jsonify({"success": True, "data": {"path_mappings": path_to_stacks, "stack_count": len(stacks)}})
+        return jsonify(
+            {
+                "success": True,
+                "data": {"path_mappings": path_to_stacks, "stack_count": len(stacks)},
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -3313,7 +3671,10 @@ def api_storage_preflight():
 
                 # Check if mountpoint is mounted
                 result = subprocess.run(
-                    ["findmnt", "-n", "-o", "SOURCE", mountpoint], capture_output=True, text=True, timeout=5
+                    ["findmnt", "-n", "-o", "SOURCE", mountpoint],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
                 )
                 is_mounted = result.returncode == 0 and result.stdout.strip()
                 mounted_device = result.stdout.strip() if is_mounted else None
@@ -3365,7 +3726,10 @@ def api_storage_preflight():
         if operation == "shrink" and mountpoint:
             try:
                 result = subprocess.run(
-                    ["df", "-BG", "--output=used", mountpoint], capture_output=True, text=True, timeout=5
+                    ["df", "-BG", "--output=used", mountpoint],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
                 )
                 if result.returncode == 0:
                     lines = result.stdout.strip().split("\n")
@@ -3392,7 +3756,12 @@ def api_storage_preflight():
         can_proceed = len(high_severity) == 0
 
         return jsonify(
-            {"success": True, "warnings": warnings, "can_proceed": can_proceed, "warning_count": len(warnings)}
+            {
+                "success": True,
+                "warnings": warnings,
+                "can_proceed": can_proceed,
+                "warning_count": len(warnings),
+            }
         )
 
     except Exception as e:
@@ -3428,7 +3797,12 @@ def api_auth_verify():
         conn.close()
 
         if not user:
-            audit_log("reauth_attempt", "verify", success=False, error_message="User not found")
+            audit_log(
+                "reauth_attempt",
+                "verify",
+                success=False,
+                error_message="User not found",
+            )
             return jsonify({"success": False, "error": "User not found"}), 404
 
         if not check_password_hash(user["password_hash"], password):
@@ -3438,14 +3812,28 @@ def api_auth_verify():
                 success=False,
                 error_message=f"Invalid password for user {current_user.username}",
             )
-            return jsonify({"success": False, "error": f"Invalid password for user '{current_user.username}'"}), 401
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"Invalid password for user '{current_user.username}'",
+                    }
+                ),
+                401,
+            )
 
         # Store re-auth timestamp in session (valid for 5 minutes)
         session["reauth_timestamp"] = time_mod.time()
 
         audit_log("reauth_attempt", "verify", success=True)
 
-        return jsonify({"success": True, "message": "Re-authentication successful", "valid_for": 300})
+        return jsonify(
+            {
+                "success": True,
+                "message": "Re-authentication successful",
+                "valid_for": 300,
+            }
+        )
     except Exception as e:
         audit_log("reauth_attempt", "verify", success=False, error_message=str(e))
         return jsonify({"success": False, "error": str(e)}), 500
@@ -3629,7 +4017,15 @@ def acknowledge_health_alert(alert_id):
         if result:
             return jsonify({"success": True, "message": "Alert acknowledged"})
         else:
-            return jsonify({"success": False, "error": "Alert not found or already acknowledged"}), 404
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Alert not found or already acknowledged",
+                    }
+                ),
+                404,
+            )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -3662,7 +4058,10 @@ def resolve_health_alert(alert_id):
         if result:
             return jsonify({"success": True, "message": "Alert resolved"})
         else:
-            return jsonify({"success": False, "error": "Alert not found or already resolved"}), 404
+            return (
+                jsonify({"success": False, "error": "Alert not found or already resolved"}),
+                404,
+            )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -3727,7 +4126,14 @@ def update_health_config():
                 cooldown_minutes = EXCLUDED.cooldown_minutes
             RETURNING id
         """,
-            (stack_name, metric_type, threshold_warning, threshold_critical, enabled, cooldown_minutes),
+            (
+                stack_name,
+                metric_type,
+                threshold_warning,
+                threshold_critical,
+                enabled,
+                cooldown_minutes,
+            ),
         )
 
         result = cur.fetchone()
@@ -3816,7 +4222,10 @@ def delete_health_webhook(webhook_id):
         conn = get_db()
         cur = conn.cursor()
 
-        cur.execute("DELETE FROM health_alert_webhooks WHERE id = %s RETURNING id", (webhook_id,))
+        cur.execute(
+            "DELETE FROM health_alert_webhooks WHERE id = %s RETURNING id",
+            (webhook_id,),
+        )
         result = cur.fetchone()
         conn.commit()
         cur.close()
@@ -3956,10 +4365,21 @@ def api_firewall_status():
                 }
             )
         else:
-            return jsonify({"success": False, "error": cmd_result.get("error", "Failed to get status")}), 500
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": cmd_result.get("error", "Failed to get status"),
+                    }
+                ),
+                500,
+            )
 
     except HostCommandQueueUnavailable as e:
-        return jsonify({"success": False, "error": str(e), "queue_unavailable": True}), 503
+        return (
+            jsonify({"success": False, "error": str(e), "queue_unavailable": True}),
+            503,
+        )
     except HostCommandTimeout as e:
         return jsonify({"success": False, "error": str(e)}), 504
     except Exception as e:
@@ -3998,10 +4418,21 @@ def api_firewall_rules():
                 }
             )
         else:
-            return jsonify({"success": False, "error": cmd_result.get("error", "Failed to get rules")}), 500
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": cmd_result.get("error", "Failed to get rules"),
+                    }
+                ),
+                500,
+            )
 
     except HostCommandQueueUnavailable as e:
-        return jsonify({"success": False, "error": str(e), "queue_unavailable": True}), 503
+        return (
+            jsonify({"success": False, "error": str(e), "queue_unavailable": True}),
+            503,
+        )
     except HostCommandTimeout as e:
         return jsonify({"success": False, "error": str(e)}), 504
     except Exception as e:
@@ -4034,12 +4465,28 @@ def api_firewall_enable():
         )
 
         if cmd_result.get("success"):
-            return jsonify({"success": True, "message": cmd_result.get("message", "Firewall enabled")})
+            return jsonify(
+                {
+                    "success": True,
+                    "message": cmd_result.get("message", "Firewall enabled"),
+                }
+            )
         else:
-            return jsonify({"success": False, "error": cmd_result.get("error", "Failed to enable")}), 500
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": cmd_result.get("error", "Failed to enable"),
+                    }
+                ),
+                500,
+            )
 
     except HostCommandQueueUnavailable as e:
-        return jsonify({"success": False, "error": str(e), "queue_unavailable": True}), 503
+        return (
+            jsonify({"success": False, "error": str(e), "queue_unavailable": True}),
+            503,
+        )
     except HostCommandTimeout as e:
         audit_log("firewall_enable", "ufw", success=False, error_message=str(e))
         return jsonify({"success": False, "error": str(e)}), 504
@@ -4073,12 +4520,28 @@ def api_firewall_disable():
         )
 
         if cmd_result.get("success"):
-            return jsonify({"success": True, "message": cmd_result.get("message", "Firewall disabled")})
+            return jsonify(
+                {
+                    "success": True,
+                    "message": cmd_result.get("message", "Firewall disabled"),
+                }
+            )
         else:
-            return jsonify({"success": False, "error": cmd_result.get("error", "Failed to disable")}), 500
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": cmd_result.get("error", "Failed to disable"),
+                    }
+                ),
+                500,
+            )
 
     except HostCommandQueueUnavailable as e:
-        return jsonify({"success": False, "error": str(e), "queue_unavailable": True}), 503
+        return (
+            jsonify({"success": False, "error": str(e), "queue_unavailable": True}),
+            503,
+        )
     except HostCommandTimeout as e:
         audit_log("firewall_disable", "ufw", success=False, error_message=str(e))
         return jsonify({"success": False, "error": str(e)}), 504
@@ -4098,35 +4561,70 @@ def api_firewall_allow():
 
         # Validate port
         if not port or not isinstance(port, int) or not (1 <= port <= 65535):
-            return jsonify({"success": False, "error": "Invalid port. Must be integer 1-65535"}), 400
+            return (
+                jsonify({"success": False, "error": "Invalid port. Must be integer 1-65535"}),
+                400,
+            )
 
         # Validate protocol
         if protocol not in ("tcp", "udp"):
-            return jsonify({"success": False, "error": "Invalid protocol. Must be 'tcp' or 'udp'"}), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Invalid protocol. Must be 'tcp' or 'udp'",
+                    }
+                ),
+                400,
+            )
 
         user_id = current_user.id if current_user.is_authenticated else None
         username = getattr(current_user, "username", "unknown")
 
         result_data = submit_and_wait(
-            "firewall_allow", {"port": port, "protocol": protocol}, timeout=60, submitted_by=username, user_id=user_id
+            "firewall_allow",
+            {"port": port, "protocol": protocol},
+            timeout=60,
+            submitted_by=username,
+            user_id=user_id,
         )
         cmd_result = result_data.get("result", {})
 
         audit_log(
             action_type="firewall_allow",
             target=f"{port}/{protocol}",
-            details={"port": port, "protocol": protocol, "command_id": result_data.get("command_id")},
+            details={
+                "port": port,
+                "protocol": protocol,
+                "command_id": result_data.get("command_id"),
+            },
             success=cmd_result.get("success", False),
             error_message=cmd_result.get("error"),
         )
 
         if cmd_result.get("success"):
-            return jsonify({"success": True, "message": cmd_result.get("message", f"Allowed {port}/{protocol}")})
+            return jsonify(
+                {
+                    "success": True,
+                    "message": cmd_result.get("message", f"Allowed {port}/{protocol}"),
+                }
+            )
         else:
-            return jsonify({"success": False, "error": cmd_result.get("error", "Failed to allow port")}), 500
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": cmd_result.get("error", "Failed to allow port"),
+                    }
+                ),
+                500,
+            )
 
     except HostCommandQueueUnavailable as e:
-        return jsonify({"success": False, "error": str(e), "queue_unavailable": True}), 503
+        return (
+            jsonify({"success": False, "error": str(e), "queue_unavailable": True}),
+            503,
+        )
     except HostCommandTimeout as e:
         return jsonify({"success": False, "error": str(e)}), 504
     except Exception as e:
@@ -4145,35 +4643,70 @@ def api_firewall_deny():
 
         # Validate port
         if not port or not isinstance(port, int) or not (1 <= port <= 65535):
-            return jsonify({"success": False, "error": "Invalid port. Must be integer 1-65535"}), 400
+            return (
+                jsonify({"success": False, "error": "Invalid port. Must be integer 1-65535"}),
+                400,
+            )
 
         # Validate protocol
         if protocol not in ("tcp", "udp"):
-            return jsonify({"success": False, "error": "Invalid protocol. Must be 'tcp' or 'udp'"}), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Invalid protocol. Must be 'tcp' or 'udp'",
+                    }
+                ),
+                400,
+            )
 
         user_id = current_user.id if current_user.is_authenticated else None
         username = getattr(current_user, "username", "unknown")
 
         result_data = submit_and_wait(
-            "firewall_deny", {"port": port, "protocol": protocol}, timeout=60, submitted_by=username, user_id=user_id
+            "firewall_deny",
+            {"port": port, "protocol": protocol},
+            timeout=60,
+            submitted_by=username,
+            user_id=user_id,
         )
         cmd_result = result_data.get("result", {})
 
         audit_log(
             action_type="firewall_deny",
             target=f"{port}/{protocol}",
-            details={"port": port, "protocol": protocol, "command_id": result_data.get("command_id")},
+            details={
+                "port": port,
+                "protocol": protocol,
+                "command_id": result_data.get("command_id"),
+            },
             success=cmd_result.get("success", False),
             error_message=cmd_result.get("error"),
         )
 
         if cmd_result.get("success"):
-            return jsonify({"success": True, "message": cmd_result.get("message", f"Denied {port}/{protocol}")})
+            return jsonify(
+                {
+                    "success": True,
+                    "message": cmd_result.get("message", f"Denied {port}/{protocol}"),
+                }
+            )
         else:
-            return jsonify({"success": False, "error": cmd_result.get("error", "Failed to deny port")}), 500
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": cmd_result.get("error", "Failed to deny port"),
+                    }
+                ),
+                500,
+            )
 
     except HostCommandQueueUnavailable as e:
-        return jsonify({"success": False, "error": str(e), "queue_unavailable": True}), 503
+        return (
+            jsonify({"success": False, "error": str(e), "queue_unavailable": True}),
+            503,
+        )
     except HostCommandTimeout as e:
         return jsonify({"success": False, "error": str(e)}), 504
     except Exception as e:
@@ -4195,17 +4728,49 @@ def api_firewall_update():
 
         # Validate ports
         if not old_port or not isinstance(old_port, int) or not (1 <= old_port <= 65535):
-            return jsonify({"success": False, "error": "Invalid old_port. Must be integer 1-65535"}), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Invalid old_port. Must be integer 1-65535",
+                    }
+                ),
+                400,
+            )
         if not new_port or not isinstance(new_port, int) or not (1 <= new_port <= 65535):
-            return jsonify({"success": False, "error": "Invalid new_port. Must be integer 1-65535"}), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Invalid new_port. Must be integer 1-65535",
+                    }
+                ),
+                400,
+            )
 
         # Validate protocols
         if old_protocol not in ("tcp", "udp") or new_protocol not in ("tcp", "udp"):
-            return jsonify({"success": False, "error": "Invalid protocol. Must be 'tcp' or 'udp'"}), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Invalid protocol. Must be 'tcp' or 'udp'",
+                    }
+                ),
+                400,
+            )
 
         # Validate action
         if action not in ("allow", "deny"):
-            return jsonify({"success": False, "error": "Invalid action. Must be 'allow' or 'deny'"}), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Invalid action. Must be 'allow' or 'deny'",
+                    }
+                ),
+                400,
+            )
 
         user_id = current_user.id if current_user.is_authenticated else None
         username = getattr(current_user, "username", "unknown")
@@ -4243,10 +4808,21 @@ def api_firewall_update():
         if cmd_result.get("success"):
             return jsonify({"success": True, "message": cmd_result.get("message", "Rule updated")})
         else:
-            return jsonify({"success": False, "error": cmd_result.get("error", "Failed to update rule")}), 500
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": cmd_result.get("error", "Failed to update rule"),
+                    }
+                ),
+                500,
+            )
 
     except HostCommandQueueUnavailable as e:
-        return jsonify({"success": False, "error": str(e), "queue_unavailable": True}), 503
+        return (
+            jsonify({"success": False, "error": str(e), "queue_unavailable": True}),
+            503,
+        )
     except HostCommandTimeout as e:
         return jsonify({"success": False, "error": str(e)}), 504
     except Exception as e:
@@ -4269,33 +4845,69 @@ def api_firewall_delete():
 
         # Validate rule number
         if not rule_number or not isinstance(rule_number, int) or rule_number < 1:
-            return jsonify({"success": False, "error": "Invalid rule_number. Must be integer >= 1"}), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Invalid rule_number. Must be integer >= 1",
+                    }
+                ),
+                400,
+            )
 
         user_id = current_user.id if current_user.is_authenticated else None
         username = getattr(current_user, "username", "unknown")
 
         result_data = submit_and_wait(
-            "firewall_delete", {"rule_number": rule_number}, timeout=60, submitted_by=username, user_id=user_id
+            "firewall_delete",
+            {"rule_number": rule_number},
+            timeout=60,
+            submitted_by=username,
+            user_id=user_id,
         )
         cmd_result = result_data.get("result", {})
 
         audit_log(
             action_type="firewall_delete",
             target=f"rule #{rule_number}",
-            details={"rule_number": rule_number, "command_id": result_data.get("command_id")},
+            details={
+                "rule_number": rule_number,
+                "command_id": result_data.get("command_id"),
+            },
             success=cmd_result.get("success", False),
             error_message=cmd_result.get("error"),
         )
 
         if cmd_result.get("success"):
-            return jsonify({"success": True, "message": cmd_result.get("message", f"Deleted rule #{rule_number}")})
+            return jsonify(
+                {
+                    "success": True,
+                    "message": cmd_result.get("message", f"Deleted rule #{rule_number}"),
+                }
+            )
         else:
-            return jsonify({"success": False, "error": cmd_result.get("error", "Failed to delete rule")}), 500
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": cmd_result.get("error", "Failed to delete rule"),
+                    }
+                ),
+                500,
+            )
 
     except HostCommandQueueUnavailable as e:
-        return jsonify({"success": False, "error": str(e), "queue_unavailable": True}), 503
+        return (
+            jsonify({"success": False, "error": str(e), "queue_unavailable": True}),
+            503,
+        )
     except HostCommandTimeout as e:
-        audit_log("firewall_delete", f"rule #{rule_number}", success=False, error_message=str(e))
+        audit_log(
+            "firewall_delete",
+            f"rule #{rule_number}",
+            success=False,
+            error_message=str(e),
+        )
         return jsonify({"success": False, "error": str(e)}), 504
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

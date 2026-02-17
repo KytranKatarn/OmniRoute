@@ -72,7 +72,10 @@ def figma_api_request(endpoint, user_id, method="GET", data=None):
     if not token:
         return None, "Not authenticated with Figma"
 
-    headers = {"Authorization": f'Bearer {token["access_token"]}', "Content-Type": "application/json"}
+    headers = {
+        "Authorization": f'Bearer {token["access_token"]}',
+        "Content-Type": "application/json",
+    }
 
     url = f"{FIGMA_API_URL}{endpoint}"
 
@@ -137,7 +140,10 @@ def oauth_authorize():
     if not FIGMA_CLIENT_ID:
         return (
             jsonify(
-                {"success": False, "error": "Figma OAuth not configured. Set FIGMA_CLIENT_ID environment variable."}
+                {
+                    "success": False,
+                    "error": "Figma OAuth not configured. Set FIGMA_CLIENT_ID environment variable.",
+                }
             ),
             400,
         )
@@ -156,7 +162,13 @@ def oauth_authorize():
         f"response_type=code"
     )
 
-    return jsonify({"success": True, "auth_url": auth_url, "message": "Redirect user to auth_url to authorize"})
+    return jsonify(
+        {
+            "success": True,
+            "auth_url": auth_url,
+            "message": "Redirect user to auth_url to authorize",
+        }
+    )
 
 
 @figma_bp.route("/oauth/callback")
@@ -216,7 +228,9 @@ def oauth_callback():
 
         if FIGMA_CLIENT_SECRET:
             me_response = requests.get(
-                f"{FIGMA_API_URL}/me", headers={"Authorization": f"Bearer {access_token}"}, timeout=10
+                f"{FIGMA_API_URL}/me",
+                headers={"Authorization": f"Bearer {access_token}"},
+                timeout=10,
             )
             if me_response.status_code == 200:
                 me_data = me_response.json()
@@ -242,7 +256,15 @@ def oauth_callback():
                 expires_at = EXCLUDED.expires_at,
                 updated_at = NOW()
         """,
-            (current_user.id, figma_user_id, figma_email, figma_handle, access_token, refresh_token, expires_at),
+            (
+                current_user.id,
+                figma_user_id,
+                figma_email,
+                figma_handle,
+                access_token,
+                refresh_token,
+                expires_at,
+            ),
         )
 
         conn.commit()
@@ -263,7 +285,13 @@ def oauth_status():
     token = get_user_figma_token(current_user.id)
 
     if not token:
-        return jsonify({"success": True, "authenticated": False, "message": "Not authenticated with Figma"})
+        return jsonify(
+            {
+                "success": True,
+                "authenticated": False,
+                "message": "Not authenticated with Figma",
+            }
+        )
 
     is_expired = token["expires_at"] and datetime.now() > token["expires_at"]
 
@@ -273,7 +301,7 @@ def oauth_status():
             "authenticated": not is_expired,
             "figma_email": token.get("figma_email"),
             "figma_handle": token.get("figma_handle"),
-            "expires_at": token["expires_at"].isoformat() if token["expires_at"] else None,
+            "expires_at": (token["expires_at"].isoformat() if token["expires_at"] else None),
             "is_expired": is_expired,
             "message": "Token expired" if is_expired else "Authenticated with Figma",
         }
@@ -333,7 +361,13 @@ def oauth_refresh():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "message": "Token refreshed", "expires_at": expires_at.isoformat()})
+        return jsonify(
+            {
+                "success": True,
+                "message": "Token refreshed",
+                "expires_at": expires_at.isoformat(),
+            }
+        )
 
     except Exception as e:
         logger.error(f"Token refresh error: {e}")
@@ -458,7 +492,13 @@ def get_file(file_key):
                         last_modified = EXCLUDED.last_modified,
                         updated_at = NOW()
                 """,
-                    (current_user.id, file_key, data.get("name"), data.get("version"), data.get("lastModified")),
+                    (
+                        current_user.id,
+                        file_key,
+                        data.get("name"),
+                        data.get("version"),
+                        data.get("lastModified"),
+                    ),
                 )
                 conn.commit()
                 cur.close()
@@ -494,7 +534,12 @@ def get_file(file_key):
                             "id": "2:2",
                             "name": "Hero Section",
                             "type": "FRAME",
-                            "backgroundColor": {"r": 0.95, "g": 0.95, "b": 0.98, "a": 1},
+                            "backgroundColor": {
+                                "r": 0.95,
+                                "g": 0.95,
+                                "b": 0.98,
+                                "a": 1,
+                            },
                         },
                         {
                             "id": "2:3",
@@ -551,7 +596,8 @@ def get_file_images(file_key):
     # Try real API
     if FIGMA_CLIENT_SECRET and not file_key.startswith("demo_"):
         data, error = figma_api_request(
-            f"/images/{file_key}?ids={node_ids}&format={format}&scale={scale}", current_user.id
+            f"/images/{file_key}?ids={node_ids}&format={format}&scale={scale}",
+            current_user.id,
         )
         if data:
             return jsonify({"success": True, "images": data.get("images", {})})
@@ -661,11 +707,26 @@ def parse_design():
                     "h2": {"size": "36px", "weight": 600, "lineHeight": 1.3},
                     "body": {"size": "16px", "weight": 400, "lineHeight": 1.6},
                 },
-                "spacing": {"xs": "4px", "sm": "8px", "md": "16px", "lg": "24px", "xl": "32px"},
-                "borderRadius": {"sm": "4px", "md": "8px", "lg": "16px", "full": "9999px"},
+                "spacing": {
+                    "xs": "4px",
+                    "sm": "8px",
+                    "md": "16px",
+                    "lg": "24px",
+                    "xl": "32px",
+                },
+                "borderRadius": {
+                    "sm": "4px",
+                    "md": "8px",
+                    "lg": "16px",
+                    "full": "9999px",
+                },
             },
             "detected_components": [
-                {"name": "Button", "count": 5, "variants": ["primary", "secondary", "outline"]},
+                {
+                    "name": "Button",
+                    "count": 5,
+                    "variants": ["primary", "secondary", "outline"],
+                },
                 {"name": "Card", "count": 6, "variants": ["feature", "testimonial"]},
                 {"name": "Input", "count": 2, "variants": ["text", "email"]},
                 {"name": "Icon", "count": 12, "variants": []},
@@ -701,7 +762,10 @@ Provide:
                 }
         except Exception as ai_error:
             logger.warning(f"AI analysis failed: {ai_error}")
-            ai_analysis = {"recommendations": "AI analysis unavailable", "analyzed_at": None}
+            ai_analysis = {
+                "recommendations": "AI analysis unavailable",
+                "analyzed_at": None,
+            }
 
         # Store parsed design
         cur.execute(
@@ -733,7 +797,11 @@ Provide:
                 updated_at = NOW()
             WHERE id = %s
         """,
-            (len(structure["detected_components"]), json.dumps(structure["design_tokens"]), import_id),
+            (
+                len(structure["detected_components"]),
+                json.dumps(structure["design_tokens"]),
+                import_id,
+            ),
         )
 
         conn.commit()
@@ -1056,7 +1124,12 @@ def export_to_project():
                 VALUES (%s, %s, %s, %s, 'active', NOW())
                 RETURNING id
             """,
-                (current_user.id, project_name, f"Imported from Figma", generation["framework"]),
+                (
+                    current_user.id,
+                    project_name,
+                    f"Imported from Figma",
+                    generation["framework"],
+                ),
             )
             project_row = cur.fetchone()
             project_id = project_row["id"]
@@ -1078,7 +1151,12 @@ def export_to_project():
                     content = EXCLUDED.content,
                     updated_at = NOW()
             """,
-                (project_id, file["path"], file["content"], file.get("language", "text")),
+                (
+                    project_id,
+                    file["path"],
+                    file["content"],
+                    file.get("language", "text"),
+                ),
             )
             files_created += 1
 
@@ -1182,7 +1260,15 @@ def get_stats():
         conn.close()
 
         return jsonify(
-            {"success": True, "stats": stats or {"figma_connected": False, "total_imports": 0, "total_generations": 0}}
+            {
+                "success": True,
+                "stats": stats
+                or {
+                    "figma_connected": False,
+                    "total_imports": 0,
+                    "total_generations": 0,
+                },
+            }
         )
 
     except Exception as e:

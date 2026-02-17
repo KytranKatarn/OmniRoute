@@ -5,6 +5,7 @@ Executes workflows in background threads to prevent gunicorn worker timeouts
 Author: A.R.C.H.I.E. Self-Improvement System
 Date: 2026-01-05
 """
+
 import threading
 import time
 import traceback
@@ -40,11 +41,11 @@ class BackgroundWorkflowRunner:
         # Check if workflow already running for this proposal
         with self.lock:
             for wf_id, info in self.active_workflows.items():
-                if info['proposal_id'] == proposal_id and info['status'] == 'running':
+                if info["proposal_id"] == proposal_id and info["status"] == "running":
                     return {
-                        'success': False,
-                        'error': f'Workflow already running for proposal #{proposal_id}',
-                        'workflow_id': wf_id
+                        "success": False,
+                        "error": f"Workflow already running for proposal #{proposal_id}",
+                        "workflow_id": wf_id,
                     }
 
         # Create and start background thread
@@ -52,30 +53,32 @@ class BackgroundWorkflowRunner:
             target=self._execute_workflow_thread,
             args=(workflow_id, proposal_id),
             daemon=True,
-            name=f"WorkflowThread-{proposal_id}"
+            name=f"WorkflowThread-{proposal_id}",
         )
 
         with self.lock:
             self.active_workflows[workflow_id] = {
-                'proposal_id': proposal_id,
-                'status': 'running',
-                'started_at': datetime.now().isoformat(),
-                'thread': thread
+                "proposal_id": proposal_id,
+                "status": "running",
+                "started_at": datetime.now().isoformat(),
+                "thread": thread,
             }
 
         thread.start()
 
         return {
-            'success': True,
-            'workflow_id': workflow_id,
-            'message': f'Workflow started for proposal #{proposal_id}',
-            'started_at': self.active_workflows[workflow_id]['started_at']
+            "success": True,
+            "workflow_id": workflow_id,
+            "message": f"Workflow started for proposal #{proposal_id}",
+            "started_at": self.active_workflows[workflow_id]["started_at"],
         }
 
     def _execute_workflow_thread(self, workflow_id: str, proposal_id: int):
         """Execute workflow in background thread"""
         try:
-            print(f"🚀 Background workflow {workflow_id} starting for proposal #{proposal_id}")
+            print(
+                f"🚀 Background workflow {workflow_id} starting for proposal #{proposal_id}"
+            )
 
             # Import here to avoid circular dependencies
             from workflow_orchestrator import execute_workflow
@@ -87,12 +90,14 @@ class BackgroundWorkflowRunner:
             with self.lock:
                 self.workflow_results[workflow_id] = {
                     **result,
-                    'completed_at': datetime.now().isoformat()
+                    "completed_at": datetime.now().isoformat(),
                 }
 
                 if workflow_id in self.active_workflows:
-                    self.active_workflows[workflow_id]['status'] = 'completed'
-                    self.active_workflows[workflow_id]['completed_at'] = datetime.now().isoformat()
+                    self.active_workflows[workflow_id]["status"] = "completed"
+                    self.active_workflows[workflow_id][
+                        "completed_at"
+                    ] = datetime.now().isoformat()
 
             print(f"✅ Background workflow {workflow_id} completed successfully")
 
@@ -106,16 +111,18 @@ class BackgroundWorkflowRunner:
             # Store error result
             with self.lock:
                 self.workflow_results[workflow_id] = {
-                    'success': False,
-                    'error': error_msg,
-                    'traceback': error_trace,
-                    'completed_at': datetime.now().isoformat()
+                    "success": False,
+                    "error": error_msg,
+                    "traceback": error_trace,
+                    "completed_at": datetime.now().isoformat(),
                 }
 
                 if workflow_id in self.active_workflows:
-                    self.active_workflows[workflow_id]['status'] = 'failed'
-                    self.active_workflows[workflow_id]['error'] = error_msg
-                    self.active_workflows[workflow_id]['completed_at'] = datetime.now().isoformat()
+                    self.active_workflows[workflow_id]["status"] = "failed"
+                    self.active_workflows[workflow_id]["error"] = error_msg
+                    self.active_workflows[workflow_id][
+                        "completed_at"
+                    ] = datetime.now().isoformat()
 
     def get_workflow_status(self, workflow_id: str) -> Optional[Dict]:
         """
@@ -138,10 +145,10 @@ class BackgroundWorkflowRunner:
 
             # Add result if available
             if workflow_id in self.workflow_results:
-                info['result'] = self.workflow_results[workflow_id]
+                info["result"] = self.workflow_results[workflow_id]
 
             # Remove thread object from response
-            info.pop('thread', None)
+            info.pop("thread", None)
 
             return info
 
@@ -150,26 +157,27 @@ class BackgroundWorkflowRunner:
         with self.lock:
             # Find most recent workflow for this proposal
             matching_workflows = [
-                (wf_id, info) for wf_id, info in self.active_workflows.items()
-                if info['proposal_id'] == proposal_id
+                (wf_id, info)
+                for wf_id, info in self.active_workflows.items()
+                if info["proposal_id"] == proposal_id
             ]
 
             if not matching_workflows:
                 return None
 
             # Sort by started_at descending
-            matching_workflows.sort(key=lambda x: x[1]['started_at'], reverse=True)
+            matching_workflows.sort(key=lambda x: x[1]["started_at"], reverse=True)
             latest_id, latest_info = matching_workflows[0]
 
             result = latest_info.copy()
-            result['workflow_id'] = latest_id
+            result["workflow_id"] = latest_id
 
             # Add result if available
             if latest_id in self.workflow_results:
-                result['result'] = self.workflow_results[latest_id]
+                result["result"] = self.workflow_results[latest_id]
 
             # Remove thread object
-            result.pop('thread', None)
+            result.pop("thread", None)
 
             return result
 
@@ -181,7 +189,7 @@ class BackgroundWorkflowRunner:
             to_remove = []
 
             for wf_id, info in self.active_workflows.items():
-                started_at = datetime.fromisoformat(info['started_at'])
+                started_at = datetime.fromisoformat(info["started_at"])
                 if started_at.timestamp() < cutoff:
                     to_remove.append(wf_id)
 
@@ -194,6 +202,7 @@ class BackgroundWorkflowRunner:
 
 # Global singleton instance
 _runner = None
+
 
 def get_workflow_runner() -> BackgroundWorkflowRunner:
     """Get global workflow runner instance"""

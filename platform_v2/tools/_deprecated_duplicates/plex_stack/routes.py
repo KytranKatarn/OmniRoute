@@ -14,12 +14,48 @@ logger = logging.getLogger(__name__)
 # Service configuration
 PLEX_HOST = "192.168.1.200"
 PLEX_SERVICES = {
-    "plex": {"port": 32400, "path": "/web", "icon": "play-circle", "name": "Plex", "color": "#E5A00D"},
-    "sonarr": {"port": 8989, "path": "", "icon": "tv", "name": "Sonarr", "color": "#00CCFF"},
-    "radarr": {"port": 7878, "path": "", "icon": "film", "name": "Radarr", "color": "#FFC230"},
-    "prowlarr": {"port": 9696, "path": "", "icon": "search", "name": "Prowlarr", "color": "#E66000"},
-    "overseerr": {"port": 5055, "path": "", "icon": "inbox", "name": "Overseerr", "color": "#7B2D8E"},
-    "sabnzbd": {"port": 8083, "path": "", "icon": "download", "name": "SABnzbd", "color": "#F0A000"},
+    "plex": {
+        "port": 32400,
+        "path": "/web",
+        "icon": "play-circle",
+        "name": "Plex",
+        "color": "#E5A00D",
+    },
+    "sonarr": {
+        "port": 8989,
+        "path": "",
+        "icon": "tv",
+        "name": "Sonarr",
+        "color": "#00CCFF",
+    },
+    "radarr": {
+        "port": 7878,
+        "path": "",
+        "icon": "film",
+        "name": "Radarr",
+        "color": "#FFC230",
+    },
+    "prowlarr": {
+        "port": 9696,
+        "path": "",
+        "icon": "search",
+        "name": "Prowlarr",
+        "color": "#E66000",
+    },
+    "overseerr": {
+        "port": 5055,
+        "path": "",
+        "icon": "inbox",
+        "name": "Overseerr",
+        "color": "#7B2D8E",
+    },
+    "sabnzbd": {
+        "port": 8083,
+        "path": "",
+        "icon": "download",
+        "name": "SABnzbd",
+        "color": "#F0A000",
+    },
 }
 
 
@@ -50,7 +86,10 @@ def api_status():
     # Get container status from Docker
     try:
         result = subprocess.run(
-            ["docker", "ps", "-a", "--format", "{{.Names}}\t{{.Status}}"], capture_output=True, text=True, timeout=10
+            ["docker", "ps", "-a", "--format", "{{.Names}}\t{{.Status}}"],
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         if result.returncode == 0:
             for line in result.stdout.strip().split("\n"):
@@ -85,7 +124,10 @@ def api_service_action(service_name):
         if result.returncode == 0:
             return jsonify({"success": True, "message": f"{service_name} {action}ed successfully"})
         else:
-            return jsonify({"success": False, "error": result.stderr or "Action failed"}), 500
+            return (
+                jsonify({"success": False, "error": result.stderr or "Action failed"}),
+                500,
+            )
     except subprocess.TimeoutExpired:
         return jsonify({"success": False, "error": "Command timed out"}), 500
     except Exception as e:
@@ -102,7 +144,10 @@ def api_service_logs(service_name):
 
     try:
         result = subprocess.run(
-            ["docker", "logs", "--tail", str(lines), service_name], capture_output=True, text=True, timeout=30
+            ["docker", "logs", "--tail", str(lines), service_name],
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
 
         # Docker logs go to stderr for some containers
@@ -125,7 +170,9 @@ def api_activity():
 
         # Get history
         history_response = requests.get(
-            sabnzbd_url, params={"mode": "history", "output": "json", "limit": 10}, timeout=5
+            sabnzbd_url,
+            params={"mode": "history", "output": "json", "limit": 10},
+            timeout=5,
         )
 
         queue_data = queue_response.json() if queue_response.ok else {}
@@ -154,15 +201,29 @@ def api_search():
     overseerr_url = f"http://{PLEX_HOST}:5055/api/v1/search"
 
     try:
-        response = requests.get(overseerr_url, params={"query": query, "page": 1, "language": "en"}, timeout=10)
+        response = requests.get(
+            overseerr_url,
+            params={"query": query, "page": 1, "language": "en"},
+            timeout=10,
+        )
 
         if response.ok:
             data = response.json()
             return jsonify(
-                {"success": True, "results": data.get("results", [])[:10], "total": data.get("totalResults", 0)}
+                {
+                    "success": True,
+                    "results": data.get("results", [])[:10],
+                    "total": data.get("totalResults", 0),
+                }
             )
         else:
-            return jsonify({"success": False, "error": f"Overseerr returned {response.status_code}", "results": []})
+            return jsonify(
+                {
+                    "success": False,
+                    "error": f"Overseerr returned {response.status_code}",
+                    "results": [],
+                }
+            )
     except Exception as e:
         return jsonify({"success": False, "error": str(e), "results": []})
 
@@ -171,5 +232,10 @@ def api_search():
 def api_health():
     """Health check endpoint for module registry"""
     return jsonify(
-        {"module": "plex_stack", "status": "active", "healthy": True, "message": "Plex Stack module operational"}
+        {
+            "module": "plex_stack",
+            "status": "active",
+            "healthy": True,
+            "message": "Plex Stack module operational",
+        }
     )

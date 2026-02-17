@@ -33,7 +33,12 @@ except ImportError:
 
 
 # Create blueprint
-analytics_bp = Blueprint("analytics", __name__, url_prefix="/tools/analytics", template_folder="../../templates/tools")
+analytics_bp = Blueprint(
+    "analytics",
+    __name__,
+    url_prefix="/tools/analytics",
+    template_folder="../../templates/tools",
+)
 
 
 def get_db_connection():
@@ -164,7 +169,8 @@ def index():
         )
         emails = cur.fetchone() or {}
         emails["email_open_rate"] = round(
-            (emails.get("emails_opened", 0) / max(emails.get("emails_sent", 1), 1)) * 100, 1
+            (emails.get("emails_opened", 0) / max(emails.get("emails_sent", 1), 1)) * 100,
+            1,
         )
         metrics.update(emails)
 
@@ -385,7 +391,11 @@ def get_metrics():
         conn.close()
 
         return jsonify(
-            {"success": True, "metrics": json.loads(json.dumps(metrics, default=json_serial)), "period": period}
+            {
+                "success": True,
+                "metrics": json.loads(json.dumps(metrics, default=json_serial)),
+                "period": period,
+            }
         )
 
     except Exception as e:
@@ -423,7 +433,13 @@ def get_metric(metric_name):
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "metric": metric_name, "value": float(result["value"]) if result else 0})
+        return jsonify(
+            {
+                "success": True,
+                "metric": metric_name,
+                "value": float(result["value"]) if result else 0,
+            }
+        )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -495,7 +511,12 @@ def get_revenue_chart():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "data": json.loads(json.dumps([dict(d) for d in data], default=json_serial))})
+        return jsonify(
+            {
+                "success": True,
+                "data": json.loads(json.dumps([dict(d) for d in data], default=json_serial)),
+            }
+        )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -532,7 +553,12 @@ def get_customers_chart():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "data": json.loads(json.dumps([dict(d) for d in data], default=json_serial))})
+        return jsonify(
+            {
+                "success": True,
+                "data": json.loads(json.dumps([dict(d) for d in data], default=json_serial)),
+            }
+        )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -611,7 +637,10 @@ def get_dashboards():
         conn.close()
 
         return jsonify(
-            {"success": True, "dashboards": json.loads(json.dumps([dict(d) for d in dashboards], default=json_serial))}
+            {
+                "success": True,
+                "dashboards": json.loads(json.dumps([dict(d) for d in dashboards], default=json_serial)),
+            }
         )
 
     except Exception as e:
@@ -649,7 +678,12 @@ def create_dashboard():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "dashboard": json.loads(json.dumps(dict(dashboard), default=json_serial))})
+        return jsonify(
+            {
+                "success": True,
+                "dashboard": json.loads(json.dumps(dict(dashboard), default=json_serial)),
+            }
+        )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -686,7 +720,10 @@ def get_goals():
         conn.close()
 
         return jsonify(
-            {"success": True, "goals": json.loads(json.dumps([dict(g) for g in goals], default=json_serial))}
+            {
+                "success": True,
+                "goals": json.loads(json.dumps([dict(g) for g in goals], default=json_serial)),
+            }
         )
 
     except Exception as e:
@@ -727,7 +764,12 @@ def create_goal():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "goal": json.loads(json.dumps(dict(goal), default=json_serial))})
+        return jsonify(
+            {
+                "success": True,
+                "goal": json.loads(json.dumps(dict(goal), default=json_serial)),
+            }
+        )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -779,7 +821,12 @@ def update_goal(goal_id):
         if not goal:
             return jsonify({"success": False, "error": "Goal not found"}), 404
 
-        return jsonify({"success": True, "goal": json.loads(json.dumps(dict(goal), default=json_serial))})
+        return jsonify(
+            {
+                "success": True,
+                "goal": json.loads(json.dumps(dict(goal), default=json_serial)),
+            }
+        )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -833,7 +880,10 @@ def get_reports():
         conn.close()
 
         return jsonify(
-            {"success": True, "reports": json.loads(json.dumps([dict(r) for r in reports], default=json_serial))}
+            {
+                "success": True,
+                "reports": json.loads(json.dumps([dict(r) for r in reports], default=json_serial)),
+            }
         )
 
     except Exception as e:
@@ -946,7 +996,11 @@ def generate_snapshot():
         conn.close()
 
         return jsonify(
-            {"success": True, "snapshot_id": snapshot_id, "message": f"Snapshot generated for {snapshot_date}"}
+            {
+                "success": True,
+                "snapshot_id": snapshot_id,
+                "message": f"Snapshot generated for {snapshot_date}",
+            }
         )
 
     except Exception as e:
@@ -980,7 +1034,10 @@ def get_snapshots():
         conn.close()
 
         return jsonify(
-            {"success": True, "snapshots": json.loads(json.dumps([dict(s) for s in snapshots], default=json_serial))}
+            {
+                "success": True,
+                "snapshots": json.loads(json.dumps([dict(s) for s in snapshots], default=json_serial)),
+            }
         )
 
     except Exception as e:
@@ -1019,4 +1076,14 @@ def api_status():
         )
 
     except Exception as e:
-        return jsonify({"module": "analytics", "status": "error", "healthy": False, "error": str(e)}), 500
+        return (
+            jsonify(
+                {
+                    "module": "analytics",
+                    "status": "error",
+                    "healthy": False,
+                    "error": str(e),
+                }
+            ),
+            500,
+        )

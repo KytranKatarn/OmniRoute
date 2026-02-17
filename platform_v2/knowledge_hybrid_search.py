@@ -11,6 +11,7 @@ Purpose:
 Author: A.R.C.H.I.E. Platform
 Date: 2026-01-06
 """
+
 from typing import Dict, List, Optional
 import re
 from knowledge_embedding_generator import KnowledgeEmbeddingGenerator
@@ -19,20 +20,12 @@ from knowledge_embedding_generator import KnowledgeEmbeddingGenerator
 class KnowledgeHybridSearch:
     """Hybrid search combining keyword and semantic approaches"""
 
-    def __init__(
-        self,
-        keyword_weight: float = 0.3,
-        semantic_weight: float = 0.7
-    ):
+    def __init__(self, keyword_weight: float = 0.3, semantic_weight: float = 0.7):
         self.keyword_weight = keyword_weight
         self.semantic_weight = semantic_weight
         self.embedding_generator = KnowledgeEmbeddingGenerator()
 
-    def keyword_search(
-        self,
-        query: str,
-        limit: int = 50
-    ) -> List[Dict]:
+    def keyword_search(self, query: str, limit: int = 50) -> List[Dict]:
         """
         Perform keyword-based search using PostgreSQL full-text search
 
@@ -108,27 +101,29 @@ class KnowledgeHybridSearch:
                         exact_match,
                         exact_match,
                         exact_match,
-                        limit
-                    )
+                        limit,
+                    ),
                 )
 
                 results = []
                 for row in result:
-                    results.append({
-                        'id': row[0],
-                        'knowledge_type': row[1],
-                        'entity_name': row[2],
-                        'file_path': row[3],
-                        'description': row[4],
-                        'purpose': row[5],
-                        'code_snippet': row[6],
-                        'documentation': row[7],
-                        'complexity_score': row[8],
-                        'importance_score': row[9],
-                        'tags': row[10],
-                        'metadata': row[11],
-                        'keyword_score': float(row[12]) if row[12] else 0.0
-                    })
+                    results.append(
+                        {
+                            "id": row[0],
+                            "knowledge_type": row[1],
+                            "entity_name": row[2],
+                            "file_path": row[3],
+                            "description": row[4],
+                            "purpose": row[5],
+                            "code_snippet": row[6],
+                            "documentation": row[7],
+                            "complexity_score": row[8],
+                            "importance_score": row[9],
+                            "tags": row[10],
+                            "metadata": row[11],
+                            "keyword_score": float(row[12]) if row[12] else 0.0,
+                        }
+                    )
 
                 return results
 
@@ -136,11 +131,7 @@ class KnowledgeHybridSearch:
             print(f"[Hybrid Search] Error in keyword search: {e}")
             return []
 
-    def semantic_search(
-        self,
-        query: str,
-        limit: int = 50
-    ) -> List[Dict]:
+    def semantic_search(self, query: str, limit: int = 50) -> List[Dict]:
         """
         Perform semantic search using embeddings
 
@@ -190,6 +181,7 @@ class KnowledgeHybridSearch:
                     try:
                         # Parse embedding
                         import json
+
                         embedding_data = row[12]
 
                         if isinstance(embedding_data, str):
@@ -201,33 +193,32 @@ class KnowledgeHybridSearch:
                             continue
 
                         # Calculate semantic similarity
-                        similarity = self.embedding_generator.cosine_similarity(
-                            query_embedding,
-                            entry_embedding
-                        )
+                        similarity = self.embedding_generator.cosine_similarity(query_embedding, entry_embedding)
 
-                        results.append({
-                            'id': row[0],
-                            'knowledge_type': row[1],
-                            'entity_name': row[2],
-                            'file_path': row[3],
-                            'description': row[4],
-                            'purpose': row[5],
-                            'code_snippet': row[6],
-                            'documentation': row[7],
-                            'complexity_score': row[8],
-                            'importance_score': row[9],
-                            'tags': row[10],
-                            'metadata': row[11],
-                            'semantic_score': similarity
-                        })
+                        results.append(
+                            {
+                                "id": row[0],
+                                "knowledge_type": row[1],
+                                "entity_name": row[2],
+                                "file_path": row[3],
+                                "description": row[4],
+                                "purpose": row[5],
+                                "code_snippet": row[6],
+                                "documentation": row[7],
+                                "complexity_score": row[8],
+                                "importance_score": row[9],
+                                "tags": row[10],
+                                "metadata": row[11],
+                                "semantic_score": similarity,
+                            }
+                        )
 
                     except Exception as e:
                         print(f"[Hybrid Search] Error processing entry {row[0]}: {e}")
                         continue
 
                 # Sort by semantic score
-                results.sort(key=lambda x: x['semantic_score'], reverse=True)
+                results.sort(key=lambda x: x["semantic_score"], reverse=True)
 
                 return results[:limit]
 
@@ -235,12 +226,7 @@ class KnowledgeHybridSearch:
             print(f"[Hybrid Search] Error in semantic search: {e}")
             return []
 
-    def hybrid_search(
-        self,
-        query: str,
-        limit: int = 10,
-        min_score: float = 0.1
-    ) -> List[Dict]:
+    def hybrid_search(self, query: str, limit: int = 10, min_score: float = 0.1) -> List[Dict]:
         """
         Perform hybrid search combining keyword and semantic approaches
 
@@ -263,54 +249,51 @@ class KnowledgeHybridSearch:
             print(f"[Hybrid Search] Semantic results: {len(semantic_results)}")
 
             # Normalize scores
-            keyword_max = max([r['keyword_score'] for r in keyword_results], default=1.0)
-            semantic_max = max([r['semantic_score'] for r in semantic_results], default=1.0)
+            keyword_max = max([r["keyword_score"] for r in keyword_results], default=1.0)
+            semantic_max = max([r["semantic_score"] for r in semantic_results], default=1.0)
 
             # Create combined results dict
             combined = {}
 
             # Add keyword results
             for result in keyword_results:
-                entry_id = result['id']
-                normalized_keyword = result['keyword_score'] / keyword_max if keyword_max > 0 else 0
+                entry_id = result["id"]
+                normalized_keyword = result["keyword_score"] / keyword_max if keyword_max > 0 else 0
 
                 combined[entry_id] = {
                     **result,
-                    'keyword_score_normalized': normalized_keyword,
-                    'semantic_score_normalized': 0.0
+                    "keyword_score_normalized": normalized_keyword,
+                    "semantic_score_normalized": 0.0,
                 }
 
             # Add/merge semantic results
             for result in semantic_results:
-                entry_id = result['id']
-                normalized_semantic = result['semantic_score'] / semantic_max if semantic_max > 0 else 0
+                entry_id = result["id"]
+                normalized_semantic = result["semantic_score"] / semantic_max if semantic_max > 0 else 0
 
                 if entry_id in combined:
                     # Update existing entry
-                    combined[entry_id]['semantic_score'] = result.get('semantic_score', 0)
-                    combined[entry_id]['semantic_score_normalized'] = normalized_semantic
+                    combined[entry_id]["semantic_score"] = result.get("semantic_score", 0)
+                    combined[entry_id]["semantic_score_normalized"] = normalized_semantic
                 else:
                     # Add new entry
                     combined[entry_id] = {
                         **result,
-                        'keyword_score_normalized': 0.0,
-                        'semantic_score_normalized': normalized_semantic
+                        "keyword_score_normalized": 0.0,
+                        "semantic_score_normalized": normalized_semantic,
                     }
 
             # Calculate hybrid scores
             for entry in combined.values():
-                keyword_contrib = entry['keyword_score_normalized'] * self.keyword_weight
-                semantic_contrib = entry['semantic_score_normalized'] * self.semantic_weight
+                keyword_contrib = entry["keyword_score_normalized"] * self.keyword_weight
+                semantic_contrib = entry["semantic_score_normalized"] * self.semantic_weight
 
-                entry['hybrid_score'] = keyword_contrib + semantic_contrib
+                entry["hybrid_score"] = keyword_contrib + semantic_contrib
 
             # Filter by minimum score and sort
-            results = [
-                entry for entry in combined.values()
-                if entry['hybrid_score'] >= min_score
-            ]
+            results = [entry for entry in combined.values() if entry["hybrid_score"] >= min_score]
 
-            results.sort(key=lambda x: x['hybrid_score'], reverse=True)
+            results.sort(key=lambda x: x["hybrid_score"], reverse=True)
 
             # Return top results
             top_results = results[:limit]
@@ -322,22 +305,18 @@ class KnowledgeHybridSearch:
         except Exception as e:
             print(f"[Hybrid Search] Error in hybrid search: {e}")
             import traceback
+
             traceback.print_exc()
             return []
 
     def _extract_search_terms(self, query: str) -> List[str]:
         """Extract meaningful search terms from query"""
         # Remove special characters and split
-        cleaned = re.sub(r'[^\w\s]', ' ', query.lower())
+        cleaned = re.sub(r"[^\w\s]", " ", query.lower())
         terms = [term for term in cleaned.split() if len(term) > 2]
         return terms
 
-    def search_by_category(
-        self,
-        query: str,
-        knowledge_type: Optional[str] = None,
-        limit: int = 10
-    ) -> List[Dict]:
+    def search_by_category(self, query: str, knowledge_type: Optional[str] = None, limit: int = 10) -> List[Dict]:
         """
         Search within a specific knowledge type category
 
@@ -352,7 +331,7 @@ class KnowledgeHybridSearch:
         results = self.hybrid_search(query, limit=limit * 2)
 
         if knowledge_type:
-            results = [r for r in results if r.get('knowledge_type') == knowledge_type]
+            results = [r for r in results if r.get("knowledge_type") == knowledge_type]
 
         return results[:limit]
 

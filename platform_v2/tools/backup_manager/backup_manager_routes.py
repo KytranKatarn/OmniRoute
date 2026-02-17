@@ -171,7 +171,10 @@ backup_manager_bp = Blueprint("backup_manager", __name__, url_prefix="/tools/bac
 
 
 def create_backup_programmatic(
-    description="Auto-backup", created_by_username="system", proposal_id=None, compress=True
+    description="Auto-backup",
+    created_by_username="system",
+    proposal_id=None,
+    compress=True,
 ):
     """
     Create a comprehensive backup of A.R.C.H.I.E. Platform (programmatic API)
@@ -211,7 +214,11 @@ def create_backup_programmatic(
         pre_ok, pre_results = execute_pre_hooks(backup_name)
         if not pre_ok:
             release_backup_lock()
-            return {"success": False, "error": "Pre-backup hook failed", "hook_results": pre_results}
+            return {
+                "success": False,
+                "error": "Pre-backup hook failed",
+                "hook_results": pre_results,
+            }
 
         os.makedirs(backup_path, exist_ok=True)
 
@@ -305,7 +312,11 @@ def create_backup_programmatic(
         # 11. Backup conversation logs (Claude Code hook transcripts)
         conversation_logs_src = "/mnt/archie_brain/conversation_logs"
         if os.path.exists(conversation_logs_src):
-            shutil.copytree(conversation_logs_src, os.path.join(backup_path, "conversation_logs"), dirs_exist_ok=True)
+            shutil.copytree(
+                conversation_logs_src,
+                os.path.join(backup_path, "conversation_logs"),
+                dirs_exist_ok=True,
+            )
             print("  ✓ Conversation logs backup complete")
 
         # Calculate total backup size
@@ -341,7 +352,7 @@ def create_backup_programmatic(
             "total_size_bytes": total_size,
             "total_size_mb": round(total_size / (1024 * 1024), 2),
             "external_copy": external_result.get("success", False),
-            "external_path": external_result.get("external_path") if external_result.get("success") else None,
+            "external_path": (external_result.get("external_path") if external_result.get("success") else None),
             "components": {
                 "database": True,
                 "platform_v2": True,
@@ -858,7 +869,12 @@ def verify_backup_integrity(backup_name):
 
     # Check backup directory exists
     if not os.path.isdir(backup_path):
-        return {"valid": False, "backup_name": backup_name, "checks": {}, "errors": ["Backup directory does not exist"]}
+        return {
+            "valid": False,
+            "backup_name": backup_name,
+            "checks": {},
+            "errors": ["Backup directory does not exist"],
+        }
 
     # Check metadata.json
     metadata_file = os.path.join(backup_path, "metadata.json")
@@ -929,7 +945,12 @@ def verify_backup_integrity(backup_name):
     # Overall validity
     valid = all(checks.values())
 
-    return {"valid": valid, "backup_name": backup_name, "checks": checks, "errors": errors}
+    return {
+        "valid": valid,
+        "backup_name": backup_name,
+        "checks": checks,
+        "errors": errors,
+    }
 
 
 def get_db_connection():
@@ -1180,7 +1201,7 @@ def execute_hooks(hook_dir, backup_name, metadata=None):
                     "script": script,
                     "success": result.returncode == 0,
                     "output": result.stdout[:1000] if result.stdout else "",
-                    "error": result.stderr[:500] if result.returncode != 0 and result.stderr else None,
+                    "error": (result.stderr[:500] if result.returncode != 0 and result.stderr else None),
                 }
             )
         except subprocess.TimeoutExpired:
@@ -1249,7 +1270,11 @@ def trigger_webhooks(event_type, payload):
                 timeout=10,
             )
             results.append(
-                {"url": webhook["url"], "status": response.status_code, "success": 200 <= response.status_code < 300}
+                {
+                    "url": webhook["url"],
+                    "status": response.status_code,
+                    "success": 200 <= response.status_code < 300,
+                }
             )
 
             # Update webhook last triggered
@@ -1374,7 +1399,15 @@ def preview_restore(backup_name):
 
             # Add info about non-restorable components (for user understanding)
             all_components = metadata.get("components", {})
-            restorable = {"database", "platform_v2", "ai_bridge", "docs", "scripts", "nginx", "n8n_workflows"}
+            restorable = {
+                "database",
+                "platform_v2",
+                "ai_bridge",
+                "docs",
+                "scripts",
+                "nginx",
+                "n8n_workflows",
+            }
             non_restorable = [k for k, v in all_components.items() if v and k not in restorable]
             if non_restorable:
                 preview["non_restorable_components"] = non_restorable
@@ -1445,7 +1478,12 @@ def restore_components(backup_name, components):
                 else:
                     results["errors"].append({"component": "database", "error": restore_result["error"]})
             else:
-                results["errors"].append({"component": "database", "error": "Database file not found in backup"})
+                results["errors"].append(
+                    {
+                        "component": "database",
+                        "error": "Database file not found in backup",
+                    }
+                )
         except Exception as e:
             results["errors"].append({"component": "database", "error": str(e)})
 
@@ -1460,7 +1498,12 @@ def restore_components(backup_name, components):
                         shutil.copytree(src, dst, dirs_exist_ok=True)
                 results["restored"].append("platform")
             else:
-                results["errors"].append({"component": "platform", "error": "Platform directory not found in backup"})
+                results["errors"].append(
+                    {
+                        "component": "platform",
+                        "error": "Platform directory not found in backup",
+                    }
+                )
         except Exception as e:
             results["errors"].append({"component": "platform", "error": str(e)})
 
@@ -1546,9 +1589,18 @@ def compare_backups(backup1_name, backup2_name):
             meta2 = json.load(f)
 
         comparison["metadata_diff"] = {
-            "build_number": {"old": meta1.get("build_number"), "new": meta2.get("build_number")},
-            "platform_version": {"old": meta1.get("platform_version"), "new": meta2.get("platform_version")},
-            "created_at": {"old": meta1.get("created_at"), "new": meta2.get("created_at")},
+            "build_number": {
+                "old": meta1.get("build_number"),
+                "new": meta2.get("build_number"),
+            },
+            "platform_version": {
+                "old": meta1.get("platform_version"),
+                "new": meta2.get("platform_version"),
+            },
+            "created_at": {
+                "old": meta1.get("created_at"),
+                "new": meta2.get("created_at"),
+            },
         }
     except Exception:
         pass
@@ -1789,7 +1841,12 @@ def backup_health():
         # Check: No backups
         if backup_count == 0:
             healthy = False
-            alerts.append({"level": "critical", "message": "No backups found - system is unprotected"})
+            alerts.append(
+                {
+                    "level": "critical",
+                    "message": "No backups found - system is unprotected",
+                }
+            )
 
         # Check: Latest backup age
         latest_backup = None
@@ -1806,11 +1863,17 @@ def backup_health():
                     if latest_age_hours > 48:
                         healthy = False
                         alerts.append(
-                            {"level": "warning", "message": f"Latest backup is {latest_age_hours:.1f} hours old (>48h)"}
+                            {
+                                "level": "warning",
+                                "message": f"Latest backup is {latest_age_hours:.1f} hours old (>48h)",
+                            }
                         )
                     elif latest_age_hours > 24:
                         alerts.append(
-                            {"level": "info", "message": f"Latest backup is {latest_age_hours:.1f} hours old"}
+                            {
+                                "level": "info",
+                                "message": f"Latest backup is {latest_age_hours:.1f} hours old",
+                            }
                         )
                 except Exception:
                     pass
@@ -1831,16 +1894,27 @@ def backup_health():
                 if db_size < min_size:
                     healthy = False
                     alerts.append(
-                        {"level": "critical", "message": f"Latest backup database file is too small ({db_size} bytes)"}
+                        {
+                            "level": "critical",
+                            "message": f"Latest backup database file is too small ({db_size} bytes)",
+                        }
                     )
             else:
                 healthy = False
-                alerts.append({"level": "critical", "message": "Latest backup missing database.sql or database.sql.gz"})
+                alerts.append(
+                    {
+                        "level": "critical",
+                        "message": "Latest backup missing database.sql or database.sql.gz",
+                    }
+                )
 
         # Check: Disk space (warning if backups > 10GB)
         if total_size > 10 * 1024 * 1024 * 1024:  # 10GB
             alerts.append(
-                {"level": "warning", "message": f"Backup storage exceeds 10GB ({total_size / (1024*1024*1024):.1f}GB)"}
+                {
+                    "level": "warning",
+                    "message": f"Backup storage exceeds 10GB ({total_size / (1024*1024*1024):.1f}GB)",
+                }
             )
 
         return jsonify(
@@ -1848,7 +1922,7 @@ def backup_health():
                 "healthy": healthy,
                 "total_backups": backup_count,
                 "latest_backup": latest_backup.get("name") if latest_backup else None,
-                "latest_age_hours": round(latest_age_hours, 1) if latest_age_hours else None,
+                "latest_age_hours": (round(latest_age_hours, 1) if latest_age_hours else None),
                 "total_storage_bytes": total_size,
                 "total_storage_formatted": f"{total_size / (1024*1024):.1f} MB",
                 "platform_version": get_platform_version(),
@@ -1863,7 +1937,12 @@ def backup_health():
                 {
                     "healthy": False,
                     "error": str(e),
-                    "alerts": [{"level": "critical", "message": f"Health check failed: {str(e)}"}],
+                    "alerts": [
+                        {
+                            "level": "critical",
+                            "message": f"Health check failed: {str(e)}",
+                        }
+                    ],
                 }
             ),
             500,
@@ -1878,7 +1957,10 @@ def verify_backup(backup_name):
         result = verify_backup_integrity(backup_name)
         return jsonify(result)
     except Exception as e:
-        return jsonify({"valid": False, "backup_name": backup_name, "error": str(e)}), 500
+        return (
+            jsonify({"valid": False, "backup_name": backup_name, "error": str(e)}),
+            500,
+        )
 
 
 @backup_manager_bp.route("/create", methods=["POST"])
@@ -1937,7 +2019,16 @@ def api_create_backup():
         pre_ok, pre_results = execute_pre_hooks(backup_name)
         if not pre_ok:
             release_backup_lock()
-            return jsonify({"success": False, "error": "Pre-backup hook failed", "hook_results": pre_results}), 500
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Pre-backup hook failed",
+                        "hook_results": pre_results,
+                    }
+                ),
+                500,
+            )
 
         os.makedirs(backup_path, exist_ok=True)
 
@@ -1958,13 +2049,24 @@ def api_create_backup():
         if "platform" in components_to_backup:
             current_app.logger.info("Backing up platform files...")
             platform_backup = os.path.join(backup_path, "platform_v2")
-            platform_dirs = ["tools", "templates", "static", "consciousness", "migrations"]
+            platform_dirs = [
+                "tools",
+                "templates",
+                "static",
+                "consciousness",
+                "migrations",
+            ]
             for dir_name in platform_dirs:
                 src = os.path.join(PLATFORM_DIR, dir_name)
                 if os.path.exists(src):
                     dst = os.path.join(platform_backup, dir_name)
                     shutil.copytree(src, dst, dirs_exist_ok=True)
-            important_files = ["app.py", "requirements.txt", "docker-compose.yml", ".env"]
+            important_files = [
+                "app.py",
+                "requirements.txt",
+                "docker-compose.yml",
+                ".env",
+            ]
             for file_name in important_files:
                 src = os.path.join(PLATFORM_DIR, file_name)
                 if os.path.exists(src):
@@ -2225,7 +2327,10 @@ def restore_backup(backup_name):
         rollback_script = os.path.join(backup_path, "rollback.sh")
 
         if not os.path.exists(rollback_script):
-            return jsonify({"success": False, "error": "Rollback script not found"}), 404
+            return (
+                jsonify({"success": False, "error": "Rollback script not found"}),
+                404,
+            )
 
         # Execute rollback script
         result = subprocess.run(["bash", rollback_script], capture_output=True, text=True)
@@ -2264,7 +2369,10 @@ def download_backup(backup_name):
                 tar.add(backup_path, arcname=backup_name)
 
             response = send_file(
-                archive_path, as_attachment=True, download_name=f"{backup_name}.tar.gz", mimetype="application/gzip"
+                archive_path,
+                as_attachment=True,
+                download_name=f"{backup_name}.tar.gz",
+                mimetype="application/gzip",
             )
 
             # Schedule cleanup after response is sent
@@ -2301,7 +2409,10 @@ def delete_backup(backup_name):
         all_backups = [d for d in os.listdir(BACKUP_DIR) if os.path.isdir(os.path.join(BACKUP_DIR, d))]
 
         if len(all_backups) == 1:
-            return jsonify({"success": False, "error": "Cannot delete the only backup"}), 400
+            return (
+                jsonify({"success": False, "error": "Cannot delete the only backup"}),
+                400,
+            )
 
         # Delete backup directory
         shutil.rmtree(backup_path)
@@ -2338,7 +2449,13 @@ def retention_status():
     """
     try:
         status = get_backup_retention_status()
-        return jsonify({"success": True, "retention_policy": "7 daily + 4 weekly + 6 monthly", **status})
+        return jsonify(
+            {
+                "success": True,
+                "retention_policy": "7 daily + 4 weekly + 6 monthly",
+                **status,
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -2459,12 +2576,18 @@ def deploy_backup_to_sandbox():
         sandbox_id = data.get("sandbox_id")
 
         if not backup_name or not sandbox_id:
-            return jsonify({"success": False, "error": "backup_name and sandbox_id required"}), 400
+            return (
+                jsonify({"success": False, "error": "backup_name and sandbox_id required"}),
+                400,
+            )
 
         # Get backup path
         backup_path = os.path.join(BACKUP_DIR, backup_name)
         if not os.path.exists(backup_path):
-            return jsonify({"success": False, "error": f"Backup {backup_name} not found"}), 404
+            return (
+                jsonify({"success": False, "error": f"Backup {backup_name} not found"}),
+                404,
+            )
 
         # Get sandbox details
         with get_backup_db_cursor(commit=False) as (conn, cur):
@@ -2480,7 +2603,15 @@ def deploy_backup_to_sandbox():
             sandbox = cur.fetchone()
 
         if not sandbox:
-            return jsonify({"success": False, "error": f"Sandbox #{sandbox_id} not found or destroyed"}), 404
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"Sandbox #{sandbox_id} not found or destroyed",
+                    }
+                ),
+                404,
+            )
 
         sandbox_type = sandbox[2]
         schema_name = sandbox[3]
@@ -2556,7 +2687,12 @@ def deploy_backup_to_sandbox():
                 deployment_log.append("Found platform code, copying to container...")
 
                 result = subprocess.run(
-                    ["docker", "cp", platform_backup_path + "/.", f"{container_id}:/app/"],
+                    [
+                        "docker",
+                        "cp",
+                        platform_backup_path + "/.",
+                        f"{container_id}:/app/",
+                    ],
                     capture_output=True,
                     text=True,
                     timeout=60,
@@ -2649,7 +2785,11 @@ def set_current_build(build_number):
             f.write(str(build_number))
 
         return jsonify(
-            {"success": True, "current_build": build_number, "message": f"Current build set to #{build_number}"}
+            {
+                "success": True,
+                "current_build": build_number,
+                "message": f"Current build set to #{build_number}",
+            }
         )
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -2689,7 +2829,9 @@ def api_backup_module():
             return jsonify({"success": False, "error": "module_name is required"}), 400
 
         result = backup_module(
-            module_name=module_name, proposal_id=proposal_id, created_by_username=current_user.username
+            module_name=module_name,
+            proposal_id=proposal_id,
+            created_by_username=current_user.username,
         )
 
         if result["success"]:
@@ -2772,12 +2914,23 @@ def restore_module_backup(backup_name):
         backup_path = os.path.join(BACKUP_DIR, "modules", backup_name)
 
         if not os.path.exists(backup_path):
-            return jsonify({"success": False, "error": f"Module backup {backup_name} not found"}), 404
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"Module backup {backup_name} not found",
+                    }
+                ),
+                404,
+            )
 
         # Read metadata
         metadata_file = os.path.join(backup_path, "metadata.json")
         if not os.path.exists(metadata_file):
-            return jsonify({"success": False, "error": "Backup metadata not found"}), 400
+            return (
+                jsonify({"success": False, "error": "Backup metadata not found"}),
+                400,
+            )
 
         with open(metadata_file, "r") as f:
             metadata = json.load(f)
@@ -2919,7 +3072,10 @@ def verify_modules_coverage():
 
             modules = get_all_modules()
         except ImportError:
-            return jsonify({"success": False, "error": "Could not import module_registry"}), 500
+            return (
+                jsonify({"success": False, "error": "Could not import module_registry"}),
+                500,
+            )
 
         covered = []
         missing = []
@@ -2948,7 +3104,7 @@ def verify_modules_coverage():
             module_info = {
                 "id": module_id,
                 "name": module_name,
-                "category": module.category.value if hasattr(module.category, "value") else str(module.category),
+                "category": (module.category.value if hasattr(module.category, "value") else str(module.category)),
                 "has_routes": has_routes,
                 "has_templates": has_templates,
                 "enabled": module.enabled,
@@ -3001,7 +3157,10 @@ def get_deployment_backups():
     Shows backups automatically created before deploying proposals.
     """
     try:
-        with get_backup_db_cursor(commit=False, cursor_factory=RealDictCursor) as (conn, cur):
+        with get_backup_db_cursor(commit=False, cursor_factory=RealDictCursor) as (
+            conn,
+            cur,
+        ):
             cur.execute(
                 """
                 SELECT
@@ -3030,7 +3189,13 @@ def get_deployment_backups():
 
     except Exception as e:
         current_app.logger.error(f"Failed to load deployment backups: {e}")
-        return jsonify({"success": True, "deployments": [], "note": f"Error loading deployment backups: {str(e)}"})
+        return jsonify(
+            {
+                "success": True,
+                "deployments": [],
+                "note": f"Error loading deployment backups: {str(e)}",
+            }
+        )
 
 
 # =============================================================================
@@ -3287,7 +3452,10 @@ echo ""
 def list_deployment_packages():
     """List all deployment packages"""
     try:
-        with get_backup_db_cursor(commit=False, cursor_factory=RealDictCursor) as (conn, cur):
+        with get_backup_db_cursor(commit=False, cursor_factory=RealDictCursor) as (
+            conn,
+            cur,
+        ):
             cur.execute(
                 """
                 SELECT
@@ -3360,7 +3528,10 @@ def create_deployment_package():
         if from_backup:
             backup_path = os.path.join(BACKUP_DIR, from_backup)
             if not os.path.exists(backup_path):
-                return jsonify({"success": False, "error": f"Backup {from_backup} not found"}), 404
+                return (
+                    jsonify({"success": False, "error": f"Backup {from_backup} not found"}),
+                    404,
+                )
 
             # Copy backup contents
             for item in os.listdir(backup_path):
@@ -3384,7 +3555,13 @@ def create_deployment_package():
             # 2. Platform code
             current_app.logger.info("  Copying platform code...")
             platform_dst = os.path.join(package_dir, "platform_v2")
-            platform_dirs = ["tools", "templates", "static", "consciousness", "migrations"]
+            platform_dirs = [
+                "tools",
+                "templates",
+                "static",
+                "consciousness",
+                "migrations",
+            ]
             for dir_name in platform_dirs:
                 src = os.path.join(PLATFORM_DIR, dir_name)
                 if os.path.exists(src):
@@ -3392,7 +3569,13 @@ def create_deployment_package():
                     shutil.copytree(src, dst, dirs_exist_ok=True)
 
             # Copy important platform files
-            important_files = ["app.py", "requirements.txt", "config.py", "module_registry.py", "rbac.py"]
+            important_files = [
+                "app.py",
+                "requirements.txt",
+                "config.py",
+                "module_registry.py",
+                "rbac.py",
+            ]
             for file_name in important_files:
                 src = os.path.join(PLATFORM_DIR, file_name)
                 if os.path.exists(src):
@@ -3402,7 +3585,11 @@ def create_deployment_package():
             # 3. AI Bridge
             ai_bridge_src = "/mnt/archie_brain/ai_bridge"
             if os.path.exists(ai_bridge_src):
-                shutil.copytree(ai_bridge_src, os.path.join(package_dir, "ai_bridge"), dirs_exist_ok=True)
+                shutil.copytree(
+                    ai_bridge_src,
+                    os.path.join(package_dir, "ai_bridge"),
+                    dirs_exist_ok=True,
+                )
                 components_included.append("ai_bridge")
 
             # 4. Documentation
@@ -3422,7 +3609,11 @@ def create_deployment_package():
             # 6. Scripts
             scripts_src = "/mnt/archie_brain/scripts"
             if os.path.exists(scripts_src):
-                shutil.copytree(scripts_src, os.path.join(package_dir, "scripts"), dirs_exist_ok=True)
+                shutil.copytree(
+                    scripts_src,
+                    os.path.join(package_dir, "scripts"),
+                    dirs_exist_ok=True,
+                )
                 components_included.append("scripts")
 
             # 7. Nginx config
@@ -3434,7 +3625,11 @@ def create_deployment_package():
             # 8. Node client
             node_client_src = "/mnt/archie_brain/node_client"
             if os.path.exists(node_client_src):
-                shutil.copytree(node_client_src, os.path.join(package_dir, "node_client"), dirs_exist_ok=True)
+                shutil.copytree(
+                    node_client_src,
+                    os.path.join(package_dir, "node_client"),
+                    dirs_exist_ok=True,
+                )
                 components_included.append("node_client")
 
             # 9. Docker compose
@@ -3619,7 +3814,10 @@ def download_deployment_package(package_name):
             return jsonify({"success": False, "error": "Package file not found"}), 404
 
         return send_file(
-            file_path, as_attachment=True, download_name=f"{package_name}.tar.gz", mimetype="application/gzip"
+            file_path,
+            as_attachment=True,
+            download_name=f"{package_name}.tar.gz",
+            mimetype="application/gzip",
         )
 
     except Exception as e:
@@ -3732,7 +3930,10 @@ def sync_backup_to_external(backup_name):
     try:
         backup_path = os.path.join(BACKUP_DIR, backup_name)
         if not os.path.exists(backup_path):
-            return jsonify({"success": False, "error": f"Backup {backup_name} not found"}), 404
+            return (
+                jsonify({"success": False, "error": f"Backup {backup_name} not found"}),
+                404,
+            )
 
         result = copy_to_external_storage(backup_name, backup_path)
         return jsonify(result)
@@ -3912,7 +4113,10 @@ def test_webhook(webhook_id):
     """Send a test webhook"""
     try:
         with get_backup_db_cursor(commit=False) as (conn, cur):
-            cur.execute("SELECT url, secret_key FROM backup_webhooks WHERE id = %s", (webhook_id,))
+            cur.execute(
+                "SELECT url, secret_key FROM backup_webhooks WHERE id = %s",
+                (webhook_id,),
+            )
             webhook = cur.fetchone()
 
         if not webhook:
@@ -3988,7 +4192,15 @@ def upload_hook(hook_type):
     """Upload a new hook script"""
     try:
         if hook_type not in ["pre", "post"]:
-            return jsonify({"success": False, "error": "Invalid hook type (use 'pre' or 'post')"}), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Invalid hook type (use 'pre' or 'post')",
+                    }
+                ),
+                400,
+            )
 
         if "file" not in request.files:
             return jsonify({"success": False, "error": "No file provided"}), 400
@@ -4063,7 +4275,8 @@ def _get_cloud_config():
     return {
         "enabled": os.environ.get("GDRIVE_ENABLED", "false").lower() == "true",
         "service_account_path": os.environ.get(
-            "GDRIVE_SERVICE_ACCOUNT_PATH", "/app/credentials/gdrive-service-account.json"
+            "GDRIVE_SERVICE_ACCOUNT_PATH",
+            "/app/credentials/gdrive-service-account.json",
         ),
         "folder_id": os.environ.get("GDRIVE_BACKUP_FOLDER_ID", ""),
         "passphrase_hash": os.environ.get("GDRIVE_ENCRYPTION_PASSPHRASE_HASH", ""),
@@ -4113,7 +4326,11 @@ def cloud_status():
 
     if config["enabled"]:
         try:
-            from tools.backup_manager.gdrive_service import get_drive_service, test_connection, get_storage_quota
+            from tools.backup_manager.gdrive_service import (
+                get_drive_service,
+                test_connection,
+                get_storage_quota,
+            )
 
             svc = get_drive_service(config["service_account_path"])
             conn = test_connection(svc)
@@ -4136,12 +4353,21 @@ def cloud_setup():
 
     if not os.path.exists(config["service_account_path"]):
         return (
-            jsonify({"success": False, "error": f"Service account key not found at {config['service_account_path']}"}),
+            jsonify(
+                {
+                    "success": False,
+                    "error": f"Service account key not found at {config['service_account_path']}",
+                }
+            ),
             400,
         )
 
     try:
-        from tools.backup_manager.gdrive_service import get_drive_service, test_connection, ensure_backup_folder
+        from tools.backup_manager.gdrive_service import (
+            get_drive_service,
+            test_connection,
+            ensure_backup_folder,
+        )
 
         svc = get_drive_service(config["service_account_path"])
         conn = test_connection(svc)
@@ -4198,7 +4424,10 @@ def cloud_oauth_exchange():
         data = request.get_json() or {}
         code = data.get("code", "").strip()
         if not code:
-            return jsonify({"success": False, "error": "Authorization code required"}), 400
+            return (
+                jsonify({"success": False, "error": "Authorization code required"}),
+                400,
+            )
 
         flow = get_oauth_flow()
         flow.redirect_uri = "http://localhost:8085"
@@ -4206,7 +4435,10 @@ def cloud_oauth_exchange():
         save_oauth_token(flow.credentials)
 
         # Auto-setup: enable and create backup folder
-        from tools.backup_manager.gdrive_service import get_drive_service, ensure_backup_folder
+        from tools.backup_manager.gdrive_service import (
+            get_drive_service,
+            ensure_backup_folder,
+        )
 
         svc = get_drive_service()
         folder_id = ensure_backup_folder(svc)
@@ -4237,7 +4469,10 @@ def cloud_set_passphrase():
     passphrase = data.get("passphrase", "").strip() if data else ""
 
     if len(passphrase) < 8:
-        return jsonify({"success": False, "error": "Passphrase must be at least 8 characters"}), 400
+        return (
+            jsonify({"success": False, "error": "Passphrase must be at least 8 characters"}),
+            400,
+        )
 
     from tools.backup_manager.gdrive_crypto import hash_passphrase
 
@@ -4256,7 +4491,10 @@ def cloud_verify_passphrase():
     config = _get_cloud_config()
 
     if not config["passphrase_hash"]:
-        return jsonify({"success": False, "error": "No passphrase has been set yet"}), 400
+        return (
+            jsonify({"success": False, "error": "No passphrase has been set yet"}),
+            400,
+        )
 
     from tools.backup_manager.gdrive_crypto import verify_passphrase
 
@@ -4286,12 +4524,20 @@ def cloud_upload(backup_name):
     # Find the local backup
     backup_path = os.path.join(BACKUP_DIR, backup_name)
     if not os.path.isdir(backup_path):
-        return jsonify({"success": False, "error": f"Backup {backup_name} not found"}), 404
+        return (
+            jsonify({"success": False, "error": f"Backup {backup_name} not found"}),
+            404,
+        )
 
     import threading
 
     op_id = f"upload_{backup_name}_{int(time.time())}"
-    _cloud_progress[op_id] = {"stage": "starting", "percent": 0, "error": None, "result": None}
+    _cloud_progress[op_id] = {
+        "stage": "starting",
+        "percent": 0,
+        "error": None,
+        "result": None,
+    }
 
     def _do_upload():
         temp_tar = None
@@ -4299,7 +4545,11 @@ def cloud_upload(backup_name):
         try:
             import tarfile as _tarfile
             from tools.backup_manager.gdrive_crypto import encrypt_file
-            from tools.backup_manager.gdrive_service import get_drive_service, upload_file, ensure_backup_folder
+            from tools.backup_manager.gdrive_service import (
+                get_drive_service,
+                upload_file,
+                ensure_backup_folder,
+            )
 
             _cloud_progress[op_id]["stage"] = "compressing (cloud-optimized)"
             _cloud_progress[op_id]["percent"] = 5
@@ -4337,7 +4587,11 @@ def cloud_upload(backup_name):
                 _cloud_progress[op_id]["percent"] = pct
 
             result = upload_file(
-                svc, temp_enc, folder_id, filename=f"{backup_name}.tar.gz.enc", on_progress=upload_progress
+                svc,
+                temp_enc,
+                folder_id,
+                filename=f"{backup_name}.tar.gz.enc",
+                on_progress=upload_progress,
             )
 
             # Cleanup
@@ -4384,13 +4638,21 @@ def cloud_download(file_id):
     import threading
 
     op_id = f"download_{file_id}_{int(time.time())}"
-    _cloud_progress[op_id] = {"stage": "starting", "percent": 0, "error": None, "result": None}
+    _cloud_progress[op_id] = {
+        "stage": "starting",
+        "percent": 0,
+        "error": None,
+        "result": None,
+    }
 
     def _do_download():
         temp_enc = None
         temp_tar = None
         try:
-            from tools.backup_manager.gdrive_service import get_drive_service, download_file as gdrive_download
+            from tools.backup_manager.gdrive_service import (
+                get_drive_service,
+                download_file as gdrive_download,
+            )
             from tools.backup_manager.gdrive_crypto import decrypt_file
 
             _cloud_progress[op_id]["stage"] = "downloading"
@@ -4472,7 +4734,11 @@ def cloud_list():
         return jsonify({"success": False, "error": "Google Drive not enabled"}), 400
 
     try:
-        from tools.backup_manager.gdrive_service import get_drive_service, list_backups, ensure_backup_folder
+        from tools.backup_manager.gdrive_service import (
+            get_drive_service,
+            list_backups,
+            ensure_backup_folder,
+        )
 
         svc = get_drive_service(config["service_account_path"])
         folder_id = ensure_backup_folder(svc, config["folder_id"])

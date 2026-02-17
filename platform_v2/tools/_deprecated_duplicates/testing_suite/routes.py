@@ -113,7 +113,11 @@ def discover_tests():
         discovered = {"python": [], "javascript": [], "shell": [], "total": 0}
 
         # Python test files
-        python_patterns = [f"{BASE_PATH}/**/test_*.py", f"{BASE_PATH}/**/*_test.py", f"{BASE_PATH}/**/tests/*.py"]
+        python_patterns = [
+            f"{BASE_PATH}/**/test_*.py",
+            f"{BASE_PATH}/**/*_test.py",
+            f"{BASE_PATH}/**/tests/*.py",
+        ]
         for pattern in python_patterns:
             for path in glob_module.glob(pattern, recursive=True):
                 if "backups" not in path and "__pycache__" not in path:
@@ -123,7 +127,11 @@ def discover_tests():
                         discovered["python"].append(test_info)
 
         # JavaScript test files
-        js_patterns = [f"{BASE_PATH}/**/*.test.js", f"{BASE_PATH}/**/*.spec.js", f"{BASE_PATH}/**/tests/*.js"]
+        js_patterns = [
+            f"{BASE_PATH}/**/*.test.js",
+            f"{BASE_PATH}/**/*.spec.js",
+            f"{BASE_PATH}/**/tests/*.js",
+        ]
         for pattern in js_patterns:
             for path in glob_module.glob(pattern, recursive=True):
                 if "backups" not in path and "node_modules" not in path:
@@ -242,7 +250,10 @@ def create_test_suite():
         required = data.get("required", False)
 
         if not name or not test_command:
-            return jsonify({"success": False, "error": "name and test_command are required"}), 400
+            return (
+                jsonify({"success": False, "error": "name and test_command are required"}),
+                400,
+            )
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -286,7 +297,15 @@ def update_test_suite(suite_id):
         updates = []
         values = []
 
-        for field in ["name", "description", "test_type", "test_command", "timeout_seconds", "required", "enabled"]:
+        for field in [
+            "name",
+            "description",
+            "test_type",
+            "test_command",
+            "timeout_seconds",
+            "required",
+            "enabled",
+        ]:
             if field in data:
                 updates.append(f"{field} = %s")
                 values.append(data[field])
@@ -381,7 +400,13 @@ def run_tests():
             "status": "running",
             "started_at": datetime.now().isoformat(),
             "tests": [],
-            "summary": {"total": 0, "passed": 0, "failed": 0, "skipped": 0, "errors": 0},
+            "summary": {
+                "total": 0,
+                "passed": 0,
+                "failed": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
         }
         active_test_runs[run_id] = run_info
 
@@ -653,7 +678,14 @@ def _execute_test_command(command: str, timeout: int) -> Dict:
     start_time = time.time()
 
     try:
-        result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=timeout, cwd=BASE_PATH)
+        result = subprocess.run(
+            command,
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            cwd=BASE_PATH,
+        )
 
         duration_ms = int((time.time() - start_time) * 1000)
 
@@ -672,7 +704,12 @@ def _execute_test_command(command: str, timeout: int) -> Dict:
             "duration_ms": timeout * 1000,
         }
     except Exception as e:
-        return {"exit_code": -1, "output": "", "error": str(e), "duration_ms": int((time.time() - start_time) * 1000)}
+        return {
+            "exit_code": -1,
+            "output": "",
+            "error": str(e),
+            "duration_ms": int((time.time() - start_time) * 1000),
+        }
 
 
 def _save_test_run(run_id: str, run: Dict):
@@ -879,7 +916,13 @@ def run_benchmark():
         target = data.get("target", "/")
         iterations = min(data.get("iterations", 10), 100)
 
-        results = {"type": bench_type, "target": target, "iterations": iterations, "timings": [], "summary": {}}
+        results = {
+            "type": bench_type,
+            "target": target,
+            "iterations": iterations,
+            "timings": [],
+            "summary": {},
+        }
 
         if bench_type == "api":
             results = _benchmark_api(target, iterations)
@@ -907,9 +950,22 @@ def _benchmark_api(endpoint: str, iterations: int) -> Dict:
         try:
             response = req.get(f"{base_url}{endpoint}", timeout=30)
             duration = (time.time() - start) * 1000
-            timings.append({"iteration": i + 1, "duration_ms": round(duration, 2), "status": response.status_code})
+            timings.append(
+                {
+                    "iteration": i + 1,
+                    "duration_ms": round(duration, 2),
+                    "status": response.status_code,
+                }
+            )
         except Exception as e:
-            timings.append({"iteration": i + 1, "duration_ms": 0, "status": "error", "error": str(e)})
+            timings.append(
+                {
+                    "iteration": i + 1,
+                    "duration_ms": 0,
+                    "status": "error",
+                    "error": str(e),
+                }
+            )
 
     valid_timings = [t["duration_ms"] for t in timings if t.get("status") != "error"]
 
@@ -921,7 +977,7 @@ def _benchmark_api(endpoint: str, iterations: int) -> Dict:
         "summary": {
             "min_ms": min(valid_timings) if valid_timings else 0,
             "max_ms": max(valid_timings) if valid_timings else 0,
-            "avg_ms": round(sum(valid_timings) / len(valid_timings), 2) if valid_timings else 0,
+            "avg_ms": (round(sum(valid_timings) / len(valid_timings), 2) if valid_timings else 0),
             "errors": len([t for t in timings if t.get("status") == "error"]),
         },
     }
@@ -943,7 +999,14 @@ def _benchmark_database(iterations: int) -> Dict:
             duration = (time.time() - start) * 1000
             timings.append({"iteration": i + 1, "duration_ms": round(duration, 2), "status": "ok"})
         except Exception as e:
-            timings.append({"iteration": i + 1, "duration_ms": 0, "status": "error", "error": str(e)})
+            timings.append(
+                {
+                    "iteration": i + 1,
+                    "duration_ms": 0,
+                    "status": "error",
+                    "error": str(e),
+                }
+            )
 
     valid_timings = [t["duration_ms"] for t in timings if t.get("status") != "error"]
 
@@ -955,7 +1018,7 @@ def _benchmark_database(iterations: int) -> Dict:
         "summary": {
             "min_ms": min(valid_timings) if valid_timings else 0,
             "max_ms": max(valid_timings) if valid_timings else 0,
-            "avg_ms": round(sum(valid_timings) / len(valid_timings), 2) if valid_timings else 0,
+            "avg_ms": (round(sum(valid_timings) / len(valid_timings), 2) if valid_timings else 0),
             "errors": len([t for t in timings if t.get("status") == "error"]),
         },
     }
@@ -973,9 +1036,22 @@ def _benchmark_module(module_name: str, iterations: int) -> Dict:
         try:
             response = req.get(f"{base_url}/tools/{module_name}/api/status", timeout=30)
             duration = (time.time() - start) * 1000
-            timings.append({"iteration": i + 1, "duration_ms": round(duration, 2), "status": response.status_code})
+            timings.append(
+                {
+                    "iteration": i + 1,
+                    "duration_ms": round(duration, 2),
+                    "status": response.status_code,
+                }
+            )
         except Exception as e:
-            timings.append({"iteration": i + 1, "duration_ms": 0, "status": "error", "error": str(e)})
+            timings.append(
+                {
+                    "iteration": i + 1,
+                    "duration_ms": 0,
+                    "status": "error",
+                    "error": str(e),
+                }
+            )
 
     valid_timings = [t["duration_ms"] for t in timings if t.get("status") != "error"]
 
@@ -987,7 +1063,7 @@ def _benchmark_module(module_name: str, iterations: int) -> Dict:
         "summary": {
             "min_ms": min(valid_timings) if valid_timings else 0,
             "max_ms": max(valid_timings) if valid_timings else 0,
-            "avg_ms": round(sum(valid_timings) / len(valid_timings), 2) if valid_timings else 0,
+            "avg_ms": (round(sum(valid_timings) / len(valid_timings), 2) if valid_timings else 0),
             "errors": len([t for t in timings if t.get("status") == "error"]),
         },
     }

@@ -11,6 +11,7 @@ Purpose:
 Author: A.R.C.H.I.E. Platform
 Date: 2026-01-06
 """
+
 import json
 import logging
 
@@ -48,12 +49,15 @@ class WorkflowSSEManager:
             print(f"[SSE] Client registered for proposal #{proposal_id} ({len(self.connections[proposal_id])} total)")
 
         # Send initial connection message
-        self._send_message(message_queue, {
-            'type': 'connected',
-            'proposal_id': proposal_id,
-            'timestamp': datetime.now().isoformat(),
-            'message': f'Connected to proposal #{proposal_id} updates'
-        })
+        self._send_message(
+            message_queue,
+            {
+                "type": "connected",
+                "proposal_id": proposal_id,
+                "timestamp": datetime.now().isoformat(),
+                "message": f"Connected to proposal #{proposal_id} updates",
+            },
+        )
 
         return message_queue
 
@@ -75,12 +79,7 @@ class WorkflowSSEManager:
                 if not self.connections[proposal_id]:
                     del self.connections[proposal_id]
 
-    def broadcast_workflow_event(
-        self,
-        proposal_id: int,
-        event_type: str,
-        data: Dict
-    ):
+    def broadcast_workflow_event(self, proposal_id: int, event_type: str, data: Dict):
         """
         Broadcast a workflow event to all connected clients
 
@@ -99,10 +98,10 @@ class WorkflowSSEManager:
             print(f"[SSE] Broadcasting {event_type} to {len(queues)} client(s) for proposal #{proposal_id}")
 
             message = {
-                'type': event_type,
-                'proposal_id': proposal_id,
-                'timestamp': datetime.now().isoformat(),
-                **data
+                "type": event_type,
+                "proposal_id": proposal_id,
+                "timestamp": datetime.now().isoformat(),
+                **data,
             }
 
             # Send to all connected clients
@@ -118,27 +117,35 @@ class WorkflowSSEManager:
 
     def notify_workflow_started(self, proposal_id: int, workflow_id: str, commit_hash: str):
         """Notify that workflow has started"""
-        self.broadcast_workflow_event(proposal_id, 'workflow_started', {
-            'workflow_id': workflow_id,
-            'commit_hash': commit_hash,
-            'message': f'Workflow started for commit {commit_hash[:8]}',
-            'stage': 'initialization'
-        })
+        self.broadcast_workflow_event(
+            proposal_id,
+            "workflow_started",
+            {
+                "workflow_id": workflow_id,
+                "commit_hash": commit_hash,
+                "message": f"Workflow started for commit {commit_hash[:8]}",
+                "stage": "initialization",
+            },
+        )
 
     def notify_stage_started(
         self,
         proposal_id: int,
         workflow_id: str,
         stage_name: str,
-        stage_description: str = None
+        stage_description: str = None,
     ):
         """Notify that a workflow stage has started"""
-        self.broadcast_workflow_event(proposal_id, 'stage_started', {
-            'workflow_id': workflow_id,
-            'stage': stage_name,
-            'description': stage_description or stage_name,
-            'message': f'Starting: {stage_description or stage_name}'
-        })
+        self.broadcast_workflow_event(
+            proposal_id,
+            "stage_started",
+            {
+                "workflow_id": workflow_id,
+                "stage": stage_name,
+                "description": stage_description or stage_name,
+                "message": f"Starting: {stage_description or stage_name}",
+            },
+        )
 
     def notify_stage_progress(
         self,
@@ -146,15 +153,19 @@ class WorkflowSSEManager:
         workflow_id: str,
         stage_name: str,
         progress: int,
-        message: str = None
+        message: str = None,
     ):
         """Notify about progress within a stage"""
-        self.broadcast_workflow_event(proposal_id, 'stage_progress', {
-            'workflow_id': workflow_id,
-            'stage': stage_name,
-            'progress': progress,  # 0-100
-            'message': message
-        })
+        self.broadcast_workflow_event(
+            proposal_id,
+            "stage_progress",
+            {
+                "workflow_id": workflow_id,
+                "stage": stage_name,
+                "progress": progress,  # 0-100
+                "message": message,
+            },
+        )
 
     def notify_stage_complete(
         self,
@@ -162,15 +173,19 @@ class WorkflowSSEManager:
         workflow_id: str,
         stage_name: str,
         success: bool = True,
-        message: str = None
+        message: str = None,
     ):
         """Notify that a stage has completed"""
-        self.broadcast_workflow_event(proposal_id, 'stage_complete', {
-            'workflow_id': workflow_id,
-            'stage': stage_name,
-            'success': success,
-            'message': message or (f'{stage_name} completed' if success else f'{stage_name} failed')
-        })
+        self.broadcast_workflow_event(
+            proposal_id,
+            "stage_complete",
+            {
+                "workflow_id": workflow_id,
+                "stage": stage_name,
+                "success": success,
+                "message": message or (f"{stage_name} completed" if success else f"{stage_name} failed"),
+            },
+        )
 
     def notify_workflow_complete(
         self,
@@ -178,44 +193,44 @@ class WorkflowSSEManager:
         workflow_id: str,
         success: bool = True,
         message: str = None,
-        metadata: Dict = None
+        metadata: Dict = None,
     ):
         """Notify that entire workflow has completed"""
-        self.broadcast_workflow_event(proposal_id, 'workflow_complete', {
-            'workflow_id': workflow_id,
-            'success': success,
-            'message': message or ('Workflow completed successfully' if success else 'Workflow failed'),
-            'metadata': metadata or {}
-        })
+        self.broadcast_workflow_event(
+            proposal_id,
+            "workflow_complete",
+            {
+                "workflow_id": workflow_id,
+                "success": success,
+                "message": message or ("Workflow completed successfully" if success else "Workflow failed"),
+                "metadata": metadata or {},
+            },
+        )
 
-    def notify_error(
-        self,
-        proposal_id: int,
-        workflow_id: str,
-        error_message: str,
-        stage: str = None
-    ):
+    def notify_error(self, proposal_id: int, workflow_id: str, error_message: str, stage: str = None):
         """Notify about an error"""
-        self.broadcast_workflow_event(proposal_id, 'error', {
-            'workflow_id': workflow_id,
-            'stage': stage,
-            'error': error_message,
-            'message': f'Error: {error_message}'
-        })
+        self.broadcast_workflow_event(
+            proposal_id,
+            "error",
+            {
+                "workflow_id": workflow_id,
+                "stage": stage,
+                "error": error_message,
+                "message": f"Error: {error_message}",
+            },
+        )
 
-    def notify_log_message(
-        self,
-        proposal_id: int,
-        workflow_id: str,
-        log_level: str,
-        message: str
-    ):
+    def notify_log_message(self, proposal_id: int, workflow_id: str, log_level: str, message: str):
         """Send a log message"""
-        self.broadcast_workflow_event(proposal_id, 'log', {
-            'workflow_id': workflow_id,
-            'level': log_level,  # info, warning, error, debug
-            'message': message
-        })
+        self.broadcast_workflow_event(
+            proposal_id,
+            "log",
+            {
+                "workflow_id": workflow_id,
+                "level": log_level,  # info, warning, error, debug
+                "message": message,
+            },
+        )
 
     def generate_sse_stream(self, message_queue: queue.Queue):
         """
@@ -240,8 +255,8 @@ class WorkflowSSEManager:
                 except queue.Empty:
                     # Send keepalive ping
                     keepalive = {
-                        'type': 'ping',
-                        'timestamp': datetime.now().isoformat()
+                        "type": "ping",
+                        "timestamp": datetime.now().isoformat(),
                     }
                     yield f"data: {json.dumps(keepalive)}\n\n"
 

@@ -13,43 +13,45 @@ from datetime import datetime
 import re
 
 # Add platform to path
-sys.path.insert(0, '/mnt/archie_brain/platform_v2')
+sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+
 
 def get_db_connection():
     """Get database connection"""
     return psycopg2.connect(
-        host='localhost',
+        host="localhost",
         port=5432,
-        user='archie',
-        password='archie_secure_pass_2024',
-        database='archie'
+        user="archie",
+        password="archie_secure_pass_2024",
+        database="archie",
     )
+
 
 def extract_tags_from_filename(filename):
     """Extract tags from filename"""
     # Remove extension and split by underscores
     name = os.path.splitext(filename)[0]
-    parts = name.lower().split('_')
+    parts = name.lower().split("_")
 
     # Common tag mappings
     tag_map = {
-        'admin': ['admin', 'administration'],
-        'agent': ['agent', 'team'],
-        'ai': ['ai', 'artificial-intelligence'],
-        'backup': ['backup', 'recovery'],
-        'business': ['business'],
-        'code': ['code', 'development'],
-        'deployment': ['deployment', 'production'],
-        'guide': ['guide', 'documentation'],
-        'reference': ['reference', 'documentation'],
-        'instructions': ['how-to', 'guide'],
-        'checklist': ['checklist', 'procedure'],
-        'consciousness': ['consciousness', 'memory', 'knowledge'],
-        'directory': ['directory', 'reference'],
-        'platform': ['platform', 'system'],
-        'recovery': ['recovery', 'backup'],
-        'setup': ['setup', 'installation'],
-        'updates': ['updates', 'changelog'],
+        "admin": ["admin", "administration"],
+        "agent": ["agent", "team"],
+        "ai": ["ai", "artificial-intelligence"],
+        "backup": ["backup", "recovery"],
+        "business": ["business"],
+        "code": ["code", "development"],
+        "deployment": ["deployment", "production"],
+        "guide": ["guide", "documentation"],
+        "reference": ["reference", "documentation"],
+        "instructions": ["how-to", "guide"],
+        "checklist": ["checklist", "procedure"],
+        "consciousness": ["consciousness", "memory", "knowledge"],
+        "directory": ["directory", "reference"],
+        "platform": ["platform", "system"],
+        "recovery": ["recovery", "backup"],
+        "setup": ["setup", "installation"],
+        "updates": ["updates", "changelog"],
     }
 
     tags = set()
@@ -61,6 +63,7 @@ def extract_tags_from_filename(filename):
 
     return list(tags)
 
+
 def extract_tags_from_content(content):
     """Extract additional tags from content analysis"""
     tags = set()
@@ -68,18 +71,18 @@ def extract_tags_from_content(content):
 
     # Technology/tool mentions
     tech_keywords = {
-        'docker': 'docker',
-        'postgresql': 'postgresql',
-        'python': 'python',
-        'flask': 'flask',
-        'api': 'api',
-        'database': 'database',
-        'nginx': 'nginx',
-        'gunicorn': 'gunicorn',
-        'claude': 'claude-ai',
-        'anthropic': 'anthropic',
-        'n8n': 'n8n',
-        'automation': 'automation',
+        "docker": "docker",
+        "postgresql": "postgresql",
+        "python": "python",
+        "flask": "flask",
+        "api": "api",
+        "database": "database",
+        "nginx": "nginx",
+        "gunicorn": "gunicorn",
+        "claude": "claude-ai",
+        "anthropic": "anthropic",
+        "n8n": "n8n",
+        "automation": "automation",
     }
 
     for keyword, tag in tech_keywords.items():
@@ -87,18 +90,19 @@ def extract_tags_from_content(content):
             tags.add(tag)
 
     # Concept keywords
-    if any(word in content_lower for word in ['agent', 'agents', 'team']):
-        tags.add('agents')
-    if any(word in content_lower for word in ['memory', 'knowledge', 'consciousness']):
-        tags.add('consciousness')
-    if any(word in content_lower for word in ['backup', 'restore', 'recovery']):
-        tags.add('backup')
-    if any(word in content_lower for word in ['deploy', 'deployment', 'production']):
-        tags.add('deployment')
-    if any(word in content_lower for word in ['install', 'setup', 'configuration']):
-        tags.add('setup')
+    if any(word in content_lower for word in ["agent", "agents", "team"]):
+        tags.add("agents")
+    if any(word in content_lower for word in ["memory", "knowledge", "consciousness"]):
+        tags.add("consciousness")
+    if any(word in content_lower for word in ["backup", "restore", "recovery"]):
+        tags.add("backup")
+    if any(word in content_lower for word in ["deploy", "deployment", "production"]):
+        tags.add("deployment")
+    if any(word in content_lower for word in ["install", "setup", "configuration"]):
+        tags.add("setup")
 
     return list(tags)
+
 
 def determine_category(filename, content):
     """Determine the best category for a document"""
@@ -106,36 +110,37 @@ def determine_category(filename, content):
     content_lower = content.lower()
 
     # Category priority rules
-    if 'admin' in filename_lower or 'reference' in filename_lower:
-        return 'documentation'
-    elif 'agent' in filename_lower or 'directory' in filename_lower:
-        return 'business'
-    elif 'consciousness' in filename_lower or 'memory' in filename_lower:
-        return 'technical'
-    elif 'backup' in filename_lower or 'recovery' in filename_lower:
-        return 'procedure'
-    elif 'deployment' in filename_lower or 'setup' in filename_lower:
-        return 'procedure'
-    elif 'business' in filename_lower:
-        return 'business'
-    elif 'update' in filename_lower or 'changelog' in filename_lower:
-        return 'documentation'
-    elif 'guide' in filename_lower or 'instructions' in filename_lower:
-        return 'documentation'
+    if "admin" in filename_lower or "reference" in filename_lower:
+        return "documentation"
+    elif "agent" in filename_lower or "directory" in filename_lower:
+        return "business"
+    elif "consciousness" in filename_lower or "memory" in filename_lower:
+        return "technical"
+    elif "backup" in filename_lower or "recovery" in filename_lower:
+        return "procedure"
+    elif "deployment" in filename_lower or "setup" in filename_lower:
+        return "procedure"
+    elif "business" in filename_lower:
+        return "business"
+    elif "update" in filename_lower or "changelog" in filename_lower:
+        return "documentation"
+    elif "guide" in filename_lower or "instructions" in filename_lower:
+        return "documentation"
     else:
-        return 'documentation'
+        return "documentation"
+
 
 def calculate_importance(filename, content, tags):
     """Calculate importance score based on content and metadata"""
     importance = 0.5  # Base importance
 
     # Boost for critical files
-    critical_files = ['archie_consciousness', 'agent_directory', 'admin_reference']
+    critical_files = ["archie_consciousness", "agent_directory", "admin_reference"]
     if any(cf in filename.lower() for cf in critical_files):
         importance += 0.3
 
     # Boost for recent updates
-    if 'update' in filename.lower() or 'changelog' in filename.lower():
+    if "update" in filename.lower() or "changelog" in filename.lower():
         importance += 0.2
 
     # Boost for longer, detailed documents
@@ -148,6 +153,7 @@ def calculate_importance(filename, content, tags):
 
     return min(importance, 1.0)  # Cap at 1.0
 
+
 def chunk_content(content, filename, max_chunk_size=8000):
     """Split large documents into manageable chunks"""
     chunks = []
@@ -157,7 +163,7 @@ def chunk_content(content, filename, max_chunk_size=8000):
         return [content]
 
     # Split by sections (markdown headers)
-    sections = re.split(r'\n(?=#+\s)', content)
+    sections = re.split(r"\n(?=#+\s)", content)
 
     current_chunk = ""
     for section in sections:
@@ -173,13 +179,14 @@ def chunk_content(content, filename, max_chunk_size=8000):
 
     return chunks if chunks else [content[:max_chunk_size]]
 
+
 def ingest_file(conn, file_path):
     """Ingest a single file into the knowledge base"""
     try:
         filename = os.path.basename(file_path)
 
         # Read file content
-        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
             content = f.read()
 
         if not content.strip():
@@ -206,7 +213,9 @@ def ingest_file(conn, file_path):
         chunks = chunk_content(content, filename)
 
         print(f"  📄 {filename}")
-        print(f"      Category: {category} | Tags: {len(all_tags)} | Importance: {importance:.2f}")
+        print(
+            f"      Category: {category} | Tags: {len(all_tags)} | Importance: {importance:.2f}"
+        )
         print(f"      Chunks: {len(chunks)} | Size: {file_size} bytes")
 
         # Insert each chunk
@@ -218,28 +227,31 @@ def ingest_file(conn, file_path):
 
             # Create metadata
             metadata = {
-                'file_path': file_path,
-                'file_name': filename,
-                'file_size': file_size,
-                'modified_time': modified_time.isoformat(),
-                'chunk_index': i + 1,
-                'total_chunks': len(chunks),
-                'source': 'documentation_ingestion',
-                'ingested_at': datetime.now().isoformat()
+                "file_path": file_path,
+                "file_name": filename,
+                "file_size": file_size,
+                "modified_time": modified_time.isoformat(),
+                "chunk_index": i + 1,
+                "total_chunks": len(chunks),
+                "source": "documentation_ingestion",
+                "ingested_at": datetime.now().isoformat(),
             }
 
             # Insert into long_term_memory
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO long_term_memory
                 (content, category, tags, importance_score, metadata, created_at, last_accessed)
                 VALUES (%s, %s, %s, %s, %s, NOW(), NOW())
-            """, (
-                f"{filename}{chunk_suffix}\n\n{chunk}",
-                category,
-                all_tags,
-                importance,
-                psycopg2.extras.Json(metadata)
-            ))
+            """,
+                (
+                    f"{filename}{chunk_suffix}\n\n{chunk}",
+                    category,
+                    all_tags,
+                    importance,
+                    psycopg2.extras.Json(metadata),
+                ),
+            )
             inserted_count += 1
 
         conn.commit()
@@ -251,6 +263,7 @@ def ingest_file(conn, file_path):
         conn.rollback()
         return 0
 
+
 def main():
     """Main ingestion process"""
     print("=" * 80)
@@ -258,7 +271,7 @@ def main():
     print("=" * 80)
     print()
 
-    docs_dir = '/mnt/archie_brain/docs'
+    docs_dir = "/mnt/archie_brain/docs"
 
     # Find all documentation files
     print("📂 Scanning documentation directory...")
@@ -266,7 +279,7 @@ def main():
 
     for root, dirs, files in os.walk(docs_dir):
         for file in files:
-            if file.endswith(('.md', '.txt')) and not file.startswith('.'):
+            if file.endswith((".md", ".txt")) and not file.startswith("."):
                 file_path = os.path.join(root, file)
                 files_to_ingest.append(file_path)
 
@@ -332,5 +345,6 @@ def main():
 
     conn.close()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

@@ -20,21 +20,22 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Paths
-DOCS_PATH = '/mnt/archie_brain/docs'
-CHANGELOG_PATH = os.path.join(DOCS_PATH, 'CHANGELOG.md')
-TROUBLESHOOTING_PATH = os.path.join(DOCS_PATH, 'TROUBLESHOOTING.md')
+DOCS_PATH = "/mnt/archie_brain/docs"
+CHANGELOG_PATH = os.path.join(DOCS_PATH, "CHANGELOG.md")
+TROUBLESHOOTING_PATH = os.path.join(DOCS_PATH, "TROUBLESHOOTING.md")
 
 
 def get_db():
     """Get database connection"""
     import psycopg2
     from psycopg2.extras import RealDictCursor
+
     return psycopg2.connect(
-        host=os.getenv('DB_HOST', 'archie_database'),
-        port=os.getenv('DB_PORT', '5432'),
-        database=os.getenv('DB_NAME', 'archie'),
-        user=os.getenv('DB_USER', 'archie'),
-        password=os.getenv('DB_PASSWORD', '')
+        host=os.getenv("DB_HOST", "archie_database"),
+        port=os.getenv("DB_PORT", "5432"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", ""),
     )
 
 
@@ -52,7 +53,7 @@ class SandboxDocsUpdater:
         module_id: str,
         title: str,
         description: str,
-        category: str
+        category: str,
     ) -> Dict[str, Any]:
         """
         Called when a sandbox deployment succeeds.
@@ -69,10 +70,10 @@ class SandboxDocsUpdater:
             Result dict with updated files
         """
         results = {
-            'changelog_updated': False,
-            'blueprint_updated': False,
-            'knowledge_updated': False,
-            'errors': []
+            "changelog_updated": False,
+            "blueprint_updated": False,
+            "knowledge_updated": False,
+            "errors": [],
         }
 
         # 1. Update CHANGELOG.md
@@ -81,36 +82,31 @@ class SandboxDocsUpdater:
                 proposal_id=proposal_id,
                 module_id=module_id,
                 title=title,
-                category=category
+                category=category,
             )
-            results['changelog_updated'] = True
+            results["changelog_updated"] = True
             logger.info(f"Updated CHANGELOG.md for proposal #{proposal_id}")
         except Exception as e:
-            results['errors'].append(f"CHANGELOG: {str(e)}")
+            results["errors"].append(f"CHANGELOG: {str(e)}")
             logger.error(f"Failed to update CHANGELOG: {e}")
 
         # 2. Update Blueprint roadmap
         try:
-            self._update_blueprint_task(proposal_id, 'completed', module_id)
-            results['blueprint_updated'] = True
+            self._update_blueprint_task(proposal_id, "completed", module_id)
+            results["blueprint_updated"] = True
             logger.info(f"Updated Blueprint for proposal #{proposal_id}")
         except Exception as e:
-            results['errors'].append(f"Blueprint: {str(e)}")
+            results["errors"].append(f"Blueprint: {str(e)}")
             logger.error(f"Failed to update Blueprint: {e}")
 
         # 3. Record in knowledge_base
         try:
-            self._record_deployment_knowledge(
-                proposal_id=proposal_id,
-                module_id=module_id,
-                title=title,
-                success=True
-            )
-            results['knowledge_updated'] = True
+            self._record_deployment_knowledge(proposal_id=proposal_id, module_id=module_id, title=title, success=True)
+            results["knowledge_updated"] = True
         except Exception as e:
-            results['errors'].append(f"Knowledge: {str(e)}")
+            results["errors"].append(f"Knowledge: {str(e)}")
 
-        results['success'] = len(results['errors']) == 0
+        results["success"] = len(results["errors"]) == 0
         return results
 
     def on_deployment_failure(
@@ -119,7 +115,7 @@ class SandboxDocsUpdater:
         module_id: str,
         title: str,
         error_message: str,
-        error_details: Optional[str] = None
+        error_details: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Called when a sandbox deployment fails.
@@ -136,10 +132,10 @@ class SandboxDocsUpdater:
             Result dict with updated files
         """
         results = {
-            'troubleshooting_updated': False,
-            'blueprint_updated': False,
-            'mistake_recorded': False,
-            'errors': []
+            "troubleshooting_updated": False,
+            "blueprint_updated": False,
+            "mistake_recorded": False,
+            "errors": [],
         }
 
         # 1. Update TROUBLESHOOTING.md
@@ -149,20 +145,20 @@ class SandboxDocsUpdater:
                 module_id=module_id,
                 title=title,
                 error_message=error_message,
-                error_details=error_details
+                error_details=error_details,
             )
-            results['troubleshooting_updated'] = True
+            results["troubleshooting_updated"] = True
             logger.info(f"Updated TROUBLESHOOTING.md for proposal #{proposal_id}")
         except Exception as e:
-            results['errors'].append(f"TROUBLESHOOTING: {str(e)}")
+            results["errors"].append(f"TROUBLESHOOTING: {str(e)}")
             logger.error(f"Failed to update TROUBLESHOOTING: {e}")
 
         # 2. Update Blueprint roadmap as failed
         try:
-            self._update_blueprint_task(proposal_id, 'failed', module_id)
-            results['blueprint_updated'] = True
+            self._update_blueprint_task(proposal_id, "failed", module_id)
+            results["blueprint_updated"] = True
         except Exception as e:
-            results['errors'].append(f"Blueprint: {str(e)}")
+            results["errors"].append(f"Blueprint: {str(e)}")
 
         # 3. Record mistake_learned
         try:
@@ -171,51 +167,45 @@ class SandboxDocsUpdater:
                 module_id=module_id,
                 title=title,
                 success=False,
-                error_message=error_message
+                error_message=error_message,
             )
-            results['mistake_recorded'] = True
+            results["mistake_recorded"] = True
         except Exception as e:
-            results['errors'].append(f"Mistake: {str(e)}")
+            results["errors"].append(f"Mistake: {str(e)}")
 
-        results['success'] = len(results['errors']) == 0
+        results["success"] = len(results["errors"]) == 0
         return results
 
-    def _update_changelog(
-        self,
-        proposal_id: int,
-        module_id: str,
-        title: str,
-        category: str
-    ):
+    def _update_changelog(self, proposal_id: int, module_id: str, title: str, category: str):
         """Add entry to CHANGELOG.md"""
         if not os.path.exists(self.changelog_path):
             logger.warning(f"CHANGELOG.md not found at {self.changelog_path}")
             return
 
         # Read current changelog
-        with open(self.changelog_path, 'r') as f:
+        with open(self.changelog_path, "r") as f:
             content = f.read()
 
         # Create entry
-        today = datetime.now().strftime('%Y-%m-%d')
+        today = datetime.now().strftime("%Y-%m-%d")
         category_emoji = {
-            'feature': 'Added',
-            'bugfix': 'Fixed',
-            'bug_fix': 'Fixed',
-            'security': 'Security',
-            'performance': 'Changed',
-            'code_quality': 'Changed',
-            'refactor': 'Changed'
-        }.get(category, 'Changed')
+            "feature": "Added",
+            "bugfix": "Fixed",
+            "bug_fix": "Fixed",
+            "security": "Security",
+            "performance": "Changed",
+            "code_quality": "Changed",
+            "refactor": "Changed",
+        }.get(category, "Changed")
 
         entry = f"- [{category_emoji}] {title} (#{proposal_id}) - {module_id}"
 
         # Find where to insert (after first ## heading)
-        lines = content.split('\n')
+        lines = content.split("\n")
         insert_index = 0
 
         for i, line in enumerate(lines):
-            if line.startswith('## '):
+            if line.startswith("## "):
                 # Check if this is today's date section
                 if today in line:
                     insert_index = i + 1
@@ -232,8 +222,8 @@ class SandboxDocsUpdater:
             lines.insert(insert_index, entry)
 
         # Write back
-        with open(self.changelog_path, 'w') as f:
-            f.write('\n'.join(lines))
+        with open(self.changelog_path, "w") as f:
+            f.write("\n".join(lines))
 
     def _update_troubleshooting(
         self,
@@ -241,7 +231,7 @@ class SandboxDocsUpdater:
         module_id: str,
         title: str,
         error_message: str,
-        error_details: Optional[str] = None
+        error_details: Optional[str] = None,
     ):
         """Add entry to TROUBLESHOOTING.md"""
         if not os.path.exists(self.troubleshooting_path):
@@ -249,11 +239,11 @@ class SandboxDocsUpdater:
             return
 
         # Read current content
-        with open(self.troubleshooting_path, 'r') as f:
+        with open(self.troubleshooting_path, "r") as f:
             content = f.read()
 
         # Create entry
-        today = datetime.now().strftime('%Y-%m-%d')
+        today = datetime.now().strftime("%Y-%m-%d")
         entry = f"""
 ### Sandbox Deployment Failed - {module_id} (#{proposal_id})
 **Date:** {today}
@@ -272,30 +262,22 @@ class SandboxDocsUpdater:
 """
 
         # Find the "## Recent Issues" section or add at top
-        if '## Recent Issues' in content:
-            content = content.replace(
-                '## Recent Issues',
-                f'## Recent Issues\n{entry}'
-            )
+        if "## Recent Issues" in content:
+            content = content.replace("## Recent Issues", f"## Recent Issues\n{entry}")
         else:
             # Add section at the top (after title)
-            lines = content.split('\n')
+            lines = content.split("\n")
             for i, line in enumerate(lines):
-                if line.startswith('# '):
+                if line.startswith("# "):
                     lines.insert(i + 1, f"\n## Recent Issues\n{entry}")
                     break
-            content = '\n'.join(lines)
+            content = "\n".join(lines)
 
         # Write back
-        with open(self.troubleshooting_path, 'w') as f:
+        with open(self.troubleshooting_path, "w") as f:
             f.write(content)
 
-    def _update_blueprint_task(
-        self,
-        proposal_id: int,
-        status: str,
-        module_id: str
-    ):
+    def _update_blueprint_task(self, proposal_id: int, status: str, module_id: str):
         """Update Blueprint roadmap database"""
         from psycopg2.extras import RealDictCursor
 
@@ -304,45 +286,57 @@ class SandboxDocsUpdater:
 
         try:
             # Check if there's a roadmap task linked to this proposal
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT id FROM roadmap_tasks
                 WHERE metadata->>'proposal_id' = %s
-            """, (str(proposal_id),))
+            """,
+                (str(proposal_id),),
+            )
 
             task = cur.fetchone()
 
             if task:
                 # Update existing task
-                cur.execute("""
+                cur.execute(
+                    """
                     UPDATE roadmap_tasks
                     SET status = %s,
                         completed_at = CASE WHEN %s = 'completed' THEN NOW() ELSE NULL END,
                         updated_at = NOW()
                     WHERE id = %s
-                """, (status, status, task['id']))
+                """,
+                    (status, status, task["id"]),
+                )
             else:
                 # Get proposal details and create task
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT title, category, priority
                     FROM improvement_proposals
                     WHERE id = %s
-                """, (proposal_id,))
+                """,
+                    (proposal_id,),
+                )
                 proposal = cur.fetchone()
 
                 if proposal:
-                    cur.execute("""
+                    cur.execute(
+                        """
                         INSERT INTO roadmap_tasks
                         (title, description, status, category, priority, module_id, metadata, created_at)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
-                    """, (
-                        proposal['title'],
-                        f"Auto-created from proposal #{proposal_id}",
-                        status,
-                        proposal['category'],
-                        proposal['priority'],
-                        module_id,
-                        json.dumps({'proposal_id': proposal_id, 'auto_created': True})
-                    ))
+                    """,
+                        (
+                            proposal["title"],
+                            f"Auto-created from proposal #{proposal_id}",
+                            status,
+                            proposal["category"],
+                            proposal["priority"],
+                            module_id,
+                            json.dumps({"proposal_id": proposal_id, "auto_created": True}),
+                        ),
+                    )
 
             conn.commit()
 
@@ -360,7 +354,7 @@ class SandboxDocsUpdater:
         module_id: str,
         title: str,
         success: bool,
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None,
     ):
         """Record deployment outcome in knowledge_base"""
         from psycopg2.extras import RealDictCursor
@@ -370,7 +364,7 @@ class SandboxDocsUpdater:
 
         try:
             if success:
-                knowledge_type = 'improvement'
+                knowledge_type = "improvement"
                 importance = 0.6
                 content = f"""## Successful Deployment
 
@@ -381,7 +375,7 @@ class SandboxDocsUpdater:
 This improvement was successfully deployed to production after passing sandbox tests.
 """
             else:
-                knowledge_type = 'mistake_learned'
+                knowledge_type = "mistake_learned"
                 importance = 0.9
                 content = f"""## Failed Deployment
 
@@ -395,23 +389,28 @@ This improvement was successfully deployed to production after passing sandbox t
 This deployment failed during sandbox testing. Investigation required.
 """
 
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO knowledge_base
                 (title, content, knowledge_type, importance_score, tags, metadata, source_type, created_at)
                 VALUES (%s, %s, %s, %s, %s, %s, 'sandbox_deployment', NOW())
-            """, (
-                f"{'Deployed' if success else 'Failed'}: {title}",
-                content,
-                knowledge_type,
-                importance,
-                [module_id, 'deployment', 'sandbox', 'auto-recorded'],
-                json.dumps({
-                    'proposal_id': proposal_id,
-                    'module_id': module_id,
-                    'success': success,
-                    'recorded_at': datetime.now().isoformat()
-                })
-            ))
+            """,
+                (
+                    f"{'Deployed' if success else 'Failed'}: {title}",
+                    content,
+                    knowledge_type,
+                    importance,
+                    [module_id, "deployment", "sandbox", "auto-recorded"],
+                    json.dumps(
+                        {
+                            "proposal_id": proposal_id,
+                            "module_id": module_id,
+                            "success": success,
+                            "recorded_at": datetime.now().isoformat(),
+                        }
+                    ),
+                ),
+            )
 
             conn.commit()
 
@@ -435,34 +434,40 @@ This deployment failed during sandbox testing. Investigation required.
 
         try:
             # Get sandbox status
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT status, total_tests_run, tests_passed, tests_failed, last_test_at
                 FROM module_sandboxes
                 WHERE module_id = %s
-            """, (module_id,))
+            """,
+                (module_id,),
+            )
             sandbox = cur.fetchone()
 
             # Get recent proposals
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT COUNT(*) as total,
                        COUNT(*) FILTER (WHERE status = 'deployed') as deployed,
                        COUNT(*) FILTER (WHERE status = 'failed') as failed
                 FROM improvement_proposals
                 WHERE metadata->>'module_id' = %s
                   OR source = 'code_sentinel'
-            """, (module_id,))
+            """,
+                (module_id,),
+            )
             proposals = cur.fetchone()
 
             return {
-                'success': True,
-                'module_id': module_id,
-                'sandbox_status': dict(sandbox) if sandbox else None,
-                'proposals': dict(proposals) if proposals else None
+                "success": True,
+                "module_id": module_id,
+                "sandbox_status": dict(sandbox) if sandbox else None,
+                "proposals": dict(proposals) if proposals else None,
             }
 
         except Exception as e:
             logger.error(f"Sync error: {e}")
-            return {'success': False, 'error': str(e)}
+            return {"success": False, "error": str(e)}
         finally:
             cur.close()
             conn.close()
@@ -473,7 +478,7 @@ def on_sandbox_test_complete(
     module_id: str,
     proposal_id: Optional[int],
     success: bool,
-    test_results: Dict[str, Any]
+    test_results: Dict[str, Any],
 ):
     """
     Hook called when sandbox tests complete.
@@ -484,14 +489,18 @@ def on_sandbox_test_complete(
     if proposal_id:
         # Get proposal details
         from psycopg2.extras import RealDictCursor
+
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT title, description, category
             FROM improvement_proposals
             WHERE id = %s
-        """, (proposal_id,))
+        """,
+            (proposal_id,),
+        )
         proposal = cur.fetchone()
         cur.close()
         conn.close()
@@ -501,34 +510,34 @@ def on_sandbox_test_complete(
                 return updater.on_deployment_success(
                     proposal_id=proposal_id,
                     module_id=module_id,
-                    title=proposal['title'],
-                    description=proposal['description'],
-                    category=proposal['category']
+                    title=proposal["title"],
+                    description=proposal["description"],
+                    category=proposal["category"],
                 )
             else:
                 return updater.on_deployment_failure(
                     proposal_id=proposal_id,
                     module_id=module_id,
-                    title=proposal['title'],
-                    error_message=test_results.get('error', 'Test failure'),
-                    error_details=test_results.get('output', '')
+                    title=proposal["title"],
+                    error_message=test_results.get("error", "Test failure"),
+                    error_details=test_results.get("output", ""),
                 )
 
-    return {'success': False, 'error': 'No proposal ID provided'}
+    return {"success": False, "error": "No proposal ID provided"}
 
 
 # CLI Testing
-if __name__ == '__main__':
+if __name__ == "__main__":
     updater = SandboxDocsUpdater()
 
     # Test successful deployment
     print("Testing successful deployment update...")
     result = updater.on_deployment_success(
         proposal_id=999,
-        module_id='test',
-        title='Test Proposal',
-        description='Testing the docs updater',
-        category='feature'
+        module_id="test",
+        title="Test Proposal",
+        description="Testing the docs updater",
+        category="feature",
     )
     print(f"Success result: {result}")
 
@@ -536,10 +545,10 @@ if __name__ == '__main__':
     print("\nTesting failed deployment update...")
     result = updater.on_deployment_failure(
         proposal_id=998,
-        module_id='test',
-        title='Test Failure Proposal',
-        error_message='ImportError: module not found',
-        error_details='Stack trace here...'
+        module_id="test",
+        title="Test Failure Proposal",
+        error_message="ImportError: module not found",
+        error_details="Stack trace here...",
     )
     print(f"Failure result: {result}")
 

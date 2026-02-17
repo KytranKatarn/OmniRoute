@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Create or reset the admin user for a business node."""
+
 import os
 import sys
 import getpass

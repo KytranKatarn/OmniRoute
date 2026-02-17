@@ -16,4 +16,4 @@ Date: 2026-01-12
 
 from .routes import store_builder_bp
 
-__all__ = ['store_builder_bp']
+__all__ = ["store_builder_bp"]

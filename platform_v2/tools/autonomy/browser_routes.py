@@ -241,7 +241,10 @@ def remove_approved_domain(domain_id):
     try:
         conn = get_db()
         cur = conn.cursor()
-        cur.execute("DELETE FROM browser_approved_domains WHERE id = %s AND auto_approved = FALSE", (domain_id,))
+        cur.execute(
+            "DELETE FROM browser_approved_domains WHERE id = %s AND auto_approved = FALSE",
+            (domain_id,),
+        )
         conn.commit()
         cur.close()
         conn.close()

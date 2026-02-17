@@ -9,6 +9,7 @@ Ensures all deployments are safe with:
 - Automatic rollback on failure
 - Deployment tracking
 """
+
 import os
 import sys
 import psycopg2
@@ -19,8 +20,8 @@ import json
 import subprocess
 
 # Add paths for imports
-sys.path.insert(0, '/mnt/archie_brain/platform_v2')
-sys.path.insert(0, '/mnt/archie_brain/platform_v2/tools/backup_manager')
+sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+sys.path.insert(0, "/mnt/archie_brain/platform_v2/tools/backup_manager")
 
 try:
     from sandbox_manager import SandboxManager
@@ -60,11 +61,11 @@ class SafeDeploymentProtocol:
     def get_db(self):
         """Get database connection"""
         return psycopg2.connect(
-            host=os.getenv('DB_HOST', 'archie_database'),
-            port=os.getenv('DB_PORT', '5432'),
-            database=os.getenv('DB_NAME', 'archie'),
-            user=os.getenv('DB_USER', 'archie'),
-            password=os.getenv('DB_PASSWORD', '')
+            host=os.getenv("DB_HOST", "archie_database"),
+            port=os.getenv("DB_PORT", "5432"),
+            database=os.getenv("DB_NAME", "archie"),
+            user=os.getenv("DB_USER", "archie"),
+            password=os.getenv("DB_PASSWORD", ""),
         )
 
     def deploy_proposal(
@@ -73,7 +74,7 @@ class SafeDeploymentProtocol:
         deployed_by_user_id: int,
         force: bool = False,
         skip_backup: bool = False,
-        skip_health_check: bool = False
+        skip_health_check: bool = False,
     ) -> Dict:
         """
         Deploy an improvement proposal with full safety protocol.
@@ -99,123 +100,135 @@ class SafeDeploymentProtocol:
 
         try:
             # 1. Get proposal details
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT * FROM improvement_proposals
                 WHERE id = %s
-            """, (proposal_id,))
+            """,
+                (proposal_id,),
+            )
             proposal = cur.fetchone()
 
             if not proposal:
-                return {
-                    'success': False,
-                    'error': f'Proposal {proposal_id} not found'
-                }
+                return {"success": False, "error": f"Proposal {proposal_id} not found"}
 
             # 2. Validate proposal status
-            if proposal['status'] not in ['approved', 'ready_for_deployment'] and not force:
+            if proposal["status"] not in ["approved", "ready_for_deployment"] and not force:
                 return {
-                    'success': False,
-                    'error': f"Proposal status is '{proposal['status']}'. Must be 'approved' or 'ready_for_deployment'."
+                    "success": False,
+                    "error": f"Proposal status is '{proposal['status']}'. Must be 'approved' or 'ready_for_deployment'.",
                 }
 
             # 3. Check if deployment decision allows auto-deploy
             if self.decision_engine:
                 decision = self.decision_engine.can_auto_deploy(proposal_id)
-                if not decision['can_auto_deploy'] and not force:
+                if not decision["can_auto_deploy"] and not force:
                     return {
-                        'success': False,
-                        'error': f"Deployment requires manual approval: {decision['reason']}",
-                        'requires_approval': True,
-                        'risk_level': decision['risk_level']
+                        "success": False,
+                        "error": f"Deployment requires manual approval: {decision['reason']}",
+                        "requires_approval": True,
+                        "risk_level": decision["risk_level"],
                     }
 
             # 4. Verify sandbox tests passed
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT * FROM sandbox_instances
                 WHERE proposal_id = %s
                 AND status = 'tested'
                 ORDER BY created_at DESC
                 LIMIT 1
-            """, (proposal_id,))
+            """,
+                (proposal_id,),
+            )
             sandbox = cur.fetchone()
 
             if sandbox:
-                test_results = sandbox.get('test_results') or {}
-                if not test_results.get('success') and not force:
+                test_results = sandbox.get("test_results") or {}
+                if not test_results.get("success") and not force:
                     return {
-                        'success': False,
-                        'error': 'Sandbox tests failed. Use force=True to deploy anyway.',
-                        'test_results': test_results
+                        "success": False,
+                        "error": "Sandbox tests failed. Use force=True to deploy anyway.",
+                        "test_results": test_results,
                     }
             elif not force:
                 return {
-                    'success': False,
-                    'error': 'No sandbox tests found. Proposal must be tested in sandbox first.'
+                    "success": False,
+                    "error": "No sandbox tests found. Proposal must be tested in sandbox first.",
                 }
 
             # 5. Create pre-deployment backup
             backup_name = None
             if not skip_backup:
                 backup_result = self._create_backup(proposal_id)
-                if backup_result['success']:
-                    backup_name = backup_result['backup_name']
+                if backup_result["success"]:
+                    backup_name = backup_result["backup_name"]
                 else:
                     return {
-                        'success': False,
-                        'error': f"Backup failed: {backup_result.get('error')}",
-                        'stage': 'backup'
+                        "success": False,
+                        "error": f"Backup failed: {backup_result.get('error')}",
+                        "stage": "backup",
                     }
 
             # 6. Update proposal status to deploying
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE improvement_proposals
                 SET status = 'deploying'
                 WHERE id = %s
-            """, (proposal_id,))
+            """,
+                (proposal_id,),
+            )
             conn.commit()
 
             # 7. Create deployment record
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO improvement_deployments
                 (proposal_id, deployed_by, backup_name, sandbox_id,
                  deployment_type, status, deployed_at)
                 VALUES (%s, %s, %s, %s, %s, 'deploying', NOW())
                 RETURNING id, deployed_at
-            """, (
-                proposal_id,
-                deployed_by_user_id,
-                backup_name,
-                sandbox.get('id') if sandbox else None,
-                'auto_approved' if not force else 'manual_force'
-            ))
+            """,
+                (
+                    proposal_id,
+                    deployed_by_user_id,
+                    backup_name,
+                    sandbox.get("id") if sandbox else None,
+                    "auto_approved" if not force else "manual_force",
+                ),
+            )
             deployment = cur.fetchone()
-            deployment_id = deployment['id']
+            deployment_id = deployment["id"]
             conn.commit()
 
             # 8. Apply changes to production
             deploy_result = self._apply_changes_to_production(proposal, deployment_id)
 
-            if not deploy_result['success']:
+            if not deploy_result["success"]:
                 # Deployment failed - rollback
-                cur.execute("""
+                cur.execute(
+                    """
                     UPDATE improvement_deployments
                     SET status = 'failed',
                         deployment_log = %s
                     WHERE id = %s
-                """, (deploy_result.get('error'), deployment_id))
+                """,
+                    (deploy_result.get("error"), deployment_id),
+                )
                 conn.commit()
 
                 if backup_name and self.rollback_manager:
                     rollback_result = self.rollback_manager.rollback_deployment(
-                        deployment_id, backup_name, reason='Deployment failed'
+                        deployment_id, backup_name, reason="Deployment failed"
                     )
                     cur.close()
                     conn.close()
                     return {
-                        'success': False,
-                        'error': deploy_result.get('error'),
-                        'rolled_back': rollback_result['success'],
-                        'rollback_details': rollback_result
+                        "success": False,
+                        "error": deploy_result.get("error"),
+                        "rolled_back": rollback_result["success"],
+                        "rollback_details": rollback_result,
                     }
 
                 cur.close()
@@ -226,68 +239,80 @@ class SafeDeploymentProtocol:
             health_check_passed = True
             if not skip_health_check:
                 health_result = self._run_health_checks()
-                health_check_passed = health_result['success']
+                health_check_passed = health_result["success"]
 
                 if not health_check_passed:
                     # Health check failed - rollback
-                    cur.execute("""
+                    cur.execute(
+                        """
                         UPDATE improvement_deployments
                         SET status = 'failed',
                             health_check_passed = false,
                             deployment_log = %s
                         WHERE id = %s
-                    """, (health_result.get('error'), deployment_id))
+                    """,
+                        (health_result.get("error"), deployment_id),
+                    )
                     conn.commit()
 
                     if backup_name and self.rollback_manager:
                         rollback_result = self.rollback_manager.rollback_deployment(
-                            deployment_id, backup_name, reason='Health check failed'
+                            deployment_id, backup_name, reason="Health check failed"
                         )
                         cur.close()
                         conn.close()
                         return {
-                            'success': False,
-                            'error': f"Health check failed: {health_result.get('error')}",
-                            'rolled_back': rollback_result['success'],
-                            'rollback_details': rollback_result
+                            "success": False,
+                            "error": f"Health check failed: {health_result.get('error')}",
+                            "rolled_back": rollback_result["success"],
+                            "rollback_details": rollback_result,
                         }
 
             # 10. Mark deployment as successful
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE improvement_deployments
                 SET status = 'deployed',
                     health_check_passed = %s
                 WHERE id = %s
-            """, (health_check_passed, deployment_id))
+            """,
+                (health_check_passed, deployment_id),
+            )
 
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE improvement_proposals
                 SET status = 'deployed',
                     deployed_at = NOW(),
                     last_health_check = NOW()
                 WHERE id = %s
-            """, (proposal_id,))
+            """,
+                (proposal_id,),
+            )
 
             conn.commit()
 
             # Get final deployment info
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT * FROM improvement_deployments
                 WHERE id = %s
-            """, (deployment_id,))
+            """,
+                (deployment_id,),
+            )
             final_deployment = dict(cur.fetchone())
 
             cur.close()
             conn.close()
 
             return {
-                'success': True,
-                'deployment_id': deployment_id,
-                'proposal_id': proposal_id,
-                'backup_name': backup_name,
-                'health_check_passed': health_check_passed,
-                'deployed_at': final_deployment['deployed_at'].isoformat(),
-                'deployment_type': final_deployment['deployment_type']
+                "success": True,
+                "deployment_id": deployment_id,
+                "proposal_id": proposal_id,
+                "backup_name": backup_name,
+                "health_check_passed": health_check_passed,
+                "deployed_at": final_deployment["deployed_at"].isoformat(),
+                "deployment_type": final_deployment["deployment_type"],
             }
 
         except Exception as e:
@@ -295,11 +320,7 @@ class SafeDeploymentProtocol:
             cur.close()
             conn.close()
 
-            return {
-                'success': False,
-                'error': str(e),
-                'stage': 'deployment'
-            }
+            return {"success": False, "error": str(e), "stage": "deployment"}
 
     def _create_backup(self, proposal_id: int) -> Dict:
         """
@@ -315,7 +336,7 @@ class SafeDeploymentProtocol:
             }
         """
         try:
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             description = f"pre_improvement_{proposal_id}"
 
             # Import and use backup manager
@@ -323,21 +344,24 @@ class SafeDeploymentProtocol:
 
             result = create_backup(
                 description=description,
-                created_by_username='system',
-                proposal_id=proposal_id
+                created_by_username="system",
+                proposal_id=proposal_id,
             )
 
-            if result['success']:
+            if result["success"]:
                 # Update proposal with backup info
                 conn = self.get_db()
                 cur = conn.cursor()
 
-                cur.execute("""
+                cur.execute(
+                    """
                     UPDATE improvement_proposals
                     SET backup_name = %s,
                         backup_created_at = NOW()
                     WHERE id = %s
-                """, (result['backup_name'], proposal_id))
+                """,
+                    (result["backup_name"], proposal_id),
+                )
 
                 conn.commit()
                 cur.close()
@@ -346,10 +370,7 @@ class SafeDeploymentProtocol:
             return result
 
         except Exception as e:
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     def _apply_changes_to_production(self, proposal: Dict, deployment_id: int) -> Dict:
         """
@@ -383,16 +404,13 @@ class SafeDeploymentProtocol:
             # In production, this would use code_diff_engine.apply_diff_to_file()
 
             return {
-                'success': True,
-                'changes_applied': [],
-                'message': 'Deployment logic placeholder - integrate with actual deployment system'
+                "success": True,
+                "changes_applied": [],
+                "message": "Deployment logic placeholder - integrate with actual deployment system",
             }
 
         except Exception as e:
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     def _run_health_checks(self) -> Dict:
         """
@@ -423,45 +441,42 @@ class SafeDeploymentProtocol:
                 cur.fetchone()
                 cur.close()
                 conn.close()
-                checks_passed.append('database')
+                checks_passed.append("database")
             except Exception as e:
-                checks_failed.append(f'database: {str(e)}')
+                checks_failed.append(f"database: {str(e)}")
 
             # 2. API health endpoint
             try:
                 result = subprocess.run(
-                    ['curl', '-f', '-s', 'http://localhost:3000/health'],
+                    ["curl", "-f", "-s", "http://localhost:3000/health"],
                     capture_output=True,
                     text=True,
-                    timeout=5
+                    timeout=5,
                 )
                 if result.returncode == 0:
-                    checks_passed.append('api')
+                    checks_passed.append("api")
                 else:
-                    checks_failed.append('api: endpoint not responding')
+                    checks_failed.append("api: endpoint not responding")
             except Exception as e:
-                checks_failed.append(f'api: {str(e)}')
+                checks_failed.append(f"api: {str(e)}")
 
             # 3. Check for recent errors in logs
             # (simplified - would check actual log files)
-            checks_passed.append('logs')
+            checks_passed.append("logs")
 
             # 4. Service availability
             # (simplified - would check systemd or docker status)
-            checks_passed.append('services')
+            checks_passed.append("services")
 
             return {
-                'success': len(checks_failed) == 0,
-                'checks_passed': checks_passed,
-                'checks_failed': checks_failed,
-                'total_checks': len(checks_passed) + len(checks_failed)
+                "success": len(checks_failed) == 0,
+                "checks_passed": checks_passed,
+                "checks_failed": checks_failed,
+                "total_checks": len(checks_passed) + len(checks_failed),
             }
 
         except Exception as e:
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     def get_deployment_status(self, deployment_id: int) -> Dict:
         """
@@ -481,10 +496,13 @@ class SafeDeploymentProtocol:
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         try:
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT * FROM improvement_deployments
                 WHERE id = %s
-            """, (deployment_id,))
+            """,
+                (deployment_id,),
+            )
             deployment = cur.fetchone()
 
             cur.close()
@@ -492,8 +510,8 @@ class SafeDeploymentProtocol:
 
             if not deployment:
                 return {
-                    'success': False,
-                    'error': f'Deployment {deployment_id} not found'
+                    "success": False,
+                    "error": f"Deployment {deployment_id} not found",
                 }
 
             return dict(deployment)
@@ -501,17 +519,9 @@ class SafeDeploymentProtocol:
         except Exception as e:
             cur.close()
             conn.close()
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
-    def list_deployments(
-        self,
-        proposal_id: int = None,
-        status: str = None,
-        limit: int = 20
-    ) -> Dict:
+    def list_deployments(self, proposal_id: int = None, status: str = None, limit: int = 20) -> Dict:
         """
         List deployment history with filters.
 
@@ -556,23 +566,21 @@ class SafeDeploymentProtocol:
             conn.close()
 
             return {
-                'success': True,
-                'deployments': [dict(d) for d in deployments],
-                'total': len(deployments)
+                "success": True,
+                "deployments": [dict(d) for d in deployments],
+                "total": len(deployments),
             }
 
         except Exception as e:
             cur.close()
             conn.close()
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
 
 # ============================================================================
 # CONVENIENCE FUNCTIONS
 # ============================================================================
+
 
 def deploy_improvement(proposal_id: int, user_id: int, force: bool = False) -> Dict:
     """Quick function to deploy improvement"""
@@ -590,7 +598,7 @@ def get_deployment_info(deployment_id: int) -> Dict:
 # TESTING
 # ============================================================================
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("Safe Deployment Protocol - Test Mode")
     print("=" * 60)
 

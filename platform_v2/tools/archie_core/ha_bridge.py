@@ -189,7 +189,10 @@ def register_ha_routes(bp):
             if not response_data["success"]:
                 cur.close()
                 conn.close()
-                return jsonify({"error": f"AI unavailable: {response_data.get('error', 'Unknown')}"}), 503
+                return (
+                    jsonify({"error": f"AI unavailable: {response_data.get('error', 'Unknown')}"}),
+                    503,
+                )
 
             response_text = response_data["response"]
 

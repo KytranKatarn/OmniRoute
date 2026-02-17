@@ -185,7 +185,8 @@ class TMDBClient:
     def get_movie_details(self, movie_id: int) -> Optional[Dict[str, Any]]:
         """Get detailed movie information"""
         result = self._request(
-            f"movie/{movie_id}", {"append_to_response": "credits,videos,external_ids,recommendations"}
+            f"movie/{movie_id}",
+            {"append_to_response": "credits,videos,external_ids,recommendations"},
         )
 
         if not result:
@@ -195,7 +196,10 @@ class TMDBClient:
 
     def get_tv_details(self, tv_id: int) -> Optional[Dict[str, Any]]:
         """Get detailed TV show information"""
-        result = self._request(f"tv/{tv_id}", {"append_to_response": "credits,videos,external_ids,recommendations"})
+        result = self._request(
+            f"tv/{tv_id}",
+            {"append_to_response": "credits,videos,external_ids,recommendations"},
+        )
 
         if not result:
             return None
@@ -244,7 +248,7 @@ class TMDBClient:
             "poster_url": self.get_poster_url(movie.get("poster_path")),
             "backdrop_url": self.get_backdrop_url(movie.get("backdrop_path")),
             "release_date": movie.get("release_date", ""),
-            "year": int(movie.get("release_date", "0000")[:4]) if movie.get("release_date") else None,
+            "year": (int(movie.get("release_date", "0000")[:4]) if movie.get("release_date") else None),
             "rating": movie.get("vote_average"),
             "vote_count": movie.get("vote_count", 0),
             "popularity": movie.get("popularity", 0),
@@ -265,7 +269,7 @@ class TMDBClient:
             "poster_url": self.get_poster_url(tv.get("poster_path")),
             "backdrop_url": self.get_backdrop_url(tv.get("backdrop_path")),
             "first_air_date": tv.get("first_air_date", ""),
-            "year": int(tv.get("first_air_date", "0000")[:4]) if tv.get("first_air_date") else None,
+            "year": (int(tv.get("first_air_date", "0000")[:4]) if tv.get("first_air_date") else None),
             "rating": tv.get("vote_average"),
             "vote_count": tv.get("vote_count", 0),
             "popularity": tv.get("popularity", 0),
@@ -348,7 +352,7 @@ class TMDBClient:
             **self._format_tv(tv),
             "number_of_seasons": tv.get("number_of_seasons"),
             "number_of_episodes": tv.get("number_of_episodes"),
-            "episode_run_time": tv.get("episode_run_time", [None])[0] if tv.get("episode_run_time") else None,
+            "episode_run_time": (tv.get("episode_run_time", [None])[0] if tv.get("episode_run_time") else None),
             "genres": [g.get("name") for g in tv.get("genres", [])],
             "tagline": tv.get("tagline", ""),
             "status": tv.get("status", ""),

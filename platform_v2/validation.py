@@ -12,6 +12,7 @@ Purpose:
 Author: A.R.C.H.I.E. Platform
 Date: 2026-01-07
 """
+
 import re
 from typing import Any, Dict, List, Optional, Union, Tuple
 from datetime import datetime
@@ -20,6 +21,7 @@ import json
 # Optional bleach import for HTML sanitization
 try:
     import bleach
+
     BLEACH_AVAILABLE = True
 except ImportError:
     BLEACH_AVAILABLE = False
@@ -29,8 +31,10 @@ except ImportError:
 # VALIDATION EXCEPTIONS
 # ============================================================================
 
+
 class ValidationError(Exception):
     """Base exception for validation errors"""
+
     def __init__(self, field: str, message: str):
         self.field = field
         self.message = message
@@ -39,16 +43,22 @@ class ValidationError(Exception):
 
 class ValidationResult:
     """Result of validation operation"""
-    def __init__(self, valid: bool, errors: Optional[Dict[str, str]] = None, sanitized_data: Optional[Dict] = None):
+
+    def __init__(
+        self,
+        valid: bool,
+        errors: Optional[Dict[str, str]] = None,
+        sanitized_data: Optional[Dict] = None,
+    ):
         self.valid = valid
         self.errors = errors or {}
         self.sanitized_data = sanitized_data or {}
 
     def to_dict(self) -> Dict:
         return {
-            'valid': self.valid,
-            'errors': self.errors,
-            'data': self.sanitized_data if self.valid else None
+            "valid": self.valid,
+            "errors": self.errors,
+            "data": self.sanitized_data if self.valid else None,
         }
 
 
@@ -56,8 +66,15 @@ class ValidationResult:
 # STRING VALIDATION
 # ============================================================================
 
-def validate_string(value: Any, field_name: str, min_length: int = 0, max_length: int = 1000,
-                   pattern: Optional[str] = None, required: bool = True) -> str:
+
+def validate_string(
+    value: Any,
+    field_name: str,
+    min_length: int = 0,
+    max_length: int = 1000,
+    pattern: Optional[str] = None,
+    required: bool = True,
+) -> str:
     """
     Validate and sanitize string input
 
@@ -76,10 +93,10 @@ def validate_string(value: Any, field_name: str, min_length: int = 0, max_length
         ValidationError: If validation fails
     """
     # Check if value exists
-    if value is None or value == '':
+    if value is None or value == "":
         if required:
             raise ValidationError(field_name, "This field is required")
-        return ''
+        return ""
 
     # Convert to string
     if not isinstance(value, str):
@@ -113,26 +130,39 @@ def sanitize_html(html: str, allowed_tags: Optional[List[str]] = None) -> str:
         Sanitized HTML string
     """
     if allowed_tags is None:
-        allowed_tags = ['p', 'br', 'strong', 'em', 'u', 'a', 'ul', 'ol', 'li', 'code', 'pre']
+        allowed_tags = [
+            "p",
+            "br",
+            "strong",
+            "em",
+            "u",
+            "a",
+            "ul",
+            "ol",
+            "li",
+            "code",
+            "pre",
+        ]
 
     if BLEACH_AVAILABLE:
-        return bleach.clean(
-            html,
-            tags=allowed_tags,
-            attributes={'a': ['href', 'title']},
-            strip=True
-        )
+        return bleach.clean(html, tags=allowed_tags, attributes={"a": ["href", "title"]}, strip=True)
     else:
         # Fallback: Strip all HTML tags
-        return re.sub(r'<[^>]+>', '', html)
+        return re.sub(r"<[^>]+>", "", html)
 
 
 # ============================================================================
 # NUMERIC VALIDATION
 # ============================================================================
 
-def validate_integer(value: Any, field_name: str, min_value: Optional[int] = None,
-                    max_value: Optional[int] = None, required: bool = True) -> Optional[int]:
+
+def validate_integer(
+    value: Any,
+    field_name: str,
+    min_value: Optional[int] = None,
+    max_value: Optional[int] = None,
+    required: bool = True,
+) -> Optional[int]:
     """
     Validate integer input
 
@@ -149,7 +179,7 @@ def validate_integer(value: Any, field_name: str, min_value: Optional[int] = Non
     Raises:
         ValidationError: If validation fails
     """
-    if value is None or value == '':
+    if value is None or value == "":
         if required:
             raise ValidationError(field_name, "This field is required")
         return None
@@ -169,10 +199,15 @@ def validate_integer(value: Any, field_name: str, min_value: Optional[int] = Non
     return value
 
 
-def validate_float(value: Any, field_name: str, min_value: Optional[float] = None,
-                  max_value: Optional[float] = None, required: bool = True) -> Optional[float]:
+def validate_float(
+    value: Any,
+    field_name: str,
+    min_value: Optional[float] = None,
+    max_value: Optional[float] = None,
+    required: bool = True,
+) -> Optional[float]:
     """Validate float input"""
-    if value is None or value == '':
+    if value is None or value == "":
         if required:
             raise ValidationError(field_name, "This field is required")
         return None
@@ -194,7 +229,8 @@ def validate_float(value: Any, field_name: str, min_value: Optional[float] = Non
 # EMAIL & USERNAME VALIDATION
 # ============================================================================
 
-def validate_email(email: str, field_name: str = 'email', required: bool = True) -> str:
+
+def validate_email(email: str, field_name: str = "email", required: bool = True) -> str:
     """
     Validate email address format
 
@@ -212,12 +248,12 @@ def validate_email(email: str, field_name: str = 'email', required: bool = True)
     if not email:
         if required:
             raise ValidationError(field_name, "Email is required")
-        return ''
+        return ""
 
     email = email.strip().lower()
 
     # Email regex pattern
-    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
 
     if not re.match(pattern, email):
         raise ValidationError(field_name, "Invalid email format")
@@ -228,7 +264,7 @@ def validate_email(email: str, field_name: str = 'email', required: bool = True)
     return email
 
 
-def validate_username(username: str, field_name: str = 'username', required: bool = True) -> str:
+def validate_username(username: str, field_name: str = "username", required: bool = True) -> str:
     """
     Validate username format
 
@@ -246,7 +282,7 @@ def validate_username(username: str, field_name: str = 'username', required: boo
     if not username:
         if required:
             raise ValidationError(field_name, "Username is required")
-        return ''
+        return ""
 
     username = username.strip()
 
@@ -256,9 +292,12 @@ def validate_username(username: str, field_name: str = 'username', required: boo
     if len(username) > 30:
         raise ValidationError(field_name, "Username must be at most 30 characters")
 
-    pattern = r'^[a-zA-Z0-9_-]+$'
+    pattern = r"^[a-zA-Z0-9_-]+$"
     if not re.match(pattern, username):
-        raise ValidationError(field_name, "Username can only contain letters, numbers, underscores, and hyphens")
+        raise ValidationError(
+            field_name,
+            "Username can only contain letters, numbers, underscores, and hyphens",
+        )
 
     return username
 
@@ -267,10 +306,16 @@ def validate_username(username: str, field_name: str = 'username', required: boo
 # PASSWORD VALIDATION
 # ============================================================================
 
-def validate_password(password: str, field_name: str = 'password',
-                     min_length: int = 8, require_uppercase: bool = True,
-                     require_lowercase: bool = True, require_digit: bool = True,
-                     require_special: bool = False) -> str:
+
+def validate_password(
+    password: str,
+    field_name: str = "password",
+    min_length: int = 8,
+    require_uppercase: bool = True,
+    require_lowercase: bool = True,
+    require_digit: bool = True,
+    require_special: bool = False,
+) -> str:
     """
     Validate password strength
 
@@ -298,13 +343,13 @@ def validate_password(password: str, field_name: str = 'password',
     if len(password) > 128:
         raise ValidationError(field_name, "Password too long")
 
-    if require_uppercase and not re.search(r'[A-Z]', password):
+    if require_uppercase and not re.search(r"[A-Z]", password):
         raise ValidationError(field_name, "Password must contain at least one uppercase letter")
 
-    if require_lowercase and not re.search(r'[a-z]', password):
+    if require_lowercase and not re.search(r"[a-z]", password):
         raise ValidationError(field_name, "Password must contain at least one lowercase letter")
 
-    if require_digit and not re.search(r'\d', password):
+    if require_digit and not re.search(r"\d", password):
         raise ValidationError(field_name, "Password must contain at least one digit")
 
     if require_special and not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
@@ -317,8 +362,13 @@ def validate_password(password: str, field_name: str = 'password',
 # URL VALIDATION
 # ============================================================================
 
-def validate_url(url: str, field_name: str = 'url', required: bool = True,
-                allowed_schemes: Optional[List[str]] = None) -> str:
+
+def validate_url(
+    url: str,
+    field_name: str = "url",
+    required: bool = True,
+    allowed_schemes: Optional[List[str]] = None,
+) -> str:
     """
     Validate URL format
 
@@ -337,21 +387,21 @@ def validate_url(url: str, field_name: str = 'url', required: bool = True,
     if not url:
         if required:
             raise ValidationError(field_name, "URL is required")
-        return ''
+        return ""
 
     url = url.strip()
 
     if allowed_schemes is None:
-        allowed_schemes = ['http', 'https']
+        allowed_schemes = ["http", "https"]
 
     # URL pattern
-    pattern = r'^(https?|ftp):\/\/[^\s/$.?#].[^\s]*$'
+    pattern = r"^(https?|ftp):\/\/[^\s/$.?#].[^\s]*$"
 
     if not re.match(pattern, url, re.IGNORECASE):
         raise ValidationError(field_name, "Invalid URL format")
 
     # Check scheme
-    scheme = url.split('://')[0].lower()
+    scheme = url.split("://")[0].lower()
     if scheme not in allowed_schemes:
         raise ValidationError(field_name, f"URL scheme must be one of: {', '.join(allowed_schemes)}")
 
@@ -362,8 +412,13 @@ def validate_url(url: str, field_name: str = 'url', required: bool = True,
 # DATE & TIME VALIDATION
 # ============================================================================
 
-def validate_date(date_str: str, field_name: str = 'date', required: bool = True,
-                 date_format: str = '%Y-%m-%d') -> Optional[datetime]:
+
+def validate_date(
+    date_str: str,
+    field_name: str = "date",
+    required: bool = True,
+    date_format: str = "%Y-%m-%d",
+) -> Optional[datetime]:
     """
     Validate date string
 
@@ -390,8 +445,12 @@ def validate_date(date_str: str, field_name: str = 'date', required: bool = True
         raise ValidationError(field_name, f"Invalid date format. Expected: {date_format}")
 
 
-def validate_datetime(dt_str: str, field_name: str = 'datetime', required: bool = True,
-                     dt_format: str = '%Y-%m-%d %H:%M:%S') -> Optional[datetime]:
+def validate_datetime(
+    dt_str: str,
+    field_name: str = "datetime",
+    required: bool = True,
+    dt_format: str = "%Y-%m-%d %H:%M:%S",
+) -> Optional[datetime]:
     """Validate datetime string"""
     if not dt_str:
         if required:
@@ -408,8 +467,14 @@ def validate_datetime(dt_str: str, field_name: str = 'datetime', required: bool 
 # ENUM VALIDATION
 # ============================================================================
 
-def validate_enum(value: str, field_name: str, allowed_values: List[str],
-                 required: bool = True, case_sensitive: bool = False) -> str:
+
+def validate_enum(
+    value: str,
+    field_name: str,
+    allowed_values: List[str],
+    required: bool = True,
+    case_sensitive: bool = False,
+) -> str:
     """
     Validate enum/choice value
 
@@ -429,7 +494,7 @@ def validate_enum(value: str, field_name: str, allowed_values: List[str],
     if not value:
         if required:
             raise ValidationError(field_name, "This field is required")
-        return ''
+        return ""
 
     value = value.strip()
 
@@ -455,7 +520,8 @@ def validate_enum(value: str, field_name: str, allowed_values: List[str],
 # JSON VALIDATION
 # ============================================================================
 
-def validate_json(json_str: str, field_name: str = 'json', required: bool = True) -> Optional[Dict]:
+
+def validate_json(json_str: str, field_name: str = "json", required: bool = True) -> Optional[Dict]:
     """
     Validate JSON string
 
@@ -484,6 +550,7 @@ def validate_json(json_str: str, field_name: str = 'json', required: bool = True
 # ============================================================================
 # BATCH VALIDATION
 # ============================================================================
+
 
 def validate_schema(data: Dict[str, Any], schema: Dict[str, Dict]) -> ValidationResult:
     """
@@ -516,61 +583,65 @@ def validate_schema(data: Dict[str, Any], schema: Dict[str, Dict]) -> Validation
     for field_name, rules in schema.items():
         try:
             value = data.get(field_name)
-            field_type = rules.get('type', 'string')
-            required = rules.get('required', False)
+            field_type = rules.get("type", "string")
+            required = rules.get("required", False)
 
             # Validate based on type
-            if field_type == 'string':
+            if field_type == "string":
                 sanitized_data[field_name] = validate_string(
-                    value, field_name,
-                    min_length=rules.get('min_length', 0),
-                    max_length=rules.get('max_length', 1000),
-                    pattern=rules.get('pattern'),
-                    required=required
+                    value,
+                    field_name,
+                    min_length=rules.get("min_length", 0),
+                    max_length=rules.get("max_length", 1000),
+                    pattern=rules.get("pattern"),
+                    required=required,
                 )
 
-            elif field_type == 'integer':
+            elif field_type == "integer":
                 sanitized_data[field_name] = validate_integer(
-                    value, field_name,
-                    min_value=rules.get('min_value'),
-                    max_value=rules.get('max_value'),
-                    required=required
+                    value,
+                    field_name,
+                    min_value=rules.get("min_value"),
+                    max_value=rules.get("max_value"),
+                    required=required,
                 )
 
-            elif field_type == 'float':
+            elif field_type == "float":
                 sanitized_data[field_name] = validate_float(
-                    value, field_name,
-                    min_value=rules.get('min_value'),
-                    max_value=rules.get('max_value'),
-                    required=required
+                    value,
+                    field_name,
+                    min_value=rules.get("min_value"),
+                    max_value=rules.get("max_value"),
+                    required=required,
                 )
 
-            elif field_type == 'email':
+            elif field_type == "email":
                 sanitized_data[field_name] = validate_email(value, field_name, required)
 
-            elif field_type == 'username':
+            elif field_type == "username":
                 sanitized_data[field_name] = validate_username(value, field_name, required)
 
-            elif field_type == 'password':
+            elif field_type == "password":
                 sanitized_data[field_name] = validate_password(value, field_name)
 
-            elif field_type == 'url':
+            elif field_type == "url":
                 sanitized_data[field_name] = validate_url(value, field_name, required)
 
-            elif field_type == 'enum':
+            elif field_type == "enum":
                 sanitized_data[field_name] = validate_enum(
-                    value, field_name,
-                    allowed_values=rules.get('allowed_values', []),
-                    required=required
+                    value,
+                    field_name,
+                    allowed_values=rules.get("allowed_values", []),
+                    required=required,
                 )
 
-            elif field_type == 'json':
+            elif field_type == "json":
                 sanitized_data[field_name] = validate_json(value, field_name, required)
 
-            elif field_type == 'date':
+            elif field_type == "date":
                 sanitized_data[field_name] = validate_date(value, field_name, required)
 
-            elif field_type == 'datetime':
+            elif field_type == "datetime":
                 sanitized_data[field_name] = validate_datetime(value, field_name, required)
 
         except ValidationError as e:
@@ -586,6 +657,7 @@ def validate_schema(data: Dict[str, Any], schema: Dict[str, Dict]) -> Validation
 # ============================================================================
 # FLASK INTEGRATION
 # ============================================================================
+
 
 def validate_request_json(schema: Dict[str, Dict]):
     """
@@ -612,19 +684,16 @@ def validate_request_json(schema: Dict[str, Dict]):
             # Get JSON data
             data = request.get_json()
             if data is None:
-                return jsonify({
-                    'success': False,
-                    'error': 'Request body must be JSON'
-                }), 400
+                return (
+                    jsonify({"success": False, "error": "Request body must be JSON"}),
+                    400,
+                )
 
             # Validate schema
             result = validate_schema(data, schema)
 
             if not result.valid:
-                return jsonify({
-                    'success': False,
-                    'errors': result.errors
-                }), 400
+                return jsonify({"success": False, "errors": result.errors}), 400
 
             # Attach validated data to request
             request.validated_data = result.sanitized_data
@@ -632,6 +701,7 @@ def validate_request_json(schema: Dict[str, Dict]):
             return f(*args, **kwargs)
 
         return decorated_function
+
     return decorator
 
 
@@ -639,7 +709,7 @@ def validate_request_json(schema: Dict[str, Dict]):
 # TESTING & EXAMPLES
 # ============================================================================
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("=" * 80)
     print("VALIDATION UTILITY TEST")
     print("=" * 80)
@@ -667,17 +737,21 @@ if __name__ == '__main__':
 
     # Test schema validation
     test_data = {
-        'username': 'john_doe',
-        'email': 'john@example.com',
-        'age': 25,
-        'role': 'user'
+        "username": "john_doe",
+        "email": "john@example.com",
+        "age": 25,
+        "role": "user",
     }
 
     test_schema = {
-        'username': {'type': 'username', 'required': True},
-        'email': {'type': 'email', 'required': True},
-        'age': {'type': 'integer', 'min_value': 18, 'max_value': 120, 'required': True},
-        'role': {'type': 'enum', 'allowed_values': ['user', 'admin', 'premium'], 'required': True}
+        "username": {"type": "username", "required": True},
+        "email": {"type": "email", "required": True},
+        "age": {"type": "integer", "min_value": 18, "max_value": 120, "required": True},
+        "role": {
+            "type": "enum",
+            "allowed_values": ["user", "admin", "premium"],
+            "required": True,
+        },
     }
 
     result = validate_schema(test_data, test_schema)

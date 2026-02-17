@@ -72,7 +72,13 @@ class SystemService:
                     temps = self._psutil.sensors_temperatures()
                     if temps:
                         # Try common CPU sensor names
-                        for sensor_name in ["coretemp", "k10temp", "cpu_thermal", "acpitz", "zenpower"]:
+                        for sensor_name in [
+                            "coretemp",
+                            "k10temp",
+                            "cpu_thermal",
+                            "acpitz",
+                            "zenpower",
+                        ]:
                             if sensor_name in temps and temps[sensor_name]:
                                 sensor = temps[sensor_name][0]
                                 info["temperature"] = round(sensor.current, 1)
@@ -242,8 +248,8 @@ class SystemService:
                         "is_lvm": is_lvm,
                         "lvm_info": (
                             {
-                                "vg_name": lvm_volume["vg_name"] if lvm_volume else None,
-                                "lv_name": lvm_volume["lv_name"] if lvm_volume else None,
+                                "vg_name": (lvm_volume["vg_name"] if lvm_volume else None),
+                                "lv_name": (lvm_volume["lv_name"] if lvm_volume else None),
                                 "can_extend": can_extend,
                                 "vg_free_gb": round(vg_free_gb, 2),
                             }
@@ -330,7 +336,10 @@ class SystemService:
         mapping = {}
         try:
             result = subprocess.run(
-                ["lsblk", "-J", "-o", "NAME,TYPE,PKNAME,SIZE"], capture_output=True, text=True, timeout=10
+                ["lsblk", "-J", "-o", "NAME,TYPE,PKNAME,SIZE"],
+                capture_output=True,
+                text=True,
+                timeout=10,
             )
             if result.returncode == 0:
                 import json
@@ -350,7 +359,11 @@ class SystemService:
                         if dev_type == "lvm":
                             # For LVM, use mapper path
                             dev_path = f"/dev/mapper/{name}"
-                        mapping[dev_path] = {"parent_disk": parent_disk, "type": dev_type, "size": device.get("size")}
+                        mapping[dev_path] = {
+                            "parent_disk": parent_disk,
+                            "type": dev_type,
+                            "size": device.get("size"),
+                        }
 
                     # Process children
                     for child in device.get("children", []):
@@ -369,7 +382,14 @@ class SystemService:
         # Get Physical Volumes
         try:
             result = subprocess.run(
-                ["pvs", "--noheadings", "--units", "g", "-o", "pv_name,vg_name,pv_size,pv_free"],
+                [
+                    "pvs",
+                    "--noheadings",
+                    "--units",
+                    "g",
+                    "-o",
+                    "pv_name,vg_name,pv_size,pv_free",
+                ],
                 capture_output=True,
                 text=True,
                 timeout=10,
@@ -379,7 +399,12 @@ class SystemService:
                     parts = line.split()
                     if len(parts) >= 4:
                         info["pvs"].append(
-                            {"pv_name": parts[0], "vg_name": parts[1], "pv_size": parts[2], "pv_free": parts[3]}
+                            {
+                                "pv_name": parts[0],
+                                "vg_name": parts[1],
+                                "pv_size": parts[2],
+                                "pv_free": parts[3],
+                            }
                         )
         except Exception:
             pass
@@ -387,7 +412,14 @@ class SystemService:
         # Get Volume Groups
         try:
             result = subprocess.run(
-                ["vgs", "--noheadings", "--units", "g", "-o", "vg_name,vg_size,vg_free"],
+                [
+                    "vgs",
+                    "--noheadings",
+                    "--units",
+                    "g",
+                    "-o",
+                    "vg_name,vg_size,vg_free",
+                ],
                 capture_output=True,
                 text=True,
                 timeout=10,
@@ -400,7 +432,11 @@ class SystemService:
                         vg_size = float(parts[1].rstrip("gG")) if parts[1] else 0
                         vg_free = float(parts[2].rstrip("gG")) if parts[2] else 0
                         info["vgs"].append(
-                            {"vg_name": parts[0], "vg_size_gb": round(vg_size, 2), "vg_free_gb": round(vg_free, 2)}
+                            {
+                                "vg_name": parts[0],
+                                "vg_size_gb": round(vg_size, 2),
+                                "vg_free_gb": round(vg_free, 2),
+                            }
                         )
         except Exception:
             pass
@@ -408,7 +444,14 @@ class SystemService:
         # Get Logical Volumes
         try:
             result = subprocess.run(
-                ["lvs", "--noheadings", "--units", "g", "-o", "lv_name,vg_name,lv_size"],
+                [
+                    "lvs",
+                    "--noheadings",
+                    "--units",
+                    "g",
+                    "-o",
+                    "lv_name,vg_name,lv_size",
+                ],
                 capture_output=True,
                 text=True,
                 timeout=10,
@@ -418,13 +461,25 @@ class SystemService:
                     parts = line.split()
                     if len(parts) >= 3:
                         lv_size = float(parts[2].rstrip("gG")) if parts[2] else 0
-                        info["lvs"].append({"lv_name": parts[0], "vg_name": parts[1], "lv_size_gb": round(lv_size, 2)})
+                        info["lvs"].append(
+                            {
+                                "lv_name": parts[0],
+                                "vg_name": parts[1],
+                                "lv_size_gb": round(lv_size, 2),
+                            }
+                        )
         except Exception:
             pass
 
         return info if (info["vgs"] or info["lvs"] or info["pvs"]) else None
 
-    def extend_lvm(self, vg_name: str, lv_name: str, size_gb: float = None, extend_all: bool = False) -> Dict[str, Any]:
+    def extend_lvm(
+        self,
+        vg_name: str,
+        lv_name: str,
+        size_gb: float = None,
+        extend_all: bool = False,
+    ) -> Dict[str, Any]:
         """
         Extend an LVM logical volume.
 
@@ -457,13 +512,19 @@ class SystemService:
                 elif size_gb:
                     params["size_gb"] = size_gb
                 else:
-                    return {"success": False, "error": "Must specify size_gb or extend_all=True"}
+                    return {
+                        "success": False,
+                        "error": "Must specify size_gb or extend_all=True",
+                    }
 
                 result_data = submit_and_wait("lvm_extend", params, timeout=120)
                 return result_data.get("result", {"success": False, "error": "No result from host"})
         except HostCommandTimeout:
             # Don't fall back — command may still be running on host
-            return {"success": False, "error": "LVM extend timed out waiting for host. Check host_monitor.py logs."}
+            return {
+                "success": False,
+                "error": "LVM extend timed out waiting for host. Check host_monitor.py logs.",
+            }
         except (ImportError, HostCommandQueueUnavailable):
             pass  # Fall through to legacy path
         except Exception:
@@ -481,23 +542,35 @@ class SystemService:
                     break
 
             if vg_free < 0.1:
-                return {"success": False, "error": f"No free space in volume group {vg_name}"}
+                return {
+                    "success": False,
+                    "error": f"No free space in volume group {vg_name}",
+                }
 
             if extend_all:
                 cmd = ["lvextend", "-l", "+100%FREE", lv_path]
             elif size_gb:
                 if size_gb > vg_free:
-                    return {"success": False, "error": f"Requested {size_gb}GB but only {vg_free}GB available"}
+                    return {
+                        "success": False,
+                        "error": f"Requested {size_gb}GB but only {vg_free}GB available",
+                    }
                 cmd = ["lvextend", "-L", f"+{size_gb}G", lv_path]
             else:
-                return {"success": False, "error": "Must specify size_gb or extend_all=True"}
+                return {
+                    "success": False,
+                    "error": "Must specify size_gb or extend_all=True",
+                }
 
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
             if result.returncode != 0:
                 return {"success": False, "error": result.stderr or "lvextend failed"}
 
             fs_result = subprocess.run(
-                ["blkid", "-o", "value", "-s", "TYPE", lv_path], capture_output=True, text=True, timeout=10
+                ["blkid", "-o", "value", "-s", "TYPE", lv_path],
+                capture_output=True,
+                text=True,
+                timeout=10,
             )
             fs_type = fs_result.stdout.strip()
 
@@ -520,7 +593,11 @@ class SystemService:
                     "error": resize_result.stderr,
                 }
 
-            return {"success": True, "message": f"Successfully extended {lv_path}", "filesystem": fs_type}
+            return {
+                "success": True,
+                "message": f"Successfully extended {lv_path}",
+                "filesystem": fs_type,
+            }
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -540,8 +617,8 @@ class SystemService:
                                     arrays.append(
                                         {
                                             "name": parts[0],
-                                            "status": "active" if "active" in line else "inactive",
-                                            "level": parts[3] if len(parts) > 3 else "unknown",
+                                            "status": ("active" if "active" in line else "inactive"),
+                                            "level": (parts[3] if len(parts) > 3 else "unknown"),
                                             "devices": [p for p in parts[4:] if "[" in p],
                                         }
                                     )
@@ -594,7 +671,12 @@ class SystemService:
 
         # Try AMD ROCm
         try:
-            result = subprocess.run(["rocm-smi", "--showproductname"], capture_output=True, text=True, timeout=5)
+            result = subprocess.run(
+                ["rocm-smi", "--showproductname"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
             if result.returncode == 0:
                 info["available"] = True
                 info["model"] = "AMD GPU (ROCm)"
@@ -614,7 +696,15 @@ class SystemService:
 
         if self._psutil:
             for proc in self._psutil.process_iter(
-                ["pid", "name", "username", "cpu_percent", "memory_percent", "status", "create_time"]
+                [
+                    "pid",
+                    "name",
+                    "username",
+                    "cpu_percent",
+                    "memory_percent",
+                    "status",
+                    "create_time",
+                ]
             ):
                 try:
                     pinfo = proc.info
@@ -650,7 +740,10 @@ class SystemService:
         """Kill a process by PID"""
         # Protected PIDs (init, kernel threads)
         if pid <= 1:
-            return {"success": False, "error": "Cannot kill system processes (PID <= 1)"}
+            return {
+                "success": False,
+                "error": "Cannot kill system processes (PID <= 1)",
+            }
 
         try:
             if self._psutil:
@@ -660,14 +753,20 @@ class SystemService:
                 # Protect critical processes
                 critical = ["init", "systemd", "kernel", "kthreadd"]
                 if proc_name.lower() in critical:
-                    return {"success": False, "error": f"Cannot kill critical system process: {proc_name}"}
+                    return {
+                        "success": False,
+                        "error": f"Cannot kill critical system process: {proc_name}",
+                    }
 
                 if signal == "SIGKILL":
                     proc.kill()
                 else:
                     proc.terminate()
 
-                return {"success": True, "message": f"Process {pid} ({proc_name}) terminated"}
+                return {
+                    "success": True,
+                    "message": f"Process {pid} ({proc_name}) terminated",
+                }
             else:
                 import signal as sig
 
@@ -687,7 +786,14 @@ class SystemService:
         try:
             # Get all services
             result = subprocess.run(
-                ["systemctl", "list-units", "--type=service", "--all", "--no-pager", "--plain"],
+                [
+                    "systemctl",
+                    "list-units",
+                    "--type=service",
+                    "--all",
+                    "--no-pager",
+                    "--plain",
+                ],
                 capture_output=True,
                 text=True,
                 timeout=10,
@@ -727,7 +833,10 @@ class SystemService:
         """Check if a service is enabled"""
         try:
             result = subprocess.run(
-                ["systemctl", "is-enabled", f"{service_name}.service"], capture_output=True, text=True, timeout=5
+                ["systemctl", "is-enabled", f"{service_name}.service"],
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             return result.stdout.strip() == "enabled"
         except Exception:
@@ -737,21 +846,35 @@ class SystemService:
         """Perform action on a systemd service"""
         valid_actions = ["start", "stop", "restart", "enable", "disable"]
         if action not in valid_actions:
-            return {"success": False, "error": f"Invalid action. Must be one of: {valid_actions}"}
+            return {
+                "success": False,
+                "error": f"Invalid action. Must be one of: {valid_actions}",
+            }
 
         # Protect critical services
         critical = ["docker", "postgresql", "sshd", "systemd-journald"]
         if service_name in critical and action == "stop":
-            return {"success": False, "error": f"Cannot stop critical service: {service_name}", "warning": True}
+            return {
+                "success": False,
+                "error": f"Cannot stop critical service: {service_name}",
+                "warning": True,
+            }
 
         try:
             result = subprocess.run(
-                ["sudo", "systemctl", action, f"{service_name}.service"], capture_output=True, text=True, timeout=30
+                ["sudo", "systemctl", action, f"{service_name}.service"],
+                capture_output=True,
+                text=True,
+                timeout=30,
             )
 
             if result.returncode == 0:
                 new_status = self._get_service_status(service_name)
-                return {"success": True, "message": f"Service {service_name} {action}ed", "new_status": new_status}
+                return {
+                    "success": True,
+                    "message": f"Service {service_name} {action}ed",
+                    "new_status": new_status,
+                }
             else:
                 return {"success": False, "error": result.stderr or "Action failed"}
         except Exception as e:
@@ -761,7 +884,10 @@ class SystemService:
         """Get current service status"""
         try:
             result = subprocess.run(
-                ["systemctl", "is-active", f"{service_name}.service"], capture_output=True, text=True, timeout=5
+                ["systemctl", "is-active", f"{service_name}.service"],
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             return result.stdout.strip()
         except Exception:
@@ -777,7 +903,13 @@ class SystemService:
 
         try:
             result = subprocess.run(
-                ["docker", "ps", "-a", "--format", "{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}"],
+                [
+                    "docker",
+                    "ps",
+                    "-a",
+                    "--format",
+                    "{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}",
+                ],
                 capture_output=True,
                 text=True,
                 timeout=10,
@@ -807,7 +939,10 @@ class SystemService:
         """Perform action on a Docker container"""
         valid_actions = ["start", "stop", "restart", "remove"]
         if action not in valid_actions:
-            return {"success": False, "error": f"Invalid action. Must be one of: {valid_actions}"}
+            return {
+                "success": False,
+                "error": f"Invalid action. Must be one of: {valid_actions}",
+            }
 
         try:
             cmd = ["docker", action, container_id]
@@ -817,7 +952,10 @@ class SystemService:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
 
             if result.returncode == 0:
-                return {"success": True, "message": f"Container {container_id} {action}ed"}
+                return {
+                    "success": True,
+                    "message": f"Container {container_id} {action}ed",
+                }
             else:
                 return {"success": False, "error": result.stderr or "Action failed"}
         except Exception as e:
@@ -856,7 +994,12 @@ class SystemService:
         # Try to detect host IP from Docker host gateway
         try:
             # Docker typically uses 172.17.0.1 or 172.18.0.1 as gateway
-            result = subprocess.run(["ip", "route", "show", "default"], capture_output=True, text=True, timeout=5)
+            result = subprocess.run(
+                ["ip", "route", "show", "default"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
             if result.returncode == 0:
                 parts = result.stdout.split()
                 if "via" in parts:
@@ -967,9 +1110,9 @@ class SystemService:
 
                         info["connections"].append(
                             {
-                                "local_addr": f"{conn.laddr.ip}:{conn.laddr.port}" if conn.laddr else None,
+                                "local_addr": (f"{conn.laddr.ip}:{conn.laddr.port}" if conn.laddr else None),
                                 "local_port": conn.laddr.port if conn.laddr else None,
-                                "remote_addr": f"{conn.raddr.ip}:{conn.raddr.port}" if conn.raddr else None,
+                                "remote_addr": (f"{conn.raddr.ip}:{conn.raddr.port}" if conn.raddr else None),
                                 "remote_ip": conn.raddr.ip if conn.raddr else None,
                                 "remote_port": conn.raddr.port if conn.raddr else None,
                                 "status": conn.status,
@@ -1039,7 +1182,14 @@ class SystemService:
         try:
             host_ip = socket.gethostbyname("host.docker.internal")
             if host_ip:
-                interfaces.append({"name": "host", "ip": host_ip, "type": "docker-host", "note": "Docker host gateway"})
+                interfaces.append(
+                    {
+                        "name": "host",
+                        "ip": host_ip,
+                        "type": "docker-host",
+                        "note": "Docker host gateway",
+                    }
+                )
         except Exception:
             pass
 
@@ -1058,7 +1208,10 @@ class SystemService:
         # Method 4: Try nsenter to host namespace (requires privileged)
         try:
             result = subprocess.run(
-                ["nsenter", "-t", "1", "-n", "ip", "-4", "addr", "show"], capture_output=True, text=True, timeout=5
+                ["nsenter", "-t", "1", "-n", "ip", "-4", "addr", "show"],
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             if result.returncode == 0:
                 current_iface = None

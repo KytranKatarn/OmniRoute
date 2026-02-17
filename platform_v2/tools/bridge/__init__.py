@@ -10,4 +10,4 @@ Date: 2026-01-16
 
 from .routes import bridge_bp
 
-__all__ = ['bridge_bp']
+__all__ = ["bridge_bp"]

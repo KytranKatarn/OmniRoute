@@ -115,12 +115,22 @@ def validate_password(password):
         return False, "Password must contain at least one digit"
 
     if not re.search(r'[!@#$%^&*(),.?":{}|<>_\-+=\[\]\\;\'`~]', password):
-        return False, "Password must contain at least one special character (!@#$%^&*...)"
+        return (
+            False,
+            "Password must contain at least one special character (!@#$%^&*...)",
+        )
 
     return True, None
 
 
-def log_activity(user_id, action, module="account_center", details=None, resource_type=None, resource_id=None):
+def log_activity(
+    user_id,
+    action,
+    module="account_center",
+    details=None,
+    resource_type=None,
+    resource_id=None,
+):
     """Log user activity with proper connection handling"""
     try:
         with get_db_cursor() as (conn, cur):
@@ -285,7 +295,13 @@ def api_list_users():
             total = cur.fetchone()["count"]
 
             return jsonify(
-                {"success": True, "users": [dict(u) for u in users], "total": total, "limit": limit, "offset": offset}
+                {
+                    "success": True,
+                    "users": [dict(u) for u in users],
+                    "total": total,
+                    "limit": limit,
+                    "offset": offset,
+                }
             )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -394,7 +410,10 @@ def api_create_user():
             # Check if username exists
             cur.execute("SELECT id FROM users WHERE username = %s", (username,))
             if cur.fetchone():
-                return jsonify({"success": False, "error": "Username already exists"}), 400
+                return (
+                    jsonify({"success": False, "error": "Username already exists"}),
+                    400,
+                )
 
             # Create user
             password_hash = generate_password_hash(password)
@@ -409,7 +428,11 @@ def api_create_user():
 
             new_id = cur.fetchone()["id"]
 
-        log_activity(current_user.id, "user_created", details={"new_user_id": new_id, "username": username})
+        log_activity(
+            current_user.id,
+            "user_created",
+            details={"new_user_id": new_id, "username": username},
+        )
 
         return jsonify({"success": True, "user_id": new_id})
     except Exception as e:
@@ -464,7 +487,11 @@ def api_update_user(user_id):
                 params,
             )
 
-        log_activity(current_user.id, "user_updated", details={"target_user_id": user_id, "fields": list(data.keys())})
+        log_activity(
+            current_user.id,
+            "user_updated",
+            details={"target_user_id": user_id, "fields": list(data.keys())},
+        )
 
         return jsonify({"success": True})
     except Exception as e:
@@ -479,7 +506,10 @@ def api_delete_user(user_id):
     try:
         # Prevent deleting yourself
         if user_id == current_user.id:
-            return jsonify({"success": False, "error": "Cannot delete your own account"}), 400
+            return (
+                jsonify({"success": False, "error": "Cannot delete your own account"}),
+                400,
+            )
 
         with get_db_cursor() as (conn, cur):
             cur.execute("UPDATE users SET is_active = false WHERE id = %s", (user_id,))
@@ -508,7 +538,10 @@ def api_reset_password(user_id):
 
         with get_db_cursor() as (conn, cur):
             password_hash = generate_password_hash(new_password)
-            cur.execute("UPDATE users SET password_hash = %s WHERE id = %s", (password_hash, user_id))
+            cur.execute(
+                "UPDATE users SET password_hash = %s WHERE id = %s",
+                (password_hash, user_id),
+            )
 
         log_activity(current_user.id, "password_reset", details={"target_user_id": user_id})
 
@@ -597,55 +630,139 @@ def api_list_permissions():
         PERM_META = {
             "public:view": {"label": "View Public Pages", "category": "Public Access"},
             "directory:view": {"label": "View Directory", "category": "Public Access"},
-            "archie:chat": {"label": "Chat with A.R.C.H.I.E.", "category": "Core Features"},
-            "code_editor:read": {"label": "Code Editor (Read)", "category": "Core Features"},
-            "code_editor:write": {"label": "Code Editor (Write)", "category": "Core Features"},
+            "archie:chat": {
+                "label": "Chat with A.R.C.H.I.E.",
+                "category": "Core Features",
+            },
+            "code_editor:read": {
+                "label": "Code Editor (Read)",
+                "category": "Core Features",
+            },
+            "code_editor:write": {
+                "label": "Code Editor (Write)",
+                "category": "Core Features",
+            },
             "user:settings": {"label": "User Settings", "category": "Core Features"},
             "read:own": {"label": "Read Own Data", "category": "Core Features"},
             "write:own": {"label": "Write Own Data", "category": "Core Features"},
-            "automation:create": {"label": "Create Automations", "category": "Automation & Tasks"},
-            "automation:manage": {"label": "Manage Automations", "category": "Automation & Tasks"},
-            "task_planner:schedule": {"label": "Schedule Tasks", "category": "Automation & Tasks"},
-            "task_planner:calendar": {"label": "Calendar Access", "category": "Automation & Tasks"},
+            "automation:create": {
+                "label": "Create Automations",
+                "category": "Automation & Tasks",
+            },
+            "automation:manage": {
+                "label": "Manage Automations",
+                "category": "Automation & Tasks",
+            },
+            "task_planner:schedule": {
+                "label": "Schedule Tasks",
+                "category": "Automation & Tasks",
+            },
+            "task_planner:calendar": {
+                "label": "Calendar Access",
+                "category": "Automation & Tasks",
+            },
             "google:email": {"label": "Google Email", "category": "Google Workspace"},
-            "google:contacts": {"label": "Google Contacts", "category": "Google Workspace"},
-            "google:calendar": {"label": "Google Calendar", "category": "Google Workspace"},
+            "google:contacts": {
+                "label": "Google Contacts",
+                "category": "Google Workspace",
+            },
+            "google:calendar": {
+                "label": "Google Calendar",
+                "category": "Google Workspace",
+            },
             "app_builder:create": {"label": "Create Apps", "category": "App Building"},
             "app_builder:deploy": {"label": "Deploy Apps", "category": "App Building"},
-            "app_builder:unlimited": {"label": "Unlimited Projects", "category": "App Building"},
-            "website_builder:create": {"label": "Create Websites", "category": "Website & Store"},
-            "website_builder:deploy": {"label": "Deploy Websites", "category": "Website & Store"},
+            "app_builder:unlimited": {
+                "label": "Unlimited Projects",
+                "category": "App Building",
+            },
+            "website_builder:create": {
+                "label": "Create Websites",
+                "category": "Website & Store",
+            },
+            "website_builder:deploy": {
+                "label": "Deploy Websites",
+                "category": "Website & Store",
+            },
             "store:create": {"label": "Create Store", "category": "Website & Store"},
             "store:manage": {"label": "Manage Store", "category": "Website & Store"},
-            "telephony:access": {"label": "Phone System Access", "category": "Website & Store"},
-            "telephony:admin": {"label": "Phone System Admin", "category": "Website & Store"},
-            "social_media:create": {"label": "Create Social Posts", "category": "Content & Media"},
-            "social_media:schedule": {"label": "Schedule Social Posts", "category": "Content & Media"},
+            "telephony:access": {
+                "label": "Phone System Access",
+                "category": "Website & Store",
+            },
+            "telephony:admin": {
+                "label": "Phone System Admin",
+                "category": "Website & Store",
+            },
+            "social_media:create": {
+                "label": "Create Social Posts",
+                "category": "Content & Media",
+            },
+            "social_media:schedule": {
+                "label": "Schedule Social Posts",
+                "category": "Content & Media",
+            },
             "figma:import": {"label": "Figma Import", "category": "Content & Media"},
-            "analytics:view": {"label": "View Analytics", "category": "Content & Media"},
+            "analytics:view": {
+                "label": "View Analytics",
+                "category": "Content & Media",
+            },
             "stock_bot:scan": {"label": "Stock Scanner", "category": "Finance"},
             "stock_bot:alerts": {"label": "Stock Alerts", "category": "Finance"},
-            "obsidian:read": {"label": "Read Vault Notes", "category": "Obsidian Vault"},
-            "obsidian:write": {"label": "Write Vault Notes", "category": "Obsidian Vault"},
-            "obsidian:delete": {"label": "Delete Vault Notes", "category": "Obsidian Vault"},
-            "obsidian:admin": {"label": "Vault Administration", "category": "Obsidian Vault"},
-            "admin:access": {"label": "Admin Panel Access", "category": "Administration"},
+            "obsidian:read": {
+                "label": "Read Vault Notes",
+                "category": "Obsidian Vault",
+            },
+            "obsidian:write": {
+                "label": "Write Vault Notes",
+                "category": "Obsidian Vault",
+            },
+            "obsidian:delete": {
+                "label": "Delete Vault Notes",
+                "category": "Obsidian Vault",
+            },
+            "obsidian:admin": {
+                "label": "Vault Administration",
+                "category": "Obsidian Vault",
+            },
+            "admin:access": {
+                "label": "Admin Panel Access",
+                "category": "Administration",
+            },
             "admin:agents": {"label": "Manage Agents", "category": "Administration"},
-            "admin:improvements": {"label": "Improvement Workflow", "category": "Administration"},
+            "admin:improvements": {
+                "label": "Improvement Workflow",
+                "category": "Administration",
+            },
             "admin:users": {"label": "Manage Users", "category": "Administration"},
-            "admin:backups": {"label": "Backup Management", "category": "Administration"},
+            "admin:backups": {
+                "label": "Backup Management",
+                "category": "Administration",
+            },
             "admin:logs": {"label": "View System Logs", "category": "Administration"},
             "admin:sandbox": {"label": "Sandbox Access", "category": "Administration"},
-            "admin:fine_tuning": {"label": "AI Fine-Tuning", "category": "Administration"},
+            "admin:fine_tuning": {
+                "label": "AI Fine-Tuning",
+                "category": "Administration",
+            },
             "admin:ide": {"label": "IDE Access", "category": "Administration"},
             "admin:testing": {"label": "Testing Tools", "category": "Administration"},
-            "admin:projects": {"label": "Project Management", "category": "Administration"},
+            "admin:projects": {
+                "label": "Project Management",
+                "category": "Administration",
+            },
             "read:all": {"label": "Read All Data", "category": "Administration"},
             "write:all": {"label": "Write All Data", "category": "Administration"},
             "admin:mining": {"label": "Mining Operations", "category": "Super Admin"},
             "admin:system": {"label": "System Operations", "category": "Super Admin"},
-            "admin:security": {"label": "Security Management", "category": "Super Admin"},
-            "superadmin:all": {"label": "Full System Access", "category": "Super Admin"},
+            "admin:security": {
+                "label": "Security Management",
+                "category": "Super Admin",
+            },
+            "superadmin:all": {
+                "label": "Full System Access",
+                "category": "Super Admin",
+            },
         }
 
         all_roles = ["PUBLIC", "USER", "PREMIUM", "ADMIN", "SUPER_ADMIN"]
@@ -654,7 +771,11 @@ def api_list_permissions():
         groups = {}
         for perm in Permission:
             meta = PERM_META.get(
-                perm.value, {"label": perm.value.replace(":", " ").replace("_", " ").title(), "category": "Other"}
+                perm.value,
+                {
+                    "label": perm.value.replace(":", " ").replace("_", " ").title(),
+                    "category": "Other",
+                },
             )
             category = meta["category"]
             if category not in groups:
@@ -720,7 +841,11 @@ def api_update_user_role(user_id):
                 (role.lower(), is_admin, user_id),
             )
 
-        log_activity(current_user.id, "role_changed", details={"target_user_id": user_id, "new_role": role})
+        log_activity(
+            current_user.id,
+            "role_changed",
+            details={"target_user_id": user_id, "new_role": role},
+        )
 
         return jsonify({"success": True})
     except Exception as e:
@@ -833,7 +958,13 @@ def api_get_subscription(user_id):
 
             # Map role_level to role name
             role_level = row.get("role_level") or 10
-            level_role_map = {0: "PUBLIC", 10: "USER", 20: "PREMIUM", 90: "ADMIN", 100: "SUPER_ADMIN"}
+            level_role_map = {
+                0: "PUBLIC",
+                10: "USER",
+                20: "PREMIUM",
+                90: "ADMIN",
+                100: "SUPER_ADMIN",
+            }
             mapped_role = level_role_map.get(role_level, "USER")
 
             subscription = {
@@ -1069,7 +1200,13 @@ def api_get_activity():
             cur.execute(count_query, count_params)
             total = cur.fetchone()["count"]
 
-        return jsonify({"success": True, "activities": [dict(a) for a in activities], "total": total})
+        return jsonify(
+            {
+                "success": True,
+                "activities": [dict(a) for a in activities],
+                "total": total,
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -1201,7 +1338,13 @@ def api_list_sessions():
             )
             users = cur.fetchall()
 
-        return jsonify({"success": True, "sessions": [dict(s) for s in sessions], "users": [dict(u) for u in users]})
+        return jsonify(
+            {
+                "success": True,
+                "sessions": [dict(s) for s in sessions],
+                "users": [dict(u) for u in users],
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -1288,7 +1431,13 @@ def api_list_api_keys():
             cur.execute("SELECT id, username FROM users WHERE is_active = true ORDER BY username")
             users = cur.fetchall()
 
-        return jsonify({"success": True, "keys": [dict(k) for k in keys], "users": [dict(u) for u in users]})
+        return jsonify(
+            {
+                "success": True,
+                "keys": [dict(k) for k in keys],
+                "users": [dict(u) for u in users],
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -1310,7 +1459,10 @@ def api_create_api_key():
         rate_limit_val = data.get("rate_limit_per_hour", 1000)
 
         if not user_id or not name:
-            return jsonify({"success": False, "error": "User and name are required"}), 400
+            return (
+                jsonify({"success": False, "error": "User and name are required"}),
+                400,
+            )
 
         # Generate a secure API key
         raw_key = secrets.token_urlsafe(32)
@@ -1344,12 +1496,23 @@ def api_create_api_key():
 
             new_id = cur.fetchone()["id"]
 
-        log_activity(current_user.id, "api_key_created", details={"key_id": new_id, "user_id": user_id, "name": name})
+        log_activity(
+            current_user.id,
+            "api_key_created",
+            details={"key_id": new_id, "user_id": user_id, "name": name},
+        )
 
         # Return the full key only once - it won't be retrievable later
         full_key = f"arch_{raw_key}"
 
-        return jsonify({"success": True, "key_id": new_id, "api_key": full_key, "key_prefix": key_prefix})
+        return jsonify(
+            {
+                "success": True,
+                "key_id": new_id,
+                "api_key": full_key,
+                "key_prefix": key_prefix,
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -1364,9 +1527,16 @@ def api_update_api_key(key_id):
 
         with get_db_cursor() as (conn, cur):
             if "is_active" in data:
-                cur.execute("UPDATE mcp_api_keys SET is_active = %s WHERE id = %s", (data["is_active"], key_id))
+                cur.execute(
+                    "UPDATE mcp_api_keys SET is_active = %s WHERE id = %s",
+                    (data["is_active"], key_id),
+                )
 
-        log_activity(current_user.id, "api_key_updated", details={"key_id": key_id, "changes": list(data.keys())})
+        log_activity(
+            current_user.id,
+            "api_key_updated",
+            details={"key_id": key_id, "changes": list(data.keys())},
+        )
 
         return jsonify({"success": True})
     except Exception as e:
@@ -1424,7 +1594,9 @@ def api_bulk_export():
             users = cur.fetchall()
 
         log_activity(
-            current_user.id, "users_exported", details={"format": format_type, "scope": scope, "count": len(users)}
+            current_user.id,
+            "users_exported",
+            details={"format": format_type, "scope": scope, "count": len(users)},
         )
 
         if format_type == "json":
@@ -1598,7 +1770,13 @@ def api_bulk_update():
         log_activity(
             current_user.id,
             "bulk_update_executed",
-            details={"target": target, "action": action, "tier": tier, "count": count, "confirmed": confirmed},
+            details={
+                "target": target,
+                "action": action,
+                "tier": tier,
+                "count": count,
+                "confirmed": confirmed,
+            },
         )
 
         return jsonify({"success": True, "count": count})
@@ -1619,7 +1797,10 @@ def api_bulk_import():
             return jsonify({"success": False, "error": "No users to import"}), 400
 
         if len(users_to_import) > 1000:
-            return jsonify({"success": False, "error": "Maximum 1000 users per import"}), 400
+            return (
+                jsonify({"success": False, "error": "Maximum 1000 users per import"}),
+                400,
+            )
 
         created = 0
         skipped = 0
@@ -1650,11 +1831,22 @@ def api_bulk_import():
                     INSERT INTO users (username, email, password_hash, role, subscription_tier, is_admin)
                     VALUES (%s, %s, %s, %s, %s, %s)
                 """,
-                    (username, email or None, password_hash, role.lower(), tier, is_admin),
+                    (
+                        username,
+                        email or None,
+                        password_hash,
+                        role.lower(),
+                        tier,
+                        is_admin,
+                    ),
                 )
                 created += 1
 
-        log_activity(current_user.id, "users_imported", details={"created": created, "skipped": skipped})
+        log_activity(
+            current_user.id,
+            "users_imported",
+            details={"created": created, "skipped": skipped},
+        )
 
         return jsonify({"success": True, "created": created, "skipped": skipped})
     except Exception as e:

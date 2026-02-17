@@ -92,7 +92,8 @@ def get_drive_service(service_account_path: str = None):
     # Fall back to service account (limited: can't own files on personal Drive)
     if not service_account_path:
         service_account_path = os.environ.get(
-            "GDRIVE_SERVICE_ACCOUNT_PATH", "/app/credentials/gdrive-service-account.json"
+            "GDRIVE_SERVICE_ACCOUNT_PATH",
+            "/app/credentials/gdrive-service-account.json",
         )
 
     if os.path.exists(service_account_path):
@@ -211,11 +212,16 @@ def upload_file(service, file_path: str, folder_id: str, filename: str = None, o
     file_size = os.path.getsize(file_path)
 
     media = MediaFileUpload(
-        file_path, mimetype="application/octet-stream", resumable=True, chunksize=5 * 1024 * 1024  # 5MB chunks
+        file_path,
+        mimetype="application/octet-stream",
+        resumable=True,
+        chunksize=5 * 1024 * 1024,  # 5MB chunks
     )
 
     request = service.files().create(
-        body=file_metadata, media_body=media, fields="id,name,size,webViewLink,createdTime"
+        body=file_metadata,
+        media_body=media,
+        fields="id,name,size,webViewLink,createdTime",
     )
 
     response = None

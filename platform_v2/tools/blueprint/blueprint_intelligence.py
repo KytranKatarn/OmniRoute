@@ -98,7 +98,11 @@ def auto_sync_if_stale() -> Dict[str, Any]:
         if row and row["updated_at"]:
             age = (datetime.now() - row["updated_at"]).total_seconds()
             if age < 300:  # Less than 5 minutes old
-                return {"synced": False, "reason": "data_fresh", "age_seconds": int(age)}
+                return {
+                    "synced": False,
+                    "reason": "data_fresh",
+                    "age_seconds": int(age),
+                }
 
         # Stale or no data — trigger sync
         result = sync_blueprint_to_knowledge_base()
@@ -321,7 +325,7 @@ def get_api_endpoints() -> Dict[str, Any]:
                     "path": str(rule),
                     "methods": methods,
                     "category": category,
-                    "description": docstring.strip().split("\n")[0] if docstring else None,
+                    "description": (docstring.strip().split("\n")[0] if docstring else None),
                     "has_args": bool(rule.arguments),
                 }
             )
@@ -337,7 +341,12 @@ def get_api_endpoints() -> Dict[str, Any]:
                 categories[cat] = []
             categories[cat].append(ep)
 
-        return {"success": True, "endpoints": endpoints, "categories": categories, "total": len(endpoints)}
+        return {
+            "success": True,
+            "endpoints": endpoints,
+            "categories": categories,
+            "total": len(endpoints),
+        }
     except Exception as e:
         logger.error(f"Error getting endpoints: {e}")
         return {"success": False, "error": str(e)}
@@ -379,7 +388,8 @@ def get_system_health() -> Dict[str, Any]:
                 "percent": psutil.disk_usage("/").percent,
             },
             "uptime_hours": round(
-                (datetime.now() - datetime.fromtimestamp(psutil.boot_time())).total_seconds() / 3600, 1
+                (datetime.now() - datetime.fromtimestamp(psutil.boot_time())).total_seconds() / 3600,
+                1,
             ),
         }
     except Exception as e:
@@ -388,7 +398,12 @@ def get_system_health() -> Dict[str, Any]:
     # Docker containers
     try:
         result = subprocess.run(
-            ["docker", "ps", "--format", "{{.Names}}|{{.Status}}|{{.Image}}|{{.Ports}}"],
+            [
+                "docker",
+                "ps",
+                "--format",
+                "{{.Names}}|{{.Status}}|{{.Image}}|{{.Ports}}",
+            ],
             capture_output=True,
             text=True,
             timeout=10,
@@ -438,7 +453,12 @@ def get_system_health() -> Dict[str, Any]:
             "connections": conn_count,
             "size": db_size,
             "uptime_hours": (
-                round((datetime.now(start_time.tzinfo) - start_time).total_seconds() / 3600, 1) if start_time else None
+                round(
+                    (datetime.now(start_time.tzinfo) - start_time).total_seconds() / 3600,
+                    1,
+                )
+                if start_time
+                else None
             ),
         }
 
@@ -493,16 +513,29 @@ def get_dependencies() -> Dict[str, Any]:
 
         # Check for outdated
         outdated_result = subprocess.run(
-            ["pip", "list", "--outdated", "--format=json"], capture_output=True, text=True, timeout=60
+            ["pip", "list", "--outdated", "--format=json"],
+            capture_output=True,
+            text=True,
+            timeout=60,
         )
 
         outdated = {}
         if outdated_result.returncode == 0:
             for pkg in json.loads(outdated_result.stdout):
-                outdated[pkg["name"]] = {"current": pkg["version"], "latest": pkg["latest_version"]}
+                outdated[pkg["name"]] = {
+                    "current": pkg["version"],
+                    "latest": pkg["latest_version"],
+                }
 
         # Categorize packages
-        core_packages = ["flask", "psycopg2", "requests", "gunicorn", "python-dotenv", "jinja2"]
+        core_packages = [
+            "flask",
+            "psycopg2",
+            "requests",
+            "gunicorn",
+            "python-dotenv",
+            "jinja2",
+        ]
         ai_packages = ["anthropic", "openai", "ollama", "tiktoken", "transformers"]
         dev_packages = ["pytest", "black", "flake8", "mypy", "pylint"]
 
@@ -602,7 +635,8 @@ def get_backup_status() -> Dict[str, Any]:
                                 "size_mb": round(dir_size / (1024 * 1024), 2),
                                 "file_count": file_count,
                                 "created": metadata.get(
-                                    "timestamp", datetime.fromtimestamp(os.path.getctime(item_path)).isoformat()
+                                    "timestamp",
+                                    datetime.fromtimestamp(os.path.getctime(item_path)).isoformat(),
                                 ),
                                 "type": metadata.get("type", "unknown"),
                                 "description": metadata.get("description", ""),
@@ -621,7 +655,7 @@ def get_backup_status() -> Dict[str, Any]:
                                 "size_mb": round(dir_size / (1024 * 1024), 2),
                                 "file_count": file_count,
                                 "created": datetime.fromtimestamp(os.path.getctime(item_path)).isoformat(),
-                                "type": "full" if "Full" in item else "partial" if "partial" in item else "unknown",
+                                "type": ("full" if "Full" in item else "partial" if "partial" in item else "unknown"),
                                 "description": "",
                                 "components": [],
                                 "build_number": None,
@@ -866,8 +900,14 @@ def compare_inventory_snapshots(old_id: int, new_id: int) -> Dict[str, Any]:
 
         comparison = {
             "success": True,
-            "old_snapshot": {"id": old_id, "date": old_snapshot["snapshot_at"].isoformat()},
-            "new_snapshot": {"id": new_id, "date": new_snapshot["snapshot_at"].isoformat()},
+            "old_snapshot": {
+                "id": old_id,
+                "date": old_snapshot["snapshot_at"].isoformat(),
+            },
+            "new_snapshot": {
+                "id": new_id,
+                "date": new_snapshot["snapshot_at"].isoformat(),
+            },
             "changes": {
                 "docs": {
                     "added": list(new_docs - old_docs),
@@ -884,7 +924,10 @@ def compare_inventory_snapshots(old_id: int, new_id: int) -> Dict[str, Any]:
                     "removed": list(old_migrations - new_migrations),
                     "count_change": len(new_migrations) - len(old_migrations),
                 },
-                "size_change_mb": round((new_snapshot["total_size_mb"] or 0) - (old_snapshot["total_size_mb"] or 0), 2),
+                "size_change_mb": round(
+                    (new_snapshot["total_size_mb"] or 0) - (old_snapshot["total_size_mb"] or 0),
+                    2,
+                ),
             },
         }
 
@@ -934,7 +977,11 @@ def sync_blueprint_to_knowledge_base() -> Dict[str, Any]:
                 VALUES (%s, %s, 'vault_note', 'blueprint_sync', 0.85, %s)
                 ON CONFLICT (title) DO UPDATE SET content = EXCLUDED.content, updated_at = NOW()
             """,
-                ("DATABASE_SCHEMA_SUMMARY", schema_content, ["database", "schema", "architecture", "blueprint"]),
+                (
+                    "DATABASE_SCHEMA_SUMMARY",
+                    schema_content,
+                    ["database", "schema", "architecture", "blueprint"],
+                ),
             )
             synced.append("database_schema")
 
@@ -969,7 +1016,11 @@ def sync_blueprint_to_knowledge_base() -> Dict[str, Any]:
                 VALUES (%s, %s, 'vault_note', 'blueprint_sync', 0.7, %s)
                 ON CONFLICT (title) DO UPDATE SET content = EXCLUDED.content, updated_at = NOW()
             """,
-                ("SYSTEM_HEALTH_STATUS", health_content, ["system", "health", "monitoring", "blueprint"]),
+                (
+                    "SYSTEM_HEALTH_STATUS",
+                    health_content,
+                    ["system", "health", "monitoring", "blueprint"],
+                ),
             )
             synced.append("system_health")
 
@@ -1002,13 +1053,21 @@ def sync_blueprint_to_knowledge_base() -> Dict[str, Any]:
                 VALUES (%s, %s, 'vault_note', 'blueprint_sync', 0.8, %s)
                 ON CONFLICT (title) DO UPDATE SET content = EXCLUDED.content, updated_at = NOW()
             """,
-                ("AGENT_DIRECTORY_SUMMARY", agent_content, ["agents", "team", "directory", "blueprint"]),
+                (
+                    "AGENT_DIRECTORY_SUMMARY",
+                    agent_content,
+                    ["agents", "team", "directory", "blueprint"],
+                ),
             )
             synced.append("agent_directory")
 
         conn.commit()
 
-        return {"success": True, "synced": synced, "timestamp": datetime.now().isoformat()}
+        return {
+            "success": True,
+            "synced": synced,
+            "timestamp": datetime.now().isoformat(),
+        }
     except Exception as e:
         conn.rollback()
         logger.error(f"Error syncing to knowledge base: {e}")
@@ -1103,7 +1162,11 @@ def sync_module_code_to_knowledge() -> Dict[str, Any]:
                     INSERT INTO knowledge_base (title, content, knowledge_type, source_type, importance_score, tags)
                     VALUES (%s, %s, 'code_snippet', 'module_code_sync', 0.75, %s)
                 """,
-                    (title, kb_content, [module_name, "routes", "api", "module", "code"]),
+                    (
+                        title,
+                        kb_content,
+                        [module_name, "routes", "api", "module", "code"],
+                    ),
                 )
 
                 synced.append({"module": module_name, "lines": lines, "size": file_size})
@@ -1155,7 +1218,12 @@ def execute_quick_action(action: str) -> Dict[str, Any]:
 
     try:
         result = subprocess.run(
-            allowed_actions[action], shell=True, capture_output=True, text=True, timeout=60, cwd=PLATFORM_ROOT
+            allowed_actions[action],
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            cwd=PLATFORM_ROOT,
         )
 
         return {
@@ -1192,7 +1260,12 @@ def get_consciousness_summary() -> Dict[str, Any]:
 
     try:
         # Get memory stats
-        memory_stats = {"total_memories": 0, "episodic": 0, "semantic": 0, "procedural": 0}
+        memory_stats = {
+            "total_memories": 0,
+            "episodic": 0,
+            "semantic": 0,
+            "procedural": 0,
+        }
         try:
             cur.execute(
                 """

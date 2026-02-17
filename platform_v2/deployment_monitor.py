@@ -9,6 +9,7 @@ Features:
 - Performance degradation detection
 - Automatic rollback on threshold breach
 """
+
 import os
 import sys
 import psycopg2
@@ -18,7 +19,7 @@ from typing import Dict, List
 import subprocess
 import time
 
-sys.path.insert(0, '/mnt/archie_brain/platform_v2')
+sys.path.insert(0, "/mnt/archie_brain/platform_v2")
 
 try:
     from auto_rollback import AutoRollbackManager
@@ -49,28 +50,24 @@ class DeploymentMonitor:
 
         # Monitoring thresholds
         self.thresholds = {
-            'health_check_failures': 3,  # Max failures before rollback
-            'health_check_window_minutes': 5,  # Time window for failures
-            'error_rate_percent': 5.0,  # Max error rate (%)
-            'response_time_increase_percent': 200,  # Max response time increase (%)
-            'monitoring_duration_hours': 24  # How long to monitor after deployment
+            "health_check_failures": 3,  # Max failures before rollback
+            "health_check_window_minutes": 5,  # Time window for failures
+            "error_rate_percent": 5.0,  # Max error rate (%)
+            "response_time_increase_percent": 200,  # Max response time increase (%)
+            "monitoring_duration_hours": 24,  # How long to monitor after deployment
         }
 
     def get_db(self):
         """Get database connection"""
         return psycopg2.connect(
-            host=os.getenv('DB_HOST', 'archie_database'),
-            port=os.getenv('DB_PORT', '5432'),
-            database=os.getenv('DB_NAME', 'archie'),
-            user=os.getenv('DB_USER', 'archie'),
-            password=os.getenv('DB_PASSWORD', '')
+            host=os.getenv("DB_HOST", "archie_database"),
+            port=os.getenv("DB_PORT", "5432"),
+            database=os.getenv("DB_NAME", "archie"),
+            user=os.getenv("DB_USER", "archie"),
+            password=os.getenv("DB_PASSWORD", ""),
         )
 
-    def monitor_deployment(
-        self,
-        deployment_id: int,
-        check_interval_seconds: int = 60
-    ) -> Dict:
+    def monitor_deployment(self, deployment_id: int, check_interval_seconds: int = 60) -> Dict:
         """
         Monitor a deployment for a single check cycle.
 
@@ -99,27 +96,30 @@ class DeploymentMonitor:
 
         try:
             # Get deployment details
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT * FROM improvement_deployments
                 WHERE id = %s
-            """, (deployment_id,))
+            """,
+                (deployment_id,),
+            )
             deployment = cur.fetchone()
 
             if not deployment:
                 return {
-                    'success': False,
-                    'error': f'Deployment {deployment_id} not found'
+                    "success": False,
+                    "error": f"Deployment {deployment_id} not found",
                 }
 
             # Check if deployment is still in monitoring window
-            deployed_at = deployment['deployed_at']
-            monitoring_until = deployed_at + timedelta(hours=self.thresholds['monitoring_duration_hours'])
+            deployed_at = deployment["deployed_at"]
+            monitoring_until = deployed_at + timedelta(hours=self.thresholds["monitoring_duration_hours"])
 
             if datetime.now() > monitoring_until:
                 return {
-                    'success': True,
-                    'status': 'monitoring_complete',
-                    'message': 'Monitoring window has passed'
+                    "success": True,
+                    "status": "monitoring_complete",
+                    "message": "Monitoring window has passed",
                 }
 
             # Run health checks
@@ -134,37 +134,40 @@ class DeploymentMonitor:
                     rollback_result = self.rollback_manager.rollback_deployment(
                         deployment_id=deployment_id,
                         reason=rollback_reason,
-                        auto_triggered=True
+                        auto_triggered=True,
                     )
 
                     cur.close()
                     conn.close()
 
                     return {
-                        'success': True,
-                        'deployment_id': deployment_id,
-                        'status': 'rolled_back',
-                        'checks': checks,
-                        'action_taken': 'rollback',
-                        'rollback_reason': rollback_reason,
-                        'rollback_result': rollback_result
+                        "success": True,
+                        "deployment_id": deployment_id,
+                        "status": "rolled_back",
+                        "checks": checks,
+                        "action_taken": "rollback",
+                        "rollback_reason": rollback_reason,
+                        "rollback_result": rollback_result,
                     }
                 else:
                     # Can't rollback without manager
                     cur.close()
                     conn.close()
                     return {
-                        'success': False,
-                        'error': 'Rollback triggered but rollback manager not available',
-                        'rollback_reason': rollback_reason
+                        "success": False,
+                        "error": "Rollback triggered but rollback manager not available",
+                        "rollback_reason": rollback_reason,
                     }
 
             # No rollback needed - update last health check
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE improvement_proposals
                 SET last_health_check = NOW()
                 WHERE id = %s
-            """, (deployment['proposal_id'],))
+            """,
+                (deployment["proposal_id"],),
+            )
             conn.commit()
 
             cur.close()
@@ -172,24 +175,21 @@ class DeploymentMonitor:
 
             # Determine overall status
             all_healthy = all(checks.values())
-            status = 'healthy' if all_healthy else 'degraded'
+            status = "healthy" if all_healthy else "degraded"
 
             return {
-                'success': True,
-                'deployment_id': deployment_id,
-                'status': status,
-                'checks': checks,
-                'action_taken': None,
-                'monitoring_until': monitoring_until.isoformat()
+                "success": True,
+                "deployment_id": deployment_id,
+                "status": status,
+                "checks": checks,
+                "action_taken": None,
+                "monitoring_until": monitoring_until.isoformat(),
             }
 
         except Exception as e:
             cur.close()
             conn.close()
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     def _run_monitoring_checks(self, deployment_id: int) -> Dict:
         """
@@ -206,16 +206,16 @@ class DeploymentMonitor:
         checks = {}
 
         # 1. Health endpoint check
-        checks['health_endpoint'] = self._check_health_endpoint()
+        checks["health_endpoint"] = self._check_health_endpoint()
 
         # 2. Database connectivity
-        checks['database'] = self._check_database()
+        checks["database"] = self._check_database()
 
         # 3. Error rate check (simplified)
-        checks['error_rate'] = self._check_error_rate()
+        checks["error_rate"] = self._check_error_rate()
 
         # 4. Response time check (simplified)
-        checks['response_time'] = self._check_response_time()
+        checks["response_time"] = self._check_response_time()
 
         return checks
 
@@ -223,10 +223,10 @@ class DeploymentMonitor:
         """Check if health endpoint is responding"""
         try:
             result = subprocess.run(
-                ['curl', '-f', '-s', 'http://localhost:3000/health'],
+                ["curl", "-f", "-s", "http://localhost:3000/health"],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5,
             )
             return result.returncode == 0
         except:
@@ -275,11 +275,11 @@ class DeploymentMonitor:
             (should_rollback: bool, reason: str)
         """
         # Critical checks that trigger immediate rollback
-        critical_checks = ['health_endpoint', 'database']
+        critical_checks = ["health_endpoint", "database"]
 
         for check in critical_checks:
             if not checks.get(check, True):
-                return (True, f'Critical check failed: {check}')
+                return (True, f"Critical check failed: {check}")
 
         # Check for repeated failures (would need to track history)
         # For now, single failure of critical checks triggers rollback
@@ -304,14 +304,17 @@ class DeploymentMonitor:
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         try:
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     d.*,
                     p.last_health_check
                 FROM improvement_deployments d
                 LEFT JOIN improvement_proposals p ON d.proposal_id = p.id
                 WHERE d.id = %s
-            """, (deployment_id,))
+            """,
+                (deployment_id,),
+            )
 
             deployment = cur.fetchone()
             cur.close()
@@ -319,37 +322,36 @@ class DeploymentMonitor:
 
             if not deployment:
                 return {
-                    'success': False,
-                    'error': f'Deployment {deployment_id} not found'
+                    "success": False,
+                    "error": f"Deployment {deployment_id} not found",
                 }
 
-            deployed_at = deployment['deployed_at']
-            monitoring_until = deployed_at + timedelta(hours=self.thresholds['monitoring_duration_hours'])
+            deployed_at = deployment["deployed_at"]
+            monitoring_until = deployed_at + timedelta(hours=self.thresholds["monitoring_duration_hours"])
 
             # Determine status
-            if deployment['status'] == 'rolled_back':
-                status = 'rolled_back'
+            if deployment["status"] == "rolled_back":
+                status = "rolled_back"
             elif datetime.now() > monitoring_until:
-                status = 'monitoring_complete'
+                status = "monitoring_complete"
             else:
-                status = 'monitoring'
+                status = "monitoring"
 
             return {
-                'deployment_id': deployment_id,
-                'proposal_id': deployment['proposal_id'],
-                'status': status,
-                'deployed_at': deployed_at.isoformat(),
-                'monitoring_until': monitoring_until.isoformat(),
-                'last_health_check': deployment['last_health_check'].isoformat() if deployment['last_health_check'] else None,
-                'health_check_passed': deployment.get('health_check_passed'),
-                'monitoring_active': datetime.now() <= monitoring_until
+                "deployment_id": deployment_id,
+                "proposal_id": deployment["proposal_id"],
+                "status": status,
+                "deployed_at": deployed_at.isoformat(),
+                "monitoring_until": monitoring_until.isoformat(),
+                "last_health_check": (
+                    deployment["last_health_check"].isoformat() if deployment["last_health_check"] else None
+                ),
+                "health_check_passed": deployment.get("health_check_passed"),
+                "monitoring_active": datetime.now() <= monitoring_until,
             }
 
         except Exception as e:
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     def get_active_monitors(self) -> Dict:
         """
@@ -375,9 +377,10 @@ class DeploymentMonitor:
 
         try:
             # Get deployments within monitoring window
-            monitoring_cutoff = datetime.now() - timedelta(hours=self.thresholds['monitoring_duration_hours'])
+            monitoring_cutoff = datetime.now() - timedelta(hours=self.thresholds["monitoring_duration_hours"])
 
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     d.*,
                     p.last_health_check
@@ -386,7 +389,9 @@ class DeploymentMonitor:
                 WHERE d.status = 'deployed'
                 AND d.deployed_at > %s
                 ORDER BY d.deployed_at DESC
-            """, (monitoring_cutoff,))
+            """,
+                (monitoring_cutoff,),
+            )
 
             deployments = cur.fetchall()
             cur.close()
@@ -394,34 +399,32 @@ class DeploymentMonitor:
 
             monitors = []
             for deployment in deployments:
-                deployed_at = deployment['deployed_at']
-                monitoring_until = deployed_at + timedelta(hours=self.thresholds['monitoring_duration_hours'])
+                deployed_at = deployment["deployed_at"]
+                monitoring_until = deployed_at + timedelta(hours=self.thresholds["monitoring_duration_hours"])
 
-                monitors.append({
-                    'deployment_id': deployment['id'],
-                    'proposal_id': deployment['proposal_id'],
-                    'deployed_at': deployed_at.isoformat(),
-                    'monitoring_until': monitoring_until.isoformat(),
-                    'last_health_check': deployment['last_health_check'].isoformat() if deployment['last_health_check'] else None,
-                    'status': 'monitoring'
-                })
+                monitors.append(
+                    {
+                        "deployment_id": deployment["id"],
+                        "proposal_id": deployment["proposal_id"],
+                        "deployed_at": deployed_at.isoformat(),
+                        "monitoring_until": monitoring_until.isoformat(),
+                        "last_health_check": (
+                            deployment["last_health_check"].isoformat() if deployment["last_health_check"] else None
+                        ),
+                        "status": "monitoring",
+                    }
+                )
 
-            return {
-                'success': True,
-                'monitors': monitors,
-                'total': len(monitors)
-            }
+            return {"success": True, "monitors": monitors, "total": len(monitors)}
 
         except Exception as e:
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
 
 # ============================================================================
 # BACKGROUND MONITORING SERVICE
 # ============================================================================
+
 
 def run_monitoring_loop(check_interval: int = 60):
     """
@@ -441,21 +444,21 @@ def run_monitoring_loop(check_interval: int = 60):
             # Get active monitors
             active_result = monitor.get_active_monitors()
 
-            if active_result['success']:
-                active_monitors = active_result['monitors']
+            if active_result["success"]:
+                active_monitors = active_result["monitors"]
                 print(f"Monitoring {len(active_monitors)} active deployments...")
 
                 # Check each deployment
                 for deployment_info in active_monitors:
-                    deployment_id = deployment_info['deployment_id']
+                    deployment_id = deployment_info["deployment_id"]
 
                     result = monitor.monitor_deployment(deployment_id)
 
-                    if result.get('action_taken') == 'rollback':
+                    if result.get("action_taken") == "rollback":
                         print(f"⚠️  ROLLBACK triggered for deployment {deployment_id}: {result.get('rollback_reason')}")
-                    elif result.get('status') == 'healthy':
+                    elif result.get("status") == "healthy":
                         print(f"✓ Deployment {deployment_id} healthy")
-                    elif result.get('status') == 'degraded':
+                    elif result.get("status") == "degraded":
                         print(f"⚠️  Deployment {deployment_id} degraded: {result.get('checks')}")
 
             # Sleep until next check
@@ -473,6 +476,7 @@ def run_monitoring_loop(check_interval: int = 60):
 # CONVENIENCE FUNCTIONS
 # ============================================================================
 
+
 def check_deployment_health(deployment_id: int) -> Dict:
     """Quick function to check deployment health"""
     monitor = DeploymentMonitor()
@@ -489,13 +493,13 @@ def monitor_once(deployment_id: int) -> Dict:
 # TESTING
 # ============================================================================
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description='Deployment Monitor')
-    parser.add_argument('--service', action='store_true', help='Run as background service')
-    parser.add_argument('--check', type=int, help='Check specific deployment ID')
-    parser.add_argument('--interval', type=int, default=60, help='Check interval in seconds')
+    parser = argparse.ArgumentParser(description="Deployment Monitor")
+    parser.add_argument("--service", action="store_true", help="Run as background service")
+    parser.add_argument("--check", type=int, help="Check specific deployment ID")
+    parser.add_argument("--interval", type=int, default=60, help="Check interval in seconds")
 
     args = parser.parse_args()
 
@@ -532,7 +536,7 @@ if __name__ == '__main__':
         print("\n3. ACTIVE MONITORS:")
         print("-" * 60)
         active = monitor.get_active_monitors()
-        if active['success']:
+        if active["success"]:
             print(f"Currently monitoring {active['total']} deployments")
         else:
             print(f"Error: {active.get('error')}")

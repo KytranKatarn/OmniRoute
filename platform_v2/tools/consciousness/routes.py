@@ -46,7 +46,10 @@ def admin_required(f):
         if not has_permission(Permission.ADMIN_ACCESS, current_user):
             audit_log(
                 "ADMIN_ACCESS_DENIED",
-                {"route": request.endpoint, "user_id": current_user.id if current_user.is_authenticated else None},
+                {
+                    "route": request.endpoint,
+                    "user_id": (current_user.id if current_user.is_authenticated else None),
+                },
                 success=False,
             )
             flash("Admin access required", "error")
@@ -340,14 +343,14 @@ def emotional_state():
         result["sentiment_summary"] = [dict(s) for s in sentiment_summary]
         result["latest_sentiment"] = dict(latest_sentiment) if latest_sentiment else None
         result["data_freshness"] = {
-            "latest_state": str(state["timestamp"]) if state and state.get("timestamp") else None,
+            "latest_state": (str(state["timestamp"]) if state and state.get("timestamp") else None),
             "total_states": state_count,
             "total_memories": memory_count,
         }
         result["computed"] = {
             "energy": float(state.get("energy", 0.5)) if state else 0.5,
             "confidence": float(state.get("confidence", 0.5)) if state else 0.5,
-            "stress": float(agent_state.get("stress_level", 0)) if agent_state else None,
+            "stress": (float(agent_state.get("stress_level", 0)) if agent_state else None),
             "has_agent_data": agent_state is not None,
         }
 
@@ -393,7 +396,12 @@ def backup_consciousness():
         )
 
         if result.returncode == 0:
-            return jsonify({"success": True, "message": f"Consciousness backed up to {backup_file}"})
+            return jsonify(
+                {
+                    "success": True,
+                    "message": f"Consciousness backed up to {backup_file}",
+                }
+            )
         else:
             return jsonify({"success": False, "error": result.stderr}), 500
     except Exception as e:
@@ -859,7 +867,12 @@ def get_charts_data():
         """
         )
         embedding_coverage = [
-            {"type": r["knowledge_type"], "total": r["total"], "embedded": r["embedded"]} for r in cur.fetchall()
+            {
+                "type": r["knowledge_type"],
+                "total": r["total"],
+                "embedded": r["embedded"],
+            }
+            for r in cur.fetchall()
         ]
 
         cur.close()
@@ -967,7 +980,13 @@ def update_memory(memory_id):
                 updated_at = NOW()
             WHERE id = %s
         """,
-            (data.get("content"), data.get("category"), data.get("tags", []), data.get("importance_score"), memory_id),
+            (
+                data.get("content"),
+                data.get("category"),
+                data.get("tags", []),
+                data.get("importance_score"),
+                memory_id,
+            ),
         )
         conn.commit()
         cur.close()
@@ -1048,7 +1067,15 @@ def create_knowledge():
             )
             RETURNING id
         """,
-            (title, content, knowledge_type, category, tags, importance_score, is_documentation),
+            (
+                title,
+                content,
+                knowledge_type,
+                category,
+                tags,
+                importance_score,
+                is_documentation,
+            ),
         )
 
         new_id = cur.fetchone()[0]
@@ -1145,7 +1172,13 @@ def list_knowledge():
         conn.close()
 
         return jsonify(
-            {"success": True, "entries": [dict(e) for e in entries], "total": total, "limit": limit, "offset": offset}
+            {
+                "success": True,
+                "entries": [dict(e) for e in entries],
+                "total": total,
+                "limit": limit,
+                "offset": offset,
+            }
         )
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -1910,7 +1943,11 @@ def get_tagged_experiences():
         conn.close()
 
         return jsonify(
-            {"popular_tags": popular_tags, "tag_relationships": tag_relationships, "experiences": experiences}
+            {
+                "popular_tags": popular_tags,
+                "tag_relationships": tag_relationships,
+                "experiences": experiences,
+            }
         )
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -2309,10 +2346,19 @@ def ingest_directory():
                             (
                                 content[:5000],  # Limit content size
                                 category,
-                                [subcategory, os.path.splitext(filename)[1][1:]],  # tags
+                                [
+                                    subcategory,
+                                    os.path.splitext(filename)[1][1:],
+                                ],  # tags
                                 f"file:{rel_path}",
                                 0.7,  # importance
-                                json.dumps({"filename": filename, "path": rel_path, "size": len(content)}),
+                                json.dumps(
+                                    {
+                                        "filename": filename,
+                                        "path": rel_path,
+                                        "size": len(content),
+                                    }
+                                ),
                             ),
                         )
 
@@ -2429,7 +2475,12 @@ def browse_files():
         files_info.sort(key=lambda x: x["name"])
 
         return jsonify(
-            {"success": True, "files": files_info, "total_files": len(files_info), "directory": directory_path}
+            {
+                "success": True,
+                "files": files_info,
+                "total_files": len(files_info),
+                "directory": directory_path,
+            }
         )
     except Exception as e:
         import traceback
@@ -2544,7 +2595,12 @@ def unified_search():
         limit = data.get("limit", 10)
 
         service = get_unified_knowledge_service()
-        result = service.search(query=query, knowledge_types=knowledge_types, categories=categories, limit=limit)
+        result = service.search(
+            query=query,
+            knowledge_types=knowledge_types,
+            categories=categories,
+            limit=limit,
+        )
 
         return jsonify(result)
 
@@ -2587,7 +2643,10 @@ def unified_agent_context():
         agent_type = data.get("agent_type", "general")
 
         if not task_description:
-            return jsonify({"success": False, "error": "Task description required"}), 400
+            return (
+                jsonify({"success": False, "error": "Task description required"}),
+                400,
+            )
 
         service = get_unified_knowledge_service()
         context = service.get_agent_context(task_description, agent_type)
@@ -2619,7 +2678,12 @@ def unified_check_mistakes():
         mistakes = service.check_for_similar_mistakes(context)
 
         return jsonify(
-            {"success": True, "mistakes": mistakes, "count": len(mistakes), "has_warnings": len(mistakes) > 0}
+            {
+                "success": True,
+                "mistakes": mistakes,
+                "count": len(mistakes),
+                "has_warnings": len(mistakes) > 0,
+            }
         )
 
     except Exception as e:
@@ -2649,11 +2713,21 @@ def unified_record_mistake():
 
         service = get_unified_knowledge_service()
         entry_id = service.record_mistake(
-            error_type=error_type, error_message=error_message, solution=solution, context=context, tags=tags
+            error_type=error_type,
+            error_message=error_message,
+            solution=solution,
+            context=context,
+            tags=tags,
         )
 
         if entry_id:
-            return jsonify({"success": True, "entry_id": entry_id, "message": f"Mistake recorded as entry #{entry_id}"})
+            return jsonify(
+                {
+                    "success": True,
+                    "entry_id": entry_id,
+                    "message": f"Mistake recorded as entry #{entry_id}",
+                }
+            )
         else:
             return jsonify({"success": False, "error": "Failed to record mistake"}), 500
 
@@ -2677,7 +2751,14 @@ def unified_recent_activity():
         service = get_unified_knowledge_service()
         activity = service.get_recent_activity(hours, limit)
 
-        return jsonify({"success": True, "activity": activity, "count": len(activity), "hours": hours})
+        return jsonify(
+            {
+                "success": True,
+                "activity": activity,
+                "count": len(activity),
+                "hours": hours,
+            }
+        )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -2756,7 +2837,11 @@ def get_brain_map_data():
                     "importance_n": 0,
                 }
             region_map[kt]["categories"].append(
-                {"name": r["category"], "count": r["count"], "avg_importance": float(r["avg_importance"] or 0)}
+                {
+                    "name": r["category"],
+                    "count": r["count"],
+                    "avg_importance": float(r["avg_importance"] or 0),
+                }
             )
             region_map[kt]["total_count"] += r["count"]
             region_map[kt]["importance_sum"] += float(r["avg_importance"] or 0) * r["count"]
@@ -2836,7 +2921,14 @@ def get_brain_map_data():
                 type_keys = list(rep_ids.keys())
                 for i in range(len(type_keys)):
                     for j in range(i + 1, len(type_keys)):
-                        pairs.append((type_keys[i], type_keys[j], rep_ids[type_keys[i]], rep_ids[type_keys[j]]))
+                        pairs.append(
+                            (
+                                type_keys[i],
+                                type_keys[j],
+                                rep_ids[type_keys[i]],
+                                rep_ids[type_keys[j]],
+                            )
+                        )
 
                 for src_type, tgt_type, src_id, tgt_id in pairs:
                     cur.execute(
@@ -2851,7 +2943,13 @@ def get_brain_map_data():
                     if row and row["similarity"] is not None:
                         sim = round(float(row["similarity"]), 3)
                         if sim > 0.5:  # Only strong connections
-                            connections.append({"source": src_type, "target": tgt_type, "strength": sim})
+                            connections.append(
+                                {
+                                    "source": src_type,
+                                    "target": tgt_type,
+                                    "strength": sim,
+                                }
+                            )
 
         connections.sort(key=lambda x: x["strength"], reverse=True)
         connections = connections[:15]  # Top 15 only to reduce visual clutter
@@ -2873,7 +2971,14 @@ def get_brain_map_data():
             "growth_7d": stats_row["growth_7d"],
         }
 
-        return jsonify({"success": True, "regions": regions, "connections": connections, "stats": stats})
+        return jsonify(
+            {
+                "success": True,
+                "regions": regions,
+                "connections": connections,
+                "stats": stats,
+            }
+        )
 
     except Exception as e:
         logger.error(f"Brain map data error: {e}")
@@ -2930,8 +3035,8 @@ def get_brain_map_drill_down():
                 {
                     "id": e["id"],
                     "title": e["title"],
-                    "importance": float(e["importance_score"]) if e["importance_score"] else 0,
-                    "created_at": e["created_at"].isoformat() if e["created_at"] else None,
+                    "importance": (float(e["importance_score"]) if e["importance_score"] else 0),
+                    "created_at": (e["created_at"].isoformat() if e["created_at"] else None),
                     "has_embedding": e["has_embedding"],
                     "tags": e["tags"],
                     "category": e["category"],
@@ -2939,7 +3044,13 @@ def get_brain_map_drill_down():
             )
 
         return jsonify(
-            {"success": True, "entries": result, "count": len(result), "type": knowledge_type, "category": category}
+            {
+                "success": True,
+                "entries": result,
+                "count": len(result),
+                "type": knowledge_type,
+                "category": category,
+            }
         )
 
     except Exception as e:
@@ -2961,7 +3072,14 @@ def get_knowledge_backlinks(knowledge_id):
         indexer = KnowledgeVaultIndexer()
         backlinks = indexer.get_backlinks(knowledge_id)
 
-        return jsonify({"success": True, "knowledge_id": knowledge_id, "backlinks": backlinks, "count": len(backlinks)})
+        return jsonify(
+            {
+                "success": True,
+                "knowledge_id": knowledge_id,
+                "backlinks": backlinks,
+                "count": len(backlinks),
+            }
+        )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -3620,7 +3738,7 @@ def get_activity_stats():
             "conversations": conv_row["conversations"] if conv_row else 0,
             "memories": conv_row["memories"] if conv_row else 0,
             "claude_sessions": conv_row["claude_sessions"] if conv_row else 0,
-            "improvement_conversations": conv_row["improvement_conversations"] if conv_row else 0,
+            "improvement_conversations": (conv_row["improvement_conversations"] if conv_row else 0),
             "ingested_logs": conv_row["ingested_logs"] if conv_row else 0,
             "search_status": search_status,
             "kb_growth_7d": kb_growth,
@@ -3784,7 +3902,11 @@ def api_record_memory():
 
         return (
             jsonify(
-                {"success": True, "memory_id": memory_id, "source": "agent_memory" if agent_id else "long_term_memory"}
+                {
+                    "success": True,
+                    "memory_id": memory_id,
+                    "source": "agent_memory" if agent_id else "long_term_memory",
+                }
             )
             if memory_id
             else jsonify({"success": False, "error": "Failed to record"})
@@ -3885,7 +4007,14 @@ def save_conversation():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "memory_id": memory_id, "title": title, "message_count": len(messages)})
+        return jsonify(
+            {
+                "success": True,
+                "memory_id": memory_id,
+                "title": title,
+                "message_count": len(messages),
+            }
+        )
 
     except Exception as e:
         import traceback
@@ -4072,7 +4201,13 @@ def github_auth_status():
                     "message": f"Authenticated — {core.get('remaining', 0)}/{core.get('limit', 5000)} requests remaining",
                 }
             )
-        return jsonify({"success": True, "authenticated": False, "message": f"Token invalid (HTTP {resp.status_code})"})
+        return jsonify(
+            {
+                "success": True,
+                "authenticated": False,
+                "message": f"Token invalid (HTTP {resp.status_code})",
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
 
@@ -4408,13 +4543,34 @@ def _reindex_repo_via_tree(owner, repo, repo_type, importance=0.85, max_files=No
                 raw_url = f"{raw_base}/{fpath}"
                 file_resp = requests.get(raw_url, timeout=30)
                 if file_resp.status_code != 200:
-                    return (fpath, fname, fext, fsize, None, f"Download failed ({file_resp.status_code}): {fpath}")
+                    return (
+                        fpath,
+                        fname,
+                        fext,
+                        fsize,
+                        None,
+                        f"Download failed ({file_resp.status_code}): {fpath}",
+                    )
                 content = file_resp.text
                 if len(content) > MAX_FILE_SIZE:
-                    return (fpath, fname, fext, fsize, None, None)  # oversized, skip silently
+                    return (
+                        fpath,
+                        fname,
+                        fext,
+                        fsize,
+                        None,
+                        None,
+                    )  # oversized, skip silently
                 return (fpath, fname, fext, fsize, content, None)
             except Exception as dl_err:
-                return (fpath, fname, fext, fsize, None, f"Download error: {fpath}: {str(dl_err)}")
+                return (
+                    fpath,
+                    fname,
+                    fext,
+                    fsize,
+                    None,
+                    f"Download error: {fpath}: {str(dl_err)}",
+                )
 
         # Process in batches of BATCH_SIZE
         for batch_start in range(0, len(candidates), BATCH_SIZE):
@@ -4595,7 +4751,10 @@ def github_reindex_single(repo_id):
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT id, repo_name, repo_type, max_files FROM github_repositories WHERE id = %s", (repo_id,))
+        cur.execute(
+            "SELECT id, repo_name, repo_type, max_files FROM github_repositories WHERE id = %s",
+            (repo_id,),
+        )
         repo_row = cur.fetchone()
         cur.close()
         conn.close()
@@ -4658,7 +4817,13 @@ def github_repositories():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "repositories": [dict(r) for r in repos], "count": len(repos)})
+        return jsonify(
+            {
+                "success": True,
+                "repositories": [dict(r) for r in repos],
+                "count": len(repos),
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -4709,7 +4874,10 @@ def github_repository_delete(repo_id):
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get repo info
-        cur.execute("SELECT id, repo_name, repo_type FROM github_repositories WHERE id = %s", (repo_id,))
+        cur.execute(
+            "SELECT id, repo_name, repo_type FROM github_repositories WHERE id = %s",
+            (repo_id,),
+        )
         repo = cur.fetchone()
         if not repo:
             cur.close()
@@ -4748,7 +4916,13 @@ def github_repository_delete(repo_id):
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "deleted_files": deleted_files, "repo_name": repo["repo_name"]})
+        return jsonify(
+            {
+                "success": True,
+                "deleted_files": deleted_files,
+                "repo_name": repo["repo_name"],
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -5046,7 +5220,8 @@ def github_scan_dependencies():
         if include_platform:
             try:
                 local_path = os.path.join(
-                    os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "requirements.txt"
+                    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                    "requirements.txt",
                 )
                 with open(local_path, "r") as f:
                     content = f.read()
@@ -5314,7 +5489,10 @@ def add_to_collection_api(collection_id):
     memory_id = data.get("memory_id")
 
     if not memory_type or not memory_id:
-        return jsonify({"success": False, "error": "memory_type and memory_id required"}), 400
+        return (
+            jsonify({"success": False, "error": "memory_type and memory_id required"}),
+            400,
+        )
 
     try:
         success = add_to_collection(collection_id, memory_type, memory_id, data.get("notes"), current_user.id)
@@ -5408,7 +5586,13 @@ def run_memory_maintenance():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "results": results, "message": "Memory maintenance completed"})
+        return jsonify(
+            {
+                "success": True,
+                "results": results,
+                "message": "Memory maintenance completed",
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -5425,7 +5609,10 @@ def get_preferences():
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("SELECT * FROM get_user_preferences(%s, %s, %s)", (user_id, category, min_confidence))
+        cur.execute(
+            "SELECT * FROM get_user_preferences(%s, %s, %s)",
+            (user_id, category, min_confidence),
+        )
         preferences = [dict(p) for p in cur.fetchall()]
 
         cur.close()
@@ -5453,14 +5640,24 @@ def learn_preference():
         context = data.get("context")
 
         if not category or not key or not value:
-            return jsonify({"success": False, "error": "category, key, and value required"}), 400
+            return (
+                jsonify({"success": False, "error": "category, key, and value required"}),
+                400,
+            )
 
         conn = get_db()
         cur = conn.cursor()
 
         cur.execute(
             "SELECT learn_preference(%s, %s, %s, %s, %s, %s)",
-            (user_id, category, key, value, confidence, json.dumps(context) if context else None),
+            (
+                user_id,
+                category,
+                key,
+                value,
+                confidence,
+                json.dumps(context) if context else None,
+            ),
         )
         pref_id = cur.fetchone()[0]
 
@@ -5468,7 +5665,13 @@ def learn_preference():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "preference_id": pref_id, "message": f"Preference learned: {category}/{key}"})
+        return jsonify(
+            {
+                "success": True,
+                "preference_id": pref_id,
+                "message": f"Preference learned: {category}/{key}",
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -5556,14 +5759,23 @@ def extract_memories():
         conn = get_db()
         cur = conn.cursor()
 
-        cur.execute("SELECT extract_memories_from_text(%s, %s, %s, %s)", (content, user_id, source_type, importance))
+        cur.execute(
+            "SELECT extract_memories_from_text(%s, %s, %s, %s)",
+            (content, user_id, source_type, importance),
+        )
         memory_id = cur.fetchone()[0]
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "memory_id": memory_id, "message": "Memory extracted and stored"})
+        return jsonify(
+            {
+                "success": True,
+                "memory_id": memory_id,
+                "message": "Memory extracted and stored",
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -5596,7 +5808,7 @@ def scheduler_status():
                     {
                         "id": job.id,
                         "name": job.name,
-                        "next_run": job.next_run_time.isoformat() if job.next_run_time else None,
+                        "next_run": (job.next_run_time.isoformat() if job.next_run_time else None),
                         "trigger": str(job.trigger),
                     }
                 )
@@ -5632,7 +5844,15 @@ def run_scheduler_task_now():
         ]
 
         if task_name not in valid_tasks:
-            return jsonify({"success": False, "error": f"Invalid task. Valid tasks: {valid_tasks}"}), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"Invalid task. Valid tasks: {valid_tasks}",
+                    }
+                ),
+                400,
+            )
 
         import sys
 
@@ -5702,7 +5922,9 @@ def get_user_time():
         return jsonify(
             {
                 "success": True,
-                "user_stats": user_stats if isinstance(user_stats, list) else dict(user_stats) if user_stats else None,
+                "user_stats": (
+                    user_stats if isinstance(user_stats, list) else dict(user_stats) if user_stats else None
+                ),
                 "recent_sessions": [dict(s) for s in recent_sessions],
             }
         )
@@ -5972,7 +6194,13 @@ def get_improvement_proposals():
                 proposal["status"] = "pending"
             formatted_proposals.append(proposal)
 
-        return jsonify({"success": True, "proposals": formatted_proposals, "stats": dict(stats) if stats else {}})
+        return jsonify(
+            {
+                "success": True,
+                "proposals": formatted_proposals,
+                "stats": dict(stats) if stats else {},
+            }
+        )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -6012,7 +6240,10 @@ def approve_proposal(proposal_id):
         conn.close()
 
         if proposal:
-            audit_log("PROPOSAL_APPROVED", {"proposal_id": proposal_id, "user_id": current_user.id})
+            audit_log(
+                "PROPOSAL_APPROVED",
+                {"proposal_id": proposal_id, "user_id": current_user.id},
+            )
             return jsonify({"success": True, "proposal": dict(proposal)})
         else:
             return jsonify({"success": False, "error": "Proposal not found"}), 404
@@ -6053,7 +6284,14 @@ def reject_proposal(proposal_id):
         conn.close()
 
         if proposal:
-            audit_log("PROPOSAL_REJECTED", {"proposal_id": proposal_id, "user_id": current_user.id, "reason": reason})
+            audit_log(
+                "PROPOSAL_REJECTED",
+                {
+                    "proposal_id": proposal_id,
+                    "user_id": current_user.id,
+                    "reason": reason,
+                },
+            )
             return jsonify({"success": True, "proposal": dict(proposal)})
         else:
             return jsonify({"success": False, "error": "Proposal not found"}), 404
@@ -6090,10 +6328,17 @@ def test_proposal_in_sandbox(proposal_id):
         conn.close()
 
         if proposal:
-            audit_log("PROPOSAL_TESTING", {"proposal_id": proposal_id, "user_id": current_user.id})
+            audit_log(
+                "PROPOSAL_TESTING",
+                {"proposal_id": proposal_id, "user_id": current_user.id},
+            )
             # TODO: Trigger actual sandbox test here
             return jsonify(
-                {"success": True, "proposal": dict(proposal), "message": "Proposal queued for sandbox testing"}
+                {
+                    "success": True,
+                    "proposal": dict(proposal),
+                    "message": "Proposal queued for sandbox testing",
+                }
             )
         else:
             return jsonify({"success": False, "error": "Proposal not found"}), 404
@@ -6173,7 +6418,13 @@ def list_agent_memories():
         conn.close()
 
         return jsonify(
-            {"success": True, "memories": [dict(m) for m in memories], "total": total, "limit": limit, "offset": offset}
+            {
+                "success": True,
+                "memories": [dict(m) for m in memories],
+                "total": total,
+                "limit": limit,
+                "offset": offset,
+            }
         )
 
     except Exception as e:
@@ -6280,7 +6531,11 @@ def update_agent_memory(memory_id):
         if memory:
             audit_log(
                 "AGENT_MEMORY_UPDATED",
-                {"memory_id": memory_id, "agent_id": memory.get("agent_id"), "updated_by": current_user.id},
+                {
+                    "memory_id": memory_id,
+                    "agent_id": memory.get("agent_id"),
+                    "updated_by": current_user.id,
+                },
             )
 
         cur.close()
@@ -6289,7 +6544,10 @@ def update_agent_memory(memory_id):
         if memory:
             return jsonify({"success": True, "memory": dict(memory)})
         else:
-            return jsonify({"success": False, "error": "Memory not found or deleted"}), 404
+            return (
+                jsonify({"success": False, "error": "Memory not found or deleted"}),
+                404,
+            )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -6355,7 +6613,10 @@ def soft_delete_agent_memory(memory_id):
         else:
             cur.close()
             conn.close()
-            return jsonify({"success": False, "error": "Memory not found or already deleted"}), 404
+            return (
+                jsonify({"success": False, "error": "Memory not found or already deleted"}),
+                404,
+            )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -6394,17 +6655,30 @@ def restore_agent_memory(memory_id):
             # Log restoration for IAAE audit
             audit_log(
                 "AGENT_MEMORY_RESTORED",
-                {"memory_id": memory_id, "agent_id": restored.get("agent_id"), "restored_by": current_user.id},
+                {
+                    "memory_id": memory_id,
+                    "agent_id": restored.get("agent_id"),
+                    "restored_by": current_user.id,
+                },
             )
 
             cur.close()
             conn.close()
 
-            return jsonify({"success": True, "message": "Memory restored successfully", "memory_id": memory_id})
+            return jsonify(
+                {
+                    "success": True,
+                    "message": "Memory restored successfully",
+                    "memory_id": memory_id,
+                }
+            )
         else:
             cur.close()
             conn.close()
-            return jsonify({"success": False, "error": "Memory not found or not deleted"}), 404
+            return (
+                jsonify({"success": False, "error": "Memory not found or not deleted"}),
+                404,
+            )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -6464,7 +6738,10 @@ def reinforce_agent_memory(memory_id):
                 }
             )
         else:
-            return jsonify({"success": False, "error": "Memory not found or deleted"}), 404
+            return (
+                jsonify({"success": False, "error": "Memory not found or deleted"}),
+                404,
+            )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -7042,9 +7319,12 @@ def export_collaboration(session_id):
         lines.append("")
 
         for msg in session.messages:
-            role_label = {"archie": "A.R.C.H.I.E.", "claude": "Claude", "user": "User", "system": "System"}.get(
-                msg.role, msg.role
-            )
+            role_label = {
+                "archie": "A.R.C.H.I.E.",
+                "claude": "Claude",
+                "user": "User",
+                "system": "System",
+            }.get(msg.role, msg.role)
             role_icon = {
                 "archie": "\U0001f9e0",
                 "claude": "\U0001f916",
@@ -7261,7 +7541,7 @@ def get_chat_history():
                     "response": row["response"],
                     "model": row["model"],
                     "chat_mode": (row["metadata"] or {}).get("chat_mode", "solo"),
-                    "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                    "created_at": (row["created_at"].isoformat() if row["created_at"] else None),
                 }
             )
 
@@ -7462,7 +7742,10 @@ def update_conversation(conv_id):
             return jsonify({"success": False, "error": "Title is required"}), 400
 
         if len(title) > 255:
-            return jsonify({"success": False, "error": "Title too long (max 255 chars)"}), 400
+            return (
+                jsonify({"success": False, "error": "Title too long (max 255 chars)"}),
+                400,
+            )
 
         conn = get_db()
         cur = conn.cursor()
@@ -7633,7 +7916,10 @@ def chat_file_upload():
 
         # ── Unsupported type ────────────────────────────────────────────
         else:
-            return jsonify({"success": False, "error": f"Unsupported file type: {ext}"}), 400
+            return (
+                jsonify({"success": False, "error": f"Unsupported file type: {ext}"}),
+                400,
+            )
 
         # Cap extracted text
         if len(extracted_text) > MAX_EXTRACTED_TEXT:
@@ -7814,7 +8100,13 @@ def get_claude_status():
         from .claude_bridge import get_claude_bridge
 
         bridge = get_claude_bridge()
-        return jsonify({"success": True, "claude": bridge.health_check(), "ttyd": bridge.get_ttyd_status()})
+        return jsonify(
+            {
+                "success": True,
+                "claude": bridge.health_check(),
+                "ttyd": bridge.get_ttyd_status(),
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -7850,7 +8142,12 @@ def sync_context_to_claude():
         finally:
             loop.close()
 
-        return jsonify({"success": True, "response": result[:200] if result else "Context received"})
+        return jsonify(
+            {
+                "success": True,
+                "response": result[:200] if result else "Context received",
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -7992,12 +8289,27 @@ def voice_speakers():
                 "emotions": emotions,
                 "emotion_presets": emotion_presets,
                 "engine_capabilities": {
-                    "kokoro": {"speed": True, "pitch_shift": False, "warmth": False, "voice_blend": True},
-                    "xtts_v2": {"speed": True, "pitch_shift": True, "warmth": True, "voice_blend": False},
+                    "kokoro": {
+                        "speed": True,
+                        "pitch_shift": False,
+                        "warmth": False,
+                        "voice_blend": True,
+                    },
+                    "xtts_v2": {
+                        "speed": True,
+                        "pitch_shift": True,
+                        "warmth": True,
+                        "voice_blend": False,
+                    },
                 },
                 "parameter_ranges": {
                     "speed": {"min": 0.50, "max": 2.00, "default": 1.00, "step": 0.05},
-                    "pitch_shift": {"min": 0.80, "max": 1.20, "default": 1.00, "step": 0.01},
+                    "pitch_shift": {
+                        "min": 0.80,
+                        "max": 1.20,
+                        "default": 1.00,
+                        "step": 0.01,
+                    },
                     "warmth": {"min": 0.00, "max": 1.00, "default": 0.80, "step": 0.05},
                 },
             }
@@ -8442,7 +8754,15 @@ def voice_pregen_start():
             cur.close()
             conn.close()
             if not profile:
-                return jsonify({"success": False, "error": "Agent has no voice profile for language: " + language}), 400
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": "Agent has no voice profile for language: " + language,
+                        }
+                    ),
+                    400,
+                )
             engine = profile["engine"] or "kokoro"
 
         if engine not in ("kokoro", "xtts_v2"):
@@ -8493,7 +8813,10 @@ def voice_full_dna():
         conn.close()
 
         if not profile:
-            return jsonify({"success": False, "error": "Agent has no voice profile"}), 400
+            return (
+                jsonify({"success": False, "error": "Agent has no voice profile"}),
+                400,
+            )
 
         engine = profile["engine"] or "kokoro"
 

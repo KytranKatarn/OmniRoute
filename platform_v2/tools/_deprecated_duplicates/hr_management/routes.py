@@ -23,7 +23,12 @@ from datetime import datetime, date
 import os
 import json
 
-hr_bp = Blueprint("hr_management", __name__, template_folder="../../templates/tools", url_prefix="/tools/hr-management")
+hr_bp = Blueprint(
+    "hr_management",
+    __name__,
+    template_folder="../../templates/tools",
+    url_prefix="/tools/hr-management",
+)
 
 
 def get_db():
@@ -125,7 +130,11 @@ def get_hr_dashboard():
         return jsonify(
             {
                 "success": True,
-                "stats": {"agents": agent_stats, "stations": station_stats, "staffing_status": staffing_status},
+                "stats": {
+                    "agents": agent_stats,
+                    "stations": station_stats,
+                    "staffing_status": staffing_status,
+                },
                 "departments": departments,
                 "models": models,
             }
@@ -374,10 +383,19 @@ def get_agents_on_shift():
 
         if module:
             return jsonify(
-                {"success": True, "agent": module_agents.get(module, {"agent_name": "Unassigned", "agent_id": None})}
+                {
+                    "success": True,
+                    "agent": module_agents.get(module, {"agent_name": "Unassigned", "agent_id": None}),
+                }
             )
 
-        return jsonify({"success": True, "assignments": assignments, "module_agents": module_agents})
+        return jsonify(
+            {
+                "success": True,
+                "assignments": assignments,
+                "module_agents": module_agents,
+            }
+        )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -775,4 +793,10 @@ def get_workload_balance():
 @hr_bp.route("/api/health")
 def health_check():
     """Health check endpoint"""
-    return jsonify({"status": "healthy", "module": "hr_management", "timestamp": datetime.now().isoformat()})
+    return jsonify(
+        {
+            "status": "healthy",
+            "module": "hr_management",
+            "timestamp": datetime.now().isoformat(),
+        }
+    )

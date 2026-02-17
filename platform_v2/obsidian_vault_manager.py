@@ -12,6 +12,7 @@ Purpose:
 Author: A.R.C.H.I.E. Platform
 Date: 2026-01-08
 """
+
 import os
 import re
 import yaml
@@ -23,9 +24,16 @@ from pathlib import Path
 class ObsidianVaultManager:
     """Manages all Obsidian vault operations"""
 
-    def __init__(self, vault_path: str = '/mnt/archie_brain/knowledge/'):
+    def __init__(self, vault_path: str = "/mnt/archie_brain/knowledge/"):
         self.vault_path = vault_path
-        self.categories = ['Core', 'Features', 'Development', 'Agents', 'APIs', 'Workflows']
+        self.categories = [
+            "Core",
+            "Features",
+            "Development",
+            "Agents",
+            "APIs",
+            "Workflows",
+        ]
 
     # ========================================================================
     # CRUD OPERATIONS
@@ -35,10 +43,10 @@ class ObsidianVaultManager:
         self,
         title: str,
         content: str,
-        category: str = 'Core',
+        category: str = "Core",
         tags: List[str] = None,
         metadata: Dict = None,
-        author: str = 'archie'
+        author: str = "archie",
     ) -> Tuple[bool, str, Optional[str]]:
         """
         Create a new note with YAML frontmatter
@@ -57,7 +65,11 @@ class ObsidianVaultManager:
         try:
             # Validate category
             if category not in self.categories:
-                return False, f"Invalid category. Must be one of: {', '.join(self.categories)}", None
+                return (
+                    False,
+                    f"Invalid category. Must be one of: {', '.join(self.categories)}",
+                    None,
+                )
 
             # Sanitize filename
             filename = self.sanitize_filename(title)
@@ -73,7 +85,7 @@ class ObsidianVaultManager:
                 category=category,
                 tags=tags or [],
                 author=author,
-                metadata=metadata or {}
+                metadata=metadata or {},
             )
 
             # Create full content
@@ -83,7 +95,7 @@ class ObsidianVaultManager:
             os.makedirs(os.path.join(self.vault_path, category), exist_ok=True)
 
             # Write file
-            with open(file_path, 'w', encoding='utf-8') as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 f.write(full_content)
 
             return True, f"Note '{title}' created successfully", file_path
@@ -104,23 +116,23 @@ class ObsidianVaultManager:
         """
         try:
             # Handle relative paths
-            if not file_path.startswith('/'):
+            if not file_path.startswith("/"):
                 file_path = os.path.join(self.vault_path, file_path)
 
             if not os.path.exists(file_path):
                 return False, f"Note not found: {file_path}", None
 
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 raw_content = f.read()
 
             # Parse frontmatter
             frontmatter_data, body = self.parse_frontmatter(raw_content)
 
             note_data = {
-                'title': frontmatter_data.get('title', os.path.basename(file_path).replace('.md', '')),
-                'content': body,
-                'frontmatter': frontmatter_data,
-                'file_path': file_path
+                "title": frontmatter_data.get("title", os.path.basename(file_path).replace(".md", "")),
+                "content": body,
+                "frontmatter": frontmatter_data,
+                "file_path": file_path,
             }
 
             return True, "Note retrieved successfully", note_data
@@ -132,7 +144,7 @@ class ObsidianVaultManager:
         self,
         file_path: str,
         content: Optional[str] = None,
-        frontmatter_updates: Optional[Dict] = None
+        frontmatter_updates: Optional[Dict] = None,
     ) -> Tuple[bool, str]:
         """
         Update existing note
@@ -152,15 +164,15 @@ class ObsidianVaultManager:
                 return False, msg
 
             # Update frontmatter
-            frontmatter = note_data['frontmatter']
+            frontmatter = note_data["frontmatter"]
             if frontmatter_updates:
                 frontmatter.update(frontmatter_updates)
 
             # Always update the 'updated' timestamp
-            frontmatter['updated'] = datetime.now().isoformat()
+            frontmatter["updated"] = datetime.now().isoformat()
 
             # Use existing content if not provided
-            body = content if content is not None else note_data['content']
+            body = content if content is not None else note_data["content"]
 
             # Generate updated frontmatter YAML
             frontmatter_yaml = yaml.dump(frontmatter, default_flow_style=False, allow_unicode=True)
@@ -169,7 +181,7 @@ class ObsidianVaultManager:
             full_content = f"---\n{frontmatter_yaml}---\n\n{body}"
 
             # Write file
-            with open(file_path, 'w', encoding='utf-8') as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 f.write(full_content)
 
             return True, "Note updated successfully"
@@ -206,8 +218,8 @@ class ObsidianVaultManager:
         title: str,
         category: str,
         tags: List[str],
-        author: str = 'archie',
-        metadata: Dict = None
+        author: str = "archie",
+        metadata: Dict = None,
     ) -> str:
         """
         Generate YAML frontmatter
@@ -218,14 +230,14 @@ class ObsidianVaultManager:
         now = datetime.now().isoformat()
 
         frontmatter_dict = {
-            'title': title,
-            'created': now,
-            'updated': now,
-            'category': category,
-            'tags': tags,
-            'status': 'active',
-            'author': author,
-            'version': '1.0'
+            "title": title,
+            "created": now,
+            "updated": now,
+            "category": category,
+            "tags": tags,
+            "status": "active",
+            "author": author,
+            "version": "1.0",
         }
 
         # Add any additional metadata
@@ -247,7 +259,7 @@ class ObsidianVaultManager:
             Tuple of (frontmatter_dict, body_content)
         """
         # Match frontmatter between --- delimiters
-        pattern = r'^---\s*\n(.*?)\n---\s*\n(.*)$'
+        pattern = r"^---\s*\n(.*?)\n---\s*\n(.*)$"
         match = re.match(pattern, content, re.DOTALL)
 
         if match:
@@ -278,7 +290,7 @@ class ObsidianVaultManager:
         Returns:
             List of wikilink targets (without brackets)
         """
-        pattern = r'\[\[([^\]]+)\]\]'
+        pattern = r"\[\[([^\]]+)\]\]"
         matches = re.findall(pattern, content)
         return matches
 
@@ -299,11 +311,11 @@ class ObsidianVaultManager:
                 continue
 
             for filename in os.listdir(category_path):
-                if not filename.endswith('.md'):
+                if not filename.endswith(".md"):
                     continue
 
                 # Check if title matches (with or without .md)
-                title = filename.replace('.md', '')
+                title = filename.replace(".md", "")
                 if title.lower() == link_text.lower():
                     return os.path.join(category_path, filename)
 
@@ -311,7 +323,7 @@ class ObsidianVaultManager:
                 file_path = os.path.join(category_path, filename)
                 success, _, note_data = self.get_note(file_path)
                 if success and note_data:
-                    note_title = note_data['frontmatter'].get('title', '')
+                    note_title = note_data["frontmatter"].get("title", "")
                     if note_title.lower() == link_text.lower():
                         return file_path
 
@@ -334,7 +346,7 @@ class ObsidianVaultManager:
         if not success:
             return backlinks
 
-        target_title = note_data['frontmatter'].get('title', '')
+        target_title = note_data["frontmatter"].get("title", "")
 
         # Search all notes for links to this title
         for category in self.categories:
@@ -343,7 +355,7 @@ class ObsidianVaultManager:
                 continue
 
             for filename in os.listdir(category_path):
-                if not filename.endswith('.md'):
+                if not filename.endswith(".md"):
                     continue
 
                 check_path = os.path.join(category_path, filename)
@@ -352,7 +364,7 @@ class ObsidianVaultManager:
 
                 success, _, check_note = self.get_note(check_path)
                 if success and check_note:
-                    content = check_note['content']
+                    content = check_note["content"]
                     wikilinks = self.extract_wikilinks(content)
 
                     # Check if any wikilinks match our title
@@ -372,7 +384,7 @@ class ObsidianVaultManager:
         query: str,
         category: Optional[str] = None,
         tags: Optional[List[str]] = None,
-        limit: int = 10
+        limit: int = 10,
     ) -> List[Dict]:
         """
         Search vault with keyword matching
@@ -398,7 +410,7 @@ class ObsidianVaultManager:
                 continue
 
             for filename in os.listdir(category_path):
-                if not filename.endswith('.md'):
+                if not filename.endswith(".md"):
                     continue
 
                 file_path = os.path.join(category_path, filename)
@@ -409,30 +421,32 @@ class ObsidianVaultManager:
 
                 # Apply tag filter
                 if tags:
-                    note_tags = note_data['frontmatter'].get('tags', [])
+                    note_tags = note_data["frontmatter"].get("tags", [])
                     if not any(tag in note_tags for tag in tags):
                         continue
 
                 # Check if query matches title or content
-                title = note_data['frontmatter'].get('title', '').lower()
-                content = note_data['content'].lower()
+                title = note_data["frontmatter"].get("title", "").lower()
+                content = note_data["content"].lower()
 
                 if query_lower in title or query_lower in content:
                     # Calculate simple relevance score
                     title_match = query_lower in title
                     score = 2.0 if title_match else 1.0
 
-                    results.append({
-                        'title': note_data['frontmatter'].get('title', ''),
-                        'category': cat,
-                        'tags': note_data['frontmatter'].get('tags', []),
-                        'content': note_data['content'][:300],  # Preview
-                        'file_path': file_path,
-                        'score': score
-                    })
+                    results.append(
+                        {
+                            "title": note_data["frontmatter"].get("title", ""),
+                            "category": cat,
+                            "tags": note_data["frontmatter"].get("tags", []),
+                            "content": note_data["content"][:300],  # Preview
+                            "file_path": file_path,
+                            "score": score,
+                        }
+                    )
 
         # Sort by score descending
-        results.sort(key=lambda x: x['score'], reverse=True)
+        results.sort(key=lambda x: x["score"], reverse=True)
 
         return results[:limit]
 
@@ -455,21 +469,23 @@ class ObsidianVaultManager:
                 continue
 
             for filename in os.listdir(category_path):
-                if not filename.endswith('.md'):
+                if not filename.endswith(".md"):
                     continue
 
                 file_path = os.path.join(category_path, filename)
                 success, _, note_data = self.get_note(file_path)
 
                 if success and note_data:
-                    notes.append({
-                        'title': note_data['frontmatter'].get('title', ''),
-                        'category': cat,
-                        'tags': note_data['frontmatter'].get('tags', []),
-                        'created': note_data['frontmatter'].get('created', ''),
-                        'updated': note_data['frontmatter'].get('updated', ''),
-                        'file_path': file_path
-                    })
+                    notes.append(
+                        {
+                            "title": note_data["frontmatter"].get("title", ""),
+                            "category": cat,
+                            "tags": note_data["frontmatter"].get("tags", []),
+                            "created": note_data["frontmatter"].get("created", ""),
+                            "updated": note_data["frontmatter"].get("updated", ""),
+                            "file_path": file_path,
+                        }
+                    )
 
         return notes
 
@@ -488,9 +504,9 @@ class ObsidianVaultManager:
             Sanitized filename (without .md extension)
         """
         # Remove special characters, replace spaces with underscores
-        safe_title = re.sub(r'[^\w\s-]', '', title)
-        safe_title = re.sub(r'[\s]+', '_', safe_title)
-        return safe_title.strip('_')
+        safe_title = re.sub(r"[^\w\s-]", "", title)
+        safe_title = re.sub(r"[\s]+", "_", safe_title)
+        return safe_title.strip("_")
 
     def get_vault_stats(self) -> Dict:
         """
@@ -499,11 +515,7 @@ class ObsidianVaultManager:
         Returns:
             Dict with note count, category breakdown, tag counts
         """
-        stats = {
-            'total_notes': 0,
-            'by_category': {},
-            'tags': {}
-        }
+        stats = {"total_notes": 0, "by_category": {}, "tags": {}}
 
         # 1. Get file system stats (original behavior)
         for category in self.categories:
@@ -511,63 +523,68 @@ class ObsidianVaultManager:
             if not os.path.exists(category_path):
                 continue
 
-            note_count = len([f for f in os.listdir(category_path) if f.endswith('.md')])
+            note_count = len([f for f in os.listdir(category_path) if f.endswith(".md")])
             if note_count > 0:
-                stats['by_category'][category] = note_count
-                stats['total_notes'] += note_count
+                stats["by_category"][category] = note_count
+                stats["total_notes"] += note_count
 
             # Count tags from files
             for filename in os.listdir(category_path):
-                if not filename.endswith('.md'):
+                if not filename.endswith(".md"):
                     continue
 
                 file_path = os.path.join(category_path, filename)
                 success, _, note_data = self.get_note(file_path)
 
                 if success and note_data:
-                    tags = note_data['frontmatter'].get('tags', [])
+                    tags = note_data["frontmatter"].get("tags", [])
                     for tag in tags:
-                        stats['tags'][tag] = stats['tags'].get(tag, 0) + 1
+                        stats["tags"][tag] = stats["tags"].get(tag, 0) + 1
 
         # 2. Get database stats (knowledge_base categories)
         try:
             from database import get_db
+
             conn = get_db()
             cursor = conn.cursor()
 
             # Get category counts from database
-            cursor.execute('''
+            cursor.execute(
+                """
                 SELECT category, COUNT(*) as count
                 FROM knowledge_base
                 WHERE category IS NOT NULL AND category != ''
                 GROUP BY category
                 ORDER BY count DESC
-            ''')
+            """
+            )
 
             for row in cursor.fetchall():
                 category = row[0]
                 count = row[1]
                 # Add to stats (merge with file system stats)
-                if category in stats['by_category']:
-                    stats['by_category'][category] += count
+                if category in stats["by_category"]:
+                    stats["by_category"][category] += count
                 else:
-                    stats['by_category'][category] = count
-                stats['total_notes'] += count
+                    stats["by_category"][category] = count
+                stats["total_notes"] += count
 
             # Get tag counts from database
-            cursor.execute('''
+            cursor.execute(
+                """
                 SELECT unnest(tags) as tag, COUNT(*) as count
                 FROM knowledge_base
                 WHERE tags IS NOT NULL AND array_length(tags, 1) > 0
                 GROUP BY tag
                 ORDER BY count DESC
                 LIMIT 50
-            ''')
+            """
+            )
 
             for row in cursor.fetchall():
                 tag = row[0]
                 count = row[1]
-                stats['tags'][tag] = stats['tags'].get(tag, 0) + count
+                stats["tags"][tag] = stats["tags"].get(tag, 0) + count
 
             cursor.close()
 
@@ -582,6 +599,7 @@ class ObsidianVaultManager:
 # STANDALONE FUNCTIONS (for CLI usage)
 # ============================================================================
 
+
 def get_watcher_status() -> Dict:
     """
     Get status of vault file watcher
@@ -591,18 +609,14 @@ def get_watcher_status() -> Dict:
     """
     # This will be implemented in obsidian_vault_watcher.py
     # Placeholder for now
-    return {
-        'running': False,
-        'notes_indexed': 0,
-        'last_sync': None
-    }
+    return {"running": False, "notes_indexed": 0, "last_sync": None}
 
 
 # ============================================================================
 # TESTING
 # ============================================================================
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Test vault manager
     manager = ObsidianVaultManager()
 
@@ -613,7 +627,7 @@ if __name__ == '__main__':
         title="Test Note",
         content="This is a test note with [[Test Link]] and #test-tag",
         category="Core",
-        tags=["test", "demo"]
+        tags=["test", "demo"],
     )
     print(f"Create Note: {msg}")
 
@@ -626,14 +640,11 @@ if __name__ == '__main__':
             print(f"  Tags: {note_data['frontmatter']['tags']}")
 
         # Test 3: Extract wikilinks
-        links = manager.extract_wikilinks(note_data['content'])
+        links = manager.extract_wikilinks(note_data["content"])
         print(f"Wikilinks found: {links}")
 
         # Test 4: Update note
-        success, msg = manager.update_note(
-            file_path,
-            frontmatter_updates={'status': 'updated'}
-        )
+        success, msg = manager.update_note(file_path, frontmatter_updates={"status": "updated"})
         print(f"Update Note: {msg}")
 
     # Test 5: Search vault

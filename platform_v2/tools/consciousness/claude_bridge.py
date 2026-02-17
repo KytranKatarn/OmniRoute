@@ -122,7 +122,10 @@ class ClaudeBridge:
                     "note": "Uses Claude Max CLI - no API costs",
                 }
             else:
-                return {"status": "unhealthy", "error": "Proxy returned unexpected response"}
+                return {
+                    "status": "unhealthy",
+                    "error": "Proxy returned unexpected response",
+                }
 
         except Exception as e:
             return {

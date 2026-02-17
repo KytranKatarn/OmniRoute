@@ -21,7 +21,11 @@ logger = logging.getLogger(__name__)
 
 # Add ai_bridge to path for emotional intelligence
 sys.path.insert(
-    0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "ai_bridge")
+    0,
+    os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
+        "ai_bridge",
+    ),
 )
 try:
     from emotional_intelligence import analyze_sentiment, analyze_trust_impact
@@ -52,7 +56,10 @@ def index():
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("SELECT COUNT(*) as message_count FROM ai_conversations WHERE user_id = %s", (current_user.id,))
+        cur.execute(
+            "SELECT COUNT(*) as message_count FROM ai_conversations WHERE user_id = %s",
+            (current_user.id,),
+        )
         stats = cur.fetchone()
 
         cur.execute(
@@ -199,7 +206,15 @@ def send_message():
         response_data = ai.chat(message, user_context, conversation_history)
 
         if not response_data["success"]:
-            return jsonify({"success": False, "error": f"AI unavailable: {response_data.get('error', 'Unknown')}"}), 503
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"AI unavailable: {response_data.get('error', 'Unknown')}",
+                    }
+                ),
+                503,
+            )
 
         response_text = response_data["response"]
 
@@ -661,7 +676,16 @@ def api_command():
         import traceback
 
         traceback.print_exc()
-        return jsonify({"success": False, "error": str(e), "response": f"I encountered an error: {str(e)}"}), 500
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": str(e),
+                    "response": f"I encountered an error: {str(e)}",
+                }
+            ),
+            500,
+        )
 
 
 @archie_chat_bp.route("/api/suggestions", methods=["GET"])
@@ -684,7 +708,11 @@ def api_suggestions():
         return jsonify(
             {
                 "success": False,
-                "suggestions": ["What's the system status?", "Help me with a coding task", "Show me the team roster"],
+                "suggestions": [
+                    "What's the system status?",
+                    "Help me with a coding task",
+                    "Show me the team roster",
+                ],
             }
         )
 
@@ -765,8 +793,8 @@ def api_status():
                     "online": True,
                     "emotional_state": {
                         "mood": emotional["current_mood"] if emotional else "neutral",
-                        "relationship": float(emotional["relationship_strength"]) if emotional else 0.5,
-                        "energy": float(emotional.get("energy_level", 0.8)) if emotional else 0.8,
+                        "relationship": (float(emotional["relationship_strength"]) if emotional else 0.5),
+                        "energy": (float(emotional.get("energy_level", 0.8)) if emotional else 0.8),
                     },
                     "today": {
                         "commands": stats["total_commands"] or 0,
@@ -805,10 +833,17 @@ def start_discussion():
 
         if discussion_id:
             return jsonify(
-                {"success": True, "discussion_id": discussion_id, "message": f"Discussion started with topic: {topic}"}
+                {
+                    "success": True,
+                    "discussion_id": discussion_id,
+                    "message": f"Discussion started with topic: {topic}",
+                }
             )
         else:
-            return jsonify({"success": False, "error": "Failed to start discussion"}), 500
+            return (
+                jsonify({"success": False, "error": "Failed to start discussion"}),
+                500,
+            )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -887,7 +922,10 @@ def add_contribution(discussion_id):
         message_type = data.get("type", "analysis")
 
         if not agent_id or not message:
-            return jsonify({"success": False, "error": "agent_id and message are required"}), 400
+            return (
+                jsonify({"success": False, "error": "agent_id and message are required"}),
+                400,
+            )
 
         message_id = engine.agent_contribute(
             discussion_id=discussion_id,
@@ -900,7 +938,10 @@ def add_contribution(discussion_id):
         if message_id:
             return jsonify({"success": True, "message_id": message_id})
         else:
-            return jsonify({"success": False, "error": "Failed to add contribution"}), 500
+            return (
+                jsonify({"success": False, "error": "Failed to add contribution"}),
+                500,
+            )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -917,7 +958,14 @@ def get_consensus(discussion_id):
 
         score, stats = engine.calculate_consensus(discussion_id)
 
-        return jsonify({"success": True, "discussion_id": discussion_id, "consensus_score": score, "stats": stats})
+        return jsonify(
+            {
+                "success": True,
+                "discussion_id": discussion_id,
+                "consensus_score": score,
+                "stats": stats,
+            }
+        )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -1006,7 +1054,10 @@ def synthesize_voice():
         if len(text) > 500:
             return (
                 jsonify(
-                    {"success": False, "error": "Text too long (max 500 chars). Consider chunking longer responses."}
+                    {
+                        "success": False,
+                        "error": "Text too long (max 500 chars). Consider chunking longer responses.",
+                    }
                 ),
                 400,
             )
@@ -1048,7 +1099,10 @@ def synthesize_voice_chunked():
             return jsonify({"success": False, "error": "No text provided"}), 400
 
         if len(text) > 2000:
-            return jsonify({"success": False, "error": "Text too long (max 2000 chars)"}), 400
+            return (
+                jsonify({"success": False, "error": "Text too long (max 2000 chars)"}),
+                400,
+            )
 
         synthesizer = get_voice_synthesizer()
 
@@ -1286,7 +1340,10 @@ def voice_cache_cleanup():
             reaction = data.get("reaction")
 
             if not message_id or not reaction:
-                return jsonify({"success": False, "error": "Missing message_id or reaction"}), 400
+                return (
+                    jsonify({"success": False, "error": "Missing message_id or reaction"}),
+                    400,
+                )
 
             allowed_reactions = {"thumbs_up", "thumbs_down", "heart", "laugh"}
             if reaction not in allowed_reactions:

@@ -36,25 +36,27 @@ def _get_fernet():
         return _fernet
 
     # Try to load key from environment
-    key = os.getenv('SOCIAL_MEDIA_ENCRYPTION_KEY')
+    key = os.getenv("SOCIAL_MEDIA_ENCRYPTION_KEY")
 
     if key:
-        _key_source = 'environment'
+        _key_source = "environment"
         try:
             _fernet = Fernet(key.encode() if isinstance(key, str) else key)
             logger.info("Token encryption initialized from environment key")
         except Exception as e:
             logger.error(f"Invalid encryption key in environment: {e}")
-            raise ValueError("SOCIAL_MEDIA_ENCRYPTION_KEY is invalid. Generate new key with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"")
+            raise ValueError(
+                'SOCIAL_MEDIA_ENCRYPTION_KEY is invalid. Generate new key with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"'
+            )
     else:
         # Generate a key for development (NOT RECOMMENDED FOR PRODUCTION)
-        _key_source = 'generated'
+        _key_source = "generated"
         _fernet = Fernet(Fernet.generate_key())
         logger.warning(
             "SOCIAL_MEDIA_ENCRYPTION_KEY not set! "
             "Using generated key - tokens will be lost on restart. "
             "Generate a permanent key with: "
-            "python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+            'python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"'
         )
 
     return _fernet
@@ -74,8 +76,8 @@ def encrypt_token(plaintext: str) -> str:
         return None
 
     fernet = _get_fernet()
-    encrypted_bytes = fernet.encrypt(plaintext.encode('utf-8'))
-    return encrypted_bytes.decode('utf-8')
+    encrypted_bytes = fernet.encrypt(plaintext.encode("utf-8"))
+    return encrypted_bytes.decode("utf-8")
 
 
 def decrypt_token(encrypted: str) -> str:
@@ -96,8 +98,8 @@ def decrypt_token(encrypted: str) -> str:
 
     fernet = _get_fernet()
     try:
-        decrypted_bytes = fernet.decrypt(encrypted.encode('utf-8'))
-        return decrypted_bytes.decode('utf-8')
+        decrypted_bytes = fernet.decrypt(encrypted.encode("utf-8"))
+        return decrypted_bytes.decode("utf-8")
     except InvalidToken:
         logger.error("Failed to decrypt token - key may have changed")
         raise
@@ -110,7 +112,7 @@ def generate_key() -> str:
     Returns:
         Base64-encoded key string (safe for .env file)
     """
-    return Fernet.generate_key().decode('utf-8')
+    return Fernet.generate_key().decode("utf-8")
 
 
 def get_key_source() -> str:
@@ -142,7 +144,7 @@ def validate_key(key: str) -> bool:
 
 
 # Self-test when run directly
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("Testing encryption module...")
 
     # Generate and display a new key

@@ -12,14 +12,14 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional, Dict, List, Tuple
 
-logger = logging.getLogger('archie_mcp.auth')
+logger = logging.getLogger("archie_mcp.auth")
 
 # Database configuration
 DB_CONFIG = {
-    'host': os.getenv('DB_HOST', 'localhost'),
-    'database': os.getenv('DB_NAME', 'archie'),
-    'user': os.getenv('DB_USER', 'archie'),
-    'password': os.getenv('DB_PASSWORD', 'archie_secure_2024')
+    "host": os.getenv("DB_HOST", "localhost"),
+    "database": os.getenv("DB_NAME", "archie"),
+    "user": os.getenv("DB_USER", "archie"),
+    "password": os.getenv("DB_PASSWORD", "archie_secure_2024"),
 }
 
 
@@ -43,6 +43,7 @@ class MCPAuthenticator:
         try:
             import psycopg2
             from psycopg2.extras import RealDictCursor
+
             conn = psycopg2.connect(**DB_CONFIG)
             return conn, conn.cursor(cursor_factory=RealDictCursor)
         except Exception as e:
@@ -85,8 +86,8 @@ class MCPAuthenticator:
         key_hash = self.hash_key(api_key)
         if key_hash in self._key_cache:
             cached = self._key_cache[key_hash]
-            if cached['cached_at'] > datetime.now() - timedelta(seconds=self._cache_ttl):
-                return cached['data']
+            if cached["cached_at"] > datetime.now() - timedelta(seconds=self._cache_ttl):
+                return cached["data"]
 
         # Query database
         conn, cur = self._get_db_connection()
@@ -95,13 +96,16 @@ class MCPAuthenticator:
             return None
 
         try:
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT id, user_id, name, permissions, allowed_tools,
                        rate_limit_per_minute, rate_limit_per_hour,
                        is_active, expires_at
                 FROM mcp_api_keys
                 WHERE key_hash = %s
-            """, (key_hash,))
+            """,
+                (key_hash,),
+            )
 
             row = cur.fetchone()
             cur.close()
@@ -111,23 +115,20 @@ class MCPAuthenticator:
                 logger.warning(f"Invalid API key attempted: {api_key[:16]}...")
                 return None
 
-            if not row['is_active']:
+            if not row["is_active"]:
                 logger.warning(f"Inactive API key used: {row['name']}")
                 return None
 
-            if row['expires_at'] and row['expires_at'] < datetime.now():
+            if row["expires_at"] and row["expires_at"] < datetime.now():
                 logger.warning(f"Expired API key used: {row['name']}")
                 return None
 
             # Cache the result
             key_info = dict(row)
-            self._key_cache[key_hash] = {
-                'data': key_info,
-                'cached_at': datetime.now()
-            }
+            self._key_cache[key_hash] = {"data": key_info, "cached_at": datetime.now()}
 
             # Update last_used_at
-            self._update_last_used(row['id'])
+            self._update_last_used(row["id"])
 
             return key_info
 
@@ -144,10 +145,13 @@ class MCPAuthenticator:
             return
 
         try:
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE mcp_api_keys SET last_used_at = NOW()
                 WHERE id = %s
-            """, (key_id,))
+            """,
+                (key_id,),
+            )
             conn.commit()
             cur.close()
             conn.close()
@@ -175,8 +179,10 @@ class MCPAuthenticator:
             return True, "ok"
 
         try:
-            cur.execute("SELECT check_mcp_rate_limit(%s, %s, %s)",
-                       (key_id, limit_per_minute, limit_per_hour))
+            cur.execute(
+                "SELECT check_mcp_rate_limit(%s, %s, %s)",
+                (key_id, limit_per_minute, limit_per_hour),
+            )
             allowed = cur.fetchone()[0]
             cur.close()
             conn.close()
@@ -219,17 +225,18 @@ class MCPAuthenticator:
         Returns:
             True if permission granted
         """
-        permissions = key_info.get('permissions', [])
+        permissions = key_info.get("permissions", [])
         if isinstance(permissions, str):
             import json
+
             permissions = json.loads(permissions)
 
         # Admin has all permissions
-        if 'admin' in permissions:
+        if "admin" in permissions:
             return True
 
         # Write includes read
-        if required_permission == 'read' and 'write' in permissions:
+        if required_permission == "read" and "write" in permissions:
             return True
 
         return required_permission in permissions
@@ -245,9 +252,10 @@ class MCPAuthenticator:
         Returns:
             True if access granted
         """
-        allowed_tools = key_info.get('allowed_tools', [])
+        allowed_tools = key_info.get("allowed_tools", [])
         if isinstance(allowed_tools, str):
             import json
+
             allowed_tools = json.loads(allowed_tools)
 
         # Empty list means all tools allowed
@@ -256,9 +264,16 @@ class MCPAuthenticator:
 
         return tool_name in allowed_tools
 
-    def create_api_key(self, user_id: int, name: str, permissions: List[str] = None,
-                       allowed_tools: List[str] = None, rate_limit_per_minute: int = 60,
-                       rate_limit_per_hour: int = 1000, expires_days: int = None) -> Optional[str]:
+    def create_api_key(
+        self,
+        user_id: int,
+        name: str,
+        permissions: List[str] = None,
+        allowed_tools: List[str] = None,
+        rate_limit_per_minute: int = 60,
+        rate_limit_per_hour: int = 1000,
+        expires_days: int = None,
+    ) -> Optional[str]:
         """
         Create a new API key
 
@@ -289,25 +304,28 @@ class MCPAuthenticator:
             if expires_days:
                 expires_at = datetime.now() + timedelta(days=expires_days)
 
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO mcp_api_keys
                 (user_id, key_hash, key_prefix, name, permissions, allowed_tools,
                  rate_limit_per_minute, rate_limit_per_hour, expires_at)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
-            """, (
-                user_id,
-                key_hash,
-                key_prefix,
-                name,
-                json.dumps(permissions or ['read']),
-                json.dumps(allowed_tools or []),
-                rate_limit_per_minute,
-                rate_limit_per_hour,
-                expires_at
-            ))
+            """,
+                (
+                    user_id,
+                    key_hash,
+                    key_prefix,
+                    name,
+                    json.dumps(permissions or ["read"]),
+                    json.dumps(allowed_tools or []),
+                    rate_limit_per_minute,
+                    rate_limit_per_hour,
+                    expires_at,
+                ),
+            )
 
-            key_id = cur.fetchone()['id']
+            key_id = cur.fetchone()["id"]
             conn.commit()
             cur.close()
             conn.close()
@@ -337,17 +355,19 @@ class MCPAuthenticator:
             return False
 
         try:
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE mcp_api_keys SET is_active = FALSE
                 WHERE id = %s
-            """, (key_id,))
+            """,
+                (key_id,),
+            )
             conn.commit()
             cur.close()
             conn.close()
 
             # Clear from cache
-            self._key_cache = {k: v for k, v in self._key_cache.items()
-                             if v['data'].get('id') != key_id}
+            self._key_cache = {k: v for k, v in self._key_cache.items() if v["data"].get("id") != key_id}
 
             logger.info(f"Revoked API key ID: {key_id}")
             return True
@@ -374,22 +394,27 @@ class MCPAuthenticator:
 
         try:
             if user_id:
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT id, user_id, key_prefix, name, permissions, allowed_tools,
                            rate_limit_per_minute, rate_limit_per_hour,
                            is_active, created_at, last_used_at, expires_at
                     FROM mcp_api_keys
                     WHERE user_id = %s
                     ORDER BY created_at DESC
-                """, (user_id,))
+                """,
+                    (user_id,),
+                )
             else:
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT id, user_id, key_prefix, name, permissions, allowed_tools,
                            rate_limit_per_minute, rate_limit_per_hour,
                            is_active, created_at, last_used_at, expires_at
                     FROM mcp_api_keys
                     ORDER BY created_at DESC
-                """)
+                """
+                )
 
             rows = cur.fetchall()
             cur.close()
@@ -410,6 +435,7 @@ class MCPAuthenticator:
 
 _authenticator = None
 
+
 def get_authenticator() -> MCPAuthenticator:
     """Get or create the global authenticator instance"""
     global _authenticator
@@ -418,7 +444,9 @@ def get_authenticator() -> MCPAuthenticator:
     return _authenticator
 
 
-def validate_request(api_key: str, tool_name: str, required_permission: str = 'read') -> Tuple[bool, str, Optional[Dict]]:
+def validate_request(
+    api_key: str, tool_name: str, required_permission: str = "read"
+) -> Tuple[bool, str, Optional[Dict]]:
     """
     Validate an MCP request
 
@@ -439,9 +467,9 @@ def validate_request(api_key: str, tool_name: str, required_permission: str = 'r
 
     # Check rate limit
     allowed, reason = auth.check_rate_limit(
-        key_info['id'],
-        key_info['rate_limit_per_minute'],
-        key_info['rate_limit_per_hour']
+        key_info["id"],
+        key_info["rate_limit_per_minute"],
+        key_info["rate_limit_per_hour"],
     )
     if not allowed:
         return False, reason, key_info
@@ -455,6 +483,6 @@ def validate_request(api_key: str, tool_name: str, required_permission: str = 'r
         return False, f"Access denied to tool: {tool_name}", key_info
 
     # Increment rate limit counter
-    auth.increment_rate_limit(key_info['id'])
+    auth.increment_rate_limit(key_info["id"])
 
     return True, "ok", key_info

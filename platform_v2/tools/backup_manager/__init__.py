@@ -32,5 +32,5 @@ from .backup_manager_routes import (
     create_backup,
     create_backup_programmatic,
     backup_module,
-    get_module_dependencies
+    get_module_dependencies,
 )

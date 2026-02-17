@@ -2,13 +2,14 @@
 API Documentation Routes
 Auto-generates OpenAPI 3.0 spec from Flask routes and serves Swagger UI
 """
+
 import re
 import json
 from flask import jsonify, render_template_string, current_app, request
 from . import api_docs_bp
 
 # Swagger UI HTML template
-SWAGGER_UI_TEMPLATE = '''
+SWAGGER_UI_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -158,19 +159,19 @@ SWAGGER_UI_TEMPLATE = '''
     </script>
 </body>
 </html>
-'''
+"""
 
 
 def get_method_from_rule(rule):
     """Extract HTTP methods from a rule"""
-    methods = rule.methods - {'HEAD', 'OPTIONS'}
+    methods = rule.methods - {"HEAD", "OPTIONS"}
     return list(methods)
 
 
 def parse_docstring(func):
     """Extract description from function docstring"""
     if func.__doc__:
-        lines = func.__doc__.strip().split('\n')
+        lines = func.__doc__.strip().split("\n")
         return lines[0].strip()
     return None
 
@@ -179,111 +180,113 @@ def get_parameters_from_rule(rule):
     """Extract path parameters from URL rule"""
     params = []
     # Match <type:name> or <name> patterns
-    pattern = r'<(?:(\w+):)?(\w+)>'
+    pattern = r"<(?:(\w+):)?(\w+)>"
     for match in re.finditer(pattern, rule.rule):
-        param_type = match.group(1) or 'string'
+        param_type = match.group(1) or "string"
         param_name = match.group(2)
 
-        schema_type = 'string'
-        if param_type == 'int':
-            schema_type = 'integer'
-        elif param_type == 'float':
-            schema_type = 'number'
+        schema_type = "string"
+        if param_type == "int":
+            schema_type = "integer"
+        elif param_type == "float":
+            schema_type = "number"
 
-        params.append({
-            'name': param_name,
-            'in': 'path',
-            'required': True,
-            'schema': {'type': schema_type}
-        })
+        params.append(
+            {
+                "name": param_name,
+                "in": "path",
+                "required": True,
+                "schema": {"type": schema_type},
+            }
+        )
     return params
 
 
 def categorize_endpoint(rule_str):
     """Categorize endpoint based on URL pattern"""
-    if '/tools/team-management' in rule_str:
-        return 'Team Management'
-    elif '/tools/blueprint' in rule_str:
-        return 'Blueprint'
-    elif '/tools/consciousness' in rule_str:
-        return 'Consciousness'
-    elif '/tools/website-studio' in rule_str:
-        return 'Website Designer'
-    elif '/tools/figma' in rule_str:
-        return 'Figma Integration'
-    elif '/tools/project-builder' in rule_str:
-        return 'Project Builder'
-    elif '/tools/game-studio' in rule_str:
-        return 'Game Studio'
-    elif '/tools/media-studio' in rule_str:
-        return 'Media Studio'
-    elif '/tools/content-studio' in rule_str:
-        return 'Content Studio'
-    elif '/tools/code_sentinel' in rule_str:
-        return 'Code Sentinel'
-    elif '/tools/improvements' in rule_str:
-        return 'Improvements Lab'
-    elif '/tools/backup-manager' in rule_str:
-        return 'Backup Manager'
-    elif '/tools/sandbox' in rule_str:
-        return 'Sandbox Manager'
-    elif '/tools/bridge' in rule_str:
-        return 'A.R.C.H.I.E. Bridge'
-    elif '/tools/crm' in rule_str:
-        return 'CRM'
-    elif '/tools/email' in rule_str:
-        return 'Email Manager'
-    elif '/tools/invoicing' in rule_str:
-        return 'Invoicing'
-    elif '/tools/scheduler' in rule_str:
-        return 'Scheduler'
-    elif '/tools/store' in rule_str:
-        return 'Store Builder'
-    elif '/tools/social-media' in rule_str:
-        return 'Social Media'
-    elif '/tools/analytics' in rule_str:
-        return 'Analytics'
-    elif '/tools/automations' in rule_str:
-        return 'Automations'
-    elif '/tools/call-center' in rule_str:
-        return 'Call Center'
-    elif '/tools/account-center' in rule_str:
-        return 'Account Center'
-    elif '/tools/security' in rule_str:
-        return 'Security & Network'
-    elif '/tools/code-editor' in rule_str:
-        return 'Code Editor'
-    elif '/tools/testing' in rule_str:
-        return 'Testing Suite'
-    elif '/tools/fine-tuning' in rule_str:
-        return 'AI Fine-tuning'
-    elif '/tools/archie-chat' in rule_str:
-        return 'A.R.C.H.I.E. Chat'
-    elif '/tools/doc' in rule_str:
-        return 'DOC App'
-    elif '/tools/therapy' in rule_str:
-        return 'Therapy App'
-    elif '/tools/fitness' in rule_str:
-        return 'Fitness App'
-    elif '/tools/stockbot' in rule_str:
-        return 'StockBot'
-    elif '/tools/archie-pool' in rule_str:
-        return 'Archie Pool'
-    elif '/archie/api' in rule_str:
-        return 'A.R.C.H.I.E. Core'
-    elif '/api/' in rule_str:
-        return 'Platform API'
+    if "/tools/team-management" in rule_str:
+        return "Team Management"
+    elif "/tools/blueprint" in rule_str:
+        return "Blueprint"
+    elif "/tools/consciousness" in rule_str:
+        return "Consciousness"
+    elif "/tools/website-studio" in rule_str:
+        return "Website Designer"
+    elif "/tools/figma" in rule_str:
+        return "Figma Integration"
+    elif "/tools/project-builder" in rule_str:
+        return "Project Builder"
+    elif "/tools/game-studio" in rule_str:
+        return "Game Studio"
+    elif "/tools/media-studio" in rule_str:
+        return "Media Studio"
+    elif "/tools/content-studio" in rule_str:
+        return "Content Studio"
+    elif "/tools/code_sentinel" in rule_str:
+        return "Code Sentinel"
+    elif "/tools/improvements" in rule_str:
+        return "Improvements Lab"
+    elif "/tools/backup-manager" in rule_str:
+        return "Backup Manager"
+    elif "/tools/sandbox" in rule_str:
+        return "Sandbox Manager"
+    elif "/tools/bridge" in rule_str:
+        return "A.R.C.H.I.E. Bridge"
+    elif "/tools/crm" in rule_str:
+        return "CRM"
+    elif "/tools/email" in rule_str:
+        return "Email Manager"
+    elif "/tools/invoicing" in rule_str:
+        return "Invoicing"
+    elif "/tools/scheduler" in rule_str:
+        return "Scheduler"
+    elif "/tools/store" in rule_str:
+        return "Store Builder"
+    elif "/tools/social-media" in rule_str:
+        return "Social Media"
+    elif "/tools/analytics" in rule_str:
+        return "Analytics"
+    elif "/tools/automations" in rule_str:
+        return "Automations"
+    elif "/tools/call-center" in rule_str:
+        return "Call Center"
+    elif "/tools/account-center" in rule_str:
+        return "Account Center"
+    elif "/tools/security" in rule_str:
+        return "Security & Network"
+    elif "/tools/code-editor" in rule_str:
+        return "Code Editor"
+    elif "/tools/testing" in rule_str:
+        return "Testing Suite"
+    elif "/tools/fine-tuning" in rule_str:
+        return "AI Fine-tuning"
+    elif "/tools/archie-chat" in rule_str:
+        return "A.R.C.H.I.E. Chat"
+    elif "/tools/doc" in rule_str:
+        return "DOC App"
+    elif "/tools/therapy" in rule_str:
+        return "Therapy App"
+    elif "/tools/fitness" in rule_str:
+        return "Fitness App"
+    elif "/tools/stockbot" in rule_str:
+        return "StockBot"
+    elif "/tools/archie-pool" in rule_str:
+        return "Archie Pool"
+    elif "/archie/api" in rule_str:
+        return "A.R.C.H.I.E. Core"
+    elif "/api/" in rule_str:
+        return "Platform API"
     else:
-        return 'Other'
+        return "Other"
 
 
 def generate_openapi_spec():
     """Generate OpenAPI 3.0 specification from Flask routes"""
     spec = {
-        'openapi': '3.0.3',
-        'info': {
-            'title': 'A.R.C.H.I.E. Platform API',
-            'description': '''
+        "openapi": "3.0.3",
+        "info": {
+            "title": "A.R.C.H.I.E. Platform API",
+            "description": """
 ## Autonomous Resource and Coordination Hub for Intelligent Execution
 
 A.R.C.H.I.E. is an AI-powered platform with 35+ modules across 6 categories:
@@ -300,25 +303,20 @@ Most endpoints require session authentication. Login at `/login` first.
 
 ### Rate Limits
 API calls are logged for analytics. No strict rate limits currently enforced.
-            ''',
-            'version': '5.13.0',
-            'contact': {
-                'name': 'A.R.C.H.I.E. Support',
-                'url': 'https://github.com/KytranKatarn/archie-platform'
+            """,
+            "version": "5.13.0",
+            "contact": {
+                "name": "A.R.C.H.I.E. Support",
+                "url": "https://github.com/KytranKatarn/archie-platform",
             },
-            'license': {
-                'name': 'Proprietary',
-                'url': 'https://kytranempowerment.com/license'
-            }
+            "license": {
+                "name": "Proprietary",
+                "url": "https://kytranempowerment.com/license",
+            },
         },
-        'servers': [
-            {
-                'url': request.host_url.rstrip('/'),
-                'description': 'Current Server'
-            }
-        ],
-        'tags': [],
-        'paths': {}
+        "servers": [{"url": request.host_url.rstrip("/"), "description": "Current Server"}],
+        "tags": [],
+        "paths": {},
     }
 
     # Collect all tags (categories)
@@ -327,13 +325,13 @@ API calls are logged for analytics. No strict rate limits currently enforced.
     # Process all routes
     for rule in current_app.url_map.iter_rules():
         # Skip static, internal, and non-API routes
-        if rule.endpoint == 'static':
+        if rule.endpoint == "static":
             continue
-        if rule.rule.startswith('/static'):
+        if rule.rule.startswith("/static"):
             continue
-        if '/api' not in rule.rule and not rule.rule.endswith('/api/status'):
+        if "/api" not in rule.rule and not rule.rule.endswith("/api/status"):
             continue
-        if 'api_docs' in rule.endpoint:
+        if "api_docs" in rule.endpoint:
             continue
 
         # Get the view function
@@ -359,138 +357,160 @@ API calls are logged for analytics. No strict rate limits currently enforced.
         # Build path item
         path = rule.rule
         # Convert Flask URL params to OpenAPI format
-        path = re.sub(r'<(?:\w+:)?(\w+)>', r'{\1}', path)
+        path = re.sub(r"<(?:\w+:)?(\w+)>", r"{\1}", path)
 
-        if path not in spec['paths']:
-            spec['paths'][path] = {}
+        if path not in spec["paths"]:
+            spec["paths"][path] = {}
 
         for method in methods:
             method_lower = method.lower()
             operation = {
-                'tags': [tag],
-                'summary': description,
-                'operationId': f"{rule.endpoint}_{method_lower}",
-                'responses': {
-                    '200': {
-                        'description': 'Successful response',
-                        'content': {
-                            'application/json': {
-                                'schema': {'type': 'object'}
-                            }
-                        }
+                "tags": [tag],
+                "summary": description,
+                "operationId": f"{rule.endpoint}_{method_lower}",
+                "responses": {
+                    "200": {
+                        "description": "Successful response",
+                        "content": {"application/json": {"schema": {"type": "object"}}},
                     },
-                    '401': {
-                        'description': 'Authentication required'
-                    },
-                    '403': {
-                        'description': 'Permission denied'
-                    },
-                    '404': {
-                        'description': 'Resource not found'
-                    },
-                    '500': {
-                        'description': 'Server error'
-                    }
-                }
+                    "401": {"description": "Authentication required"},
+                    "403": {"description": "Permission denied"},
+                    "404": {"description": "Resource not found"},
+                    "500": {"description": "Server error"},
+                },
             }
 
             if parameters:
-                operation['parameters'] = parameters
+                operation["parameters"] = parameters
 
             # Add request body for POST/PUT/PATCH
-            if method_lower in ['post', 'put', 'patch']:
-                operation['requestBody'] = {
-                    'content': {
-                        'application/json': {
-                            'schema': {'type': 'object'}
-                        }
-                    }
-                }
+            if method_lower in ["post", "put", "patch"]:
+                operation["requestBody"] = {"content": {"application/json": {"schema": {"type": "object"}}}}
 
-            spec['paths'][path][method_lower] = operation
+            spec["paths"][path][method_lower] = operation
 
     # Sort and add tags
-    spec['tags'] = [{'name': tag, 'description': f'{tag} API endpoints'} for tag in sorted(tags_set)]
+    spec["tags"] = [{"name": tag, "description": f"{tag} API endpoints"} for tag in sorted(tags_set)]
 
     return spec
 
 
-@api_docs_bp.route('/')
+@api_docs_bp.route("/")
 def swagger_ui():
     """Serve Swagger UI"""
     spec = generate_openapi_spec()
-    endpoint_count = sum(len(methods) for methods in spec['paths'].values())
-    module_count = len(spec['tags'])
+    endpoint_count = sum(len(methods) for methods in spec["paths"].values())
+    module_count = len(spec["tags"])
 
     # Count unique categories
     categories = set()
-    for tag in spec['tags']:
-        name = tag['name']
-        if name in ['Figma Integration', 'Project Builder', 'Game Studio', 'Media Studio', 'Content Studio']:
-            categories.add('CREATION')
-        elif name in ['Code Editor', 'A.R.C.H.I.E. Chat', 'Code Sentinel', 'Testing Suite']:
-            categories.add('DEVELOPMENT')
-        elif name in ['Website Designer', 'CRM', 'Email Manager', 'Invoicing', 'Scheduler', 'Store Builder', 'Social Media', 'Analytics', 'Automations', 'Call Center']:
-            categories.add('BUSINESS_TOOLS')
-        elif name in ['DOC App', 'Therapy App', 'Fitness App', 'StockBot', 'Archie Pool']:
-            categories.add('STANDALONE_APPS')
-        elif name in ['Blueprint', 'Consciousness', 'Team Management', 'Improvements Lab', 'Backup Manager', 'Sandbox Manager', 'Account Center', 'Security & Network']:
-            categories.add('ADMIN')
+    for tag in spec["tags"]:
+        name = tag["name"]
+        if name in [
+            "Figma Integration",
+            "Project Builder",
+            "Game Studio",
+            "Media Studio",
+            "Content Studio",
+        ]:
+            categories.add("CREATION")
+        elif name in [
+            "Code Editor",
+            "A.R.C.H.I.E. Chat",
+            "Code Sentinel",
+            "Testing Suite",
+        ]:
+            categories.add("DEVELOPMENT")
+        elif name in [
+            "Website Designer",
+            "CRM",
+            "Email Manager",
+            "Invoicing",
+            "Scheduler",
+            "Store Builder",
+            "Social Media",
+            "Analytics",
+            "Automations",
+            "Call Center",
+        ]:
+            categories.add("BUSINESS_TOOLS")
+        elif name in [
+            "DOC App",
+            "Therapy App",
+            "Fitness App",
+            "StockBot",
+            "Archie Pool",
+        ]:
+            categories.add("STANDALONE_APPS")
+        elif name in [
+            "Blueprint",
+            "Consciousness",
+            "Team Management",
+            "Improvements Lab",
+            "Backup Manager",
+            "Sandbox Manager",
+            "Account Center",
+            "Security & Network",
+        ]:
+            categories.add("ADMIN")
         else:
-            categories.add('OTHER')
+            categories.add("OTHER")
 
     return render_template_string(
         SWAGGER_UI_TEMPLATE,
         endpoint_count=endpoint_count,
         module_count=module_count,
-        category_count=len(categories)
+        category_count=len(categories),
     )
 
 
-@api_docs_bp.route('/openapi.json')
+@api_docs_bp.route("/openapi.json")
 def openapi_spec():
     """Return OpenAPI 3.0 JSON specification"""
     spec = generate_openapi_spec()
     return jsonify(spec)
 
 
-@api_docs_bp.route('/openapi.yaml')
+@api_docs_bp.route("/openapi.yaml")
 def openapi_yaml():
     """Return OpenAPI 3.0 YAML specification"""
     import yaml
+
     spec = generate_openapi_spec()
     return current_app.response_class(
         yaml.dump(spec, default_flow_style=False, allow_unicode=True),
-        mimetype='text/yaml'
+        mimetype="text/yaml",
     )
 
 
-@api_docs_bp.route('/stats')
+@api_docs_bp.route("/stats")
 def api_stats():
     """Get API documentation statistics"""
     spec = generate_openapi_spec()
 
     # Count by method
-    method_counts = {'get': 0, 'post': 0, 'put': 0, 'delete': 0, 'patch': 0}
-    for path_item in spec['paths'].values():
+    method_counts = {"get": 0, "post": 0, "put": 0, "delete": 0, "patch": 0}
+    for path_item in spec["paths"].values():
         for method in path_item.keys():
             if method in method_counts:
                 method_counts[method] += 1
 
     # Count by tag
     tag_counts = {}
-    for path, path_item in spec['paths'].items():
+    for path, path_item in spec["paths"].items():
         for method, operation in path_item.items():
-            for tag in operation.get('tags', ['Other']):
+            for tag in operation.get("tags", ["Other"]):
                 tag_counts[tag] = tag_counts.get(tag, 0) + 1
 
-    return jsonify({
-        'success': True,
-        'stats': {
-            'total_endpoints': sum(len(methods) for methods in spec['paths'].values()),
-            'total_paths': len(spec['paths']),
-            'total_tags': len(spec['tags']),
-            'by_method': method_counts,
-            'by_module': dict(sorted(tag_counts.items(), key=lambda x: -x[1]))
+    return jsonify(
+        {
+            "success": True,
+            "stats": {
+                "total_endpoints": sum(len(methods) for methods in spec["paths"].values()),
+                "total_paths": len(spec["paths"]),
+                "total_tags": len(spec["tags"]),
+                "by_method": method_counts,
+                "by_module": dict(sorted(tag_counts.items(), key=lambda x: -x[1])),
+            },
         }
-    })
+    )

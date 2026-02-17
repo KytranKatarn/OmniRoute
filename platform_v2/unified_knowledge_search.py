@@ -23,10 +23,10 @@ import re
 def get_db_connection():
     """Get database connection"""
     return psycopg2.connect(
-        host=os.getenv('DB_HOST', 'archie_database'),
-        database=os.getenv('DB_NAME', 'archie'),
-        user=os.getenv('DB_USER', 'archie'),
-        password=os.getenv('DB_PASSWORD', 'archiepass')
+        host=os.getenv("DB_HOST", "archie_database"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", "archiepass"),
     )
 
 
@@ -35,7 +35,7 @@ def unified_knowledge_search(
     types: List[str] = None,
     category: str = None,
     limit: int = 20,
-    offset: int = 0
+    offset: int = 0,
 ) -> Dict[str, Any]:
     """
     Search across all knowledge types with intelligent ranking
@@ -57,19 +57,25 @@ def unified_knowledge_search(
     """
 
     if types is None:
-        types = ['vault_note', 'conversation_memory', 'code_snippet',
-                 'github_file', 'improvement', 'mistake_learned']
+        types = [
+            "vault_note",
+            "conversation_memory",
+            "code_snippet",
+            "github_file",
+            "improvement",
+            "mistake_learned",
+        ]
 
     # Type-based importance multipliers
     # Priority order for knowledge retrieval
     type_weights = {
-        'mistake_learned': 1.3,       # HIGHEST - prevent repeating mistakes!
-        'vault_note': 1.2,            # HIGH - curated docs
-        'github_file_selective': 1.1, # NEW - manually indexed with embeddings
-        'code_snippet': 1.1,          # ABOVE NORMAL - proven patterns
-        'improvement': 1.0,           # NORMAL - historical changes
-        'conversation_memory': 0.9,   # SLIGHTLY BELOW - dynamic learning
-        'github_file': 0.85           # IMPROVED from 0.8 - auto-indexed files
+        "mistake_learned": 1.3,  # HIGHEST - prevent repeating mistakes!
+        "vault_note": 1.2,  # HIGH - curated docs
+        "github_file_selective": 1.1,  # NEW - manually indexed with embeddings
+        "code_snippet": 1.1,  # ABOVE NORMAL - proven patterns
+        "improvement": 1.0,  # NORMAL - historical changes
+        "conversation_memory": 0.9,  # SLIGHTLY BELOW - dynamic learning
+        "github_file": 0.85,  # IMPROVED from 0.8 - auto-indexed files
     }
 
     conn = get_db_connection()
@@ -114,12 +120,12 @@ def unified_knowledge_search(
         """
 
         params = [
-            f'%{query}%',  # title match check
-            f'%{query}%',  # content match check
+            f"%{query}%",  # title match check
+            f"%{query}%",  # content match check
             types,
-            f'%{query}%',  # title search
-            f'%{query}%',  # content search
-            query          # exact tag match
+            f"%{query}%",  # title search
+            f"%{query}%",  # content search
+            query,  # exact tag match
         ]
 
         # Add category filter if specified
@@ -145,7 +151,7 @@ def unified_knowledge_search(
             ) DESC, created_at DESC
             LIMIT %s OFFSET %s
         """
-        params.extend([f'%{query}%', f'%{query}%', limit, offset])
+        params.extend([f"%{query}%", f"%{query}%", limit, offset])
 
         cur.execute(sql, params)
         results = cur.fetchall()
@@ -161,30 +167,25 @@ def unified_knowledge_search(
                 OR %s = ANY(tags)
               )
         """
-        count_params = [
-            types,
-            f'%{query}%',
-            f'%{query}%',
-            query
-        ]
+        count_params = [types, f"%{query}%", f"%{query}%", query]
 
         if category:
             count_sql += " AND category = %s"
             count_params.append(category)
 
         cur.execute(count_sql, count_params)
-        total = cur.fetchone()['total']
+        total = cur.fetchone()["total"]
 
         cur.close()
         conn.close()
 
         return {
-            'results': results,
-            'total': total,
-            'query': query,
-            'types_searched': types,
-            'limit': limit,
-            'offset': offset
+            "results": results,
+            "total": total,
+            "query": query,
+            "types_searched": types,
+            "limit": limit,
+            "offset": offset,
         }
 
     except Exception as e:
@@ -200,7 +201,8 @@ def get_knowledge_stats() -> Dict[str, Any]:
 
     try:
         # Knowledge type distribution
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 knowledge_type,
                 COUNT(*) as count,
@@ -208,11 +210,13 @@ def get_knowledge_stats() -> Dict[str, Any]:
             FROM knowledge_base
             GROUP BY knowledge_type
             ORDER BY count DESC
-        """)
+        """
+        )
         type_distribution = cur.fetchall()
 
         # Category distribution
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 category,
                 COUNT(*) as count
@@ -221,38 +225,43 @@ def get_knowledge_stats() -> Dict[str, Any]:
             GROUP BY category
             ORDER BY count DESC
             LIMIT 10
-        """)
+        """
+        )
         category_distribution = cur.fetchall()
 
         # Recent additions
-        cur.execute("""
+        cur.execute(
+            """
             SELECT COUNT(*) as recent_count
             FROM knowledge_base
             WHERE created_at > NOW() - INTERVAL '7 days'
-        """)
-        recent_additions = cur.fetchone()['recent_count']
+        """
+        )
+        recent_additions = cur.fetchone()["recent_count"]
 
         # Total entries
         cur.execute("SELECT COUNT(*) as total FROM knowledge_base")
-        total_entries = cur.fetchone()['total']
+        total_entries = cur.fetchone()["total"]
 
         # Mistake learnings (high priority!)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT COUNT(*) as mistake_count
             FROM knowledge_base
             WHERE knowledge_type = 'mistake_learned'
-        """)
-        mistake_count = cur.fetchone()['mistake_count']
+        """
+        )
+        mistake_count = cur.fetchone()["mistake_count"]
 
         cur.close()
         conn.close()
 
         return {
-            'type_distribution': type_distribution,
-            'category_distribution': category_distribution,
-            'recent_additions': recent_additions,
-            'total_entries': total_entries,
-            'mistake_count': mistake_count
+            "type_distribution": type_distribution,
+            "category_distribution": category_distribution,
+            "recent_additions": recent_additions,
+            "total_entries": total_entries,
+            "mistake_count": mistake_count,
         }
 
     except Exception as e:
@@ -267,7 +276,8 @@ def search_by_category(category: str, limit: int = 50) -> List[Dict[str, Any]]:
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 id,
                 knowledge_type,
@@ -281,7 +291,9 @@ def search_by_category(category: str, limit: int = 50) -> List[Dict[str, Any]]:
             WHERE category = %s
             ORDER BY importance_score DESC, created_at DESC
             LIMIT %s
-        """, (category, limit))
+        """,
+            (category, limit),
+        )
 
         results = cur.fetchall()
         cur.close()
@@ -301,7 +313,8 @@ def get_top_knowledge(knowledge_type: str, limit: int = 10) -> List[Dict[str, An
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 id,
                 knowledge_type,
@@ -316,7 +329,9 @@ def get_top_knowledge(knowledge_type: str, limit: int = 10) -> List[Dict[str, An
             WHERE knowledge_type = %s
             ORDER BY importance_score DESC, access_count DESC, created_at DESC
             LIMIT %s
-        """, (knowledge_type, limit))
+        """,
+            (knowledge_type, limit),
+        )
 
         results = cur.fetchall()
         cur.close()
@@ -336,7 +351,8 @@ def get_recent_knowledge(days: int = 7, limit: int = 20) -> List[Dict[str, Any]]
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 id,
                 knowledge_type,
@@ -350,7 +366,9 @@ def get_recent_knowledge(days: int = 7, limit: int = 20) -> List[Dict[str, Any]]
             WHERE created_at > NOW() - INTERVAL '%s days'
             ORDER BY created_at DESC
             LIMIT %s
-        """, (days, limit))
+        """,
+            (days, limit),
+        )
 
         results = cur.fetchall()
         cur.close()
@@ -370,7 +388,8 @@ def get_mistake_learnings(limit: int = 20) -> List[Dict[str, Any]]:
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 id,
                 title,
@@ -384,7 +403,9 @@ def get_mistake_learnings(limit: int = 20) -> List[Dict[str, Any]]:
             WHERE knowledge_type = 'mistake_learned'
             ORDER BY importance_score DESC, created_at DESC
             LIMIT %s
-        """, (limit,))
+        """,
+            (limit,),
+        )
 
         results = cur.fetchall()
         cur.close()

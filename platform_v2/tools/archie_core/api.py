@@ -112,7 +112,16 @@ def health_check():
         )
 
     except Exception as e:
-        return jsonify({"status": "error", "error": str(e), "timestamp": datetime.now().isoformat()}), 500
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "error": str(e),
+                    "timestamp": datetime.now().isoformat(),
+                }
+            ),
+            500,
+        )
 
 
 @archie_api_bp.route("/search", methods=["POST"])
@@ -215,7 +224,7 @@ def knowledge_search():
                     "content": r["content"],
                     "confidence": float(r["confidence"]) if r["confidence"] else 0.8,
                     "source": r.get("source", "internal_kb"),
-                    "last_updated": r["last_updated"].isoformat() if r["last_updated"] else None,
+                    "last_updated": (r["last_updated"].isoformat() if r["last_updated"] else None),
                     "category": r.get("category", "general"),
                 }
             )
@@ -228,7 +237,7 @@ def knowledge_search():
                     "content": r["content"],
                     "confidence": 0.75,
                     "source": "conversation_history",
-                    "last_updated": r["last_updated"].isoformat() if r["last_updated"] else None,
+                    "last_updated": (r["last_updated"].isoformat() if r["last_updated"] else None),
                     "category": "support_history",
                 }
             )
@@ -312,7 +321,10 @@ def chat_inference():
         if not response_data["success"]:
             return (
                 jsonify(
-                    {"success": False, "error": f"AI inference failed: {response_data.get('error', 'Unknown error')}"}
+                    {
+                        "success": False,
+                        "error": f"AI inference failed: {response_data.get('error', 'Unknown error')}",
+                    }
                 ),
                 503,
             )
@@ -422,7 +434,13 @@ def learning_feedback():
                         (content, memory_type, importance_score, source, tags)
                         VALUES (%s, %s, %s, %s, %s)
                     """,
-                        (json.dumps({key: value}), "insight", 0.7, "call_system", json.dumps([key, "call_handling"])),
+                        (
+                            json.dumps({key: value}),
+                            "insight",
+                            0.7,
+                            "call_system",
+                            json.dumps([key, "call_handling"]),
+                        ),
                     )
 
         conn.commit()
@@ -480,7 +498,10 @@ def batch_learning():
         data = request.get_json()
 
         if not data or "conversations" not in data:
-            return jsonify({"success": False, "error": "No conversations provided"}), 400
+            return (
+                jsonify({"success": False, "error": "No conversations provided"}),
+                400,
+            )
 
         conversations = data["conversations"]
         learning_mode = data.get("learning_mode", "incremental")

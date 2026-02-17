@@ -300,7 +300,7 @@ def discover_all_api_keys() -> Dict[str, Dict[str, Any]]:
         "api_key": None,
         "config_path": jellyfin_path,
         "port": 8096,
-        "note": "API key must be created manually in Jellyfin Dashboard" if jellyfin_installed else "Not installed",
+        "note": ("API key must be created manually in Jellyfin Dashboard" if jellyfin_installed else "Not installed"),
     }
 
     return results

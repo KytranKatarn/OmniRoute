@@ -17,7 +17,12 @@ class TestGenerator:
     Generates test files for backend (pytest) and frontend (Jest/React Testing Library)
     """
 
-    def __init__(self, project_id: int, project_plan: Dict, architecture_plan: Optional[Dict] = None):
+    def __init__(
+        self,
+        project_id: int,
+        project_plan: Dict,
+        architecture_plan: Optional[Dict] = None,
+    ):
         """
         Initialize Test Generator
 
@@ -32,14 +37,14 @@ class TestGenerator:
         self.generated_files = []
 
         # Extract project details
-        self.project_name = project_plan.get('project_name', 'MyApp')
-        self.tech_stack = project_plan.get('tech_stack', {})
-        self.database_schema = project_plan.get('database_schema', {})
-        self.api_endpoints = project_plan.get('api_endpoints', [])
+        self.project_name = project_plan.get("project_name", "MyApp")
+        self.tech_stack = project_plan.get("tech_stack", {})
+        self.database_schema = project_plan.get("database_schema", {})
+        self.api_endpoints = project_plan.get("api_endpoints", [])
 
         # Testing frameworks
-        self.backend_framework = 'pytest'
-        self.frontend_framework = 'jest'
+        self.backend_framework = "pytest"
+        self.frontend_framework = "jest"
 
     async def generate_tests(self, test_backend: bool = True, test_frontend: bool = True) -> Dict[str, Any]:
         """
@@ -64,15 +69,15 @@ class TestGenerator:
         all_tests = backend_tests + frontend_tests
 
         return {
-            'success': True,
-            'test_files': all_tests,
-            'file_count': len(all_tests),
-            'backend_tests': len(backend_tests),
-            'frontend_tests': len(frontend_tests),
-            'frameworks': {
-                'backend': self.backend_framework if test_backend else None,
-                'frontend': self.frontend_framework if test_frontend else None
-            }
+            "success": True,
+            "test_files": all_tests,
+            "file_count": len(all_tests),
+            "backend_tests": len(backend_tests),
+            "frontend_tests": len(frontend_tests),
+            "frameworks": {
+                "backend": self.backend_framework if test_backend else None,
+                "frontend": self.frontend_framework if test_frontend else None,
+            },
         }
 
     # ============================================================================
@@ -89,7 +94,7 @@ class TestGenerator:
         test_files.append(self._generate_backend_requirements())
 
         # 2. Model tests (one file per model)
-        tables = self.database_schema.get('tables', [])
+        tables = self.database_schema.get("tables", [])
         for table in tables:
             test_files.append(self._generate_model_test(table))
 
@@ -156,9 +161,9 @@ exclude_lines =
 """
 
         return {
-            'path': 'backend/pytest.ini',
-            'content': content,
-            'description': 'Pytest configuration file'
+            "path": "backend/pytest.ini",
+            "content": content,
+            "description": "Pytest configuration file",
         }
 
     def _generate_conftest(self) -> Dict[str, str]:
@@ -255,9 +260,9 @@ def sample_data():
 """
 
         return {
-            'path': 'backend/tests/conftest.py',
-            'content': content,
-            'description': 'Pytest fixtures and test configuration'
+            "path": "backend/tests/conftest.py",
+            "content": content,
+            "description": "Pytest fixtures and test configuration",
         }
 
     def _generate_backend_requirements(self) -> Dict[str, str]:
@@ -275,24 +280,26 @@ coverage==7.3.2
 """
 
         return {
-            'path': 'backend/requirements-test.txt',
-            'content': content,
-            'description': 'Testing dependencies'
+            "path": "backend/requirements-test.txt",
+            "content": content,
+            "description": "Testing dependencies",
         }
 
     def _generate_model_test(self, table: Dict) -> Dict[str, str]:
         """Generate test file for a database model"""
-        table_name = table.get('table_name', 'items')
-        columns = table.get('columns', [])
+        table_name = table.get("table_name", "items")
+        columns = table.get("columns", [])
 
         # Convert table name to class name (PascalCase)
-        class_name = ''.join(word.capitalize() for word in table_name.split('_'))
-        if class_name.endswith('s'):
+        class_name = "".join(word.capitalize() for word in table_name.split("_"))
+        if class_name.endswith("s"):
             class_name = class_name[:-1]  # Remove trailing 's'
 
         # Find primary key and sample columns
-        pk_column = next((col for col in columns if col.get('primary_key')), {'name': 'id'})
-        sample_columns = [col for col in columns if not col.get('primary_key') and col['name'] not in ['created_at', 'updated_at']][:3]
+        pk_column = next((col for col in columns if col.get("primary_key")), {"name": "id"})
+        sample_columns = [
+            col for col in columns if not col.get("primary_key") and col["name"] not in ["created_at", "updated_at"]
+        ][:3]
 
         content = f"""# Tests for {class_name} model
 # Generated by A.R.C.H.I.E. App Builder
@@ -313,14 +320,14 @@ class Test{class_name}Model:
 
         # Add sample column values
         for col in sample_columns:
-            col_name = col['name']
-            col_type = col.get('data_type', 'string')
+            col_name = col["name"]
+            col_type = col.get("data_type", "string")
 
-            if 'int' in col_type.lower():
+            if "int" in col_type.lower():
                 content += f"            {col_name}=1,\n"
-            elif 'bool' in col_type.lower():
+            elif "bool" in col_type.lower():
                 content += f"            {col_name}=True,\n"
-            elif 'date' in col_type.lower() or 'time' in col_type.lower():
+            elif "date" in col_type.lower() or "time" in col_type.lower():
                 content += f"            {col_name}=datetime.utcnow(),\n"
             else:
                 content += f"            {col_name}='test_{col_name}',\n"
@@ -334,10 +341,10 @@ class Test{class_name}Model:
 """
 
         for col in sample_columns[:2]:
-            col_name = col['name']
-            if 'int' in col.get('data_type', 'string').lower():
+            col_name = col["name"]
+            if "int" in col.get("data_type", "string").lower():
                 content += f"        assert {table_name}.{col_name} == 1\n"
-            elif 'bool' in col.get('data_type', 'string').lower():
+            elif "bool" in col.get("data_type", "string").lower():
                 content += f"        assert {table_name}.{col_name} is True\n"
             else:
                 content += f"        assert {table_name}.{col_name} == 'test_{col_name}'\n"
@@ -349,12 +356,12 @@ class Test{class_name}Model:
 """
 
         for col in sample_columns:
-            col_name = col['name']
-            col_type = col.get('data_type', 'string')
+            col_name = col["name"]
+            col_type = col.get("data_type", "string")
 
-            if 'int' in col_type.lower():
+            if "int" in col_type.lower():
                 content += f"            {col_name}=1,\n"
-            elif 'bool' in col_type.lower():
+            elif "bool" in col_type.lower():
                 content += f"            {col_name}=True,\n"
             else:
                 content += f"            {col_name}='test_{col_name}',\n"
@@ -377,16 +384,16 @@ class Test{class_name}Model:
 """
 
         for col in sample_columns:
-            col_name = col['name']
-            col_type = col.get('data_type', 'string')
+            col_name = col["name"]
+            col_type = col.get("data_type", "string")
 
-            if 'int' in col_type.lower():
+            if "int" in col_type.lower():
                 content += f"            {col_name}=1,\n"
             else:
                 content += f"            {col_name}='original',\n"
 
         first_col = sample_columns[0]
-        update_value = "2" if 'int' in first_col.get('data_type', 'string').lower() else "'updated'"
+        update_value = "2" if "int" in first_col.get("data_type", "string").lower() else "'updated'"
 
         content += f"""        )
 
@@ -404,8 +411,8 @@ class Test{class_name}Model:
 """
 
         for col in sample_columns:
-            col_name = col['name']
-            if 'int' in col.get('data_type', 'string').lower():
+            col_name = col["name"]
+            if "int" in col.get("data_type", "string").lower():
                 content += f"            {col_name}=1,\n"
             else:
                 content += f"            {col_name}='test',\n"
@@ -425,16 +432,16 @@ class Test{class_name}Model:
 """
 
         return {
-            'path': f'backend/tests/test_models/test_{table_name}.py',
-            'content': content,
-            'description': f'Unit tests for {class_name} model'
+            "path": f"backend/tests/test_models/test_{table_name}.py",
+            "content": content,
+            "description": f"Unit tests for {class_name} model",
         }
 
     def _generate_api_test(self, resource: str, endpoints: List[Dict]) -> Dict[str, str]:
         """Generate test file for API endpoints of a resource"""
         # Convert resource to proper names
-        class_name = ''.join(word.capitalize() for word in resource.split('_'))
-        singular = resource.rstrip('s')
+        class_name = "".join(word.capitalize() for word in resource.split("_"))
+        singular = resource.rstrip("s")
 
         content = f"""# Tests for {resource} API endpoints
 # Generated by A.R.C.H.I.E. App Builder
@@ -577,9 +584,9 @@ class Test{class_name}API:
 """
 
         return {
-            'path': f'backend/tests/test_api/test_{resource}.py',
-            'content': content,
-            'description': f'API endpoint tests for {resource}'
+            "path": f"backend/tests/test_api/test_{resource}.py",
+            "content": content,
+            "description": f"API endpoint tests for {resource}",
         }
 
     def _generate_auth_test(self) -> Dict[str, str]:
@@ -722,9 +729,9 @@ class TestAuthentication:
 """
 
         return {
-            'path': 'backend/tests/test_api/test_auth.py',
-            'content': content,
-            'description': 'Authentication endpoint tests'
+            "path": "backend/tests/test_api/test_auth.py",
+            "content": content,
+            "description": "Authentication endpoint tests",
         }
 
     def _generate_integration_test(self) -> Dict[str, str]:
@@ -834,9 +841,9 @@ class TestIntegration:
 """
 
         return {
-            'path': 'backend/tests/test_integration/test_workflows.py',
-            'content': content,
-            'description': 'Integration tests for complete workflows'
+            "path": "backend/tests/test_integration/test_workflows.py",
+            "content": content,
+            "description": "Integration tests for complete workflows",
         }
 
     # ============================================================================
@@ -853,7 +860,7 @@ class TestIntegration:
         test_files.append(self._generate_test_utils())
 
         # 2. Component tests
-        tables = self.database_schema.get('tables', [])
+        tables = self.database_schema.get("tables", [])
         for table in tables:
             # List component test
             test_files.append(self._generate_component_list_test(table))
@@ -912,9 +919,9 @@ module.exports = {
 """
 
         return {
-            'path': 'frontend/jest.config.js',
-            'content': content,
-            'description': 'Jest configuration file'
+            "path": "frontend/jest.config.js",
+            "content": content,
+            "description": "Jest configuration file",
         }
 
     def _generate_jest_setup(self) -> Dict[str, str]:
@@ -960,9 +967,9 @@ global.localStorage = localStorageMock;
 """
 
         return {
-            'path': 'frontend/src/setupTests.js',
-            'content': content,
-            'description': 'Jest setup file with mocks'
+            "path": "frontend/src/setupTests.js",
+            "content": content,
+            "description": "Jest setup file with mocks",
         }
 
     def _generate_test_utils(self) -> Dict[str, str]:
@@ -1015,16 +1022,16 @@ export function createMockResponse(data, status = 200) {
 """
 
         return {
-            'path': 'frontend/src/test-utils.js',
-            'content': content,
-            'description': 'Test utility functions'
+            "path": "frontend/src/test-utils.js",
+            "content": content,
+            "description": "Test utility functions",
         }
 
     def _generate_component_list_test(self, table: Dict) -> Dict[str, str]:
         """Generate test for list component"""
-        table_name = table.get('table_name', 'items')
-        class_name = ''.join(word.capitalize() for word in table_name.split('_'))
-        if class_name.endswith('s'):
+        table_name = table.get("table_name", "items")
+        class_name = "".join(word.capitalize() for word in table_name.split("_"))
+        if class_name.endswith("s"):
             class_name = class_name[:-1]
 
         content = f"""// Tests for {class_name}List component
@@ -1115,20 +1122,22 @@ describe('{class_name}List', () => {{
 """
 
         return {
-            'path': f'frontend/src/components/{class_name}/{class_name}List.test.js',
-            'content': content,
-            'description': f'Tests for {class_name}List component'
+            "path": f"frontend/src/components/{class_name}/{class_name}List.test.js",
+            "content": content,
+            "description": f"Tests for {class_name}List component",
         }
 
     def _generate_component_form_test(self, table: Dict) -> Dict[str, str]:
         """Generate test for form component"""
-        table_name = table.get('table_name', 'items')
-        class_name = ''.join(word.capitalize() for word in table_name.split('_'))
-        if class_name.endswith('s'):
+        table_name = table.get("table_name", "items")
+        class_name = "".join(word.capitalize() for word in table_name.split("_"))
+        if class_name.endswith("s"):
             class_name = class_name[:-1]
 
-        columns = table.get('columns', [])
-        form_columns = [col for col in columns if not col.get('primary_key') and col['name'] not in ['created_at', 'updated_at']][:2]
+        columns = table.get("columns", [])
+        form_columns = [
+            col for col in columns if not col.get("primary_key") and col["name"] not in ["created_at", "updated_at"]
+        ][:2]
 
         content = f"""// Tests for {class_name}Form component
 // Generated by A.R.C.H.I.E. App Builder
@@ -1157,7 +1166,7 @@ describe('{class_name}Form', () => {{
 """
 
         for col in form_columns:
-            col_label = col['name'].replace('_', ' ').title()
+            col_label = col["name"].replace("_", " ").title()
             content += f"    expect(screen.getByLabelText(/{col_label}/i)).toBeInTheDocument();\n"
 
         content += f"""  }});
@@ -1172,7 +1181,7 @@ describe('{class_name}Form', () => {{
 """
 
         for col in form_columns:
-            col_label = col['name'].replace('_', ' ').title()
+            col_label = col["name"].replace("_", " ").title()
             content += f"    const {col['name']}Input = screen.getByLabelText(/{col_label}/i);\n"
             content += f"    fireEvent.change({col['name']}Input, {{ target: {{ value: 'Test Value' }} }});\n    \n"
 
@@ -1203,8 +1212,10 @@ describe('{class_name}Form', () => {{
 """
 
         for col in form_columns:
-            col_label = col['name'].replace('_', ' ').title()
-            content += f"    fireEvent.change(screen.getByLabelText(/{col_label}/i), {{ target: {{ value: 'Test' }} }});\n"
+            col_label = col["name"].replace("_", " ").title()
+            content += (
+                f"    fireEvent.change(screen.getByLabelText(/{col_label}/i), {{ target: {{ value: 'Test' }} }});\n"
+            )
 
         content += f"""
     const submitButton = screen.getByRole('button', {{ name: /save|submit|create/i }});
@@ -1218,9 +1229,9 @@ describe('{class_name}Form', () => {{
 """
 
         return {
-            'path': f'frontend/src/components/{class_name}/{class_name}Form.test.js',
-            'content': content,
-            'description': f'Tests for {class_name}Form component'
+            "path": f"frontend/src/components/{class_name}/{class_name}Form.test.js",
+            "content": content,
+            "description": f"Tests for {class_name}Form component",
         }
 
     def _generate_login_test(self) -> Dict[str, str]:
@@ -1316,9 +1327,9 @@ describe('Login', () => {
 """
 
         return {
-            'path': 'frontend/src/components/Auth/Login.test.js',
-            'content': content,
-            'description': 'Tests for Login component'
+            "path": "frontend/src/components/Auth/Login.test.js",
+            "content": content,
+            "description": "Tests for Login component",
         }
 
     def _generate_signup_test(self) -> Dict[str, str]:
@@ -1410,17 +1421,17 @@ describe('Signup', () => {
 """
 
         return {
-            'path': 'frontend/src/components/Auth/Signup.test.js',
-            'content': content,
-            'description': 'Tests for Signup component'
+            "path": "frontend/src/components/Auth/Signup.test.js",
+            "content": content,
+            "description": "Tests for Signup component",
         }
 
     def _generate_service_test(self, table: Dict) -> Dict[str, str]:
         """Generate test for API service"""
-        table_name = table.get('table_name', 'items')
-        singular = table_name.rstrip('s')
-        class_name = ''.join(word.capitalize() for word in table_name.split('_'))
-        if class_name.endswith('s'):
+        table_name = table.get("table_name", "items")
+        singular = table_name.rstrip("s")
+        class_name = "".join(word.capitalize() for word in table_name.split("_"))
+        if class_name.endswith("s"):
             class_name = class_name[:-1]
 
         content = f"""// Tests for {singular}Service
@@ -1519,9 +1530,9 @@ describe('{singular}Service', () => {{
 """
 
         return {
-            'path': f'frontend/src/services/{singular}Service.test.js',
-            'content': content,
-            'description': f'Tests for {singular}Service'
+            "path": f"frontend/src/services/{singular}Service.test.js",
+            "content": content,
+            "description": f"Tests for {singular}Service",
         }
 
     def _generate_frontend_integration_test(self) -> Dict[str, str]:
@@ -1567,9 +1578,9 @@ describe('Frontend Integration Tests', () => {
 """
 
         return {
-            'path': 'frontend/src/__tests__/integration.test.js',
-            'content': content,
-            'description': 'Frontend integration tests'
+            "path": "frontend/src/__tests__/integration.test.js",
+            "content": content,
+            "description": "Frontend integration tests",
         }
 
     # ============================================================================
@@ -1581,9 +1592,9 @@ describe('Frontend Integration Tests', () => {
         grouped = {}
 
         for endpoint in self.api_endpoints:
-            path = endpoint.get('path', '')
+            path = endpoint.get("path", "")
             # Extract resource name from path (e.g., /api/users -> users)
-            parts = path.strip('/').split('/')
+            parts = path.strip("/").split("/")
             if len(parts) >= 2:
                 resource = parts[1]  # Assume /api/resource format
                 if resource not in grouped:
@@ -1595,14 +1606,14 @@ describe('Frontend Integration Tests', () => {
     def _has_authentication(self) -> bool:
         """Check if project includes authentication"""
         # Check for auth endpoints
-        auth_keywords = ['auth', 'login', 'signup', 'register', 'token']
+        auth_keywords = ["auth", "login", "signup", "register", "token"]
         for endpoint in self.api_endpoints:
-            path = endpoint.get('path', '').lower()
+            path = endpoint.get("path", "").lower()
             if any(keyword in path for keyword in auth_keywords):
                 return True
 
         # Check tech stack
-        auth_in_stack = self.tech_stack.get('authentication', False)
+        auth_in_stack = self.tech_stack.get("authentication", False)
         return bool(auth_in_stack)
 
     async def save_to_database(self):
@@ -1616,37 +1627,41 @@ describe('Frontend Integration Tests', () => {
 if __name__ == "__main__":
     # Mock data for testing
     mock_plan = {
-        'project_name': 'TodoApp',
-        'tech_stack': {
-            'backend': 'Flask',
-            'frontend': 'React',
-            'database': 'PostgreSQL',
-            'authentication': True
+        "project_name": "TodoApp",
+        "tech_stack": {
+            "backend": "Flask",
+            "frontend": "React",
+            "database": "PostgreSQL",
+            "authentication": True,
         },
-        'database_schema': {
-            'tables': [
+        "database_schema": {
+            "tables": [
                 {
-                    'table_name': 'todos',
-                    'columns': [
-                        {'column_name': 'id', 'data_type': 'integer', 'primary_key': True},
-                        {'column_name': 'title', 'data_type': 'string'},
-                        {'column_name': 'description', 'data_type': 'text'},
-                        {'column_name': 'completed', 'data_type': 'boolean'},
-                        {'column_name': 'created_at', 'data_type': 'timestamp'},
-                        {'column_name': 'updated_at', 'data_type': 'timestamp'}
-                    ]
+                    "table_name": "todos",
+                    "columns": [
+                        {
+                            "column_name": "id",
+                            "data_type": "integer",
+                            "primary_key": True,
+                        },
+                        {"column_name": "title", "data_type": "string"},
+                        {"column_name": "description", "data_type": "text"},
+                        {"column_name": "completed", "data_type": "boolean"},
+                        {"column_name": "created_at", "data_type": "timestamp"},
+                        {"column_name": "updated_at", "data_type": "timestamp"},
+                    ],
                 }
             ]
         },
-        'api_endpoints': [
-            {'path': '/api/todos', 'method': 'GET'},
-            {'path': '/api/todos', 'method': 'POST'},
-            {'path': '/api/todos/<id>', 'method': 'GET'},
-            {'path': '/api/todos/<id>', 'method': 'PUT'},
-            {'path': '/api/todos/<id>', 'method': 'DELETE'},
-            {'path': '/api/auth/login', 'method': 'POST'},
-            {'path': '/api/auth/signup', 'method': 'POST'}
-        ]
+        "api_endpoints": [
+            {"path": "/api/todos", "method": "GET"},
+            {"path": "/api/todos", "method": "POST"},
+            {"path": "/api/todos/<id>", "method": "GET"},
+            {"path": "/api/todos/<id>", "method": "PUT"},
+            {"path": "/api/todos/<id>", "method": "DELETE"},
+            {"path": "/api/auth/login", "method": "POST"},
+            {"path": "/api/auth/signup", "method": "POST"},
+        ],
     }
 
     # Test the generator
@@ -1661,7 +1676,7 @@ if __name__ == "__main__":
     print(f"  Backend: {result['frameworks']['backend']}")
     print(f"  Frontend: {result['frameworks']['frontend']}")
     print(f"\nGenerated test files:")
-    for test_file in result['test_files'][:10]:  # Show first 10
+    for test_file in result["test_files"][:10]:  # Show first 10
         print(f"  - {test_file['path']}")
-    if result['file_count'] > 10:
+    if result["file_count"] > 10:
         print(f"  ... and {result['file_count'] - 10} more")

@@ -20,7 +20,7 @@ from typing import Dict, List, Optional, Any, Tuple
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-logger = logging.getLogger('archie_platform')
+logger = logging.getLogger("archie_platform")
 
 
 class UnifiedKnowledgeService:
@@ -36,41 +36,84 @@ class UnifiedKnowledgeService:
 
     # Knowledge type weights for ranking
     TYPE_WEIGHTS = {
-        'mistake_learned': 1.3,      # Highest priority - prevent repetition
-        'vault_note': 1.2,           # Curated documentation
-        'code_snippet': 1.1,         # Proven patterns
-        'improvement': 1.0,          # Historical fixes
-        'conversation_memory': 0.9,  # Dynamic learning
-        'github_file': 0.8           # Indexed files
+        "mistake_learned": 1.3,  # Highest priority - prevent repetition
+        "vault_note": 1.2,  # Curated documentation
+        "code_snippet": 1.1,  # Proven patterns
+        "improvement": 1.0,  # Historical fixes
+        "conversation_memory": 0.9,  # Dynamic learning
+        "github_file": 0.8,  # Indexed files
     }
 
     # Archie_Brain category mappings
     ARCHIE_CATEGORIES = {
-        'development': {
-            'keywords': ['code', 'function', 'class', 'bug', 'feature', 'refactor', 'implement', 'api'],
-            'icon': '💻',
-            'priority': 1
+        "development": {
+            "keywords": [
+                "code",
+                "function",
+                "class",
+                "bug",
+                "feature",
+                "refactor",
+                "implement",
+                "api",
+            ],
+            "icon": "💻",
+            "priority": 1,
         },
-        'infrastructure': {
-            'keywords': ['docker', 'deploy', 'backup', 'database', 'postgres', 'compose', 'server', 'nginx'],
-            'icon': '🏗️',
-            'priority': 2
+        "infrastructure": {
+            "keywords": [
+                "docker",
+                "deploy",
+                "backup",
+                "database",
+                "postgres",
+                "compose",
+                "server",
+                "nginx",
+            ],
+            "icon": "🏗️",
+            "priority": 2,
         },
-        'ai_learning': {
-            'keywords': ['model', 'prompt', 'training', 'knowledge', 'claude', 'llm', 'embedding', 'ai'],
-            'icon': '🧠',
-            'priority': 3
+        "ai_learning": {
+            "keywords": [
+                "model",
+                "prompt",
+                "training",
+                "knowledge",
+                "claude",
+                "llm",
+                "embedding",
+                "ai",
+            ],
+            "icon": "🧠",
+            "priority": 3,
         },
-        'mistake_prevention': {
-            'keywords': ['error', 'fix', 'issue', 'problem', 'exception', 'debug', 'traceback'],
-            'icon': '⚠️',
-            'priority': 4
+        "mistake_prevention": {
+            "keywords": [
+                "error",
+                "fix",
+                "issue",
+                "problem",
+                "exception",
+                "debug",
+                "traceback",
+            ],
+            "icon": "⚠️",
+            "priority": 4,
         },
-        'documentation': {
-            'keywords': ['docs', 'readme', 'guide', 'tutorial', 'comment', 'docstring', 'explain'],
-            'icon': '📚',
-            'priority': 5
-        }
+        "documentation": {
+            "keywords": [
+                "docs",
+                "readme",
+                "guide",
+                "tutorial",
+                "comment",
+                "docstring",
+                "explain",
+            ],
+            "icon": "📚",
+            "priority": 5,
+        },
     }
 
     def __init__(self, db_connection=None):
@@ -85,11 +128,12 @@ class UnifiedKnowledgeService:
             return self._db
 
         import os
+
         return psycopg2.connect(
-            host=os.getenv('DB_HOST', 'archie_database'),
-            database=os.getenv('DB_NAME', 'archie'),
-            user=os.getenv('DB_USER', 'archie'),
-            password=os.getenv('DB_PASSWORD', 'secure_archie_password')
+            host=os.getenv("DB_HOST", "archie_database"),
+            database=os.getenv("DB_NAME", "archie"),
+            user=os.getenv("DB_USER", "archie"),
+            password=os.getenv("DB_PASSWORD", "secure_archie_password"),
         )
 
     # =========================================================================
@@ -102,7 +146,7 @@ class UnifiedKnowledgeService:
         knowledge_types: Optional[List[str]] = None,
         categories: Optional[List[str]] = None,
         limit: int = 10,
-        include_mistakes: bool = True
+        include_mistakes: bool = True,
     ) -> Dict[str, Any]:
         """
         Unified search across all knowledge types.
@@ -190,31 +234,27 @@ class UnifiedKnowledgeService:
             else:
                 cur.execute(count_sql)
 
-            total_count = cur.fetchone()['count']
+            total_count = cur.fetchone()["count"]
 
             cur.close()
             if not self._db:
                 conn.close()
 
             return {
-                'success': True,
-                'results': results,
-                'count': len(results),
-                'total': total_count,
-                'query': query,
-                'filters': {
-                    'knowledge_types': knowledge_types,
-                    'categories': categories
-                }
+                "success": True,
+                "results": results,
+                "count": len(results),
+                "total": total_count,
+                "query": query,
+                "filters": {
+                    "knowledge_types": knowledge_types,
+                    "categories": categories,
+                },
             }
 
         except Exception as e:
             logger.error(f"[UnifiedKnowledge] Search error: {e}")
-            return {
-                'success': False,
-                'error': str(e),
-                'results': []
-            }
+            return {"success": False, "error": str(e), "results": []}
 
     # =========================================================================
     # KNOWLEDGE STATISTICS
@@ -230,65 +270,75 @@ class UnifiedKnowledgeService:
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
             stats = {
-                'by_type': {},
-                'by_category': {},
-                'total': 0,
-                'recent_24h': 0,
-                'recent_7d': 0,
-                'top_tags': [],
-                'learning_rate': 0
+                "by_type": {},
+                "by_category": {},
+                "total": 0,
+                "recent_24h": 0,
+                "recent_7d": 0,
+                "top_tags": [],
+                "learning_rate": 0,
             }
 
             # Count by type
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT knowledge_type, COUNT(*) as count
                 FROM knowledge_base
                 GROUP BY knowledge_type
                 ORDER BY count DESC
-            """)
+            """
+            )
             for row in cur.fetchall():
-                stats['by_type'][row['knowledge_type']] = row['count']
-                stats['total'] += row['count']
+                stats["by_type"][row["knowledge_type"]] = row["count"]
+                stats["total"] += row["count"]
 
             # Count by category
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT category, COUNT(*) as count
                 FROM knowledge_base
                 WHERE category IS NOT NULL
                 GROUP BY category
                 ORDER BY count DESC
-            """)
+            """
+            )
             for row in cur.fetchall():
-                stats['by_category'][row['category']] = row['count']
+                stats["by_category"][row["category"]] = row["count"]
 
             # Recent activity
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours') as last_24h,
                     COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '7 days') as last_7d
                 FROM knowledge_base
-            """)
+            """
+            )
             row = cur.fetchone()
-            stats['recent_24h'] = row['last_24h']
-            stats['recent_7d'] = row['last_7d']
+            stats["recent_24h"] = row["last_24h"]
+            stats["recent_7d"] = row["last_7d"]
 
             # Learning rate (entries per day over last 30 days)
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT COUNT(*)::float / 30 as rate
                 FROM knowledge_base
                 WHERE created_at > NOW() - INTERVAL '30 days'
-            """)
-            stats['learning_rate'] = round(cur.fetchone()['rate'], 2)
+            """
+            )
+            stats["learning_rate"] = round(cur.fetchone()["rate"], 2)
 
             # Top tags
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT tag, COUNT(*) as count
                 FROM knowledge_base, UNNEST(tags) as tag
                 GROUP BY tag
                 ORDER BY count DESC
                 LIMIT 20
-            """)
-            stats['top_tags'] = [{'tag': row['tag'], 'count': row['count']} for row in cur.fetchall()]
+            """
+            )
+            stats["top_tags"] = [{"tag": row["tag"], "count": row["count"]} for row in cur.fetchall()]
 
             cur.close()
             if not self._db:
@@ -298,7 +348,7 @@ class UnifiedKnowledgeService:
 
         except Exception as e:
             logger.error(f"[UnifiedKnowledge] Statistics error: {e}")
-            return {'error': str(e)}
+            return {"error": str(e)}
 
     # =========================================================================
     # MISTAKE LEARNING LOOP
@@ -321,7 +371,8 @@ class UnifiedKnowledgeService:
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
             # Search for similar mistakes
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     id,
                     title,
@@ -338,7 +389,9 @@ class UnifiedKnowledgeService:
                   )
                 ORDER BY importance_score DESC, created_at DESC
                 LIMIT %s
-            """, (f"%{context}%", f"%{context}%", limit))
+            """,
+                (f"%{context}%", f"%{context}%", limit),
+            )
 
             mistakes = [dict(row) for row in cur.fetchall()]
 
@@ -361,7 +414,7 @@ class UnifiedKnowledgeService:
         error_message: str,
         solution: str,
         context: Dict[str, Any],
-        tags: Optional[List[str]] = None
+        tags: Optional[List[str]] = None,
     ) -> Optional[int]:
         """
         Record a new mistake to the knowledge base.
@@ -405,13 +458,14 @@ To avoid this error in the future:
 
             # Auto-generate tags if not provided
             if not tags:
-                tags = ['mistake', 'error', error_type.lower()]
+                tags = ["mistake", "error", error_type.lower()]
                 # Add category-based tags
                 for category, info in self.ARCHIE_CATEGORIES.items():
-                    if any(kw in error_message.lower() for kw in info['keywords']):
+                    if any(kw in error_message.lower() for kw in info["keywords"]):
                         tags.append(category)
 
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO knowledge_base (
                     knowledge_type,
                     title,
@@ -433,22 +487,26 @@ To avoid this error in the future:
                     %s,
                     %s
                 ) RETURNING id
-            """, (
-                title,
-                content,
-                tags,
-                context.get('source_type', 'auto_detection'),
-                context.get('source_id', 'unknown'),
-                json.dumps({
-                    'error_type': error_type,
-                    'auto_recorded': True,
-                    'created_at': datetime.now().isoformat(),
-                    **context
-                })
-            ))
+            """,
+                (
+                    title,
+                    content,
+                    tags,
+                    context.get("source_type", "auto_detection"),
+                    context.get("source_id", "unknown"),
+                    json.dumps(
+                        {
+                            "error_type": error_type,
+                            "auto_recorded": True,
+                            "created_at": datetime.now().isoformat(),
+                            **context,
+                        }
+                    ),
+                ),
+            )
 
             result = cur.fetchone()
-            entry_id = result['id']
+            entry_id = result["id"]
 
             conn.commit()
             cur.close()
@@ -458,7 +516,7 @@ To avoid this error in the future:
             logger.info(f"[UnifiedKnowledge] Recorded mistake #{entry_id}: {error_type}")
 
             # Trigger sync to Obsidian/Consciousness
-            self._trigger_knowledge_sync(entry_id, 'mistake_learned')
+            self._trigger_knowledge_sync(entry_id, "mistake_learned")
 
             return entry_id
 
@@ -471,10 +529,7 @@ To avoid this error in the future:
     # =========================================================================
 
     def get_agent_context(
-        self,
-        task_description: str,
-        agent_type: str = 'general',
-        max_entries: int = 5
+        self, task_description: str, agent_type: str = "general", max_entries: int = 5
     ) -> Dict[str, Any]:
         """
         Get relevant context for an AI agent before it executes a task.
@@ -489,49 +544,46 @@ To avoid this error in the future:
             Dict with relevant knowledge, mistakes to avoid, and suggestions
         """
         context = {
-            'mistakes_to_avoid': [],
-            'relevant_knowledge': [],
-            'similar_past_tasks': [],
-            'suggestions': []
+            "mistakes_to_avoid": [],
+            "relevant_knowledge": [],
+            "similar_past_tasks": [],
+            "suggestions": [],
         }
 
         try:
             # 1. Check for similar mistakes (HIGHEST PRIORITY)
-            context['mistakes_to_avoid'] = self.check_for_similar_mistakes(
-                task_description,
-                limit=3
-            )
+            context["mistakes_to_avoid"] = self.check_for_similar_mistakes(task_description, limit=3)
 
             # 2. Search for relevant knowledge
             search_result = self.search(
                 query=task_description,
-                knowledge_types=['vault_note', 'code_snippet', 'improvement'],
-                limit=max_entries
+                knowledge_types=["vault_note", "code_snippet", "improvement"],
+                limit=max_entries,
             )
-            if search_result.get('success'):
-                context['relevant_knowledge'] = search_result['results']
+            if search_result.get("success"):
+                context["relevant_knowledge"] = search_result["results"]
 
             # 3. Find similar past tasks from conversation memory
-            memory_result = self.search(
-                query=task_description,
-                knowledge_types=['conversation_memory'],
-                limit=3
-            )
-            if memory_result.get('success'):
-                context['similar_past_tasks'] = memory_result['results']
+            memory_result = self.search(query=task_description, knowledge_types=["conversation_memory"], limit=3)
+            if memory_result.get("success"):
+                context["similar_past_tasks"] = memory_result["results"]
 
             # 4. Generate suggestions based on context
-            if context['mistakes_to_avoid']:
-                context['suggestions'].append({
-                    'type': 'warning',
-                    'message': f"Found {len(context['mistakes_to_avoid'])} similar mistakes. Review before proceeding."
-                })
+            if context["mistakes_to_avoid"]:
+                context["suggestions"].append(
+                    {
+                        "type": "warning",
+                        "message": f"Found {len(context['mistakes_to_avoid'])} similar mistakes. Review before proceeding.",
+                    }
+                )
 
-            if context['relevant_knowledge']:
-                context['suggestions'].append({
-                    'type': 'info',
-                    'message': f"Found {len(context['relevant_knowledge'])} relevant knowledge entries."
-                })
+            if context["relevant_knowledge"]:
+                context["suggestions"].append(
+                    {
+                        "type": "info",
+                        "message": f"Found {len(context['relevant_knowledge'])} relevant knowledge entries.",
+                    }
+                )
 
             return context
 
@@ -564,11 +616,7 @@ To avoid this error in the future:
         except Exception as e:
             logger.error(f"[UnifiedKnowledge] Sync trigger error: {e}")
 
-    def sync_conversation_to_knowledge(
-        self,
-        session_id: int,
-        insights: Dict[str, Any]
-    ) -> Dict[str, int]:
+    def sync_conversation_to_knowledge(self, session_id: int, insights: Dict[str, Any]) -> Dict[str, int]:
         """
         Sync conversation session insights to knowledge base.
         Called after conversation processing.
@@ -580,37 +628,34 @@ To avoid this error in the future:
         Returns:
             Dict with counts of entries created
         """
-        created = {
-            'knowledge_entries': 0,
-            'mistake_entries': 0
-        }
+        created = {"knowledge_entries": 0, "mistake_entries": 0}
 
         try:
             conn = self._get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
             # Create entries for each type of insight
-            archie_categories = insights.get('archie_categories', ['general'])
+            archie_categories = insights.get("archie_categories", ["general"])
 
             # If mistakes were found and solutions learned, create mistake entries
-            mistakes = insights.get('mistakes_found', [])
-            solutions = insights.get('solutions_learned', [])
+            mistakes = insights.get("mistakes_found", [])
+            solutions = insights.get("solutions_learned", [])
 
             for i, mistake in enumerate(mistakes[:3]):  # Max 3 per session
-                solution = solutions[i] if i < len(solutions) else {'pattern': 'See conversation'}
+                solution = solutions[i] if i < len(solutions) else {"pattern": "See conversation"}
 
                 entry_id = self.record_mistake(
-                    error_type=mistake.get('pattern', 'unknown'),
+                    error_type=mistake.get("pattern", "unknown"),
                     error_message=f"Detected in conversation session {session_id}",
-                    solution=solution.get('pattern', 'unknown'),
+                    solution=solution.get("pattern", "unknown"),
                     context={
-                        'session_id': session_id,
-                        'source_type': 'conversation_session',
-                        'source_id': str(session_id)
-                    }
+                        "session_id": session_id,
+                        "source_type": "conversation_session",
+                        "source_id": str(session_id),
+                    },
                 )
                 if entry_id:
-                    created['mistake_entries'] += 1
+                    created["mistake_entries"] += 1
 
             cur.close()
             if not self._db:
@@ -637,7 +682,8 @@ To avoid this error in the future:
             conn = self._get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     id,
                     knowledge_type,
@@ -651,7 +697,9 @@ To avoid this error in the future:
                 WHERE created_at > NOW() - INTERVAL '%s hours'
                 ORDER BY created_at DESC
                 LIMIT %s
-            """, (hours, limit))
+            """,
+                (hours, limit),
+            )
 
             results = [dict(row) for row in cur.fetchall()]
 
@@ -684,7 +732,7 @@ def get_unified_knowledge_service(db_connection=None) -> UnifiedKnowledgeService
 # CLI INTERFACE
 # ============================================================================
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import sys
 
     if len(sys.argv) < 2:
@@ -700,21 +748,21 @@ if __name__ == '__main__':
     command = sys.argv[1]
     service = UnifiedKnowledgeService()
 
-    if command == 'stats':
+    if command == "stats":
         stats = service.get_statistics()
         print(json.dumps(stats, indent=2, default=str))
 
-    elif command == 'search' and len(sys.argv) > 2:
-        query = ' '.join(sys.argv[2:])
+    elif command == "search" and len(sys.argv) > 2:
+        query = " ".join(sys.argv[2:])
         result = service.search(query)
         print(json.dumps(result, indent=2, default=str))
 
-    elif command == 'check' and len(sys.argv) > 2:
-        context = ' '.join(sys.argv[2:])
+    elif command == "check" and len(sys.argv) > 2:
+        context = " ".join(sys.argv[2:])
         mistakes = service.check_for_similar_mistakes(context)
         print(json.dumps(mistakes, indent=2, default=str))
 
-    elif command == 'recent':
+    elif command == "recent":
         hours = int(sys.argv[2]) if len(sys.argv) > 2 else 24
         activity = service.get_recent_activity(hours)
         print(json.dumps(activity, indent=2, default=str))

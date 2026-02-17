@@ -206,7 +206,14 @@ def update_org(org_id):
     with get_db_cursor() as (conn, cur):
         fields = []
         values = []
-        for key in ("name", "status", "settings", "ai_config", "node_id", "isolation_type"):
+        for key in (
+            "name",
+            "status",
+            "settings",
+            "ai_config",
+            "node_id",
+            "isolation_type",
+        ):
             if key in data:
                 fields.append(f"{key} = %s")
                 val = data[key]
@@ -242,7 +249,15 @@ def delete_org(org_id):
         )
         org = cur.fetchone()
         if not org:
-            return jsonify({"success": False, "error": "Organization not found or already suspended"}), 404
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Organization not found or already suspended",
+                    }
+                ),
+                404,
+            )
 
     return jsonify({"success": True, "org": _serialize(org)})
 
@@ -625,11 +640,19 @@ def assign_org_node(org_id):
         )
         node = cur.fetchone()
         if not node:
-            return jsonify({"success": False, "error": "Node not found or inactive"}), 404
+            return (
+                jsonify({"success": False, "error": "Node not found or inactive"}),
+                404,
+            )
 
         if node["approval_status"] != "approved":
             return (
-                jsonify({"success": False, "error": f"Node is not approved (status: {node['approval_status']})"}),
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"Node is not approved (status: {node['approval_status']})",
+                    }
+                ),
                 400,
             )
 
@@ -682,7 +705,15 @@ def unassign_org_node(org_id):
         )
         org = cur.fetchone()
         if not org:
-            return jsonify({"success": False, "error": "Organization not found or no node assigned"}), 404
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Organization not found or no node assigned",
+                    }
+                ),
+                404,
+            )
 
     logger.info("Unassigned node from org %s (#%s)", org["name"], org_id)
     return jsonify({"success": True, "org": _serialize(org)})

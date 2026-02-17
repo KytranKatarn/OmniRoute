@@ -33,11 +33,19 @@ class OverseerrClient(RequestServiceInterface):
         self.timeout = 10
 
     def _request(
-        self, endpoint: str, params: Optional[Dict] = None, method: str = "GET", json_data: Optional[Dict] = None
+        self,
+        endpoint: str,
+        params: Optional[Dict] = None,
+        method: str = "GET",
+        json_data: Optional[Dict] = None,
     ) -> Optional[Any]:
         """Make authenticated request to Overseerr API"""
         url = urljoin(self.base_url + "/", endpoint.lstrip("/"))
-        headers = {"X-Api-Key": self.api_key, "Accept": "application/json", "Content-Type": "application/json"}
+        headers = {
+            "X-Api-Key": self.api_key,
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        }
 
         try:
             if method == "GET":

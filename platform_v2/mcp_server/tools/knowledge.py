@@ -151,7 +151,7 @@ async def search_knowledge_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
                     "content": r["content_preview"],
                     "category": r["category"],
                     "tags": r["tags"] or [],
-                    "relevance_score": float(r["weighted_score"]) if r["weighted_score"] else 0.0,
+                    "relevance_score": (float(r["weighted_score"]) if r["weighted_score"] else 0.0),
                 }
             )
 
@@ -194,9 +194,19 @@ async def store_memory_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
         return {"success": False, "error": "Content is required"}
 
     # Validate memory type
-    valid_types = ["conversation_memory", "vault_note", "code_snippet", "improvement", "mistake_learned", "github_file"]
+    valid_types = [
+        "conversation_memory",
+        "vault_note",
+        "code_snippet",
+        "improvement",
+        "mistake_learned",
+        "github_file",
+    ]
     if memory_type not in valid_types:
-        return {"success": False, "error": f"Invalid memory_type. Must be one of: {valid_types}"}
+        return {
+            "success": False,
+            "error": f"Invalid memory_type. Must be one of: {valid_types}",
+        }
 
     conn, cur = get_db_connection()
     if not conn:
@@ -273,7 +283,10 @@ async def get_preferences_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
 
     try:
         # Use the database function for preference retrieval
-        cur.execute("SELECT * FROM get_user_preferences(%s, %s, %s)", (user_id, category, min_confidence))
+        cur.execute(
+            "SELECT * FROM get_user_preferences(%s, %s, %s)",
+            (user_id, category, min_confidence),
+        )
 
         prefs = [dict(p) for p in cur.fetchall()]
 
@@ -350,14 +363,23 @@ async def recall_context_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
         return {"success": False, "error": "Database connection failed"}
 
     try:
-        results = {"relevant_memories": [], "recent_context": [], "related_mistakes": [], "related_procedures": []}
+        results = {
+            "relevant_memories": [],
+            "recent_context": [],
+            "related_mistakes": [],
+            "related_procedures": [],
+        }
 
         # Search for relevant memories
         memory_conditions = ["content ILIKE %s"]
         memory_params = [f"%{topic}%"]
 
         if context_type:
-            type_mapping = {"conversation": "conversation_memory", "fact": "vault_note", "procedure": "code_snippet"}
+            type_mapping = {
+                "conversation": "conversation_memory",
+                "fact": "vault_note",
+                "procedure": "code_snippet",
+            }
             if context_type in type_mapping:
                 memory_conditions.append("knowledge_type = %s")
                 memory_params.append(type_mapping[context_type])
@@ -474,7 +496,14 @@ async def learn_preference_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
         # Use the database function for preference learning
         cur.execute(
             "SELECT learn_preference(%s, %s, %s, %s, %s, %s)",
-            (user_id, category, key, value, confidence, json.dumps(context) if context else None),
+            (
+                user_id,
+                category,
+                key,
+                value,
+                confidence,
+                json.dumps(context) if context else None,
+            ),
         )
 
         result = cur.fetchone()
@@ -579,7 +608,11 @@ async def get_knowledge_stats_handler(arguments: Dict[str, Any]) -> Dict[str, An
         cur.close()
         conn.close()
 
-        return {"success": True, "stats": stats, "generated_at": datetime.now().isoformat()}
+        return {
+            "success": True,
+            "stats": stats,
+            "generated_at": datetime.now().isoformat(),
+        }
 
     except Exception as e:
         logger.error(f"Error in get_knowledge_stats: {e}")
@@ -621,7 +654,12 @@ async def github_list_repos_handler(arguments: Dict[str, Any]) -> Dict[str, Any]
         for r in repos:
             if r.get("indexed_at"):
                 r["indexed_at"] = r["indexed_at"].isoformat()
-        return {"success": True, "repositories": repos, "stats": stats, "count": len(repos)}
+        return {
+            "success": True,
+            "repositories": repos,
+            "stats": stats,
+            "count": len(repos),
+        }
     except Exception as e:
         logger.error(f"Error in github_list_repos: {e}")
         return {"success": False, "error": str(e)}
@@ -656,9 +694,15 @@ async def github_index_repo_handler(arguments: Dict[str, Any]) -> Dict[str, Any]
         if resp.status_code == 200:
             return resp.json()
         # Fallback: index directly via DB if platform not reachable
-        return {"success": False, "error": f"Platform returned HTTP {resp.status_code}. Use the web UI to index repos."}
+        return {
+            "success": False,
+            "error": f"Platform returned HTTP {resp.status_code}. Use the web UI to index repos.",
+        }
     except Exception as e:
-        return {"success": False, "error": f"Could not reach platform: {str(e)}. Use the web UI to index repos."}
+        return {
+            "success": False,
+            "error": f"Could not reach platform: {str(e)}. Use the web UI to index repos.",
+        }
 
 
 async def github_search_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -715,7 +759,12 @@ async def github_search_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
             (f"%{query}%", f"%{query}%", limit),
         )
         results = [dict(r) for r in cur.fetchall()]
-        return {"success": True, "results": results, "count": len(results), "search_type": "text"}
+        return {
+            "success": True,
+            "results": results,
+            "count": len(results),
+            "search_type": "text",
+        }
     except Exception as e:
         logger.error(f"Error in github_search: {e}")
         return {"success": False, "error": str(e)}
@@ -739,14 +788,24 @@ def register_knowledge_tools():
         input_schema={
             "type": "object",
             "properties": {
-                "query": {"type": "string", "description": "Search query - will match against titles and content"},
+                "query": {
+                    "type": "string",
+                    "description": "Search query - will match against titles and content",
+                },
                 "types": {
                     "type": "array",
                     "items": {"type": "string"},
                     "description": "Filter by knowledge types: mistake_learned, vault_note, code_snippet, github_file, conversation_memory",
                 },
-                "category": {"type": "string", "description": "Filter by category (e.g., database, api, frontend)"},
-                "limit": {"type": "integer", "description": "Max results (default: 10, max: 50)", "default": 10},
+                "category": {
+                    "type": "string",
+                    "description": "Filter by category (e.g., database, api, frontend)",
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max results (default: 10, max: 50)",
+                    "default": 10,
+                },
             },
             "required": ["query"],
         },
@@ -762,11 +821,23 @@ def register_knowledge_tools():
         input_schema={
             "type": "object",
             "properties": {
-                "content": {"type": "string", "description": "The content to store (required)"},
-                "title": {"type": "string", "description": "Brief title (auto-generated if not provided)"},
+                "content": {
+                    "type": "string",
+                    "description": "The content to store (required)",
+                },
+                "title": {
+                    "type": "string",
+                    "description": "Brief title (auto-generated if not provided)",
+                },
                 "memory_type": {
                     "type": "string",
-                    "enum": ["conversation_memory", "vault_note", "code_snippet", "improvement", "mistake_learned"],
+                    "enum": [
+                        "conversation_memory",
+                        "vault_note",
+                        "code_snippet",
+                        "improvement",
+                        "mistake_learned",
+                    ],
                     "description": "Type of memory (default: conversation_memory)",
                     "default": "conversation_memory",
                 },
@@ -775,7 +846,11 @@ def register_knowledge_tools():
                     "description": "Category for organization (e.g., database, api, preferences)",
                     "default": "general",
                 },
-                "tags": {"type": "array", "items": {"type": "string"}, "description": "Tags for easier retrieval"},
+                "tags": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Tags for easier retrieval",
+                },
                 "importance": {
                     "type": "number",
                     "description": "Importance score 0.0-1.0 (default: 0.6)",
@@ -796,8 +871,15 @@ def register_knowledge_tools():
         input_schema={
             "type": "object",
             "properties": {
-                "user_id": {"type": "integer", "description": "User ID (default: 2 for admin)", "default": 2},
-                "category": {"type": "string", "description": "Filter by preference category"},
+                "user_id": {
+                    "type": "integer",
+                    "description": "User ID (default: 2 for admin)",
+                    "default": 2,
+                },
+                "category": {
+                    "type": "string",
+                    "description": "Filter by preference category",
+                },
                 "min_confidence": {
                     "type": "number",
                     "description": "Minimum confidence threshold (default: 0.5)",
@@ -817,7 +899,10 @@ def register_knowledge_tools():
         input_schema={
             "type": "object",
             "properties": {
-                "topic": {"type": "string", "description": "Topic to recall context for (required)"},
+                "topic": {
+                    "type": "string",
+                    "description": "Topic to recall context for (required)",
+                },
                 "context_type": {
                     "type": "string",
                     "enum": ["conversation", "fact", "procedure"],
@@ -853,9 +938,19 @@ def register_knowledge_tools():
                     "description": "Preference category (e.g., coding_style, communication, schedule)",
                     "default": "general",
                 },
-                "key": {"type": "string", "description": "Preference key/name (required)"},
-                "value": {"type": "string", "description": "Preference value (required)"},
-                "user_id": {"type": "integer", "description": "User ID (default: 1)", "default": 1},
+                "key": {
+                    "type": "string",
+                    "description": "Preference key/name (required)",
+                },
+                "value": {
+                    "type": "string",
+                    "description": "Preference value (required)",
+                },
+                "user_id": {
+                    "type": "integer",
+                    "description": "User ID (default: 1)",
+                    "default": 1,
+                },
                 "confidence": {
                     "type": "number",
                     "description": "Initial confidence 0.0-1.0 (default: 0.6)",
@@ -931,7 +1026,11 @@ def register_knowledge_tools():
                     "type": "string",
                     "description": "Search query - matched semantically against indexed GitHub files",
                 },
-                "limit": {"type": "integer", "description": "Max results (default: 10, max: 50)", "default": 10},
+                "limit": {
+                    "type": "integer",
+                    "description": "Max results (default: 10, max: 50)",
+                    "default": 10,
+                },
             },
             "required": ["query"],
         },

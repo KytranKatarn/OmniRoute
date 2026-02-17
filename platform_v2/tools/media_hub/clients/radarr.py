@@ -95,7 +95,12 @@ class RadarrClient(ArrServiceInterface):
     def get_missing_movies(self, limit: int = 20) -> List[Dict[str, Any]]:
         """Get missing movies (wanted but not downloaded)"""
         result = self._request(
-            "/wanted/missing", {"pageSize": limit, "sortKey": "movieMetadata.sortTitle", "sortDirection": "ascending"}
+            "/wanted/missing",
+            {
+                "pageSize": limit,
+                "sortKey": "movieMetadata.sortTitle",
+                "sortDirection": "ascending",
+            },
         )
         if result and "records" in result:
             return result["records"]
@@ -104,7 +109,13 @@ class RadarrClient(ArrServiceInterface):
     def get_history(self, limit: int = 20) -> List[Dict[str, Any]]:
         """Get recent history"""
         result = self._request(
-            "/history", {"pageSize": limit, "sortKey": "date", "sortDirection": "descending", "includeMovie": True}
+            "/history",
+            {
+                "pageSize": limit,
+                "sortKey": "date",
+                "sortDirection": "descending",
+                "includeMovie": True,
+            },
         )
         if result and "records" in result:
             return result["records"]

@@ -2,7 +2,9 @@
 """
 Test V2 Code Generation Engine on Proposal #6 with DeepSeek Coder
 """
+
 import sys
+
 sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
 sys.path.insert(0, "/mnt/archie_brain/platform_v2")
 
@@ -12,10 +14,12 @@ print("=" * 60)
 
 from code_generation_engine import CodeGenerationEngine
 
+
 # Override the model selection to use deepseek-coder-v2:16b
 class TestEngine(CodeGenerationEngine):
     def _select_model_for_task(self, category, prefer_contractor):
         return "deepseek-coder-v2:16b"
+
 
 engine = TestEngine()
 print(f"Engine ready. Using: deepseek-coder-v2:16b")
@@ -43,7 +47,7 @@ This is a simple one-line fix - just add 'Exception' after 'except'.""",
     category="code_quality",
     target_files=["platform_v2/tools/coderabbit/routes.py"],
     line_number=43,
-    prefer_contractor=False
+    prefer_contractor=False,
 )
 
 print("\n" + "=" * 60)
@@ -60,7 +64,7 @@ if result.get("metadata"):
 if result.get("validation_results"):
     print("\nValidation:")
     for vr in result["validation_results"]:
-        if vr.get('valid'):
+        if vr.get("valid"):
             print(f"  ✅ {vr.get('file_path')}: {vr.get('match_type', 'valid')}")
         else:
             print(f"  ❌ {vr.get('file_path')}: {vr.get('error', 'unknown')}")
@@ -71,12 +75,12 @@ if result.get("changes"):
         print(f"File: {change.get('file_path')}")
         print(f"Description: {change.get('description', 'N/A')}")
         print(f"\nOld content:")
-        if change.get('old_content'):
-            for line in change['old_content'].split('\n'):
+        if change.get("old_content"):
+            for line in change["old_content"].split("\n"):
                 print(f"  |{line}|")
         print(f"\nNew content:")
-        if change.get('new_content'):
-            for line in change['new_content'].split('\n'):
+        if change.get("new_content"):
+            for line in change["new_content"].split("\n"):
                 print(f"  |{line}|")
 
 print("\nDone.")

@@ -33,17 +33,18 @@ logger = logging.getLogger(__name__)
 def get_db_connection():
     """Get database connection."""
     return psycopg2.connect(
-        host=os.getenv('DB_HOST', 'archie_database'),
-        port=os.getenv('DB_PORT', '5432'),
-        database=os.getenv('DB_NAME', 'archie'),
-        user=os.getenv('DB_USER', 'archie'),
-        password=os.getenv('DB_PASSWORD', '')
+        host=os.getenv("DB_HOST", "archie_database"),
+        port=os.getenv("DB_PORT", "5432"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", ""),
     )
 
 
 # =============================================================================
 # PLATFORM CONFIGURATION
 # =============================================================================
+
 
 def get_platform_config(platform: str) -> Optional[Dict]:
     """
@@ -59,10 +60,13 @@ def get_platform_config(platform: str) -> Optional[Dict]:
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
-        cur.execute("""
+        cur.execute(
+            """
             SELECT * FROM social_platform_config
             WHERE platform = %s AND enabled = TRUE
-        """, (platform,))
+        """,
+            (platform,),
+        )
         config = cur.fetchone()
         return dict(config) if config else None
     finally:
@@ -90,22 +94,19 @@ def get_env_credentials(platform: str) -> Dict:
     # Instagram uses APP_ID/APP_SECRET (via Facebook)
     # TikTok uses CLIENT_KEY/CLIENT_SECRET
     client_id = (
-        os.getenv(f'{platform_upper}_APP_ID') or
-        os.getenv(f'{platform_upper}_CLIENT_ID') or
-        os.getenv(f'{platform_upper}_CLIENT_KEY')
+        os.getenv(f"{platform_upper}_APP_ID")
+        or os.getenv(f"{platform_upper}_CLIENT_ID")
+        or os.getenv(f"{platform_upper}_CLIENT_KEY")
     )
 
-    client_secret = (
-        os.getenv(f'{platform_upper}_APP_SECRET') or
-        os.getenv(f'{platform_upper}_CLIENT_SECRET')
-    )
+    client_secret = os.getenv(f"{platform_upper}_APP_SECRET") or os.getenv(f"{platform_upper}_CLIENT_SECRET")
 
-    redirect_uri = os.getenv(f'{platform_upper}_REDIRECT_URI')
+    redirect_uri = os.getenv(f"{platform_upper}_REDIRECT_URI")
 
     return {
-        'client_id': client_id,
-        'client_secret': client_secret,
-        'redirect_uri': redirect_uri
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "redirect_uri": redirect_uri,
     }
 
 
@@ -113,28 +114,29 @@ def get_env_credentials(platform: str) -> Dict:
 # INSTAGRAM OAUTH (via Facebook Graph API)
 # =============================================================================
 
+
 class InstagramOAuth:
     """Instagram OAuth 2.0 handler via Facebook Graph API."""
 
     SCOPES = [
-        'instagram_basic',
-        'instagram_content_publish',
-        'instagram_manage_insights',
-        'pages_show_list',
-        'pages_read_engagement',
+        "instagram_basic",
+        "instagram_content_publish",
+        "instagram_manage_insights",
+        "pages_show_list",
+        "pages_read_engagement",
     ]
 
-    API_VERSION = 'v18.0'
-    AUTH_URL = f'https://www.facebook.com/{API_VERSION}/dialog/oauth'
-    TOKEN_URL = f'https://graph.facebook.com/{API_VERSION}/oauth/access_token'
-    GRAPH_URL = f'https://graph.facebook.com/{API_VERSION}'
+    API_VERSION = "v18.0"
+    AUTH_URL = f"https://www.facebook.com/{API_VERSION}/dialog/oauth"
+    TOKEN_URL = f"https://graph.facebook.com/{API_VERSION}/oauth/access_token"
+    GRAPH_URL = f"https://graph.facebook.com/{API_VERSION}"
 
     def __init__(self):
         """Initialize with credentials from environment."""
-        creds = get_env_credentials('instagram')
-        self.client_id = creds['client_id']
-        self.client_secret = creds['client_secret']
-        self.redirect_uri = creds['redirect_uri']
+        creds = get_env_credentials("instagram")
+        self.client_id = creds["client_id"]
+        self.client_secret = creds["client_secret"]
+        self.redirect_uri = creds["redirect_uri"]
 
     def is_configured(self) -> bool:
         """Check if Instagram OAuth is properly configured."""
@@ -151,16 +153,18 @@ class InstagramOAuth:
             Tuple of (authorization_url, state_token)
         """
         if not self.is_configured():
-            raise ValueError("Instagram OAuth not configured. Set INSTAGRAM_APP_ID, INSTAGRAM_APP_SECRET, INSTAGRAM_REDIRECT_URI")
+            raise ValueError(
+                "Instagram OAuth not configured. Set INSTAGRAM_APP_ID, INSTAGRAM_APP_SECRET, INSTAGRAM_REDIRECT_URI"
+            )
 
         state = state or secrets.token_urlsafe(32)
 
         params = {
-            'client_id': self.client_id,
-            'redirect_uri': self.redirect_uri,
-            'scope': ','.join(self.SCOPES),
-            'response_type': 'code',
-            'state': state,
+            "client_id": self.client_id,
+            "redirect_uri": self.redirect_uri,
+            "scope": ",".join(self.SCOPES),
+            "response_type": "code",
+            "state": state,
         }
 
         auth_url = f"{self.AUTH_URL}?{urlencode(params)}"
@@ -177,10 +181,10 @@ class InstagramOAuth:
             Dict with access_token, token_type, expires_in
         """
         params = {
-            'client_id': self.client_id,
-            'client_secret': self.client_secret,
-            'redirect_uri': self.redirect_uri,
-            'code': code,
+            "client_id": self.client_id,
+            "client_secret": self.client_secret,
+            "redirect_uri": self.redirect_uri,
+            "code": code,
         }
 
         response = requests.get(self.TOKEN_URL, params=params, timeout=30)
@@ -188,7 +192,7 @@ class InstagramOAuth:
 
         data = response.json()
 
-        if 'error' in data:
+        if "error" in data:
             raise ValueError(f"OAuth error: {data.get('error', {}).get('message', 'Unknown error')}")
 
         return data
@@ -204,10 +208,10 @@ class InstagramOAuth:
             Dict with access_token, token_type, expires_in
         """
         params = {
-            'grant_type': 'fb_exchange_token',
-            'client_id': self.client_id,
-            'client_secret': self.client_secret,
-            'fb_exchange_token': short_token,
+            "grant_type": "fb_exchange_token",
+            "client_id": self.client_id,
+            "client_secret": self.client_secret,
+            "fb_exchange_token": short_token,
         }
 
         response = requests.get(self.TOKEN_URL, params=params, timeout=30)
@@ -229,8 +233,8 @@ class InstagramOAuth:
             Dict with new access_token and expires_in
         """
         params = {
-            'grant_type': 'ig_refresh_token',
-            'access_token': access_token,
+            "grant_type": "ig_refresh_token",
+            "access_token": access_token,
         }
 
         response = requests.get(f"{self.GRAPH_URL}/refresh_access_token", params=params, timeout=30)
@@ -253,43 +257,43 @@ class InstagramOAuth:
         # First, get Facebook pages connected to the user
         pages_response = requests.get(
             f"{self.GRAPH_URL}/me/accounts",
-            params={'access_token': access_token},
-            timeout=30
+            params={"access_token": access_token},
+            timeout=30,
         )
         pages_response.raise_for_status()
         pages_data = pages_response.json()
 
-        if not pages_data.get('data'):
+        if not pages_data.get("data"):
             raise ValueError("No Facebook Pages found. Instagram Business/Creator account requires a connected Page.")
 
         # Get Instagram account connected to the first page
-        page = pages_data['data'][0]
-        page_id = page['id']
-        page_token = page.get('access_token', access_token)
+        page = pages_data["data"][0]
+        page_id = page["id"]
+        page_token = page.get("access_token", access_token)
 
         ig_response = requests.get(
             f"{self.GRAPH_URL}/{page_id}",
             params={
-                'fields': 'instagram_business_account{id,username,profile_picture_url,followers_count,media_count}',
-                'access_token': page_token,
+                "fields": "instagram_business_account{id,username,profile_picture_url,followers_count,media_count}",
+                "access_token": page_token,
             },
-            timeout=30
+            timeout=30,
         )
         ig_response.raise_for_status()
         ig_data = ig_response.json()
 
-        ig_account = ig_data.get('instagram_business_account')
+        ig_account = ig_data.get("instagram_business_account")
         if not ig_account:
             raise ValueError("No Instagram Business/Creator account found on this Page.")
 
         return {
-            'platform_user_id': ig_account.get('id'),
-            'username': ig_account.get('username'),
-            'profile_picture_url': ig_account.get('profile_picture_url'),
-            'followers_count': ig_account.get('followers_count', 0),
-            'media_count': ig_account.get('media_count', 0),
-            'page_id': page_id,
-            'page_token': page_token,
+            "platform_user_id": ig_account.get("id"),
+            "username": ig_account.get("username"),
+            "profile_picture_url": ig_account.get("profile_picture_url"),
+            "followers_count": ig_account.get("followers_count", 0),
+            "media_count": ig_account.get("media_count", 0),
+            "page_id": page_id,
+            "page_token": page_token,
         }
 
 
@@ -297,25 +301,26 @@ class InstagramOAuth:
 # TIKTOK OAUTH
 # =============================================================================
 
+
 class TikTokOAuth:
     """TikTok OAuth 2.0 handler via TikTok Content API."""
 
     SCOPES = [
-        'user.info.basic',
-        'video.publish',
-        'video.list',
+        "user.info.basic",
+        "video.publish",
+        "video.list",
     ]
 
-    AUTH_URL = 'https://www.tiktok.com/v2/auth/authorize/'
-    TOKEN_URL = 'https://open.tiktokapis.com/v2/oauth/token/'
-    API_URL = 'https://open.tiktokapis.com/v2'
+    AUTH_URL = "https://www.tiktok.com/v2/auth/authorize/"
+    TOKEN_URL = "https://open.tiktokapis.com/v2/oauth/token/"
+    API_URL = "https://open.tiktokapis.com/v2"
 
     def __init__(self):
         """Initialize with credentials from environment."""
-        creds = get_env_credentials('tiktok')
-        self.client_key = creds['client_id']  # TikTok calls it client_key
-        self.client_secret = creds['client_secret']
-        self.redirect_uri = creds['redirect_uri']
+        creds = get_env_credentials("tiktok")
+        self.client_key = creds["client_id"]  # TikTok calls it client_key
+        self.client_secret = creds["client_secret"]
+        self.redirect_uri = creds["redirect_uri"]
 
     def is_configured(self) -> bool:
         """Check if TikTok OAuth is properly configured."""
@@ -332,16 +337,18 @@ class TikTokOAuth:
             Tuple of (authorization_url, state_token)
         """
         if not self.is_configured():
-            raise ValueError("TikTok OAuth not configured. Set TIKTOK_CLIENT_KEY, TIKTOK_CLIENT_SECRET, TIKTOK_REDIRECT_URI")
+            raise ValueError(
+                "TikTok OAuth not configured. Set TIKTOK_CLIENT_KEY, TIKTOK_CLIENT_SECRET, TIKTOK_REDIRECT_URI"
+            )
 
         state = state or secrets.token_urlsafe(32)
 
         params = {
-            'client_key': self.client_key,
-            'scope': ','.join(self.SCOPES),
-            'response_type': 'code',
-            'redirect_uri': self.redirect_uri,
-            'state': state,
+            "client_key": self.client_key,
+            "scope": ",".join(self.SCOPES),
+            "response_type": "code",
+            "redirect_uri": self.redirect_uri,
+            "state": state,
         }
 
         auth_url = f"{self.AUTH_URL}?{urlencode(params)}"
@@ -358,24 +365,24 @@ class TikTokOAuth:
             Dict with access_token, refresh_token, expires_in, open_id
         """
         data = {
-            'client_key': self.client_key,
-            'client_secret': self.client_secret,
-            'code': code,
-            'grant_type': 'authorization_code',
-            'redirect_uri': self.redirect_uri,
+            "client_key": self.client_key,
+            "client_secret": self.client_secret,
+            "code": code,
+            "grant_type": "authorization_code",
+            "redirect_uri": self.redirect_uri,
         }
 
         response = requests.post(
             self.TOKEN_URL,
             data=data,
-            headers={'Content-Type': 'application/x-www-form-urlencoded'},
-            timeout=30
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            timeout=30,
         )
         response.raise_for_status()
 
         result = response.json()
 
-        if result.get('error'):
+        if result.get("error"):
             raise ValueError(f"TikTok OAuth error: {result.get('error_description', result.get('error'))}")
 
         return result
@@ -391,17 +398,17 @@ class TikTokOAuth:
             Dict with new access_token, refresh_token, expires_in
         """
         data = {
-            'client_key': self.client_key,
-            'client_secret': self.client_secret,
-            'grant_type': 'refresh_token',
-            'refresh_token': refresh_token,
+            "client_key": self.client_key,
+            "client_secret": self.client_secret,
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
         }
 
         response = requests.post(
             self.TOKEN_URL,
             data=data,
-            headers={'Content-Type': 'application/x-www-form-urlencoded'},
-            timeout=30
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            timeout=30,
         )
         response.raise_for_status()
 
@@ -419,20 +426,20 @@ class TikTokOAuth:
         """
         response = requests.get(
             f"{self.API_URL}/user/info/",
-            params={'fields': 'open_id,union_id,avatar_url,display_name,follower_count,following_count,likes_count'},
-            headers={'Authorization': f'Bearer {access_token}'},
-            timeout=30
+            params={"fields": "open_id,union_id,avatar_url,display_name,follower_count,following_count,likes_count"},
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=30,
         )
         response.raise_for_status()
 
         result = response.json()
-        user_data = result.get('data', {}).get('user', {})
+        user_data = result.get("data", {}).get("user", {})
 
         return {
-            'platform_user_id': user_data.get('open_id'),
-            'username': user_data.get('display_name'),
-            'profile_picture_url': user_data.get('avatar_url'),
-            'followers_count': user_data.get('follower_count', 0),
+            "platform_user_id": user_data.get("open_id"),
+            "username": user_data.get("display_name"),
+            "profile_picture_url": user_data.get("avatar_url"),
+            "followers_count": user_data.get("follower_count", 0),
         }
 
 
@@ -440,13 +447,14 @@ class TikTokOAuth:
 # TOKEN MANAGEMENT
 # =============================================================================
 
+
 def store_oauth_token(
     account_id: int,
     platform: str,
     access_token: str,
     refresh_token: str = None,
     expires_in: int = None,
-    scopes: list = None
+    scopes: list = None,
 ) -> int:
     """
     Store encrypted OAuth tokens in database.
@@ -476,7 +484,8 @@ def store_oauth_token(
         refresh_encrypted = encrypt_token(refresh_token) if refresh_token else None
 
         # Upsert token record
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO social_oauth_tokens (
                 account_id, platform, access_token_encrypted, refresh_token_encrypted,
                 expires_at, scopes, updated_at
@@ -488,10 +497,16 @@ def store_oauth_token(
                 scopes = EXCLUDED.scopes,
                 updated_at = NOW()
             RETURNING id
-        """, (
-            account_id, platform, access_encrypted, refresh_encrypted,
-            expires_at, scopes
-        ))
+        """,
+            (
+                account_id,
+                platform,
+                access_encrypted,
+                refresh_encrypted,
+                expires_at,
+                scopes,
+            ),
+        )
 
         token_id = cur.fetchone()[0]
         conn.commit()
@@ -519,25 +534,30 @@ def get_oauth_token(account_id: int) -> Optional[Dict]:
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
-        cur.execute("""
+        cur.execute(
+            """
             SELECT * FROM social_oauth_tokens
             WHERE account_id = %s
-        """, (account_id,))
+        """,
+            (account_id,),
+        )
 
         record = cur.fetchone()
         if not record:
             return None
 
         return {
-            'id': record['id'],
-            'account_id': record['account_id'],
-            'platform': record['platform'],
-            'access_token': decrypt_token(record['access_token_encrypted']),
-            'refresh_token': decrypt_token(record['refresh_token_encrypted']) if record['refresh_token_encrypted'] else None,
-            'expires_at': record['expires_at'],
-            'scopes': record['scopes'],
-            'is_expired': record['expires_at'] and record['expires_at'] < datetime.now(),
-            'expires_soon': record['expires_at'] and record['expires_at'] < datetime.now() + timedelta(days=7),
+            "id": record["id"],
+            "account_id": record["account_id"],
+            "platform": record["platform"],
+            "access_token": decrypt_token(record["access_token_encrypted"]),
+            "refresh_token": (
+                decrypt_token(record["refresh_token_encrypted"]) if record["refresh_token_encrypted"] else None
+            ),
+            "expires_at": record["expires_at"],
+            "scopes": record["scopes"],
+            "is_expired": record["expires_at"] and record["expires_at"] < datetime.now(),
+            "expires_soon": record["expires_at"] and record["expires_at"] < datetime.now() + timedelta(days=7),
         }
 
     finally:
@@ -559,11 +579,14 @@ def delete_oauth_token(account_id: int) -> bool:
     cur = conn.cursor()
 
     try:
-        cur.execute("""
+        cur.execute(
+            """
             DELETE FROM social_oauth_tokens
             WHERE account_id = %s
             RETURNING id
-        """, (account_id,))
+        """,
+            (account_id,),
+        )
 
         deleted = cur.fetchone() is not None
         conn.commit()
@@ -592,7 +615,8 @@ def get_expiring_tokens(days: int = 7) -> list:
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
-        cur.execute("""
+        cur.execute(
+            """
             SELECT t.*, a.platform_username, a.account_name
             FROM social_oauth_tokens t
             JOIN social_accounts a ON t.account_id = a.id
@@ -600,7 +624,9 @@ def get_expiring_tokens(days: int = 7) -> list:
             AND t.expires_at < NOW() + INTERVAL '%s days'
             AND t.expires_at > NOW()
             ORDER BY t.expires_at
-        """, (days,))
+        """,
+            (days,),
+        )
 
         return cur.fetchall()
 
@@ -613,13 +639,14 @@ def get_expiring_tokens(days: int = 7) -> list:
 # JOB LOGGING
 # =============================================================================
 
+
 def log_oauth_job(
     job_type: str,
     status: str,
     account_id: int = None,
     error_message: str = None,
     platform_response: dict = None,
-    duration_ms: int = None
+    duration_ms: int = None,
 ) -> int:
     """
     Log an OAuth-related job execution.
@@ -639,17 +666,23 @@ def log_oauth_job(
     cur = conn.cursor()
 
     try:
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO social_job_logs (
                 job_type, status, account_id, error_message,
                 platform_response, duration_ms
             ) VALUES (%s, %s, %s, %s, %s, %s)
             RETURNING id
-        """, (
-            job_type, status, account_id, error_message,
-            psycopg2.extras.Json(platform_response) if platform_response else None,
-            duration_ms
-        ))
+        """,
+            (
+                job_type,
+                status,
+                account_id,
+                error_message,
+                psycopg2.extras.Json(platform_response) if platform_response else None,
+                duration_ms,
+            ),
+        )
 
         log_id = cur.fetchone()[0]
         conn.commit()

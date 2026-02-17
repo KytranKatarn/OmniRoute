@@ -5,6 +5,7 @@ Applies generated code changes to sandbox environment
 Author: A.R.C.H.I.E. Self-Improvement System
 Date: 2026-01-05
 """
+
 import os
 import shutil
 from typing import Dict, List
@@ -14,17 +15,13 @@ from datetime import datetime
 class CodeApplicationSystem:
     """Applies code changes to sandbox files"""
 
-    def __init__(self, sandbox_schema: str = 'sandbox'):
+    def __init__(self, sandbox_schema: str = "sandbox"):
         self.sandbox_schema = sandbox_schema
-        self.base_path = '/mnt/archie_brain/platform_v2'
-        self.backup_path = '/mnt/archie_brain/backups/sandbox_changes'
+        self.base_path = "/mnt/archie_brain/platform_v2"
+        self.backup_path = "/mnt/archie_brain/backups/sandbox_changes"
         os.makedirs(self.backup_path, exist_ok=True)
 
-    def apply_changes_to_sandbox(
-        self,
-        proposal_id: int,
-        changes: List[Dict]
-    ) -> Dict:
+    def apply_changes_to_sandbox(self, proposal_id: int, changes: List[Dict]) -> Dict:
         """
         Apply code changes to sandbox files
 
@@ -48,11 +45,8 @@ class CodeApplicationSystem:
         files_created = 0
 
         # Create backup directory for this application
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        backup_dir = os.path.join(
-            self.backup_path,
-            f'proposal_{proposal_id}_{timestamp}'
-        )
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_dir = os.path.join(self.backup_path, f"proposal_{proposal_id}_{timestamp}")
         os.makedirs(backup_dir, exist_ok=True)
 
         application_log.append(f"🔄 Applying {len(changes)} code change(s) to sandbox...")
@@ -60,22 +54,17 @@ class CodeApplicationSystem:
 
         for i, change in enumerate(changes, 1):
             try:
-                result = self._apply_single_change(
-                    change,
-                    backup_dir,
-                    i,
-                    len(changes)
-                )
+                result = self._apply_single_change(change, backup_dir, i, len(changes))
 
-                application_log.extend(result['log'])
+                application_log.extend(result["log"])
 
-                if result['success']:
-                    if change['action'] == 'create':
+                if result["success"]:
+                    if change["action"] == "create":
                         files_created += 1
                     else:
                         files_modified += 1
                 else:
-                    errors.append(result.get('error', 'Unknown error'))
+                    errors.append(result.get("error", "Unknown error"))
 
             except Exception as e:
                 error_msg = f"❌ Error applying change {i}: {str(e)}"
@@ -93,21 +82,15 @@ class CodeApplicationSystem:
         application_log.append(f"📄 Files created: {files_created}")
 
         return {
-            'success': success,
-            'files_modified': files_modified,
-            'files_created': files_created,
-            'backup_path': backup_dir,
-            'application_log': application_log,
-            'errors': errors
+            "success": success,
+            "files_modified": files_modified,
+            "files_created": files_created,
+            "backup_path": backup_dir,
+            "application_log": application_log,
+            "errors": errors,
         }
 
-    def _apply_single_change(
-        self,
-        change: Dict,
-        backup_dir: str,
-        change_num: int,
-        total_changes: int
-    ) -> Dict:
+    def _apply_single_change(self, change: Dict, backup_dir: str, change_num: int, total_changes: int) -> Dict:
         """Apply a single code change"""
         log = []
         log.append(f"\n--- Change {change_num}/{total_changes} ---")
@@ -115,37 +98,35 @@ class CodeApplicationSystem:
         log.append(f"🔧 Action: {change['action']}")
         log.append(f"💬 Description: {change['description']}")
 
-        file_path = change['file_path']
-        action = change['action']
+        file_path = change["file_path"]
+        action = change["action"]
 
         # Resolve full path
-        if not file_path.startswith('/'):
+        if not file_path.startswith("/"):
             full_path = os.path.join(self.base_path, file_path)
         else:
             full_path = file_path
 
         try:
-            if action == 'modify':
+            if action == "modify":
                 return self._modify_file(full_path, change, backup_dir, log)
-            elif action == 'create':
+            elif action == "create":
                 return self._create_file(full_path, change, backup_dir, log)
-            elif action == 'delete':
+            elif action == "delete":
                 return self._delete_file(full_path, backup_dir, log)
             else:
                 log.append(f"⚠️  Unknown action: {action}")
-                return {'success': False, 'log': log, 'error': f'Unknown action: {action}'}
+                return {
+                    "success": False,
+                    "log": log,
+                    "error": f"Unknown action: {action}",
+                }
 
         except Exception as e:
             log.append(f"❌ Error: {str(e)}")
-            return {'success': False, 'log': log, 'error': str(e)}
+            return {"success": False, "log": log, "error": str(e)}
 
-    def _modify_file(
-        self,
-        full_path: str,
-        change: Dict,
-        backup_dir: str,
-        log: List[str]
-    ) -> Dict:
+    def _modify_file(self, full_path: str, change: Dict, backup_dir: str, log: List[str]) -> Dict:
         """Modify an existing file"""
 
         # Check if file exists
@@ -154,19 +135,16 @@ class CodeApplicationSystem:
             return self._create_file(full_path, change, backup_dir, log)
 
         # Backup original file
-        backup_file = os.path.join(
-            backup_dir,
-            os.path.basename(full_path) + '.backup'
-        )
+        backup_file = os.path.join(backup_dir, os.path.basename(full_path) + ".backup")
         shutil.copy2(full_path, backup_file)
         log.append(f"💾 Backed up to: {os.path.basename(backup_file)}")
 
         # Read current content
-        with open(full_path, 'r', encoding='utf-8') as f:
+        with open(full_path, "r", encoding="utf-8") as f:
             current_content = f.read()
 
-        old_content = change.get('old_content', '')
-        new_content = change.get('new_content', '')
+        old_content = change.get("old_content", "")
+        new_content = change.get("new_content", "")
 
         # Try to find and replace old content
         if old_content and old_content in current_content:
@@ -179,7 +157,7 @@ class CodeApplicationSystem:
             if old_content:
                 log.append(f"❌ ERROR: old_content not found in file - refusing to modify")
                 log.append(f"   This prevents file corruption from incorrect replacements")
-                preview = old_content[:100].replace('\n', '\\n')
+                preview = old_content[:100].replace("\n", "\\n")
                 log.append(f"   old_content preview: {preview}...")
 
                 # Restore from backup (in case any partial changes were made)
@@ -187,11 +165,11 @@ class CodeApplicationSystem:
                 log.append(f"↩️  Restored from backup")
 
                 return {
-                    'success': False,
-                    'file': full_path,
-                    'log': log,
-                    'error': 'old_content not found in file - content mismatch',
-                    'suggestion': 'Regenerate the code fix with exact file content'
+                    "success": False,
+                    "file": full_path,
+                    "log": log,
+                    "error": "old_content not found in file - content mismatch",
+                    "suggestion": "Regenerate the code fix with exact file content",
                 }
             else:
                 # No old content specified, replace entire file
@@ -199,20 +177,14 @@ class CodeApplicationSystem:
                 log.append(f"✅ Replaced entire file content")
 
         # Write modified content
-        with open(full_path, 'w', encoding='utf-8') as f:
+        with open(full_path, "w", encoding="utf-8") as f:
             f.write(modified_content)
 
         log.append(f"✅ File modified successfully")
 
-        return {'success': True, 'log': log}
+        return {"success": True, "log": log}
 
-    def _create_file(
-        self,
-        full_path: str,
-        change: Dict,
-        backup_dir: str,
-        log: List[str]
-    ) -> Dict:
+    def _create_file(self, full_path: str, change: Dict, backup_dir: str, log: List[str]) -> Dict:
         """Create a new file"""
 
         # Create directory if it doesn't exist
@@ -224,39 +196,28 @@ class CodeApplicationSystem:
         # Check if file already exists
         if os.path.exists(full_path):
             log.append(f"⚠️  File already exists, backing up and overwriting")
-            backup_file = os.path.join(
-                backup_dir,
-                os.path.basename(full_path) + '.backup'
-            )
+            backup_file = os.path.join(backup_dir, os.path.basename(full_path) + ".backup")
             shutil.copy2(full_path, backup_file)
             log.append(f"💾 Backed up existing file")
 
         # Write new content
-        new_content = change.get('new_content', '')
-        with open(full_path, 'w', encoding='utf-8') as f:
+        new_content = change.get("new_content", "")
+        with open(full_path, "w", encoding="utf-8") as f:
             f.write(new_content)
 
         log.append(f"✅ File created successfully")
 
-        return {'success': True, 'log': log}
+        return {"success": True, "log": log}
 
-    def _delete_file(
-        self,
-        full_path: str,
-        backup_dir: str,
-        log: List[str]
-    ) -> Dict:
+    def _delete_file(self, full_path: str, backup_dir: str, log: List[str]) -> Dict:
         """Delete a file"""
 
         if not os.path.exists(full_path):
             log.append(f"⚠️  File doesn't exist, nothing to delete")
-            return {'success': True, 'log': log}
+            return {"success": True, "log": log}
 
         # Backup before deletion
-        backup_file = os.path.join(
-            backup_dir,
-            os.path.basename(full_path) + '.deleted'
-        )
+        backup_file = os.path.join(backup_dir, os.path.basename(full_path) + ".deleted")
         shutil.copy2(full_path, backup_file)
         log.append(f"💾 Backed up to: {os.path.basename(backup_file)}")
 
@@ -264,7 +225,7 @@ class CodeApplicationSystem:
         os.remove(full_path)
         log.append(f"✅ File deleted")
 
-        return {'success': True, 'log': log}
+        return {"success": True, "log": log}
 
 
 # Convenience function
@@ -274,7 +235,7 @@ def apply_code_changes(proposal_id: int, changes: List[Dict]) -> Dict:
     return system.apply_changes_to_sandbox(proposal_id, changes)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Test code application
     print("=" * 80)
     print("Code Application System - Test")
@@ -282,10 +243,10 @@ if __name__ == '__main__':
 
     test_changes = [
         {
-            'file_path': '/tmp/test_file.txt',
-            'action': 'create',
-            'new_content': 'This is a test file created by Code Application System',
-            'description': 'Create test file'
+            "file_path": "/tmp/test_file.txt",
+            "action": "create",
+            "new_content": "This is a test file created by Code Application System",
+            "description": "Create test file",
         }
     ]
 
@@ -295,5 +256,5 @@ if __name__ == '__main__':
     print(f"📝 Files modified: {result['files_modified']}")
     print(f"📄 Files created: {result['files_created']}")
     print(f"\n📋 Application Log:")
-    for line in result['application_log']:
+    for line in result["application_log"]:
         print(f"  {line}")

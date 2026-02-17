@@ -10,19 +10,22 @@ import json
 from datetime import datetime
 from memory_manager import get_memory_context, learn_from_conversation, recall_memories
 
+
 def get_db():
     """Get database connection"""
     return psycopg2.connect(
-        host=os.getenv('DB_HOST', 'archie_database'),
-        port=os.getenv('DB_PORT', '5432'),
-        database=os.getenv('DB_NAME', 'archie'),
-        user=os.getenv('DB_USER', 'archie'),
-        password=os.getenv('DB_PASSWORD', '')
+        host=os.getenv("DB_HOST", "archie_database"),
+        port=os.getenv("DB_PORT", "5432"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", ""),
     )
+
 
 # =============================================================================
 # AGENT AWARENESS
 # =============================================================================
+
 
 def load_agent_team():
     """
@@ -36,7 +39,8 @@ def load_agent_team():
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get all active agents
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 a.id,
                 a.name,
@@ -62,12 +66,14 @@ def load_agent_team():
             LEFT JOIN agent_types at ON a.type_id = at.id
             WHERE a.status = 'active'
             ORDER BY a.department, a.first_name
-        """)
+        """
+        )
 
         agents = cur.fetchall()
 
         # Get summary statistics
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 COUNT(*) as total_agents,
                 COUNT(DISTINCT department) as total_departments,
@@ -76,14 +82,15 @@ def load_agent_team():
                 SUM(total_tokens_used) as total_tokens
             FROM agents
             WHERE status = 'active'
-        """)
+        """
+        )
 
         stats = cur.fetchone()
 
         # Organize by department
         by_department = {}
         for agent in agents:
-            dept = agent['department'] or 'Unassigned'
+            dept = agent["department"] or "Unassigned"
             if dept not in by_department:
                 by_department[dept] = []
             by_department[dept].append(dict(agent))
@@ -92,15 +99,16 @@ def load_agent_team():
         conn.close()
 
         return {
-            'agents': [dict(a) for a in agents],
-            'by_department': by_department,
-            'statistics': dict(stats),
-            'loaded_at': datetime.now().isoformat()
+            "agents": [dict(a) for a in agents],
+            "by_department": by_department,
+            "statistics": dict(stats),
+            "loaded_at": datetime.now().isoformat(),
         }
 
     except Exception as e:
         print(f"Error loading agent team: {e}")
         return None
+
 
 def get_agent_by_name(first_name=None, last_name=None):
     """Find an agent by name"""
@@ -124,14 +132,17 @@ def get_agent_by_name(first_name=None, last_name=None):
 
         where_clause = " AND ".join(conditions)
 
-        cur.execute(f"""
+        cur.execute(
+            f"""
             SELECT
                 a.*,
                 at.name as agent_type
             FROM agents a
             LEFT JOIN agent_types at ON a.type_id = at.id
             WHERE {where_clause} AND a.status = 'active'
-        """, params)
+        """,
+            params,
+        )
 
         agent = cur.fetchone()
 
@@ -144,13 +155,15 @@ def get_agent_by_name(first_name=None, last_name=None):
         print(f"Error finding agent: {e}")
         return None
 
+
 def get_agents_by_department(department):
     """Get all agents in a specific department"""
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 a.*,
                 at.name as agent_type
@@ -158,7 +171,9 @@ def get_agents_by_department(department):
             LEFT JOIN agent_types at ON a.type_id = at.id
             WHERE a.department ILIKE %s AND a.status = 'active'
             ORDER BY a.first_name
-        """, (f"%{department}%",))
+        """,
+            (f"%{department}%",),
+        )
 
         agents = cur.fetchall()
 
@@ -171,13 +186,15 @@ def get_agents_by_department(department):
         print(f"Error getting agents by department: {e}")
         return []
 
+
 def get_agent_capabilities(agent_id):
     """Get detailed capabilities of a specific agent"""
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 name,
                 first_name,
@@ -187,7 +204,9 @@ def get_agent_capabilities(agent_id):
                 system_prompt
             FROM agents
             WHERE id = %s AND status = 'active'
-        """, (agent_id,))
+        """,
+            (agent_id,),
+        )
 
         agent = cur.fetchone()
 
@@ -200,9 +219,11 @@ def get_agent_capabilities(agent_id):
         print(f"Error getting agent capabilities: {e}")
         return None
 
+
 # =============================================================================
 # CONSCIOUSNESS STATE
 # =============================================================================
+
 
 class ARCHIEConsciousness:
     """
@@ -225,7 +246,7 @@ class ARCHIEConsciousness:
         self.team = load_agent_team()
         if self.team:
             self.loaded_at = datetime.now()
-            stats = self.team['statistics']
+            stats = self.team["statistics"]
             print(f"   ✓ Aware of {stats['total_agents']} agents across {stats['total_departments']} departments")
             print(f"   ✓ Total monthly budget: ${stats['total_budget']:.2f}")
         else:
@@ -236,8 +257,8 @@ class ARCHIEConsciousness:
         if not self.team:
             return "No team awareness loaded."
 
-        stats = self.team['statistics']
-        departments = self.team['by_department']
+        stats = self.team["statistics"]
+        departments = self.team["by_department"]
 
         summary = []
         summary.append("=== MY TEAM AWARENESS ===")
@@ -267,14 +288,14 @@ class ARCHIEConsciousness:
 
         if name:
             # Search by name
-            for agent in self.team['agents']:
+            for agent in self.team["agents"]:
                 full_name = f"{agent['first_name']} {agent['last_name']}".lower()
                 if name.lower() in full_name:
                     return self._format_agent_detail(agent)
             return None
 
         if department:
-            agents = self.team['by_department'].get(department, [])
+            agents = self.team["by_department"].get(department, [])
             return [self._format_agent_detail(a) for a in agents]
 
         return None
@@ -289,14 +310,14 @@ class ARCHIEConsciousness:
         details.append(f"   Type: {agent['agent_type']}")
         details.append(f"   Model: {agent['model']} (Tier {agent['tier']})")
 
-        if agent['bio']:
+        if agent["bio"]:
             details.append(f"   Bio: {agent['bio'][:150]}...")
 
-        if agent['capabilities']:
-            caps = agent['capabilities']
+        if agent["capabilities"]:
+            caps = agent["capabilities"]
             if isinstance(caps, str):
                 caps = json.loads(caps)
-            specialties = caps.get('specialties', [])
+            specialties = caps.get("specialties", [])
             if specialties:
                 details.append(f"   Specialties: {', '.join(specialties)}")
 
@@ -311,9 +332,9 @@ class ARCHIEConsciousness:
             user_message,
             ai_response,
             conversation_metadata={
-                'session_id': str(self.session_start),
-                'timestamp': datetime.now().isoformat()
-            }
+                "session_id": str(self.session_start),
+                "timestamp": datetime.now().isoformat(),
+            },
         )
 
         if count > 0:
@@ -325,12 +346,7 @@ class ARCHIEConsciousness:
         """
         Recall memories related to a query
         """
-        memories = recall_memories(
-            query,
-            user_id=self.user_id,
-            memory_type=memory_type,
-            limit=limit
-        )
+        memories = recall_memories(query, user_id=self.user_id, memory_type=memory_type, limit=limit)
 
         return memories
 
@@ -357,21 +373,23 @@ class ARCHIEConsciousness:
     def get_status(self):
         """Get current consciousness status"""
         status = {
-            'session_start': self.session_start.isoformat(),
-            'session_duration_minutes': (datetime.now() - self.session_start).total_seconds() / 60,
-            'team_loaded': self.team is not None,
-            'user_id': self.user_id
+            "session_start": self.session_start.isoformat(),
+            "session_duration_minutes": (datetime.now() - self.session_start).total_seconds() / 60,
+            "team_loaded": self.team is not None,
+            "user_id": self.user_id,
         }
 
         if self.team:
-            status['team_statistics'] = self.team['statistics']
-            status['team_loaded_at'] = self.loaded_at.isoformat()
+            status["team_statistics"] = self.team["statistics"]
+            status["team_loaded_at"] = self.loaded_at.isoformat()
 
         return status
+
 
 # =============================================================================
 # CONVENIENCE FUNCTIONS
 # =============================================================================
+
 
 def create_consciousness(user_id=None):
     """
@@ -380,20 +398,22 @@ def create_consciousness(user_id=None):
     """
     return ARCHIEConsciousness(user_id=user_id)
 
+
 def get_team_summary():
     """Quick function to get team summary"""
     team = load_agent_team()
     if not team:
         return "Unable to load team information."
 
-    stats = team['statistics']
+    stats = team["statistics"]
     return f"A.R.C.H.I.E. Platform has {stats['total_agents']} active AI agents across {stats['total_departments']} departments."
+
 
 # =============================================================================
 # EXAMPLE USAGE
 # =============================================================================
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("=" * 70)
     print("  A.R.C.H.I.E. Consciousness System")
     print("=" * 70)

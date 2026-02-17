@@ -16,7 +16,7 @@ import sys
 from typing import List, Dict, Optional
 
 # Add platform_v2 to path for unified_knowledge_search
-platform_path = '/mnt/archie_brain/platform_v2'
+platform_path = "/mnt/archie_brain/platform_v2"
 if platform_path not in sys.path:
     sys.path.insert(0, platform_path)
 
@@ -24,8 +24,9 @@ try:
     from unified_knowledge_search import (
         unified_knowledge_search,
         get_mistake_learnings,
-        get_top_knowledge
+        get_top_knowledge,
     )
+
     UNIFIED_SEARCH_AVAILABLE = True
 except ImportError as e:
     print(f"[Knowledge Retrieval] WARNING: unified_knowledge_search not available: {e}")
@@ -35,10 +36,10 @@ except ImportError as e:
 def get_db():
     """Get database connection"""
     return psycopg2.connect(
-        host=os.getenv('DB_HOST', 'archie_database'),
-        database=os.getenv('DB_NAME', 'archie'),
-        user=os.getenv('DB_USER', 'archie'),
-        password=os.getenv('DB_PASSWORD', 'secure_archie_password')
+        host=os.getenv("DB_HOST", "archie_database"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", "secure_archie_password"),
     )
 
 
@@ -50,34 +51,38 @@ def extract_keywords(user_message: str) -> List[str]:
     keywords = []
 
     # Programming languages
-    if 'python' in message_lower:
-        keywords.extend(['python', 'python-code', 'python-script'])
-    if 'javascript' in message_lower or 'js' in message_lower:
-        keywords.extend(['javascript', 'javascript-code'])
-    if 'automation' in message_lower or 'automate' in message_lower:
-        keywords.extend(['automation', 'n8n-workflow', 'automation-script'])
-    if 'agent' in message_lower or 'ai' in message_lower:
-        keywords.extend(['ai-agent', 'agent-example', 'multi-agent'])
-    if 'prompt' in message_lower:
-        keywords.extend(['system-prompt', 'prompt-template', 'prompt-engineering'])
-    if 'workflow' in message_lower:
-        keywords.extend(['n8n-workflow', 'workflow-template', 'automation'])
-    if 'example' in message_lower or 'how to' in message_lower:
-        keywords.extend(['example', 'tutorial', 'beginner'])
-    if 'database' in message_lower or 'sql' in message_lower:
-        keywords.extend(['python-database', 'data-science'])
-    if 'test' in message_lower or 'testing' in message_lower:
-        keywords.extend(['python-testing', 'tutorial'])
-    if 'iot' in message_lower or 'sensor' in message_lower or 'device' in message_lower:
-        keywords.extend(['python-iot'])
-    if 'error' in message_lower or 'bug' in message_lower or 'fix' in message_lower:
-        keywords.extend(['error', 'bug', 'fix', 'debugging'])
+    if "python" in message_lower:
+        keywords.extend(["python", "python-code", "python-script"])
+    if "javascript" in message_lower or "js" in message_lower:
+        keywords.extend(["javascript", "javascript-code"])
+    if "automation" in message_lower or "automate" in message_lower:
+        keywords.extend(["automation", "n8n-workflow", "automation-script"])
+    if "agent" in message_lower or "ai" in message_lower:
+        keywords.extend(["ai-agent", "agent-example", "multi-agent"])
+    if "prompt" in message_lower:
+        keywords.extend(["system-prompt", "prompt-template", "prompt-engineering"])
+    if "workflow" in message_lower:
+        keywords.extend(["n8n-workflow", "workflow-template", "automation"])
+    if "example" in message_lower or "how to" in message_lower:
+        keywords.extend(["example", "tutorial", "beginner"])
+    if "database" in message_lower or "sql" in message_lower:
+        keywords.extend(["python-database", "data-science"])
+    if "test" in message_lower or "testing" in message_lower:
+        keywords.extend(["python-testing", "tutorial"])
+    if "iot" in message_lower or "sensor" in message_lower or "device" in message_lower:
+        keywords.extend(["python-iot"])
+    if "error" in message_lower or "bug" in message_lower or "fix" in message_lower:
+        keywords.extend(["error", "bug", "fix", "debugging"])
 
     # Task types
-    if 'beginner' in message_lower or 'learn' in message_lower or 'tutorial' in message_lower:
-        keywords.extend(['beginner', 'tutorial', 'example'])
-    if 'advanced' in message_lower or 'complex' in message_lower:
-        keywords.extend(['advanced', 'expert'])
+    if (
+        "beginner" in message_lower
+        or "learn" in message_lower
+        or "tutorial" in message_lower
+    ):
+        keywords.extend(["beginner", "tutorial", "example"])
+    if "advanced" in message_lower or "complex" in message_lower:
+        keywords.extend(["advanced", "expert"])
 
     return list(set(keywords))
 
@@ -109,62 +114,66 @@ def get_relevant_knowledge(user_message: str, max_results: int = 5) -> str:
     try:
         # Use unified_knowledge_search with intelligent ranking
         search_results = unified_knowledge_search(
-            query=user_message,
-            types=None,  # Search ALL types
-            limit=max_results
+            query=user_message, types=None, limit=max_results  # Search ALL types
         )
 
-        results = search_results.get('results', [])
+        results = search_results.get("results", [])
 
         if not results:
             return ""
 
         # Format results for A.R.C.H.I.E.'s context
         knowledge_context = "\n\n=== 🧠 RELEVANT KNOWLEDGE FROM MY BRAIN ===\n"
-        knowledge_context += f"I found {len(results)} relevant resources (ranked by importance):\n\n"
+        knowledge_context += (
+            f"I found {len(results)} relevant resources (ranked by importance):\n\n"
+        )
 
         for idx, item in enumerate(results, 1):
-            knowledge_type = item['knowledge_type']
+            knowledge_type = item["knowledge_type"]
 
             # Emoji mapping by type
             type_emoji = {
-                'mistake_learned': '⚠️',
-                'vault_note': '📚',
-                'code_snippet': '💻',
-                'improvement': '🔧',
-                'conversation_memory': '💭',
-                'github_file': '📁'
+                "mistake_learned": "⚠️",
+                "vault_note": "📚",
+                "code_snippet": "💻",
+                "improvement": "🔧",
+                "conversation_memory": "💭",
+                "github_file": "📁",
             }
 
-            emoji = type_emoji.get(knowledge_type, '📄')
-            title = item.get('title', 'Untitled')
-            category = item.get('category', 'General')
-            importance = item.get('importance_score', 0.5)
-            weighted_score = item.get('weighted_score', importance)
+            emoji = type_emoji.get(knowledge_type, "📄")
+            title = item.get("title", "Untitled")
+            category = item.get("category", "General")
+            importance = item.get("importance_score", 0.5)
+            weighted_score = item.get("weighted_score", importance)
 
             knowledge_context += f"{idx}. {emoji} {title}\n"
             knowledge_context += f"   Type: {knowledge_type} | Category: {category}\n"
-            knowledge_context += f"   Importance: {importance:.2f} (weighted: {weighted_score:.2f})\n"
+            knowledge_context += (
+                f"   Importance: {importance:.2f} (weighted: {weighted_score:.2f})\n"
+            )
 
             # Special handling for mistake_learned
-            if knowledge_type == 'mistake_learned':
+            if knowledge_type == "mistake_learned":
                 knowledge_context += f"   ⚠️ IMPORTANT: This is a documented error to prevent repetition!\n"
 
             # Add content snippet
-            content = item.get('content', '')
+            content = item.get("content", "")
             if content:
                 snippet = content[:300] if len(content) > 300 else content
                 knowledge_context += f"   Content: {snippet}...\n"
 
             # Add tags if available
-            tags = item.get('tags', [])
+            tags = item.get("tags", [])
             if tags:
                 knowledge_context += f"   Tags: {', '.join(tags[:5])}\n"
 
             knowledge_context += "\n"
 
         knowledge_context += "=== END KNOWLEDGE BASE ===\n"
-        knowledge_context += "NOTE: You can reference these resources when helping the user.\n"
+        knowledge_context += (
+            "NOTE: You can reference these resources when helping the user.\n"
+        )
         knowledge_context += "If you find mistake_learned entries (⚠️), make sure to warn the user about these known errors!\n"
 
         return knowledge_context
@@ -172,14 +181,13 @@ def get_relevant_knowledge(user_message: str, max_results: int = 5) -> str:
     except Exception as e:
         print(f"[Knowledge Retrieval] Error in get_relevant_knowledge: {e}")
         import traceback
+
         traceback.print_exc()
         return f"[Knowledge Retrieval] Error: {str(e)}\n"
 
 
 def get_relevant_knowledge_enhanced(
-    query: str,
-    max_results: int = 10,
-    use_semantic: bool = False
+    query: str, max_results: int = 10, use_semantic: bool = False
 ) -> List[Dict]:
     """
     Enhanced knowledge retrieval that returns structured results for local answer generation.
@@ -213,23 +221,22 @@ def get_relevant_knowledge_enhanced(
 
         # Current implementation: keyword-only via unified_knowledge_search
         search_results = unified_knowledge_search(
-            query=query,
-            types=None,  # Search ALL types
-            limit=max_results
+            query=query, types=None, limit=max_results  # Search ALL types
         )
 
-        results = search_results.get('results', [])
+        results = search_results.get("results", [])
 
         # Ensure weighted_score is present for all results
         for r in results:
-            if 'weighted_score' not in r:
-                r['weighted_score'] = r.get('importance_score', 0.5)
+            if "weighted_score" not in r:
+                r["weighted_score"] = r.get("importance_score", 0.5)
 
         return results
 
     except Exception as e:
         print(f"[Knowledge Retrieval] Error in get_relevant_knowledge_enhanced: {e}")
         import traceback
+
         traceback.print_exc()
         return []
 
@@ -255,23 +262,32 @@ def check_for_known_mistakes(user_message: str) -> Optional[str]:
         message_lower = user_message.lower()
 
         for mistake in mistakes:
-            title = mistake.get('title', '').lower()
-            content = mistake.get('content', '').lower()
-            category = mistake.get('category', '').lower()
+            title = mistake.get("title", "").lower()
+            content = mistake.get("content", "").lower()
+            category = mistake.get("category", "").lower()
 
             # Simple keyword matching
-            if any(word in message_lower for word in ['error', 'bug', 'problem', 'issue', 'fail']):
+            if any(
+                word in message_lower
+                for word in ["error", "bug", "problem", "issue", "fail"]
+            ):
                 # Check if mistake title/content/category matches query
-                if any(keyword in title or keyword in content or keyword in category
-                       for keyword in extract_keywords(user_message)):
+                if any(
+                    keyword in title or keyword in content or keyword in category
+                    for keyword in extract_keywords(user_message)
+                ):
 
                     # Found a relevant mistake!
                     warning = "\n\n⚠️ === KNOWN MISTAKE WARNING ===\n"
-                    warning += f"I found a documented error related to your question:\n\n"
+                    warning += (
+                        f"I found a documented error related to your question:\n\n"
+                    )
                     warning += f"Title: {mistake['title']}\n"
                     warning += f"Category: {mistake['category']}\n\n"
                     warning += f"{mistake['content'][:500]}...\n\n"
-                    warning += "This mistake has been documented to prevent repetition.\n"
+                    warning += (
+                        "This mistake has been documented to prevent repetition.\n"
+                    )
                     warning += "=== END WARNING ===\n\n"
 
                     return warning
@@ -295,6 +311,7 @@ def get_knowledge_stats() -> Dict:
 
     try:
         from unified_knowledge_search import get_knowledge_stats as get_unified_stats
+
         return get_unified_stats()
     except Exception as e:
         print(f"Error getting knowledge stats: {e}")
@@ -329,13 +346,14 @@ def search_by_type(knowledge_type: str, limit: int = 10) -> List[Dict]:
 # Import UnifiedKnowledgeService
 try:
     from services.unified_knowledge import get_unified_knowledge_service
+
     UNIFIED_SERVICE_AVAILABLE = True
 except ImportError:
     UNIFIED_SERVICE_AVAILABLE = False
     print("[Knowledge Retrieval] UnifiedKnowledgeService not available")
 
 
-def get_agent_context(task_description: str, agent_type: str = 'general') -> Dict:
+def get_agent_context(task_description: str, agent_type: str = "general") -> Dict:
     """
     Get full context for an AI agent before executing a task.
     Uses the UnifiedKnowledgeService for comprehensive context.
@@ -357,10 +375,14 @@ def get_agent_context(task_description: str, agent_type: str = 'general') -> Dic
     if not UNIFIED_SERVICE_AVAILABLE:
         # Fallback to basic knowledge retrieval
         return {
-            'mistakes_to_avoid': [],
-            'relevant_knowledge': get_relevant_knowledge_enhanced(task_description, max_results=5),
-            'similar_past_tasks': [],
-            'suggestions': [{'type': 'info', 'message': 'Using fallback knowledge retrieval'}]
+            "mistakes_to_avoid": [],
+            "relevant_knowledge": get_relevant_knowledge_enhanced(
+                task_description, max_results=5
+            ),
+            "similar_past_tasks": [],
+            "suggestions": [
+                {"type": "info", "message": "Using fallback knowledge retrieval"}
+            ],
         }
 
     try:
@@ -369,17 +391,14 @@ def get_agent_context(task_description: str, agent_type: str = 'general') -> Dic
     except Exception as e:
         print(f"[Knowledge Retrieval] Agent context error: {e}")
         return {
-            'mistakes_to_avoid': [],
-            'relevant_knowledge': [],
-            'similar_past_tasks': [],
-            'suggestions': [{'type': 'error', 'message': str(e)}]
+            "mistakes_to_avoid": [],
+            "relevant_knowledge": [],
+            "similar_past_tasks": [],
+            "suggestions": [{"type": "error", "message": str(e)}],
         }
 
 
-def record_mistake_from_error(
-    error: Exception,
-    context: Dict = None
-) -> Optional[int]:
+def record_mistake_from_error(error: Exception, context: Dict = None) -> Optional[int]:
     """
     Record a mistake to the knowledge base from an exception.
     Part of the Mistake Learning Loop - called when errors occur.
@@ -392,7 +411,9 @@ def record_mistake_from_error(
         Knowledge entry ID or None
     """
     if not UNIFIED_SERVICE_AVAILABLE:
-        print("[Knowledge Retrieval] Cannot record mistake: UnifiedKnowledgeService not available")
+        print(
+            "[Knowledge Retrieval] Cannot record mistake: UnifiedKnowledgeService not available"
+        )
         return None
 
     try:
@@ -403,6 +424,7 @@ def record_mistake_from_error(
 
         # Try to extract solution from traceback
         import traceback
+
         tb = traceback.format_exc()
 
         return service.record_mistake(
@@ -410,7 +432,7 @@ def record_mistake_from_error(
             error_message=error_message,
             solution=f"Error occurred. Traceback:\n{tb[:500]}",
             context=context or {},
-            tags=[error_type.lower(), 'auto-recorded']
+            tags=[error_type.lower(), "auto-recorded"],
         )
 
     except Exception as e:

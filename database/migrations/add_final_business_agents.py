@@ -9,14 +9,16 @@ from psycopg2.extras import RealDictCursor
 import json
 import os
 
+
 def get_db():
     return psycopg2.connect(
-        host=os.getenv('DB_HOST', 'archie_database'),
-        port=os.getenv('DB_PORT', '5432'),
-        database=os.getenv('DB_NAME', 'archie'),
-        user=os.getenv('DB_USER', 'archie'),
-        password=os.getenv('DB_PASSWORD', '')
+        host=os.getenv("DB_HOST", "archie_database"),
+        port=os.getenv("DB_PORT", "5432"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", ""),
     )
+
 
 def create_agent_types():
     """Create new agent types"""
@@ -24,10 +26,26 @@ def create_agent_types():
     cur = conn.cursor()
 
     agent_types = [
-        ('DevOps Engineer', 'engineering', 'CI/CD, deployment automation, infrastructure management, monitoring'),
-        ('Data Privacy Officer', 'compliance', 'Data privacy, GDPR/CCPA compliance, data governance'),
-        ('Customer Success Manager', 'customer_success', 'Customer retention, onboarding, adoption, relationship management'),
-        ('Travel Coordinator', 'administration', 'Travel planning, logistics, client visit coordination')
+        (
+            "DevOps Engineer",
+            "engineering",
+            "CI/CD, deployment automation, infrastructure management, monitoring",
+        ),
+        (
+            "Data Privacy Officer",
+            "compliance",
+            "Data privacy, GDPR/CCPA compliance, data governance",
+        ),
+        (
+            "Customer Success Manager",
+            "customer_success",
+            "Customer retention, onboarding, adoption, relationship management",
+        ),
+        (
+            "Travel Coordinator",
+            "administration",
+            "Travel planning, logistics, client visit coordination",
+        ),
     ]
 
     for name, category, description in agent_types:
@@ -37,33 +55,37 @@ def create_agent_types():
             print(f"  ⚠️  Agent type '{name}' already exists")
             continue
 
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO agent_types (name, category, description, created_at)
             VALUES (%s, %s, %s, NOW())
-        """, (name, category, description))
+        """,
+            (name, category, description),
+        )
         print(f"  ✅ Agent type: {name}")
 
     conn.commit()
     cur.close()
     conn.close()
 
+
 def create_agents():
     """Create the 4 final business agents"""
 
     agents = [
         {
-            'name': 'DevOps Engineer',
-            'type_name': 'DevOps Engineer',
-            'first_name': 'Taylor',
-            'last_name': 'Morgan',
-            'email': 'taylor.morgan@archie.ai',
-            'title': 'Lead DevOps Engineer',
-            'department': 'Engineering',
-            'pronouns': 'they/them',
-            'bio': 'Expert DevOps engineer automating everything from code to production. Master of CI/CD pipelines, infrastructure as code, and system reliability. Former SRE at major tech companies with deep expertise in Docker, Kubernetes, and cloud infrastructure. Passionate about automation and scalability.',
-            'tier': 3,
-            'model': 'claude-sonnet-4-20250514',
-            'system_prompt': '''You are Taylor Morgan, Lead DevOps Engineer at A.R.C.H.I.E. Platform.
+            "name": "DevOps Engineer",
+            "type_name": "DevOps Engineer",
+            "first_name": "Taylor",
+            "last_name": "Morgan",
+            "email": "taylor.morgan@archie.ai",
+            "title": "Lead DevOps Engineer",
+            "department": "Engineering",
+            "pronouns": "they/them",
+            "bio": "Expert DevOps engineer automating everything from code to production. Master of CI/CD pipelines, infrastructure as code, and system reliability. Former SRE at major tech companies with deep expertise in Docker, Kubernetes, and cloud infrastructure. Passionate about automation and scalability.",
+            "tier": 3,
+            "model": "claude-sonnet-4-20250514",
+            "system_prompt": """You are Taylor Morgan, Lead DevOps Engineer at A.R.C.H.I.E. Platform.
 
 Your mission: Automate, deploy, and maintain rock-solid infrastructure.
 
@@ -188,42 +210,49 @@ Your philosophy:
 - Security by default
 - Continuous improvement
 
-You are: The backbone of the platform, ensuring code flows smoothly from development to production, systems stay up, and infrastructure scales effortlessly.''',
-            'capabilities': {
-                'can_manage_deployments': True,
-                'can_manage_infrastructure': True,
-                'can_automate_processes': True,
-                'can_monitor_systems': True,
-                'can_manage_containers': True,
-                'can_handle_incidents': True,
-                'can_optimize_performance': True,
-                'access_production': True,
-                'access_all_environments': True,
-                'specialties': ['cicd', 'docker', 'kubernetes', 'terraform', 'monitoring', 'automation']
+You are: The backbone of the platform, ensuring code flows smoothly from development to production, systems stay up, and infrastructure scales effortlessly.""",
+            "capabilities": {
+                "can_manage_deployments": True,
+                "can_manage_infrastructure": True,
+                "can_automate_processes": True,
+                "can_monitor_systems": True,
+                "can_manage_containers": True,
+                "can_handle_incidents": True,
+                "can_optimize_performance": True,
+                "access_production": True,
+                "access_all_environments": True,
+                "specialties": [
+                    "cicd",
+                    "docker",
+                    "kubernetes",
+                    "terraform",
+                    "monitoring",
+                    "automation",
+                ],
             },
-            'monthly_budget': 55.00,
-            'metadata': {
-                'description': 'CI/CD, deployments, infrastructure as code, monitoring, automation, system reliability',
-                'department': 'Engineering',
-                'reports_to': 'CTO',
-                'coordinates_with': ['Engineering', 'Security', 'Operations'],
-                'access_level': 'infrastructure',
-                'on_call': True
-            }
+            "monthly_budget": 55.00,
+            "metadata": {
+                "description": "CI/CD, deployments, infrastructure as code, monitoring, automation, system reliability",
+                "department": "Engineering",
+                "reports_to": "CTO",
+                "coordinates_with": ["Engineering", "Security", "Operations"],
+                "access_level": "infrastructure",
+                "on_call": True,
+            },
         },
         {
-            'name': 'Data Privacy Officer',
-            'type_name': 'Data Privacy Officer',
-            'first_name': 'Priya',
-            'last_name': 'Patel',
-            'email': 'priya.patel@archie.ai',
-            'title': 'Chief Privacy Officer',
-            'department': 'Compliance',
-            'pronouns': 'she/her',
-            'bio': 'Dedicated privacy expert ensuring data protection and regulatory compliance. Specializes in GDPR, CCPA, and global privacy regulations. Expert in data governance, privacy by design, and user rights. Former privacy counsel with certifications in data protection. Passionate advocate for user privacy rights.',
-            'tier': 3,
-            'model': 'claude-opus-4-20250514',
-            'system_prompt': '''You are Priya Patel, Chief Privacy Officer at A.R.C.H.I.E. Platform.
+            "name": "Data Privacy Officer",
+            "type_name": "Data Privacy Officer",
+            "first_name": "Priya",
+            "last_name": "Patel",
+            "email": "priya.patel@archie.ai",
+            "title": "Chief Privacy Officer",
+            "department": "Compliance",
+            "pronouns": "she/her",
+            "bio": "Dedicated privacy expert ensuring data protection and regulatory compliance. Specializes in GDPR, CCPA, and global privacy regulations. Expert in data governance, privacy by design, and user rights. Former privacy counsel with certifications in data protection. Passionate advocate for user privacy rights.",
+            "tier": 3,
+            "model": "claude-opus-4-20250514",
+            "system_prompt": """You are Priya Patel, Chief Privacy Officer at A.R.C.H.I.E. Platform.
 
 Your mission: Protect user privacy and ensure compliance with global data protection regulations.
 
@@ -356,40 +385,46 @@ Your philosophy:
 - Respect user control over their data
 - Proactive > reactive
 
-You are: The guardian of user privacy, ensuring A.R.C.H.I.E. Platform respects and protects personal data while meeting all regulatory requirements.''',
-            'capabilities': {
-                'can_assess_privacy_compliance': True,
-                'can_manage_user_rights': True,
-                'can_conduct_privacy_assessments': True,
-                'can_respond_to_data_breaches': True,
-                'can_develop_privacy_policies': True,
-                'can_train_on_privacy': True,
-                'can_assess_vendors': True,
-                'access_all_data_processing': True,
-                'specialties': ['gdpr', 'ccpa', 'data_governance', 'privacy_by_design', 'user_rights']
+You are: The guardian of user privacy, ensuring A.R.C.H.I.E. Platform respects and protects personal data while meeting all regulatory requirements.""",
+            "capabilities": {
+                "can_assess_privacy_compliance": True,
+                "can_manage_user_rights": True,
+                "can_conduct_privacy_assessments": True,
+                "can_respond_to_data_breaches": True,
+                "can_develop_privacy_policies": True,
+                "can_train_on_privacy": True,
+                "can_assess_vendors": True,
+                "access_all_data_processing": True,
+                "specialties": [
+                    "gdpr",
+                    "ccpa",
+                    "data_governance",
+                    "privacy_by_design",
+                    "user_rights",
+                ],
             },
-            'monthly_budget': 50.00,
-            'metadata': {
-                'description': 'Data privacy, GDPR/CCPA compliance, user rights, privacy by design, data governance',
-                'department': 'Compliance',
-                'reports_to': 'Legal',
-                'coordinates_with': ['Legal', 'Security', 'Engineering', 'Product'],
-                'access_level': 'executive'
-            }
+            "monthly_budget": 50.00,
+            "metadata": {
+                "description": "Data privacy, GDPR/CCPA compliance, user rights, privacy by design, data governance",
+                "department": "Compliance",
+                "reports_to": "Legal",
+                "coordinates_with": ["Legal", "Security", "Engineering", "Product"],
+                "access_level": "executive",
+            },
         },
         {
-            'name': 'Customer Success Manager',
-            'type_name': 'Customer Success Manager',
-            'first_name': 'Zara',
-            'last_name': 'Williams',
-            'email': 'zara.williams@archie.ai',
-            'title': 'Head of Customer Success',
-            'department': 'Customer Success',
-            'pronouns': 'she/her',
-            'bio': 'Passionate customer success leader dedicated to customer growth and retention. Expert at onboarding, adoption, and relationship management. Former customer success executive at SaaS companies with proven track record of reducing churn and driving expansion. Believes happy customers are the best marketing.',
-            'tier': 2,
-            'model': 'claude-sonnet-4-20250514',
-            'system_prompt': '''You are Maya Johnson, Head of Customer Success at A.R.C.H.I.E. Platform.
+            "name": "Customer Success Manager",
+            "type_name": "Customer Success Manager",
+            "first_name": "Zara",
+            "last_name": "Williams",
+            "email": "zara.williams@archie.ai",
+            "title": "Head of Customer Success",
+            "department": "Customer Success",
+            "pronouns": "she/her",
+            "bio": "Passionate customer success leader dedicated to customer growth and retention. Expert at onboarding, adoption, and relationship management. Former customer success executive at SaaS companies with proven track record of reducing churn and driving expansion. Believes happy customers are the best marketing.",
+            "tier": 2,
+            "model": "claude-sonnet-4-20250514",
+            "system_prompt": """You are Maya Johnson, Head of Customer Success at A.R.C.H.I.E. Platform.
 
 Your mission: Ensure every customer achieves their desired outcomes and finds maximum value in A.R.C.H.I.E. Platform.
 
@@ -547,39 +582,45 @@ Your Philosophy:
 - Listen, understand, deliver value
 - Long-term relationships over short-term wins
 
-You are: The customer champion, ensuring every customer achieves their goals, finds value, and becomes a raving fan of A.R.C.H.I.E. Platform.''',
-            'capabilities': {
-                'can_manage_customers': True,
-                'can_monitor_health': True,
-                'can_conduct_onboarding': True,
-                'can_prevent_churn': True,
-                'can_identify_expansion': True,
-                'can_collect_feedback': True,
-                'can_create_case_studies': True,
-                'access_customer_data': True,
-                'specialties': ['customer_onboarding', 'retention', 'expansion', 'relationship_management', 'success_planning']
+You are: The customer champion, ensuring every customer achieves their goals, finds value, and becomes a raving fan of A.R.C.H.I.E. Platform.""",
+            "capabilities": {
+                "can_manage_customers": True,
+                "can_monitor_health": True,
+                "can_conduct_onboarding": True,
+                "can_prevent_churn": True,
+                "can_identify_expansion": True,
+                "can_collect_feedback": True,
+                "can_create_case_studies": True,
+                "access_customer_data": True,
+                "specialties": [
+                    "customer_onboarding",
+                    "retention",
+                    "expansion",
+                    "relationship_management",
+                    "success_planning",
+                ],
             },
-            'monthly_budget': 40.00,
-            'metadata': {
-                'description': 'Customer retention, onboarding, adoption, relationship management, expansion',
-                'department': 'Customer Success',
-                'reports_to': 'Operations Lead',
-                'coordinates_with': ['Sales', 'Support', 'Product', 'Marketing']
-            }
+            "monthly_budget": 40.00,
+            "metadata": {
+                "description": "Customer retention, onboarding, adoption, relationship management, expansion",
+                "department": "Customer Success",
+                "reports_to": "Operations Lead",
+                "coordinates_with": ["Sales", "Support", "Product", "Marketing"],
+            },
         },
         {
-            'name': 'Travel Coordinator',
-            'type_name': 'Travel Coordinator',
-            'first_name': 'Cameron',
-            'last_name': 'Lee',
-            'email': 'cameron.lee@archie.ai',
-            'title': 'Corporate Travel Manager',
-            'department': 'Administration',
-            'pronouns': 'they/them',
-            'bio': 'Expert travel coordinator specializing in business travel and client visit logistics. Master of planning seamless trips, finding best routes and accommodations, and handling travel emergencies. Former travel agency manager with insider knowledge of loyalty programs, travel hacks, and global logistics. Makes business travel effortless.',
-            'tier': 2,
-            'model': 'claude-sonnet-4-20250514',
-            'system_prompt': '''You are Cameron Lee, Corporate Travel Manager at A.R.C.H.I.E. Platform.
+            "name": "Travel Coordinator",
+            "type_name": "Travel Coordinator",
+            "first_name": "Cameron",
+            "last_name": "Lee",
+            "email": "cameron.lee@archie.ai",
+            "title": "Corporate Travel Manager",
+            "department": "Administration",
+            "pronouns": "they/them",
+            "bio": "Expert travel coordinator specializing in business travel and client visit logistics. Master of planning seamless trips, finding best routes and accommodations, and handling travel emergencies. Former travel agency manager with insider knowledge of loyalty programs, travel hacks, and global logistics. Makes business travel effortless.",
+            "tier": 2,
+            "model": "claude-sonnet-4-20250514",
+            "system_prompt": """You are Cameron Lee, Corporate Travel Manager at A.R.C.H.I.E. Platform.
 
 Your mission: Plan and coordinate seamless business travel and client visits.
 
@@ -753,26 +794,37 @@ Your Philosophy:
 - Details matter (timing, location, preferences)
 - Build relationships with travel vendors
 
-You are: The travel wizard making business trips and client visits seamless, stress-free, and cost-effective.''',
-            'capabilities': {
-                'can_book_travel': True,
-                'can_coordinate_client_visits': True,
-                'can_manage_logistics': True,
-                'can_handle_travel_emergencies': True,
-                'can_optimize_costs': True,
-                'can_manage_itineraries': True,
-                'can_coordinate_with_clients': True,
-                'access_travel_systems': True,
-                'specialties': ['business_travel', 'client_visits', 'logistics', 'travel_optimization', 'emergency_support']
+You are: The travel wizard making business trips and client visits seamless, stress-free, and cost-effective.""",
+            "capabilities": {
+                "can_book_travel": True,
+                "can_coordinate_client_visits": True,
+                "can_manage_logistics": True,
+                "can_handle_travel_emergencies": True,
+                "can_optimize_costs": True,
+                "can_manage_itineraries": True,
+                "can_coordinate_with_clients": True,
+                "access_travel_systems": True,
+                "specialties": [
+                    "business_travel",
+                    "client_visits",
+                    "logistics",
+                    "travel_optimization",
+                    "emergency_support",
+                ],
             },
-            'monthly_budget': 35.00,
-            'metadata': {
-                'description': 'Business travel planning, client visit coordination, logistics, travel optimization',
-                'department': 'Administration',
-                'reports_to': 'Executive Assistant',
-                'coordinates_with': ['Executive Assistant', 'Sales', 'Finance', 'All Teams']
-            }
-        }
+            "monthly_budget": 35.00,
+            "metadata": {
+                "description": "Business travel planning, client visit coordination, logistics, travel optimization",
+                "department": "Administration",
+                "reports_to": "Executive Assistant",
+                "coordinates_with": [
+                    "Executive Assistant",
+                    "Sales",
+                    "Finance",
+                    "All Teams",
+                ],
+            },
+        },
     ]
 
     conn = get_db()
@@ -783,7 +835,7 @@ You are: The travel wizard making business trips and client visits seamless, str
         # Get type_id
         cur.execute(
             "SELECT id FROM agent_types WHERE name = %s LIMIT 1",
-            (agent_def['type_name'],)
+            (agent_def["type_name"],),
         )
         type_result = cur.fetchone()
 
@@ -791,17 +843,18 @@ You are: The travel wizard making business trips and client visits seamless, str
             print(f"  ❌ Agent type '{agent_def['type_name']}' not found")
             continue
 
-        type_id = type_result['id']
+        type_id = type_result["id"]
 
         # Check if exists
-        cur.execute("SELECT id FROM agents WHERE name = %s", (agent_def['name'],))
+        cur.execute("SELECT id FROM agents WHERE name = %s", (agent_def["name"],))
         if cur.fetchone():
             print(f"  ⚠️  {agent_def['name']} already exists")
             continue
 
         # Insert agent
         try:
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO agents (
                     name, type_id, tier, status, model, system_prompt,
                     capabilities, monthly_budget, budget_alert_threshold,
@@ -813,25 +866,29 @@ You are: The travel wizard making business trips and client visits seamless, str
                     %s, %s, %s, %s, %s,
                     %s, %s, %s
                 )
-            """, (
-                agent_def['name'],
-                type_id,
-                agent_def['tier'],
-                agent_def['model'],
-                agent_def['system_prompt'],
-                json.dumps(agent_def['capabilities']),
-                agent_def['monthly_budget'],
-                json.dumps(agent_def['metadata']),
-                agent_def['first_name'],
-                agent_def['last_name'],
-                agent_def['email'],
-                agent_def['title'],
-                agent_def['department'],
-                agent_def['bio'],
-                agent_def['pronouns']
-            ))
+            """,
+                (
+                    agent_def["name"],
+                    type_id,
+                    agent_def["tier"],
+                    agent_def["model"],
+                    agent_def["system_prompt"],
+                    json.dumps(agent_def["capabilities"]),
+                    agent_def["monthly_budget"],
+                    json.dumps(agent_def["metadata"]),
+                    agent_def["first_name"],
+                    agent_def["last_name"],
+                    agent_def["email"],
+                    agent_def["title"],
+                    agent_def["department"],
+                    agent_def["bio"],
+                    agent_def["pronouns"],
+                ),
+            )
 
-            print(f"  ✅ {agent_def['first_name']} {agent_def['last_name']} ({agent_def['pronouns']}) - {agent_def['title']}")
+            print(
+                f"  ✅ {agent_def['first_name']} {agent_def['last_name']} ({agent_def['pronouns']}) - {agent_def['title']}"
+            )
             created += 1
 
         except Exception as e:
@@ -842,6 +899,7 @@ You are: The travel wizard making business trips and client visits seamless, str
     conn.close()
 
     return created
+
 
 def main():
     print("=" * 70)
@@ -879,5 +937,6 @@ def main():
     print()
     print("=" * 70)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

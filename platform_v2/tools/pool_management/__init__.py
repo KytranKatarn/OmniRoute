@@ -12,6 +12,6 @@ Full management interface for Archie Pool:
 
 from flask import Blueprint
 
-pool_management_bp = Blueprint('pool_management', __name__, url_prefix='/tools/pool-management')
+pool_management_bp = Blueprint("pool_management", __name__, url_prefix="/tools/pool-management")
 
 from . import routes

@@ -95,7 +95,13 @@ class SonarrClient(ArrServiceInterface, CalendarServiceInterface):
         end_date = (start + timedelta(days=days)).strftime("%Y-%m-%d")
 
         result = self._request(
-            "/calendar", {"start": start_date_str, "end": end_date, "includeSeries": True, "includeEpisodeFile": True}
+            "/calendar",
+            {
+                "start": start_date_str,
+                "end": end_date,
+                "includeSeries": True,
+                "includeEpisodeFile": True,
+            },
         )
 
         episodes = []
@@ -137,7 +143,12 @@ class SonarrClient(ArrServiceInterface, CalendarServiceInterface):
         """Get missing episodes"""
         result = self._request(
             "/wanted/missing",
-            {"pageSize": limit, "sortKey": "airDateUtc", "sortDirection": "descending", "includeSeries": True},
+            {
+                "pageSize": limit,
+                "sortKey": "airDateUtc",
+                "sortDirection": "descending",
+                "includeSeries": True,
+            },
         )
         if result and "records" in result:
             return result["records"]

@@ -23,6 +23,7 @@ from typing import Dict, List, Optional, NamedTuple, Tuple
 
 class FuzzyMatch(NamedTuple):
     """A fuzzy match result"""
+
     content: str
     similarity: float
     line_start: int
@@ -32,6 +33,7 @@ class FuzzyMatch(NamedTuple):
 
 class MatchResult(NamedTuple):
     """Result of content matching"""
+
     match_found: bool
     match_type: Optional[str]  # 'exact', 'normalized', 'fuzzy'
     location: Optional[Tuple[int, int]]  # (start_line, end_line)
@@ -57,11 +59,11 @@ class ContentMatcher:
         """
         self.fuzzy_threshold = fuzzy_threshold
         self.match_stats = {
-            'total_checks': 0,
-            'exact_matches': 0,
-            'normalized_matches': 0,
-            'fuzzy_suggestions': 0,
-            'no_matches': 0
+            "total_checks": 0,
+            "exact_matches": 0,
+            "normalized_matches": 0,
+            "fuzzy_suggestions": 0,
+            "no_matches": 0,
         }
 
     def verify_old_content(
@@ -69,7 +71,7 @@ class ContentMatcher:
         file_path: str,
         old_content: str,
         allow_normalized: bool = True,
-        allow_fuzzy: bool = True
+        allow_fuzzy: bool = True,
     ) -> MatchResult:
         """
         Check if old_content exists in the target file.
@@ -83,7 +85,7 @@ class ContentMatcher:
         Returns:
             MatchResult with match status and details
         """
-        self.match_stats['total_checks'] += 1
+        self.match_stats["total_checks"] += 1
 
         # Validate inputs
         if not old_content or not old_content.strip():
@@ -93,7 +95,7 @@ class ContentMatcher:
                 location=None,
                 matched_content=None,
                 suggestions=[],
-                error="old_content is empty or whitespace-only"
+                error="old_content is empty or whitespace-only",
             )
 
         # Read file content
@@ -106,7 +108,7 @@ class ContentMatcher:
                 location=None,
                 matched_content=None,
                 suggestions=[],
-                error=f"File not found: {file_path}"
+                error=f"File not found: {file_path}",
             )
         except Exception as e:
             return MatchResult(
@@ -115,34 +117,34 @@ class ContentMatcher:
                 location=None,
                 matched_content=None,
                 suggestions=[],
-                error=f"Error reading file: {str(e)}"
+                error=f"Error reading file: {str(e)}",
             )
 
         # Step 1: Exact match
         if old_content in file_content:
-            self.match_stats['exact_matches'] += 1
+            self.match_stats["exact_matches"] += 1
             location = self._find_location(file_content, old_content)
             return MatchResult(
                 match_found=True,
-                match_type='exact',
+                match_type="exact",
                 location=location,
                 matched_content=old_content,
                 suggestions=[],
-                error=None
+                error=None,
             )
 
         # Step 2: Whitespace-normalized match
         if allow_normalized:
             normalized_result = self._try_normalized_match(file_content, old_content)
-            if normalized_result['found']:
-                self.match_stats['normalized_matches'] += 1
+            if normalized_result["found"]:
+                self.match_stats["normalized_matches"] += 1
                 return MatchResult(
                     match_found=True,
-                    match_type='normalized',
-                    location=normalized_result['location'],
-                    matched_content=normalized_result['matched_content'],
+                    match_type="normalized",
+                    location=normalized_result["location"],
+                    matched_content=normalized_result["matched_content"],
                     suggestions=["Matched after whitespace normalization"],
-                    error=None
+                    error=None,
                 )
 
         # Step 3: Fuzzy match suggestions
@@ -150,7 +152,7 @@ class ContentMatcher:
         if allow_fuzzy:
             fuzzy_matches = self._find_fuzzy_matches(file_content, old_content)
             if fuzzy_matches:
-                self.match_stats['fuzzy_suggestions'] += 1
+                self.match_stats["fuzzy_suggestions"] += 1
                 for match in fuzzy_matches[:3]:  # Top 3 suggestions
                     suggestions.append(
                         f"Similar content at lines {match.line_start}-{match.line_end} "
@@ -158,14 +160,14 @@ class ContentMatcher:
                     )
 
         # No match found
-        self.match_stats['no_matches'] += 1
+        self.match_stats["no_matches"] += 1
         return MatchResult(
             match_found=False,
             match_type=None,
             location=None,
             matched_content=None,
             suggestions=suggestions,
-            error="old_content not found in file"
+            error="old_content not found in file",
         )
 
     def _read_file(self, file_path: str) -> str:
@@ -173,25 +175,26 @@ class ContentMatcher:
         # Try multiple possible paths (Docker vs host)
         possible_paths = [file_path]
 
-        if file_path.startswith('platform_v2/'):
-            rel_path = file_path[len('platform_v2/'):]
-            possible_paths.extend([
-                f'/app/{rel_path}',
-                f'/mnt/archie_brain/platform_v2/{rel_path}'
-            ])
-        elif file_path.startswith('ai_bridge/'):
-            rel_path = file_path[len('ai_bridge/'):]
-            possible_paths.append(f'/mnt/archie_brain/ai_bridge/{rel_path}')
-        elif not file_path.startswith('/'):
-            possible_paths.extend([
-                f'/app/{file_path}',
-                f'/mnt/archie_brain/platform_v2/{file_path}',
-                f'/mnt/archie_brain/{file_path}'
-            ])
+        if file_path.startswith("platform_v2/"):
+            rel_path = file_path[len("platform_v2/") :]
+            possible_paths.extend(
+                [f"/app/{rel_path}", f"/mnt/archie_brain/platform_v2/{rel_path}"]
+            )
+        elif file_path.startswith("ai_bridge/"):
+            rel_path = file_path[len("ai_bridge/") :]
+            possible_paths.append(f"/mnt/archie_brain/ai_bridge/{rel_path}")
+        elif not file_path.startswith("/"):
+            possible_paths.extend(
+                [
+                    f"/app/{file_path}",
+                    f"/mnt/archie_brain/platform_v2/{file_path}",
+                    f"/mnt/archie_brain/{file_path}",
+                ]
+            )
 
         for path in possible_paths:
             if os.path.exists(path):
-                with open(path, 'r', encoding='utf-8') as f:
+                with open(path, "r", encoding="utf-8") as f:
                     return f.read()
 
         raise FileNotFoundError(f"File not found at any of: {possible_paths}")
@@ -200,15 +203,11 @@ class ContentMatcher:
         """Find the line numbers where target appears in file_content"""
         index = file_content.index(target)
         before = file_content[:index]
-        start_line = before.count('\n') + 1
-        end_line = start_line + target.count('\n')
+        start_line = before.count("\n") + 1
+        end_line = start_line + target.count("\n")
         return (start_line, end_line)
 
-    def _try_normalized_match(
-        self,
-        file_content: str,
-        old_content: str
-    ) -> Dict:
+    def _try_normalized_match(self, file_content: str, old_content: str) -> Dict:
         """
         Try to match with whitespace normalization.
 
@@ -229,36 +228,33 @@ class ContentMatcher:
             if actual_content:
                 location = self._find_location(file_content, actual_content)
                 return {
-                    'found': True,
-                    'location': location,
-                    'matched_content': actual_content
+                    "found": True,
+                    "location": location,
+                    "matched_content": actual_content,
                 }
 
-        return {'found': False}
+        return {"found": False}
 
     def _normalize_whitespace(self, content: str) -> str:
         """Normalize whitespace for comparison"""
-        lines = content.split('\n')
+        lines = content.split("\n")
         normalized_lines = []
 
         for line in lines:
             # Convert tabs to 4 spaces
-            line = line.replace('\t', '    ')
+            line = line.replace("\t", "    ")
             # Strip trailing whitespace
             line = line.rstrip()
             normalized_lines.append(line)
 
         # Join and collapse multiple blank lines
-        result = '\n'.join(normalized_lines)
-        result = re.sub(r'\n{3,}', '\n\n', result)
+        result = "\n".join(normalized_lines)
+        result = re.sub(r"\n{3,}", "\n\n", result)
 
         return result
 
     def _find_original_content(
-        self,
-        original_file: str,
-        normalized_file: str,
-        normalized_target: str
+        self, original_file: str, normalized_file: str, normalized_target: str
     ) -> Optional[str]:
         """
         Find the original (non-normalized) content that matches the normalized target.
@@ -272,22 +268,19 @@ class ContentMatcher:
 
         # Count newlines to find approximate position
         norm_before = normalized_file[:norm_index]
-        start_line = norm_before.count('\n')
+        start_line = norm_before.count("\n")
 
-        norm_in_target = normalized_target.count('\n')
+        norm_in_target = normalized_target.count("\n")
         end_line = start_line + norm_in_target
 
         # Extract original lines
-        original_lines = original_file.split('\n')
-        target_lines = original_lines[start_line:end_line + 1]
+        original_lines = original_file.split("\n")
+        target_lines = original_lines[start_line : end_line + 1]
 
-        return '\n'.join(target_lines)
+        return "\n".join(target_lines)
 
     def _find_fuzzy_matches(
-        self,
-        file_content: str,
-        target: str,
-        max_results: int = 5
+        self, file_content: str, target: str, max_results: int = 5
     ) -> List[FuzzyMatch]:
         """
         Find content in file that is similar to target.
@@ -295,31 +288,31 @@ class ContentMatcher:
         Uses difflib.SequenceMatcher for similarity scoring.
         """
         matches = []
-        file_lines = file_content.split('\n')
-        target_lines = target.split('\n')
+        file_lines = file_content.split("\n")
+        target_lines = target.split("\n")
         target_line_count = len(target_lines)
 
         # Slide window through file
         for i in range(len(file_lines) - target_line_count + 1):
-            window = '\n'.join(file_lines[i:i + target_line_count])
+            window = "\n".join(file_lines[i : i + target_line_count])
 
             # Calculate similarity
-            similarity = difflib.SequenceMatcher(
-                None, target, window
-            ).ratio()
+            similarity = difflib.SequenceMatcher(None, target, window).ratio()
 
             if similarity >= self.fuzzy_threshold:
-                preview = window[:50].replace('\n', ' ').strip()
+                preview = window[:50].replace("\n", " ").strip()
                 if len(window) > 50:
-                    preview += '...'
+                    preview += "..."
 
-                matches.append(FuzzyMatch(
-                    content=window,
-                    similarity=similarity,
-                    line_start=i + 1,
-                    line_end=i + target_line_count,
-                    preview=preview
-                ))
+                matches.append(
+                    FuzzyMatch(
+                        content=window,
+                        similarity=similarity,
+                        line_start=i + 1,
+                        line_end=i + target_line_count,
+                        preview=preview,
+                    )
+                )
 
         # Sort by similarity descending
         matches.sort(key=lambda m: m.similarity, reverse=True)
@@ -335,12 +328,10 @@ class ContentMatcher:
         before saving to plan_steps.
         """
         result = self.verify_old_content(
-            file_path, old_content,
-            allow_normalized=True,
-            allow_fuzzy=False
+            file_path, old_content, allow_normalized=True, allow_fuzzy=False
         )
 
-        if result.match_found and result.match_type == 'normalized':
+        if result.match_found and result.match_type == "normalized":
             return result.matched_content
 
         return None
@@ -373,7 +364,7 @@ def find_matching_content(file_path: str, old_content: str) -> Optional[str]:
     return None
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Test the content matcher
     matcher = ContentMatcher()
 
@@ -392,8 +383,8 @@ def goodbye():
     return False
 """
 
-    test_file = '/tmp/test_content_matcher.py'
-    with open(test_file, 'w') as f:
+    test_file = "/tmp/test_content_matcher.py"
+    with open(test_file, "w") as f:
         f.write(test_content)
 
     # Test exact match
@@ -406,21 +397,25 @@ def goodbye():
 
     # Test normalized match (with trailing whitespace)
     print("\n2. Testing normalized match:")
-    normalized_target = 'def hello():  \n    print("Hello, World!")  \n    return True  '
+    normalized_target = (
+        'def hello():  \n    print("Hello, World!")  \n    return True  '
+    )
     result = matcher.verify_old_content(test_file, normalized_target)
     print(f"   Match found: {result.match_found}")
     print(f"   Match type: {result.match_type}")
 
     # Test fuzzy match
     print("\n3. Testing fuzzy match:")
-    fuzzy_target = 'def hello():\n    print("Hello World")\n    return True'  # Missing comma
+    fuzzy_target = (
+        'def hello():\n    print("Hello World")\n    return True'  # Missing comma
+    )
     result = matcher.verify_old_content(test_file, fuzzy_target)
     print(f"   Match found: {result.match_found}")
     print(f"   Suggestions: {result.suggestions}")
 
     # Test no match
     print("\n4. Testing no match:")
-    no_match_target = 'def nonexistent():\n    pass'
+    no_match_target = "def nonexistent():\n    pass"
     result = matcher.verify_old_content(test_file, no_match_target)
     print(f"   Match found: {result.match_found}")
     print(f"   Error: {result.error}")

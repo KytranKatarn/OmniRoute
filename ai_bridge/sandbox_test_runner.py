@@ -17,8 +17,8 @@ from typing import Dict, List, Optional, Tuple
 
 # Add paths for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, '/app')
-sys.path.insert(0, '/mnt/archie_brain/platform_v2')
+sys.path.insert(0, "/app")
+sys.path.insert(0, "/mnt/archie_brain/platform_v2")
 
 try:
     from database import get_db
@@ -28,12 +28,13 @@ except ImportError:
     except ImportError:
         # Fallback: direct database connection
         import psycopg2
+
         def get_db():
             return psycopg2.connect(
-                host=os.getenv('DB_HOST', 'archie_database'),
-                database=os.getenv('DB_NAME', 'archie'),
-                user=os.getenv('DB_USER', 'archie'),
-                password=os.getenv('DB_PASSWORD', 'archie')
+                host=os.getenv("DB_HOST", "archie_database"),
+                database=os.getenv("DB_NAME", "archie"),
+                user=os.getenv("DB_USER", "archie"),
+                password=os.getenv("DB_PASSWORD", "archie"),
             )
 
 
@@ -80,14 +81,14 @@ class SandboxTestRunner:
 
             return [
                 {
-                    'id': s[0],
-                    'name': s[1],
-                    'description': s[2],
-                    'test_type': s[3],
-                    'test_command': s[4],
-                    'timeout_seconds': s[5],
-                    'required': s[6],
-                    'enabled': s[7]
+                    "id": s[0],
+                    "name": s[1],
+                    "description": s[2],
+                    "test_type": s[3],
+                    "test_command": s[4],
+                    "timeout_seconds": s[5],
+                    "required": s[6],
+                    "enabled": s[7],
                 }
                 for s in suites
             ]
@@ -95,6 +96,7 @@ class SandboxTestRunner:
         except Exception as e:
             print(f"Error getting test suites: {e}")
             import traceback
+
             traceback.print_exc()
             return []
 
@@ -103,7 +105,7 @@ class SandboxTestRunner:
         sandbox_id: int,
         proposal_id: int,
         test_suite: Dict,
-        sandbox_type: str = 'schema_separation'
+        sandbox_type: str = "schema_separation",
     ) -> Dict:
         """
         Run a single test suite
@@ -118,9 +120,9 @@ class SandboxTestRunner:
             Dictionary with test results
         """
         try:
-            test_name = test_suite['name']
-            test_command = test_suite['test_command']
-            timeout = test_suite['timeout_seconds']
+            test_name = test_suite["name"]
+            test_command = test_suite["test_command"]
+            timeout = test_suite["timeout_seconds"]
 
             print(f"🧪 Running test suite: {test_name}")
             print(f"   Command: {test_command}")
@@ -128,14 +130,14 @@ class SandboxTestRunner:
             start_time = time.time()
 
             # Determine execution environment
-            if sandbox_type == 'docker_container':
+            if sandbox_type == "docker_container":
                 # Run in Docker sandbox container
                 full_command = f"docker exec archie_sandbox {test_command}"
             else:
                 # Run in current environment (schema separation mode)
                 # Set environment variable to use sandbox schema
                 env = os.environ.copy()
-                env['DB_SCHEMA'] = 'sandbox'
+                env["DB_SCHEMA"] = "sandbox"
                 full_command = test_command
 
             # Execute test command
@@ -146,72 +148,77 @@ class SandboxTestRunner:
                     capture_output=True,
                     text=True,
                     timeout=timeout,
-                    cwd=self.base_path
+                    cwd=self.base_path,
                 )
 
                 duration_ms = int((time.time() - start_time) * 1000)
 
                 # Determine status from exit code
                 if result.returncode == 0:
-                    status = 'passed'
+                    status = "passed"
                     error_message = None
                     stack_trace = None
                 else:
-                    status = 'failed'
-                    error_message = result.stderr[:500] if result.stderr else 'Test failed with non-zero exit code'
+                    status = "failed"
+                    error_message = (
+                        result.stderr[:500]
+                        if result.stderr
+                        else "Test failed with non-zero exit code"
+                    )
                     stack_trace = result.stderr if result.stderr else None
 
-                output = result.stdout[:1000] if result.stdout else ''
+                output = result.stdout[:1000] if result.stdout else ""
 
             except subprocess.TimeoutExpired:
                 duration_ms = timeout * 1000
-                status = 'error'
-                error_message = f'Test timed out after {timeout} seconds'
+                status = "error"
+                error_message = f"Test timed out after {timeout} seconds"
                 stack_trace = None
-                output = ''
+                output = ""
 
             except Exception as e:
                 duration_ms = int((time.time() - start_time) * 1000)
-                status = 'error'
+                status = "error"
                 error_message = str(e)
                 stack_trace = None
-                output = ''
+                output = ""
 
             # Record result in database
             self._save_test_result(
                 sandbox_id=sandbox_id,
-                test_suite_id=test_suite['id'],
+                test_suite_id=test_suite["id"],
                 proposal_id=proposal_id,
                 test_name=test_name,
                 status=status,
                 duration_ms=duration_ms,
                 error_message=error_message,
                 stack_trace=stack_trace,
-                output=output
+                output=output,
             )
 
             print(f"   Result: {status.upper()} ({duration_ms}ms)")
 
             return {
-                'test_suite_id': test_suite['id'],
-                'test_name': test_name,
-                'status': status,
-                'duration_ms': duration_ms,
-                'error_message': error_message,
-                'required': test_suite['required']
+                "test_suite_id": test_suite["id"],
+                "test_name": test_name,
+                "status": status,
+                "duration_ms": duration_ms,
+                "error_message": error_message,
+                "required": test_suite["required"],
             }
 
         except Exception as e:
             print(f"Error running test suite {test_suite['name']}: {e}")
             import traceback
+
             traceback.print_exc()
             return {
-                'test_suite_id': test_suite['id'],
-                'test_name': test_suite['name'],
-                'status': 'error',
-                'duration_ms': 0,
-                'error_message': str(e),
-                'required': test_suite['required']
+                "test_suite_id": test_suite["id"],
+                "test_name": test_suite["name"],
+                "status": "error",
+                "duration_ms": 0,
+                "error_message": str(e),
+                "required": test_suite["required"],
             }
 
     def _save_test_result(
@@ -224,14 +231,15 @@ class SandboxTestRunner:
         duration_ms: int,
         error_message: Optional[str],
         stack_trace: Optional[str],
-        output: Optional[str]
+        output: Optional[str],
     ) -> bool:
         """Save test result to database"""
         try:
             conn = get_db()
             cur = conn.cursor()
 
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO sandbox_test_results (
                     sandbox_id,
                     test_suite_id,
@@ -243,17 +251,19 @@ class SandboxTestRunner:
                     stack_trace,
                     output
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, (
-                sandbox_id,
-                test_suite_id,
-                proposal_id,
-                test_name,
-                status,
-                duration_ms,
-                error_message,
-                stack_trace,
-                output
-            ))
+            """,
+                (
+                    sandbox_id,
+                    test_suite_id,
+                    proposal_id,
+                    test_name,
+                    status,
+                    duration_ms,
+                    error_message,
+                    stack_trace,
+                    output,
+                ),
+            )
 
             conn.commit()
             cur.close()
@@ -264,6 +274,7 @@ class SandboxTestRunner:
         except Exception as e:
             print(f"Error saving test result: {e}")
             import traceback
+
             traceback.print_exc()
             return False
 
@@ -271,8 +282,8 @@ class SandboxTestRunner:
         self,
         sandbox_id: int,
         proposal_id: int,
-        sandbox_type: str = 'schema_separation',
-        required_only: bool = False
+        sandbox_type: str = "schema_separation",
+        required_only: bool = False,
     ) -> Dict:
         """
         Run all enabled test suites
@@ -293,17 +304,14 @@ class SandboxTestRunner:
             print(f"{'='*80}\n")
 
             # Update proposal test status to 'running'
-            self._update_proposal_test_status(proposal_id, 'running')
+            self._update_proposal_test_status(proposal_id, "running")
 
             # Get test suites
             test_suites = self.get_test_suites(required_only=required_only)
 
             if not test_suites:
                 print("⚠️  No test suites found")
-                return {
-                    'success': False,
-                    'error': 'No test suites configured'
-                }
+                return {"success": False, "error": "No test suites configured"}
 
             start_time = time.time()
             results = []
@@ -314,7 +322,7 @@ class SandboxTestRunner:
                     sandbox_id=sandbox_id,
                     proposal_id=proposal_id,
                     test_suite=suite,
-                    sandbox_type=sandbox_type
+                    sandbox_type=sandbox_type,
                 )
                 results.append(result)
 
@@ -322,43 +330,42 @@ class SandboxTestRunner:
 
             # Calculate summary
             total_tests = len(results)
-            passed = sum(1 for r in results if r['status'] == 'passed')
-            failed = sum(1 for r in results if r['status'] == 'failed')
-            errors = sum(1 for r in results if r['status'] == 'error')
+            passed = sum(1 for r in results if r["status"] == "passed")
+            failed = sum(1 for r in results if r["status"] == "failed")
+            errors = sum(1 for r in results if r["status"] == "error")
 
             # Check if required tests passed
             required_passed = all(
-                r['status'] == 'passed'
-                for r in results
-                if r.get('required', False)
+                r["status"] == "passed" for r in results if r.get("required", False)
             )
 
             # Only fail overall if REQUIRED tests failed
             # Non-required test failures are warnings, not blockers
             required_failed = sum(
-                1 for r in results
-                if r.get('required', False) and r['status'] != 'passed'
+                1
+                for r in results
+                if r.get("required", False) and r["status"] != "passed"
             )
 
-            overall_status = 'passed' if required_failed == 0 else 'failed'
+            overall_status = "passed" if required_failed == 0 else "failed"
 
             # Update proposal with test results
             test_summary = {
-                'total_tests': total_tests,
-                'passed': passed,
-                'failed': failed,
-                'errors': errors,
-                'duration_seconds': total_duration,
-                'required_passed': required_passed,
-                'overall_status': overall_status,
-                'results': results
+                "total_tests": total_tests,
+                "passed": passed,
+                "failed": failed,
+                "errors": errors,
+                "duration_seconds": total_duration,
+                "required_passed": required_passed,
+                "overall_status": overall_status,
+                "results": results,
             }
 
             self._update_proposal_test_results(
                 proposal_id=proposal_id,
                 test_status=overall_status,
                 test_duration=total_duration,
-                test_summary=test_summary
+                test_summary=test_summary,
             )
 
             print(f"\n{'='*80}")
@@ -374,48 +381,48 @@ class SandboxTestRunner:
             print(f"{'='*80}\n")
 
             return {
-                'success': True,
-                'overall_status': overall_status,
-                'required_passed': required_passed,
-                'summary': test_summary
+                "success": True,
+                "overall_status": overall_status,
+                "required_passed": required_passed,
+                "summary": test_summary,
             }
 
         except Exception as e:
             print(f"Error running test suites: {e}")
             import traceback
+
             traceback.print_exc()
 
-            self._update_proposal_test_status(proposal_id, 'failed')
+            self._update_proposal_test_status(proposal_id, "failed")
 
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
-    def _update_proposal_test_status(
-        self,
-        proposal_id: int,
-        test_status: str
-    ) -> bool:
+    def _update_proposal_test_status(self, proposal_id: int, test_status: str) -> bool:
         """Update proposal test status"""
         try:
             conn = get_db()
             cur = conn.cursor()
 
-            if test_status == 'running':
-                cur.execute("""
+            if test_status == "running":
+                cur.execute(
+                    """
                     UPDATE improvement_proposals
                     SET test_status = %s,
                         test_started_at = NOW()
                     WHERE id = %s
-                """, (test_status, proposal_id))
+                """,
+                    (test_status, proposal_id),
+                )
             else:
-                cur.execute("""
+                cur.execute(
+                    """
                     UPDATE improvement_proposals
                     SET test_status = %s,
                         test_completed_at = NOW()
                     WHERE id = %s
-                """, (test_status, proposal_id))
+                """,
+                    (test_status, proposal_id),
+                )
 
             conn.commit()
             cur.close()
@@ -428,30 +435,29 @@ class SandboxTestRunner:
             return False
 
     def _update_proposal_test_results(
-        self,
-        proposal_id: int,
-        test_status: str,
-        test_duration: int,
-        test_summary: Dict
+        self, proposal_id: int, test_status: str, test_duration: int, test_summary: Dict
     ) -> bool:
         """Update proposal with complete test results"""
         try:
             conn = get_db()
             cur = conn.cursor()
 
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE improvement_proposals
                 SET test_status = %s,
                     test_completed_at = NOW(),
                     test_duration_seconds = %s,
                     test_results_summary = %s
                 WHERE id = %s
-            """, (
-                test_status,
-                test_duration,
-                json.dumps(test_summary),  # Properly serialize to JSON
-                proposal_id
-            ))
+            """,
+                (
+                    test_status,
+                    test_duration,
+                    json.dumps(test_summary),  # Properly serialize to JSON
+                    proposal_id,
+                ),
+            )
 
             conn.commit()
             cur.close()
@@ -462,14 +468,11 @@ class SandboxTestRunner:
         except Exception as e:
             print(f"Error updating test results: {e}")
             import traceback
+
             traceback.print_exc()
             return False
 
-    def run_health_check(
-        self,
-        sandbox_id: int,
-        check_type: str = 'service'
-    ) -> Dict:
+    def run_health_check(self, sandbox_id: int, check_type: str = "service") -> Dict:
         """
         Run health check on a sandbox
 
@@ -484,7 +487,7 @@ class SandboxTestRunner:
             start_time = time.time()
 
             # Simple health check implementations
-            if check_type == 'database':
+            if check_type == "database":
                 # Check database connectivity
                 try:
                     conn = get_db()
@@ -493,19 +496,19 @@ class SandboxTestRunner:
                     cur.fetchone()
                     cur.close()
                     conn.close()
-                    status = 'healthy'
-                    details = {'connection': 'successful'}
+                    status = "healthy"
+                    details = {"connection": "successful"}
                 except Exception as e:
-                    status = 'unhealthy'
-                    details = {'error': str(e)}
+                    status = "unhealthy"
+                    details = {"error": str(e)}
 
-            elif check_type == 'service':
+            elif check_type == "service":
                 # Check if platform is responsive
-                status = 'healthy'
-                details = {'status': 'responsive'}
+                status = "healthy"
+                details = {"status": "responsive"}
 
             else:
-                status = 'healthy'
+                status = "healthy"
                 details = {}
 
             response_time = int((time.time() - start_time) * 1000)
@@ -514,7 +517,8 @@ class SandboxTestRunner:
             conn = get_db()
             cur = conn.cursor()
 
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO sandbox_health_checks (
                     sandbox_id,
                     check_type,
@@ -522,48 +526,49 @@ class SandboxTestRunner:
                     response_time_ms,
                     details
                 ) VALUES (%s, %s, %s, %s, %s)
-            """, (
-                sandbox_id,
-                check_type,
-                status,
-                response_time,
-                str(details).replace("'", '"')
-            ))
+            """,
+                (
+                    sandbox_id,
+                    check_type,
+                    status,
+                    response_time,
+                    str(details).replace("'", '"'),
+                ),
+            )
 
             # Update sandbox health status
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE sandbox_instances
                 SET health_check_status = %s,
                     health_check_last_run = NOW()
                 WHERE id = %s
-            """, (status, sandbox_id))
+            """,
+                (status, sandbox_id),
+            )
 
             conn.commit()
             cur.close()
             conn.close()
 
             return {
-                'success': True,
-                'status': status,
-                'response_time_ms': response_time,
-                'details': details
+                "success": True,
+                "status": status,
+                "response_time_ms": response_time,
+                "details": details,
             }
 
         except Exception as e:
             print(f"Error running health check: {e}")
-            return {
-                'success': False,
-                'status': 'unhealthy',
-                'error': str(e)
-            }
+            return {"success": False, "status": "unhealthy", "error": str(e)}
 
 
 # Convenience functions
 def run_sandbox_tests(
     sandbox_id: int,
     proposal_id: int,
-    sandbox_type: str = 'schema_separation',
-    required_only: bool = False
+    sandbox_type: str = "schema_separation",
+    required_only: bool = False,
 ) -> Dict:
     """Run all test suites in a sandbox"""
     runner = SandboxTestRunner()
@@ -571,7 +576,7 @@ def run_sandbox_tests(
         sandbox_id=sandbox_id,
         proposal_id=proposal_id,
         sandbox_type=sandbox_type,
-        required_only=required_only
+        required_only=required_only,
     )
 
 
@@ -581,7 +586,7 @@ def check_sandbox_health(sandbox_id: int) -> Dict:
     return runner.run_health_check(sandbox_id)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Test the sandbox test runner
     print("🧪 Testing Sandbox Test Runner...")
 
@@ -591,4 +596,6 @@ if __name__ == '__main__':
     suites = runner.get_test_suites()
     print(f"\nFound {len(suites)} test suites:")
     for suite in suites:
-        print(f"  • {suite['name']} ({suite['test_type']}) - Required: {suite['required']}")
+        print(
+            f"  • {suite['name']} ({suite['test_type']}) - Required: {suite['required']}"
+        )

@@ -5,6 +5,7 @@ Manages Git hooks for automatic commit detection in sandbox branches
 Author: A.R.C.H.I.E. Platform
 Date: 2026-01-06
 """
+
 import os
 import stat
 from typing import Dict
@@ -13,10 +14,10 @@ from typing import Dict
 class GitHookManager:
     """Manages Git hooks for automatic commit detection"""
 
-    def __init__(self, repo_path: str = '/mnt/archie_brain/platform_v2'):
+    def __init__(self, repo_path: str = "/mnt/archie_brain/platform_v2"):
         self.repo_path = repo_path
-        self.hooks_dir = os.path.join(repo_path, '.git', 'hooks')
-        self.webhook_url = 'http://localhost:3000/api/cursor/commit-webhook'
+        self.hooks_dir = os.path.join(repo_path, ".git", "hooks")
+        self.webhook_url = "http://localhost:3000/api/cursor/commit-webhook"
 
     def install_post_commit_hook(self) -> Dict:
         """
@@ -39,10 +40,10 @@ class GitHookManager:
             # Ensure hooks directory exists
             os.makedirs(self.hooks_dir, exist_ok=True)
 
-            hook_path = os.path.join(self.hooks_dir, 'post-commit')
+            hook_path = os.path.join(self.hooks_dir, "post-commit")
 
             # Create hook script
-            hook_content = f'''#!/bin/bash
+            hook_content = f"""#!/bin/bash
 # A.R.C.H.I.E. Post-Commit Hook
 # Auto-detects commits on sandbox branches and triggers workflow
 
@@ -82,28 +83,27 @@ fi
 
 # Always exit successfully (don't block commit)
 exit 0
-'''
+"""
 
             # Write hook file
-            with open(hook_path, 'w') as f:
+            with open(hook_path, "w") as f:
                 f.write(hook_content)
 
             # Make executable
-            os.chmod(hook_path, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
+            os.chmod(
+                hook_path,
+                stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH,
+            )
 
             return {
-                'success': True,
-                'hook_path': hook_path,
-                'message': 'Post-commit hook installed successfully',
-                'webhook_url': self.webhook_url
+                "success": True,
+                "hook_path": hook_path,
+                "message": "Post-commit hook installed successfully",
+                "webhook_url": self.webhook_url,
             }
 
         except Exception as e:
-            return {
-                'success': False,
-                'error': str(e),
-                'hook_path': hook_path
-            }
+            return {"success": False, "error": str(e), "hook_path": hook_path}
 
     def remove_post_commit_hook(self) -> Dict:
         """
@@ -116,31 +116,28 @@ exit 0
             }
         """
         try:
-            hook_path = os.path.join(self.hooks_dir, 'post-commit')
+            hook_path = os.path.join(self.hooks_dir, "post-commit")
 
             if os.path.exists(hook_path):
                 os.remove(hook_path)
                 return {
-                    'success': True,
-                    'message': 'Post-commit hook removed',
-                    'hook_path': hook_path
+                    "success": True,
+                    "message": "Post-commit hook removed",
+                    "hook_path": hook_path,
                 }
             else:
                 return {
-                    'success': True,
-                    'message': 'Hook does not exist (already removed)',
-                    'hook_path': hook_path
+                    "success": True,
+                    "message": "Hook does not exist (already removed)",
+                    "hook_path": hook_path,
                 }
 
         except Exception as e:
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     def is_hook_installed(self) -> bool:
         """Check if post-commit hook is installed"""
-        hook_path = os.path.join(self.hooks_dir, 'post-commit')
+        hook_path = os.path.join(self.hooks_dir, "post-commit")
         return os.path.exists(hook_path) and os.access(hook_path, os.X_OK)
 
     def get_hook_info(self) -> Dict:
@@ -156,22 +153,19 @@ exit 0
                 'modified_at': str
             }
         """
-        hook_path = os.path.join(self.hooks_dir, 'post-commit')
+        hook_path = os.path.join(self.hooks_dir, "post-commit")
 
         if not os.path.exists(hook_path):
-            return {
-                'installed': False,
-                'path': hook_path
-            }
+            return {"installed": False, "path": hook_path}
 
         stat_info = os.stat(hook_path)
 
         return {
-            'installed': True,
-            'path': hook_path,
-            'executable': os.access(hook_path, os.X_OK),
-            'size': stat_info.st_size,
-            'modified_at': stat_info.st_mtime
+            "installed": True,
+            "path": hook_path,
+            "executable": os.access(hook_path, os.X_OK),
+            "size": stat_info.st_size,
+            "modified_at": stat_info.st_mtime,
         }
 
     def test_hook(self) -> Dict:
@@ -188,43 +182,37 @@ exit 0
             import requests
 
             test_data = {
-                'proposal_id': 999,
-                'commit_hash': 'test1234567890abcdef',
-                'commit_message': '[TEST] Hook test commit',
-                'author_name': 'Hook Tester',
-                'author_email': 'test@kytranempowerment.com',
-                'branch': 'sandbox-proposal-999',
-                'timestamp': 1234567890
+                "proposal_id": 999,
+                "commit_hash": "test1234567890abcdef",
+                "commit_message": "[TEST] Hook test commit",
+                "author_name": "Hook Tester",
+                "author_email": "test@kytranempowerment.com",
+                "branch": "sandbox-proposal-999",
+                "timestamp": 1234567890,
             }
 
             response = requests.post(
                 self.webhook_url,
                 json=test_data,
-                headers={
-                    'X-Git-Hook': 'true',
-                    'X-Git-Hook-Test': 'true'
-                },
-                timeout=5
+                headers={"X-Git-Hook": "true", "X-Git-Hook-Test": "true"},
+                timeout=5,
             )
 
             if response.status_code == 200:
                 return {
-                    'success': True,
-                    'message': 'Hook test successful',
-                    'response': response.json()
+                    "success": True,
+                    "message": "Hook test successful",
+                    "response": response.json(),
                 }
             else:
                 return {
-                    'success': False,
-                    'message': f'Hook test failed: HTTP {response.status_code}',
-                    'response': response.text
+                    "success": False,
+                    "message": f"Hook test failed: HTTP {response.status_code}",
+                    "response": response.text,
                 }
 
         except Exception as e:
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
 
 # Convenience functions

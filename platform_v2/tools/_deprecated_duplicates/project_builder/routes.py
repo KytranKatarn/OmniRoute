@@ -70,7 +70,14 @@ def status():
             }
         )
     except Exception as e:
-        return jsonify({"module": "project_builder", "status": "error", "healthy": False, "message": str(e)})
+        return jsonify(
+            {
+                "module": "project_builder",
+                "status": "error",
+                "healthy": False,
+                "message": str(e),
+            }
+        )
 
 
 # =============================================================================
@@ -183,7 +190,15 @@ def create_project():
             VALUES (%s, %s, %s, %s, %s, %s, 'draft', %s)
             RETURNING id, name, description, project_type, status, created_at
         """,
-            (current_user.id, name, description, project_type, user_prompt, json.dumps(tech_stack), [template]),
+            (
+                current_user.id,
+                name,
+                description,
+                project_type,
+                user_prompt,
+                json.dumps(tech_stack),
+                [template],
+            ),
         )
 
         project = cur.fetchone()
@@ -197,9 +212,18 @@ def create_project():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "project": project, "message": "Project created successfully"})
+        return jsonify(
+            {
+                "success": True,
+                "project": project,
+                "message": "Project created successfully",
+            }
+        )
     except psycopg2.errors.UniqueViolation:
-        return jsonify({"success": False, "error": "Project with this name already exists"}), 400
+        return (
+            jsonify({"success": False, "error": "Project with this name already exists"}),
+            400,
+        )
     except Exception as e:
         logger.error(f"Failed to create project: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
@@ -350,7 +374,10 @@ def get_project_files(project_id):
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Verify ownership
-        cur.execute("SELECT id FROM app_builder_projects WHERE id = %s AND user_id = %s", (project_id, current_user.id))
+        cur.execute(
+            "SELECT id FROM app_builder_projects WHERE id = %s AND user_id = %s",
+            (project_id, current_user.id),
+        )
         if not cur.fetchone():
             cur.close()
             conn.close()
@@ -398,7 +425,10 @@ def create_file(project_id):
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Verify ownership
-        cur.execute("SELECT id FROM app_builder_projects WHERE id = %s AND user_id = %s", (project_id, current_user.id))
+        cur.execute(
+            "SELECT id FROM app_builder_projects WHERE id = %s AND user_id = %s",
+            (project_id, current_user.id),
+        )
         if not cur.fetchone():
             cur.close()
             conn.close()
@@ -416,7 +446,10 @@ def create_file(project_id):
 
         if existing:
             # Mark old version as not latest
-            cur.execute("UPDATE app_builder_files SET is_latest = FALSE WHERE id = %s", (existing["id"],))
+            cur.execute(
+                "UPDATE app_builder_files SET is_latest = FALSE WHERE id = %s",
+                (existing["id"],),
+            )
             new_version = existing["version"] + 1
             previous_id = existing["id"]
         else:
@@ -709,7 +742,10 @@ def import_from_figma(project_id):
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Verify project ownership
-        cur.execute("SELECT id FROM app_builder_projects WHERE id = %s AND user_id = %s", (project_id, current_user.id))
+        cur.execute(
+            "SELECT id FROM app_builder_projects WHERE id = %s AND user_id = %s",
+            (project_id, current_user.id),
+        )
         if not cur.fetchone():
             cur.close()
             conn.close()
@@ -728,7 +764,10 @@ def import_from_figma(project_id):
         if not generation:
             cur.close()
             conn.close()
-            return jsonify({"success": False, "error": "Figma generation not found"}), 404
+            return (
+                jsonify({"success": False, "error": "Figma generation not found"}),
+                404,
+            )
 
         files = generation["files_generated"] or []
         imported_count = 0
@@ -752,7 +791,15 @@ def import_from_figma(project_id):
                     ON CONFLICT (project_id, file_path, version) DO UPDATE
                     SET content = EXCLUDED.content, updated_at = NOW()
                 """,
-                    (project_id, file_path, file_name, file_type, content, content_hash, line_count),
+                    (
+                        project_id,
+                        file_path,
+                        file_name,
+                        file_type,
+                        content,
+                        content_hash,
+                        line_count,
+                    ),
                 )
                 imported_count += 1
 
@@ -809,14 +856,27 @@ def get_template_tech_stack(template, project_type):
     """Get tech stack for a template"""
     stacks = {
         "landing-page": {"frontend": "html", "styling": "tailwind", "build": "vite"},
-        "portfolio": {"frontend": "react", "styling": "tailwind", "animation": "framer-motion"},
+        "portfolio": {
+            "frontend": "react",
+            "styling": "tailwind",
+            "animation": "framer-motion",
+        },
         "blog": {"frontend": "nextjs", "content": "mdx", "styling": "tailwind"},
         "ecommerce": {"frontend": "nextjs", "payment": "stripe", "styling": "tailwind"},
         "dashboard": {"frontend": "react", "charts": "recharts", "styling": "tailwind"},
-        "saas": {"frontend": "nextjs", "orm": "prisma", "auth": "nextauth", "payment": "stripe"},
+        "saas": {
+            "frontend": "nextjs",
+            "orm": "prisma",
+            "auth": "nextauth",
+            "payment": "stripe",
+        },
         "crm": {"frontend": "react", "backend": "nodejs", "database": "postgresql"},
         "api": {"backend": "nodejs", "framework": "express", "database": "postgresql"},
-        "react-native": {"mobile": "react-native", "expo": True, "styling": "nativewind"},
+        "react-native": {
+            "mobile": "react-native",
+            "expo": True,
+            "styling": "nativewind",
+        },
         "pwa": {"frontend": "nextjs", "pwa": True, "offline": True},
         "chrome-extension": {"extension": "chrome", "styling": "tailwind"},
         "blank": {},
@@ -950,5 +1010,13 @@ ReactDOM.createRoot(document.getElementById('root')).render(
              line_count, generated_by, generation_method)
             VALUES (%s, %s, %s, %s, %s, %s, %s, 'template', 'scaffold')
         """,
-            (project_id, file_path, file_name, file_type, content, content_hash, line_count),
+            (
+                project_id,
+                file_path,
+                file_name,
+                file_type,
+                content,
+                content_hash,
+                line_count,
+            ),
         )

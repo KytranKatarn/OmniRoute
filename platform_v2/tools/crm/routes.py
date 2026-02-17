@@ -265,7 +265,15 @@ def create_customer():
         if cur.fetchone():
             cur.close()
             conn.close()
-            return jsonify({"success": False, "error": "Customer with this email already exists"}), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Customer with this email already exists",
+                    }
+                ),
+                400,
+            )
 
         # Insert customer
         cur.execute(
@@ -303,14 +311,24 @@ def create_customer():
             (customer_id, interaction_type, subject, content, created_by)
             VALUES (%s, 'note', 'Customer Created', %s, %s)
         """,
-            (customer["id"], f"Customer created via {data.get('source', 'manual')}", current_user.id),
+            (
+                customer["id"],
+                f"Customer created via {data.get('source', 'manual')}",
+                current_user.id,
+            ),
         )
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "customer": dict(customer), "message": "Customer created successfully"})
+        return jsonify(
+            {
+                "success": True,
+                "customer": dict(customer),
+                "message": "Customer created successfully",
+            }
+        )
     except Exception as e:
         current_app.logger.error(f"[CRM] Error creating customer: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
@@ -441,7 +459,13 @@ def update_customer(customer_id):
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "customer": dict(customer), "message": "Customer updated successfully"})
+        return jsonify(
+            {
+                "success": True,
+                "customer": dict(customer),
+                "message": "Customer updated successfully",
+            }
+        )
     except Exception as e:
         current_app.logger.error(f"[CRM] Error updating customer: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
@@ -522,7 +546,10 @@ def add_interaction(customer_id):
         data = request.get_json()
 
         if not data.get("interaction_type"):
-            return jsonify({"success": False, "error": "Interaction type is required"}), 400
+            return (
+                jsonify({"success": False, "error": "Interaction type is required"}),
+                400,
+            )
 
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -557,7 +584,13 @@ def add_interaction(customer_id):
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "interaction": dict(interaction), "message": "Interaction added"})
+        return jsonify(
+            {
+                "success": True,
+                "interaction": dict(interaction),
+                "message": "Interaction added",
+            }
+        )
     except Exception as e:
         current_app.logger.error(f"[CRM] Error adding interaction: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
@@ -658,7 +691,7 @@ def update_segment(segment_id):
             (
                 data.get("name"),
                 data.get("description"),
-                json.dumps(data["filter_criteria"]) if "filter_criteria" in data else None,
+                (json.dumps(data["filter_criteria"]) if "filter_criteria" in data else None),
                 data.get("is_dynamic"),
                 segment_id,
             ),
@@ -1318,7 +1351,13 @@ def create_from_call():
                 VALUES (%s, %s, %s, %s, 'call_center', %s)
                 RETURNING id
             """,
-                (email, data.get("first_name", ""), data.get("last_name", ""), phone, current_user.id),
+                (
+                    email,
+                    data.get("first_name", ""),
+                    data.get("last_name", ""),
+                    phone,
+                    current_user.id,
+                ),
             )
             customer_id = cur.fetchone()["id"]
 
@@ -1364,7 +1403,10 @@ def update_subscription():
         email = data.get("email")
 
         if not customer_id and not email:
-            return jsonify({"success": False, "error": "Customer ID or email required"}), 400
+            return (
+                jsonify({"success": False, "error": "Customer ID or email required"}),
+                400,
+            )
 
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -1439,7 +1481,17 @@ def status():
             }
         )
     except Exception as e:
-        return jsonify({"module": "crm", "status": "error", "healthy": False, "message": str(e)}), 500
+        return (
+            jsonify(
+                {
+                    "module": "crm",
+                    "status": "error",
+                    "healthy": False,
+                    "message": str(e),
+                }
+            ),
+            500,
+        )
 
 
 # ============================================================================
@@ -1573,7 +1625,8 @@ def analytics_dashboard():
         )
         emails = cur.fetchone() or {}
         emails["email_open_rate"] = round(
-            (emails.get("emails_opened", 0) / max(emails.get("emails_sent", 1), 1)) * 100, 1
+            (emails.get("emails_opened", 0) / max(emails.get("emails_sent", 1), 1)) * 100,
+            1,
         )
         metrics.update(emails)
 
@@ -1794,7 +1847,11 @@ def get_analytics_metrics():
         conn.close()
 
         return jsonify(
-            {"success": True, "metrics": json.loads(json.dumps(metrics, default=json_serial)), "period": period}
+            {
+                "success": True,
+                "metrics": json.loads(json.dumps(metrics, default=json_serial)),
+                "period": period,
+            }
         )
 
     except Exception as e:
@@ -1825,7 +1882,13 @@ def get_analytics_metric(metric_name):
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "metric": metric_name, "value": float(result["value"]) if result else 0})
+        return jsonify(
+            {
+                "success": True,
+                "metric": metric_name,
+                "value": float(result["value"]) if result else 0,
+            }
+        )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -1897,7 +1960,12 @@ def get_revenue_chart():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "data": json.loads(json.dumps([dict(d) for d in data], default=json_serial))})
+        return jsonify(
+            {
+                "success": True,
+                "data": json.loads(json.dumps([dict(d) for d in data], default=json_serial)),
+            }
+        )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -1934,7 +2002,12 @@ def get_customers_chart():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "data": json.loads(json.dumps([dict(d) for d in data], default=json_serial))})
+        return jsonify(
+            {
+                "success": True,
+                "data": json.loads(json.dumps([dict(d) for d in data], default=json_serial)),
+            }
+        )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -2013,7 +2086,10 @@ def get_analytics_dashboards():
         conn.close()
 
         return jsonify(
-            {"success": True, "dashboards": json.loads(json.dumps([dict(d) for d in dashboards], default=json_serial))}
+            {
+                "success": True,
+                "dashboards": json.loads(json.dumps([dict(d) for d in dashboards], default=json_serial)),
+            }
         )
 
     except Exception as e:
@@ -2051,7 +2127,12 @@ def create_analytics_dashboard():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "dashboard": json.loads(json.dumps(dict(dashboard), default=json_serial))})
+        return jsonify(
+            {
+                "success": True,
+                "dashboard": json.loads(json.dumps(dict(dashboard), default=json_serial)),
+            }
+        )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -2088,7 +2169,10 @@ def get_analytics_goals():
         conn.close()
 
         return jsonify(
-            {"success": True, "goals": json.loads(json.dumps([dict(g) for g in goals], default=json_serial))}
+            {
+                "success": True,
+                "goals": json.loads(json.dumps([dict(g) for g in goals], default=json_serial)),
+            }
         )
 
     except Exception as e:
@@ -2129,7 +2213,12 @@ def create_analytics_goal():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "goal": json.loads(json.dumps(dict(goal), default=json_serial))})
+        return jsonify(
+            {
+                "success": True,
+                "goal": json.loads(json.dumps(dict(goal), default=json_serial)),
+            }
+        )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -2181,7 +2270,12 @@ def update_analytics_goal(goal_id):
         if not goal:
             return jsonify({"success": False, "error": "Goal not found"}), 404
 
-        return jsonify({"success": True, "goal": json.loads(json.dumps(dict(goal), default=json_serial))})
+        return jsonify(
+            {
+                "success": True,
+                "goal": json.loads(json.dumps(dict(goal), default=json_serial)),
+            }
+        )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -2235,7 +2329,10 @@ def get_analytics_reports():
         conn.close()
 
         return jsonify(
-            {"success": True, "reports": json.loads(json.dumps([dict(r) for r in reports], default=json_serial))}
+            {
+                "success": True,
+                "reports": json.loads(json.dumps([dict(r) for r in reports], default=json_serial)),
+            }
         )
 
     except Exception as e:
@@ -2348,7 +2445,11 @@ def generate_analytics_snapshot():
         conn.close()
 
         return jsonify(
-            {"success": True, "snapshot_id": snapshot_id, "message": f"Snapshot generated for {snapshot_date}"}
+            {
+                "success": True,
+                "snapshot_id": snapshot_id,
+                "message": f"Snapshot generated for {snapshot_date}",
+            }
         )
 
     except Exception as e:
@@ -2382,7 +2483,10 @@ def get_analytics_snapshots():
         conn.close()
 
         return jsonify(
-            {"success": True, "snapshots": json.loads(json.dumps([dict(s) for s in snapshots], default=json_serial))}
+            {
+                "success": True,
+                "snapshots": json.loads(json.dumps([dict(s) for s in snapshots], default=json_serial)),
+            }
         )
 
     except Exception as e:
@@ -2421,4 +2525,14 @@ def analytics_status():
         )
 
     except Exception as e:
-        return jsonify({"module": "analytics", "status": "error", "healthy": False, "error": str(e)}), 500
+        return (
+            jsonify(
+                {
+                    "module": "analytics",
+                    "status": "error",
+                    "healthy": False,
+                    "error": str(e),
+                }
+            ),
+            500,
+        )

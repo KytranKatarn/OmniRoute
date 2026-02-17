@@ -15,14 +15,16 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
 
+
 def get_db_connection():
     return psycopg2.connect(
-        host=os.getenv('DB_HOST', 'localhost'),
-        port=os.getenv('DB_PORT', '5432'),
-        database=os.getenv('DB_NAME', 'archie'),
-        user=os.getenv('DB_USER', 'archie'),
-        password=os.getenv('DB_PASSWORD', '')
+        host=os.getenv("DB_HOST", "localhost"),
+        port=os.getenv("DB_PORT", "5432"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", ""),
     )
+
 
 def run_migration():
     """Execute the migration"""
@@ -46,7 +48,9 @@ def run_migration():
     # Double-check if vector type is available
     if has_vector:
         try:
-            cur.execute("SELECT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'vector')")
+            cur.execute(
+                "SELECT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'vector')"
+            )
             has_vector = cur.fetchone()[0]
         except:
             conn.rollback()
@@ -398,12 +402,15 @@ def run_migration():
     print("Migration 028 complete: Long-term memory enhancement")
     return True
 
+
 def rollback_migration():
     """Rollback the migration"""
     conn = get_db_connection()
     cur = conn.cursor()
 
-    cur.execute("DROP FUNCTION IF EXISTS reinforce_memory(VARCHAR, INTEGER, NUMERIC) CASCADE")
+    cur.execute(
+        "DROP FUNCTION IF EXISTS reinforce_memory(VARCHAR, INTEGER, NUMERIC) CASCADE"
+    )
     cur.execute("DROP FUNCTION IF EXISTS apply_memory_decay() CASCADE")
     cur.execute("DROP TABLE IF EXISTS memory_access_log CASCADE")
     cur.execute("DROP TABLE IF EXISTS memory_decay_config CASCADE")
@@ -429,9 +436,11 @@ def rollback_migration():
     print("Migration 028 rolled back")
     return True
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     import sys
-    if len(sys.argv) > 1 and sys.argv[1] == 'rollback':
+
+    if len(sys.argv) > 1 and sys.argv[1] == "rollback":
         rollback_migration()
     else:
         run_migration()

@@ -9,6 +9,7 @@ Features:
 - Learn from deployment patterns
 - Store insights in long_term_memory
 """
+
 import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -35,11 +36,11 @@ class ImprovementLearning:
     def get_db(self):
         """Get database connection"""
         return psycopg2.connect(
-            host=os.getenv('DB_HOST', 'archie_database'),
-            port=os.getenv('DB_PORT', '5432'),
-            database=os.getenv('DB_NAME', 'archie'),
-            user=os.getenv('DB_USER', 'archie'),
-            password=os.getenv('DB_PASSWORD', '')
+            host=os.getenv("DB_HOST", "archie_database"),
+            port=os.getenv("DB_PORT", "5432"),
+            database=os.getenv("DB_NAME", "archie"),
+            user=os.getenv("DB_USER", "archie"),
+            password=os.getenv("DB_PASSWORD", ""),
         )
 
     def learn_from_completion(self, proposal_id: int) -> Dict:
@@ -66,15 +67,18 @@ class ImprovementLearning:
 
         try:
             # Get proposal details
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT * FROM improvement_proposals
                 WHERE id = %s
-            """, (proposal_id,))
+            """,
+                (proposal_id,),
+            )
 
             proposal = cur.fetchone()
 
             if not proposal:
-                return {'success': False, 'error': 'Proposal not found'}
+                return {"success": False, "error": "Proposal not found"}
 
             # Determine outcome
             outcome = self._determine_outcome(proposal)
@@ -108,21 +112,18 @@ class ImprovementLearning:
             conn.close()
 
             return {
-                'success': True,
-                'proposal_id': proposal_id,
-                'outcome': outcome,
-                'insights_learned': insights_learned,
-                'agents_updated': agents_updated,
-                'patterns_discovered': len(patterns)
+                "success": True,
+                "proposal_id": proposal_id,
+                "outcome": outcome,
+                "insights_learned": insights_learned,
+                "agents_updated": agents_updated,
+                "patterns_discovered": len(patterns),
             }
 
         except Exception as e:
             cur.close()
             conn.close()
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     def _determine_outcome(self, proposal: Dict) -> str:
         """
@@ -131,39 +132,42 @@ class ImprovementLearning:
         Returns:
             'success', 'failure', 'partial_success', 'rolled_back'
         """
-        status = proposal['status']
+        status = proposal["status"]
 
-        if status == 'completed':
+        if status == "completed":
             # Check if deployed successfully without rollback
             conn = self.get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT status FROM improvement_deployments
                 WHERE proposal_id = %s
                 ORDER BY deployed_at DESC
                 LIMIT 1
-            """, (proposal['id'],))
+            """,
+                (proposal["id"],),
+            )
 
             deployment = cur.fetchone()
             cur.close()
             conn.close()
 
             if deployment:
-                if deployment['status'] == 'rolled_back':
-                    return 'rolled_back'
-                elif deployment['status'] == 'deployed':
-                    return 'success'
+                if deployment["status"] == "rolled_back":
+                    return "rolled_back"
+                elif deployment["status"] == "deployed":
+                    return "success"
 
-            return 'success'  # Completed without deployment
+            return "success"  # Completed without deployment
 
-        elif status == 'deployment_failed':
-            return 'failure'
+        elif status == "deployment_failed":
+            return "failure"
 
-        elif status == 'escalated':
-            return 'partial_success'  # Needed escalation but might still succeed
+        elif status == "escalated":
+            return "partial_success"  # Needed escalation but might still succeed
 
-        return 'unknown'
+        return "unknown"
 
     def _update_agent_scores(self, proposal_id: int, outcome: str) -> List[int]:
         """
@@ -183,34 +187,40 @@ class ImprovementLearning:
 
         try:
             # Get agents on this proposal
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT DISTINCT agent_id
                 FROM improvement_team_assignments
                 WHERE proposal_id = %s
-            """, (proposal_id,))
+            """,
+                (proposal_id,),
+            )
 
             agents = cur.fetchall()
 
             # Determine proficiency change
-            if outcome == 'success':
+            if outcome == "success":
                 change = 0.1
-            elif outcome == 'failure':
+            elif outcome == "failure":
                 change = -0.05
-            elif outcome == 'rolled_back':
+            elif outcome == "rolled_back":
                 change = -0.1
             else:
                 change = 0.0
 
             if change != 0.0:
                 for agent_row in agents:
-                    agent_id = agent_row['agent_id']
+                    agent_id = agent_row["agent_id"]
 
                     # Update proficiency in agent_skills
-                    cur.execute("""
+                    cur.execute(
+                        """
                         UPDATE agent_skills
                         SET proficiency_level = GREATEST(0, LEAST(10, proficiency_level + %s))
                         WHERE agent_id = %s
-                    """, (change, agent_id))
+                    """,
+                        (change, agent_id),
+                    )
 
                     updated_agents.append(agent_id)
 
@@ -239,7 +249,8 @@ class ImprovementLearning:
 
         try:
             # Get team composition
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     ta.role,
                     a.department,
@@ -248,7 +259,9 @@ class ImprovementLearning:
                 FROM improvement_team_assignments ta
                 JOIN agents a ON ta.agent_id = a.id
                 WHERE ta.proposal_id = %s
-            """, (proposal_id,))
+            """,
+                (proposal_id,),
+            )
 
             team = cur.fetchall()
             cur.close()
@@ -259,16 +272,13 @@ class ImprovementLearning:
 
             # Build pattern
             team_composition = {
-                'size': len(team),
-                'departments': list(set(t['department'] for t in team)),
-                'worker_types': list(set(t['worker_type'] for t in team)),
-                'outcome': outcome
+                "size": len(team),
+                "departments": list(set(t["department"] for t in team)),
+                "worker_types": list(set(t["worker_type"] for t in team)),
+                "outcome": outcome,
             }
 
-            return {
-                'pattern_type': 'team_composition',
-                'pattern': team_composition
-            }
+            return {"pattern_type": "team_composition", "pattern": team_composition}
 
         except Exception as e:
             cur.close()
@@ -282,8 +292,8 @@ class ImprovementLearning:
         Returns:
             Insight dict or None
         """
-        created_at = proposal.get('created_at')
-        completed_at = proposal.get('completed_at')
+        created_at = proposal.get("created_at")
+        completed_at = proposal.get("completed_at")
 
         if not created_at or not completed_at:
             return None
@@ -291,46 +301,48 @@ class ImprovementLearning:
         actual_duration = (completed_at - created_at).total_seconds() / 3600  # hours
 
         # Get estimated time from plan_steps
-        plan_steps = proposal.get('plan_steps', {})
+        plan_steps = proposal.get("plan_steps", {})
         if isinstance(plan_steps, str):
             plan_steps = json.loads(plan_steps)
 
-        estimated_time = plan_steps.get('total_estimated_time', 'Unknown')
+        estimated_time = plan_steps.get("total_estimated_time", "Unknown")
 
         return {
-            'category': proposal['category'],
-            'complexity': proposal['complexity'],
-            'estimated_time': estimated_time,
-            'actual_duration_hours': round(actual_duration, 1),
-            'accuracy': self._calculate_accuracy(estimated_time, actual_duration)
+            "category": proposal["category"],
+            "complexity": proposal["complexity"],
+            "estimated_time": estimated_time,
+            "actual_duration_hours": round(actual_duration, 1),
+            "accuracy": self._calculate_accuracy(estimated_time, actual_duration),
         }
 
     def _calculate_accuracy(self, estimated_str: str, actual_hours: float) -> str:
         """Calculate estimation accuracy"""
         # Parse estimated time (e.g., "3h 30min" → 3.5 hours)
         try:
-            if 'h' in estimated_str:
-                parts = estimated_str.split('h')
+            if "h" in estimated_str:
+                parts = estimated_str.split("h")
                 hours = float(parts[0].strip())
                 mins = 0
-                if len(parts) > 1 and 'min' in parts[1]:
-                    mins = float(parts[1].replace('min', '').strip())
+                if len(parts) > 1 and "min" in parts[1]:
+                    mins = float(parts[1].replace("min", "").strip())
                 estimated_hours = hours + (mins / 60)
-            elif 'min' in estimated_str:
-                mins = float(estimated_str.replace('min', '').strip())
+            elif "min" in estimated_str:
+                mins = float(estimated_str.replace("min", "").strip())
                 estimated_hours = mins / 60
             else:
-                return 'unknown'
+                return "unknown"
 
             # Calculate accuracy
             if estimated_hours > 0:
-                accuracy_pct = (1 - abs(actual_hours - estimated_hours) / estimated_hours) * 100
+                accuracy_pct = (
+                    1 - abs(actual_hours - estimated_hours) / estimated_hours
+                ) * 100
                 return f"{round(accuracy_pct, 1)}%"
 
         except:
             pass
 
-        return 'unknown'
+        return "unknown"
 
     def _learn_category_patterns(self, proposal: Dict, outcome: str) -> Optional[Dict]:
         """
@@ -339,21 +351,21 @@ class ImprovementLearning:
         Returns:
             Pattern dict or None
         """
-        category = proposal.get('category')
-        priority = proposal.get('priority')
-        complexity = proposal.get('complexity')
+        category = proposal.get("category")
+        priority = proposal.get("priority")
+        complexity = proposal.get("complexity")
 
         if not all([category, priority, complexity]):
             return None
 
         return {
-            'pattern_type': 'category_outcome',
-            'pattern': {
-                'category': category,
-                'priority': priority,
-                'complexity': complexity,
-                'outcome': outcome
-            }
+            "pattern_type": "category_outcome",
+            "pattern": {
+                "category": category,
+                "priority": priority,
+                "complexity": complexity,
+                "outcome": outcome,
+            },
         }
 
     def _store_insights(self, proposal_id: int, patterns: List[Dict]) -> bool:
@@ -388,19 +400,24 @@ class ImprovementLearning:
 
             # Store each pattern as a memory
             for pattern in patterns:
-                cur.execute("""
+                cur.execute(
+                    """
                     INSERT INTO long_term_memory
                     (memory_type, content, tags, importance_score, metadata, created_at)
                     VALUES ('learning', %s, %s, %s, %s, NOW())
-                """, (
-                    json.dumps(pattern),
-                    ['improvement_learning', pattern['pattern_type']],
-                    0.7,  # Medium importance
-                    json.dumps({
-                        'proposal_id': proposal_id,
-                        'learned_at': datetime.now().isoformat()
-                    })
-                ))
+                """,
+                    (
+                        json.dumps(pattern),
+                        ["improvement_learning", pattern["pattern_type"]],
+                        0.7,  # Medium importance
+                        json.dumps(
+                            {
+                                "proposal_id": proposal_id,
+                                "learned_at": datetime.now().isoformat(),
+                            }
+                        ),
+                    ),
+                )
 
             conn.commit()
             cur.close()
@@ -443,52 +460,54 @@ class ImprovementLearning:
                 cur.close()
                 conn.close()
                 return {
-                    'success': True,
-                    'insights': [],
-                    'total': 0,
-                    'message': 'No long_term_memory table found'
+                    "success": True,
+                    "insights": [],
+                    "total": 0,
+                    "message": "No long_term_memory table found",
                 }
 
             # Get learning memories
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT * FROM long_term_memory
                 WHERE memory_type = 'learning'
                 AND 'improvement_learning' = ANY(tags)
                 ORDER BY created_at DESC
                 LIMIT %s
-            """, (limit,))
+            """,
+                (limit,),
+            )
 
             memories = cur.fetchall()
 
             insights = []
             for mem in memories:
-                content = mem['content']
+                content = mem["content"]
                 if isinstance(content, str):
                     content = json.loads(content)
 
-                insights.append({
-                    'id': mem['id'],
-                    'pattern_type': content.get('pattern_type'),
-                    'pattern': content.get('pattern'),
-                    'created_at': mem['created_at'].isoformat() if mem.get('created_at') else None
-                })
+                insights.append(
+                    {
+                        "id": mem["id"],
+                        "pattern_type": content.get("pattern_type"),
+                        "pattern": content.get("pattern"),
+                        "created_at": (
+                            mem["created_at"].isoformat()
+                            if mem.get("created_at")
+                            else None
+                        ),
+                    }
+                )
 
             cur.close()
             conn.close()
 
-            return {
-                'success': True,
-                'insights': insights,
-                'total': len(insights)
-            }
+            return {"success": True, "insights": insights, "total": len(insights)}
 
         except Exception as e:
             cur.close()
             conn.close()
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     def get_learning_stats(self) -> Dict:
         """
@@ -513,7 +532,7 @@ class ImprovementLearning:
                 FROM improvement_proposals
                 WHERE status = 'completed'
             """)
-            total_completed = cur.fetchone()['total']
+            total_completed = cur.fetchone()["total"]
 
             # Success rate (not rolled back)
             cur.execute("""
@@ -523,9 +542,11 @@ class ImprovementLearning:
                 WHERE p.status = 'completed'
                 AND (d.id IS NULL OR d.status != 'rolled_back')
             """)
-            successes = cur.fetchone()['successes']
+            successes = cur.fetchone()["successes"]
 
-            success_rate = (successes / total_completed * 100) if total_completed > 0 else 0
+            success_rate = (
+                (successes / total_completed * 100) if total_completed > 0 else 0
+            )
 
             # Patterns discovered
             cur.execute("""
@@ -544,32 +565,30 @@ class ImprovementLearning:
                     WHERE memory_type = 'learning'
                     AND 'improvement_learning' = ANY(tags)
                 """)
-                patterns_count = cur.fetchone()['patterns']
+                patterns_count = cur.fetchone()["patterns"]
 
             cur.close()
             conn.close()
 
             return {
-                'success': True,
-                'total_completed': total_completed,
-                'total_successes': successes,
-                'success_rate': round(success_rate, 1),
-                'patterns_discovered': patterns_count,
-                'timestamp': datetime.now().isoformat()
+                "success": True,
+                "total_completed": total_completed,
+                "total_successes": successes,
+                "success_rate": round(success_rate, 1),
+                "patterns_discovered": patterns_count,
+                "timestamp": datetime.now().isoformat(),
             }
 
         except Exception as e:
             cur.close()
             conn.close()
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
 
 # ============================================================================
 # CONVENIENCE FUNCTIONS
 # ============================================================================
+
 
 def learn_from_proposal(proposal_id: int) -> Dict:
     """Quick function to learn from completed proposal"""
@@ -593,7 +612,7 @@ def get_stats() -> Dict:
 # TESTING
 # ============================================================================
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("Improvement Learning Engine - Test Mode")
     print("=" * 60)
 
@@ -602,7 +621,7 @@ if __name__ == '__main__':
     print("\n1. LEARNING STATISTICS:")
     print("-" * 60)
     stats = learning.get_learning_stats()
-    if stats['success']:
+    if stats["success"]:
         print(f"Total completed: {stats['total_completed']}")
         print(f"Success rate: {stats['success_rate']}%")
         print(f"Patterns discovered: {stats['patterns_discovered']}")
@@ -612,9 +631,9 @@ if __name__ == '__main__':
     print("\n2. RECENT INSIGHTS:")
     print("-" * 60)
     insights = learning.get_learning_insights(limit=5)
-    if insights['success']:
+    if insights["success"]:
         print(f"Total insights: {insights['total']}")
-        for insight in insights['insights'][:5]:
+        for insight in insights["insights"][:5]:
             print(f"  - {insight['pattern_type']}: {insight.get('created_at', 'N/A')}")
     else:
         print(f"Error: {insights.get('error')}")

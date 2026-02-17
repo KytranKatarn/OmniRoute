@@ -9,14 +9,16 @@ from psycopg2.extras import RealDictCursor
 import json
 import os
 
+
 def get_db():
     return psycopg2.connect(
-        host=os.getenv('DB_HOST', 'archie_database'),
-        port=os.getenv('DB_PORT', '5432'),
-        database=os.getenv('DB_NAME', 'archie'),
-        user=os.getenv('DB_USER', 'archie'),
-        password=os.getenv('DB_PASSWORD', '')
+        host=os.getenv("DB_HOST", "archie_database"),
+        port=os.getenv("DB_PORT", "5432"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", ""),
     )
+
 
 def create_agent_types():
     """Create new agent types"""
@@ -24,8 +26,16 @@ def create_agent_types():
     cur = conn.cursor()
 
     agent_types = [
-        ('Market Analyst', 'finance', 'Stock market analysis, investment research, financial trends'),
-        ('Executive Assistant', 'administration', 'Calendar management, email coordination, scheduling, reception support')
+        (
+            "Market Analyst",
+            "finance",
+            "Stock market analysis, investment research, financial trends",
+        ),
+        (
+            "Executive Assistant",
+            "administration",
+            "Calendar management, email coordination, scheduling, reception support",
+        ),
     ]
 
     for name, category, description in agent_types:
@@ -35,33 +45,37 @@ def create_agent_types():
             print(f"  ⚠️  Agent type '{name}' already exists")
             continue
 
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO agent_types (name, category, description, created_at)
             VALUES (%s, %s, %s, NOW())
-        """, (name, category, description))
+        """,
+            (name, category, description),
+        )
         print(f"  ✅ Agent type: {name}")
 
     conn.commit()
     cur.close()
     conn.close()
 
+
 def create_final_agents():
     """Create the 2 final business agents"""
 
     agents = [
         {
-            'name': 'Stock & Market Expert',
-            'type_name': 'Market Analyst',
-            'first_name': 'Alexander',
-            'last_name': 'Chen',
-            'email': 'alexander.chen@archie.ai',
-            'title': 'Chief Investment Officer',
-            'department': 'Finance',
-            'pronouns': 'he/him',
-            'bio': 'Seasoned financial analyst with deep expertise in stock markets, investment strategies, and economic trends. Former hedge fund analyst with proven track record of identifying market opportunities and managing risk. Passionate about data-driven investment decisions.',
-            'tier': 3,
-            'model': 'claude-opus-4-20250514',  # Needs sophisticated financial analysis
-            'system_prompt': '''You are Alexander Chen, Chief Investment Officer at A.R.C.H.I.E. Platform.
+            "name": "Stock & Market Expert",
+            "type_name": "Market Analyst",
+            "first_name": "Alexander",
+            "last_name": "Chen",
+            "email": "alexander.chen@archie.ai",
+            "title": "Chief Investment Officer",
+            "department": "Finance",
+            "pronouns": "he/him",
+            "bio": "Seasoned financial analyst with deep expertise in stock markets, investment strategies, and economic trends. Former hedge fund analyst with proven track record of identifying market opportunities and managing risk. Passionate about data-driven investment decisions.",
+            "tier": 3,
+            "model": "claude-opus-4-20250514",  # Needs sophisticated financial analysis
+            "system_prompt": """You are Alexander Chen, Chief Investment Officer at A.R.C.H.I.E. Platform.
 
 Your responsibilities:
 - Monitor stock markets and financial trends
@@ -130,40 +144,46 @@ Risk management:
 - Monitor portfolio concentration
 - Track volatility and correlations
 
-You provide: Market intelligence for strategic business decisions, not personal investment advice.''',
-            'capabilities': {
-                'can_analyze_stocks': True,
-                'can_monitor_markets': True,
-                'can_research_companies': True,
-                'can_assess_financial_risk': True,
-                'can_track_competitors': True,
-                'can_analyze_trends': True,
-                'can_provide_investment_insights': True,
-                'requires_compliance_review': True,
-                'specialties': ['stock_analysis', 'market_trends', 'financial_modeling', 'risk_assessment', 'competitor_research']
+You provide: Market intelligence for strategic business decisions, not personal investment advice.""",
+            "capabilities": {
+                "can_analyze_stocks": True,
+                "can_monitor_markets": True,
+                "can_research_companies": True,
+                "can_assess_financial_risk": True,
+                "can_track_competitors": True,
+                "can_analyze_trends": True,
+                "can_provide_investment_insights": True,
+                "requires_compliance_review": True,
+                "specialties": [
+                    "stock_analysis",
+                    "market_trends",
+                    "financial_modeling",
+                    "risk_assessment",
+                    "competitor_research",
+                ],
             },
-            'monthly_budget': 55.00,
-            'metadata': {
-                'description': 'Stock market analysis, investment research, financial trends, competitor tracking',
-                'department': 'Finance',
-                'reports_to': 'CFO',
-                'coordinates_with': ['Finance Team', 'Leadership'],
-                'access_level': 'executive'
-            }
+            "monthly_budget": 55.00,
+            "metadata": {
+                "description": "Stock market analysis, investment research, financial trends, competitor tracking",
+                "department": "Finance",
+                "reports_to": "CFO",
+                "coordinates_with": ["Finance Team", "Leadership"],
+                "access_level": "executive",
+            },
         },
         {
-            'name': 'Executive Assistant',
-            'type_name': 'Executive Assistant',
-            'first_name': 'Sofia',
-            'last_name': 'Rodriguez',
-            'email': 'sofia.rodriguez@archie.ai',
-            'title': 'Executive Assistant to Leadership',
-            'department': 'Administration',
-            'pronouns': 'she/her',
-            'bio': 'Highly organized executive assistant extraordinaire who keeps leadership running smoothly. Master of calendar management, email coordination, and seamless scheduling. Expert at coordinating with reception and ensuring every meeting, call, and appointment happens perfectly. Former EA to Fortune 500 executives.',
-            'tier': 2,
-            'model': 'claude-sonnet-4-20250514',  # Good communication and organization
-            'system_prompt': '''You are Sofia Rodriguez, Executive Assistant to Leadership at A.R.C.H.I.E. Platform.
+            "name": "Executive Assistant",
+            "type_name": "Executive Assistant",
+            "first_name": "Sofia",
+            "last_name": "Rodriguez",
+            "email": "sofia.rodriguez@archie.ai",
+            "title": "Executive Assistant to Leadership",
+            "department": "Administration",
+            "pronouns": "she/her",
+            "bio": "Highly organized executive assistant extraordinaire who keeps leadership running smoothly. Master of calendar management, email coordination, and seamless scheduling. Expert at coordinating with reception and ensuring every meeting, call, and appointment happens perfectly. Former EA to Fortune 500 executives.",
+            "tier": 2,
+            "model": "claude-sonnet-4-20250514",  # Good communication and organization
+            "system_prompt": """You are Sofia Rodriguez, Executive Assistant to Leadership at A.R.C.H.I.E. Platform.
 
 Your mission: Keep leadership organized, on schedule, and focused on what matters.
 
@@ -250,29 +270,34 @@ Priority framework:
 3. URGENT: Delegate or quick handle
 4. NEITHER: Defer, delegate, or decline
 
-You are: The glue that keeps the organization running smoothly, the invisible hand that makes everything happen on time, and the trusted right hand of leadership.''',
-            'capabilities': {
-                'can_manage_calendar': True,
-                'can_coordinate_email': True,
-                'can_schedule_meetings': True,
-                'can_book_appointments': True,
-                'can_coordinate_reception': True,
-                'can_manage_travel': True,
-                'can_prepare_materials': True,
-                'can_track_action_items': True,
-                'access_all_calendars': True,
-                'access_executive_email': True,
-                'specialties': ['calendar_management', 'email_coordination', 'meeting_scheduling', 'executive_support']
+You are: The glue that keeps the organization running smoothly, the invisible hand that makes everything happen on time, and the trusted right hand of leadership.""",
+            "capabilities": {
+                "can_manage_calendar": True,
+                "can_coordinate_email": True,
+                "can_schedule_meetings": True,
+                "can_book_appointments": True,
+                "can_coordinate_reception": True,
+                "can_manage_travel": True,
+                "can_prepare_materials": True,
+                "can_track_action_items": True,
+                "access_all_calendars": True,
+                "access_executive_email": True,
+                "specialties": [
+                    "calendar_management",
+                    "email_coordination",
+                    "meeting_scheduling",
+                    "executive_support",
+                ],
             },
-            'monthly_budget': 40.00,
-            'metadata': {
-                'description': 'Executive calendar and email management, scheduling, reception coordination, booking',
-                'department': 'Administration',
-                'reports_to': 'Operations Lead',
-                'supports': ['CEO', 'Executive Leadership', 'All Teams'],
-                'access_level': 'executive'
-            }
-        }
+            "monthly_budget": 40.00,
+            "metadata": {
+                "description": "Executive calendar and email management, scheduling, reception coordination, booking",
+                "department": "Administration",
+                "reports_to": "Operations Lead",
+                "supports": ["CEO", "Executive Leadership", "All Teams"],
+                "access_level": "executive",
+            },
+        },
     ]
 
     conn = get_db()
@@ -283,7 +308,7 @@ You are: The glue that keeps the organization running smoothly, the invisible ha
         # Get type_id
         cur.execute(
             "SELECT id FROM agent_types WHERE name = %s LIMIT 1",
-            (agent_def['type_name'],)
+            (agent_def["type_name"],),
         )
         type_result = cur.fetchone()
 
@@ -291,17 +316,18 @@ You are: The glue that keeps the organization running smoothly, the invisible ha
             print(f"  ❌ Agent type '{agent_def['type_name']}' not found")
             continue
 
-        type_id = type_result['id']
+        type_id = type_result["id"]
 
         # Check if exists
-        cur.execute("SELECT id FROM agents WHERE name = %s", (agent_def['name'],))
+        cur.execute("SELECT id FROM agents WHERE name = %s", (agent_def["name"],))
         if cur.fetchone():
             print(f"  ⚠️  {agent_def['name']} already exists")
             continue
 
         # Insert agent
         try:
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO agents (
                     name, type_id, tier, status, model, system_prompt,
                     capabilities, monthly_budget, budget_alert_threshold,
@@ -313,25 +339,29 @@ You are: The glue that keeps the organization running smoothly, the invisible ha
                     %s, %s, %s, %s, %s,
                     %s, %s, %s
                 )
-            """, (
-                agent_def['name'],
-                type_id,
-                agent_def['tier'],
-                agent_def['model'],
-                agent_def['system_prompt'],
-                json.dumps(agent_def['capabilities']),
-                agent_def['monthly_budget'],
-                json.dumps(agent_def['metadata']),
-                agent_def['first_name'],
-                agent_def['last_name'],
-                agent_def['email'],
-                agent_def['title'],
-                agent_def['department'],
-                agent_def['bio'],
-                agent_def['pronouns']
-            ))
+            """,
+                (
+                    agent_def["name"],
+                    type_id,
+                    agent_def["tier"],
+                    agent_def["model"],
+                    agent_def["system_prompt"],
+                    json.dumps(agent_def["capabilities"]),
+                    agent_def["monthly_budget"],
+                    json.dumps(agent_def["metadata"]),
+                    agent_def["first_name"],
+                    agent_def["last_name"],
+                    agent_def["email"],
+                    agent_def["title"],
+                    agent_def["department"],
+                    agent_def["bio"],
+                    agent_def["pronouns"],
+                ),
+            )
 
-            print(f"  ✅ {agent_def['first_name']} {agent_def['last_name']} ({agent_def['pronouns']}) - {agent_def['title']}")
+            print(
+                f"  ✅ {agent_def['first_name']} {agent_def['last_name']} ({agent_def['pronouns']}) - {agent_def['title']}"
+            )
             created += 1
 
         except Exception as e:
@@ -342,6 +372,7 @@ You are: The glue that keeps the organization running smoothly, the invisible ha
     conn.close()
 
     return created
+
 
 def main():
     print("=" * 70)
@@ -378,5 +409,6 @@ def main():
     print("  🎉 BUSINESS AGENT ECOSYSTEM COMPLETE!")
     print("=" * 70)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

@@ -5,6 +5,7 @@ Generates .cursorrules files with full proposal context for Cursor IDE
 Author: A.R.C.H.I.E. Platform
 Date: 2026-01-05
 """
+
 import os
 import sys
 import psycopg2
@@ -12,7 +13,7 @@ from psycopg2.extras import RealDictCursor
 from typing import Dict, List, Optional
 from datetime import datetime
 
-sys.path.insert(0, '/mnt/archie_brain/platform_v2')
+sys.path.insert(0, "/mnt/archie_brain/platform_v2")
 from git_branch_manager import GitBranchManager
 
 
@@ -21,16 +22,16 @@ class CursorContextGenerator:
 
     def __init__(self):
         self.git_manager = GitBranchManager()
-        self.project_path = '/mnt/archie_brain/platform_v2'
+        self.project_path = "/mnt/archie_brain/platform_v2"
 
     def get_db(self):
         """Get database connection"""
         return psycopg2.connect(
-            host=os.getenv('DB_HOST', 'archie_database'),
-            port=os.getenv('DB_PORT', '5432'),
-            database=os.getenv('DB_NAME', 'archie'),
-            user=os.getenv('DB_USER', 'archie'),
-            password=os.getenv('DB_PASSWORD', '')
+            host=os.getenv("DB_HOST", "archie_database"),
+            port=os.getenv("DB_PORT", "5432"),
+            database=os.getenv("DB_NAME", "archie"),
+            user=os.getenv("DB_USER", "archie"),
+            password=os.getenv("DB_PASSWORD", ""),
         )
 
     def get_proposal_details(self, proposal_id: int) -> Optional[Dict]:
@@ -39,7 +40,8 @@ class CursorContextGenerator:
             conn = self.get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     id, title, description, category, priority, status,
                     plan_steps, risk_level,
@@ -47,7 +49,9 @@ class CursorContextGenerator:
                     metadata, code_diff, rationale
                 FROM improvement_proposals
                 WHERE id = %s
-            """, (proposal_id,))
+            """,
+                (proposal_id,),
+            )
 
             proposal = cur.fetchone()
             cur.close()
@@ -66,15 +70,15 @@ class CursorContextGenerator:
         """
         try:
             # Build search query from proposal
-            category = proposal.get('category', '')
-            title = proposal.get('title', '')
-            description = proposal.get('description', '')
+            category = proposal.get("category", "")
+            title = proposal.get("title", "")
+            description = proposal.get("description", "")
 
             # Combine proposal fields for richer search context
             search_query = f"{category} {title} {description}"
 
             # Use hybrid search for best results
-            sys.path.insert(0, '/mnt/archie_brain/platform_v2')
+            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
             from knowledge_hybrid_search import hybrid_search
 
             results = hybrid_search(search_query, limit=limit)
@@ -84,23 +88,28 @@ class CursorContextGenerator:
             # Format results for .cursorrules
             formatted_results = []
             for result in results:
-                formatted_results.append({
-                    'entity_name': result.get('entity_name', ''),
-                    'knowledge_type': result.get('knowledge_type', ''),
-                    'description': result.get('description', ''),
-                    'purpose': result.get('purpose', ''),
-                    'file_path': result.get('file_path', ''),
-                    'code_snippet': result.get('code_snippet', ''),
-                    'documentation': result.get('documentation', ''),
-                    'tags': result.get('tags', []),
-                    'relevance_score': result.get('hybrid_score', 0.0)
-                })
+                formatted_results.append(
+                    {
+                        "entity_name": result.get("entity_name", ""),
+                        "knowledge_type": result.get("knowledge_type", ""),
+                        "description": result.get("description", ""),
+                        "purpose": result.get("purpose", ""),
+                        "file_path": result.get("file_path", ""),
+                        "code_snippet": result.get("code_snippet", ""),
+                        "documentation": result.get("documentation", ""),
+                        "tags": result.get("tags", []),
+                        "relevance_score": result.get("hybrid_score", 0.0),
+                    }
+                )
 
             return formatted_results
 
         except Exception as e:
-            print(f"[Cursor Context] Error fetching knowledge (falling back to empty): {e}")
+            print(
+                f"[Cursor Context] Error fetching knowledge (falling back to empty): {e}"
+            )
             import traceback
+
             traceback.print_exc()
             return []
 
@@ -123,50 +132,44 @@ class CursorContextGenerator:
             # Get proposal details
             proposal = self.get_proposal_details(proposal_id)
             if not proposal:
-                return {
-                    'success': False,
-                    'error': f'Proposal {proposal_id} not found'
-                }
+                return {"success": False, "error": f"Proposal {proposal_id} not found"}
 
             # Get related knowledge
             knowledge = self.get_related_knowledge(proposal)
 
             # Generate branch name
-            branch_name = f'sandbox-proposal-{proposal_id}'
+            branch_name = f"sandbox-proposal-{proposal_id}"
 
             # Build .cursorrules content
             cursorrules = self._build_cursorrules_content(
-                proposal=proposal,
-                knowledge=knowledge,
-                branch_name=branch_name
+                proposal=proposal, knowledge=knowledge, branch_name=branch_name
             )
 
             return {
-                'success': True,
-                'cursorrules_content': cursorrules,
-                'proposal': proposal,
-                'branch_name': branch_name,
-                'generated_at': datetime.now().isoformat()
+                "success": True,
+                "cursorrules_content": cursorrules,
+                "proposal": proposal,
+                "branch_name": branch_name,
+                "generated_at": datetime.now().isoformat(),
             }
 
         except Exception as e:
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
-    def _build_cursorrules_content(self, proposal: Dict, knowledge: List[Dict], branch_name: str) -> str:
+    def _build_cursorrules_content(
+        self, proposal: Dict, knowledge: List[Dict], branch_name: str
+    ) -> str:
         """Build the actual .cursorrules file content"""
 
         # Format priority and risk level
-        priority = proposal.get('priority', 'medium').upper()
-        risk_level = proposal.get('risk_level', 'medium').upper()
-        category = proposal.get('category', 'general').title()
+        priority = proposal.get("priority", "medium").upper()
+        risk_level = proposal.get("risk_level", "medium").upper()
+        category = proposal.get("category", "general").title()
 
         # Format plan steps if available
         plan_steps_section = ""
-        if proposal.get('plan_steps'):
-            plan_steps = proposal['plan_steps']
+        if proposal.get("plan_steps"):
+            plan_steps = proposal["plan_steps"]
             if isinstance(plan_steps, list):
                 plan_steps_section = "\n## IMPLEMENTATION PLAN\n\n"
                 for i, step in enumerate(plan_steps, 1):
@@ -185,41 +188,45 @@ class CursorContextGenerator:
             knowledge_section += "They have similar functionality or context to what you're implementing.\n\n"
 
             for idx, item in enumerate(knowledge, 1):
-                entity_name = item.get('entity_name', 'Unknown')
-                knowledge_type = item.get('knowledge_type', 'entity')
-                relevance = item.get('relevance_score', 0) * 100  # Convert to percentage
+                entity_name = item.get("entity_name", "Unknown")
+                knowledge_type = item.get("knowledge_type", "entity")
+                relevance = (
+                    item.get("relevance_score", 0) * 100
+                )  # Convert to percentage
 
                 knowledge_section += f"### {idx}. {entity_name} ({knowledge_type}) - {relevance:.0f}% relevant\n\n"
 
                 # Add description
-                if item.get('description'):
+                if item.get("description"):
                     knowledge_section += f"**Description**: {item['description']}\n\n"
 
                 # Add purpose
-                if item.get('purpose'):
+                if item.get("purpose"):
                     knowledge_section += f"**Purpose**: {item['purpose']}\n\n"
 
                 # Add file location
-                if item.get('file_path'):
+                if item.get("file_path"):
                     knowledge_section += f"**Location**: `{item['file_path']}`\n\n"
 
                 # Add tags
-                if item.get('tags'):
-                    tags_list = item['tags'] if isinstance(item['tags'], list) else []
+                if item.get("tags"):
+                    tags_list = item["tags"] if isinstance(item["tags"], list) else []
                     if tags_list:
                         knowledge_section += f"**Tags**: {', '.join(tags_list)}\n\n"
 
                 # Add code snippet if available (truncated)
-                if item.get('code_snippet'):
-                    code_snippet = item['code_snippet'][:400]
-                    if len(item.get('code_snippet', '')) > 400:
+                if item.get("code_snippet"):
+                    code_snippet = item["code_snippet"][:400]
+                    if len(item.get("code_snippet", "")) > 400:
                         code_snippet += "\n// ...(truncated)"
-                    knowledge_section += f"**Example Code**:\n```python\n{code_snippet}\n```\n\n"
+                    knowledge_section += (
+                        f"**Example Code**:\n```python\n{code_snippet}\n```\n\n"
+                    )
 
                 # Add documentation if available
-                if item.get('documentation'):
-                    doc = item['documentation'][:300]
-                    if len(item.get('documentation', '')) > 300:
+                if item.get("documentation"):
+                    doc = item["documentation"][:300]
+                    if len(item.get("documentation", "")) > 300:
                         doc += "...(see file for more)"
                     knowledge_section += f"**Documentation**: {doc}\n\n"
 
@@ -428,58 +435,58 @@ If you're stuck or need clarification:
         try:
             # Generate .cursorrules content
             rules_result = self.generate_cursorrules(proposal_id)
-            if not rules_result['success']:
+            if not rules_result["success"]:
                 return rules_result
 
             # Create sandbox branch if it doesn't exist
-            branch_name = f'sandbox-proposal-{proposal_id}'
+            branch_name = f"sandbox-proposal-{proposal_id}"
             if not self.git_manager.branch_exists(branch_name):
                 branch_result = self.git_manager.create_sandbox_branch(proposal_id)
-                if not branch_result['success']:
+                if not branch_result["success"]:
                     return {
-                        'success': False,
-                        'error': f"Failed to create branch: {branch_result.get('error')}"
+                        "success": False,
+                        "error": f"Failed to create branch: {branch_result.get('error')}",
                     }
 
             # Write .cursorrules to file
-            cursorrules_path = os.path.join(self.project_path, '.cursorrules')
+            cursorrules_path = os.path.join(self.project_path, ".cursorrules")
 
             # Switch to sandbox branch before writing
             self.git_manager.switch_to_branch(branch_name)
 
-            with open(cursorrules_path, 'w') as f:
-                f.write(rules_result['cursorrules_content'])
+            with open(cursorrules_path, "w") as f:
+                f.write(rules_result["cursorrules_content"])
 
             # Commit .cursorrules to sandbox branch
-            self.git_manager._run_git_command(['git', 'add', '.cursorrules'])
-            self.git_manager._run_git_command([
-                'git', 'commit', '-m',
-                f'Add .cursorrules for proposal #{proposal_id}'
-            ])
+            self.git_manager._run_git_command(["git", "add", ".cursorrules"])
+            self.git_manager._run_git_command(
+                ["git", "commit", "-m", f"Add .cursorrules for proposal #{proposal_id}"]
+            )
 
             # Switch back to main
-            self.git_manager.switch_to_branch('main')
+            self.git_manager.switch_to_branch("main")
 
             # Generate instructions
             instructions = self._generate_instructions(proposal_id, branch_name)
 
             return {
-                'success': True,
-                'proposal_id': proposal_id,
-                'branch_name': branch_name,
-                'cursorrules_content': rules_result['cursorrules_content'],
-                'cursorrules_path': cursorrules_path,
-                'git_url': f'file://{self.project_path}',
-                'instructions': instructions,
-                'proposal': rules_result['proposal']
+                "success": True,
+                "proposal_id": proposal_id,
+                "branch_name": branch_name,
+                "cursorrules_content": rules_result["cursorrules_content"],
+                "cursorrules_path": cursorrules_path,
+                "git_url": f"file://{self.project_path}",
+                "instructions": instructions,
+                "proposal": rules_result["proposal"],
             }
 
         except Exception as e:
             import traceback
+
             return {
-                'success': False,
-                'error': str(e),
-                'traceback': traceback.format_exc()
+                "success": False,
+                "error": str(e),
+                "traceback": traceback.format_exc(),
             }
 
     def _generate_instructions(self, proposal_id: int, branch_name: str) -> str:

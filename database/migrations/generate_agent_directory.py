@@ -10,14 +10,16 @@ import os
 from datetime import datetime
 from collections import defaultdict
 
+
 def get_db():
     return psycopg2.connect(
-        host=os.getenv('DB_HOST', 'archie_database'),
-        port=os.getenv('DB_PORT', '5432'),
-        database=os.getenv('DB_NAME', 'archie'),
-        user=os.getenv('DB_USER', 'archie'),
-        password=os.getenv('DB_PASSWORD', '')
+        host=os.getenv("DB_HOST", "archie_database"),
+        port=os.getenv("DB_PORT", "5432"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", ""),
     )
+
 
 def generate_directory():
     """Generate comprehensive agent directory"""
@@ -63,7 +65,7 @@ def generate_directory():
     # Get agents by department
     departments = defaultdict(list)
     for agent in agents:
-        dept = agent['department'] or 'Unassigned'
+        dept = agent["department"] or "Unassigned"
         departments[dept].append(agent)
 
     cur.close()
@@ -88,7 +90,7 @@ def generate_directory():
     md.append("## Table of Contents")
     md.append("")
     for dept in sorted(departments.keys()):
-        anchor = dept.lower().replace(' ', '-').replace('/', '-')
+        anchor = dept.lower().replace(" ", "-").replace("/", "-")
         count = len(departments[dept])
         md.append(f"- [{dept}](#{anchor}) ({count} agents)")
     md.append("")
@@ -97,14 +99,16 @@ def generate_directory():
 
     # Agents by Department
     for dept in sorted(departments.keys()):
-        anchor = dept.lower().replace(' ', '-').replace('/', '-')
+        anchor = dept.lower().replace(" ", "-").replace("/", "-")
         md.append(f"## {dept}")
         md.append("")
 
         dept_agents = departments[dept]
-        dept_budget = sum(a.get('monthly_budget') or 0 for a in dept_agents)
+        dept_budget = sum(a.get("monthly_budget") or 0 for a in dept_agents)
 
-        md.append(f"**Agents**: {len(dept_agents)} | **Monthly Budget**: ${dept_budget:.2f}")
+        md.append(
+            f"**Agents**: {len(dept_agents)} | **Monthly Budget**: ${dept_budget:.2f}"
+        )
         md.append("")
 
         for agent in dept_agents:
@@ -117,10 +121,10 @@ def generate_directory():
             md.append(f"- **Tier**: {agent['tier']}")
             md.append(f"- **Model**: {agent['model']}")
 
-            if agent['monthly_budget']:
+            if agent["monthly_budget"]:
                 md.append(f"- **Monthly Budget**: ${agent['monthly_budget']:.2f}")
 
-            if agent['bio']:
+            if agent["bio"]:
                 md.append("")
                 md.append(f"**Bio**: {agent['bio']}")
 
@@ -136,10 +140,10 @@ def generate_directory():
 
     for agent in agents:
         name = f"{agent['first_name']} {agent['last_name']}"
-        email = agent['email']
-        title = agent['title']
-        dept = agent['department'] or '-'
-        model = agent['model']
+        email = agent["email"]
+        title = agent["title"]
+        dept = agent["department"] or "-"
+        model = agent["model"]
         md.append(f"| {name} | {email} | {title} | {dept} | {model} |")
 
     md.append("")
@@ -154,7 +158,7 @@ def generate_directory():
 
     for dept in sorted(departments.keys()):
         count = len(departments[dept])
-        budget = sum(a.get('monthly_budget') or 0 for a in departments[dept])
+        budget = sum(a.get("monthly_budget") or 0 for a in departments[dept])
         md.append(f"| {dept} | {count} | ${budget:.2f} |")
 
     md.append("")
@@ -217,7 +221,9 @@ def generate_directory():
     md.append("- **Professional**: title, department")
     md.append("- **Avatar**: avatar_url (upload photo URL)")
     md.append("- **System**: system_prompt (agent's core instructions)")
-    md.append("- **Configuration**: tier, model, monthly_budget, capabilities, metadata")
+    md.append(
+        "- **Configuration**: tier, model, monthly_budget, capabilities, metadata"
+    )
     md.append("")
     md.append("### Avatar Photo Upload")
     md.append("")
@@ -233,22 +239,23 @@ def generate_directory():
 
     return "\n".join(md)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     print("Generating Agent Directory...")
     print()
 
     directory_md = generate_directory()
 
     # Write to file
-    output_file = '/mnt/archie_brain/docs/AGENT_DIRECTORY.md'
-    with open(output_file, 'w') as f:
+    output_file = "/mnt/archie_brain/docs/AGENT_DIRECTORY.md"
+    with open(output_file, "w") as f:
         f.write(directory_md)
 
     print(f"✅ Agent directory created: {output_file}")
     print()
     print("Preview (first 50 lines):")
     print("=" * 70)
-    lines = directory_md.split('\n')
+    lines = directory_md.split("\n")
     for line in lines[:50]:
         print(line)
     print("...")

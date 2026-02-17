@@ -5,6 +5,7 @@ Manages improvement proposal workflow with proper state transitions and gates
 Author: A.R.C.H.I.E. Self-Improvement System
 Date: 2026-01-05
 """
+
 import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -15,22 +16,23 @@ from enum import Enum
 
 class ProposalState(Enum):
     """Valid proposal states"""
-    PROPOSED = 'proposed'
-    APPROVED = 'approved'
-    GENERATING_CODE = 'generating_code'
-    CODE_GENERATED = 'code_generated'
-    CREATING_SANDBOX = 'creating_sandbox'
-    SANDBOX_CREATED = 'sandbox_created'
-    APPLYING_CHANGES = 'applying_changes'
-    READY_FOR_TESTING = 'ready_for_testing'
-    TESTING = 'testing'
-    TESTED = 'tested'
-    READY_FOR_REVIEW = 'ready_for_review'
-    DEPLOYING = 'deploying'
-    DEPLOYED = 'deployed'
-    COMPLETED = 'completed'
-    FAILED = 'failed'
-    REJECTED = 'rejected'
+
+    PROPOSED = "proposed"
+    APPROVED = "approved"
+    GENERATING_CODE = "generating_code"
+    CODE_GENERATED = "code_generated"
+    CREATING_SANDBOX = "creating_sandbox"
+    SANDBOX_CREATED = "sandbox_created"
+    APPLYING_CHANGES = "applying_changes"
+    READY_FOR_TESTING = "ready_for_testing"
+    TESTING = "testing"
+    TESTED = "tested"
+    READY_FOR_REVIEW = "ready_for_review"
+    DEPLOYING = "deploying"
+    DEPLOYED = "deployed"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    REJECTED = "rejected"
 
 
 class WorkflowStateMachine:
@@ -42,11 +44,11 @@ class WorkflowStateMachine:
     def get_db(self):
         """Get database connection"""
         return psycopg2.connect(
-            host=os.getenv('DB_HOST', 'archie_database'),
-            port=os.getenv('DB_PORT', '5432'),
-            database=os.getenv('DB_NAME', 'archie'),
-            user=os.getenv('DB_USER', 'archie'),
-            password=os.getenv('DB_PASSWORD', '')
+            host=os.getenv("DB_HOST", "archie_database"),
+            port=os.getenv("DB_PORT", "5432"),
+            database=os.getenv("DB_NAME", "archie"),
+            user=os.getenv("DB_USER", "archie"),
+            password=os.getenv("DB_PASSWORD", ""),
         )
 
     def transition_state(
@@ -55,7 +57,7 @@ class WorkflowStateMachine:
         to_state: str,
         reason: Optional[str] = None,
         automated: bool = True,
-        metadata: Optional[Dict] = None
+        metadata: Optional[Dict] = None,
     ) -> Dict:
         """
         Transition a proposal to a new state
@@ -81,67 +83,73 @@ class WorkflowStateMachine:
 
         try:
             # Get current state
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT id, status, title, category
                 FROM improvement_proposals
                 WHERE id = %s
-            """, (proposal_id,))
+            """,
+                (proposal_id,),
+            )
 
             proposal = cur.fetchone()
 
             if not proposal:
-                return {
-                    'success': False,
-                    'error': f'Proposal {proposal_id} not found'
-                }
+                return {"success": False, "error": f"Proposal {proposal_id} not found"}
 
-            from_state = proposal['status']
+            from_state = proposal["status"]
 
             # Validate transition
             validation = self._validate_transition(from_state, to_state)
 
-            if not validation['allowed']:
+            if not validation["allowed"]:
                 cur.close()
                 conn.close()
                 return {
-                    'success': False,
-                    'from_state': from_state,
-                    'to_state': to_state,
-                    'allowed': False,
-                    'message': validation['reason']
+                    "success": False,
+                    "from_state": from_state,
+                    "to_state": to_state,
+                    "allowed": False,
+                    "message": validation["reason"],
                 }
 
             # Update proposal status
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE improvement_proposals
                 SET status = %s
                 WHERE id = %s
-            """, (to_state, proposal_id))
+            """,
+                (to_state, proposal_id),
+            )
 
             # Record state transition
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO improvement_workflow_states
                 (proposal_id, from_status, to_status, reason, automated, metadata)
                 VALUES (%s, %s, %s, %s, %s, %s)
-            """, (
-                proposal_id,
-                from_state,
-                to_state,
-                reason or f'Transition from {from_state} to {to_state}',
-                automated,
-                psycopg2.extras.Json(metadata) if metadata else None
-            ))
+            """,
+                (
+                    proposal_id,
+                    from_state,
+                    to_state,
+                    reason or f"Transition from {from_state} to {to_state}",
+                    automated,
+                    psycopg2.extras.Json(metadata) if metadata else None,
+                ),
+            )
 
             conn.commit()
             cur.close()
             conn.close()
 
             return {
-                'success': True,
-                'from_state': from_state,
-                'to_state': to_state,
-                'allowed': True,
-                'message': f'Transitioned from {from_state} to {to_state}'
+                "success": True,
+                "from_state": from_state,
+                "to_state": to_state,
+                "allowed": True,
+                "message": f"Transitioned from {from_state} to {to_state}",
             }
 
         except Exception as e:
@@ -149,10 +157,7 @@ class WorkflowStateMachine:
             cur.close()
             conn.close()
 
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     def _validate_transition(self, from_state: str, to_state: str) -> Dict:
         """
@@ -166,34 +171,34 @@ class WorkflowStateMachine:
         """
         # Define valid transitions
         valid_transitions = {
-            'proposed': ['approved', 'rejected'],
-            'approved': ['generating_code', 'failed'],
-            'generating_code': ['code_generated', 'failed'],
-            'code_generated': ['creating_sandbox', 'failed'],
-            'creating_sandbox': ['sandbox_created', 'failed'],
-            'sandbox_created': ['applying_changes', 'failed'],
-            'applying_changes': ['ready_for_testing', 'failed'],
-            'ready_for_testing': ['testing'],
-            'testing': ['tested', 'failed'],
-            'tested': ['ready_for_review'],
-            'ready_for_review': ['deploying', 'rejected'],
-            'deploying': ['deployed', 'failed'],
-            'deployed': ['completed'],
-            'failed': ['proposed'],  # Can retry failed proposals
-            'rejected': []  # Terminal state
+            "proposed": ["approved", "rejected"],
+            "approved": ["generating_code", "failed"],
+            "generating_code": ["code_generated", "failed"],
+            "code_generated": ["creating_sandbox", "failed"],
+            "creating_sandbox": ["sandbox_created", "failed"],
+            "sandbox_created": ["applying_changes", "failed"],
+            "applying_changes": ["ready_for_testing", "failed"],
+            "ready_for_testing": ["testing"],
+            "testing": ["tested", "failed"],
+            "tested": ["ready_for_review"],
+            "ready_for_review": ["deploying", "rejected"],
+            "deploying": ["deployed", "failed"],
+            "deployed": ["completed"],
+            "failed": ["proposed"],  # Can retry failed proposals
+            "rejected": [],  # Terminal state
         }
 
         allowed_next_states = valid_transitions.get(from_state, [])
 
         if to_state in allowed_next_states:
             return {
-                'allowed': True,
-                'reason': f'Valid transition from {from_state} to {to_state}'
+                "allowed": True,
+                "reason": f"Valid transition from {from_state} to {to_state}",
             }
         else:
             return {
-                'allowed': False,
-                'reason': f'Invalid transition from {from_state} to {to_state}. Allowed: {", ".join(allowed_next_states)}'
+                "allowed": False,
+                "reason": f'Invalid transition from {from_state} to {to_state}. Allowed: {", ".join(allowed_next_states)}',
             }
 
     def get_next_allowed_states(self, proposal_id: int) -> List[str]:
@@ -201,9 +206,12 @@ class WorkflowStateMachine:
         conn = self.get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT status FROM improvement_proposals WHERE id = %s
-        """, (proposal_id,))
+        """,
+            (proposal_id,),
+        )
 
         proposal = cur.fetchone()
         cur.close()
@@ -212,22 +220,22 @@ class WorkflowStateMachine:
         if not proposal:
             return []
 
-        current_state = proposal['status']
+        current_state = proposal["status"]
 
         valid_transitions = {
-            'proposed': ['approved', 'rejected'],
-            'approved': ['generating_code'],
-            'generating_code': ['code_generated', 'failed'],
-            'code_generated': ['creating_sandbox'],
-            'creating_sandbox': ['sandbox_created', 'failed'],
-            'sandbox_created': ['applying_changes'],
-            'applying_changes': ['ready_for_testing', 'failed'],
-            'ready_for_testing': ['testing'],
-            'testing': ['tested', 'failed'],
-            'tested': ['ready_for_review'],
-            'ready_for_review': ['deploying', 'rejected'],
-            'deploying': ['deployed', 'failed'],
-            'deployed': ['completed'],
+            "proposed": ["approved", "rejected"],
+            "approved": ["generating_code"],
+            "generating_code": ["code_generated", "failed"],
+            "code_generated": ["creating_sandbox"],
+            "creating_sandbox": ["sandbox_created", "failed"],
+            "sandbox_created": ["applying_changes"],
+            "applying_changes": ["ready_for_testing", "failed"],
+            "ready_for_testing": ["testing"],
+            "testing": ["tested", "failed"],
+            "tested": ["ready_for_review"],
+            "ready_for_review": ["deploying", "rejected"],
+            "deploying": ["deployed", "failed"],
+            "deployed": ["completed"],
         }
 
         return valid_transitions.get(current_state, [])
@@ -249,26 +257,32 @@ class WorkflowStateMachine:
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get current state
-        cur.execute("""
+        cur.execute(
+            """
             SELECT status FROM improvement_proposals WHERE id = %s
-        """, (proposal_id,))
+        """,
+            (proposal_id,),
+        )
 
         proposal = cur.fetchone()
 
         if not proposal:
             cur.close()
             conn.close()
-            return {'error': 'Proposal not found'}
+            return {"error": "Proposal not found"}
 
-        current_state = proposal['status']
+        current_state = proposal["status"]
 
         # Get workflow history
-        cur.execute("""
+        cur.execute(
+            """
             SELECT from_status, to_status, changed_at, reason, automated
             FROM improvement_workflow_states
             WHERE proposal_id = %s
             ORDER BY changed_at ASC
-        """, (proposal_id,))
+        """,
+            (proposal_id,),
+        )
 
         history = [dict(row) for row in cur.fetchall()]
 
@@ -277,28 +291,28 @@ class WorkflowStateMachine:
 
         # Define standard workflow path
         standard_path = [
-            'proposed',
-            'approved',
-            'generating_code',
-            'code_generated',
-            'creating_sandbox',
-            'sandbox_created',
-            'applying_changes',
-            'ready_for_testing',
-            'testing',
-            'tested',
-            'ready_for_review',
-            'deploying',
-            'deployed',
-            'completed'
+            "proposed",
+            "approved",
+            "generating_code",
+            "code_generated",
+            "creating_sandbox",
+            "sandbox_created",
+            "applying_changes",
+            "ready_for_testing",
+            "testing",
+            "tested",
+            "ready_for_review",
+            "deploying",
+            "deployed",
+            "completed",
         ]
 
         # Calculate progress
         try:
             current_index = standard_path.index(current_state)
             progress_percent = int((current_index / len(standard_path)) * 100)
-            completed_states = standard_path[:current_index + 1]
-            remaining_states = standard_path[current_index + 1:]
+            completed_states = standard_path[: current_index + 1]
+            remaining_states = standard_path[current_index + 1 :]
         except ValueError:
             # State not in standard path (e.g., failed, rejected)
             progress_percent = 0
@@ -306,11 +320,11 @@ class WorkflowStateMachine:
             remaining_states = []
 
         return {
-            'current_state': current_state,
-            'progress_percent': progress_percent,
-            'completed_states': completed_states,
-            'remaining_states': remaining_states,
-            'history': history
+            "current_state": current_state,
+            "progress_percent": progress_percent,
+            "completed_states": completed_states,
+            "remaining_states": remaining_states,
+            "history": history,
         }
 
 
@@ -319,7 +333,7 @@ def transition_proposal_state(
     proposal_id: int,
     to_state: str,
     reason: Optional[str] = None,
-    automated: bool = True
+    automated: bool = True,
 ) -> Dict:
     """Transition a proposal to a new state"""
     machine = WorkflowStateMachine()
@@ -332,7 +346,7 @@ def get_proposal_progress(proposal_id: int) -> Dict:
     return machine.get_workflow_progress(proposal_id)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Test workflow state machine
     print("=" * 80)
     print("Workflow State Machine - Test")
@@ -340,9 +354,7 @@ if __name__ == '__main__':
 
     # Test transition
     result = transition_proposal_state(
-        proposal_id=39,
-        to_state='proposed',
-        reason='Reset for testing'
+        proposal_id=39, to_state="proposed", reason="Reset for testing"
     )
 
     print(f"\n✅ Transition success: {result.get('success')}")

@@ -8,6 +8,7 @@ PERFORMANCE: Agent selection optimized with caching and indexed queries
 - No LLM call for routing (pure keyword logic)
 - Only the delegated agent makes LLM calls
 """
+
 import os
 import sys
 import json
@@ -17,24 +18,27 @@ from datetime import datetime
 import time
 from functools import lru_cache
 
-sys.path.insert(0, '/app/ai_bridge')
+sys.path.insert(0, "/app/ai_bridge")
 
 # Simple in-memory cache for agent selection
 # Cache expires when process restarts (which is fine - agent availability changes)
 _agent_cache = {}
 _cache_timestamp = time.time()
 
+
 def get_db():
     """Get database connection"""
     return psycopg2.connect(
-        host=os.getenv('DB_HOST', 'archie_database'),
-        port=os.getenv('DB_PORT', '5432'),
-        database=os.getenv('DB_NAME', 'archie'),
-        user=os.getenv('DB_USER', 'archie'),
-        password=os.getenv('DB_PASSWORD', '')
+        host=os.getenv("DB_HOST", "archie_database"),
+        port=os.getenv("DB_PORT", "5432"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", ""),
     )
 
+
 from archie_bridge import archie_bridge
+
 
 def check_api_key_configured(model: str) -> dict:
     """
@@ -51,16 +55,26 @@ def check_api_key_configured(model: str) -> dict:
     model_lower = model.lower()
 
     provider_map = {
-        'claude': ['claude', 'anthropic'],
-        'openai': ['gpt', 'openai'],
-        'mistral': ['mistral'],
-        'gemini': ['gemini', 'google'],
-        'cohere': ['cohere']
+        "claude": ["claude", "anthropic"],
+        "openai": ["gpt", "openai"],
+        "mistral": ["mistral"],
+        "gemini": ["gemini", "google"],
+        "cohere": ["cohere"],
     }
 
     # Ollama models don't need API keys (local)
-    if any(ollama_keyword in model_lower for ollama_keyword in ['ollama', 'llama', 'qwen', 'deepseek', 'phi', 'mistral:latest']):
-        return {'configured': True, 'provider': 'ollama', 'error': None}
+    if any(
+        ollama_keyword in model_lower
+        for ollama_keyword in [
+            "ollama",
+            "llama",
+            "qwen",
+            "deepseek",
+            "phi",
+            "mistral:latest",
+        ]
+    ):
+        return {"configured": True, "provider": "ollama", "error": None}
 
     # Detect provider from model name
     detected_provider = None
@@ -70,18 +84,25 @@ def check_api_key_configured(model: str) -> dict:
             break
 
     if not detected_provider:
-        return {'configured': False, 'provider': 'unknown', 'error': f'Unknown model provider for: {model}'}
+        return {
+            "configured": False,
+            "provider": "unknown",
+            "error": f"Unknown model provider for: {model}",
+        }
 
     # Check if API key is configured in database
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT provider, api_key, enabled
             FROM archie_api_settings
             WHERE provider = %s
-        """, (detected_provider,))
+        """,
+            (detected_provider,),
+        )
 
         provider_config = cur.fetchone()
         cur.close()
@@ -89,42 +110,39 @@ def check_api_key_configured(model: str) -> dict:
 
         if not provider_config:
             return {
-                'configured': False,
-                'provider': detected_provider,
-                'error': f'{detected_provider.upper()} provider not configured in API Settings'
+                "configured": False,
+                "provider": detected_provider,
+                "error": f"{detected_provider.upper()} provider not configured in API Settings",
             }
 
-        if not provider_config['enabled']:
+        if not provider_config["enabled"]:
             return {
-                'configured': False,
-                'provider': detected_provider,
-                'error': f'{detected_provider.upper()} is disabled in API Settings'
+                "configured": False,
+                "provider": detected_provider,
+                "error": f"{detected_provider.upper()} is disabled in API Settings",
             }
 
-        if not provider_config.get('api_key'):
+        if not provider_config.get("api_key"):
             return {
-                'configured': False,
-                'provider': detected_provider,
-                'error': f'{detected_provider.upper()} API key not set in API Settings'
+                "configured": False,
+                "provider": detected_provider,
+                "error": f"{detected_provider.upper()} API key not set in API Settings",
             }
 
-        return {
-            'configured': True,
-            'provider': detected_provider,
-            'error': None
-        }
+        return {"configured": True, "provider": detected_provider, "error": None}
 
     except Exception as e:
         return {
-            'configured': False,
-            'provider': detected_provider,
-            'error': f'Error checking API key: {str(e)}'
+            "configured": False,
+            "provider": detected_provider,
+            "error": f"Error checking API key: {str(e)}",
         }
+
 
 def select_best_agent_for_task(
     task_description: str,
     department_preference: str = None,
-    prefer_contractor: bool = False
+    prefer_contractor: bool = False,
 ):
     """
     FAST agent selection with caching (typically <10ms)
@@ -167,16 +185,25 @@ def select_best_agent_for_task(
 
     # Department keyword mapping (instant keyword lookup)
     department_keywords = {
-        'Engineering': ['code', 'bug', 'develop', 'implement', 'refactor', 'api', 'backend', 'frontend'],
-        'Quality Assurance': ['test', 'qa', 'quality', 'bug', 'verify', 'validate'],
-        'Documentation': ['document', 'readme', 'guide', 'explain', 'write'],
-        'Infrastructure': ['deploy', 'server', 'database', 'infrastructure', 'devops'],
-        'Security': ['security', 'auth', 'permission', 'vulnerability', 'encrypt'],
-        'Data Science': ['data', 'analysis', 'ml', 'model', 'analytics', 'predict'],
-        'Marketing': ['marketing', 'content', 'campaign', 'seo', 'social'],
-        'Customer Support': ['support', 'help', 'customer', 'issue', 'ticket'],
-        'Operations': ['optimize', 'process', 'efficiency', 'workflow', 'improve'],
-        'Finance': ['cost', 'budget', 'revenue', 'financial', 'accounting']
+        "Engineering": [
+            "code",
+            "bug",
+            "develop",
+            "implement",
+            "refactor",
+            "api",
+            "backend",
+            "frontend",
+        ],
+        "Quality Assurance": ["test", "qa", "quality", "bug", "verify", "validate"],
+        "Documentation": ["document", "readme", "guide", "explain", "write"],
+        "Infrastructure": ["deploy", "server", "database", "infrastructure", "devops"],
+        "Security": ["security", "auth", "permission", "vulnerability", "encrypt"],
+        "Data Science": ["data", "analysis", "ml", "model", "analytics", "predict"],
+        "Marketing": ["marketing", "content", "campaign", "seo", "social"],
+        "Customer Support": ["support", "help", "customer", "issue", "ticket"],
+        "Operations": ["optimize", "process", "efficiency", "workflow", "improve"],
+        "Finance": ["cost", "budget", "revenue", "financial", "accounting"],
     }
 
     # Detect department from keywords (INSTANT)
@@ -192,11 +219,13 @@ def select_best_agent_for_task(
     cache_key = f"{detected_department or 'general'}_{prefer_contractor}"
     if cache_key in _agent_cache:
         cached_agent = _agent_cache[cache_key].copy()
-        cached_agent['reason'] = f"Selected for {detected_department or 'general'} expertise (cached)"
-        if cached_agent['worker_type'] == 'internal':
-            cached_agent['reason'] += " (Internal Staff - FREE)"
+        cached_agent["reason"] = (
+            f"Selected for {detected_department or 'general'} expertise (cached)"
+        )
+        if cached_agent["worker_type"] == "internal":
+            cached_agent["reason"] += " (Internal Staff - FREE)"
         else:
-            cached_agent['reason'] += " (Contractor - PAID)"
+            cached_agent["reason"] += " (Contractor - PAID)"
         return cached_agent
 
     # Query for best agent (with optimized indexed lookup)
@@ -262,12 +291,14 @@ def select_best_agent_for_task(
             return None
 
     # CRITICAL: Validate API key for CONTRACT agents
-    if agent['worker_type'] == 'contract':
-        api_check = check_api_key_configured(agent['model'])
+    if agent["worker_type"] == "contract":
+        api_check = check_api_key_configured(agent["model"])
 
-        if not api_check['configured']:
+        if not api_check["configured"]:
             # API key not configured - fallback to internal agent in same department
-            print(f"⚠️  CONTRACT agent {agent['name']} requires {api_check['provider'].upper()} API key")
+            print(
+                f"⚠️  CONTRACT agent {agent['name']} requires {api_check['provider'].upper()} API key"
+            )
             print(f"⚠️  Reason: {api_check['error']}")
             print(f"⚠️  Falling back to internal staff...")
 
@@ -308,29 +339,32 @@ def select_best_agent_for_task(
 
             if fallback_agent:
                 agent = fallback_agent
-                print(f"✓ Using internal agent: {agent['name']} ({agent['department']})")
+                print(
+                    f"✓ Using internal agent: {agent['name']} ({agent['department']})"
+                )
             else:
                 # No internal agents available - return error info with contract agent
-                agent['api_error'] = api_check['error']
-                agent['api_provider'] = api_check['provider']
+                agent["api_error"] = api_check["error"]
+                agent["api_provider"] = api_check["provider"]
 
     # Build reason
     reason = f"Selected for {detected_department or 'general'} expertise"
-    if agent['worker_type'] == 'internal':
+    if agent["worker_type"] == "internal":
         reason += " (Internal Staff - FREE)"
     else:
         reason += " (Contractor - PAID)"
 
     # Add API error to reason if present
-    if agent.get('api_error'):
+    if agent.get("api_error"):
         reason += f" - WARNING: {agent['api_error']}"
 
-    result = dict(agent) | {'reason': reason}
+    result = dict(agent) | {"reason": reason}
 
     # Store in cache for next time (60-second TTL)
     _agent_cache[cache_key] = dict(agent)
 
     return result
+
 
 def quick_acknowledgment(agent_name: str, agent_title: str) -> str:
     """
@@ -351,14 +385,16 @@ def quick_acknowledgment(agent_name: str, agent_title: str) -> str:
         f"Let me get {agent_name} to help you with this...",
     ]
     import random
+
     return random.choice(templates)
+
 
 def execute_with_delegation(
     task: str,
     user_id: int = None,
     department: str = None,
     force_agent_id: int = None,
-    return_quick_ack: bool = False
+    return_quick_ack: bool = False,
 ):
     """
     Execute a task with clear employee delegation and tracking
@@ -399,24 +435,27 @@ def execute_with_delegation(
     if force_agent_id:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT id, name, department, worker_type, model, tier, bio
             FROM agents WHERE id = %s
-        """, (force_agent_id,))
+        """,
+            (force_agent_id,),
+        )
         agent = cur.fetchone()
         cur.close()
         conn.close()
 
         if not agent:
-            return {'success': False, 'error': f'Agent {force_agent_id} not found'}
+            return {"success": False, "error": f"Agent {force_agent_id} not found"}
 
         agent = dict(agent)
-        agent['reason'] = 'Manually selected'
+        agent["reason"] = "Manually selected"
     else:
         agent = select_best_agent_for_task(task, department)
 
         if not agent:
-            return {'success': False, 'error': 'No suitable agent available'}
+            return {"success": False, "error": "No suitable agent available"}
 
     # Create execution record for audit trail
     conn = get_db()
@@ -432,46 +471,56 @@ def execute_with_delegation(
         except:
             pass  # Use NULL if validation fails
 
-    cur.execute("""
+    cur.execute(
+        """
         INSERT INTO agent_executions
         (agent_id, user_id, task_description, status, started_at, input_data)
         VALUES (%s, %s, %s, 'running', NOW(), %s)
         RETURNING id, started_at
-    """, (
-        agent['id'],
-        validated_user_id,
-        task,
-        json.dumps({'task': task, 'department': department})
-    ))
+    """,
+        (
+            agent["id"],
+            validated_user_id,
+            task,
+            json.dumps({"task": task, "department": department}),
+        ),
+    )
 
     execution = cur.fetchone()
-    execution_id = execution['id']
-    started_at = execution['started_at']
+    execution_id = execution["id"]
+    started_at = execution["started_at"]
     conn.commit()
 
     # Build delegation message with actual name
-    first_name = agent.get('first_name', '')
-    last_name = agent.get('last_name', '')
-    full_name = f"{first_name} {last_name}".strip() if first_name or last_name else agent['name']
+    first_name = agent.get("first_name", "")
+    last_name = agent.get("last_name", "")
+    full_name = (
+        f"{first_name} {last_name}".strip()
+        if first_name or last_name
+        else agent["name"]
+    )
 
     delegation_info = {
-        'employee_name': full_name,
-        'employee_title': agent.get('title') or agent.get('bio') or f"{agent['department']} Specialist",
-        'department': agent['department'],
-        'worker_type': agent['worker_type'],
-        'model': agent['model'],
-        'tier': agent.get('tier', 'standard'),
-        'reason': agent['reason']
+        "employee_name": full_name,
+        "employee_title": agent.get("title")
+        or agent.get("bio")
+        or f"{agent['department']} Specialist",
+        "department": agent["department"],
+        "worker_type": agent["worker_type"],
+        "model": agent["model"],
+        "tier": agent.get("tier", "standard"),
+        "reason": agent["reason"],
     }
 
     # Generate quick acknowledgment (INSTANT - no LLM call)
-    quick_ack_msg = quick_acknowledgment(full_name, delegation_info['employee_title'])
+    quick_ack_msg = quick_acknowledgment(full_name, delegation_info["employee_title"])
     print(f"⚡ Fast routing complete in {(time.time() - start_time) * 1000:.1f}ms")
     print(f"📨 {quick_ack_msg}")
 
     # Import tools for agents
     try:
         from consciousness.archie_tools import list_available_tools, execute_tool
+
         tools_enabled = True
         available_tools = list_available_tools()
     except:
@@ -550,38 +599,38 @@ IMPORTANT RULES:
         task,
         user_id=user_id,
         system_prompt=system_prompt,
-        force_model=agent['model'],
+        force_model=agent["model"],
         enable_memory=False,  # Disabled to prevent confusing cross-talk from unrelated memories
-        agent_id=agent['id']
+        agent_id=agent["id"],
     )
 
     # Process tool calls if present
-    if tools_enabled and result.get('success') and result.get('response'):
-        response_text = result['response']
+    if tools_enabled and result.get("success") and result.get("response"):
+        response_text = result["response"]
 
         # Check for tool calls in response
-        if 'TOOL_CALL:' in response_text:
+        if "TOOL_CALL:" in response_text:
             print(f"🔧 TOOL CALL DETECTED in response!")
             tool_results = []
-            lines = response_text.split('\n')
+            lines = response_text.split("\n")
 
             i = 0
             while i < len(lines):
-                if lines[i].startswith('TOOL_CALL:'):
-                    tool_name = lines[i].replace('TOOL_CALL:', '').strip()
+                if lines[i].startswith("TOOL_CALL:"):
+                    tool_name = lines[i].replace("TOOL_CALL:", "").strip()
 
                     # Collect JSON args
-                    json_str = ''
+                    json_str = ""
                     i += 1
                     brace_count = 0
                     while i < len(lines):
                         line = lines[i]
-                        json_str += line + '\n'
+                        json_str += line + "\n"
 
-                        if '{' in line:
-                            brace_count += line.count('{')
-                        if '}' in line:
-                            brace_count -= line.count('}')
+                        if "{" in line:
+                            brace_count += line.count("{")
+                        if "}" in line:
+                            brace_count -= line.count("}")
 
                         if brace_count == 0 and json_str.strip():
                             break
@@ -593,38 +642,38 @@ IMPORTANT RULES:
                         print(f"🔧 Executing tool: {tool_name} with args: {args}")
                         tool_result = execute_tool(tool_name, **args)
                         print(f"✅ Tool result: {tool_result}")
-                        tool_results.append({
-                            'tool': tool_name,
-                            'args': args,
-                            'result': tool_result
-                        })
+                        tool_results.append(
+                            {"tool": tool_name, "args": args, "result": tool_result}
+                        )
                     except Exception as e:
                         print(f"❌ Tool execution error: {str(e)}")
-                        tool_results.append({
-                            'tool': tool_name,
-                            'error': str(e)
-                        })
+                        tool_results.append({"tool": tool_name, "error": str(e)})
 
                 i += 1
 
             # Append tool results to response
             if tool_results:
-                result['response'] += '\n\n--- TOOL EXECUTION RESULTS ---\n'
+                result["response"] += "\n\n--- TOOL EXECUTION RESULTS ---\n"
                 for tr in tool_results:
-                    if 'error' in tr:
-                        result['response'] += f"\n❌ {tr['tool']}: {tr['error']}"
+                    if "error" in tr:
+                        result["response"] += f"\n❌ {tr['tool']}: {tr['error']}"
                     else:
-                        result['response'] += f"\n✓ {tr['tool']}: {json.dumps(tr['result'], indent=2)}"
+                        result[
+                            "response"
+                        ] += f"\n✓ {tr['tool']}: {json.dumps(tr['result'], indent=2)}"
 
-                result['tools_used'] = tool_results
+                result["tools_used"] = tool_results
         else:
-            print(f"⚠️ NO TOOL CALLS detected in response (tools_enabled={tools_enabled})")
+            print(
+                f"⚠️ NO TOOL CALLS detected in response (tools_enabled={tools_enabled})"
+            )
 
     duration = time.time() - start_time
 
     # Update execution record
-    if result.get('success'):
-        cur.execute("""
+    if result.get("success"):
+        cur.execute(
+            """
             UPDATE agent_executions
             SET status = 'completed',
                 completed_at = NOW(),
@@ -633,48 +682,54 @@ IMPORTANT RULES:
                 cost = %s,
                 result = %s
             WHERE id = %s
-        """, (
-            int(duration),
-            result.get('tokens_used', 0),
-            result.get('cost', 0.0),
-            json.dumps(result),
-            execution_id
-        ))
+        """,
+            (
+                int(duration),
+                result.get("tokens_used", 0),
+                result.get("cost", 0.0),
+                json.dumps(result),
+                execution_id,
+            ),
+        )
     else:
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE agent_executions
             SET status = 'failed',
                 completed_at = NOW(),
                 duration_seconds = %s,
                 error = %s
             WHERE id = %s
-        """, (
-            int(duration),
-            result.get('error', 'Unknown error'),
-            execution_id
-        ))
+        """,
+            (int(duration), result.get("error", "Unknown error"), execution_id),
+        )
 
     conn.commit()
     cur.close()
     conn.close()
 
     # Just return the response without the delegation box (it's shown in UI now)
-    final_response = result.get('response', '') if result.get('success') else f"ERROR: {result.get('error')}"
+    final_response = (
+        result.get("response", "")
+        if result.get("success")
+        else f"ERROR: {result.get('error')}"
+    )
 
     return {
-        'success': result.get('success', False),
-        'response': final_response,
-        'delegation': delegation_info,
-        'execution_record': {
-            'execution_id': execution_id,
-            'started_at': started_at.isoformat() if started_at else None,
-            'duration_seconds': round(duration, 2),
-            'tokens_used': result.get('tokens_used', 0),
-            'cost': result.get('cost', 0.0)
+        "success": result.get("success", False),
+        "response": final_response,
+        "delegation": delegation_info,
+        "execution_record": {
+            "execution_id": execution_id,
+            "started_at": started_at.isoformat() if started_at else None,
+            "duration_seconds": round(duration, 2),
+            "tokens_used": result.get("tokens_used", 0),
+            "cost": result.get("cost", 0.0),
         },
-        'audit_trail': f"execution_id:{execution_id}|agent:{agent['id']}|user:{user_id}|timestamp:{datetime.now().isoformat()}",
-        'raw_result': result  # Full result for debugging
+        "audit_trail": f"execution_id:{execution_id}|agent:{agent['id']}|user:{user_id}|timestamp:{datetime.now().isoformat()}",
+        "raw_result": result,  # Full result for debugging
     }
+
 
 def get_agent_directory(include_inactive=False):
     """
@@ -722,24 +777,25 @@ def get_agent_directory(include_inactive=False):
 
     for agent in agents:
         agent_dict = dict(agent)
-        if agent['worker_type'] == 'internal':
+        if agent["worker_type"] == "internal":
             internal_staff.append(agent_dict)
         else:
             contractors.append(agent_dict)
 
     stats = {
-        'total_employees': len(agents),
-        'internal_staff_count': len(internal_staff),
-        'contractors_count': len(contractors),
-        'active_count': sum(1 for a in agents if a['status'] == 'active'),
-        'total_cost': sum(float(a.get('total_cost', 0) or 0) for a in agents)
+        "total_employees": len(agents),
+        "internal_staff_count": len(internal_staff),
+        "contractors_count": len(contractors),
+        "active_count": sum(1 for a in agents if a["status"] == "active"),
+        "total_cost": sum(float(a.get("total_cost", 0) or 0) for a in agents),
     }
 
     return {
-        'internal_staff': internal_staff,
-        'contractors': contractors,
-        'stats': stats
+        "internal_staff": internal_staff,
+        "contractors": contractors,
+        "stats": stats,
     }
+
 
 def get_execution_audit_trail(execution_id: int):
     """
@@ -756,7 +812,8 @@ def get_execution_audit_trail(execution_id: int):
     conn = get_db()
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    cur.execute("""
+    cur.execute(
+        """
         SELECT
             ae.*,
             a.name as agent_name,
@@ -769,7 +826,9 @@ def get_execution_audit_trail(execution_id: int):
         JOIN agents a ON ae.agent_id = a.id
         LEFT JOIN users u ON ae.user_id = u.id
         WHERE ae.id = %s
-    """, (execution_id,))
+    """,
+        (execution_id,),
+    )
 
     record = cur.fetchone()
 
@@ -777,38 +836,42 @@ def get_execution_audit_trail(execution_id: int):
     conn.close()
 
     if not record:
-        return {'success': False, 'error': 'Execution not found'}
+        return {"success": False, "error": "Execution not found"}
 
     return {
-        'success': True,
-        'execution': {
-            'execution_id': record['id'],
-            'task_description': record['task_description'],
-            'status': record['status'],
-            'started_at': record['started_at'].isoformat() if record.get('started_at') else None,
-            'completed_at': record['completed_at'].isoformat() if record.get('completed_at') else None,
-            'duration_seconds': record.get('duration_seconds'),
-            'error': record.get('error')
+        "success": True,
+        "execution": {
+            "execution_id": record["id"],
+            "task_description": record["task_description"],
+            "status": record["status"],
+            "started_at": (
+                record["started_at"].isoformat() if record.get("started_at") else None
+            ),
+            "completed_at": (
+                record["completed_at"].isoformat()
+                if record.get("completed_at")
+                else None
+            ),
+            "duration_seconds": record.get("duration_seconds"),
+            "error": record.get("error"),
         },
-        'agent': {
-            'name': record['agent_name'],
-            'department': record['department'],
-            'worker_type': record['worker_type'],
-            'model': record['model']
+        "agent": {
+            "name": record["agent_name"],
+            "department": record["department"],
+            "worker_type": record["worker_type"],
+            "model": record["model"],
         },
-        'user': {
-            'username': record.get('username'),
-            'email': record.get('email')
+        "user": {"username": record.get("username"), "email": record.get("email")},
+        "cost_details": {
+            "tokens_used": record.get("tokens_used", 0),
+            "cost_usd": record.get("cost", 0.0),
+            "billable": record["worker_type"] == "contract",
         },
-        'cost_details': {
-            'tokens_used': record.get('tokens_used', 0),
-            'cost_usd': record.get('cost', 0.0),
-            'billable': record['worker_type'] == 'contract'
-        }
     }
 
+
 # Example usage
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("=" * 80)
     print("A.R.C.H.I.E. Agent Delegation System - Test")
     print("=" * 80)
@@ -821,22 +884,24 @@ if __name__ == '__main__':
     print(f"Total Cost: ${directory['stats']['total_cost']:.2f}")
 
     print("\n--- Internal Staff (First 5) ---")
-    for agent in directory['internal_staff'][:5]:
+    for agent in directory["internal_staff"][:5]:
         print(f"  {agent['name']} - {agent['department']} ({agent['model']})")
 
     print("\n--- Contractors (First 5) ---")
-    for agent in directory['contractors'][:5]:
-        print(f"  ⚠️  {agent['name']} - {agent['department']} ({agent['model']}) - Cost: ${agent.get('total_cost', 0):.2f}")
+    for agent in directory["contractors"][:5]:
+        print(
+            f"  ⚠️  {agent['name']} - {agent['department']} ({agent['model']}) - Cost: ${agent.get('total_cost', 0):.2f}"
+        )
 
     # Test 2: Execute task with delegation
     print("\n\n🎯 TASK EXECUTION TEST")
     result = execute_with_delegation(
         task="How can we improve error handling in our codebase?",
         user_id=None,  # System user
-        department="Quality Assurance"
+        department="Quality Assurance",
     )
 
-    if result['success']:
+    if result["success"]:
         print(f"\n✅ Task executed successfully!")
         print(f"Delegated to: {result['delegation']['employee_name']}")
         print(f"Department: {result['delegation']['department']}")

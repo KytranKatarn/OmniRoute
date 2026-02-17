@@ -11,6 +11,7 @@ Purpose:
 Author: A.R.C.H.I.E. Platform
 Date: 2026-01-07
 """
+
 import time
 from typing import Optional, Dict, Tuple
 from datetime import datetime, timedelta
@@ -21,6 +22,7 @@ import threading
 try:
     from flask import request, jsonify, g
     from flask_login import current_user
+
     FLASK_AVAILABLE = True
 except ImportError:
     FLASK_AVAILABLE = False
@@ -29,6 +31,7 @@ except ImportError:
 
 try:
     from rbac import get_user_role, Role
+
     RBAC_AVAILABLE = True
 except ImportError:
     RBAC_AVAILABLE = False
@@ -36,6 +39,7 @@ except ImportError:
 
 try:
     from logging_config import audit_log
+
     LOGGING_AVAILABLE = True
 except ImportError:
     LOGGING_AVAILABLE = False
@@ -48,11 +52,11 @@ except ImportError:
 
 # Rate limits per role (requests per minute)
 RATE_LIMITS = {
-    'PUBLIC': 20,        # Anonymous users: 20 req/min
-    'USER': 60,          # Authenticated users: 60 req/min
-    'PREMIUM': 120,      # Premium users: 120 req/min
-    'ADMIN': 300,        # Admins: 300 req/min
-    'SUPER_ADMIN': 1000  # Super admins: 1000 req/min
+    "PUBLIC": 20,  # Anonymous users: 20 req/min
+    "USER": 60,  # Authenticated users: 60 req/min
+    "PREMIUM": 120,  # Premium users: 120 req/min
+    "ADMIN": 300,  # Admins: 300 req/min
+    "SUPER_ADMIN": 1000,  # Super admins: 1000 req/min
 }
 
 # Window duration (seconds)
@@ -65,6 +69,7 @@ CLEANUP_INTERVAL = 300  # 5 minutes
 # ============================================================================
 # IN-MEMORY RATE LIMITER
 # ============================================================================
+
 
 class InMemoryRateLimiter:
     """
@@ -151,10 +156,10 @@ class InMemoryRateLimiter:
         """Get statistics about rate limiter"""
         with self.lock:
             return {
-                'total_keys': len(self.requests),
-                'total_requests': sum(len(timestamps) for timestamps in self.requests.values()),
-                'window_duration': WINDOW_DURATION,
-                'cleanup_interval': CLEANUP_INTERVAL
+                "total_keys": len(self.requests),
+                "total_requests": sum(len(timestamps) for timestamps in self.requests.values()),
+                "window_duration": WINDOW_DURATION,
+                "cleanup_interval": CLEANUP_INTERVAL,
             }
 
 
@@ -166,6 +171,7 @@ rate_limiter = InMemoryRateLimiter()
 # RATE LIMIT HELPERS
 # ============================================================================
 
+
 def get_rate_limit_key() -> str:
     """
     Get unique key for rate limiting
@@ -173,16 +179,16 @@ def get_rate_limit_key() -> str:
     Returns:
         Unique key (user_id or IP address)
     """
-    if FLASK_AVAILABLE and current_user and hasattr(current_user, 'is_authenticated'):
+    if FLASK_AVAILABLE and current_user and hasattr(current_user, "is_authenticated"):
         if current_user.is_authenticated:
             return f"user_{current_user.id}"
 
     # Fall back to IP address
     if FLASK_AVAILABLE and request:
-        ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+        ip = request.headers.get("X-Forwarded-For", request.remote_addr)
         # Take first IP if multiple (proxy chain)
-        if ip and ',' in ip:
-            ip = ip.split(',')[0].strip()
+        if ip and "," in ip:
+            ip = ip.split(",")[0].strip()
         return f"ip_{ip}"
 
     return "unknown"
@@ -196,25 +202,26 @@ def get_user_rate_limit() -> int:
         Rate limit (requests per minute)
     """
     if not RBAC_AVAILABLE or not FLASK_AVAILABLE:
-        return RATE_LIMITS['PUBLIC']
+        return RATE_LIMITS["PUBLIC"]
 
-    if not current_user or not hasattr(current_user, 'is_authenticated'):
-        return RATE_LIMITS['PUBLIC']
+    if not current_user or not hasattr(current_user, "is_authenticated"):
+        return RATE_LIMITS["PUBLIC"]
 
     if not current_user.is_authenticated:
-        return RATE_LIMITS['PUBLIC']
+        return RATE_LIMITS["PUBLIC"]
 
     # Get user role
     try:
         role = get_user_role(current_user)
-        return RATE_LIMITS.get(role.name, RATE_LIMITS['USER'])
+        return RATE_LIMITS.get(role.name, RATE_LIMITS["USER"])
     except:
-        return RATE_LIMITS['USER']
+        return RATE_LIMITS["USER"]
 
 
 # ============================================================================
 # FLASK DECORATORS
 # ============================================================================
+
 
 def rate_limit(limit: Optional[int] = None):
     """
@@ -234,6 +241,7 @@ def rate_limit(limit: Optional[int] = None):
         def expensive_operation():
             ...
     """
+
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
@@ -250,7 +258,7 @@ def rate_limit(limit: Optional[int] = None):
             allowed, current_count, max_limit = rate_limiter.check_rate_limit(key, user_limit)
 
             # Add rate limit headers
-            if FLASK_AVAILABLE and hasattr(g, 'request_id'):
+            if FLASK_AVAILABLE and hasattr(g, "request_id"):
                 g.rate_limit_limit = max_limit
                 g.rate_limit_remaining = max(0, max_limit - current_count)
                 g.rate_limit_reset = int(time.time()) + WINDOW_DURATION
@@ -258,24 +266,34 @@ def rate_limit(limit: Optional[int] = None):
             if not allowed:
                 # Log rate limit exceeded
                 if LOGGING_AVAILABLE and audit_log:
-                    audit_log('RATE_LIMIT_EXCEEDED', {
-                        'key': key,
-                        'limit': user_limit,
-                        'endpoint': request.endpoint if FLASK_AVAILABLE and request else 'unknown'
-                    }, success=False)
+                    audit_log(
+                        "RATE_LIMIT_EXCEEDED",
+                        {
+                            "key": key,
+                            "limit": user_limit,
+                            "endpoint": (request.endpoint if FLASK_AVAILABLE and request else "unknown"),
+                        },
+                        success=False,
+                    )
 
                 # Return 429 Too Many Requests
-                return jsonify({
-                    'success': False,
-                    'error': 'Rate limit exceeded',
-                    'limit': max_limit,
-                    'window_seconds': WINDOW_DURATION,
-                    'retry_after': WINDOW_DURATION
-                }), 429
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": "Rate limit exceeded",
+                            "limit": max_limit,
+                            "window_seconds": WINDOW_DURATION,
+                            "retry_after": WINDOW_DURATION,
+                        }
+                    ),
+                    429,
+                )
 
             return f(*args, **kwargs)
 
         return decorated_function
+
     return decorator
 
 
@@ -289,6 +307,7 @@ def rate_limit_exempt(f):
         def health_check():
             return {'status': 'healthy'}
     """
+
     @wraps(f)
     def decorated_function(*args, **kwargs):
         return f(*args, **kwargs)
@@ -301,6 +320,7 @@ def rate_limit_exempt(f):
 # ============================================================================
 # FLASK MIDDLEWARE
 # ============================================================================
+
 
 def init_rate_limiting(app):
     """
@@ -321,19 +341,19 @@ def init_rate_limiting(app):
         """Add rate limit headers to response"""
         # Check if endpoint is exempt
         endpoint_func = app.view_functions.get(request.endpoint)
-        if endpoint_func and hasattr(endpoint_func, '_rate_limit_exempt'):
+        if endpoint_func and hasattr(endpoint_func, "_rate_limit_exempt"):
             return response
 
         # Add headers if rate limit info is available
-        if hasattr(g, 'rate_limit_limit'):
-            response.headers['X-RateLimit-Limit'] = str(g.rate_limit_limit)
-            response.headers['X-RateLimit-Remaining'] = str(g.rate_limit_remaining)
-            response.headers['X-RateLimit-Reset'] = str(g.rate_limit_reset)
+        if hasattr(g, "rate_limit_limit"):
+            response.headers["X-RateLimit-Limit"] = str(g.rate_limit_limit)
+            response.headers["X-RateLimit-Remaining"] = str(g.rate_limit_remaining)
+            response.headers["X-RateLimit-Reset"] = str(g.rate_limit_reset)
 
         return response
 
     # Store rate limiter in app config
-    app.config['RATE_LIMITER'] = rate_limiter
+    app.config["RATE_LIMITER"] = rate_limiter
 
     print(f"[Rate Limiting] Initialized with limits: {RATE_LIMITS}")
 
@@ -342,11 +362,12 @@ def init_rate_limiting(app):
 # ADMIN API - Rate Limit Management
 # ============================================================================
 
+
 def get_rate_limit_stats() -> Dict:
     """Get current rate limiter statistics"""
     stats = rate_limiter.get_stats()
-    stats['rate_limits'] = RATE_LIMITS
-    stats['window_duration'] = WINDOW_DURATION
+    stats["rate_limits"] = RATE_LIMITS
+    stats["window_duration"] = WINDOW_DURATION
     return stats
 
 
@@ -371,7 +392,7 @@ def reset_rate_limit(key: str) -> bool:
 # TESTING & EXAMPLES
 # ============================================================================
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("=" * 80)
     print("RATE LIMITING TEST")
     print("=" * 80)

@@ -3,6 +3,7 @@ A.R.C.H.I.E. Core - Her Personal Conversational System
 This is A.R.C.H.I.E. herself, not a delegated agent
 Uses fast local LLM for quick, personalized responses
 """
+
 import os
 import re
 import psycopg2
@@ -11,46 +12,58 @@ from datetime import datetime
 import random
 from knowledge_retrieval import get_relevant_knowledge, get_knowledge_stats
 
+
 def get_db():
     """Get database connection"""
     return psycopg2.connect(
-        host=os.getenv('DB_HOST', 'archie_database'),
-        port=os.getenv('DB_PORT', '5432'),
-        database=os.getenv('DB_NAME', 'archie'),
-        user=os.getenv('DB_USER', 'archie'),
-        password=os.getenv('DB_PASSWORD', '')
+        host=os.getenv("DB_HOST", "archie_database"),
+        port=os.getenv("DB_PORT", "5432"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", ""),
     )
+
 
 def get_personality_trait(trait_name: str) -> str:
     """Get A.R.C.H.I.E.'s personality trait"""
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT trait_value FROM archie_personality WHERE trait_name = %s", (trait_name,))
+        cur.execute(
+            "SELECT trait_value FROM archie_personality WHERE trait_name = %s",
+            (trait_name,),
+        )
         result = cur.fetchone()
         cur.close()
         conn.close()
-        return result['trait_value'] if result else None
+        return result["trait_value"] if result else None
     except:
         return None
+
 
 def get_relationship(user_id: int) -> dict:
     """Get A.R.C.H.I.E.'s relationship with user"""
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT * FROM archie_relationships WHERE user_id = %s
-        """, (user_id,))
+        """,
+            (user_id,),
+        )
         relationship = cur.fetchone()
 
         if not relationship:
             # Create new relationship
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO archie_relationships (user_id, relationship_type, trust_level, familiarity_level)
                 VALUES (%s, 'team_member', 50, 0)
                 RETURNING *
-            """, (user_id,))
+            """,
+                (user_id,),
+            )
             relationship = cur.fetchone()
             conn = cur.connection
             conn.commit()
@@ -61,23 +74,28 @@ def get_relationship(user_id: int) -> dict:
     except:
         return None
 
+
 def update_relationship(user_id: int):
     """Update interaction count and familiarity"""
     try:
         conn = get_db()
         cur = conn.cursor()
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE archie_relationships
             SET total_interactions = total_interactions + 1,
                 familiarity_level = LEAST(100, familiarity_level + 1),
                 last_interaction = NOW()
             WHERE user_id = %s
-        """, (user_id,))
+        """,
+            (user_id,),
+        )
         conn.commit()
         cur.close()
         conn.close()
     except:
         pass
+
 
 def check_predefined_script(user_message: str, user_id: int) -> dict:
     """Check if message matches any pre-defined script"""
@@ -87,7 +105,7 @@ def check_predefined_script(user_message: str, user_id: int) -> dict:
 
         # Get relationship for personalization
         relationship = get_relationship(user_id)
-        is_admin = relationship and relationship.get('relationship_type') == 'admin'
+        is_admin = relationship and relationship.get("relationship_type") == "admin"
 
         # Get active scripts ordered by priority
         cur.execute("""
@@ -101,33 +119,36 @@ def check_predefined_script(user_message: str, user_id: int) -> dict:
 
         for script in scripts:
             # Check if admin-only script
-            if 'admin' in script['script_type'] and not is_admin:
+            if "admin" in script["script_type"] and not is_admin:
                 continue
 
             # Check pattern match
-            pattern = script['trigger_pattern']
+            pattern = script["trigger_pattern"]
             if re.search(pattern, message_lower, re.IGNORECASE):
-                response = script['response_template']
+                response = script["response_template"]
 
                 # Personalize response
-                if relationship and relationship.get('preferred_name'):
-                    response = response.replace('{name}', relationship['preferred_name'])
+                if relationship and relationship.get("preferred_name"):
+                    response = response.replace(
+                        "{name}", relationship["preferred_name"]
+                    )
 
                 cur.close()
                 conn.close()
 
                 return {
-                    'matched': True,
-                    'script_type': script['script_type'],
-                    'response': response
+                    "matched": True,
+                    "script_type": script["script_type"],
+                    "response": response,
                 }
 
         cur.close()
         conn.close()
-        return {'matched': False}
+        return {"matched": False}
     except Exception as e:
         print(f"Script check error: {e}")
-        return {'matched': False}
+        return {"matched": False}
+
 
 def should_delegate(user_message: str, user_id: int) -> dict:
     """
@@ -144,66 +165,155 @@ def should_delegate(user_message: str, user_id: int) -> dict:
 
     # A.R.C.H.I.E. handles these herself (simple/conversational)
     simple_patterns = [
-        r'^(hi|hey|hello|sup|yo|good\s)',
-        r'(how are you|what''s up|you there|are you there)',
-        r'(thanks|thank you|thx)',
-        r'(bye|goodbye|later|see you)',
-        r'^(yes|no|ok|okay|sure|yep|yeah|nope)$',
-        r'(what''s new|any updates|status)',
-        r'(agenda|to.?do|tasks?|goals?)',
-        r'^(help|info|about)$',  # General help requests
+        r"^(hi|hey|hello|sup|yo|good\s)",
+        r"(how are you|what" "s up|you there|are you there)",
+        r"(thanks|thank you|thx)",
+        r"(bye|goodbye|later|see you)",
+        r"^(yes|no|ok|okay|sure|yep|yeah|nope)$",
+        r"(what" "s new|any updates|status)",
+        r"(agenda|to.?do|tasks?|goals?)",
+        r"^(help|info|about)$",  # General help requests
     ]
 
     for pattern in simple_patterns:
         if re.search(pattern, message_lower):
             return {
-                'should_delegate': False,
-                'reason': 'Simple conversational interaction - A.R.C.H.I.E. can handle'
+                "should_delegate": False,
+                "reason": "Simple conversational interaction - A.R.C.H.I.E. can handle",
             }
 
     # Action verbs that indicate delegation needed (unless very simple)
     action_verbs = [
-        'fix', 'debug', 'create', 'build', 'implement', 'develop',
-        'deploy', 'test', 'analyze', 'optimize', 'refactor', 'review',
-        'setup', 'configure', 'install', 'update', 'migrate', 'design'
+        "fix",
+        "debug",
+        "create",
+        "build",
+        "implement",
+        "develop",
+        "deploy",
+        "test",
+        "analyze",
+        "optimize",
+        "refactor",
+        "review",
+        "setup",
+        "configure",
+        "install",
+        "update",
+        "migrate",
+        "design",
     ]
 
     has_action_verb = any(verb in message_lower for verb in action_verbs)
 
     # Check for delegation keywords (complex tasks)
     delegation_keywords = {
-        'Engineering': [
-            'code', 'bug', 'develop', 'implement', 'refactor', 'api', 'backend',
-            'frontend', 'function', 'class', 'method', 'variable', 'algorithm',
-            'programming', 'script', 'application', 'software', 'debug', 'error',
-            'exception', 'syntax', 'compile', 'build system'
+        "Engineering": [
+            "code",
+            "bug",
+            "develop",
+            "implement",
+            "refactor",
+            "api",
+            "backend",
+            "frontend",
+            "function",
+            "class",
+            "method",
+            "variable",
+            "algorithm",
+            "programming",
+            "script",
+            "application",
+            "software",
+            "debug",
+            "error",
+            "exception",
+            "syntax",
+            "compile",
+            "build system",
         ],
-        'Quality Assurance': [
-            'test', 'qa', 'quality', 'verify', 'validate', 'testing',
-            'unit test', 'integration', 'regression', 'coverage'
+        "Quality Assurance": [
+            "test",
+            "qa",
+            "quality",
+            "verify",
+            "validate",
+            "testing",
+            "unit test",
+            "integration",
+            "regression",
+            "coverage",
         ],
-        'Infrastructure': [
-            'deploy', 'deployment', 'server', 'database', 'infrastructure', 'devops',
-            'docker', 'container', 'kubernetes', 'cloud', 'aws', 'hosting',
-            'production', 'environment', 'ci/cd', 'pipeline'
+        "Infrastructure": [
+            "deploy",
+            "deployment",
+            "server",
+            "database",
+            "infrastructure",
+            "devops",
+            "docker",
+            "container",
+            "kubernetes",
+            "cloud",
+            "aws",
+            "hosting",
+            "production",
+            "environment",
+            "ci/cd",
+            "pipeline",
         ],
-        'Security': [
-            'security', 'auth', 'authentication', 'authorization', 'permission',
-            'vulnerability', 'encrypt', 'decrypt', 'ssl', 'tls', 'certificate',
-            'firewall', 'breach', 'attack', 'penetration'
+        "Security": [
+            "security",
+            "auth",
+            "authentication",
+            "authorization",
+            "permission",
+            "vulnerability",
+            "encrypt",
+            "decrypt",
+            "ssl",
+            "tls",
+            "certificate",
+            "firewall",
+            "breach",
+            "attack",
+            "penetration",
         ],
-        'Data Science': [
-            'data', 'analysis', 'ml', 'machine learning', 'model', 'analytics',
-            'dataset', 'training', 'prediction', 'neural', 'algorithm'
+        "Data Science": [
+            "data",
+            "analysis",
+            "ml",
+            "machine learning",
+            "model",
+            "analytics",
+            "dataset",
+            "training",
+            "prediction",
+            "neural",
+            "algorithm",
         ],
-        'Operations': [
-            'optimize', 'process', 'efficiency', 'workflow', 'improve',
-            'streamline', 'automate', 'automation', 'procedure'
+        "Operations": [
+            "optimize",
+            "process",
+            "efficiency",
+            "workflow",
+            "improve",
+            "streamline",
+            "automate",
+            "automation",
+            "procedure",
         ],
-        'Documentation': [
-            'document', 'documentation', 'readme', 'guide', 'tutorial',
-            'write docs', 'api docs', 'user guide'
-        ]
+        "Documentation": [
+            "document",
+            "documentation",
+            "readme",
+            "guide",
+            "tutorial",
+            "write docs",
+            "api docs",
+            "user guide",
+        ],
     }
 
     # Check each department
@@ -213,9 +323,9 @@ def should_delegate(user_message: str, user_id: int) -> dict:
         # If multiple keywords or action verb + keyword, delegate
         if keyword_matches >= 2 or (has_action_verb and keyword_matches >= 1):
             return {
-                'should_delegate': True,
-                'reason': f'Requires {department} expertise',
-                'suggested_department': department
+                "should_delegate": True,
+                "reason": f"Requires {department} expertise",
+                "suggested_department": department,
             }
 
     # Single keyword with action verb might still need delegation
@@ -223,18 +333,24 @@ def should_delegate(user_message: str, user_id: int) -> dict:
         for department, keywords in delegation_keywords.items():
             if any(keyword in message_lower for keyword in keywords):
                 return {
-                    'should_delegate': True,
-                    'reason': f'Technical task requiring {department} expertise',
-                    'suggested_department': department
+                    "should_delegate": True,
+                    "reason": f"Technical task requiring {department} expertise",
+                    "suggested_department": department,
                 }
 
     # Default: A.R.C.H.I.E. handles it (ask clarifying questions if needed)
     return {
-        'should_delegate': False,
-        'reason': 'General inquiry - A.R.C.H.I.E. will clarify or handle'
+        "should_delegate": False,
+        "reason": "General inquiry - A.R.C.H.I.E. will clarify or handle",
     }
 
-def archie_respond(user_message: str, user_id: int, username: str = None, conversation_history: list = None) -> dict:
+
+def archie_respond(
+    user_message: str,
+    user_id: int,
+    username: str = None,
+    conversation_history: list = None,
+) -> dict:
     """
     A.R.C.H.I.E.'s core response function
     This is HER responding, not a delegated agent
@@ -254,33 +370,33 @@ def archie_respond(user_message: str, user_id: int, username: str = None, conver
 
     # Get relationship info
     relationship = get_relationship(user_id)
-    is_admin = relationship and relationship.get('relationship_type') == 'admin'
-    preferred_name = relationship.get('preferred_name') if relationship else username
+    is_admin = relationship and relationship.get("relationship_type") == "admin"
+    preferred_name = relationship.get("preferred_name") if relationship else username
 
     # Check for pre-defined script match
     script_check = check_predefined_script(user_message, user_id)
-    if script_check.get('matched'):
+    if script_check.get("matched"):
         return {
-            'success': True,
-            'response': script_check['response'],
-            'should_delegate': False,
-            'used_script': True,
-            'script_type': script_check['script_type']
+            "success": True,
+            "response": script_check["response"],
+            "should_delegate": False,
+            "used_script": True,
+            "script_type": script_check["script_type"],
         }
 
     # Check if should delegate
     delegation_check = should_delegate(user_message, user_id)
 
-    if delegation_check['should_delegate']:
+    if delegation_check["should_delegate"]:
         # A.R.C.H.I.E. explains delegation
         agent_intro = f"I think this needs some specialized expertise. Let me connect you with our {delegation_check['suggested_department']} team..."
 
         return {
-            'success': True,
-            'response': agent_intro,
-            'should_delegate': True,
-            'delegation_info': delegation_check,
-            'used_script': False
+            "success": True,
+            "response": agent_intro,
+            "should_delegate": True,
+            "delegation_info": delegation_check,
+            "used_script": False,
         }
 
     # A.R.C.H.I.E. responds herself using fast local model
@@ -356,16 +472,22 @@ Instructions:
     # Add conversation history for context continuity
     if conversation_history and len(conversation_history) > 0:
         system_prompt += "\n\nRECENT CONVERSATION CONTEXT:\n"
-        system_prompt += "(Remember this context to maintain conversation continuity)\n\n"
+        system_prompt += (
+            "(Remember this context to maintain conversation continuity)\n\n"
+        )
 
         # Include last 6 messages for context (3 exchanges)
-        recent_messages = conversation_history[-6:] if len(conversation_history) > 6 else conversation_history
+        recent_messages = (
+            conversation_history[-6:]
+            if len(conversation_history) > 6
+            else conversation_history
+        )
 
         for msg in recent_messages:
-            role = msg.get('role', 'user')
-            content = msg.get('content', '')
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
 
-            if role == 'user':
+            if role == "user":
                 system_prompt += f"User ({preferred_name}): {content}\n"
             else:
                 system_prompt += f"You (A.R.C.H.I.E.): {content}\n"
@@ -376,79 +498,86 @@ Instructions:
     # Call fast local model
     result = call_ollama(
         prompt=user_message,
-        model=get_personality_trait('fast_model') or 'qwen2.5-coder:7b',
-        system_prompt=system_prompt
+        model=get_personality_trait("fast_model") or "qwen2.5-coder:7b",
+        system_prompt=system_prompt,
     )
 
-    if result.get('success'):
-        response_text = result['response']
+    if result.get("success"):
+        response_text = result["response"]
 
         # Parse response to see if A.R.C.H.I.E. indicated delegation
         delegation_phrases = [
-            'connect you with',
-            'let me connect',
-            'transfer you to',
-            'specialist who can',
-            'team can help',
-            'engineering team',
-            'operations team',
-            'qa team',
-            'security team',
-            'infrastructure team'
+            "connect you with",
+            "let me connect",
+            "transfer you to",
+            "specialist who can",
+            "team can help",
+            "engineering team",
+            "operations team",
+            "qa team",
+            "security team",
+            "infrastructure team",
         ]
 
         response_lower = response_text.lower()
-        indicates_delegation = any(phrase in response_lower for phrase in delegation_phrases)
+        indicates_delegation = any(
+            phrase in response_lower for phrase in delegation_phrases
+        )
 
         if indicates_delegation:
             # A.R.C.H.I.E. recognized she should delegate
             # Figure out which department
             detected_dept = None
-            if 'engineering' in response_lower or 'code' in response_lower or 'bug' in response_lower:
-                detected_dept = 'Engineering'
-            elif 'operations' in response_lower or 'workflow' in response_lower:
-                detected_dept = 'Operations'
-            elif 'security' in response_lower or 'auth' in response_lower:
-                detected_dept = 'Security'
-            elif 'infrastructure' in response_lower or 'deploy' in response_lower:
-                detected_dept = 'Infrastructure'
-            elif 'qa' in response_lower or 'test' in response_lower:
-                detected_dept = 'Quality Assurance'
+            if (
+                "engineering" in response_lower
+                or "code" in response_lower
+                or "bug" in response_lower
+            ):
+                detected_dept = "Engineering"
+            elif "operations" in response_lower or "workflow" in response_lower:
+                detected_dept = "Operations"
+            elif "security" in response_lower or "auth" in response_lower:
+                detected_dept = "Security"
+            elif "infrastructure" in response_lower or "deploy" in response_lower:
+                detected_dept = "Infrastructure"
+            elif "qa" in response_lower or "test" in response_lower:
+                detected_dept = "Quality Assurance"
             else:
-                detected_dept = 'Operations'  # Default
+                detected_dept = "Operations"  # Default
 
             return {
-                'success': True,
-                'response': response_text,
-                'should_delegate': True,
-                'delegation_info': {
-                    'reason': 'A.R.C.H.I.E. recognized need for specialist',
-                    'suggested_department': detected_dept
+                "success": True,
+                "response": response_text,
+                "should_delegate": True,
+                "delegation_info": {
+                    "reason": "A.R.C.H.I.E. recognized need for specialist",
+                    "suggested_department": detected_dept,
                 },
-                'used_script': False,
-                'model_used': result.get('model')
+                "used_script": False,
+                "model_used": result.get("model"),
             }
 
         # Normal response, no delegation needed
         return {
-            'success': True,
-            'response': response_text,
-            'should_delegate': False,
-            'used_script': False,
-            'model_used': result.get('model')
+            "success": True,
+            "response": response_text,
+            "should_delegate": False,
+            "used_script": False,
+            "model_used": result.get("model"),
         }
     else:
         # Fallback response
         return {
-            'success': True,
-            'response': f"Hey {preferred_name}! I'm having a small technical issue, but I'm here. What can I help you with?",
-            'should_delegate': False,
-            'used_script': False,
-            'error': result.get('error')
+            "success": True,
+            "response": f"Hey {preferred_name}! I'm having a small technical issue, but I'm here. What can I help you with?",
+            "should_delegate": False,
+            "used_script": False,
+            "error": result.get("error"),
         }
 
+
 # Quick test
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("Testing A.R.C.H.I.E. Core...")
 
     # Test script matching

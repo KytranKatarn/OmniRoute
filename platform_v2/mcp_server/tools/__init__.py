@@ -27,7 +27,12 @@ _tools: Dict[str, Dict] = {}
 
 
 def register_tool(
-    name: str, category: str, description: str, input_schema: Dict, handler: Callable, requires_permission: str = "read"
+    name: str,
+    category: str,
+    description: str,
+    input_schema: Dict,
+    handler: Callable,
+    requires_permission: str = "read",
 ):
     """
     Register a tool with the MCP server

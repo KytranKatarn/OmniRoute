@@ -21,11 +21,11 @@ from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 import logging
 
-logger = logging.getLogger('archie_platform')
+logger = logging.getLogger("archie_platform")
 
 # Repository configuration
-WEBSITE_REPO_PATH = '/tmp/website-repo'
-ADMIN_WEBSITE_REPO = 'KytranKatarn/kytranempowerment-site'
+WEBSITE_REPO_PATH = "/tmp/website-repo"
+ADMIN_WEBSITE_REPO = "KytranKatarn/kytranempowerment-site"
 
 # System prompt for website editing
 WEBSITE_EDITOR_SYSTEM_PROMPT = """You are A.R.C.H.I.E., an AI website designer assistant.
@@ -95,7 +95,7 @@ def get_site_file_tree(repo_path: str = WEBSITE_REPO_PATH) -> str:
     def build_tree(path: str, prefix: str = ""):
         items = sorted(os.listdir(path))
         # Filter out git and hidden files
-        items = [i for i in items if not i.startswith('.')]
+        items = [i for i in items if not i.startswith(".")]
 
         for i, item in enumerate(items):
             is_last = i == len(items) - 1
@@ -120,7 +120,11 @@ def get_site_file_tree(repo_path: str = WEBSITE_REPO_PATH) -> str:
         return f"Error reading repository: {str(e)}"
 
 
-def get_file_contents(repo_path: str = WEBSITE_REPO_PATH, max_files: int = 4, max_chars_per_file: int = 2000) -> str:
+def get_file_contents(
+    repo_path: str = WEBSITE_REPO_PATH,
+    max_files: int = 4,
+    max_chars_per_file: int = 2000,
+) -> str:
     """
     Get contents of key website files for context.
     Limited to keep prompt size manageable for AI models.
@@ -137,8 +141,8 @@ def get_file_contents(repo_path: str = WEBSITE_REPO_PATH, max_files: int = 4, ma
         return "Repository not available."
 
     # Priority files - most commonly edited
-    priority_files = ['index.html', 'style.css', 'styles.css', 'script.js', 'main.js']
-    priority_extensions = ['.html', '.css', '.js']
+    priority_files = ["index.html", "style.css", "styles.css", "script.js", "main.js"]
+    priority_extensions = [".html", ".css", ".js"]
     contents = []
     files_included = 0
 
@@ -149,7 +153,7 @@ def get_file_contents(repo_path: str = WEBSITE_REPO_PATH, max_files: int = 4, ma
         file_path = os.path.join(repo_path, pf)
         if os.path.exists(file_path):
             try:
-                with open(file_path, 'r', encoding='utf-8') as f:
+                with open(file_path, "r", encoding="utf-8") as f:
                     content = f.read()
                 if len(content) > max_chars_per_file:
                     content = content[:max_chars_per_file] + "\n... [truncated]"
@@ -163,7 +167,7 @@ def get_file_contents(repo_path: str = WEBSITE_REPO_PATH, max_files: int = 4, ma
         if files_included >= max_files:
             break
         # Skip hidden directories
-        dirs[:] = [d for d in dirs if not d.startswith('.')]
+        dirs[:] = [d for d in dirs if not d.startswith(".")]
 
         for filename in sorted(files):
             if files_included >= max_files:
@@ -182,7 +186,7 @@ def get_file_contents(repo_path: str = WEBSITE_REPO_PATH, max_files: int = 4, ma
             file_path = os.path.join(root, filename)
 
             try:
-                with open(file_path, 'r', encoding='utf-8') as f:
+                with open(file_path, "r", encoding="utf-8") as f:
                     content = f.read()
 
                 # Truncate large files
@@ -209,8 +213,8 @@ def build_site_context(repo_path: str = WEBSITE_REPO_PATH) -> Dict:
         Dictionary with file_tree and file_contents
     """
     return {
-        'file_tree': get_site_file_tree(repo_path),
-        'file_contents': get_file_contents(repo_path)
+        "file_tree": get_site_file_tree(repo_path),
+        "file_contents": get_file_contents(repo_path),
     }
 
 
@@ -227,11 +231,7 @@ def parse_file_changes(ai_response: str) -> List[Dict]:
     changes = []
 
     # Find all <file_changes> blocks
-    file_changes_match = re.search(
-        r'<file_changes>(.*?)</file_changes>',
-        ai_response,
-        re.DOTALL
-    )
+    file_changes_match = re.search(r"<file_changes>(.*?)</file_changes>", ai_response, re.DOTALL)
 
     if not file_changes_match:
         return changes
@@ -239,10 +239,7 @@ def parse_file_changes(ai_response: str) -> List[Dict]:
     file_changes_content = file_changes_match.group(1)
 
     # Parse each <file> block
-    file_pattern = re.compile(
-        r'<file\s+path="([^"]+)">(.*?)</file>',
-        re.DOTALL
-    )
+    file_pattern = re.compile(r'<file\s+path="([^"]+)">(.*?)</file>', re.DOTALL)
 
     for file_match in file_pattern.finditer(file_changes_content):
         file_path = file_match.group(1)
@@ -251,7 +248,7 @@ def parse_file_changes(ai_response: str) -> List[Dict]:
         # Parse each <change> block within the file
         change_pattern = re.compile(
             r'<change\s+type="(\w+)"(?:\s+location="(\w+)")?(?:\s+target="([^"]*)")?\s*>(.*?)</change>',
-            re.DOTALL
+            re.DOTALL,
         )
 
         for change_match in change_pattern.finditer(file_content):
@@ -260,49 +257,30 @@ def parse_file_changes(ai_response: str) -> List[Dict]:
             target = change_match.group(3)
             change_content = change_match.group(4)
 
-            change_dict = {
-                'file': file_path,
-                'type': change_type
-            }
+            change_dict = {"file": file_path, "type": change_type}
 
-            if change_type == 'replace':
+            if change_type == "replace":
                 # Extract old_content and new_content
-                old_match = re.search(
-                    r'<old_content>(.*?)</old_content>',
-                    change_content,
-                    re.DOTALL
-                )
-                new_match = re.search(
-                    r'<new_content>(.*?)</new_content>',
-                    change_content,
-                    re.DOTALL
-                )
+                old_match = re.search(r"<old_content>(.*?)</old_content>", change_content, re.DOTALL)
+                new_match = re.search(r"<new_content>(.*?)</new_content>", change_content, re.DOTALL)
 
                 if old_match and new_match:
-                    change_dict['old_content'] = old_match.group(1).strip()
-                    change_dict['new_content'] = new_match.group(1).strip()
+                    change_dict["old_content"] = old_match.group(1).strip()
+                    change_dict["new_content"] = new_match.group(1).strip()
 
-            elif change_type == 'insert':
-                new_match = re.search(
-                    r'<new_content>(.*?)</new_content>',
-                    change_content,
-                    re.DOTALL
-                )
+            elif change_type == "insert":
+                new_match = re.search(r"<new_content>(.*?)</new_content>", change_content, re.DOTALL)
                 if new_match:
-                    change_dict['new_content'] = new_match.group(1).strip()
-                    change_dict['location'] = location
-                    change_dict['target'] = target
+                    change_dict["new_content"] = new_match.group(1).strip()
+                    change_dict["location"] = location
+                    change_dict["target"] = target
 
-            elif change_type == 'create':
-                new_match = re.search(
-                    r'<new_content>(.*?)</new_content>',
-                    change_content,
-                    re.DOTALL
-                )
+            elif change_type == "create":
+                new_match = re.search(r"<new_content>(.*?)</new_content>", change_content, re.DOTALL)
                 if new_match:
-                    change_dict['new_content'] = new_match.group(1).strip()
+                    change_dict["new_content"] = new_match.group(1).strip()
 
-            if 'new_content' in change_dict:
+            if "new_content" in change_dict:
                 changes.append(change_dict)
 
     return changes
@@ -319,59 +297,47 @@ def apply_file_changes(changes: List[Dict], repo_path: str = WEBSITE_REPO_PATH) 
     Returns:
         Dictionary with success status and details
     """
-    results = {
-        'success': True,
-        'applied': [],
-        'failed': [],
-        'files_modified': 0
-    }
+    results = {"success": True, "applied": [], "failed": [], "files_modified": 0}
 
     for change in changes:
-        file_path = change['file']
+        file_path = change["file"]
         full_path = os.path.join(repo_path, file_path)
 
         # Security: prevent path traversal
-        if '..' in file_path:
-            results['failed'].append({
-                'file': file_path,
-                'error': 'Invalid path (traversal attempt)'
-            })
+        if ".." in file_path:
+            results["failed"].append({"file": file_path, "error": "Invalid path (traversal attempt)"})
             continue
 
         try:
-            if change['type'] == 'create':
+            if change["type"] == "create":
                 # Create new file
                 os.makedirs(os.path.dirname(full_path), exist_ok=True)
-                with open(full_path, 'w', encoding='utf-8') as f:
-                    f.write(change['new_content'])
-                results['applied'].append({
-                    'file': file_path,
-                    'type': 'created'
-                })
+                with open(full_path, "w", encoding="utf-8") as f:
+                    f.write(change["new_content"])
+                results["applied"].append({"file": file_path, "type": "created"})
 
-            elif change['type'] == 'replace':
+            elif change["type"] == "replace":
                 # Read current content
                 if not os.path.exists(full_path):
-                    results['failed'].append({
-                        'file': file_path,
-                        'error': 'File not found'
-                    })
+                    results["failed"].append({"file": file_path, "error": "File not found"})
                     continue
 
-                with open(full_path, 'r', encoding='utf-8') as f:
+                with open(full_path, "r", encoding="utf-8") as f:
                     content = f.read()
 
                 # Check if old_content exists
-                if change['old_content'] not in content:
+                if change["old_content"] not in content:
                     # Try with normalized whitespace
-                    normalized_old = ' '.join(change['old_content'].split())
-                    normalized_content = ' '.join(content.split())
+                    normalized_old = " ".join(change["old_content"].split())
+                    normalized_content = " ".join(content.split())
 
                     if normalized_old not in normalized_content:
-                        results['failed'].append({
-                            'file': file_path,
-                            'error': 'Could not find content to replace'
-                        })
+                        results["failed"].append(
+                            {
+                                "file": file_path,
+                                "error": "Could not find content to replace",
+                            }
+                        )
                         continue
                     else:
                         # Use normalized replacement (risky, warn user)
@@ -379,78 +345,52 @@ def apply_file_changes(changes: List[Dict], repo_path: str = WEBSITE_REPO_PATH) 
 
                 # Apply replacement
                 new_content = content.replace(
-                    change['old_content'],
-                    change['new_content'],
-                    1  # Only replace first occurrence
+                    change["old_content"],
+                    change["new_content"],
+                    1,  # Only replace first occurrence
                 )
 
-                with open(full_path, 'w', encoding='utf-8') as f:
+                with open(full_path, "w", encoding="utf-8") as f:
                     f.write(new_content)
 
-                results['applied'].append({
-                    'file': file_path,
-                    'type': 'modified'
-                })
+                results["applied"].append({"file": file_path, "type": "modified"})
 
-            elif change['type'] == 'insert':
+            elif change["type"] == "insert":
                 # Insert content at location
                 if not os.path.exists(full_path):
-                    results['failed'].append({
-                        'file': file_path,
-                        'error': 'File not found'
-                    })
+                    results["failed"].append({"file": file_path, "error": "File not found"})
                     continue
 
-                with open(full_path, 'r', encoding='utf-8') as f:
+                with open(full_path, "r", encoding="utf-8") as f:
                     content = f.read()
 
-                target = change.get('target', '')
-                location = change.get('location', 'after')
+                target = change.get("target", "")
+                location = change.get("location", "after")
 
                 if target and target in content:
-                    if location == 'after':
-                        new_content = content.replace(
-                            target,
-                            target + '\n' + change['new_content'],
-                            1
-                        )
+                    if location == "after":
+                        new_content = content.replace(target, target + "\n" + change["new_content"], 1)
                     else:  # before
-                        new_content = content.replace(
-                            target,
-                            change['new_content'] + '\n' + target,
-                            1
-                        )
+                        new_content = content.replace(target, change["new_content"] + "\n" + target, 1)
 
-                    with open(full_path, 'w', encoding='utf-8') as f:
+                    with open(full_path, "w", encoding="utf-8") as f:
                         f.write(new_content)
 
-                    results['applied'].append({
-                        'file': file_path,
-                        'type': 'inserted'
-                    })
+                    results["applied"].append({"file": file_path, "type": "inserted"})
                 else:
-                    results['failed'].append({
-                        'file': file_path,
-                        'error': f'Target "{target}" not found'
-                    })
+                    results["failed"].append({"file": file_path, "error": f'Target "{target}" not found'})
 
         except Exception as e:
             logger.error(f"Error applying change to {file_path}: {e}")
-            results['failed'].append({
-                'file': file_path,
-                'error': str(e)
-            })
+            results["failed"].append({"file": file_path, "error": str(e)})
 
-    results['files_modified'] = len(results['applied'])
-    results['success'] = len(results['failed']) == 0
+    results["files_modified"] = len(results["applied"])
+    results["success"] = len(results["failed"]) == 0
 
     return results
 
 
-def auto_commit_changes(
-    message: str = None,
-    repo_path: str = WEBSITE_REPO_PATH
-) -> Dict:
+def auto_commit_changes(message: str = None, repo_path: str = WEBSITE_REPO_PATH) -> Dict:
     """
     Auto-commit all changes with a descriptive message.
 
@@ -462,66 +402,53 @@ def auto_commit_changes(
         Dictionary with commit details
     """
     if not os.path.exists(repo_path):
-        return {'success': False, 'error': 'Repository not found'}
+        return {"success": False, "error": "Repository not found"}
 
     try:
         # Stage all changes
-        subprocess.run(
-            ['git', 'add', '-A'],
-            cwd=repo_path,
-            check=True,
-            capture_output=True
-        )
+        subprocess.run(["git", "add", "-A"], cwd=repo_path, check=True, capture_output=True)
 
         # Check if there are changes to commit
         status_result = subprocess.run(
-            ['git', 'status', '--porcelain'],
+            ["git", "status", "--porcelain"],
             cwd=repo_path,
             capture_output=True,
-            text=True
+            text=True,
         )
 
         if not status_result.stdout.strip():
-            return {'success': True, 'message': 'No changes to commit'}
+            return {"success": True, "message": "No changes to commit"}
 
         # Generate commit message if not provided
         if not message:
-            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M')
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
             message = f"Website update via A.R.C.H.I.E. - {timestamp}"
 
         # Commit
         commit_result = subprocess.run(
-            ['git', 'commit', '-m', message],
+            ["git", "commit", "-m", message],
             cwd=repo_path,
             capture_output=True,
-            text=True
+            text=True,
         )
 
         if commit_result.returncode != 0:
-            return {
-                'success': False,
-                'error': commit_result.stderr
-            }
+            return {"success": False, "error": commit_result.stderr}
 
         # Get commit SHA
-        sha_result = subprocess.run(
-            ['git', 'rev-parse', 'HEAD'],
-            cwd=repo_path,
-            capture_output=True,
-            text=True
-        )
+        sha_result = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo_path, capture_output=True, text=True)
 
         return {
-            'success': True,
-            'sha': sha_result.stdout.strip()[:8],
-            'message': message
+            "success": True,
+            "sha": sha_result.stdout.strip()[:8],
+            "message": message,
         }
 
     except subprocess.CalledProcessError as e:
-        return {'success': False, 'error': str(e)}
+        return {"success": False, "error": str(e)}
     except Exception as e:
         logger.error(f"Error in auto_commit: {e}")
-        return {'success': False, 'error': str(e)}
+        return {"success": False, "error": str(e)}
 
 
 def generate_diff_preview(changes: List[Dict], repo_path: str = WEBSITE_REPO_PATH) -> List[Dict]:
@@ -538,30 +465,24 @@ def generate_diff_preview(changes: List[Dict], repo_path: str = WEBSITE_REPO_PAT
     previews = []
 
     for change in changes:
-        file_path = change['file']
+        file_path = change["file"]
         full_path = os.path.join(repo_path, file_path)
 
-        preview = {
-            'file': file_path,
-            'type': change['type'],
-            'diff': []
-        }
+        preview = {"file": file_path, "type": change["type"], "diff": []}
 
-        if change['type'] == 'create':
-            preview['diff'] = [
-                {'type': 'add', 'content': change['new_content']}
+        if change["type"] == "create":
+            preview["diff"] = [{"type": "add", "content": change["new_content"]}]
+
+        elif change["type"] == "replace":
+            preview["diff"] = [
+                {"type": "remove", "content": change.get("old_content", "")},
+                {"type": "add", "content": change["new_content"]},
             ]
 
-        elif change['type'] == 'replace':
-            preview['diff'] = [
-                {'type': 'remove', 'content': change.get('old_content', '')},
-                {'type': 'add', 'content': change['new_content']}
-            ]
-
-        elif change['type'] == 'insert':
-            preview['diff'] = [
-                {'type': 'context', 'content': change.get('target', '')},
-                {'type': 'add', 'content': change['new_content']}
+        elif change["type"] == "insert":
+            preview["diff"] = [
+                {"type": "context", "content": change.get("target", "")},
+                {"type": "add", "content": change["new_content"]},
             ]
 
         previews.append(preview)
@@ -578,10 +499,7 @@ def get_chat_system_prompt(repo_path: str = WEBSITE_REPO_PATH) -> str:
     """
     context = build_site_context(repo_path)
 
-    return WEBSITE_EDITOR_SYSTEM_PROMPT.format(
-        file_tree=context['file_tree'],
-        file_contents=context['file_contents']
-    )
+    return WEBSITE_EDITOR_SYSTEM_PROMPT.format(file_tree=context["file_tree"], file_contents=context["file_contents"])
 
 
 def ensure_repo_cloned(repo_path: str = WEBSITE_REPO_PATH) -> Dict:
@@ -595,41 +513,31 @@ def ensure_repo_cloned(repo_path: str = WEBSITE_REPO_PATH) -> Dict:
         # Pull latest
         try:
             result = subprocess.run(
-                ['git', 'pull', 'origin', 'main'],
+                ["git", "pull", "origin", "main"],
                 cwd=repo_path,
                 capture_output=True,
                 text=True,
-                timeout=30
+                timeout=30,
             )
-            return {
-                'success': True,
-                'status': 'updated',
-                'message': result.stdout
-            }
+            return {"success": True, "status": "updated", "message": result.stdout}
         except Exception as e:
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
     else:
         # Clone
-        github_token = os.getenv('GITHUB_TOKEN', '')
+        github_token = os.getenv("GITHUB_TOKEN", "")
         repo_url = f"https://{github_token}@github.com/{ADMIN_WEBSITE_REPO}.git"
 
         try:
             result = subprocess.run(
-                ['git', 'clone', repo_url, repo_path],
+                ["git", "clone", repo_url, repo_path],
                 capture_output=True,
                 text=True,
-                timeout=60
+                timeout=60,
             )
             return {
-                'success': True,
-                'status': 'cloned',
-                'message': 'Repository cloned successfully'
+                "success": True,
+                "status": "cloned",
+                "message": "Repository cloned successfully",
             }
         except Exception as e:
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}

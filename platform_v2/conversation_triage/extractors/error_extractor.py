@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ExtractedError:
     """An extracted error/mistake with context and solution."""
+
     title: str
     error_message: str
     cause: str
@@ -32,45 +33,41 @@ class ErrorExtractor:
     # Common error patterns
     ERROR_PATTERNS = [
         # Python errors
-        (r'(Traceback.*?(?=\n\n|\Z))', 'python'),
-        (r'(\w+Error: .+)', 'python'),
-        (r'(\w+Exception: .+)', 'python'),
-
+        (r"(Traceback.*?(?=\n\n|\Z))", "python"),
+        (r"(\w+Error: .+)", "python"),
+        (r"(\w+Exception: .+)", "python"),
         # JavaScript/Node errors
-        (r'(TypeError: .+)', 'javascript'),
-        (r'(ReferenceError: .+)', 'javascript'),
-        (r'(Uncaught .+Error.+)', 'javascript'),
-
+        (r"(TypeError: .+)", "javascript"),
+        (r"(ReferenceError: .+)", "javascript"),
+        (r"(Uncaught .+Error.+)", "javascript"),
         # SQL errors
-        (r'(ERROR:\s+.+)', 'sql'),
-        (r'(column ".*" (?:does not exist|already exists))', 'sql'),
-        (r'(relation ".*" (?:does not exist|already exists))', 'sql'),
-        (r'(duplicate key value violates unique constraint)', 'sql'),
-
+        (r"(ERROR:\s+.+)", "sql"),
+        (r'(column ".*" (?:does not exist|already exists))', "sql"),
+        (r'(relation ".*" (?:does not exist|already exists))', "sql"),
+        (r"(duplicate key value violates unique constraint)", "sql"),
         # Docker errors
-        (r'(docker.*error.*)', 'docker'),
-        (r'(container.*failed.*)', 'docker'),
-
+        (r"(docker.*error.*)", "docker"),
+        (r"(container.*failed.*)", "docker"),
         # Generic errors
-        (r'(FATAL:\s+.+)', 'general'),
-        (r'(Error:\s+.+)', 'general'),
-        (r'(failed to .+)', 'general'),
+        (r"(FATAL:\s+.+)", "general"),
+        (r"(Error:\s+.+)", "general"),
+        (r"(failed to .+)", "general"),
     ]
 
     # Solution indicators
     SOLUTION_PATTERNS = [
-        r'(?:fix|fixed|solution|resolved|solved)[:\s]+(.+?)(?:\n|$)',
-        r'(?:changed|updated|modified)\s+(.+?)\s+(?:to|from)',
-        r'(?:the\s+(?:fix|solution)\s+(?:is|was))[:\s]+(.+?)(?:\n|$)',
-        r'(?:I|we)\s+(?:fixed|solved|resolved)\s+(?:it|this)\s+by\s+(.+?)(?:\n|$)'
+        r"(?:fix|fixed|solution|resolved|solved)[:\s]+(.+?)(?:\n|$)",
+        r"(?:changed|updated|modified)\s+(.+?)\s+(?:to|from)",
+        r"(?:the\s+(?:fix|solution)\s+(?:is|was))[:\s]+(.+?)(?:\n|$)",
+        r"(?:I|we)\s+(?:fixed|solved|resolved)\s+(?:it|this)\s+by\s+(.+?)(?:\n|$)",
     ]
 
     # Severity indicators
     SEVERITY_INDICATORS = {
-        'critical': ['data loss', 'security', 'crash', 'production down', 'corruption'],
-        'high': ['broken', 'cannot', 'failed', 'blocking', 'urgent'],
-        'medium': ['error', 'issue', 'problem', 'bug'],
-        'low': ['warning', 'deprecated', 'minor', 'cosmetic']
+        "critical": ["data loss", "security", "crash", "production down", "corruption"],
+        "high": ["broken", "cannot", "failed", "blocking", "urgent"],
+        "medium": ["error", "issue", "problem", "bug"],
+        "low": ["warning", "deprecated", "minor", "cosmetic"],
     }
 
     def extract(self, content: str) -> List[ExtractedError]:
@@ -111,7 +108,7 @@ class ErrorExtractor:
         solution = self._find_solution(context)
 
         # Determine severity
-        severity = self._determine_severity(error_text + ' ' + context)
+        severity = self._determine_severity(error_text + " " + context)
 
         # Skip if no solution found (not a complete learning)
         if not solution:
@@ -125,20 +122,20 @@ class ErrorExtractor:
             prevention=self._infer_prevention(cause, solution),
             severity=severity,
             language=language,
-            confidence=0.8 if solution else 0.5
+            confidence=0.8 if solution else 0.5,
         )
 
     def _generate_title(self, error_text: str) -> str:
         """Generate a concise title for the error."""
         # Extract the main error type/message
-        error_type_match = re.search(r'(\w+(?:Error|Exception)):\s*(.+?)(?:\n|$)', error_text)
+        error_type_match = re.search(r"(\w+(?:Error|Exception)):\s*(.+?)(?:\n|$)", error_text)
         if error_type_match:
             error_type = error_type_match.group(1)
             brief = error_type_match.group(2)[:50]
             return f"{error_type}: {brief}"
 
         # SQL-style error
-        if 'column' in error_text.lower() or 'relation' in error_text.lower():
+        if "column" in error_text.lower() or "relation" in error_text.lower():
             return error_text[:60].strip()
 
         # Generic
@@ -147,9 +144,9 @@ class ErrorExtractor:
     def _find_cause(self, context: str, error_text: str) -> str:
         """Find the cause of the error from context."""
         cause_patterns = [
-            r'(?:because|caused by|due to|reason)[:\s]+(.+?)(?:\n|$)',
-            r'(?:the problem (?:is|was))[:\s]+(.+?)(?:\n|$)',
-            r'(?:this happened because)[:\s]+(.+?)(?:\n|$)'
+            r"(?:because|caused by|due to|reason)[:\s]+(.+?)(?:\n|$)",
+            r"(?:the problem (?:is|was))[:\s]+(.+?)(?:\n|$)",
+            r"(?:this happened because)[:\s]+(.+?)(?:\n|$)",
         ]
 
         for pattern in cause_patterns:
@@ -169,7 +166,7 @@ class ErrorExtractor:
                     return solution[:300]
 
         # Look for code fixes
-        if '```' in context:
+        if "```" in context:
             # There's code after the error, likely a fix
             return "Code modification applied (see context)"
 
@@ -184,7 +181,7 @@ class ErrorExtractor:
                 if indicator in text_lower:
                     return severity
 
-        return 'medium'
+        return "medium"
 
     def _infer_prevention(self, cause: str, solution: str) -> Optional[str]:
         """Infer prevention advice from cause and solution."""
@@ -194,19 +191,19 @@ class ErrorExtractor:
         # Simple heuristics
         prevention_tips = []
 
-        if 'typo' in cause.lower() or 'misspell' in cause.lower():
+        if "typo" in cause.lower() or "misspell" in cause.lower():
             prevention_tips.append("Use IDE autocomplete and linting")
 
-        if 'column' in cause.lower() or 'table' in cause.lower():
+        if "column" in cause.lower() or "table" in cause.lower():
             prevention_tips.append("Verify database schema before queries")
 
-        if 'import' in cause.lower() or 'module' in cause.lower():
+        if "import" in cause.lower() or "module" in cause.lower():
             prevention_tips.append("Check import paths and module availability")
 
-        if 'permission' in cause.lower() or 'access' in cause.lower():
+        if "permission" in cause.lower() or "access" in cause.lower():
             prevention_tips.append("Verify file/resource permissions before access")
 
-        return '; '.join(prevention_tips) if prevention_tips else None
+        return "; ".join(prevention_tips) if prevention_tips else None
 
     def _deduplicate(self, errors: List[ExtractedError]) -> List[ExtractedError]:
         """Remove duplicate errors based on title similarity."""

@@ -11,6 +11,7 @@ Purpose:
 Author: A.R.C.H.I.E. Platform
 Date: 2026-01-07
 """
+
 import sys
 import os
 from typing import Dict, List, Optional, Any, Callable
@@ -20,19 +21,20 @@ import json
 import traceback
 
 # Add paths for imports
-sys.path.insert(0, '/mnt/archie_brain/platform_v2')
-sys.path.insert(0, '/mnt/archie_brain/ai_bridge')
+sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
 
 from logging_config import audit_log, log_performance
 from validation import validate_schema, ValidationResult
-
 
 # ============================================================================
 # ORCHESTRATOR STATES
 # ============================================================================
 
+
 class OrchestratorState(Enum):
     """States in the app building workflow"""
+
     INITIALIZING = "initializing"
     CLARIFYING = "clarifying"
     PLANNING = "planning"
@@ -47,6 +49,7 @@ class OrchestratorState(Enum):
 
 class AgentRole(Enum):
     """Different agent roles in the orchestrator"""
+
     CLARIFICATION = "clarification"
     PLANNER = "planner"
     ARCHITECT = "architect"
@@ -62,18 +65,25 @@ class AgentRole(Enum):
 # ORCHESTRATOR EVENTS
 # ============================================================================
 
+
 class OrchestratorEvent:
     """Event emitted during orchestration"""
-    def __init__(self, event_type: str, data: Dict[str, Any], timestamp: Optional[datetime] = None):
+
+    def __init__(
+        self,
+        event_type: str,
+        data: Dict[str, Any],
+        timestamp: Optional[datetime] = None,
+    ):
         self.event_type = event_type
         self.data = data
         self.timestamp = timestamp or datetime.now()
 
     def to_dict(self) -> Dict:
         return {
-            'event_type': self.event_type,
-            'data': self.data,
-            'timestamp': self.timestamp.isoformat()
+            "event_type": self.event_type,
+            "data": self.data,
+            "timestamp": self.timestamp.isoformat(),
         }
 
     def to_sse(self) -> str:
@@ -84,6 +94,7 @@ class OrchestratorEvent:
 # ============================================================================
 # APP BUILDER ORCHESTRATOR
 # ============================================================================
+
 
 class AppBuilderOrchestrator:
     """
@@ -149,20 +160,24 @@ class AppBuilderOrchestrator:
         try:
             if self.db:
                 from app import get_db
+
                 conn = self.db or get_db()
                 cur = conn.cursor()
 
-                cur.execute("""
+                cur.execute(
+                    """
                     INSERT INTO app_builder_execution_logs
                     (project_id, step_name, step_type, status, output_data, created_at)
                     VALUES (%s, %s, %s, %s, %s, NOW())
-                """, (
-                    self.project_id,
-                    event.event_type,
-                    self.state.value,
-                    'completed',
-                    json.dumps(event.data)
-                ))
+                """,
+                    (
+                        self.project_id,
+                        event.event_type,
+                        self.state.value,
+                        "completed",
+                        json.dumps(event.data),
+                    ),
+                )
 
                 conn.commit()
                 cur.close()
@@ -178,11 +193,10 @@ class AppBuilderOrchestrator:
         old_state = self.state
         self.state = new_state
 
-        self.emit_event('state_changed', {
-            'from': old_state.value,
-            'to': new_state.value,
-            'progress': self.progress
-        })
+        self.emit_event(
+            "state_changed",
+            {"from": old_state.value, "to": new_state.value, "progress": self.progress},
+        )
 
         # Update database
         self._update_project_status(new_state.value)
@@ -192,14 +206,23 @@ class AppBuilderOrchestrator:
         try:
             if self.db:
                 from app import get_db
+
                 conn = self.db or get_db()
                 cur = conn.cursor()
 
-                cur.execute("""
+                cur.execute(
+                    """
                     UPDATE app_builder_projects
                     SET status = %s, progress = %s, current_step = %s, updated_at = NOW()
                     WHERE id = %s
-                """, (status, self.progress, self.current_agent.value if self.current_agent else None, self.project_id))
+                """,
+                    (
+                        status,
+                        self.progress,
+                        self.current_agent.value if self.current_agent else None,
+                        self.project_id,
+                    ),
+                )
 
                 conn.commit()
                 cur.close()
@@ -210,10 +233,7 @@ class AppBuilderOrchestrator:
         """Update progress (0-100)"""
         self.progress = max(0, min(100, progress))
 
-        self.emit_event('progress_updated', {
-            'progress': self.progress,
-            'state': self.state.value
-        })
+        self.emit_event("progress_updated", {"progress": self.progress, "state": self.state.value})
 
         self._update_project_status(self.state.value)
 
@@ -232,38 +252,47 @@ class AppBuilderOrchestrator:
         """Factory method to create agents"""
         if role == AgentRole.CLARIFICATION:
             from agents.clarification_agent import ClarificationAgent
+
             return ClarificationAgent(self.project_id, self.user_id)
 
         elif role == AgentRole.PLANNER:
             from agents.planner_agent import PlannerAgent
+
             return PlannerAgent(self.project_id, self.clarifications)
 
         elif role == AgentRole.ARCHITECT:
             from agents.architect_agent import ArchitectAgent
+
             return ArchitectAgent(self.project_id, self.plan)
 
         elif role == AgentRole.BACKEND_GENERATOR:
             from agents.backend_generator import BackendGenerator
+
             return BackendGenerator(self.project_id, self.plan)
 
         elif role == AgentRole.FRONTEND_GENERATOR:
             from agents.frontend_generator import FrontendGenerator
+
             return FrontendGenerator(self.project_id, self.plan)
 
         elif role == AgentRole.DATABASE_GENERATOR:
             from agents.database_generator import DatabaseGenerator
+
             return DatabaseGenerator(self.project_id, self.plan)
 
         elif role == AgentRole.TEST_GENERATOR:
             from agents.test_generator import TestGenerator
+
             return TestGenerator(self.project_id, self.generated_files)
 
         elif role == AgentRole.TEST_RUNNER:
             from agents.test_runner import TestRunner
+
             return TestRunner(self.project_id)
 
         elif role == AgentRole.DEPLOYMENT:
             from agents.deployment_agent import DeploymentAgent
+
             return DeploymentAgent(self.project_id)
 
         else:
@@ -296,10 +325,14 @@ class AppBuilderOrchestrator:
             # Phase 3: Plan Approval (wait for user)
             if self.state == OrchestratorState.PLANNING:
                 self.transition_state(OrchestratorState.PLAN_APPROVAL)
-                return {'success': True, 'status': 'awaiting_approval', 'plan': self.plan}
+                return {
+                    "success": True,
+                    "status": "awaiting_approval",
+                    "plan": self.plan,
+                }
 
             # Phase 4: Code Generation (only if plan approved)
-            if self.state == OrchestratorState.PLAN_APPROVAL and self.project_data.get('plan_approved'):
+            if self.state == OrchestratorState.PLAN_APPROVAL and self.project_data.get("plan_approved"):
                 await self._phase_generation()
 
             # Phase 5: Testing
@@ -307,7 +340,7 @@ class AppBuilderOrchestrator:
                 await self._phase_testing()
 
             # Phase 6: Deployment
-            if self.state == OrchestratorState.TESTING and self.project_data.get('tests_passed'):
+            if self.state == OrchestratorState.TESTING and self.project_data.get("tests_passed"):
                 await self._phase_deployment()
 
             # Mark as completed
@@ -316,10 +349,10 @@ class AppBuilderOrchestrator:
                 self.update_progress(100)
 
             return {
-                'success': True,
-                'status': self.state.value,
-                'project_id': self.project_id,
-                'progress': self.progress
+                "success": True,
+                "status": self.state.value,
+                "project_id": self.project_id,
+                "progress": self.progress,
             }
 
         except Exception as e:
@@ -327,24 +360,21 @@ class AppBuilderOrchestrator:
             error_msg = str(e)
             error_trace = traceback.format_exc()
 
-            self.emit_event('error', {
-                'message': error_msg,
-                'traceback': error_trace
-            })
+            self.emit_event("error", {"message": error_msg, "traceback": error_trace})
 
             # Log error
             if audit_log:
-                audit_log('APP_BUILDER_ERROR', {
-                    'project_id': self.project_id,
-                    'error': error_msg,
-                    'state': self.state.value
-                }, success=False)
+                audit_log(
+                    "APP_BUILDER_ERROR",
+                    {
+                        "project_id": self.project_id,
+                        "error": error_msg,
+                        "state": self.state.value,
+                    },
+                    success=False,
+                )
 
-            return {
-                'success': False,
-                'status': 'failed',
-                'error': error_msg
-            }
+            return {"success": False, "status": "failed", "error": error_msg}
 
     # ========================================================================
     # WORKFLOW PHASES
@@ -352,10 +382,11 @@ class AppBuilderOrchestrator:
 
     async def _load_project(self):
         """Load project data from database"""
-        self.emit_event('loading_project', {'project_id': self.project_id})
+        self.emit_event("loading_project", {"project_id": self.project_id})
 
         try:
             from app import get_db
+
             conn = self.db or get_db()
             cur = conn.cursor()
 
@@ -366,16 +397,16 @@ class AppBuilderOrchestrator:
                 raise ValueError(f"Project {self.project_id} not found")
 
             # Convert to dict (assuming RealDictCursor or similar)
-            self.project_data = dict(row) if hasattr(row, 'items') else {}
+            self.project_data = dict(row) if hasattr(row, "items") else {}
 
             # Set initial state based on project status
-            status = self.project_data.get('status', 'planning')
+            status = self.project_data.get("status", "planning")
             self.state = OrchestratorState(status)
-            self.progress = self.project_data.get('progress', 0)
+            self.progress = self.project_data.get("progress", 0)
 
             cur.close()
 
-            self.emit_event('project_loaded', {'project_id': self.project_id, 'status': status})
+            self.emit_event("project_loaded", {"project_id": self.project_id, "status": status})
 
         except Exception as e:
             raise Exception(f"Failed to load project: {e}")
@@ -386,13 +417,13 @@ class AppBuilderOrchestrator:
         self.current_agent = AgentRole.CLARIFICATION
         self.update_progress(10)
 
-        self.emit_event('phase_started', {'phase': 'clarification'})
+        self.emit_event("phase_started", {"phase": "clarification"})
 
         # Get clarification agent
         agent = self.get_agent(AgentRole.CLARIFICATION)
 
         # Generate clarifying questions
-        questions = await agent.generate_questions(self.project_data.get('user_prompt'))
+        questions = await agent.generate_questions(self.project_data.get("user_prompt"))
 
         # If no questions needed, skip to planning
         if not questions or len(questions) == 0:
@@ -403,7 +434,7 @@ class AppBuilderOrchestrator:
         await self._save_clarifications(questions, answers=None)
 
         # Emit questions for user to answer
-        self.emit_event('clarification_questions', {'questions': questions})
+        self.emit_event("clarification_questions", {"questions": questions})
 
         # Wait for user answers (will be provided via update_clarifications method)
 
@@ -413,28 +444,25 @@ class AppBuilderOrchestrator:
         self.current_agent = AgentRole.PLANNER
         self.update_progress(30)
 
-        self.emit_event('phase_started', {'phase': 'planning'})
+        self.emit_event("phase_started", {"phase": "planning"})
 
         # Get planner agent
         agent = self.get_agent(AgentRole.PLANNER)
 
         # Generate plan
-        self.plan = await agent.generate_plan(
-            self.project_data.get('user_prompt'),
-            self.clarifications
-        )
+        self.plan = await agent.generate_plan(self.project_data.get("user_prompt"), self.clarifications)
 
         # Save plan to database
         await self._save_plan(self.plan)
 
-        self.emit_event('plan_generated', {'plan': self.plan})
+        self.emit_event("plan_generated", {"plan": self.plan})
 
     async def _phase_generation(self):
         """Phase 3: Generate code files"""
         self.transition_state(OrchestratorState.GENERATING)
         self.update_progress(50)
 
-        self.emit_event('phase_started', {'phase': 'generation'})
+        self.emit_event("phase_started", {"phase": "generation"})
 
         # Generate backend
         self.current_agent = AgentRole.BACKEND_GENERATOR
@@ -460,9 +488,7 @@ class AppBuilderOrchestrator:
         # Save all generated files
         await self._save_files(self.generated_files)
 
-        self.emit_event('generation_complete', {
-            'total_files': len(self.generated_files)
-        })
+        self.emit_event("generation_complete", {"total_files": len(self.generated_files)})
 
     async def _phase_testing(self):
         """Phase 4: Generate and run tests"""
@@ -470,7 +496,7 @@ class AppBuilderOrchestrator:
         self.current_agent = AgentRole.TEST_GENERATOR
         self.update_progress(80)
 
-        self.emit_event('phase_started', {'phase': 'testing'})
+        self.emit_event("phase_started", {"phase": "testing"})
 
         # Generate tests
         test_generator = self.get_agent(AgentRole.TEST_GENERATOR)
@@ -487,7 +513,7 @@ class AppBuilderOrchestrator:
 
         self.update_progress(90)
 
-        self.emit_event('testing_complete', {'results': test_results})
+        self.emit_event("testing_complete", {"results": test_results})
 
     async def _phase_deployment(self):
         """Phase 5: Deploy application"""
@@ -495,7 +521,7 @@ class AppBuilderOrchestrator:
         self.current_agent = AgentRole.DEPLOYMENT
         self.update_progress(95)
 
-        self.emit_event('phase_started', {'phase': 'deployment'})
+        self.emit_event("phase_started", {"phase": "deployment"})
 
         # Deploy
         deployment_agent = self.get_agent(AgentRole.DEPLOYMENT)
@@ -504,7 +530,7 @@ class AppBuilderOrchestrator:
         # Update database
         await self._save_deployment(deployment_result)
 
-        self.emit_event('deployment_complete', {'result': deployment_result})
+        self.emit_event("deployment_complete", {"result": deployment_result})
 
     # ========================================================================
     # DATABASE HELPERS
@@ -514,14 +540,22 @@ class AppBuilderOrchestrator:
         """Save clarification questions and answers to database"""
         try:
             from app import get_db
+
             conn = self.db or get_db()
             cur = conn.cursor()
 
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE app_builder_projects
                 SET clarification_questions = %s, clarification_answers = %s, updated_at = NOW()
                 WHERE id = %s
-            """, (json.dumps(questions), json.dumps(answers) if answers else None, self.project_id))
+            """,
+                (
+                    json.dumps(questions),
+                    json.dumps(answers) if answers else None,
+                    self.project_id,
+                ),
+            )
 
             conn.commit()
             cur.close()
@@ -532,19 +566,23 @@ class AppBuilderOrchestrator:
         """Save project plan to database"""
         try:
             from app import get_db
+
             conn = self.db or get_db()
             cur = conn.cursor()
 
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE app_builder_projects
                 SET project_plan = %s, tech_stack = %s, dependencies = %s, updated_at = NOW()
                 WHERE id = %s
-            """, (
-                json.dumps(plan),
-                json.dumps(plan.get('tech_stack', {})),
-                json.dumps(plan.get('dependencies', {})),
-                self.project_id
-            ))
+            """,
+                (
+                    json.dumps(plan),
+                    json.dumps(plan.get("tech_stack", {})),
+                    json.dumps(plan.get("dependencies", {})),
+                    self.project_id,
+                ),
+            )
 
             conn.commit()
             cur.close()
@@ -555,31 +593,38 @@ class AppBuilderOrchestrator:
         """Save generated files to database"""
         try:
             from app import get_db
+
             conn = self.db or get_db()
             cur = conn.cursor()
 
             for file_data in files:
-                cur.execute("""
+                cur.execute(
+                    """
                     INSERT INTO app_builder_files
                     (project_id, file_path, file_name, file_type, content, generated_by, generation_method)
                     VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """, (
-                    self.project_id,
-                    file_data['path'],
-                    file_data['name'],
-                    file_data['type'],
-                    file_data['content'],
-                    file_data.get('generated_by', 'orchestrator'),
-                    file_data.get('method', 'llm')
-                ))
+                """,
+                    (
+                        self.project_id,
+                        file_data["path"],
+                        file_data["name"],
+                        file_data["type"],
+                        file_data["content"],
+                        file_data.get("generated_by", "orchestrator"),
+                        file_data.get("method", "llm"),
+                    ),
+                )
 
             # Update total files count
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE app_builder_projects
                 SET total_files = (SELECT COUNT(*) FROM app_builder_files WHERE project_id = %s),
                     updated_at = NOW()
                 WHERE id = %s
-            """, (self.project_id, self.project_id))
+            """,
+                (self.project_id, self.project_id),
+            )
 
             conn.commit()
             cur.close()
@@ -590,17 +635,21 @@ class AppBuilderOrchestrator:
         """Save test results to database"""
         try:
             from app import get_db
+
             conn = self.db or get_db()
             cur = conn.cursor()
 
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE app_builder_projects
                 SET tests_generated = TRUE,
                     tests_passed = %s,
                     test_results = %s,
                     updated_at = NOW()
                 WHERE id = %s
-            """, (results.get('passed', False), json.dumps(results), self.project_id))
+            """,
+                (results.get("passed", False), json.dumps(results), self.project_id),
+            )
 
             conn.commit()
             cur.close()
@@ -611,10 +660,12 @@ class AppBuilderOrchestrator:
         """Save deployment information to database"""
         try:
             from app import get_db
+
             conn = self.db or get_db()
             cur = conn.cursor()
 
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE app_builder_projects
                 SET deployed = TRUE,
                     deployed_at = NOW(),
@@ -623,12 +674,14 @@ class AppBuilderOrchestrator:
                     deployment_config = %s,
                     updated_at = NOW()
                 WHERE id = %s
-            """, (
-                deployment.get('url'),
-                deployment.get('platform'),
-                json.dumps(deployment.get('config', {})),
-                self.project_id
-            ))
+            """,
+                (
+                    deployment.get("url"),
+                    deployment.get("platform"),
+                    json.dumps(deployment.get("config", {})),
+                    self.project_id,
+                ),
+            )
 
             conn.commit()
             cur.close()
@@ -642,10 +695,7 @@ class AppBuilderOrchestrator:
     async def update_clarifications(self, answers: Dict):
         """Update clarification answers (called when user responds)"""
         self.clarifications = answers
-        await self._save_clarifications(
-            self.project_data.get('clarification_questions', []),
-            answers
-        )
+        await self._save_clarifications(self.project_data.get("clarification_questions", []), answers)
 
         # Continue to planning phase
         await self._phase_planning()
@@ -654,26 +704,30 @@ class AppBuilderOrchestrator:
         """Approve the plan and continue to generation"""
         try:
             from app import get_db
+
             conn = self.db or get_db()
             cur = conn.cursor()
 
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE app_builder_projects
                 SET plan_approved = TRUE, plan_approved_at = NOW(), updated_at = NOW()
                 WHERE id = %s
-            """, (self.project_id,))
+            """,
+                (self.project_id,),
+            )
 
             conn.commit()
             cur.close()
 
-            self.project_data['plan_approved'] = True
+            self.project_data["plan_approved"] = True
 
             # Continue to generation phase
             await self._phase_generation()
             await self._phase_testing()
 
             # Check if we should auto-deploy
-            if self.project_data.get('tests_passed'):
+            if self.project_data.get("tests_passed"):
                 await self._phase_deployment()
 
         except Exception as e:
@@ -683,14 +737,14 @@ class AppBuilderOrchestrator:
     async def cancel(self):
         """Cancel the orchestration"""
         self.transition_state(OrchestratorState.CANCELLED)
-        self.emit_event('cancelled', {'project_id': self.project_id})
+        self.emit_event("cancelled", {"project_id": self.project_id})
 
 
 # ============================================================================
 # TESTING
 # ============================================================================
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("=" * 80)
     print("APP BUILDER ORCHESTRATOR TEST")
     print("=" * 80)

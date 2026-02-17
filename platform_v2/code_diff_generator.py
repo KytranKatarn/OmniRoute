@@ -8,6 +8,7 @@ Supports:
 - Syntax highlighting hints
 - Change statistics (lines added/removed/modified)
 """
+
 import difflib
 import os
 import json
@@ -48,26 +49,22 @@ class CodeDiffGenerator:
 
     def __init__(self):
         self.language_map = {
-            '.py': 'python',
-            '.js': 'javascript',
-            '.jsx': 'javascript',
-            '.ts': 'typescript',
-            '.tsx': 'typescript',
-            '.sql': 'sql',
-            '.html': 'html',
-            '.css': 'css',
-            '.json': 'json',
-            '.md': 'markdown',
-            '.sh': 'bash',
-            '.yml': 'yaml',
-            '.yaml': 'yaml'
+            ".py": "python",
+            ".js": "javascript",
+            ".jsx": "javascript",
+            ".ts": "typescript",
+            ".tsx": "typescript",
+            ".sql": "sql",
+            ".html": "html",
+            ".css": "css",
+            ".json": "json",
+            ".md": "markdown",
+            ".sh": "bash",
+            ".yml": "yaml",
+            ".yaml": "yaml",
         }
 
-    def generate_diff(
-        self,
-        file_changes: List[Dict[str, str]],
-        context_lines: int = 3
-    ) -> Dict:
+    def generate_diff(self, file_changes: List[Dict[str, str]], context_lines: int = 3) -> Dict:
         """
         Generate a comprehensive diff for multiple file changes.
 
@@ -93,9 +90,9 @@ class CodeDiffGenerator:
         total_modified = 0
 
         for file_change in file_changes:
-            file_path = file_change.get('path', 'unknown')
-            before_content = file_change.get('before', '')
-            after_content = file_change.get('after', '')
+            file_path = file_change.get("path", "unknown")
+            before_content = file_change.get("before", "")
+            after_content = file_change.get("after", "")
 
             # Detect language from extension
             language = self._detect_language(file_path)
@@ -104,51 +101,50 @@ class CodeDiffGenerator:
             before_lines = before_content.splitlines(keepends=True)
             after_lines = after_content.splitlines(keepends=True)
 
-            diff_lines = list(difflib.unified_diff(
-                before_lines,
-                after_lines,
-                fromfile=f'a{file_path}',
-                tofile=f'b{file_path}',
-                n=context_lines
-            ))
+            diff_lines = list(
+                difflib.unified_diff(
+                    before_lines,
+                    after_lines,
+                    fromfile=f"a{file_path}",
+                    tofile=f"b{file_path}",
+                    n=context_lines,
+                )
+            )
 
-            diff_string = ''.join(diff_lines)
+            diff_string = "".join(diff_lines)
 
             # Calculate statistics
             stats = self._calculate_stats(diff_lines)
 
-            total_added += stats['lines_added']
-            total_removed += stats['lines_removed']
-            total_modified += stats['lines_modified']
+            total_added += stats["lines_added"]
+            total_removed += stats["lines_removed"]
+            total_modified += stats["lines_modified"]
 
-            files_diff.append({
-                'path': file_path,
-                'language': language,
-                'before': before_content,
-                'after': after_content,
-                'diff': diff_string,
-                'stats': stats,
-                'checksum_before': self._checksum(before_content),
-                'checksum_after': self._checksum(after_content)
-            })
+            files_diff.append(
+                {
+                    "path": file_path,
+                    "language": language,
+                    "before": before_content,
+                    "after": after_content,
+                    "diff": diff_string,
+                    "stats": stats,
+                    "checksum_before": self._checksum(before_content),
+                    "checksum_after": self._checksum(after_content),
+                }
+            )
 
         return {
-            'files': files_diff,
-            'summary': {
-                'total_files': len(files_diff),
-                'total_added': total_added,
-                'total_removed': total_removed,
-                'total_modified': total_modified
+            "files": files_diff,
+            "summary": {
+                "total_files": len(files_diff),
+                "total_added": total_added,
+                "total_removed": total_removed,
+                "total_modified": total_modified,
             },
-            'generated_at': datetime.now().isoformat()
+            "generated_at": datetime.now().isoformat(),
         }
 
-    def generate_html_diff(
-        self,
-        before_content: str,
-        after_content: str,
-        file_path: str = 'file'
-    ) -> str:
+    def generate_html_diff(self, before_content: str, after_content: str, file_path: str = "file") -> str:
         """
         Generate an HTML side-by-side diff.
 
@@ -167,20 +163,15 @@ class CodeDiffGenerator:
         html = differ.make_table(
             before_lines,
             after_lines,
-            fromdesc=f'Before: {file_path}',
-            todesc=f'After: {file_path}',
+            fromdesc=f"Before: {file_path}",
+            todesc=f"After: {file_path}",
             context=True,
-            numlines=3
+            numlines=3,
         )
 
         return html
 
-    def apply_diff_to_file(
-        self,
-        file_path: str,
-        diff_content: str,
-        dry_run: bool = True
-    ) -> Dict:
+    def apply_diff_to_file(self, file_path: str, diff_content: str, dry_run: bool = True) -> Dict:
         """
         Apply a diff to an actual file.
 
@@ -193,43 +184,40 @@ class CodeDiffGenerator:
             {'success': True, 'path': '...', 'backed_up': True}
         """
         if not os.path.exists(file_path):
-            return {
-                'success': False,
-                'error': f'File not found: {file_path}'
-            }
+            return {"success": False, "error": f"File not found: {file_path}"}
 
         # Read current content
-        with open(file_path, 'r') as f:
+        with open(file_path, "r") as f:
             current_content = f.read()
 
         if dry_run:
             return {
-                'success': True,
-                'dry_run': True,
-                'path': file_path,
-                'message': 'Dry run - no changes made'
+                "success": True,
+                "dry_run": True,
+                "path": file_path,
+                "message": "Dry run - no changes made",
             }
 
         # Create backup
         backup_path = f"{file_path}.backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        with open(backup_path, 'w') as f:
+        with open(backup_path, "w") as f:
             f.write(current_content)
 
         # Write new content
-        with open(file_path, 'w') as f:
+        with open(file_path, "w") as f:
             f.write(diff_content)
 
         return {
-            'success': True,
-            'path': file_path,
-            'backed_up': backup_path,
-            'message': 'File updated successfully'
+            "success": True,
+            "path": file_path,
+            "backed_up": backup_path,
+            "message": "File updated successfully",
         }
 
     def _detect_language(self, file_path: str) -> str:
         """Detect programming language from file extension"""
         _, ext = os.path.splitext(file_path)
-        return self.language_map.get(ext.lower(), 'text')
+        return self.language_map.get(ext.lower(), "text")
 
     def _calculate_stats(self, diff_lines: List[str]) -> Dict:
         """Calculate diff statistics from unified diff lines"""
@@ -238,18 +226,18 @@ class CodeDiffGenerator:
         modified = 0
 
         for line in diff_lines:
-            if line.startswith('+') and not line.startswith('+++'):
+            if line.startswith("+") and not line.startswith("+++"):
                 added += 1
-            elif line.startswith('-') and not line.startswith('---'):
+            elif line.startswith("-") and not line.startswith("---"):
                 removed += 1
 
         # Estimate modified lines (pairs of +/-)
         modified = min(added, removed)
 
         return {
-            'lines_added': added,
-            'lines_removed': removed,
-            'lines_modified': modified
+            "lines_added": added,
+            "lines_removed": removed,
+            "lines_modified": modified,
         }
 
     def _checksum(self, content: str) -> str:
@@ -261,6 +249,7 @@ class CodeDiffGenerator:
 # CONVENIENCE FUNCTIONS
 # ============================================================================
 
+
 def generate_proposal_diff(file_changes: List[Dict]) -> Dict:
     """Quick function to generate diff for a proposal"""
     generator = CodeDiffGenerator()
@@ -270,18 +259,14 @@ def generate_proposal_diff(file_changes: List[Dict]) -> Dict:
 def create_simple_diff(file_path: str, before: str, after: str) -> Dict:
     """Create a simple single-file diff"""
     generator = CodeDiffGenerator()
-    return generator.generate_diff([{
-        'path': file_path,
-        'before': before,
-        'after': after
-    }])
+    return generator.generate_diff([{"path": file_path, "before": before, "after": after}])
 
 
 # ============================================================================
 # TESTING
 # ============================================================================
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("Code Diff Generator - Test Mode")
     print("=" * 60)
 
@@ -300,11 +285,7 @@ if __name__ == '__main__':
 """
 
     generator = CodeDiffGenerator()
-    result = generator.generate_diff([{
-        'path': '/app/calculations.py',
-        'before': before,
-        'after': after
-    }])
+    result = generator.generate_diff([{"path": "/app/calculations.py", "before": before, "after": after}])
 
     print("\nGenerated Diff:")
     print("-" * 60)
@@ -312,6 +293,6 @@ if __name__ == '__main__':
     print(f"Lines Added: {result['summary']['total_added']}")
     print(f"Lines Removed: {result['summary']['total_removed']}")
     print(f"\nDiff Preview:")
-    print(result['files'][0]['diff'])
+    print(result["files"][0]["diff"])
 
     print("\n✅ Code Diff Generator loaded successfully!")

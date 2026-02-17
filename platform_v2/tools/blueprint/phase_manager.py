@@ -1,4 +1,5 @@
 """Blueprint Phase Manager - CRUD operations for blueprint_phases and blueprint_tasks"""
+
 import logging
 from datetime import datetime
 from typing import List, Dict, Any, Optional
@@ -52,7 +53,7 @@ def get_all_phases(section: str = None, status: str = None) -> List[Dict[str, An
         result = []
         for p in phases:
             phase = dict(p)
-            for key in ['created_at', 'updated_at', 'started_at', 'completed_at']:
+            for key in ["created_at", "updated_at", "started_at", "completed_at"]:
                 if phase.get(key):
                     phase[key] = phase[key].isoformat()
             result.append(phase)
@@ -69,32 +70,38 @@ def get_phase(phase_id: int) -> Optional[Dict[str, Any]]:
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
-        cur.execute("""
+        cur.execute(
+            """
             SELECT * FROM blueprint_phases WHERE id = %s
-        """, (phase_id,))
+        """,
+            (phase_id,),
+        )
         phase = cur.fetchone()
 
         if not phase:
             return None
 
         # Get tasks
-        cur.execute("""
+        cur.execute(
+            """
             SELECT * FROM blueprint_tasks
             WHERE phase_id = %s
             ORDER BY display_order
-        """, (phase_id,))
+        """,
+            (phase_id,),
+        )
         tasks = cur.fetchall()
 
         result = dict(phase)
-        result['tasks'] = [dict(t) for t in tasks]
+        result["tasks"] = [dict(t) for t in tasks]
 
         # Convert timestamps
-        for key in ['created_at', 'updated_at', 'started_at', 'completed_at']:
+        for key in ["created_at", "updated_at", "started_at", "completed_at"]:
             if result.get(key):
                 result[key] = result[key].isoformat()
 
-        for task in result['tasks']:
-            for key in ['created_at', 'completed_at']:
+        for task in result["tasks"]:
+            for key in ["created_at", "completed_at"]:
                 if task.get(key):
                     task[key] = task[key].isoformat()
 
@@ -112,21 +119,24 @@ def create_phase(data: Dict[str, Any]) -> Dict[str, Any]:
     try:
         # Get max display_order
         cur.execute("SELECT COALESCE(MAX(display_order), 0) + 1 as next_order FROM blueprint_phases")
-        next_order = cur.fetchone()['next_order']
+        next_order = cur.fetchone()["next_order"]
 
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO blueprint_phases
             (phase_number, name, section, status, description, display_order)
             VALUES (%s, %s, %s, %s, %s, %s)
             RETURNING *
-        """, (
-            data['phase_number'],
-            data['name'],
-            data.get('section', 'future'),
-            data.get('status', 'planned'),
-            data.get('description', ''),
-            data.get('display_order', next_order)
-        ))
+        """,
+            (
+                data["phase_number"],
+                data["name"],
+                data.get("section", "future"),
+                data.get("status", "planned"),
+                data.get("description", ""),
+                data.get("display_order", next_order),
+            ),
+        )
 
         phase = dict(cur.fetchone())
         conn.commit()
@@ -152,8 +162,17 @@ def update_phase(phase_id: int, data: Dict[str, Any]) -> Optional[Dict[str, Any]
         updates = []
         params = []
 
-        allowed_fields = ['phase_number', 'name', 'section', 'status', 'description',
-                          'completion_percent', 'display_order', 'started_at', 'completed_at']
+        allowed_fields = [
+            "phase_number",
+            "name",
+            "section",
+            "status",
+            "description",
+            "completion_percent",
+            "display_order",
+            "started_at",
+            "completed_at",
+        ]
 
         for field in allowed_fields:
             if field in data:
@@ -217,7 +236,7 @@ def reorder_phases(order_list: List[Dict[str, int]]) -> bool:
         for item in order_list:
             cur.execute(
                 "UPDATE blueprint_phases SET display_order = %s WHERE id = %s",
-                (item['display_order'], item['id'])
+                (item["display_order"], item["id"]),
             )
 
         conn.commit()
@@ -241,15 +260,18 @@ def add_task(phase_id: int, task_description: str, done: bool = False, notes: st
         # Get max display_order for this phase
         cur.execute(
             "SELECT COALESCE(MAX(display_order), 0) + 1 as next_order FROM blueprint_tasks WHERE phase_id = %s",
-            (phase_id,)
+            (phase_id,),
         )
-        next_order = cur.fetchone()['next_order']
+        next_order = cur.fetchone()["next_order"]
 
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO blueprint_tasks (phase_id, task_description, done, display_order, notes)
             VALUES (%s, %s, %s, %s, %s)
             RETURNING *
-        """, (phase_id, task_description, done, next_order, notes))
+        """,
+            (phase_id, task_description, done, next_order, notes),
+        )
 
         task = dict(cur.fetchone())
 
@@ -274,20 +296,23 @@ def toggle_task(task_id: int) -> Optional[Dict[str, Any]]:
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE blueprint_tasks
             SET done = NOT done,
                 completed_at = CASE WHEN NOT done THEN NOW() ELSE NULL END
             WHERE id = %s
             RETURNING *
-        """, (task_id,))
+        """,
+            (task_id,),
+        )
 
         task = cur.fetchone()
         if not task:
             return None
 
         # Update phase completion percent
-        _update_phase_completion(cur, task['phase_id'])
+        _update_phase_completion(cur, task["phase_id"])
 
         conn.commit()
         logger.info(f"Toggled task {task_id}: done={task['done']}")
@@ -310,15 +335,15 @@ def update_task(task_id: int, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         updates = []
         params = []
 
-        allowed_fields = ['task_description', 'done', 'display_order', 'notes']
+        allowed_fields = ["task_description", "done", "display_order", "notes"]
 
         for field in allowed_fields:
             if field in data:
                 updates.append(f"{field} = %s")
                 params.append(data[field])
 
-        if 'done' in data:
-            if data['done']:
+        if "done" in data:
+            if data["done"]:
                 updates.append("completed_at = NOW()")
             else:
                 updates.append("completed_at = NULL")
@@ -338,7 +363,7 @@ def update_task(task_id: int, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             return None
 
         # Update phase completion percent
-        _update_phase_completion(cur, task['phase_id'])
+        _update_phase_completion(cur, task["phase_id"])
 
         conn.commit()
         logger.info(f"Updated task {task_id}")
@@ -365,7 +390,7 @@ def delete_task(task_id: int) -> bool:
         if not result:
             return False
 
-        phase_id = result['phase_id']
+        phase_id = result["phase_id"]
 
         cur.execute("DELETE FROM blueprint_tasks WHERE id = %s", (task_id,))
         deleted = cur.rowcount > 0
@@ -391,13 +416,16 @@ def delete_task(task_id: int) -> bool:
 
 def _update_phase_completion(cur, phase_id: int):
     """Update phase completion_percent based on task status."""
-    cur.execute("""
+    cur.execute(
+        """
         UPDATE blueprint_phases SET completion_percent = (
             SELECT COALESCE(ROUND(100.0 * COUNT(*) FILTER (WHERE done = true) / NULLIF(COUNT(*), 0)), 0)
             FROM blueprint_tasks WHERE phase_id = %s
         )
         WHERE id = %s
-    """, (phase_id, phase_id))
+    """,
+        (phase_id, phase_id),
+    )
 
 
 def get_roadmap_summary() -> Dict[str, Any]:
@@ -406,7 +434,8 @@ def get_roadmap_summary() -> Dict[str, Any]:
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 COUNT(*) as total_phases,
                 COUNT(*) FILTER (WHERE status = 'completed') as completed_phases,
@@ -416,10 +445,11 @@ def get_roadmap_summary() -> Dict[str, Any]:
                 (SELECT COUNT(*) FROM blueprint_tasks) as total_tasks,
                 (SELECT COUNT(*) FROM blueprint_tasks WHERE done = true) as done_tasks
             FROM blueprint_phases
-        """)
+        """
+        )
 
         stats = dict(cur.fetchone())
-        stats['progress_percent'] = round(100 * stats['done_tasks'] / max(stats['total_tasks'], 1))
+        stats["progress_percent"] = round(100 * stats["done_tasks"] / max(stats["total_tasks"], 1))
 
         return stats
     finally:
@@ -433,7 +463,8 @@ def get_sections() -> List[Dict[str, Any]]:
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     try:
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 section,
                 COUNT(*) as phase_count,
@@ -450,7 +481,8 @@ def get_sections() -> List[Dict[str, Any]]:
                     WHEN 'future' THEN 4
                     ELSE 5
                 END
-        """)
+        """
+        )
 
         return [dict(row) for row in cur.fetchall()]
     finally:

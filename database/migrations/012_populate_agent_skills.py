@@ -19,296 +19,286 @@ import json
 
 # Database connection
 DB_CONFIG = {
-    'host': 'localhost',
-    'database': 'archie',
-    'user': 'archie',
-    'password': 'archie_secure_2024'
+    "host": "localhost",
+    "database": "archie",
+    "user": "archie",
+    "password": "archie_secure_2024",
 }
 
 # Model-to-skill mappings based on model capabilities
 # Proficiency: 1-5 (5 = expert, 4 = advanced, 3 = proficient, 2 = familiar, 1 = basic)
 MODEL_SKILLS = {
-    'qwen2.5-coder:7b': {
-        'python': 5,
-        'javascript': 4,
-        'code_review': 4,
-        'quick_fixes': 5,
-        'syntax_correction': 5,
-        'bug_fixing': 4,
-        'refactoring': 4,
-        'documentation': 3,
+    "qwen2.5-coder:7b": {
+        "python": 5,
+        "javascript": 4,
+        "code_review": 4,
+        "quick_fixes": 5,
+        "syntax_correction": 5,
+        "bug_fixing": 4,
+        "refactoring": 4,
+        "documentation": 3,
     },
-    'deepseek-coder-v2:16b': {
-        'architecture': 5,
-        'algorithm_design': 5,
-        'complex_reasoning': 5,
-        'system_design': 4,
-        'code_review': 4,
-        'python': 4,
-        'performance_optimization': 4,
-        'multi_file_changes': 4,
+    "deepseek-coder-v2:16b": {
+        "architecture": 5,
+        "algorithm_design": 5,
+        "complex_reasoning": 5,
+        "system_design": 4,
+        "code_review": 4,
+        "python": 4,
+        "performance_optimization": 4,
+        "multi_file_changes": 4,
     },
-    'deepseek-coder:33b': {
-        'system_design': 5,
-        'refactoring': 5,
-        'multi_file_changes': 5,
-        'architecture': 5,
-        'complex_reasoning': 5,
-        'code_review': 5,
-        'performance_optimization': 4,
-        'database_optimization': 4,
+    "deepseek-coder:33b": {
+        "system_design": 5,
+        "refactoring": 5,
+        "multi_file_changes": 5,
+        "architecture": 5,
+        "complex_reasoning": 5,
+        "code_review": 5,
+        "performance_optimization": 4,
+        "database_optimization": 4,
     },
-    'codellama:latest': {
-        'quick_fixes': 4,
-        'simple_edits': 5,
-        'syntax_correction': 4,
-        'python': 4,
-        'javascript': 4,
-        'bug_fixing': 4,
+    "codellama:latest": {
+        "quick_fixes": 4,
+        "simple_edits": 5,
+        "syntax_correction": 4,
+        "python": 4,
+        "javascript": 4,
+        "bug_fixing": 4,
     },
-    'claude-sonnet-4-20250514': {
-        'security_analysis': 5,
-        'api_design': 5,
-        'documentation': 5,
-        'code_review': 5,
-        'python': 5,
-        'javascript': 5,
-        'complex_reasoning': 5,
-        'technical_writing': 5,
-        'best_practices': 5,
+    "claude-sonnet-4-20250514": {
+        "security_analysis": 5,
+        "api_design": 5,
+        "documentation": 5,
+        "code_review": 5,
+        "python": 5,
+        "javascript": 5,
+        "complex_reasoning": 5,
+        "technical_writing": 5,
+        "best_practices": 5,
     },
-    'claude-opus-4-20250514': {
-        'architecture': 5,
-        'complex_security': 5,
-        'strategic_planning': 5,
-        'system_design': 5,
-        'technical_leadership': 5,
-        'code_review': 5,
-        'security_analysis': 5,
-        'complex_reasoning': 5,
-        'multi_file_changes': 5,
+    "claude-opus-4-20250514": {
+        "architecture": 5,
+        "complex_security": 5,
+        "strategic_planning": 5,
+        "system_design": 5,
+        "technical_leadership": 5,
+        "code_review": 5,
+        "security_analysis": 5,
+        "complex_reasoning": 5,
+        "multi_file_changes": 5,
     },
-    'gpt-4': {
-        'analysis': 5,
-        'creative_solutions': 5,
-        'technical_writing': 5,
-        'code_review': 5,
-        'python': 4,
-        'javascript': 4,
-        'documentation': 5,
+    "gpt-4": {
+        "analysis": 5,
+        "creative_solutions": 5,
+        "technical_writing": 5,
+        "code_review": 5,
+        "python": 4,
+        "javascript": 4,
+        "documentation": 5,
     },
-    'gpt-4o': {
-        'analysis': 5,
-        'creative_solutions': 5,
-        'technical_writing': 5,
-        'code_review': 5,
-        'python': 4,
-        'javascript': 4,
-        'documentation': 5,
-        'complex_reasoning': 5,
+    "gpt-4o": {
+        "analysis": 5,
+        "creative_solutions": 5,
+        "technical_writing": 5,
+        "code_review": 5,
+        "python": 4,
+        "javascript": 4,
+        "documentation": 5,
+        "complex_reasoning": 5,
     },
-    'grok-beta': {
-        'analysis': 4,
-        'creative_solutions': 4,
-        'code_review': 4,
-        'python': 4,
-        'real_time_info': 5,
-        'trend_analysis': 4,
+    "grok-beta": {
+        "analysis": 4,
+        "creative_solutions": 4,
+        "code_review": 4,
+        "python": 4,
+        "real_time_info": 5,
+        "trend_analysis": 4,
     },
-    'llama3.1:8b': {
-        'general_tasks': 4,
-        'summarization': 4,
-        'documentation': 4,
-        'python': 4,
-        'simple_edits': 4,
-        'communication': 4,
+    "llama3.1:8b": {
+        "general_tasks": 4,
+        "summarization": 4,
+        "documentation": 4,
+        "python": 4,
+        "simple_edits": 4,
+        "communication": 4,
     },
-    'llama3:latest': {
-        'general_tasks': 4,
-        'summarization': 4,
-        'documentation': 3,
-        'python': 3,
-        'communication': 4,
+    "llama3:latest": {
+        "general_tasks": 4,
+        "summarization": 4,
+        "documentation": 3,
+        "python": 3,
+        "communication": 4,
     },
-    'nous-hermes2': {
-        'general_tasks': 4,
-        'communication': 4,
-        'documentation': 4,
-        'creative_solutions': 4,
+    "nous-hermes2": {
+        "general_tasks": 4,
+        "communication": 4,
+        "documentation": 4,
+        "creative_solutions": 4,
     },
-    'command-r:latest': {
-        'general_tasks': 4,
-        'retrieval': 4,
-        'documentation': 4,
-        'summarization': 4,
+    "command-r:latest": {
+        "general_tasks": 4,
+        "retrieval": 4,
+        "documentation": 4,
+        "summarization": 4,
     },
-    'mixtral:8x7b': {
-        'general_tasks': 4,
-        'python': 4,
-        'analysis': 4,
-        'multi_language': 4,
+    "mixtral:8x7b": {
+        "general_tasks": 4,
+        "python": 4,
+        "analysis": 4,
+        "multi_language": 4,
     },
-    'gemma2:2b': {
-        'quick_fixes': 3,
-        'simple_edits': 4,
-        'summarization': 3,
+    "gemma2:2b": {
+        "quick_fixes": 3,
+        "simple_edits": 4,
+        "summarization": 3,
     },
-    'aya:8b': {
-        'multilingual': 5,
-        'translation': 4,
-        'communication': 4,
+    "aya:8b": {
+        "multilingual": 5,
+        "translation": 4,
+        "communication": 4,
     },
-    'dolphin3:latest': {
-        'general_tasks': 4,
-        'creative_solutions': 4,
-        'uncensored_analysis': 4,
+    "dolphin3:latest": {
+        "general_tasks": 4,
+        "creative_solutions": 4,
+        "uncensored_analysis": 4,
     },
 }
 
 # Skill categories for organization
 SKILL_CATEGORIES = {
     # Security
-    'security_analysis': 'security',
-    'complex_security': 'security',
-    'penetration_testing': 'security',
-    'vulnerability_assessment': 'security',
-    'threat_detection': 'security',
-    'incident_response': 'security',
-    'security_architecture': 'security',
-
+    "security_analysis": "security",
+    "complex_security": "security",
+    "penetration_testing": "security",
+    "vulnerability_assessment": "security",
+    "threat_detection": "security",
+    "incident_response": "security",
+    "security_architecture": "security",
     # Development
-    'python': 'development',
-    'javascript': 'development',
-    'typescript': 'development',
-    'react': 'development',
-    'flask': 'development',
-    'django': 'development',
-    'html_css': 'development',
-    'sql': 'development',
-
+    "python": "development",
+    "javascript": "development",
+    "typescript": "development",
+    "react": "development",
+    "flask": "development",
+    "django": "development",
+    "html_css": "development",
+    "sql": "development",
     # Architecture
-    'architecture': 'architecture',
-    'system_design': 'architecture',
-    'technical_leadership': 'architecture',
-    'strategic_planning': 'architecture',
-    'database_design': 'architecture',
-    'api_design': 'architecture',
-
+    "architecture": "architecture",
+    "system_design": "architecture",
+    "technical_leadership": "architecture",
+    "strategic_planning": "architecture",
+    "database_design": "architecture",
+    "api_design": "architecture",
     # Code Quality
-    'code_review': 'code_quality',
-    'refactoring': 'code_quality',
-    'best_practices': 'code_quality',
-    'bug_fixing': 'code_quality',
-    'syntax_correction': 'code_quality',
-    'quick_fixes': 'code_quality',
-    'simple_edits': 'code_quality',
-
+    "code_review": "code_quality",
+    "refactoring": "code_quality",
+    "best_practices": "code_quality",
+    "bug_fixing": "code_quality",
+    "syntax_correction": "code_quality",
+    "quick_fixes": "code_quality",
+    "simple_edits": "code_quality",
     # Performance
-    'performance_optimization': 'performance',
-    'profiling': 'performance',
-    'database_optimization': 'performance',
-    'algorithm_design': 'performance',
-
+    "performance_optimization": "performance",
+    "profiling": "performance",
+    "database_optimization": "performance",
+    "algorithm_design": "performance",
     # Documentation
-    'documentation': 'documentation',
-    'technical_writing': 'documentation',
-    'summarization': 'documentation',
-
+    "documentation": "documentation",
+    "technical_writing": "documentation",
+    "summarization": "documentation",
     # Analysis
-    'analysis': 'analysis',
-    'complex_reasoning': 'analysis',
-    'creative_solutions': 'analysis',
-    'trend_analysis': 'analysis',
-
+    "analysis": "analysis",
+    "complex_reasoning": "analysis",
+    "creative_solutions": "analysis",
+    "trend_analysis": "analysis",
     # Operations
-    'multi_file_changes': 'operations',
-    'devops': 'operations',
-    'deployment': 'operations',
-    'ci_cd': 'operations',
-    'monitoring': 'operations',
-
+    "multi_file_changes": "operations",
+    "devops": "operations",
+    "deployment": "operations",
+    "ci_cd": "operations",
+    "monitoring": "operations",
     # Communication
-    'communication': 'communication',
-    'customer_service': 'communication',
-    'call_handling': 'communication',
-
+    "communication": "communication",
+    "customer_service": "communication",
+    "call_handling": "communication",
     # Specialized
-    'general_tasks': 'general',
-    'retrieval': 'general',
-    'real_time_info': 'general',
-    'multilingual': 'specialized',
-    'translation': 'specialized',
-    'multi_language': 'specialized',
-    'uncensored_analysis': 'specialized',
-
+    "general_tasks": "general",
+    "retrieval": "general",
+    "real_time_info": "general",
+    "multilingual": "specialized",
+    "translation": "specialized",
+    "multi_language": "specialized",
+    "uncensored_analysis": "specialized",
     # Business
-    'marketing': 'business',
-    'sales': 'business',
-    'finance': 'business',
-    'compliance': 'business',
-    'legal': 'business',
-    'hr': 'business',
-    'project_management': 'business',
+    "marketing": "business",
+    "sales": "business",
+    "finance": "business",
+    "compliance": "business",
+    "legal": "business",
+    "hr": "business",
+    "project_management": "business",
 }
 
 # Specialty to skill mapping (from agent capabilities)
 SPECIALTY_TO_SKILL = {
-    'marketing': 'marketing',
-    'analysis': 'analysis',
-    'problem_solving': 'complex_reasoning',
-    'call_handling': 'call_handling',
-    'visitor_management': 'communication',
-    'front_desk_operations': 'communication',
-    'threat_detection': 'threat_detection',
-    'vulnerability_management': 'vulnerability_assessment',
-    'incident_response': 'incident_response',
-    'security_architecture': 'security_architecture',
-    'compliance': 'compliance',
-    'gdpr': 'compliance',
-    'ccpa': 'compliance',
-    'data_governance': 'compliance',
-    'privacy_by_design': 'security_analysis',
-    'user_rights': 'compliance',
-    'regulatory_compliance': 'compliance',
-    'policy_analysis': 'analysis',
-    'audit': 'compliance',
-    'frontend_development': 'javascript',
-    'backend_development': 'python',
-    'api_design': 'api_design',
-    'database_design': 'database_design',
-    'testing': 'code_review',
-    'test_automation': 'code_review',
-    'qa': 'code_review',
-    'technical_writing': 'technical_writing',
-    'documentation': 'documentation',
-    'devops': 'devops',
-    'ci_cd': 'ci_cd',
-    'deployment': 'deployment',
-    'monitoring': 'monitoring',
-    'logging': 'monitoring',
-    'observability': 'monitoring',
-    'customer_service': 'customer_service',
-    'sales': 'sales',
-    'marketing_automation': 'marketing',
-    'content_creation': 'documentation',
-    'social_media': 'communication',
-    'seo': 'analysis',
-    'data_analysis': 'analysis',
-    'financial_analysis': 'finance',
-    'budgeting': 'finance',
-    'forecasting': 'analysis',
-    'hr_operations': 'hr',
-    'recruitment': 'hr',
-    'employee_relations': 'hr',
-    'project_management': 'project_management',
-    'agile': 'project_management',
-    'scrum': 'project_management',
+    "marketing": "marketing",
+    "analysis": "analysis",
+    "problem_solving": "complex_reasoning",
+    "call_handling": "call_handling",
+    "visitor_management": "communication",
+    "front_desk_operations": "communication",
+    "threat_detection": "threat_detection",
+    "vulnerability_management": "vulnerability_assessment",
+    "incident_response": "incident_response",
+    "security_architecture": "security_architecture",
+    "compliance": "compliance",
+    "gdpr": "compliance",
+    "ccpa": "compliance",
+    "data_governance": "compliance",
+    "privacy_by_design": "security_analysis",
+    "user_rights": "compliance",
+    "regulatory_compliance": "compliance",
+    "policy_analysis": "analysis",
+    "audit": "compliance",
+    "frontend_development": "javascript",
+    "backend_development": "python",
+    "api_design": "api_design",
+    "database_design": "database_design",
+    "testing": "code_review",
+    "test_automation": "code_review",
+    "qa": "code_review",
+    "technical_writing": "technical_writing",
+    "documentation": "documentation",
+    "devops": "devops",
+    "ci_cd": "ci_cd",
+    "deployment": "deployment",
+    "monitoring": "monitoring",
+    "logging": "monitoring",
+    "observability": "monitoring",
+    "customer_service": "customer_service",
+    "sales": "sales",
+    "marketing_automation": "marketing",
+    "content_creation": "documentation",
+    "social_media": "communication",
+    "seo": "analysis",
+    "data_analysis": "analysis",
+    "financial_analysis": "finance",
+    "budgeting": "finance",
+    "forecasting": "analysis",
+    "hr_operations": "hr",
+    "recruitment": "hr",
+    "employee_relations": "hr",
+    "project_management": "project_management",
+    "agile": "project_management",
+    "scrum": "project_management",
 }
 
 
 def get_skill_category(skill_name: str) -> str:
     """Get the category for a skill"""
-    return SKILL_CATEGORIES.get(skill_name, 'general')
+    return SKILL_CATEGORIES.get(skill_name, "general")
 
 
 def populate_skills():
@@ -322,13 +312,13 @@ def populate_skills():
 
     # Check current count
     cur.execute("SELECT COUNT(*) as count FROM agent_skills")
-    current_count = cur.fetchone()['count']
+    current_count = cur.fetchone()["count"]
     print(f"\nCurrent agent_skills records: {current_count}")
 
     if current_count > 0:
         print("\nWARNING: Table already has data.")
         response = input("Do you want to clear and repopulate? (y/N): ")
-        if response.lower() != 'y':
+        if response.lower() != "y":
             print("Aborted.")
             return
 
@@ -350,54 +340,59 @@ def populate_skills():
     agents_processed = 0
 
     for agent in agents:
-        agent_id = agent['id']
-        model = agent['model']
-        capabilities = agent['capabilities'] or {}
+        agent_id = agent["id"]
+        model = agent["model"]
+        capabilities = agent["capabilities"] or {}
         agent_skills = set()  # Use set to avoid duplicates
 
         # 1. Add model-based skills
         if model in MODEL_SKILLS:
             for skill, proficiency in MODEL_SKILLS[model].items():
-                agent_skills.add((skill, get_skill_category(skill), proficiency, 'model_capability'))
+                agent_skills.add(
+                    (skill, get_skill_category(skill), proficiency, "model_capability")
+                )
 
         # 2. Extract skills from capabilities.specialties
-        specialties = capabilities.get('specialties', [])
+        specialties = capabilities.get("specialties", [])
         for specialty in specialties:
             skill = SPECIALTY_TO_SKILL.get(specialty, specialty)
             category = get_skill_category(skill)
             # Give specialty-based skills a proficiency of 4 (advanced)
-            agent_skills.add((skill, category, 4, 'agent_specialty'))
+            agent_skills.add((skill, category, 4, "agent_specialty"))
 
         # 3. Extract skills from capabilities.expertise
-        expertise = capabilities.get('expertise', [])
+        expertise = capabilities.get("expertise", [])
         for exp in expertise:
-            exp_lower = exp.lower().replace(' ', '_')
+            exp_lower = exp.lower().replace(" ", "_")
             skill = SPECIALTY_TO_SKILL.get(exp_lower, exp_lower)
             category = get_skill_category(skill)
             # Give expertise-based skills a proficiency of 3 (proficient)
-            agent_skills.add((skill, category, 3, 'agent_expertise'))
+            agent_skills.add((skill, category, 3, "agent_expertise"))
 
         # Insert skills for this agent
         for skill_name, skill_category, proficiency, source in agent_skills:
             try:
                 # Use ON CONFLICT to handle duplicates (unique constraint on agent_id, skill_name)
-                cur.execute("""
+                cur.execute(
+                    """
                     INSERT INTO agent_skills
                     (id, agent_id, skill_name, skill_category, proficiency_level, notes, created_at, updated_at)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (agent_id, skill_name) DO UPDATE SET
                         proficiency_level = GREATEST(agent_skills.proficiency_level, EXCLUDED.proficiency_level),
                         updated_at = EXCLUDED.updated_at
-                """, (
-                    str(uuid.uuid4()),
-                    agent_id,
-                    skill_name,
-                    skill_category,
-                    proficiency,
-                    f"Source: {source}",
-                    datetime.now(),
-                    datetime.now()
-                ))
+                """,
+                    (
+                        str(uuid.uuid4()),
+                        agent_id,
+                        skill_name,
+                        skill_category,
+                        proficiency,
+                        f"Source: {source}",
+                        datetime.now(),
+                        datetime.now(),
+                    ),
+                )
                 skills_added += 1
             except Exception as e:
                 conn.rollback()  # Rollback to recover from error
@@ -427,8 +422,10 @@ def populate_skills():
 
     print("\n=== Skills by Category ===")
     for row in cur.fetchall():
-        print(f"  {row['skill_category']}: {row['count']} entries, "
-              f"{row['unique_skills']} unique skills, avg proficiency {row['avg_proficiency']}")
+        print(
+            f"  {row['skill_category']}: {row['count']} entries, "
+            f"{row['unique_skills']} unique skills, avg proficiency {row['avg_proficiency']}"
+        )
 
     # Show top skills
     cur.execute("""
@@ -442,7 +439,9 @@ def populate_skills():
 
     print("\n=== Top 15 Skills (by agent count) ===")
     for row in cur.fetchall():
-        print(f"  {row['skill_name']}: {row['agent_count']} agents, avg {row['avg_proficiency']}")
+        print(
+            f"  {row['skill_name']}: {row['agent_count']} agents, avg {row['avg_proficiency']}"
+        )
 
     # Show skill gaps (skills with few agents)
     cur.execute("""
@@ -468,13 +467,13 @@ def verify_skills():
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     cur.execute("SELECT COUNT(*) as total FROM agent_skills")
-    total = cur.fetchone()['total']
+    total = cur.fetchone()["total"]
 
     cur.execute("SELECT COUNT(DISTINCT agent_id) as agents FROM agent_skills")
-    agents = cur.fetchone()['agents']
+    agents = cur.fetchone()["agents"]
 
     cur.execute("SELECT COUNT(DISTINCT skill_name) as skills FROM agent_skills")
-    skills = cur.fetchone()['skills']
+    skills = cur.fetchone()["skills"]
 
     print(f"\n=== Verification ===")
     print(f"Total skill records: {total}")
@@ -487,10 +486,10 @@ def verify_skills():
     return total > 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import sys
 
-    if len(sys.argv) > 1 and sys.argv[1] == '--verify':
+    if len(sys.argv) > 1 and sys.argv[1] == "--verify":
         verify_skills()
     else:
         populate_skills()

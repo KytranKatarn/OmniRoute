@@ -123,7 +123,10 @@ async def get_agent_performance_handler(arguments: Dict[str, Any]) -> Dict[str, 
             }
 
         else:
-            return {"success": False, "error": "Provide agent_id for single mode, or use mode=leaderboard"}
+            return {
+                "success": False,
+                "error": "Provide agent_id for single mode, or use mode=leaderboard",
+            }
 
     except Exception as e:
         logger.error(f"Error in get_agent_performance: {e}")
@@ -148,7 +151,10 @@ Example: Check agent 12 → agent_id=12, mode=single
     input_schema={
         "type": "object",
         "properties": {
-            "agent_id": {"type": "integer", "description": "Agent ID (required for single mode)"},
+            "agent_id": {
+                "type": "integer",
+                "description": "Agent ID (required for single mode)",
+            },
             "mode": {
                 "type": "string",
                 "enum": ["single", "leaderboard"],
@@ -233,7 +239,10 @@ Example: Check agent 5 → agent_id=5
     input_schema={
         "type": "object",
         "properties": {
-            "agent_id": {"type": "integer", "description": "Filter by specific agent (optional)"},
+            "agent_id": {
+                "type": "integer",
+                "description": "Filter by specific agent (optional)",
+            },
             "include_welfare": {
                 "type": "boolean",
                 "default": True,
@@ -505,7 +514,10 @@ async def manage_shifts_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
             }
 
         else:
-            return {"success": False, "error": f"Unknown action: {action}. Use 'list' or 'on_duty'"}
+            return {
+                "success": False,
+                "error": f"Unknown action: {action}. Use 'list' or 'on_duty'",
+            }
 
     except Exception as e:
         logger.error(f"Error in manage_shifts: {e}")
@@ -641,7 +653,10 @@ async def get_skills_matrix_handler(arguments: Dict[str, Any]) -> Dict[str, Any]
             }
 
         else:
-            return {"success": False, "error": f"Unknown mode: {mode}. Use 'matrix' or 'gaps'"}
+            return {
+                "success": False,
+                "error": f"Unknown mode: {mode}. Use 'matrix' or 'gaps'",
+            }
 
     except Exception as e:
         logger.error(f"Error in get_skills_matrix: {e}")

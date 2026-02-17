@@ -35,7 +35,10 @@ except ImportError:
 
 # Create blueprint
 automations_bp = Blueprint(
-    "automations", __name__, url_prefix="/tools/automations", template_folder="../../templates/tools"
+    "automations",
+    __name__,
+    url_prefix="/tools/automations",
+    template_folder="../../templates/tools",
 )
 
 # N8N Configuration
@@ -310,7 +313,10 @@ def activate_workflow(workflow_id):
         if response:
             return jsonify({"success": True, "message": "Workflow activated"})
         else:
-            return jsonify({"success": False, "error": "Failed to activate workflow"}), 400
+            return (
+                jsonify({"success": False, "error": "Failed to activate workflow"}),
+                400,
+            )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -326,7 +332,10 @@ def deactivate_workflow(workflow_id):
         if response:
             return jsonify({"success": True, "message": "Workflow deactivated"})
         else:
-            return jsonify({"success": False, "error": "Failed to deactivate workflow"}), 400
+            return (
+                jsonify({"success": False, "error": "Failed to deactivate workflow"}),
+                400,
+            )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -354,7 +363,13 @@ def get_executions():
         if response and "data" in response:
             return jsonify({"success": True, "executions": response["data"]})
         else:
-            return jsonify({"success": False, "error": "Could not fetch executions", "executions": []})
+            return jsonify(
+                {
+                    "success": False,
+                    "error": "Could not fetch executions",
+                    "executions": [],
+                }
+            )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -405,7 +420,13 @@ def create_from_template(template_id):
             return jsonify({"success": False, "error": "Template not found"}), 404
 
         # Create workflow definition based on template
-        workflow_def = {"name": template["name"], "active": False, "nodes": [], "connections": {}, "settings": {}}
+        workflow_def = {
+            "name": template["name"],
+            "active": False,
+            "nodes": [],
+            "connections": {},
+            "settings": {},
+        }
 
         # For now, return the N8N editor URL for manual creation
         n8n_url = N8N_HOST.replace("n8n", "localhost")
@@ -563,4 +584,14 @@ def api_status():
         )
 
     except Exception as e:
-        return jsonify({"module": "automations", "status": "error", "healthy": False, "error": str(e)}), 500
+        return (
+            jsonify(
+                {
+                    "module": "automations",
+                    "status": "error",
+                    "healthy": False,
+                    "error": str(e),
+                }
+            ),
+            500,
+        )

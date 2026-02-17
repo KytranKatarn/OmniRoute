@@ -342,7 +342,13 @@ Provide the code completion (just the code, nothing else):"""
             return jsonify(
                 {
                     "success": True,
-                    "completions": [{"text": completion.strip(), "kind": "text", "detail": "A.R.C.H.I.E. suggestion"}],
+                    "completions": [
+                        {
+                            "text": completion.strip(),
+                            "kind": "text",
+                            "detail": "A.R.C.H.I.E. suggestion",
+                        }
+                    ],
                 }
             )
         else:
@@ -432,7 +438,11 @@ def code_actions(session_id):
                             "title": f"🔨 Fix: {diag.get('message', 'Issue')[:50]}",
                             "kind": "archie.fix",
                             "command": "archie.fix",
-                            "arguments": {"code": selected_code, "diagnostic": diag, "language": language},
+                            "arguments": {
+                                "code": selected_code,
+                                "diagnostic": diag,
+                                "language": language,
+                            },
                             "isPreferred": True,
                         }
                     )
@@ -524,13 +534,22 @@ Code:
 Provide the corrected code only, no explanations."""
 
         else:
-            return jsonify({"success": False, "error": f"Unknown action: {action}"}), 400
+            return (
+                jsonify({"success": False, "error": f"Unknown action: {action}"}),
+                400,
+            )
 
         # Execute with AI
         result = archie_bridge(prompt=prompt, user_id=1, enable_memory=True, force_model="llama3.1:8b")
 
         if result.get("success"):
-            return jsonify({"success": True, "result": result["response"], "model": result.get("model", "unknown")})
+            return jsonify(
+                {
+                    "success": True,
+                    "result": result["response"],
+                    "model": result.get("model", "unknown"),
+                }
+            )
         else:
             return jsonify({"success": False, "error": result.get("error", "Action failed")})
 
@@ -595,9 +614,18 @@ def mcp_manifest():
                     "name": "archie_complete",
                     "description": "Get code completion suggestions",
                     "parameters": {
-                        "prefix": {"type": "string", "description": "Code before cursor"},
-                        "suffix": {"type": "string", "description": "Code after cursor"},
-                        "language": {"type": "string", "description": "Programming language"},
+                        "prefix": {
+                            "type": "string",
+                            "description": "Code before cursor",
+                        },
+                        "suffix": {
+                            "type": "string",
+                            "description": "Code after cursor",
+                        },
+                        "language": {
+                            "type": "string",
+                            "description": "Programming language",
+                        },
                     },
                 },
                 {
@@ -678,7 +706,10 @@ def mcp_tool(tool_name):
             return jsonify({"success": False, "error": "Fix failed"})
 
         else:
-            return jsonify({"success": False, "error": f"Unknown tool: {tool_name}"}), 404
+            return (
+                jsonify({"success": False, "error": f"Unknown tool: {tool_name}"}),
+                404,
+            )
 
     except Exception as e:
         logger.error(f"MCP tool error: {e}")
@@ -724,7 +755,11 @@ def _detect_language(file_path: str) -> str:
 def _get_archie_context_for_file(file_path: str, content: str, cursor_line: int) -> Dict:
     """Get relevant context from A.R.C.H.I.E.'s knowledge base for a file"""
     context = {
-        "file_info": {"path": file_path, "language": _detect_language(file_path), "lines": len(content.split("\n"))},
+        "file_info": {
+            "path": file_path,
+            "language": _detect_language(file_path),
+            "lines": len(content.split("\n")),
+        },
         "knowledge": [],
         "suggestions": [],
     }

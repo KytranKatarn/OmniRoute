@@ -139,7 +139,10 @@ class CostController:
             remaining_budget = max(0, self.daily_cost_limit - estimated_cost)
 
             can_process = remaining_tokens > 0 and remaining_budget > 0
-            limit_reached = total_tokens >= self.daily_token_limit or estimated_cost >= self.daily_cost_limit
+            limit_reached = (
+                total_tokens >= self.daily_token_limit
+                or estimated_cost >= self.daily_cost_limit
+            )
 
             return UsageStatus(
                 date=date.today(),
@@ -265,7 +268,13 @@ class CostController:
                     updated_at = NOW()
                 WHERE date = %s
                 """,
-                (input_tokens, output_tokens, embedding_tokens, total_cost, date.today()),
+                (
+                    input_tokens,
+                    output_tokens,
+                    embedding_tokens,
+                    total_cost,
+                    date.today(),
+                ),
             )
             conn.commit()
             cur.close()

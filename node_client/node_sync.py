@@ -120,6 +120,7 @@ def load_config():
 # HTTP Helpers
 # ---------------------------------------------------------------------------
 
+
 def http_post(url, data, headers=None):
     """
     POST JSON data to *url*. Returns (status_code, response_json).
@@ -206,6 +207,7 @@ def http_get(url, headers=None):
 # Metrics Collection
 # ---------------------------------------------------------------------------
 
+
 def get_cpu_usage():
     """
     Return CPU usage as a float percentage (0-100).
@@ -253,7 +255,11 @@ def get_gpu_usage():
     """
     try:
         result = subprocess.run(
-            ["nvidia-smi", "--query-gpu=utilization.gpu", "--format=csv,noheader,nounits"],
+            [
+                "nvidia-smi",
+                "--query-gpu=utilization.gpu",
+                "--format=csv,noheader,nounits",
+            ],
             capture_output=True,
             text=True,
             timeout=5,
@@ -282,7 +288,7 @@ def get_ollama_models(ollama_host):
     for m in data.get("models", []):
         name = m.get("name", "unknown")
         size_bytes = m.get("size", 0)
-        size_gb = round(size_bytes / (1024 ** 3), 2) if size_bytes else 0.0
+        size_gb = round(size_bytes / (1024**3), 2) if size_bytes else 0.0
         models.append({"name": name, "size_gb": size_gb})
     return models
 
@@ -290,6 +296,7 @@ def get_ollama_models(ollama_host):
 # ---------------------------------------------------------------------------
 # Sync Operations
 # ---------------------------------------------------------------------------
+
 
 def _auth_headers(config):
     """Return standard auth headers for Hub API calls."""
@@ -316,7 +323,9 @@ def send_heartbeat(config):
         "memory_usage": mem,
         "gpu_usage": gpu if gpu is not None else 0,
         "ollama_online": len(models) > 0 or _check_ollama_alive(config["ollama_host"]),
-        "ollama_models": [{"name": m["name"], "size": int(m["size_gb"] * (1024 ** 3))} for m in models],
+        "ollama_models": [
+            {"name": m["name"], "size": int(m["size_gb"] * (1024**3))} for m in models
+        ],
         "client_version": config["archie_version"],
         "details": {
             "hostname": _get_hostname(),
@@ -332,7 +341,10 @@ def send_heartbeat(config):
         gpu_str = f"{gpu}%" if gpu is not None else "N/A"
         logger.info(
             "Heartbeat sent — CPU: %.1f%% | RAM: %.1f%% | GPU: %s | Models: %d",
-            cpu, mem, gpu_str, len(models),
+            cpu,
+            mem,
+            gpu_str,
+            len(models),
         )
         return True
     else:
@@ -405,7 +417,9 @@ def poll_syncs(config):
         if 200 <= ack_code < 300:
             logger.info("Sync #%s acknowledged (%s)", sync_id, ack_status)
         else:
-            logger.warning("Sync #%s ack failed (HTTP %d): %s", sync_id, ack_code, ack_resp)
+            logger.warning(
+                "Sync #%s ack failed (HTTP %d): %s", sync_id, ack_code, ack_resp
+            )
 
 
 def handle_sync(config, sync_type, payload):
@@ -429,29 +443,38 @@ def handle_sync(config, sync_type, payload):
 def _handle_code_update(config, payload):
     """Stub: handle a code_update sync command from the Hub."""
     version = payload.get("version", "unknown")
-    logger.info("[code_update] Hub requests update to version %s — stub, no action taken", version)
+    logger.info(
+        "[code_update] Hub requests update to version %s — stub, no action taken",
+        version,
+    )
 
 
 def _handle_iaae_policy(config, payload):
     """Stub: handle an iaae_policy sync command from the Hub."""
     policy_name = payload.get("policy_name", "unknown")
-    logger.info("[iaae_policy] Received policy '%s' — stub, no action taken", policy_name)
+    logger.info(
+        "[iaae_policy] Received policy '%s' — stub, no action taken", policy_name
+    )
 
 
 def _handle_model_recommend(config, payload):
     """Stub: handle a model_recommend sync command from the Hub."""
     model = payload.get("model", "unknown")
-    logger.info("[model_recommend] Hub recommends model '%s' — stub, no action taken", model)
+    logger.info(
+        "[model_recommend] Hub recommends model '%s' — stub, no action taken", model
+    )
 
 
 # ---------------------------------------------------------------------------
 # Utility helpers
 # ---------------------------------------------------------------------------
 
+
 def _get_hostname():
     """Return the system hostname."""
     try:
         import socket
+
         return socket.gethostname()
     except Exception:
         return "unknown"
@@ -479,6 +502,7 @@ def _check_ollama_alive(ollama_host):
 # ---------------------------------------------------------------------------
 # Main Loop
 # ---------------------------------------------------------------------------
+
 
 def main():
     logger.info("=" * 60)

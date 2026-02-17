@@ -12,4 +12,4 @@ __author__ = "A.R.C.H.I.E. Platform"
 from .server import ArchieMCPServer
 from .auth import MCPAuthenticator
 
-__all__ = ['ArchieMCPServer', 'MCPAuthenticator']
+__all__ = ["ArchieMCPServer", "MCPAuthenticator"]

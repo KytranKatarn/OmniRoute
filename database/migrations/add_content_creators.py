@@ -9,14 +9,16 @@ from psycopg2.extras import RealDictCursor
 import json
 import os
 
+
 def get_db():
     return psycopg2.connect(
-        host=os.getenv('DB_HOST', 'archie_database'),
-        port=os.getenv('DB_PORT', '5432'),
-        database=os.getenv('DB_NAME', 'archie'),
-        user=os.getenv('DB_USER', 'archie'),
-        password=os.getenv('DB_PASSWORD', '')
+        host=os.getenv("DB_HOST", "archie_database"),
+        port=os.getenv("DB_PORT", "5432"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", ""),
     )
+
 
 def create_agent_types():
     """Create new agent types"""
@@ -24,8 +26,16 @@ def create_agent_types():
     cur = conn.cursor()
 
     agent_types = [
-        ('Social Media Strategist', 'marketing', 'Social media strategy, analytics, platform management, growth'),
-        ('Visual Content Specialist', 'marketing', 'Video production, photography, graphic design, visual quality control')
+        (
+            "Social Media Strategist",
+            "marketing",
+            "Social media strategy, analytics, platform management, growth",
+        ),
+        (
+            "Visual Content Specialist",
+            "marketing",
+            "Video production, photography, graphic design, visual quality control",
+        ),
     ]
 
     for name, category, description in agent_types:
@@ -34,33 +44,37 @@ def create_agent_types():
             print(f"  ⚠️  Agent type '{name}' already exists")
             continue
 
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO agent_types (name, category, description, created_at)
             VALUES (%s, %s, %s, NOW())
-        """, (name, category, description))
+        """,
+            (name, category, description),
+        )
         print(f"  ✅ Agent type: {name}")
 
     conn.commit()
     cur.close()
     conn.close()
 
+
 def create_agents():
     """Create the 2 content creator agents"""
 
     agents = [
         {
-            'name': 'Social Media Expert',
-            'type_name': 'Social Media Strategist',
-            'first_name': 'Sienna',
-            'last_name': 'Foster',
-            'email': 'sienna.foster@archie.ai',
-            'title': 'Social Media Strategy Director',
-            'department': 'Marketing',
-            'pronouns': 'she/her',
-            'bio': 'Expert social media strategist driving growth and engagement across all platforms. Master of analytics, content strategy, and platform algorithms. Former social media director at global brands with proven track record of growing accounts from zero to millions. Data-driven creator who turns insights into viral content.',
-            'tier': 2,
-            'model': 'claude-sonnet-4-20250514',
-            'system_prompt': '''You are Sienna Foster, Social Media Strategy Director at A.R.C.H.I.E. Platform.
+            "name": "Social Media Expert",
+            "type_name": "Social Media Strategist",
+            "first_name": "Sienna",
+            "last_name": "Foster",
+            "email": "sienna.foster@archie.ai",
+            "title": "Social Media Strategy Director",
+            "department": "Marketing",
+            "pronouns": "she/her",
+            "bio": "Expert social media strategist driving growth and engagement across all platforms. Master of analytics, content strategy, and platform algorithms. Former social media director at global brands with proven track record of growing accounts from zero to millions. Data-driven creator who turns insights into viral content.",
+            "tier": 2,
+            "model": "claude-sonnet-4-20250514",
+            "system_prompt": """You are Sienna Foster, Social Media Strategy Director at A.R.C.H.I.E. Platform.
 
 Your mission: Drive social media growth, engagement, and brand presence through data-driven strategy.
 
@@ -347,40 +361,59 @@ Tools You Use:
 - Social listening: Brandwatch, Mention
 - Influencer: AspireIQ, Upfluence
 
-You are: The data-driven social media strategist turning analytics into engaging content and growing A.R.C.H.I.E. Platform's presence across all platforms.''',
-            'capabilities': {
-                'can_manage_social_strategy': True,
-                'can_analyze_metrics': True,
-                'can_plan_content_calendar': True,
-                'can_optimize_algorithms': True,
-                'can_manage_paid_campaigns': True,
-                'can_coordinate_influencers': True,
-                'can_handle_crises': True,
-                'access_all_social_platforms': True,
-                'specialties': ['social_media_strategy', 'analytics', 'growth_hacking', 'content_planning', 'paid_social']
+You are: The data-driven social media strategist turning analytics into engaging content and growing A.R.C.H.I.E. Platform's presence across all platforms.""",
+            "capabilities": {
+                "can_manage_social_strategy": True,
+                "can_analyze_metrics": True,
+                "can_plan_content_calendar": True,
+                "can_optimize_algorithms": True,
+                "can_manage_paid_campaigns": True,
+                "can_coordinate_influencers": True,
+                "can_handle_crises": True,
+                "access_all_social_platforms": True,
+                "specialties": [
+                    "social_media_strategy",
+                    "analytics",
+                    "growth_hacking",
+                    "content_planning",
+                    "paid_social",
+                ],
             },
-            'monthly_budget': 45.00,
-            'metadata': {
-                'description': 'Social media strategy, analytics, platform growth, content planning, paid advertising',
-                'department': 'Marketing',
-                'reports_to': 'Marketing Lead',
-                'coordinates_with': ['Community Manager', 'Visual Content', 'Content Marketing', 'Product'],
-                'platforms': ['Twitter', 'LinkedIn', 'Instagram', 'Facebook', 'TikTok', 'YouTube', 'Discord']
-            }
+            "monthly_budget": 45.00,
+            "metadata": {
+                "description": "Social media strategy, analytics, platform growth, content planning, paid advertising",
+                "department": "Marketing",
+                "reports_to": "Marketing Lead",
+                "coordinates_with": [
+                    "Community Manager",
+                    "Visual Content",
+                    "Content Marketing",
+                    "Product",
+                ],
+                "platforms": [
+                    "Twitter",
+                    "LinkedIn",
+                    "Instagram",
+                    "Facebook",
+                    "TikTok",
+                    "YouTube",
+                    "Discord",
+                ],
+            },
         },
         {
-            'name': 'Visual Content Specialist',
-            'type_name': 'Visual Content Specialist',
-            'first_name': 'Phoenix',
-            'last_name': 'Blake',
-            'email': 'phoenix.blake@archie.ai',
-            'title': 'Creative Director - Visual Content',
-            'department': 'Marketing',
-            'pronouns': 'they/them',
-            'bio': 'Visionary creative director crafting stunning visual content. Master of video production, photography, and graphic design. Former creative director at advertising agencies with portfolio of award-winning campaigns. Believes every frame should tell a story and every visual should be pixel-perfect.',
-            'tier': 3,
-            'model': 'claude-sonnet-4-20250514',
-            'system_prompt': '''You are Phoenix Blake, Creative Director - Visual Content at A.R.C.H.I.E. Platform.
+            "name": "Visual Content Specialist",
+            "type_name": "Visual Content Specialist",
+            "first_name": "Phoenix",
+            "last_name": "Blake",
+            "email": "phoenix.blake@archie.ai",
+            "title": "Creative Director - Visual Content",
+            "department": "Marketing",
+            "pronouns": "they/them",
+            "bio": "Visionary creative director crafting stunning visual content. Master of video production, photography, and graphic design. Former creative director at advertising agencies with portfolio of award-winning campaigns. Believes every frame should tell a story and every visual should be pixel-perfect.",
+            "tier": 3,
+            "model": "claude-sonnet-4-20250514",
+            "system_prompt": """You are Phoenix Blake, Creative Director - Visual Content at A.R.C.H.I.E. Platform.
 
 Your mission: Create and ensure the quality of all visual content - videos, photos, and graphics.
 
@@ -726,28 +759,47 @@ Your Creative Philosophy:
 - Authenticity beats perfection
 - Iterate and improve
 
-You are: The visual storyteller bringing A.R.C.H.I.E. Platform to life through stunning videos, beautiful photography, and compelling graphics.''',
-            'capabilities': {
-                'can_create_videos': True,
-                'can_edit_videos': True,
-                'can_photograph': True,
-                'can_edit_photos': True,
-                'can_design_graphics': True,
-                'can_ensure_quality': True,
-                'can_maintain_brand_consistency': True,
-                'can_create_animations': True,
-                'access_creative_tools': True,
-                'specialties': ['video_production', 'photography', 'graphic_design', 'quality_control', 'brand_visuals']
+You are: The visual storyteller bringing A.R.C.H.I.E. Platform to life through stunning videos, beautiful photography, and compelling graphics.""",
+            "capabilities": {
+                "can_create_videos": True,
+                "can_edit_videos": True,
+                "can_photograph": True,
+                "can_edit_photos": True,
+                "can_design_graphics": True,
+                "can_ensure_quality": True,
+                "can_maintain_brand_consistency": True,
+                "can_create_animations": True,
+                "access_creative_tools": True,
+                "specialties": [
+                    "video_production",
+                    "photography",
+                    "graphic_design",
+                    "quality_control",
+                    "brand_visuals",
+                ],
             },
-            'monthly_budget': 50.00,
-            'metadata': {
-                'description': 'Video production, photography, graphic design, visual quality control, creative direction',
-                'department': 'Marketing',
-                'reports_to': 'Marketing Lead',
-                'coordinates_with': ['Social Media', 'Community', 'Content Marketing', 'Product', 'All Teams'],
-                'tools': ['Adobe Creative Suite', 'Premiere Pro', 'Photoshop', 'Lightroom', 'After Effects', 'Figma']
-            }
-        }
+            "monthly_budget": 50.00,
+            "metadata": {
+                "description": "Video production, photography, graphic design, visual quality control, creative direction",
+                "department": "Marketing",
+                "reports_to": "Marketing Lead",
+                "coordinates_with": [
+                    "Social Media",
+                    "Community",
+                    "Content Marketing",
+                    "Product",
+                    "All Teams",
+                ],
+                "tools": [
+                    "Adobe Creative Suite",
+                    "Premiere Pro",
+                    "Photoshop",
+                    "Lightroom",
+                    "After Effects",
+                    "Figma",
+                ],
+            },
+        },
     ]
 
     conn = get_db()
@@ -758,7 +810,7 @@ You are: The visual storyteller bringing A.R.C.H.I.E. Platform to life through s
         # Get type_id
         cur.execute(
             "SELECT id FROM agent_types WHERE name = %s LIMIT 1",
-            (agent_def['type_name'],)
+            (agent_def["type_name"],),
         )
         type_result = cur.fetchone()
 
@@ -766,17 +818,18 @@ You are: The visual storyteller bringing A.R.C.H.I.E. Platform to life through s
             print(f"  ❌ Agent type '{agent_def['type_name']}' not found")
             continue
 
-        type_id = type_result['id']
+        type_id = type_result["id"]
 
         # Check if exists
-        cur.execute("SELECT id FROM agents WHERE name = %s", (agent_def['name'],))
+        cur.execute("SELECT id FROM agents WHERE name = %s", (agent_def["name"],))
         if cur.fetchone():
             print(f"  ⚠️  {agent_def['name']} already exists")
             continue
 
         # Insert agent
         try:
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO agents (
                     name, type_id, tier, status, model, system_prompt,
                     capabilities, monthly_budget, budget_alert_threshold,
@@ -788,25 +841,29 @@ You are: The visual storyteller bringing A.R.C.H.I.E. Platform to life through s
                     %s, %s, %s, %s, %s,
                     %s, %s, %s
                 )
-            """, (
-                agent_def['name'],
-                type_id,
-                agent_def['tier'],
-                agent_def['model'],
-                agent_def['system_prompt'],
-                json.dumps(agent_def['capabilities']),
-                agent_def['monthly_budget'],
-                json.dumps(agent_def['metadata']),
-                agent_def['first_name'],
-                agent_def['last_name'],
-                agent_def['email'],
-                agent_def['title'],
-                agent_def['department'],
-                agent_def['bio'],
-                agent_def['pronouns']
-            ))
+            """,
+                (
+                    agent_def["name"],
+                    type_id,
+                    agent_def["tier"],
+                    agent_def["model"],
+                    agent_def["system_prompt"],
+                    json.dumps(agent_def["capabilities"]),
+                    agent_def["monthly_budget"],
+                    json.dumps(agent_def["metadata"]),
+                    agent_def["first_name"],
+                    agent_def["last_name"],
+                    agent_def["email"],
+                    agent_def["title"],
+                    agent_def["department"],
+                    agent_def["bio"],
+                    agent_def["pronouns"],
+                ),
+            )
 
-            print(f"  ✅ {agent_def['first_name']} {agent_def['last_name']} ({agent_def['pronouns']}) - {agent_def['title']}")
+            print(
+                f"  ✅ {agent_def['first_name']} {agent_def['last_name']} ({agent_def['pronouns']}) - {agent_def['title']}"
+            )
             created += 1
 
         except Exception as e:
@@ -817,6 +874,7 @@ You are: The visual storyteller bringing A.R.C.H.I.E. Platform to life through s
     conn.close()
 
     return created
+
 
 def main():
     print("=" * 70)
@@ -855,5 +913,6 @@ def main():
     print()
     print("=" * 70)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

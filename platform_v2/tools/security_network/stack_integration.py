@@ -188,7 +188,13 @@ class SecurityScannerService:
             return {"success": False, "error": "Invalid target format"}
 
         # Validate templates parameter
-        allowed_templates = ["cves", "vulnerabilities", "misconfigurations", "exposures", "default-logins"]
+        allowed_templates = [
+            "cves",
+            "vulnerabilities",
+            "misconfigurations",
+            "exposures",
+            "default-logins",
+        ]
         if templates not in allowed_templates:
             templates = "cves"
 
@@ -225,7 +231,21 @@ class SecurityScannerService:
 
         # Allow: IP addresses, hostnames, URLs, CIDR notation
         # Disallow: shell metacharacters
-        dangerous_chars = [";", "&", "|", "$", "`", "(", ")", "{", "}", "<", ">", "\n", "\r"]
+        dangerous_chars = [
+            ";",
+            "&",
+            "|",
+            "$",
+            "`",
+            "(",
+            ")",
+            "{",
+            "}",
+            "<",
+            ">",
+            "\n",
+            "\r",
+        ]
         if any(c in target for c in dangerous_chars):
             return False
         # Basic format validation
@@ -267,19 +287,33 @@ class SecurityScannerService:
         for base_url in base_urls:
             try:
                 # First, access the target
-                response = requests.get(f"{base_url}/JSON/core/action/accessUrl/", params={"url": target}, timeout=10)
+                response = requests.get(
+                    f"{base_url}/JSON/core/action/accessUrl/",
+                    params={"url": target},
+                    timeout=10,
+                )
 
                 if scan_type == "spider":
                     # Start spider scan
                     response = requests.get(
-                        f"{base_url}/JSON/spider/action/scan/", params={"url": target, "maxChildren": 10}, timeout=10
+                        f"{base_url}/JSON/spider/action/scan/",
+                        params={"url": target, "maxChildren": 10},
+                        timeout=10,
                     )
                 elif scan_type == "active":
                     # Start active scan
-                    response = requests.get(f"{base_url}/JSON/ascan/action/scan/", params={"url": target}, timeout=10)
+                    response = requests.get(
+                        f"{base_url}/JSON/ascan/action/scan/",
+                        params={"url": target},
+                        timeout=10,
+                    )
                 else:
                     # Passive scan (default after spider)
-                    response = requests.get(f"{base_url}/JSON/spider/action/scan/", params={"url": target}, timeout=10)
+                    response = requests.get(
+                        f"{base_url}/JSON/spider/action/scan/",
+                        params={"url": target},
+                        timeout=10,
+                    )
 
                 if response.status_code == 200:
                     result = response.json()

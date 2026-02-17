@@ -6,11 +6,11 @@ try:
 
     # Connect to database
     conn = psycopg2.connect(
-        dbname='archie_brain',
-        user='archie_user',
-        password='ArchieSecurePass2024!',
-        host='localhost',
-        port=5432
+        dbname="archie_brain",
+        user="archie_user",
+        password="ArchieSecurePass2024!",
+        host="localhost",
+        port=5432,
     )
 
     cur = conn.cursor()
@@ -36,10 +36,10 @@ except ImportError:
     sql = "ALTER TABLE agents ADD COLUMN IF NOT EXISTS phone VARCHAR(20); CREATE INDEX IF NOT EXISTS idx_agents_phone ON agents(phone);"
 
     result = subprocess.run(
-        ['psql', '-U', 'archie_user', '-d', 'archie_brain', '-c', sql],
-        env={'PGPASSWORD': 'ArchieSecurePass2024!'},
+        ["psql", "-U", "archie_user", "-d", "archie_brain", "-c", sql],
+        env={"PGPASSWORD": "ArchieSecurePass2024!"},
         capture_output=True,
-        text=True
+        text=True,
     )
 
     if result.returncode == 0:
@@ -52,4 +52,5 @@ except ImportError:
 except Exception as e:
     print(f"❌ Error: {e}")
     import traceback
+
     traceback.print_exc()

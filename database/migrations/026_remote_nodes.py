@@ -14,14 +14,16 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
 
+
 def get_db_connection():
     return psycopg2.connect(
-        host=os.getenv('DB_HOST', 'localhost'),
-        port=os.getenv('DB_PORT', '5432'),
-        database=os.getenv('DB_NAME', 'archie'),
-        user=os.getenv('DB_USER', 'archie'),
-        password=os.getenv('DB_PASSWORD', '')
+        host=os.getenv("DB_HOST", "localhost"),
+        port=os.getenv("DB_PORT", "5432"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", ""),
     )
+
 
 def run_migration():
     """Execute the migration"""
@@ -184,6 +186,7 @@ def run_migration():
     print("Migration 026 complete: Remote Nodes infrastructure created")
     return True
 
+
 def rollback_migration():
     """Rollback the migration"""
     conn = get_db_connection()
@@ -202,9 +205,11 @@ def rollback_migration():
     print("Migration 026 rolled back")
     return True
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     import sys
-    if len(sys.argv) > 1 and sys.argv[1] == 'rollback':
+
+    if len(sys.argv) > 1 and sys.argv[1] == "rollback":
         rollback_migration()
     else:
         run_migration()

@@ -51,6 +51,7 @@ logger = logging.getLogger(__name__)
 # DB helpers
 # ---------------------------------------------------------------------------
 
+
 def _read_db_password():
     """Read DB password from env or from start_host_monitor.sh as fallback."""
     pw = DB_PASSWORD
@@ -160,11 +161,12 @@ def validate_token(token: str) -> bool:
 # HTTP helpers – build raw HTTP responses
 # ---------------------------------------------------------------------------
 
+
 def _make_401_response() -> bytes:
     body = b"401 Unauthorized\nAdmin credentials required."
     return (
         b"HTTP/1.1 401 Unauthorized\r\n"
-        b"WWW-Authenticate: Basic realm=\"" + REALM.encode() + b"\"\r\n"
+        b'WWW-Authenticate: Basic realm="' + REALM.encode() + b'"\r\n'
         b"Content-Type: text/plain\r\n"
         b"Content-Length: " + str(len(body)).encode() + b"\r\n"
         b"Connection: close\r\n"
@@ -186,6 +188,7 @@ def _make_403_response() -> bytes:
 # ---------------------------------------------------------------------------
 # Extract credentials from raw HTTP request bytes
 # ---------------------------------------------------------------------------
+
 
 def parse_basic_auth(raw_request: bytes):
     """Return (username, password) or None if no valid Basic Auth header."""
@@ -261,6 +264,7 @@ def extract_path(raw_request: bytes) -> str:
 # Plain HTTP proxy (non-WebSocket requests)
 # ---------------------------------------------------------------------------
 
+
 async def proxy_http(reader, writer, raw_request: bytes):
     """Forward a plain HTTP request to ttyd and relay the response."""
     try:
@@ -285,6 +289,7 @@ async def proxy_http(reader, writer, raw_request: bytes):
 # ---------------------------------------------------------------------------
 # WebSocket proxy
 # ---------------------------------------------------------------------------
+
 
 async def proxy_websocket(reader, writer, raw_request: bytes):
     """Proxy a WebSocket connection to ttyd.
@@ -333,6 +338,7 @@ async def proxy_websocket(reader, writer, raw_request: bytes):
 # Main connection handler
 # ---------------------------------------------------------------------------
 
+
 async def handle_connection(reader, writer):
     """Handle one incoming connection: authenticate, then proxy."""
     peer = writer.get_extra_info("peername")
@@ -378,7 +384,11 @@ async def handle_connection(reader, writer):
     logger.info("Auth OK user=%s from %s", username, peer)
 
     ws = is_websocket_upgrade(raw_request)
-    logger.info("BasicAuth request type: %s, path: %s", "WS" if ws else "HTTP", extract_path(raw_request))
+    logger.info(
+        "BasicAuth request type: %s, path: %s",
+        "WS" if ws else "HTTP",
+        extract_path(raw_request),
+    )
     if ws:
         await proxy_websocket(reader, writer, raw_request)
     else:
@@ -388,6 +398,7 @@ async def handle_connection(reader, writer):
 # ---------------------------------------------------------------------------
 # Server entry point
 # ---------------------------------------------------------------------------
+
 
 async def main():
     server = await asyncio.start_server(handle_connection, LISTEN_HOST, LISTEN_PORT)

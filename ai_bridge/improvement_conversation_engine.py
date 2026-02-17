@@ -38,10 +38,7 @@ class ImprovementConversationEngine:
         self.orchestrator = TeamConsensusOrchestrator()
 
     def process_message(
-        self,
-        user_message: str,
-        user_id: int,
-        conversation_history: List[Dict] = None
+        self, user_message: str, user_id: int, conversation_history: List[Dict] = None
     ) -> Dict:
         """
         Process a user message and determine the appropriate action
@@ -61,34 +58,35 @@ class ImprovementConversationEngine:
             # Step 1: Detect improvement intent
             intent = self._detect_improvement_intent(user_message)
 
-            if intent['is_improvement']:
+            if intent["is_improvement"]:
                 # Step 2: Use improvement_chat to create/discuss proposal
                 chat_result = chat_about_improvements(
                     user_message=user_message,
                     user_id=user_id,
-                    auto_create_proposal=True  # Enable auto-creation
+                    auto_create_proposal=True,  # Enable auto-creation
                 )
 
-                if chat_result.get('proposal_created'):
+                if chat_result.get("proposal_created"):
                     # Step 3: Check if we should auto-start team evaluation
-                    proposal_id = chat_result['proposal_id']
+                    proposal_id = chat_result["proposal_id"]
 
                     # Get proposal details
                     proposal = self._get_proposal(proposal_id)
 
                     # Generate Claude Code-style response
                     response = self._format_proposal_created_response(
-                        proposal=proposal,
-                        chat_response=chat_result.get('response', '')
+                        proposal=proposal, chat_response=chat_result.get("response", "")
                     )
 
                     # Step 4: Automatically start team evaluation for collaborative review
-                    if proposal.get('collaboration_enabled'):
-                        print(f"🤖 Auto-starting team evaluation for proposal #{proposal_id}...")
+                    if proposal.get("collaboration_enabled"):
+                        print(
+                            f"🤖 Auto-starting team evaluation for proposal #{proposal_id}..."
+                        )
                         discussion_id = self.orchestrator.orchestrate_team_evaluation(
                             proposal_id=proposal_id,
                             auto_generate_report=True,
-                            auto_notify_admin=False  # Don't notify, this is in-conversation
+                            auto_notify_admin=False,  # Don't notify, this is in-conversation
                         )
 
                         if discussion_id:
@@ -96,43 +94,42 @@ class ImprovementConversationEngine:
                             response += f"I've asked the team to review this. Discussion #{discussion_id} is now active."
 
                     return {
-                        'success': True,
-                        'action': 'create_proposal',
-                        'response': response,
-                        'proposal_id': proposal_id,
-                        'proposal_data': proposal,
-                        'next_steps': self._get_next_steps(proposal)
+                        "success": True,
+                        "action": "create_proposal",
+                        "response": response,
+                        "proposal_id": proposal_id,
+                        "proposal_data": proposal,
+                        "next_steps": self._get_next_steps(proposal),
                     }
                 else:
                     # Just conversation about improvements
                     return {
-                        'success': True,
-                        'action': 'conversation',
-                        'response': chat_result.get('response', 'How can I help with improvements?')
+                        "success": True,
+                        "action": "conversation",
+                        "response": chat_result.get(
+                            "response", "How can I help with improvements?"
+                        ),
                     }
             else:
                 # Regular conversation
                 return {
-                    'success': True,
-                    'action': 'conversation',
-                    'response': self._general_response(user_message)
+                    "success": True,
+                    "action": "conversation",
+                    "response": self._general_response(user_message),
                 }
 
         except Exception as e:
             print(f"Error in process_message: {e}")
             import traceback
+
             traceback.print_exc()
             return {
-                'success': False,
-                'action': 'error',
-                'response': f"I encountered an error: {str(e)}"
+                "success": False,
+                "action": "error",
+                "response": f"I encountered an error: {str(e)}",
             }
 
-    def retry_with_escalation(
-        self,
-        proposal_id: int,
-        user_id: int
-    ) -> Dict:
+    def retry_with_escalation(self, proposal_id: int, user_id: int) -> Dict:
         """
         Retry a failed proposal with automatic escalation to contractors after 3 attempts
 
@@ -151,17 +148,20 @@ class ImprovementConversationEngine:
             cur = conn.cursor()
 
             # Get proposal and current retry count
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT id, title, retry_count, assigned_agent_id, status
                 FROM improvement_proposals
                 WHERE id = %s
-            """, (proposal_id,))
+            """,
+                (proposal_id,),
+            )
 
             proposal = cur.fetchone()
             if not proposal:
                 return {
-                    'success': False,
-                    'response': f"Proposal #{proposal_id} not found"
+                    "success": False,
+                    "response": f"Proposal #{proposal_id} not found",
                 }
 
             current_retry_count = proposal[2] or 0
@@ -189,7 +189,8 @@ class ImprovementConversationEngine:
                     contractor_name = contractor[1]
 
                     # Update proposal with contractor assignment
-                    cur.execute("""
+                    cur.execute(
+                        """
                         UPDATE improvement_proposals
                         SET assigned_agent_id = %s,
                             retry_count = %s,
@@ -197,24 +198,29 @@ class ImprovementConversationEngine:
                             escalated_at = NOW(),
                             escalated_to_contractor = TRUE
                         WHERE id = %s
-                    """, (contractor_id, new_retry_count, proposal_id))
+                    """,
+                        (contractor_id, new_retry_count, proposal_id),
+                    )
 
                     conn.commit()
 
                     # Create escalation notification
                     try:
-                        cur.execute("""
+                        cur.execute(
+                            """
                             INSERT INTO notifications (
                                 user_id, type, title, message, priority, action_url
                             ) VALUES (%s, %s, %s, %s, %s, %s)
-                        """, (
-                            user_id,
-                            'urgent',
-                            f'Proposal #{proposal_id} Escalated to Level 3 Support',
-                            f'{contractor_name} has been assigned after {new_retry_count} attempts. This will use paid API credits.',
-                            'urgent',
-                            f'/tools/admin#improvements-proposal-{proposal_id}'
-                        ))
+                        """,
+                            (
+                                user_id,
+                                "urgent",
+                                f"Proposal #{proposal_id} Escalated to Level 3 Support",
+                                f"{contractor_name} has been assigned after {new_retry_count} attempts. This will use paid API credits.",
+                                "urgent",
+                                f"/tools/admin#improvements-proposal-{proposal_id}",
+                            ),
+                        )
                         conn.commit()
                     except Exception as e:
                         print(f"Warning: Could not create notification: {e}")
@@ -238,28 +244,33 @@ Would you like me to brief {contractor_name} on the context?
                     conn.close()
 
                     return {
-                        'success': True,
-                        'escalated': True,
-                        'attempt_number': new_retry_count,
-                        'assigned_agent': contractor_name,
-                        'agent_type': 'contract',
-                        'agent_id': contractor_id,
-                        'response': response
+                        "success": True,
+                        "escalated": True,
+                        "attempt_number": new_retry_count,
+                        "assigned_agent": contractor_name,
+                        "agent_type": "contract",
+                        "agent_id": contractor_id,
+                        "response": response,
                     }
                 else:
                     # No contractor found, use best available internal
-                    print("⚠️ No Claude Code contractor found, using best internal agent")
+                    print(
+                        "⚠️ No Claude Code contractor found, using best internal agent"
+                    )
                     should_escalate = False
 
             if not should_escalate:
                 # Use internal agents (attempts 1-2)
-                cur.execute("""
+                cur.execute(
+                    """
                     UPDATE improvement_proposals
                     SET retry_count = %s,
                         status = 'pending',
                         last_retry_at = NOW()
                     WHERE id = %s
-                """, (new_retry_count, proposal_id))
+                """,
+                    (new_retry_count, proposal_id),
+                )
 
                 conn.commit()
 
@@ -267,7 +278,7 @@ Would you like me to brief {contractor_name} on the context?
                 discussion_id = self.orchestrator.orchestrate_team_evaluation(
                     proposal_id=proposal_id,
                     auto_generate_report=True,
-                    auto_notify_admin=True
+                    auto_notify_admin=True,
                 )
 
                 response = f"""
@@ -286,30 +297,44 @@ The team is reviewing now. I'll keep you updated!
                 conn.close()
 
                 return {
-                    'success': True,
-                    'escalated': False,
-                    'attempt_number': new_retry_count,
-                    'assigned_agent': 'Internal Team',
-                    'agent_type': 'internal',
-                    'response': response
+                    "success": True,
+                    "escalated": False,
+                    "attempt_number": new_retry_count,
+                    "assigned_agent": "Internal Team",
+                    "agent_type": "internal",
+                    "response": response,
                 }
 
         except Exception as e:
             print(f"Error in retry_with_escalation: {e}")
             import traceback
+
             traceback.print_exc()
-            return {
-                'success': False,
-                'response': f"Error during retry: {str(e)}"
-            }
+            return {"success": False, "response": f"Error during retry: {str(e)}"}
 
     def _detect_improvement_intent(self, message: str) -> Dict:
         """Detect if message is about improvements"""
         improvement_keywords = [
-            'improve', 'optimize', 'enhance', 'fix', 'bug', 'issue',
-            'should', 'could', 'better', 'faster', 'refactor',
-            'add feature', 'implement', 'change', 'update', 'modify',
-            'performance', 'security', 'error', 'problem'
+            "improve",
+            "optimize",
+            "enhance",
+            "fix",
+            "bug",
+            "issue",
+            "should",
+            "could",
+            "better",
+            "faster",
+            "refactor",
+            "add feature",
+            "implement",
+            "change",
+            "update",
+            "modify",
+            "performance",
+            "security",
+            "error",
+            "problem",
         ]
 
         message_lower = message.lower()
@@ -318,11 +343,11 @@ The team is reviewing now. I'll keep you updated!
         has_keyword = any(keyword in message_lower for keyword in improvement_keywords)
 
         # Check for code blocks (indication of code-related discussion)
-        has_code = '```' in message or 'code' in message_lower
+        has_code = "```" in message or "code" in message_lower
 
         return {
-            'is_improvement': has_keyword or has_code,
-            'confidence': 0.8 if has_keyword else 0.5
+            "is_improvement": has_keyword or has_code,
+            "confidence": 0.8 if has_keyword else 0.5,
         }
 
     def _get_proposal(self, proposal_id: int) -> Optional[Dict]:
@@ -331,12 +356,15 @@ The team is reviewing now. I'll keep you updated!
             conn = get_db()
             cur = conn.cursor()
 
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT id, title, category, description, status, priority,
                        risk_level, collaboration_enabled, retry_count
                 FROM improvement_proposals
                 WHERE id = %s
-            """, (proposal_id,))
+            """,
+                (proposal_id,),
+            )
 
             row = cur.fetchone()
             cur.close()
@@ -344,15 +372,15 @@ The team is reviewing now. I'll keep you updated!
 
             if row:
                 return {
-                    'id': row[0],
-                    'title': row[1],
-                    'category': row[2],
-                    'description': row[3],
-                    'status': row[4],
-                    'priority': row[5],
-                    'risk_level': row[6],
-                    'collaboration_enabled': row[7],
-                    'retry_count': row[8] or 0
+                    "id": row[0],
+                    "title": row[1],
+                    "category": row[2],
+                    "description": row[3],
+                    "status": row[4],
+                    "priority": row[5],
+                    "risk_level": row[6],
+                    "collaboration_enabled": row[7],
+                    "retry_count": row[8] or 0,
                 }
             return None
         except Exception as e:
@@ -360,9 +388,7 @@ The team is reviewing now. I'll keep you updated!
             return None
 
     def _format_proposal_created_response(
-        self,
-        proposal: Dict,
-        chat_response: str
+        self, proposal: Dict, chat_response: str
     ) -> str:
         """Format a Claude Code-style response for proposal creation"""
         return f"""
@@ -383,9 +409,9 @@ The team is reviewing now. I'll keep you updated!
 
     def _get_risk_warning(self, proposal: Dict) -> str:
         """Get risk warning based on proposal risk level"""
-        if proposal['risk_level'] == 'high':
+        if proposal["risk_level"] == "high":
             return "\n⚠️ **High Risk**: This will require manual approval and extensive testing."
-        elif proposal['risk_level'] == 'critical':
+        elif proposal["risk_level"] == "critical":
             return "\n🚨 **Critical Risk**: Backup will be created automatically. Rollback plan required."
         return ""
 
@@ -393,13 +419,13 @@ The team is reviewing now. I'll keep you updated!
         """Get next steps for the proposal"""
         steps = []
 
-        if proposal['status'] == 'pending':
+        if proposal["status"] == "pending":
             steps.append("⏳ Awaiting team review")
 
-        if proposal['collaboration_enabled']:
+        if proposal["collaboration_enabled"]:
             steps.append("🤝 Team collaboration enabled - multiple agents will review")
 
-        if proposal['priority'] == 'critical':
+        if proposal["priority"] == "critical":
             steps.append("🚨 High priority - will be reviewed immediately")
 
         steps.append("🧪 Will be tested in sandbox before deployment")
@@ -429,9 +455,7 @@ What would you like to improve?
 
 # Convenience functions for API usage
 def process_improvement_message(
-    user_message: str,
-    user_id: int,
-    conversation_history: List[Dict] = None
+    user_message: str, user_id: int, conversation_history: List[Dict] = None
 ) -> Dict:
     """Process a message about improvements"""
     engine = ImprovementConversationEngine()

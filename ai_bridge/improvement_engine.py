@@ -3,6 +3,7 @@ A.R.C.H.I.E. Self-Improvement Engine
 Analyzes conversations, detects patterns, and proposes improvements
 Uses the learning loop, agents, and automation to continuously improve
 """
+
 import os
 import sys
 import json
@@ -11,40 +12,59 @@ from psycopg2.extras import RealDictCursor
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
-sys.path.insert(0, '/app/ai_bridge')
-sys.path.insert(0, '/mnt/archie_brain/ai_bridge')
+sys.path.insert(0, "/app/ai_bridge")
+sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
 
 try:
-    from conversation_ingest import retrieve_similar_conversations, get_archie_personality
+    from conversation_ingest import (
+        retrieve_similar_conversations,
+        get_archie_personality,
+    )
 except ImportError:
+
     def retrieve_similar_conversations(*args, **kwargs):
         return []
+
     def get_archie_personality():
-        return {'confidence_level': 0.7, 'cautiousness': 0.5, 'enthusiasm': 0.8, 'empathy': 0.7, 'curiosity': 0.9, 'total_interactions': 0}
+        return {
+            "confidence_level": 0.7,
+            "cautiousness": 0.5,
+            "enthusiasm": 0.8,
+            "empathy": 0.7,
+            "curiosity": 0.9,
+            "total_interactions": 0,
+        }
+
 
 try:
     from emotional_intelligence import analyze_sentiment, analyze_trust_impact
 except ImportError:
+
     def analyze_sentiment(text):
-        return {'sentiment': 'neutral', 'confidence': 0.5}
+        return {"sentiment": "neutral", "confidence": 0.5}
+
     def analyze_trust_impact(text):
         return 0.0
+
 
 try:
     from auto_tagger import analyze_content
 except ImportError:
+
     def analyze_content(text):
-        return {'tags': [], 'categories': []}
+        return {"tags": [], "categories": []}
+
 
 def get_db():
     """Get database connection"""
     return psycopg2.connect(
-        host=os.getenv('DB_HOST', 'archie_database'),
-        port=os.getenv('DB_PORT', '5432'),
-        database=os.getenv('DB_NAME', 'archie'),
-        user=os.getenv('DB_USER', 'archie'),
-        password=os.getenv('DB_PASSWORD', '')
+        host=os.getenv("DB_HOST", "archie_database"),
+        port=os.getenv("DB_PORT", "5432"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", ""),
     )
+
 
 def detect_improvement_opportunities() -> List[Dict]:
     """
@@ -85,16 +105,18 @@ def detect_improvement_opportunities() -> List[Dict]:
     """)
 
     for row in cur.fetchall():
-        opportunities.append({
-            'type': 'repeated_error',
-            'priority': 'high',
-            'tags': row['tags'],
-            'occurrence_count': row['occurrence_count'],
-            'avg_trust_impact': row['avg_trust'],
-            'description': f"Repeated negative interactions with tags: {', '.join(row['tags'][:3])}. Occurred {row['occurrence_count']} times.",
-            'suggested_action': 'Analyze these conversations to identify the root cause and improve responses.',
-            'category': 'quality'
-        })
+        opportunities.append(
+            {
+                "type": "repeated_error",
+                "priority": "high",
+                "tags": row["tags"],
+                "occurrence_count": row["occurrence_count"],
+                "avg_trust_impact": row["avg_trust"],
+                "description": f"Repeated negative interactions with tags: {', '.join(row['tags'][:3])}. Occurred {row['occurrence_count']} times.",
+                "suggested_action": "Analyze these conversations to identify the root cause and improve responses.",
+                "category": "quality",
+            }
+        )
 
     # 2. Detect frequently asked questions (optimization targets)
     cur.execute("""
@@ -112,15 +134,17 @@ def detect_improvement_opportunities() -> List[Dict]:
     """)
 
     for row in cur.fetchall():
-        opportunities.append({
-            'type': 'frequently_asked',
-            'priority': 'medium',
-            'tag': row['tag'],
-            'question_count': row['question_count'],
-            'description': f"Topic '{row['tag']}' asked {row['question_count']} times. Could benefit from optimization.",
-            'suggested_action': 'Create specialized knowledge base or FAQ for this topic.',
-            'category': 'efficiency'
-        })
+        opportunities.append(
+            {
+                "type": "frequently_asked",
+                "priority": "medium",
+                "tag": row["tag"],
+                "question_count": row["question_count"],
+                "description": f"Topic '{row['tag']}' asked {row['question_count']} times. Could benefit from optimization.",
+                "suggested_action": "Create specialized knowledge base or FAQ for this topic.",
+                "category": "efficiency",
+            }
+        )
 
     # 3. Detect knowledge gaps (questions with low confidence)
     cur.execute("""
@@ -140,15 +164,17 @@ def detect_improvement_opportunities() -> List[Dict]:
     """)
 
     for row in cur.fetchall():
-        opportunities.append({
-            'type': 'knowledge_gap',
-            'priority': 'high',
-            'tags': row['tags'],
-            'gap_count': row['gap_count'],
-            'description': f"Users frequently confused about: {', '.join(row['tags'][:2])}",
-            'suggested_action': 'Expand knowledge base or improve explanations for these topics.',
-            'category': 'knowledge'
-        })
+        opportunities.append(
+            {
+                "type": "knowledge_gap",
+                "priority": "high",
+                "tags": row["tags"],
+                "gap_count": row["gap_count"],
+                "description": f"Users frequently confused about: {', '.join(row['tags'][:2])}",
+                "suggested_action": "Expand knowledge base or improve explanations for these topics.",
+                "category": "knowledge",
+            }
+        )
 
     # 4. Detect underutilized models (agents not being used)
     cur.execute("""
@@ -168,54 +194,63 @@ def detect_improvement_opportunities() -> List[Dict]:
     """)
 
     for row in cur.fetchall():
-        opportunities.append({
-            'type': 'underutilized_agent',
-            'priority': 'low',
-            'agent_name': row['name'],
-            'department': row['department'],
-            'model': row['model'],
-            'usage_count': row['usage_count'] or 0,
-            'last_used': row['last_used'].isoformat() if row['last_used'] else 'Never',
-            'description': f"Agent '{row['name']}' ({row['model']}) rarely used. Only {row['usage_count'] or 0} executions.",
-            'suggested_action': 'Consider reassigning this agent or promoting its capabilities.',
-            'category': 'resource_optimization'
-        })
+        opportunities.append(
+            {
+                "type": "underutilized_agent",
+                "priority": "low",
+                "agent_name": row["name"],
+                "department": row["department"],
+                "model": row["model"],
+                "usage_count": row["usage_count"] or 0,
+                "last_used": (
+                    row["last_used"].isoformat() if row["last_used"] else "Never"
+                ),
+                "description": f"Agent '{row['name']}' ({row['model']}) rarely used. Only {row['usage_count'] or 0} executions.",
+                "suggested_action": "Consider reassigning this agent or promoting its capabilities.",
+                "category": "resource_optimization",
+            }
+        )
 
     # 5. Detect personality drift (check if personality needs rebalancing)
     personality = get_archie_personality()
 
-    if personality.get('cautiousness', 0.5) > 0.8:
-        opportunities.append({
-            'type': 'personality_drift',
-            'priority': 'medium',
-            'trait': 'cautiousness',
-            'value': personality['cautiousness'],
-            'description': f"Cautiousness level is very high ({personality['cautiousness']:.2f}). A.R.C.H.I.E. may be too hesitant.",
-            'suggested_action': 'Balance with more positive interactions or adjust trait calculation.',
-            'category': 'personality'
-        })
+    if personality.get("cautiousness", 0.5) > 0.8:
+        opportunities.append(
+            {
+                "type": "personality_drift",
+                "priority": "medium",
+                "trait": "cautiousness",
+                "value": personality["cautiousness"],
+                "description": f"Cautiousness level is very high ({personality['cautiousness']:.2f}). A.R.C.H.I.E. may be too hesitant.",
+                "suggested_action": "Balance with more positive interactions or adjust trait calculation.",
+                "category": "personality",
+            }
+        )
 
-    if personality.get('confidence_level', 0.5) < 0.3:
-        opportunities.append({
-            'type': 'personality_drift',
-            'priority': 'medium',
-            'trait': 'confidence',
-            'value': personality['confidence_level'],
-            'description': f"Confidence level is low ({personality['confidence_level']:.2f}). May need more positive reinforcement.",
-            'suggested_action': 'Encourage more positive feedback loops or adjust confidence calculation.',
-            'category': 'personality'
-        })
+    if personality.get("confidence_level", 0.5) < 0.3:
+        opportunities.append(
+            {
+                "type": "personality_drift",
+                "priority": "medium",
+                "trait": "confidence",
+                "value": personality["confidence_level"],
+                "description": f"Confidence level is low ({personality['confidence_level']:.2f}). May need more positive reinforcement.",
+                "suggested_action": "Encourage more positive feedback loops or adjust confidence calculation.",
+                "category": "personality",
+            }
+        )
 
     cur.close()
     conn.close()
 
     return opportunities
 
+
 def propose_improvement(
     title: str,
     description: str,
     category: str,
-    priority: str = 'medium',
+    priority: str = "medium",
     proposed_by_user_id: Optional[int] = None,
     agent_id: Optional[int] = None,
     auto_detected: bool = False,
@@ -223,7 +258,7 @@ def propose_improvement(
     auto_assign_team: bool = True,
     auto_generate_steps: bool = True,
     auto_generate_diff: bool = False,
-    code_changes: Optional[List[Dict]] = None
+    code_changes: Optional[List[Dict]] = None,
 ) -> Dict:
     """
     Create an improvement proposal with optional team assignment and step generation.
@@ -249,40 +284,43 @@ def propose_improvement(
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     proposal_metadata = {
-        'auto_detected': auto_detected,
-        'detection_timestamp': datetime.now().isoformat(),
-        'agent_id': agent_id,
-        **(metadata or {})
+        "auto_detected": auto_detected,
+        "detection_timestamp": datetime.now().isoformat(),
+        "agent_id": agent_id,
+        **(metadata or {}),
     }
 
     # Auto-calculate complexity based on category
-    complexity = 'medium'
-    high_complexity_categories = ['security', 'architecture', 'database', 'performance']
-    low_complexity_categories = ['documentation', 'knowledge']
+    complexity = "medium"
+    high_complexity_categories = ["security", "architecture", "database", "performance"]
+    low_complexity_categories = ["documentation", "knowledge"]
 
     if category in high_complexity_categories:
-        complexity = 'high'
+        complexity = "high"
     elif category in low_complexity_categories:
-        complexity = 'low'
+        complexity = "low"
 
-    cur.execute("""
+    cur.execute(
+        """
         INSERT INTO improvement_proposals
         (title, description, category, priority, proposed_by, proposed_at,
          status, metadata, complexity)
         VALUES (%s, %s, %s, %s, %s, NOW(), 'proposed', %s, %s)
         RETURNING id, title, category, priority, status, proposed_at, complexity;
-    """, (
-        title,
-        description,
-        category,
-        priority,
-        proposed_by_user_id,
-        json.dumps(proposal_metadata),
-        complexity
-    ))
+    """,
+        (
+            title,
+            description,
+            category,
+            priority,
+            proposed_by_user_id,
+            json.dumps(proposal_metadata),
+            complexity,
+        ),
+    )
 
     result = dict(cur.fetchone())
-    proposal_id = result['id']
+    proposal_id = result["id"]
 
     conn.commit()
     cur.close()
@@ -296,25 +334,29 @@ def propose_improvement(
             team_result = assign_team_to_proposal(
                 proposal_id=proposal_id,
                 force_internal=True,  # Try internal agents first for cost savings
-                user_id=proposed_by_user_id
+                user_id=proposed_by_user_id,
             )
 
-            if team_result.get('success'):
-                result['team_assigned'] = True
-                result['team'] = team_result.get('team', [])
-                result['team_size'] = team_result.get('team_size', 0)
-                result['internal_count'] = team_result.get('internal_count', 0)
-                result['contract_count'] = team_result.get('contract_count', 0)
-                print(f"✅ Team assigned to proposal {proposal_id}: {team_result['team_size']} agents ({team_result['internal_count']} internal, {team_result['contract_count']} contract)")
+            if team_result.get("success"):
+                result["team_assigned"] = True
+                result["team"] = team_result.get("team", [])
+                result["team_size"] = team_result.get("team_size", 0)
+                result["internal_count"] = team_result.get("internal_count", 0)
+                result["contract_count"] = team_result.get("contract_count", 0)
+                print(
+                    f"✅ Team assigned to proposal {proposal_id}: {team_result['team_size']} agents ({team_result['internal_count']} internal, {team_result['contract_count']} contract)"
+                )
             else:
-                result['team_assigned'] = False
-                result['team_error'] = team_result.get('error')
-                print(f"⚠️  Team assignment failed for proposal {proposal_id}: {team_result.get('error')}")
+                result["team_assigned"] = False
+                result["team_error"] = team_result.get("error")
+                print(
+                    f"⚠️  Team assignment failed for proposal {proposal_id}: {team_result.get('error')}"
+                )
 
         except Exception as e:
             print(f"❌ Team assignment exception for proposal {proposal_id}: {e}")
-            result['team_assigned'] = False
-            result['team_error'] = str(e)
+            result["team_assigned"] = False
+            result["team_error"] = str(e)
 
     # PHASE 2: Auto-generate implementation steps if enabled
     if auto_generate_steps:
@@ -324,23 +366,28 @@ def propose_improvement(
             steps_result = generate_steps_for_proposal(proposal_id)
 
             if steps_result:
-                result['steps_generated'] = True
-                result['total_steps'] = steps_result.get('total_steps', 0)
-                result['estimated_time'] = steps_result.get('total_estimated_time', 'Unknown')
-                print(f"✅ Steps generated for proposal {proposal_id}: {steps_result['total_steps']} steps, ~{steps_result['total_estimated_time']}")
+                result["steps_generated"] = True
+                result["total_steps"] = steps_result.get("total_steps", 0)
+                result["estimated_time"] = steps_result.get(
+                    "total_estimated_time", "Unknown"
+                )
+                print(
+                    f"✅ Steps generated for proposal {proposal_id}: {steps_result['total_steps']} steps, ~{steps_result['total_estimated_time']}"
+                )
             else:
-                result['steps_generated'] = False
+                result["steps_generated"] = False
 
         except Exception as e:
             print(f"⚠️  Step generation failed for proposal {proposal_id}: {e}")
-            result['steps_generated'] = False
-            result['steps_error'] = str(e)
+            result["steps_generated"] = False
+            result["steps_error"] = str(e)
 
     # PHASE 4: Auto-generate code diff preview if enabled
     if auto_generate_diff and code_changes:
         try:
             import sys
-            sys.path.insert(0, '/mnt/archie_brain/platform_v2')
+
+            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
             from code_diff_generator import CodeDiffGenerator
 
             generator = CodeDiffGenerator()
@@ -349,37 +396,40 @@ def propose_improvement(
             # Store diff in proposal
             conn = get_db()
             cur = conn.cursor()
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE improvement_proposals
                 SET code_diff = %s,
                     code_changes = %s
                 WHERE id = %s
-            """, (
-                json.dumps(diff_result),
-                code_changes[0].get('after', '') if len(code_changes) > 0 else '',
-                proposal_id
-            ))
+            """,
+                (
+                    json.dumps(diff_result),
+                    code_changes[0].get("after", "") if len(code_changes) > 0 else "",
+                    proposal_id,
+                ),
+            )
             conn.commit()
             cur.close()
             conn.close()
 
-            result['diff_generated'] = True
-            result['files_changed'] = diff_result['summary']['total_files']
-            result['lines_added'] = diff_result['summary']['total_added']
-            result['lines_removed'] = diff_result['summary']['total_removed']
-            print(f"✅ Code diff generated for proposal {proposal_id}: {diff_result['summary']['total_files']} files, +{diff_result['summary']['total_added']} -{diff_result['summary']['total_removed']}")
+            result["diff_generated"] = True
+            result["files_changed"] = diff_result["summary"]["total_files"]
+            result["lines_added"] = diff_result["summary"]["total_added"]
+            result["lines_removed"] = diff_result["summary"]["total_removed"]
+            print(
+                f"✅ Code diff generated for proposal {proposal_id}: {diff_result['summary']['total_files']} files, +{diff_result['summary']['total_added']} -{diff_result['summary']['total_removed']}"
+            )
 
         except Exception as e:
             print(f"⚠️  Diff generation failed for proposal {proposal_id}: {e}")
-            result['diff_generated'] = False
-            result['diff_error'] = str(e)
+            result["diff_generated"] = False
+            result["diff_error"] = str(e)
 
     return result
 
-def generate_diff_for_proposal(
-    proposal_id: int,
-    code_changes: List[Dict]
-) -> Dict:
+
+def generate_diff_for_proposal(proposal_id: int, code_changes: List[Dict]) -> Dict:
     """
     Generate and store code diff for an existing proposal.
 
@@ -402,7 +452,8 @@ def generate_diff_for_proposal(
     """
     try:
         import sys
-        sys.path.insert(0, '/mnt/archie_brain/platform_v2')
+
+        sys.path.insert(0, "/mnt/archie_brain/platform_v2")
         from code_diff_generator import CodeDiffGenerator
 
         # Generate diff
@@ -414,22 +465,23 @@ def generate_diff_for_proposal(
         cur = conn.cursor()
 
         # Concatenate all 'after' content for code_changes field
-        all_after_code = '\n\n'.join([
-            f"# File: {change.get('path', 'unknown')}\n{change.get('after', '')}"
-            for change in code_changes
-        ])
+        all_after_code = "\n\n".join(
+            [
+                f"# File: {change.get('path', 'unknown')}\n{change.get('after', '')}"
+                for change in code_changes
+            ]
+        )
 
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE improvement_proposals
             SET code_diff = %s,
                 code_changes = %s
             WHERE id = %s
             RETURNING id, title
-        """, (
-            json.dumps(diff_result),
-            all_after_code,
-            proposal_id
-        ))
+        """,
+            (json.dumps(diff_result), all_after_code, proposal_id),
+        )
 
         result = cur.fetchone()
         conn.commit()
@@ -438,26 +490,21 @@ def generate_diff_for_proposal(
 
         if result:
             return {
-                'success': True,
-                'proposal_id': result[0],
-                'proposal_title': result[1],
-                'diff_generated': True,
-                'files_changed': diff_result['summary']['total_files'],
-                'lines_added': diff_result['summary']['total_added'],
-                'lines_removed': diff_result['summary']['total_removed'],
-                'lines_modified': diff_result['summary']['total_modified']
+                "success": True,
+                "proposal_id": result[0],
+                "proposal_title": result[1],
+                "diff_generated": True,
+                "files_changed": diff_result["summary"]["total_files"],
+                "lines_added": diff_result["summary"]["total_added"],
+                "lines_removed": diff_result["summary"]["total_removed"],
+                "lines_modified": diff_result["summary"]["total_modified"],
             }
         else:
-            return {
-                'success': False,
-                'error': f'Proposal {proposal_id} not found'
-            }
+            return {"success": False, "error": f"Proposal {proposal_id} not found"}
 
     except Exception as e:
-        return {
-            'success': False,
-            'error': str(e)
-        }
+        return {"success": False, "error": str(e)}
+
 
 def analyze_proposal_with_agents(proposal_id: int) -> Dict:
     """
@@ -474,55 +521,61 @@ def analyze_proposal_with_agents(proposal_id: int) -> Dict:
     proposal = cur.fetchone()
 
     if not proposal:
-        return {'error': 'Proposal not found'}
+        return {"error": "Proposal not found"}
 
     # Get relevant agents based on category
     category_agent_mapping = {
-        'quality': 'Quality Assurance',
-        'efficiency': 'Operations',
-        'knowledge': 'Documentation',
-        'resource_optimization': 'Infrastructure',
-        'personality': 'Human Resources'
+        "quality": "Quality Assurance",
+        "efficiency": "Operations",
+        "knowledge": "Documentation",
+        "resource_optimization": "Infrastructure",
+        "personality": "Human Resources",
     }
 
-    department = category_agent_mapping.get(proposal['category'], 'Engineering')
+    department = category_agent_mapping.get(proposal["category"], "Engineering")
 
-    cur.execute("""
+    cur.execute(
+        """
         SELECT id, name, department, model, worker_type, bio
         FROM agents
         WHERE status = 'active'
         AND department = %s
         AND worker_type = 'internal'  -- Use free local agents first
         LIMIT 3
-    """, (department,))
+    """,
+        (department,),
+    )
 
     agents = cur.fetchall()
 
     analysis = {
-        'proposal_id': proposal_id,
-        'analyzed_at': datetime.now().isoformat(),
-        'agent_perspectives': []
+        "proposal_id": proposal_id,
+        "analyzed_at": datetime.now().isoformat(),
+        "agent_perspectives": [],
     }
 
     # Simulate agent analysis (in production, would call actual LLMs)
     for agent in agents:
         perspective = {
-            'agent_name': agent['name'],
-            'agent_model': agent['model'],
-            'department': agent['department'],
-            'assessment': f"From {agent['department']} perspective: {proposal['description']}",
-            'feasibility': 'To be analyzed',
-            'estimated_impact': 'Medium',
-            'recommendations': []
+            "agent_name": agent["name"],
+            "agent_model": agent["model"],
+            "department": agent["department"],
+            "assessment": f"From {agent['department']} perspective: {proposal['description']}",
+            "feasibility": "To be analyzed",
+            "estimated_impact": "Medium",
+            "recommendations": [],
         }
-        analysis['agent_perspectives'].append(perspective)
+        analysis["agent_perspectives"].append(perspective)
 
     # Store analysis in metadata
-    cur.execute("""
+    cur.execute(
+        """
         UPDATE improvement_proposals
         SET metadata = metadata || %s::jsonb
         WHERE id = %s
-    """, (json.dumps({'agent_analysis': analysis}), proposal_id))
+    """,
+        (json.dumps({"agent_analysis": analysis}), proposal_id),
+    )
 
     conn.commit()
     cur.close()
@@ -530,10 +583,9 @@ def analyze_proposal_with_agents(proposal_id: int) -> Dict:
 
     return analysis
 
+
 def get_recent_proposals(
-    limit: int = 20,
-    status: Optional[str] = None,
-    category: Optional[str] = None
+    limit: int = 20, status: Optional[str] = None, category: Optional[str] = None
 ) -> List[Dict]:
     """
     Get recent improvement proposals
@@ -580,6 +632,7 @@ def get_recent_proposals(
 
     return [dict(p) for p in proposals]
 
+
 def run_auto_improvement_detection():
     """
     Main function to run automatic improvement detection
@@ -596,36 +649,37 @@ def run_auto_improvement_detection():
 
     for opp in opportunities:
         # Create proposal for high and medium priority opportunities
-        if opp['priority'] in ['high', 'medium']:
+        if opp["priority"] in ["high", "medium"]:
             proposal = propose_improvement(
                 title=f"{opp['type'].replace('_', ' ').title()}: {opp.get('tag', opp.get('tags', [''])[0] if opp.get('tags') else 'General')}",
-                description=opp['description'],
-                category=opp['category'],
-                priority=opp['priority'],
+                description=opp["description"],
+                category=opp["category"],
+                priority=opp["priority"],
                 auto_detected=True,
-                metadata=opp
+                metadata=opp,
             )
             proposals_created.append(proposal)
             print(f"✅ Created proposal: {proposal['title']}")
 
     summary = {
-        'opportunities_detected': len(opportunities),
-        'proposals_created': len(proposals_created),
-        'detection_timestamp': datetime.now().isoformat(),
-        'breakdown': {}
+        "opportunities_detected": len(opportunities),
+        "proposals_created": len(proposals_created),
+        "detection_timestamp": datetime.now().isoformat(),
+        "breakdown": {},
     }
 
     # Group by type
     for opp in opportunities:
-        opp_type = opp['type']
-        if opp_type not in summary['breakdown']:
-            summary['breakdown'][opp_type] = 0
-        summary['breakdown'][opp_type] += 1
+        opp_type = opp["type"]
+        if opp_type not in summary["breakdown"]:
+            summary["breakdown"][opp_type] = 0
+        summary["breakdown"][opp_type] += 1
 
     return summary
 
+
 # Example usage
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("=" * 80)
     print("A.R.C.H.I.E. Self-Improvement Engine - Test Run")
     print("=" * 80)
@@ -638,7 +692,7 @@ if __name__ == '__main__':
     print(f"   Proposals created: {summary['proposals_created']}")
 
     print("\n📋 Breakdown by type:")
-    for opp_type, count in summary['breakdown'].items():
+    for opp_type, count in summary["breakdown"].items():
         print(f"   - {opp_type}: {count}")
 
     # Show recent proposals

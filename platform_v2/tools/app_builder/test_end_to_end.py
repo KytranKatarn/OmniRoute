@@ -28,6 +28,7 @@ try:
     from agents.test_generator import TestGenerator
     from agents.test_runner import TestRunner
     from agents.deployment_generator import DeploymentGenerator
+
     print("✅ All agents imported successfully")
     print()
 except ImportError as e:
@@ -44,9 +45,11 @@ try:
     print(f"  Vague prompt: Generated {len(questions1)} questions")
 
     # Test 2: Detailed prompt
-    questions2 = asyncio.run(clarification.generate_questions(
-        "Build me a todo app with user authentication, task categories, due dates, and priority levels"
-    ))
+    questions2 = asyncio.run(
+        clarification.generate_questions(
+            "Build me a todo app with user authentication, task categories, due dates, and priority levels"
+        )
+    )
     print(f"  Detailed prompt: Generated {len(questions2)} questions")
 
     if len(questions1) > 0 and len(questions2) >= 0:
@@ -58,6 +61,7 @@ try:
 except Exception as e:
     print(f"❌ Clarification Agent error: {e}")
     import traceback
+
     traceback.print_exc()
     sys.exit(1)
 
@@ -66,26 +70,23 @@ print("Test 3: Testing Planner Agent...")
 try:
     # Sample clarifications
     clarifications = {
-        'app_type': 'web_app',
-        'features': 'Task management with categories, due dates, priorities',
-        'authentication': 'Yes, with login/signup',
-        'database': 'User accounts, tasks, categories',
-        'tech_preferences': 'Python backend (Flask), React frontend',
-        'deployment': 'Cloud (Docker)'
+        "app_type": "web_app",
+        "features": "Task management with categories, due dates, priorities",
+        "authentication": "Yes, with login/signup",
+        "database": "User accounts, tasks, categories",
+        "tech_preferences": "Python backend (Flask), React frontend",
+        "deployment": "Cloud (Docker)",
     }
 
     planner = PlannerAgent(project_id=1, clarifications=clarifications)
-    plan = asyncio.run(planner.generate_plan(
-        "Build me a todo app with categories and priorities",
-        clarifications
-    ))
+    plan = asyncio.run(planner.generate_plan("Build me a todo app with categories and priorities", clarifications))
 
     # Verify plan components
-    assert 'tech_stack' in plan, "Missing tech_stack"
-    assert 'database_schema' in plan, "Missing database_schema"
-    assert 'api_endpoints' in plan, "Missing api_endpoints"
-    assert 'file_structure' in plan, "Missing file_structure"
-    assert 'complexity' in plan, "Missing complexity"
+    assert "tech_stack" in plan, "Missing tech_stack"
+    assert "database_schema" in plan, "Missing database_schema"
+    assert "api_endpoints" in plan, "Missing api_endpoints"
+    assert "file_structure" in plan, "Missing file_structure"
+    assert "complexity" in plan, "Missing complexity"
 
     print(f"  Tech Stack: {plan['tech_stack'].get('backend', 'N/A')}")
     print(f"  Database Tables: {len(plan['database_schema'].get('tables', []))}")
@@ -100,6 +101,7 @@ try:
 except Exception as e:
     print(f"❌ Planner Agent error: {e}")
     import traceback
+
     traceback.print_exc()
     sys.exit(1)
 
@@ -110,10 +112,10 @@ try:
     architecture = asyncio.run(architect.enhance_plan())
 
     # Verify architecture components
-    assert 'er_diagram' in architecture, "Missing ER diagram"
-    assert 'component_hierarchy' in architecture, "Missing component hierarchy"
-    assert 'api_contracts' in architecture, "Missing API contracts"
-    assert 'security_architecture' in architecture, "Missing security architecture"
+    assert "er_diagram" in architecture, "Missing ER diagram"
+    assert "component_hierarchy" in architecture, "Missing component hierarchy"
+    assert "api_contracts" in architecture, "Missing API contracts"
+    assert "security_architecture" in architecture, "Missing security architecture"
 
     print(f"  Components: {len(architecture.get('component_hierarchy', {}).get('components', []))}")
     print(f"  Security Layers: {len(architecture.get('security_architecture', {}).get('layers', []))}")
@@ -126,6 +128,7 @@ try:
 except Exception as e:
     print(f"❌ Architect Agent error: {e}")
     import traceback
+
     traceback.print_exc()
     sys.exit(1)
 
@@ -136,9 +139,9 @@ try:
     backend_result = asyncio.run(backend_gen.generate_backend())
 
     # Verify backend generation
-    assert 'files' in backend_result, "Missing files in backend result"
-    assert backend_result['file_count'] > 0, "No files generated"
-    assert 'framework' in backend_result, "Missing framework"
+    assert "files" in backend_result, "Missing files in backend result"
+    assert backend_result["file_count"] > 0, "No files generated"
+    assert "framework" in backend_result, "Missing framework"
 
     print(f"  Framework: {backend_result['framework']}")
     print(f"  Files Generated: {backend_result['file_count']}")
@@ -148,6 +151,7 @@ try:
 except Exception as e:
     print(f"❌ Backend Generator error: {e}")
     import traceback
+
     traceback.print_exc()
     sys.exit(1)
 
@@ -158,9 +162,9 @@ try:
     frontend_result = asyncio.run(frontend_gen.generate_frontend())
 
     # Verify frontend generation
-    assert 'files' in frontend_result, "Missing files in frontend result"
-    assert frontend_result['file_count'] > 0, "No files generated"
-    assert 'framework' in frontend_result, "Missing framework"
+    assert "files" in frontend_result, "Missing files in frontend result"
+    assert frontend_result["file_count"] > 0, "No files generated"
+    assert "framework" in frontend_result, "Missing framework"
 
     print(f"  Framework: {frontend_result['framework']}")
     print(f"  Files Generated: {frontend_result['file_count']}")
@@ -170,6 +174,7 @@ try:
 except Exception as e:
     print(f"❌ Frontend Generator error: {e}")
     import traceback
+
     traceback.print_exc()
     sys.exit(1)
 
@@ -180,9 +185,9 @@ try:
     db_result = asyncio.run(db_gen.generate_database())
 
     # Verify database generation
-    assert 'files' in db_result, "Missing files in database result"
-    assert db_result['file_count'] > 0, "No files generated"
-    assert 'database_type' in db_result, "Missing database_type"
+    assert "files" in db_result, "Missing files in database result"
+    assert db_result["file_count"] > 0, "No files generated"
+    assert "database_type" in db_result, "Missing database_type"
 
     print(f"  Database: {db_result['database_type']}")
     print(f"  Files Generated: {db_result['file_count']}")
@@ -193,6 +198,7 @@ try:
 except Exception as e:
     print(f"❌ Database Generator error: {e}")
     import traceback
+
     traceback.print_exc()
     sys.exit(1)
 
@@ -200,14 +206,11 @@ except Exception as e:
 print("Test 8: Testing Test Generator...")
 try:
     test_gen = TestGenerator(project_id=1, project_plan=test_plan, architecture_plan=test_architecture)
-    test_result = asyncio.run(test_gen.generate_tests(
-        test_backend=True,
-        test_frontend=True
-    ))
+    test_result = asyncio.run(test_gen.generate_tests(test_backend=True, test_frontend=True))
 
     # Verify test generation
-    assert test_result['success'], "Test generation failed"
-    assert test_result['file_count'] > 0, "No test files generated"
+    assert test_result["success"], "Test generation failed"
+    assert test_result["file_count"] > 0, "No test files generated"
 
     print(f"  Backend Tests: {test_result['backend_tests']}")
     print(f"  Frontend Tests: {test_result['frontend_tests']}")
@@ -218,6 +221,7 @@ try:
 except Exception as e:
     print(f"❌ Test Generator error: {e}")
     import traceback
+
     traceback.print_exc()
     sys.exit(1)
 
@@ -225,15 +229,11 @@ except Exception as e:
 print("Test 9: Testing Deployment Generator...")
 try:
     deploy_gen = DeploymentGenerator(project_id=1, project_plan=test_plan, architecture_plan=test_architecture)
-    deploy_result = asyncio.run(deploy_gen.generate_deployment(
-        docker=True,
-        ci_cd=True,
-        kubernetes=False
-    ))
+    deploy_result = asyncio.run(deploy_gen.generate_deployment(docker=True, ci_cd=True, kubernetes=False))
 
     # Verify deployment generation
-    assert deploy_result['success'], "Deployment generation failed"
-    assert deploy_result['file_count'] > 0, "No deployment files generated"
+    assert deploy_result["success"], "Deployment generation failed"
+    assert deploy_result["file_count"] > 0, "No deployment files generated"
 
     print(f"  Deployment Files: {deploy_result['file_count']}")
     print(f"  Docker: {deploy_result['docker_enabled']}")
@@ -244,6 +244,7 @@ try:
 except Exception as e:
     print(f"❌ Deployment Generator error: {e}")
     import traceback
+
     traceback.print_exc()
     sys.exit(1)
 
@@ -251,11 +252,11 @@ except Exception as e:
 print("Test 10: Calculating total files generated...")
 try:
     total_files = (
-        backend_result['file_count'] +
-        frontend_result['file_count'] +
-        db_result['file_count'] +
-        test_result['file_count'] +
-        deploy_result['file_count']
+        backend_result["file_count"]
+        + frontend_result["file_count"]
+        + db_result["file_count"]
+        + test_result["file_count"]
+        + deploy_result["file_count"]
     )
 
     print(f"  Backend:    {backend_result['file_count']} files")
@@ -284,21 +285,21 @@ try:
 
     # Collect all file paths (handle both 'file_path' and 'path' keys)
     def get_path(f):
-        return f.get('file_path') or f.get('path') or ''
+        return f.get("file_path") or f.get("path") or ""
 
-    all_files.extend([get_path(f) for f in backend_result['files']])
-    all_files.extend([get_path(f) for f in frontend_result['files']])
-    all_files.extend([get_path(f) for f in db_result['files']])
-    all_files.extend([get_path(f) for f in test_result['test_files']])
-    all_files.extend([get_path(f) for f in deploy_result['deployment_files']])
+    all_files.extend([get_path(f) for f in backend_result["files"]])
+    all_files.extend([get_path(f) for f in frontend_result["files"]])
+    all_files.extend([get_path(f) for f in db_result["files"]])
+    all_files.extend([get_path(f) for f in test_result["test_files"]])
+    all_files.extend([get_path(f) for f in deploy_result["deployment_files"]])
 
     # Check for key files
     key_files = {
-        'Backend': ['requirements.txt', 'app.py', 'config.py'],
-        'Frontend': ['package.json', 'src/App.js', 'src/index.js'],
-        'Database': ['database/schema.sql', 'database/init.sh'],
-        'Tests': ['backend/pytest.ini', 'frontend/jest.config.js'],
-        'Deployment': ['docker-compose.yml', 'deploy.sh']
+        "Backend": ["requirements.txt", "app.py", "config.py"],
+        "Frontend": ["package.json", "src/App.js", "src/index.js"],
+        "Database": ["database/schema.sql", "database/init.sh"],
+        "Tests": ["backend/pytest.ini", "frontend/jest.config.js"],
+        "Deployment": ["docker-compose.yml", "deploy.sh"],
     }
 
     for category, files in key_files.items():
@@ -311,6 +312,7 @@ try:
 except Exception as e:
     print(f"❌ Error verifying file types: {e}")
     import traceback
+
     traceback.print_exc()
 
 # Final Summary

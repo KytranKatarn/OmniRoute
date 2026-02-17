@@ -14,6 +14,7 @@ Purpose:
 Author: A.R.C.H.I.E. Platform
 Date: 2026-01-07
 """
+
 import json
 import re
 from typing import Dict, List, Optional, Any
@@ -23,8 +24,10 @@ from datetime import datetime
 DB_AVAILABLE = False
 try:
     import sys
-    sys.path.append('/mnt/archie_brain/platform_v2')
+
+    sys.path.append("/mnt/archie_brain/platform_v2")
     from tools.database import db
+
     DB_AVAILABLE = True
 except ImportError:
     DB_AVAILABLE = False
@@ -71,15 +74,15 @@ class DatabaseGenerator:
         """
         print(f"\n[Database Generator] Generating database schema for project {self.project_id}...")
 
-        schema = self.plan.get('database_schema', {})
-        db_type = schema.get('database_type', 'PostgreSQL')
+        schema = self.plan.get("database_schema", {})
+        db_type = schema.get("database_type", "PostgreSQL")
 
         # Determine which generator to use
-        if 'PostgreSQL' in db_type:
+        if "PostgreSQL" in db_type:
             result = await self._generate_postgresql()
-        elif 'MySQL' in db_type:
+        elif "MySQL" in db_type:
             result = await self._generate_mysql()
-        elif 'SQLite' in db_type:
+        elif "SQLite" in db_type:
             result = await self._generate_sqlite()
         else:
             result = await self._generate_postgresql()  # Default to PostgreSQL
@@ -98,56 +101,56 @@ class DatabaseGenerator:
         files = {}
 
         # 1. Generate main schema file
-        files['database/schema.sql'] = self._generate_postgresql_schema()
+        files["database/schema.sql"] = self._generate_postgresql_schema()
         print("  ✓ Generated schema.sql")
 
         # 2. Generate indexes
-        files['database/indexes.sql'] = self._generate_postgresql_indexes()
+        files["database/indexes.sql"] = self._generate_postgresql_indexes()
         print("  ✓ Generated indexes.sql")
 
         # 3. Generate triggers
-        files['database/triggers.sql'] = self._generate_postgresql_triggers()
+        files["database/triggers.sql"] = self._generate_postgresql_triggers()
         print("  ✓ Generated triggers.sql")
 
         # 4. Generate seed data
-        files['database/seed.sql'] = self._generate_seed_data()
+        files["database/seed.sql"] = self._generate_seed_data()
         print("  ✓ Generated seed.sql")
 
         # 5. Generate migration template
-        files['database/migrations/001_initial_schema.sql'] = self._generate_migration()
+        files["database/migrations/001_initial_schema.sql"] = self._generate_migration()
         print("  ✓ Generated initial migration")
 
         # 6. Generate database README
-        files['database/README.md'] = self._generate_database_readme('PostgreSQL')
+        files["database/README.md"] = self._generate_database_readme("PostgreSQL")
         print("  ✓ Generated README.md")
 
         # 7. Generate init script
-        files['database/init.sh'] = self._generate_init_script('PostgreSQL')
+        files["database/init.sh"] = self._generate_init_script("PostgreSQL")
         print("  ✓ Generated init.sh")
 
         # Store files for database persistence
         self.generated_files = [
             {
-                'file_path': path,
-                'content': content,
-                'file_type': self._get_file_type(path)
+                "file_path": path,
+                "content": content,
+                "file_type": self._get_file_type(path),
             }
             for path, content in files.items()
         ]
 
         return {
-            'database_type': 'PostgreSQL',
-            'files': self.generated_files,
-            'file_count': len(files),
-            'tables': len(self.plan.get('database_schema', {}).get('tables', [])),
-            'generated_at': datetime.now().isoformat()
+            "database_type": "PostgreSQL",
+            "files": self.generated_files,
+            "file_count": len(files),
+            "tables": len(self.plan.get("database_schema", {}).get("tables", [])),
+            "generated_at": datetime.now().isoformat(),
         }
 
     def _generate_postgresql_schema(self) -> str:
         """Generate PostgreSQL schema.sql with all tables"""
-        schema = self.plan.get('database_schema', {})
-        tables = schema.get('tables', [])
-        project_name = self.plan.get('name', 'App')
+        schema = self.plan.get("database_schema", {})
+        tables = schema.get("tables", [])
+        project_name = self.plan.get("name", "App")
 
         sql_lines = [
             f"-- {project_name} Database Schema",
@@ -156,7 +159,7 @@ class DatabaseGenerator:
             "-- Database: PostgreSQL",
             "",
             "-- Enable UUID extension (optional)",
-            "-- CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";",
+            '-- CREATE EXTENSION IF NOT EXISTS "uuid-ossp";',
             "",
             "-- Drop tables if they exist (in reverse order due to foreign keys)",
         ]
@@ -171,15 +174,15 @@ class DatabaseGenerator:
 
         # Create tables
         for table in tables:
-            sql_lines.extend(self._generate_table_definition(table, 'postgresql'))
+            sql_lines.extend(self._generate_table_definition(table, "postgresql"))
             sql_lines.append("")
 
-        return '\n'.join(sql_lines)
+        return "\n".join(sql_lines)
 
     def _generate_table_definition(self, table: Dict, db_type: str) -> List[str]:
         """Generate CREATE TABLE statement for a table"""
-        table_name = table['table_name']
-        columns = table.get('columns', [])
+        table_name = table["table_name"]
+        columns = table.get("columns", [])
 
         lines = [f"CREATE TABLE {table_name} ("]
 
@@ -190,15 +193,15 @@ class DatabaseGenerator:
             column_defs.append(f"    {col_def}")
 
         # Add timestamps if not present
-        has_created = any(col['name'] == 'created_at' for col in columns)
-        has_updated = any(col['name'] == 'updated_at' for col in columns)
+        has_created = any(col["name"] == "created_at" for col in columns)
+        has_updated = any(col["name"] == "updated_at" for col in columns)
 
         if not has_created:
             column_defs.append("    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL")
         if not has_updated:
             column_defs.append("    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL")
 
-        lines.append(',\n'.join(column_defs))
+        lines.append(",\n".join(column_defs))
         lines.append(");")
 
         # Add comment
@@ -208,13 +211,13 @@ class DatabaseGenerator:
 
     def _generate_column_definition(self, col: Dict, db_type: str) -> str:
         """Generate column definition"""
-        col_name = col['name']
-        col_type = col['type']
+        col_name = col["name"]
+        col_type = col["type"]
 
         # Convert type if needed for specific database
-        if db_type == 'mysql':
+        if db_type == "mysql":
             col_type = self._convert_to_mysql_type(col_type)
-        elif db_type == 'sqlite':
+        elif db_type == "sqlite":
             col_type = self._convert_to_sqlite_type(col_type)
 
         return f"{col_name} {col_type}"
@@ -223,12 +226,12 @@ class DatabaseGenerator:
         """Convert PostgreSQL type to MySQL type"""
         pg_type_upper = pg_type.upper()
 
-        if 'SERIAL' in pg_type_upper:
-            return pg_type.replace('SERIAL', 'INT AUTO_INCREMENT')
-        elif 'BOOLEAN' in pg_type_upper:
-            return pg_type.replace('BOOLEAN', 'TINYINT(1)')
-        elif 'TEXT' in pg_type_upper:
-            return 'TEXT'
+        if "SERIAL" in pg_type_upper:
+            return pg_type.replace("SERIAL", "INT AUTO_INCREMENT")
+        elif "BOOLEAN" in pg_type_upper:
+            return pg_type.replace("BOOLEAN", "TINYINT(1)")
+        elif "TEXT" in pg_type_upper:
+            return "TEXT"
         else:
             return pg_type
 
@@ -236,29 +239,29 @@ class DatabaseGenerator:
         """Convert PostgreSQL type to SQLite type"""
         pg_type_upper = pg_type.upper()
 
-        if 'SERIAL' in pg_type_upper:
-            return 'INTEGER PRIMARY KEY AUTOINCREMENT'
-        elif 'VARCHAR' in pg_type_upper or 'TEXT' in pg_type_upper:
-            return 'TEXT'
-        elif 'INT' in pg_type_upper:
-            return 'INTEGER'
-        elif 'BOOLEAN' in pg_type_upper or 'BOOL' in pg_type_upper:
-            return 'INTEGER'
-        elif 'TIMESTAMP' in pg_type_upper or 'DATETIME' in pg_type_upper:
-            return 'TEXT'
+        if "SERIAL" in pg_type_upper:
+            return "INTEGER PRIMARY KEY AUTOINCREMENT"
+        elif "VARCHAR" in pg_type_upper or "TEXT" in pg_type_upper:
+            return "TEXT"
+        elif "INT" in pg_type_upper:
+            return "INTEGER"
+        elif "BOOLEAN" in pg_type_upper or "BOOL" in pg_type_upper:
+            return "INTEGER"
+        elif "TIMESTAMP" in pg_type_upper or "DATETIME" in pg_type_upper:
+            return "TEXT"
         else:
             return pg_type
 
     def _generate_table_comment(self, table: Dict) -> str:
         """Generate table comment"""
-        table_name = table['table_name']
+        table_name = table["table_name"]
         return f"Table for storing {table_name} data"
 
     def _generate_postgresql_indexes(self) -> str:
         """Generate PostgreSQL indexes"""
-        schema = self.plan.get('database_schema', {})
-        tables = schema.get('tables', [])
-        project_name = self.plan.get('name', 'App')
+        schema = self.plan.get("database_schema", {})
+        tables = schema.get("tables", [])
+        project_name = self.plan.get("name", "App")
 
         sql_lines = [
             f"-- {project_name} Database Indexes",
@@ -266,42 +269,45 @@ class DatabaseGenerator:
             f"-- Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
             "",
             "-- Performance indexes",
-            ""
+            "",
         ]
 
         for table in tables:
-            table_name = table['table_name']
-            columns = table.get('columns', [])
+            table_name = table["table_name"]
+            columns = table.get("columns", [])
 
             sql_lines.append(f"-- Indexes for {table_name}")
 
             # Index on foreign keys
             for col in columns:
-                if 'REFERENCES' in col['type'].upper() or col['name'].endswith('_id'):
+                if "REFERENCES" in col["type"].upper() or col["name"].endswith("_id"):
                     idx_name = f"idx_{table_name}_{col['name']}"
                     sql_lines.append(f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table_name}({col['name']});")
 
             # Index on commonly queried fields
             for col in columns:
-                col_name = col['name']
-                if any(x in col_name for x in ['email', 'username', 'slug', 'code']) and 'UNIQUE' in col['type'].upper():
+                col_name = col["name"]
+                if (
+                    any(x in col_name for x in ["email", "username", "slug", "code"])
+                    and "UNIQUE" in col["type"].upper()
+                ):
                     idx_name = f"idx_{table_name}_{col_name}"
                     sql_lines.append(f"CREATE UNIQUE INDEX IF NOT EXISTS {idx_name} ON {table_name}({col_name});")
 
             # Index on timestamp columns for sorting
-            if any(col['name'] == 'created_at' for col in columns):
+            if any(col["name"] == "created_at" for col in columns):
                 idx_name = f"idx_{table_name}_created_at"
                 sql_lines.append(f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table_name}(created_at DESC);")
 
             sql_lines.append("")
 
-        return '\n'.join(sql_lines)
+        return "\n".join(sql_lines)
 
     def _generate_postgresql_triggers(self) -> str:
         """Generate PostgreSQL triggers for auto-updating timestamps"""
-        schema = self.plan.get('database_schema', {})
-        tables = schema.get('tables', [])
-        project_name = self.plan.get('name', 'App')
+        schema = self.plan.get("database_schema", {})
+        tables = schema.get("tables", [])
+        project_name = self.plan.get("name", "App")
 
         sql_lines = [
             f"-- {project_name} Database Triggers",
@@ -318,33 +324,35 @@ class DatabaseGenerator:
             "$$ LANGUAGE plpgsql;",
             "",
             "-- Apply trigger to all tables with updated_at column",
-            ""
+            "",
         ]
 
         for table in tables:
-            table_name = table['table_name']
-            columns = table.get('columns', [])
+            table_name = table["table_name"]
+            columns = table.get("columns", [])
 
             # Check if table has updated_at column (or we added it)
-            has_updated_at = any(col['name'] == 'updated_at' for col in columns)
+            has_updated_at = any(col["name"] == "updated_at" for col in columns)
             if has_updated_at or True:  # We always add updated_at
                 trigger_name = f"update_{table_name}_updated_at"
-                sql_lines.extend([
-                    f"DROP TRIGGER IF EXISTS {trigger_name} ON {table_name};",
-                    f"CREATE TRIGGER {trigger_name}",
-                    f"    BEFORE UPDATE ON {table_name}",
-                    "    FOR EACH ROW",
-                    "    EXECUTE FUNCTION update_updated_at_column();",
-                    ""
-                ])
+                sql_lines.extend(
+                    [
+                        f"DROP TRIGGER IF EXISTS {trigger_name} ON {table_name};",
+                        f"CREATE TRIGGER {trigger_name}",
+                        f"    BEFORE UPDATE ON {table_name}",
+                        "    FOR EACH ROW",
+                        "    EXECUTE FUNCTION update_updated_at_column();",
+                        "",
+                    ]
+                )
 
-        return '\n'.join(sql_lines)
+        return "\n".join(sql_lines)
 
     def _generate_seed_data(self) -> str:
         """Generate seed data SQL"""
-        schema = self.plan.get('database_schema', {})
-        tables = schema.get('tables', [])
-        project_name = self.plan.get('name', 'App')
+        schema = self.plan.get("database_schema", {})
+        tables = schema.get("tables", [])
+        project_name = self.plan.get("name", "App")
 
         sql_lines = [
             f"-- {project_name} Seed Data",
@@ -353,45 +361,49 @@ class DatabaseGenerator:
             "",
             "-- Sample seed data for testing",
             "-- Uncomment and modify as needed",
-            ""
+            "",
         ]
 
         # Generate sample data for users table if it exists
-        has_users = any(t['table_name'] == 'users' for t in tables)
+        has_users = any(t["table_name"] == "users" for t in tables)
         if has_users:
-            sql_lines.extend([
-                "-- Sample users (password: 'password123')",
-                "-- INSERT INTO users (username, email, password_hash) VALUES",
-                "-- ('admin', 'admin@example.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5lW3NqvM6uG3u'),",
-                "-- ('user1', 'user1@example.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5lW3NqvM6uG3u');",
-                ""
-            ])
+            sql_lines.extend(
+                [
+                    "-- Sample users (password: 'password123')",
+                    "-- INSERT INTO users (username, email, password_hash) VALUES",
+                    "-- ('admin', 'admin@example.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5lW3NqvM6uG3u'),",
+                    "-- ('user1', 'user1@example.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5lW3NqvM6uG3u');",
+                    "",
+                ]
+            )
 
         # Generate sample data for other tables
         for table in tables:
-            if table['table_name'] == 'users':
+            if table["table_name"] == "users":
                 continue
 
-            table_name = table['table_name']
-            columns = table.get('columns', [])
+            table_name = table["table_name"]
+            columns = table.get("columns", [])
 
             # Get non-auto columns
-            data_cols = [col for col in columns if not any(x in col['name'] for x in ['id', 'created', 'updated'])]
+            data_cols = [col for col in columns if not any(x in col["name"] for x in ["id", "created", "updated"])]
 
             if data_cols:
-                col_names = ', '.join(col['name'] for col in data_cols)
-                sql_lines.extend([
-                    f"-- Sample {table_name}",
-                    f"-- INSERT INTO {table_name} ({col_names}) VALUES",
-                    f"-- (...);  -- Add your sample data here",
-                    ""
-                ])
+                col_names = ", ".join(col["name"] for col in data_cols)
+                sql_lines.extend(
+                    [
+                        f"-- Sample {table_name}",
+                        f"-- INSERT INTO {table_name} ({col_names}) VALUES",
+                        f"-- (...);  -- Add your sample data here",
+                        "",
+                    ]
+                )
 
-        return '\n'.join(sql_lines)
+        return "\n".join(sql_lines)
 
     def _generate_migration(self) -> str:
         """Generate initial migration file"""
-        project_name = self.plan.get('name', 'App')
+        project_name = self.plan.get("name", "App")
 
         return f"""-- {project_name} Initial Migration
 -- Generated by A.R.C.H.I.E. App Builder
@@ -425,51 +437,51 @@ SELECT 'Migration 001 completed successfully' AS status;
         files = {}
 
         # Generate schema
-        files['database/schema.sql'] = self._generate_mysql_schema()
+        files["database/schema.sql"] = self._generate_mysql_schema()
         print("  ✓ Generated schema.sql")
 
         # Generate indexes (similar to PostgreSQL)
-        files['database/indexes.sql'] = self._generate_mysql_indexes()
+        files["database/indexes.sql"] = self._generate_mysql_indexes()
         print("  ✓ Generated indexes.sql")
 
         # Generate triggers
-        files['database/triggers.sql'] = self._generate_mysql_triggers()
+        files["database/triggers.sql"] = self._generate_mysql_triggers()
         print("  ✓ Generated triggers.sql")
 
         # Generate seed data
-        files['database/seed.sql'] = self._generate_seed_data()
+        files["database/seed.sql"] = self._generate_seed_data()
         print("  ✓ Generated seed.sql")
 
         # Generate README
-        files['database/README.md'] = self._generate_database_readme('MySQL')
+        files["database/README.md"] = self._generate_database_readme("MySQL")
         print("  ✓ Generated README.md")
 
         # Generate init script
-        files['database/init.sh'] = self._generate_init_script('MySQL')
+        files["database/init.sh"] = self._generate_init_script("MySQL")
         print("  ✓ Generated init.sh")
 
         self.generated_files = [
             {
-                'file_path': path,
-                'content': content,
-                'file_type': self._get_file_type(path)
+                "file_path": path,
+                "content": content,
+                "file_type": self._get_file_type(path),
             }
             for path, content in files.items()
         ]
 
         return {
-            'database_type': 'MySQL',
-            'files': self.generated_files,
-            'file_count': len(files),
-            'tables': len(self.plan.get('database_schema', {}).get('tables', [])),
-            'generated_at': datetime.now().isoformat()
+            "database_type": "MySQL",
+            "files": self.generated_files,
+            "file_count": len(files),
+            "tables": len(self.plan.get("database_schema", {}).get("tables", [])),
+            "generated_at": datetime.now().isoformat(),
         }
 
     def _generate_mysql_schema(self) -> str:
         """Generate MySQL schema"""
-        schema = self.plan.get('database_schema', {})
-        tables = schema.get('tables', [])
-        project_name = self.plan.get('name', 'App')
+        schema = self.plan.get("database_schema", {})
+        tables = schema.get("tables", [])
+        project_name = self.plan.get("name", "App")
 
         sql_lines = [
             f"-- {project_name} Database Schema (MySQL)",
@@ -477,7 +489,7 @@ SELECT 'Migration 001 completed successfully' AS status;
             f"-- Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
             "",
             "SET FOREIGN_KEY_CHECKS = 0;",
-            ""
+            "",
         ]
 
         # Drop tables
@@ -490,22 +502,22 @@ SELECT 'Migration 001 completed successfully' AS status;
 
         # Create tables
         for table in tables:
-            sql_lines.extend(self._generate_table_definition(table, 'mysql'))
+            sql_lines.extend(self._generate_table_definition(table, "mysql"))
             sql_lines.append("ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;")
             sql_lines.append("")
 
-        return '\n'.join(sql_lines)
+        return "\n".join(sql_lines)
 
     def _generate_mysql_indexes(self) -> str:
         """Generate MySQL indexes"""
         # Similar to PostgreSQL but with MySQL syntax
-        return self._generate_postgresql_indexes().replace('IF NOT EXISTS', '')
+        return self._generate_postgresql_indexes().replace("IF NOT EXISTS", "")
 
     def _generate_mysql_triggers(self) -> str:
         """Generate MySQL triggers"""
-        schema = self.plan.get('database_schema', {})
-        tables = schema.get('tables', [])
-        project_name = self.plan.get('name', 'App')
+        schema = self.plan.get("database_schema", {})
+        tables = schema.get("tables", [])
+        project_name = self.plan.get("name", "App")
 
         sql_lines = [
             f"-- {project_name} Database Triggers (MySQL)",
@@ -513,26 +525,28 @@ SELECT 'Migration 001 completed successfully' AS status;
             f"-- Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
             "",
             "DELIMITER $$",
-            ""
+            "",
         ]
 
         for table in tables:
-            table_name = table['table_name']
+            table_name = table["table_name"]
             trigger_name = f"before_update_{table_name}"
 
-            sql_lines.extend([
-                f"DROP TRIGGER IF EXISTS {trigger_name}$$",
-                f"CREATE TRIGGER {trigger_name}",
-                f"BEFORE UPDATE ON {table_name}",
-                "FOR EACH ROW",
-                "BEGIN",
-                "    SET NEW.updated_at = CURRENT_TIMESTAMP;",
-                "END$$",
-                ""
-            ])
+            sql_lines.extend(
+                [
+                    f"DROP TRIGGER IF EXISTS {trigger_name}$$",
+                    f"CREATE TRIGGER {trigger_name}",
+                    f"BEFORE UPDATE ON {table_name}",
+                    "FOR EACH ROW",
+                    "BEGIN",
+                    "    SET NEW.updated_at = CURRENT_TIMESTAMP;",
+                    "END$$",
+                    "",
+                ]
+            )
 
         sql_lines.append("DELIMITER ;")
-        return '\n'.join(sql_lines)
+        return "\n".join(sql_lines)
 
     # ========================================================================
     # SQLITE GENERATION
@@ -545,51 +559,51 @@ SELECT 'Migration 001 completed successfully' AS status;
         files = {}
 
         # Generate schema
-        files['database/schema.sql'] = self._generate_sqlite_schema()
+        files["database/schema.sql"] = self._generate_sqlite_schema()
         print("  ✓ Generated schema.sql")
 
         # Generate indexes
-        files['database/indexes.sql'] = self._generate_sqlite_indexes()
+        files["database/indexes.sql"] = self._generate_sqlite_indexes()
         print("  ✓ Generated indexes.sql")
 
         # Generate triggers
-        files['database/triggers.sql'] = self._generate_sqlite_triggers()
+        files["database/triggers.sql"] = self._generate_sqlite_triggers()
         print("  ✓ Generated triggers.sql")
 
         # Generate seed data
-        files['database/seed.sql'] = self._generate_seed_data()
+        files["database/seed.sql"] = self._generate_seed_data()
         print("  ✓ Generated seed.sql")
 
         # Generate README
-        files['database/README.md'] = self._generate_database_readme('SQLite')
+        files["database/README.md"] = self._generate_database_readme("SQLite")
         print("  ✓ Generated README.md")
 
         # Generate init script
-        files['database/init.sh'] = self._generate_init_script('SQLite')
+        files["database/init.sh"] = self._generate_init_script("SQLite")
         print("  ✓ Generated init.sh")
 
         self.generated_files = [
             {
-                'file_path': path,
-                'content': content,
-                'file_type': self._get_file_type(path)
+                "file_path": path,
+                "content": content,
+                "file_type": self._get_file_type(path),
             }
             for path, content in files.items()
         ]
 
         return {
-            'database_type': 'SQLite',
-            'files': self.generated_files,
-            'file_count': len(files),
-            'tables': len(self.plan.get('database_schema', {}).get('tables', [])),
-            'generated_at': datetime.now().isoformat()
+            "database_type": "SQLite",
+            "files": self.generated_files,
+            "file_count": len(files),
+            "tables": len(self.plan.get("database_schema", {}).get("tables", [])),
+            "generated_at": datetime.now().isoformat(),
         }
 
     def _generate_sqlite_schema(self) -> str:
         """Generate SQLite schema"""
-        schema = self.plan.get('database_schema', {})
-        tables = schema.get('tables', [])
-        project_name = self.plan.get('name', 'App')
+        schema = self.plan.get("database_schema", {})
+        tables = schema.get("tables", [])
+        project_name = self.plan.get("name", "App")
 
         sql_lines = [
             f"-- {project_name} Database Schema (SQLite)",
@@ -597,7 +611,7 @@ SELECT 'Migration 001 completed successfully' AS status;
             f"-- Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
             "",
             "PRAGMA foreign_keys = ON;",
-            ""
+            "",
         ]
 
         # Drop tables
@@ -608,10 +622,10 @@ SELECT 'Migration 001 completed successfully' AS status;
 
         # Create tables
         for table in tables:
-            sql_lines.extend(self._generate_table_definition(table, 'sqlite'))
+            sql_lines.extend(self._generate_table_definition(table, "sqlite"))
             sql_lines.append("")
 
-        return '\n'.join(sql_lines)
+        return "\n".join(sql_lines)
 
     def _generate_sqlite_indexes(self) -> str:
         """Generate SQLite indexes"""
@@ -619,35 +633,37 @@ SELECT 'Migration 001 completed successfully' AS status;
 
     def _generate_sqlite_triggers(self) -> str:
         """Generate SQLite triggers"""
-        schema = self.plan.get('database_schema', {})
-        tables = schema.get('tables', [])
-        project_name = self.plan.get('name', 'App')
+        schema = self.plan.get("database_schema", {})
+        tables = schema.get("tables", [])
+        project_name = self.plan.get("name", "App")
 
         sql_lines = [
             f"-- {project_name} Database Triggers (SQLite)",
             "-- Generated by A.R.C.H.I.E. App Builder",
             f"-- Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-            ""
+            "",
         ]
 
         for table in tables:
-            table_name = table['table_name']
+            table_name = table["table_name"]
             trigger_name = f"update_{table_name}_updated_at"
 
-            sql_lines.extend([
-                f"DROP TRIGGER IF EXISTS {trigger_name};",
-                f"CREATE TRIGGER {trigger_name}",
-                f"AFTER UPDATE ON {table_name}",
-                "FOR EACH ROW",
-                "BEGIN",
-                f"    UPDATE {table_name}",
-                "    SET updated_at = CURRENT_TIMESTAMP",
-                "    WHERE id = NEW.id;",
-                "END;",
-                ""
-            ])
+            sql_lines.extend(
+                [
+                    f"DROP TRIGGER IF EXISTS {trigger_name};",
+                    f"CREATE TRIGGER {trigger_name}",
+                    f"AFTER UPDATE ON {table_name}",
+                    "FOR EACH ROW",
+                    "BEGIN",
+                    f"    UPDATE {table_name}",
+                    "    SET updated_at = CURRENT_TIMESTAMP",
+                    "    WHERE id = NEW.id;",
+                    "END;",
+                    "",
+                ]
+            )
 
-        return '\n'.join(sql_lines)
+        return "\n".join(sql_lines)
 
     # ========================================================================
     # UTILITY METHODS
@@ -655,14 +671,14 @@ SELECT 'Migration 001 completed successfully' AS status;
 
     def _generate_database_readme(self, db_type: str) -> str:
         """Generate README for database"""
-        project_name = self.plan.get('name', 'App')
-        tables = self.plan.get('database_schema', {}).get('tables', [])
+        project_name = self.plan.get("name", "App")
+        tables = self.plan.get("database_schema", {}).get("tables", [])
 
-        table_list = '\n'.join(f"- `{t['table_name']}` - {len(t.get('columns', []))} columns" for t in tables)
+        table_list = "\n".join(f"- `{t['table_name']}` - {len(t.get('columns', []))} columns" for t in tables)
 
-        if db_type == 'PostgreSQL':
+        if db_type == "PostgreSQL":
             setup_cmd = "psql -U username -d database_name -f schema.sql"
-        elif db_type == 'MySQL':
+        elif db_type == "MySQL":
             setup_cmd = "mysql -u username -p database_name < schema.sql"
         else:  # SQLite
             setup_cmd = "sqlite3 app.db < schema.sql"
@@ -751,17 +767,17 @@ The database schema includes the following relationships:
 
     def _generate_schema_diagram(self) -> str:
         """Generate simple text schema diagram"""
-        tables = self.plan.get('database_schema', {}).get('tables', [])
+        tables = self.plan.get("database_schema", {}).get("tables", [])
         lines = []
 
         for table in tables:
-            table_name = table['table_name']
-            columns = table.get('columns', [])
+            table_name = table["table_name"]
+            columns = table.get("columns", [])
 
             lines.append(f"**{table_name}**")
             for col in columns[:5]:  # Show first 5 columns
-                col_name = col['name']
-                col_type = col['type'].split()[0]  # Get base type
+                col_name = col["name"]
+                col_type = col["type"].split()[0]  # Get base type
                 lines.append(f"  - {col_name}: {col_type}")
 
             if len(columns) > 5:
@@ -769,14 +785,14 @@ The database schema includes the following relationships:
 
             lines.append("")
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
     def _generate_init_script(self, db_type: str) -> str:
         """Generate database initialization script"""
-        project_name = self.plan.get('name', 'App')
-        db_name = project_name.lower().replace(' ', '_')
+        project_name = self.plan.get("name", "App")
+        db_name = project_name.lower().replace(" ", "_")
 
-        if db_type == 'PostgreSQL':
+        if db_type == "PostgreSQL":
             return f"""#!/bin/bash
 # PostgreSQL Database Initialization Script
 # Generated by A.R.C.H.I.E. App Builder
@@ -824,7 +840,7 @@ fi
 
 echo "✅ Database initialization complete!"
 """
-        elif db_type == 'MySQL':
+        elif db_type == "MySQL":
             return f"""#!/bin/bash
 # MySQL Database Initialization Script
 # Generated by A.R.C.H.I.E. App Builder
@@ -895,14 +911,14 @@ echo "✅ Database initialization complete!"
 
     def _get_file_type(self, path: str) -> str:
         """Get file type from path"""
-        if path.endswith('.sql'):
-            return 'sql'
-        elif path.endswith('.sh'):
-            return 'shell'
-        elif path.endswith('.md'):
-            return 'markdown'
+        if path.endswith(".sql"):
+            return "sql"
+        elif path.endswith(".sh"):
+            return "shell"
+        elif path.endswith(".md"):
+            return "markdown"
         else:
-            return 'text'
+            return "text"
 
     async def save_to_database(self, db_connection=None) -> bool:
         """
@@ -939,12 +955,12 @@ echo "✅ Database initialization complete!"
                         db_connection.text(insert_query),
                         (
                             self.project_id,
-                            file_data['file_path'],
-                            file_data['content'],
-                            file_data['file_type'],
+                            file_data["file_path"],
+                            file_data["content"],
+                            file_data["file_type"],
                             1,  # version
-                            True  # is_latest
-                        )
+                            True,  # is_latest
+                        ),
                     )
 
                 conn.commit()
@@ -960,7 +976,7 @@ echo "✅ Database initialization complete!"
 # TESTING
 # ============================================================================
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import asyncio
 
     print("=" * 80)
@@ -969,37 +985,40 @@ if __name__ == '__main__':
 
     # Mock plan
     mock_plan = {
-        'name': 'Todo App',
-        'tech_stack': {
-            'backend': 'Flask',
-            'frontend': 'React',
-            'database': 'PostgreSQL'
+        "name": "Todo App",
+        "tech_stack": {
+            "backend": "Flask",
+            "frontend": "React",
+            "database": "PostgreSQL",
         },
-        'database_schema': {
-            'database_type': 'PostgreSQL',
-            'tables': [
+        "database_schema": {
+            "database_type": "PostgreSQL",
+            "tables": [
                 {
-                    'table_name': 'users',
-                    'columns': [
-                        {'name': 'id', 'type': 'SERIAL PRIMARY KEY'},
-                        {'name': 'username', 'type': 'VARCHAR(100) UNIQUE NOT NULL'},
-                        {'name': 'email', 'type': 'VARCHAR(255) UNIQUE NOT NULL'},
-                        {'name': 'password_hash', 'type': 'VARCHAR(255) NOT NULL'}
-                    ]
+                    "table_name": "users",
+                    "columns": [
+                        {"name": "id", "type": "SERIAL PRIMARY KEY"},
+                        {"name": "username", "type": "VARCHAR(100) UNIQUE NOT NULL"},
+                        {"name": "email", "type": "VARCHAR(255) UNIQUE NOT NULL"},
+                        {"name": "password_hash", "type": "VARCHAR(255) NOT NULL"},
+                    ],
                 },
                 {
-                    'table_name': 'tasks',
-                    'columns': [
-                        {'name': 'id', 'type': 'SERIAL PRIMARY KEY'},
-                        {'name': 'user_id', 'type': 'INTEGER REFERENCES users(id) NOT NULL'},
-                        {'name': 'title', 'type': 'VARCHAR(255) NOT NULL'},
-                        {'name': 'description', 'type': 'TEXT'},
-                        {'name': 'completed', 'type': 'BOOLEAN DEFAULT FALSE'},
-                        {'name': 'due_date', 'type': 'TIMESTAMP'}
-                    ]
-                }
-            ]
-        }
+                    "table_name": "tasks",
+                    "columns": [
+                        {"name": "id", "type": "SERIAL PRIMARY KEY"},
+                        {
+                            "name": "user_id",
+                            "type": "INTEGER REFERENCES users(id) NOT NULL",
+                        },
+                        {"name": "title", "type": "VARCHAR(255) NOT NULL"},
+                        {"name": "description", "type": "TEXT"},
+                        {"name": "completed", "type": "BOOLEAN DEFAULT FALSE"},
+                        {"name": "due_date", "type": "TIMESTAMP"},
+                    ],
+                },
+            ],
+        },
     }
 
     mock_architecture = {}
@@ -1018,12 +1037,12 @@ if __name__ == '__main__':
         print(f"  - Generated At: {result['generated_at']}")
 
         print(f"\n📁 File Structure:")
-        for file in result['files']:
+        for file in result["files"]:
             print(f"  - {file['file_path']} ({file['file_type']})")
 
         print(f"\n📝 Sample schema.sql:")
-        schema_file = next(f for f in result['files'] if 'schema.sql' in f['file_path'])
-        print(schema_file['content'][:800] + "...")
+        schema_file = next(f for f in result["files"] if "schema.sql" in f["file_path"])
+        print(schema_file["content"][:800] + "...")
 
         print(f"\n✅ Database Generator test complete")
 

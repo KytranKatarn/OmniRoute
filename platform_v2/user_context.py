@@ -16,7 +16,7 @@ from flask import abort, jsonify
 from flask_login import current_user
 
 
-def get_user_filter(table_alias: str = None, user_id_column: str = 'user_id') -> str:
+def get_user_filter(table_alias: str = None, user_id_column: str = "user_id") -> str:
     """
     Get SQL WHERE clause for user data isolation.
 
@@ -35,7 +35,7 @@ def get_user_filter(table_alias: str = None, user_id_column: str = 'user_id') ->
         return "1=0"  # Return no data for unauthenticated users
 
     # Admins see all data
-    if getattr(current_user, 'is_admin', False):
+    if getattr(current_user, "is_admin", False):
         return ""
 
     # Build the column reference
@@ -59,7 +59,7 @@ def get_user_filter_params() -> tuple:
     if not current_user.is_authenticated:
         return "1=0", []
 
-    if getattr(current_user, 'is_admin', False):
+    if getattr(current_user, "is_admin", False):
         return "1=1", []
 
     return "user_id = %s", [current_user.id]
@@ -67,7 +67,7 @@ def get_user_filter_params() -> tuple:
 
 def is_admin_user() -> bool:
     """Check if current user is an admin (can see all data)"""
-    return current_user.is_authenticated and getattr(current_user, 'is_admin', False)
+    return current_user.is_authenticated and getattr(current_user, "is_admin", False)
 
 
 def get_current_user_id() -> int:
@@ -91,7 +91,7 @@ def can_access_resource(resource_user_id: int) -> bool:
         return False
 
     # Admins can access everything
-    if getattr(current_user, 'is_admin', False):
+    if getattr(current_user, "is_admin", False):
         return True
 
     # Users can only access their own resources
@@ -126,13 +126,16 @@ def ownership_required(get_resource_user_id):
         def delete_project(resource_id):
             ...
     """
+
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
             resource_user_id = get_resource_user_id(*args, **kwargs)
             require_ownership(resource_user_id)
             return f(*args, **kwargs)
+
         return decorated_function
+
     return decorator
 
 
@@ -147,7 +150,7 @@ def add_user_id_to_data(data: dict) -> dict:
         Data dictionary with user_id added
     """
     if current_user.is_authenticated:
-        data['user_id'] = current_user.id
+        data["user_id"] = current_user.id
     return data
 
 
@@ -155,7 +158,8 @@ def add_user_id_to_data(data: dict) -> dict:
 # SQL QUERY HELPERS
 # ============================================================================
 
-def build_isolated_query(base_query: str, user_id_column: str = 'user_id') -> str:
+
+def build_isolated_query(base_query: str, user_id_column: str = "user_id") -> str:
     """
     Build a query with user isolation.
 
@@ -178,9 +182,9 @@ def build_isolated_query(base_query: str, user_id_column: str = 'user_id') -> st
 
 def get_list_query_with_isolation(
     table: str,
-    columns: str = '*',
-    order_by: str = 'created_at DESC',
-    user_id_column: str = 'user_id'
+    columns: str = "*",
+    order_by: str = "created_at DESC",
+    user_id_column: str = "user_id",
 ) -> str:
     """
     Build a standard list query with user isolation.
@@ -206,8 +210,14 @@ def get_list_query_with_isolation(
 # ACTIVITY LOGGING
 # ============================================================================
 
-def log_user_activity(action: str, module: str = None, details: dict = None,
-                      resource_type: str = None, resource_id: int = None):
+
+def log_user_activity(
+    action: str,
+    module: str = None,
+    details: dict = None,
+    resource_type: str = None,
+    resource_id: int = None,
+):
     """
     Log user activity to the user_activity_log table.
 
@@ -225,29 +235,32 @@ def log_user_activity(action: str, module: str = None, details: dict = None,
         import os
 
         conn = psycopg2.connect(
-            host=os.getenv('DB_HOST', 'archie_database'),
-            port=os.getenv('DB_PORT', '5432'),
-            database=os.getenv('DB_NAME', 'archie'),
-            user=os.getenv('DB_USER', 'archie'),
-            password=os.getenv('DB_PASSWORD', '')
+            host=os.getenv("DB_HOST", "archie_database"),
+            port=os.getenv("DB_PORT", "5432"),
+            database=os.getenv("DB_NAME", "archie"),
+            user=os.getenv("DB_USER", "archie"),
+            password=os.getenv("DB_PASSWORD", ""),
         )
         cur = conn.cursor()
 
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO user_activity_log
             (user_id, username, action, module, resource_type, resource_id, details, ip_address, user_agent)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """, (
-            current_user.id if current_user.is_authenticated else None,
-            current_user.username if current_user.is_authenticated else None,
-            action,
-            module,
-            resource_type,
-            resource_id,
-            Json(details) if details else None,
-            request.remote_addr if hasattr(request, 'remote_addr') else None,
-            request.headers.get('User-Agent', '')[:500] if hasattr(request, 'headers') else None
-        ))
+        """,
+            (
+                current_user.id if current_user.is_authenticated else None,
+                current_user.username if current_user.is_authenticated else None,
+                action,
+                module,
+                resource_type,
+                resource_id,
+                Json(details) if details else None,
+                request.remote_addr if hasattr(request, "remote_addr") else None,
+                (request.headers.get("User-Agent", "")[:500] if hasattr(request, "headers") else None),
+            ),
+        )
 
         conn.commit()
         cur.close()
@@ -261,11 +274,12 @@ def log_user_activity(action: str, module: str = None, details: dict = None,
 # SUBSCRIPTION HELPERS
 # ============================================================================
 
+
 def get_user_subscription_tier() -> str:
     """Get current user's subscription tier"""
     if not current_user.is_authenticated:
-        return 'free'
-    return getattr(current_user, 'subscription_tier', 'free') or 'free'
+        return "free"
+    return getattr(current_user, "subscription_tier", "free") or "free"
 
 
 def has_subscription_tier(required_tier: str) -> bool:
@@ -274,7 +288,7 @@ def has_subscription_tier(required_tier: str) -> bool:
 
     Tier hierarchy: free < pro < business < enterprise
     """
-    tier_levels = {'free': 0, 'pro': 1, 'business': 2, 'enterprise': 3}
+    tier_levels = {"free": 0, "pro": 1, "business": 2, "enterprise": 3}
     user_tier = get_user_subscription_tier()
 
     user_level = tier_levels.get(user_tier, 0)
@@ -302,18 +316,18 @@ def check_resource_limit(resource_type: str, current_count: int = None) -> dict:
 
     try:
         conn = psycopg2.connect(
-            host=os.getenv('DB_HOST', 'archie_database'),
-            port=os.getenv('DB_PORT', '5432'),
-            database=os.getenv('DB_NAME', 'archie'),
-            user=os.getenv('DB_USER', 'archie'),
-            password=os.getenv('DB_PASSWORD', '')
+            host=os.getenv("DB_HOST", "archie_database"),
+            port=os.getenv("DB_PORT", "5432"),
+            database=os.getenv("DB_NAME", "archie"),
+            user=os.getenv("DB_USER", "archie"),
+            password=os.getenv("DB_PASSWORD", ""),
         )
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get tier limits
         cur.execute("SELECT limits FROM subscription_tiers WHERE name = %s", (tier,))
         result = cur.fetchone()
-        limits = result['limits'] if result else {}
+        limits = result["limits"] if result else {}
 
         limit = limits.get(resource_type, 0)
 
@@ -322,24 +336,27 @@ def check_resource_limit(resource_type: str, current_count: int = None) -> dict:
             cur.close()
             conn.close()
             return {
-                'allowed': True,
-                'limit': -1,
-                'current': current_count or 0,
-                'remaining': -1,
-                'unlimited': True
+                "allowed": True,
+                "limit": -1,
+                "current": current_count or 0,
+                "remaining": -1,
+                "unlimited": True,
             }
 
         # Get current count if not provided
         if current_count is None:
             table_map = {
-                'app_projects': 'app_builder_projects',
-                'website_projects': 'website_builder_projects'
+                "app_projects": "app_builder_projects",
+                "website_projects": "website_builder_projects",
             }
             table = table_map.get(resource_type)
             if table:
-                cur.execute(f"SELECT COUNT(*) as count FROM {table} WHERE user_id = %s", (current_user.id,))
+                cur.execute(
+                    f"SELECT COUNT(*) as count FROM {table} WHERE user_id = %s",
+                    (current_user.id,),
+                )
                 count_result = cur.fetchone()
-                current_count = count_result['count'] if count_result else 0
+                current_count = count_result["count"] if count_result else 0
             else:
                 current_count = 0
 
@@ -349,19 +366,19 @@ def check_resource_limit(resource_type: str, current_count: int = None) -> dict:
         remaining = max(0, limit - current_count)
 
         return {
-            'allowed': current_count < limit,
-            'limit': limit,
-            'current': current_count,
-            'remaining': remaining,
-            'unlimited': False
+            "allowed": current_count < limit,
+            "limit": limit,
+            "current": current_count,
+            "remaining": remaining,
+            "unlimited": False,
         }
 
     except Exception as e:
         print(f"[UserContext] Error checking resource limit: {e}")
         return {
-            'allowed': True,  # Allow on error to not block users
-            'limit': 0,
-            'current': 0,
-            'remaining': 0,
-            'error': str(e)
+            "allowed": True,  # Allow on error to not block users
+            "limit": 0,
+            "current": 0,
+            "remaining": 0,
+            "error": str(e),
         }

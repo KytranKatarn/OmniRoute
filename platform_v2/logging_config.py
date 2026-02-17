@@ -12,6 +12,7 @@ Purpose:
 Author: A.R.C.H.I.E. Platform
 Date: 2026-01-07
 """
+
 import logging
 import logging.handlers
 import json
@@ -24,10 +25,14 @@ from typing import Any, Dict, Optional
 try:
     from flask import has_request_context, request, g
     from flask_login import current_user
+
     FLASK_AVAILABLE = True
 except ImportError:
     FLASK_AVAILABLE = False
-    has_request_context = lambda: False
+
+    def has_request_context():
+        return False
+
     request = None
     current_user = None
 
@@ -36,23 +41,24 @@ except ImportError:
 # LOGGING DIRECTORIES
 # ============================================================================
 
-LOG_DIR = Path('/mnt/archie_brain/logs')
+LOG_DIR = Path("/mnt/archie_brain/logs")
 LOG_DIR.mkdir(exist_ok=True, parents=True)
 
 # Separate log files by level
 LOG_FILES = {
-    'debug': LOG_DIR / 'debug.log',
-    'info': LOG_DIR / 'info.log',
-    'warning': LOG_DIR / 'warning.log',
-    'error': LOG_DIR / 'error.log',
-    'critical': LOG_DIR / 'critical.log',
-    'audit': LOG_DIR / 'audit.log'  # Special audit log
+    "debug": LOG_DIR / "debug.log",
+    "info": LOG_DIR / "info.log",
+    "warning": LOG_DIR / "warning.log",
+    "error": LOG_DIR / "error.log",
+    "critical": LOG_DIR / "critical.log",
+    "audit": LOG_DIR / "audit.log",  # Special audit log
 }
 
 
 # ============================================================================
 # JSON FORMATTER
 # ============================================================================
+
 
 class JSONFormatter(logging.Formatter):
     """
@@ -65,46 +71,47 @@ class JSONFormatter(logging.Formatter):
         # Base log data
         # Use timezone-aware UTC timestamp
         from datetime import timezone
+
         timestamp = datetime.now(timezone.utc).isoformat()
 
         log_data = {
-            'timestamp': timestamp,
-            'level': record.levelname,
-            'logger': record.name,
-            'message': record.getMessage(),
-            'module': record.module,
-            'function': record.funcName,
-            'line': record.lineno,
+            "timestamp": timestamp,
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+            "module": record.module,
+            "function": record.funcName,
+            "line": record.lineno,
         }
 
         # Add exception info if present
         if record.exc_info:
-            log_data['exception'] = {
-                'type': record.exc_info[0].__name__ if record.exc_info[0] else None,
-                'message': str(record.exc_info[1]) if record.exc_info[1] else None,
-                'traceback': traceback.format_exception(*record.exc_info)
+            log_data["exception"] = {
+                "type": record.exc_info[0].__name__ if record.exc_info[0] else None,
+                "message": str(record.exc_info[1]) if record.exc_info[1] else None,
+                "traceback": traceback.format_exception(*record.exc_info),
             }
 
         # Add Flask request context if available
         if FLASK_AVAILABLE and has_request_context():
             try:
-                log_data['request'] = {
-                    'method': request.method if request else None,
-                    'path': request.path if request else None,
-                    'endpoint': request.endpoint if request else None,
-                    'remote_addr': request.remote_addr if request else None,
-                    'user_agent': request.headers.get('User-Agent') if request else None
+                log_data["request"] = {
+                    "method": request.method if request else None,
+                    "path": request.path if request else None,
+                    "endpoint": request.endpoint if request else None,
+                    "remote_addr": request.remote_addr if request else None,
+                    "user_agent": (request.headers.get("User-Agent") if request else None),
                 }
 
                 # Add request ID if available
-                if hasattr(g, 'request_id'):
-                    log_data['request_id'] = g.request_id
+                if hasattr(g, "request_id"):
+                    log_data["request_id"] = g.request_id
 
                 # Add user info if authenticated
-                if current_user and hasattr(current_user, 'is_authenticated') and current_user.is_authenticated:
-                    log_data['user'] = {
-                        'id': current_user.id if hasattr(current_user, 'id') else None,
-                        'username': current_user.username if hasattr(current_user, 'username') else None
+                if current_user and hasattr(current_user, "is_authenticated") and current_user.is_authenticated:
+                    log_data["user"] = {
+                        "id": current_user.id if hasattr(current_user, "id") else None,
+                        "username": (current_user.username if hasattr(current_user, "username") else None),
                     }
             except:
                 # Don't fail logging if context extraction fails
@@ -112,10 +119,29 @@ class JSONFormatter(logging.Formatter):
 
         # Add custom fields from record
         for key, value in record.__dict__.items():
-            if key not in ['name', 'msg', 'args', 'created', 'filename', 'funcName',
-                          'levelname', 'levelno', 'lineno', 'module', 'msecs', 'message',
-                          'pathname', 'process', 'processName', 'relativeCreated', 'thread',
-                          'threadName', 'exc_info', 'exc_text', 'stack_info']:
+            if key not in [
+                "name",
+                "msg",
+                "args",
+                "created",
+                "filename",
+                "funcName",
+                "levelname",
+                "levelno",
+                "lineno",
+                "module",
+                "msecs",
+                "message",
+                "pathname",
+                "process",
+                "processName",
+                "relativeCreated",
+                "thread",
+                "threadName",
+                "exc_info",
+                "exc_text",
+                "stack_info",
+            ]:
                 log_data[key] = value
 
         return json.dumps(log_data, default=str)
@@ -125,7 +151,8 @@ class JSONFormatter(logging.Formatter):
 # LOGGING SETUP
 # ============================================================================
 
-def setup_logging(app_name: str = 'archie_platform', debug: bool = False) -> logging.Logger:
+
+def setup_logging(app_name: str = "archie_platform", debug: bool = False) -> logging.Logger:
     """
     Setup centralized logging for the application
 
@@ -150,23 +177,21 @@ def setup_logging(app_name: str = 'archie_platform', debug: bool = False) -> log
     # Console handler (human-readable for development)
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.DEBUG if debug else logging.INFO)
-    console_formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+    console_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     console_handler.setFormatter(console_formatter)
     logger.addHandler(console_handler)
 
     # File handlers with rotation (30-day retention)
     # Rotate logs daily, keep 30 days
     for level_name, log_file in LOG_FILES.items():
-        if level_name == 'audit':
+        if level_name == "audit":
             # Audit log gets all levels
             file_handler = logging.handlers.TimedRotatingFileHandler(
                 filename=log_file,
-                when='midnight',
+                when="midnight",
                 interval=1,
                 backupCount=30,
-                encoding='utf-8'
+                encoding="utf-8",
             )
             file_handler.setLevel(logging.DEBUG)
         else:
@@ -174,10 +199,10 @@ def setup_logging(app_name: str = 'archie_platform', debug: bool = False) -> log
             level = getattr(logging, level_name.upper())
             file_handler = logging.handlers.TimedRotatingFileHandler(
                 filename=log_file,
-                when='midnight',
+                when="midnight",
                 interval=1,
                 backupCount=30,
-                encoding='utf-8'
+                encoding="utf-8",
             )
             file_handler.setLevel(level)
             # Only log this level and above
@@ -196,8 +221,14 @@ def setup_logging(app_name: str = 'archie_platform', debug: bool = False) -> log
 # AUDIT LOGGING
 # ============================================================================
 
-def audit_log(action: str, details: Dict[str, Any], user_id: Optional[int] = None,
-              success: bool = True, metadata: Optional[Dict] = None):
+
+def audit_log(
+    action: str,
+    details: Dict[str, Any],
+    user_id: Optional[int] = None,
+    success: bool = True,
+    metadata: Optional[Dict] = None,
+):
     """
     Create an audit log entry
 
@@ -208,37 +239,38 @@ def audit_log(action: str, details: Dict[str, Any], user_id: Optional[int] = Non
         success: Whether the action succeeded
         metadata: Additional metadata
     """
-    logger = logging.getLogger('archie_platform.audit')
+    logger = logging.getLogger("archie_platform.audit")
 
     # Get user info from current_user if not provided
     if user_id is None and FLASK_AVAILABLE and current_user:
-        if hasattr(current_user, 'is_authenticated') and current_user.is_authenticated:
-            user_id = current_user.id if hasattr(current_user, 'id') else None
+        if hasattr(current_user, "is_authenticated") and current_user.is_authenticated:
+            user_id = current_user.id if hasattr(current_user, "id") else None
 
     audit_entry = {
-        'action': action,
-        'details': details,
-        'user_id': user_id,
-        'success': success,
-        'metadata': metadata or {}
+        "action": action,
+        "details": details,
+        "user_id": user_id,
+        "success": success,
+        "metadata": metadata or {},
     }
 
     logger.info(
         f"AUDIT: {action}",
         extra={
-            'audit': True,
-            'audit_action': action,
-            'audit_details': details,
-            'audit_user_id': user_id,
-            'audit_success': success,
-            'audit_metadata': metadata or {}
-        }
+            "audit": True,
+            "audit_action": action,
+            "audit_details": details,
+            "audit_user_id": user_id,
+            "audit_success": success,
+            "audit_metadata": metadata or {},
+        },
     )
 
 
 # ============================================================================
 # PERFORMANCE LOGGING
 # ============================================================================
+
 
 def log_performance(operation: str, duration_ms: float, metadata: Optional[Dict] = None):
     """
@@ -249,22 +281,23 @@ def log_performance(operation: str, duration_ms: float, metadata: Optional[Dict]
         duration_ms: Duration in milliseconds
         metadata: Additional metadata
     """
-    logger = logging.getLogger('archie_platform.performance')
+    logger = logging.getLogger("archie_platform.performance")
 
     logger.info(
         f"PERFORMANCE: {operation} took {duration_ms:.2f}ms",
         extra={
-            'performance': True,
-            'operation': operation,
-            'duration_ms': duration_ms,
-            'metadata': metadata or {}
-        }
+            "performance": True,
+            "operation": operation,
+            "duration_ms": duration_ms,
+            "metadata": metadata or {},
+        },
     )
 
 
 # ============================================================================
 # CONTEXTUAL LOGGING HELPERS
 # ============================================================================
+
 
 class LogContext:
     """Context manager for adding extra logging context"""
@@ -293,6 +326,7 @@ class LogContext:
 # FLASK INTEGRATION
 # ============================================================================
 
+
 def init_flask_logging(app):
     """
     Initialize logging for Flask application
@@ -303,7 +337,7 @@ def init_flask_logging(app):
     import uuid
 
     # Setup logger
-    logger = setup_logging('archie_platform', debug=app.debug)
+    logger = setup_logging("archie_platform", debug=app.debug)
     app.logger = logger
 
     @app.before_request
@@ -315,23 +349,20 @@ def init_flask_logging(app):
         # Log request start
         logger.info(
             f"REQUEST START: {request.method} {request.path}",
-            extra={
-                'request_id': g.request_id,
-                'event': 'request_start'
-            }
+            extra={"request_id": g.request_id, "event": "request_start"},
         )
 
     @app.after_request
     def after_request_logging(response):
         """Log request completion"""
-        if hasattr(g, 'request_id'):
+        if hasattr(g, "request_id"):
             logger.info(
                 f"REQUEST END: {request.method} {request.path} - {response.status_code}",
                 extra={
-                    'request_id': g.request_id,
-                    'event': 'request_end',
-                    'status_code': response.status_code
-                }
+                    "request_id": g.request_id,
+                    "event": "request_end",
+                    "status_code": response.status_code,
+                },
             )
         return response
 
@@ -343,9 +374,9 @@ def init_flask_logging(app):
                 f"REQUEST ERROR: {request.method} {request.path}",
                 exc_info=exception,
                 extra={
-                    'request_id': g.get('request_id', 'unknown'),
-                    'event': 'request_error'
-                }
+                    "request_id": g.get("request_id", "unknown"),
+                    "event": "request_error",
+                },
             )
 
     return logger
@@ -355,14 +386,14 @@ def init_flask_logging(app):
 # TESTING & EXAMPLES
 # ============================================================================
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Test logging setup
     print("=" * 80)
     print("LOGGING CONFIGURATION TEST")
     print("=" * 80)
 
     # Setup logger
-    logger = setup_logging('test_app', debug=True)
+    logger = setup_logging("test_app", debug=True)
 
     # Test different log levels
     logger.debug("Debug message - detailed information")
@@ -383,18 +414,18 @@ if __name__ == '__main__':
         details={"test": "value", "count": 42},
         user_id=1,
         success=True,
-        metadata={"source": "test"}
+        metadata={"source": "test"},
     )
 
     # Test performance logging
     log_performance(
         operation="database_query",
         duration_ms=125.5,
-        metadata={"query": "SELECT * FROM users", "rows": 100}
+        metadata={"query": "SELECT * FROM users", "rows": 100},
     )
 
     # Test context manager
-    with LogContext(module='test_module', version='1.0'):
+    with LogContext(module="test_module", version="1.0"):
         logger.info("Message with context")
 
     print(f"\n✅ Logs written to: {LOG_DIR}")

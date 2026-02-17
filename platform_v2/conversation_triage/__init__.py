@@ -12,4 +12,4 @@ Extracts valuable knowledge from raw conversation transcripts:
 from .classifier import ConversationClassifier
 from .triage_pipeline import TriagePipeline
 
-__all__ = ['ConversationClassifier', 'TriagePipeline']
+__all__ = ["ConversationClassifier", "TriagePipeline"]

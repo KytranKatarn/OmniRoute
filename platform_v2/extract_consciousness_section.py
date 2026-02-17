@@ -3,22 +3,22 @@
 Extract consciousness section from admin.html and create standalone consciousness dashboard
 Phase 4: Consciousness Consolidation
 """
+
 import re
 
 # Read admin template
-with open('/mnt/archie_brain/platform_v2/templates/tools/admin.html', 'r', encoding='utf-8') as f:
+with open("/mnt/archie_brain/platform_v2/templates/tools/admin.html", "r", encoding="utf-8") as f:
     admin_content = f.read()
-    admin_lines = admin_content.split('\n')
+    admin_lines = admin_content.split("\n")
 
 # Extract consciousness section (lines 2297-4168, 0-indexed so 2296-4167)
-consciousness_section = '\n'.join(admin_lines[2296:4168])
+consciousness_section = "\n".join(admin_lines[2296:4168])
 
 # Remove the wrapping <div class="content-section" id="section-consciousness">
 # and replace with proper page structure
 consciousness_section = consciousness_section.replace(
-    '<div class="content-section" id="section-consciousness">',
-    ''
-).rstrip('</div>')
+    '<div class="content-section" id="section-consciousness">', ""
+).rstrip("</div>")
 
 # Create new consciousness dashboard template
 new_dashboard = f"""{{%extends "admin_base.html" %}}
@@ -46,7 +46,11 @@ new_dashboard = f"""{{%extends "admin_base.html" %}}
 """
 
 # Write new consciousness dashboard
-with open('/mnt/archie_brain/platform_v2/templates/tools/consciousness_dashboard.html', 'w', encoding='utf-8') as f:
+with open(
+    "/mnt/archie_brain/platform_v2/templates/tools/consciousness_dashboard.html",
+    "w",
+    encoding="utf-8",
+) as f:
     f.write(new_dashboard)
 
 print("✅ Extracted consciousness section from admin.html")

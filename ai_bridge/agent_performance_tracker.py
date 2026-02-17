@@ -36,8 +36,8 @@ class AgentPerformanceTracker:
         quality_score: Optional[float] = None,
         accuracy_score: Optional[float] = None,
         timeliness_score: Optional[float] = None,
-        complexity_level: str = 'moderate',
-        metadata: Optional[Dict] = None
+        complexity_level: str = "moderate",
+        metadata: Optional[Dict] = None,
     ) -> bool:
         """
         Log an agent action for performance tracking
@@ -63,7 +63,8 @@ class AgentPerformanceTracker:
             conn = get_db()
             cur = conn.cursor()
 
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO agent_performance_logs (
                     agent_id,
                     action_type,
@@ -78,20 +79,22 @@ class AgentPerformanceTracker:
                     complexity_level,
                     metadata
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, (
-                agent_id,
-                action_type,
-                proposal_id,
-                discussion_id,
-                task_description,
-                outcome,
-                duration_seconds,
-                quality_score,
-                accuracy_score,
-                timeliness_score,
-                complexity_level,
-                str(metadata).replace("'", '"') if metadata else None
-            ))
+            """,
+                (
+                    agent_id,
+                    action_type,
+                    proposal_id,
+                    discussion_id,
+                    task_description,
+                    outcome,
+                    duration_seconds,
+                    quality_score,
+                    accuracy_score,
+                    timeliness_score,
+                    complexity_level,
+                    str(metadata).replace("'", '"') if metadata else None,
+                ),
+            )
 
             conn.commit()
             cur.close()
@@ -103,6 +106,7 @@ class AgentPerformanceTracker:
         except Exception as e:
             print(f"Error logging agent action: {e}")
             import traceback
+
             traceback.print_exc()
             return False
 
@@ -121,7 +125,8 @@ class AgentPerformanceTracker:
             cur = conn.cursor()
 
             # Get all performance logs for this agent
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     action_type,
                     outcome,
@@ -134,25 +139,27 @@ class AgentPerformanceTracker:
                 FROM agent_performance_logs
                 WHERE agent_id = %s
                 ORDER BY created_at DESC
-            """, (agent_id,))
+            """,
+                (agent_id,),
+            )
 
             logs = cur.fetchall()
 
             if not logs:
                 # No logs yet, return default metrics
                 return {
-                    'total_tasks_completed': 0,
-                    'total_tasks_failed': 0,
-                    'success_rate': 0.0,
-                    'avg_quality_score': 0.75,
-                    'overall_score': 75.0,
-                    'overall_grade': 'C'
+                    "total_tasks_completed": 0,
+                    "total_tasks_failed": 0,
+                    "success_rate": 0.0,
+                    "avg_quality_score": 0.75,
+                    "overall_score": 75.0,
+                    "overall_grade": "C",
                 }
 
             # Calculate basic metrics
             total_tasks = len(logs)
-            successful_tasks = sum(1 for log in logs if log[1] == 'success')
-            failed_tasks = sum(1 for log in logs if log[1] == 'failure')
+            successful_tasks = sum(1 for log in logs if log[1] == "success")
+            failed_tasks = sum(1 for log in logs if log[1] == "failure")
             success_rate = (successful_tasks / total_tasks) if total_tasks > 0 else 0.0
 
             # Calculate average scores (only from logs that have scores)
@@ -160,9 +167,17 @@ class AgentPerformanceTracker:
             accuracy_scores = [float(log[4]) for log in logs if log[4] is not None]
             timeliness_scores = [float(log[5]) for log in logs if log[5] is not None]
 
-            avg_quality = sum(quality_scores) / len(quality_scores) if quality_scores else 0.75
-            avg_accuracy = sum(accuracy_scores) / len(accuracy_scores) if accuracy_scores else 0.75
-            avg_timeliness = sum(timeliness_scores) / len(timeliness_scores) if timeliness_scores else 0.75
+            avg_quality = (
+                sum(quality_scores) / len(quality_scores) if quality_scores else 0.75
+            )
+            avg_accuracy = (
+                sum(accuracy_scores) / len(accuracy_scores) if accuracy_scores else 0.75
+            )
+            avg_timeliness = (
+                sum(timeliness_scores) / len(timeliness_scores)
+                if timeliness_scores
+                else 0.75
+            )
 
             # Calculate tasks in last 30 days
             thirty_days_ago = datetime.now() - timedelta(days=30)
@@ -173,15 +188,19 @@ class AgentPerformanceTracker:
             avg_duration = int(sum(durations) / len(durations)) if durations else 0
 
             # Get evaluation-specific metrics
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT COUNT(*) as evaluations_given
                 FROM proposal_evaluations
                 WHERE agent_id = %s
-            """, (agent_id,))
+            """,
+                (agent_id,),
+            )
             evaluations_given = cur.fetchone()[0] or 0
 
             # Calculate consensus agreement rate
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     COUNT(*) as total_evaluations,
                     SUM(CASE
@@ -191,15 +210,20 @@ class AgentPerformanceTracker:
                 FROM proposal_evaluations pe
                 JOIN team_consensus tc ON pe.proposal_id = tc.proposal_id
                 WHERE pe.agent_id = %s
-            """, (agent_id,))
+            """,
+                (agent_id,),
+            )
 
             consensus_data = cur.fetchone()
             total_evals = consensus_data[0] or 0
             agreed_evals = consensus_data[1] or 0
-            consensus_agreement_rate = (agreed_evals / total_evals) if total_evals > 0 else 0.0
+            consensus_agreement_rate = (
+                (agreed_evals / total_evals) if total_evals > 0 else 0.0
+            )
 
             # Get proposal success metrics
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     COUNT(CASE WHEN pe.recommendation = 'approve' THEN 1 END) as approved,
                     COUNT(CASE WHEN pe.recommendation = 'reject' THEN 1 END) as rejected,
@@ -208,7 +232,9 @@ class AgentPerformanceTracker:
                 FROM proposal_evaluations pe
                 JOIN improvement_proposals p ON pe.proposal_id = p.id
                 WHERE pe.agent_id = %s
-            """, (agent_id,))
+            """,
+                (agent_id,),
+            )
 
             proposal_data = cur.fetchone()
             proposals_approved = proposal_data[0] or 0
@@ -216,7 +242,11 @@ class AgentPerformanceTracker:
             proposals_implemented = proposal_data[2] or 0
             proposals_failed = proposal_data[3] or 0
 
-            proposal_success_rate = (proposals_implemented / (proposals_implemented + proposals_failed)) if (proposals_implemented + proposals_failed) > 0 else 0.0
+            proposal_success_rate = (
+                (proposals_implemented / (proposals_implemented + proposals_failed))
+                if (proposals_implemented + proposals_failed) > 0
+                else 0.0
+            )
 
             # Calculate overall score (0-100)
             # Weighted formula:
@@ -226,85 +256,87 @@ class AgentPerformanceTracker:
             # - Consensus agreement: 15%
             # - Timeliness: 10%
             overall_score = (
-                (success_rate * 30) +
-                (avg_quality * 25) +
-                (avg_accuracy * 20) +
-                (consensus_agreement_rate * 15) +
-                (avg_timeliness * 10)
+                (success_rate * 30)
+                + (avg_quality * 25)
+                + (avg_accuracy * 20)
+                + (consensus_agreement_rate * 15)
+                + (avg_timeliness * 10)
             )
 
             # Determine grade
             if overall_score >= 97:
-                grade = 'A+'
+                grade = "A+"
             elif overall_score >= 93:
-                grade = 'A'
+                grade = "A"
             elif overall_score >= 90:
-                grade = 'A-'
+                grade = "A-"
             elif overall_score >= 87:
-                grade = 'B+'
+                grade = "B+"
             elif overall_score >= 83:
-                grade = 'B'
+                grade = "B"
             elif overall_score >= 80:
-                grade = 'B-'
+                grade = "B-"
             elif overall_score >= 77:
-                grade = 'C+'
+                grade = "C+"
             elif overall_score >= 73:
-                grade = 'C'
+                grade = "C"
             elif overall_score >= 70:
-                grade = 'C-'
+                grade = "C-"
             elif overall_score >= 60:
-                grade = 'D'
+                grade = "D"
             else:
-                grade = 'F'
+                grade = "F"
 
             # Determine performance trend (compare last 10 tasks vs previous 10)
             if len(logs) >= 20:
-                recent_success = sum(1 for log in logs[:10] if log[1] == 'success') / 10
-                older_success = sum(1 for log in logs[10:20] if log[1] == 'success') / 10
+                recent_success = sum(1 for log in logs[:10] if log[1] == "success") / 10
+                older_success = (
+                    sum(1 for log in logs[10:20] if log[1] == "success") / 10
+                )
 
                 if recent_success > older_success + 0.1:
-                    trend = 'improving'
+                    trend = "improving"
                 elif recent_success < older_success - 0.1:
-                    trend = 'declining'
+                    trend = "declining"
                 else:
-                    trend = 'stable'
+                    trend = "stable"
             else:
-                trend = 'stable'
+                trend = "stable"
 
             # Determine proficiency level
             if overall_score >= 95:
-                proficiency = 'master'
+                proficiency = "master"
             elif overall_score >= 85:
-                proficiency = 'expert'
+                proficiency = "expert"
             elif overall_score >= 75:
-                proficiency = 'advanced'
+                proficiency = "advanced"
             elif overall_score >= 65:
-                proficiency = 'intermediate'
+                proficiency = "intermediate"
             else:
-                proficiency = 'novice'
+                proficiency = "novice"
 
             cur.close()
             conn.close()
 
             metrics = {
-                'total_tasks_completed': total_tasks,
-                'total_tasks_failed': failed_tasks,
-                'tasks_last_30_days': recent_tasks,
-                'avg_task_duration_seconds': avg_duration,
-                'avg_quality_score': round(avg_quality, 2),
-                'avg_accuracy_score': round(avg_accuracy, 2),
-                'avg_timeliness_score': round(avg_timeliness, 2),
-                'evaluations_given': evaluations_given,
-                'consensus_agreement_rate': round(consensus_agreement_rate, 2),
-                'proposals_approved': proposals_approved,
-                'proposals_rejected': proposals_rejected,
-                'proposals_implemented_successfully': proposals_implemented,
-                'proposals_failed_in_production': proposals_failed,
-                'success_rate': round(success_rate, 2),
-                'overall_score': round(overall_score, 2),
-                'overall_grade': grade,
-                'performance_trend': trend,
-                'proficiency_level': proficiency
+                "total_tasks_completed": total_tasks,
+                "total_tasks_failed": failed_tasks,
+                "tasks_last_30_days": recent_tasks,
+                "avg_task_duration_seconds": avg_duration,
+                "avg_quality_score": round(avg_quality, 2),
+                "avg_accuracy_score": round(avg_accuracy, 2),
+                "avg_timeliness_score": round(avg_timeliness, 2),
+                "evaluations_given": evaluations_given,
+                "consensus_agreement_rate": round(consensus_agreement_rate, 2),
+                "proposals_approved": proposals_approved,
+                "proposals_rejected": proposals_rejected,
+                "proposals_implemented_successfully": proposals_implemented,
+                "proposals_failed_in_production": proposals_failed,
+                "success_rate": round(success_rate, 2),
+                "overall_score": round(overall_score, 2),
+                "overall_grade": grade,
+                "performance_trend": trend,
+                "proficiency_level": proficiency,
             }
 
             return metrics
@@ -312,6 +344,7 @@ class AgentPerformanceTracker:
         except Exception as e:
             print(f"Error calculating agent metrics: {e}")
             import traceback
+
             traceback.print_exc()
             return {}
 
@@ -335,7 +368,8 @@ class AgentPerformanceTracker:
             cur = conn.cursor()
 
             # Get specialization areas (categories where agent excels)
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     p.category,
                     COUNT(*) as count,
@@ -349,12 +383,15 @@ class AgentPerformanceTracker:
                 AND COUNT(*) >= 3
                 ORDER BY success_rate DESC, count DESC
                 LIMIT 5
-            """, (agent_id,))
+            """,
+                (agent_id,),
+            )
 
             specializations = [row[0] for row in cur.fetchall()]
 
             # Update or insert metrics
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO agent_performance_metrics (
                     agent_id,
                     overall_grade,
@@ -403,39 +440,44 @@ class AgentPerformanceTracker:
                     specialization_areas = EXCLUDED.specialization_areas,
                     last_updated = NOW(),
                     last_task_at = NOW()
-            """, (
-                agent_id,
-                metrics['overall_grade'],
-                metrics['overall_score'],
-                metrics['performance_trend'],
-                metrics['total_tasks_completed'],
-                metrics['total_tasks_failed'],
-                metrics['tasks_last_30_days'],
-                metrics['avg_task_duration_seconds'],
-                metrics['avg_quality_score'],
-                metrics['avg_accuracy_score'],
-                metrics['avg_timeliness_score'],
-                metrics['evaluations_given'],
-                metrics['consensus_agreement_rate'],
-                metrics['proposals_approved'],
-                metrics['proposals_rejected'],
-                metrics['proposals_implemented_successfully'],
-                metrics['proposals_failed_in_production'],
-                metrics['success_rate'],
-                metrics['proficiency_level'],
-                specializations
-            ))
+            """,
+                (
+                    agent_id,
+                    metrics["overall_grade"],
+                    metrics["overall_score"],
+                    metrics["performance_trend"],
+                    metrics["total_tasks_completed"],
+                    metrics["total_tasks_failed"],
+                    metrics["tasks_last_30_days"],
+                    metrics["avg_task_duration_seconds"],
+                    metrics["avg_quality_score"],
+                    metrics["avg_accuracy_score"],
+                    metrics["avg_timeliness_score"],
+                    metrics["evaluations_given"],
+                    metrics["consensus_agreement_rate"],
+                    metrics["proposals_approved"],
+                    metrics["proposals_rejected"],
+                    metrics["proposals_implemented_successfully"],
+                    metrics["proposals_failed_in_production"],
+                    metrics["success_rate"],
+                    metrics["proficiency_level"],
+                    specializations,
+                ),
+            )
 
             conn.commit()
             cur.close()
             conn.close()
 
-            print(f"✅ Updated metrics for agent #{agent_id}: Grade {metrics['overall_grade']} (Score: {metrics['overall_score']})")
+            print(
+                f"✅ Updated metrics for agent #{agent_id}: Grade {metrics['overall_grade']} (Score: {metrics['overall_score']})"
+            )
             return True
 
         except Exception as e:
             print(f"Error updating agent metrics: {e}")
             import traceback
+
             traceback.print_exc()
             return False
 
@@ -445,10 +487,13 @@ class AgentPerformanceTracker:
             conn = get_db()
             cur = conn.cursor()
 
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT * FROM agent_performance_summary
                 WHERE agent_id = %s
-            """, (agent_id,))
+            """,
+                (agent_id,),
+            )
 
             row = cur.fetchone()
             cur.close()
@@ -458,11 +503,21 @@ class AgentPerformanceTracker:
                 return None
 
             columns = [
-                'agent_id', 'agent_name', 'department', 'overall_grade',
-                'overall_score', 'performance_trend', 'total_tasks_completed',
-                'tasks_last_30_days', 'success_rate', 'avg_quality_score',
-                'consensus_agreement_rate', 'proficiency_level',
-                'specialization_areas', 'last_task_at', 'actionable_insights_count'
+                "agent_id",
+                "agent_name",
+                "department",
+                "overall_grade",
+                "overall_score",
+                "performance_trend",
+                "total_tasks_completed",
+                "tasks_last_30_days",
+                "success_rate",
+                "avg_quality_score",
+                "consensus_agreement_rate",
+                "proficiency_level",
+                "specialization_areas",
+                "last_task_at",
+                "actionable_insights_count",
             ]
 
             return dict(zip(columns, row))
@@ -477,21 +532,35 @@ class AgentPerformanceTracker:
             conn = get_db()
             cur = conn.cursor()
 
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT * FROM agent_performance_leaderboard
                 LIMIT %s
-            """, (limit,))
+            """,
+                (limit,),
+            )
 
             rows = cur.fetchall()
             cur.close()
             conn.close()
 
             columns = [
-                'agent_id', 'agent_name', 'department', 'tier', 'worker_type',
-                'current_grade', 'performance_score', 'total_tasks_completed',
-                'success_rate', 'overall_score', 'performance_trend',
-                'proficiency_level', 'avg_quality_score', 'consensus_agreement_rate',
-                'overall_rank', 'department_rank'
+                "agent_id",
+                "agent_name",
+                "department",
+                "tier",
+                "worker_type",
+                "current_grade",
+                "performance_score",
+                "total_tasks_completed",
+                "success_rate",
+                "overall_score",
+                "performance_trend",
+                "proficiency_level",
+                "avg_quality_score",
+                "consensus_agreement_rate",
+                "overall_rank",
+                "department_rank",
             ]
 
             return [dict(zip(columns, row)) for row in rows]
@@ -499,6 +568,7 @@ class AgentPerformanceTracker:
         except Exception as e:
             print(f"Error getting leaderboard: {e}")
             import traceback
+
             traceback.print_exc()
             return []
 
@@ -528,7 +598,7 @@ def get_top_performers(limit: int = 10) -> List[Dict]:
     return tracker.get_performance_leaderboard(limit)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Test the performance tracker
     print("🧪 Testing Agent Performance Tracker...")
 
@@ -538,4 +608,6 @@ if __name__ == '__main__':
     leaderboard = tracker.get_performance_leaderboard(limit=5)
     print(f"\nTop 5 Agents:")
     for agent in leaderboard:
-        print(f"  #{agent['overall_rank']} {agent['agent_name']} - Grade: {agent['current_grade']} (Score: {agent['performance_score']})")
+        print(
+            f"  #{agent['overall_rank']} {agent['agent_name']} - Grade: {agent['current_grade']} (Score: {agent['performance_score']})"
+        )

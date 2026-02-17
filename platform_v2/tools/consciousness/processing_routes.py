@@ -337,7 +337,12 @@ def start_processing():
         analyzer = get_knowledge_analyzer()
         if not analyzer.warmup():
             return (
-                jsonify({"success": False, "error": "Analyzer model failed to warm up. Try again in a few seconds."}),
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Analyzer model failed to warm up. Try again in a few seconds.",
+                    }
+                ),
                 503,
             )
 

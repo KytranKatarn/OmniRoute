@@ -17,7 +17,7 @@ All routes require admin authentication via @admin_required decorator.
 
 from flask import Blueprint
 
-team_management_bp = Blueprint('team_management', __name__, url_prefix='/tools/team-management')
+team_management_bp = Blueprint("team_management", __name__, url_prefix="/tools/team-management")
 
 from . import routes
 from .iaae_routes import iaae_bp

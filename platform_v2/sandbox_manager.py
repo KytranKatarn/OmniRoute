@@ -136,7 +136,14 @@ class SandboxManager:
                 category = category or row.get("category")
 
         # High-risk categories always use Docker
-        high_risk_categories = ["security", "database", "architecture", "performance", "api", "infrastructure"]
+        high_risk_categories = [
+            "security",
+            "database",
+            "architecture",
+            "performance",
+            "api",
+            "infrastructure",
+        ]
         if category in high_risk_categories:
             return "docker_container"
 
@@ -151,7 +158,11 @@ class SandboxManager:
         return "schema_separation"
 
     def create_sandbox(
-        self, proposal_id: int, sandbox_type: str = None, backup_ref: str = None, metadata: Dict = None
+        self,
+        proposal_id: int,
+        sandbox_type: str = None,
+        backup_ref: str = None,
+        metadata: Dict = None,
     ) -> Dict:
         """
         Create a new sandbox instance for testing.
@@ -223,8 +234,16 @@ class SandboxManager:
             elif old_type == "docker_container" and old_sandbox["container_id"]:
                 try:
                     # Stop and remove the container
-                    subprocess.run(["docker", "stop", old_sandbox["container_id"]], capture_output=True, timeout=30)
-                    subprocess.run(["docker", "rm", old_sandbox["container_id"]], capture_output=True, timeout=30)
+                    subprocess.run(
+                        ["docker", "stop", old_sandbox["container_id"]],
+                        capture_output=True,
+                        timeout=30,
+                    )
+                    subprocess.run(
+                        ["docker", "rm", old_sandbox["container_id"]],
+                        capture_output=True,
+                        timeout=30,
+                    )
                 except Exception as e:
                     logger.warning(f"Could not remove container {old_sandbox['container_id']}: {e}")
 
@@ -294,7 +313,10 @@ class SandboxManager:
                             metadata = metadata || %s::jsonb
                         WHERE id = %s
                     """,
-                        (json.dumps({"error": sandbox_result.get("error")}), sandbox_id),
+                        (
+                            json.dumps({"error": sandbox_result.get("error")}),
+                            sandbox_id,
+                        ),
                     )
                     conn.commit()
                     cur.close()
@@ -330,7 +352,10 @@ class SandboxManager:
                             metadata = metadata || %s::jsonb
                         WHERE id = %s
                     """,
-                        (json.dumps({"error": sandbox_result.get("error")}), sandbox_id),
+                        (
+                            json.dumps({"error": sandbox_result.get("error")}),
+                            sandbox_id,
+                        ),
                     )
                     conn.commit()
                     cur.close()
@@ -416,7 +441,10 @@ class SandboxManager:
         if sandbox["status"] != "ready":
             cur.close()
             conn.close()
-            return {"success": False, "error": f"Sandbox status is '{sandbox['status']}', must be 'ready'"}
+            return {
+                "success": False,
+                "error": f"Sandbox status is '{sandbox['status']}', must be 'ready'",
+            }
 
         # Update status to testing
         cur.execute(
@@ -450,7 +478,12 @@ class SandboxManager:
             """,
                 (
                     json.dumps(test_result),
-                    json.dumps({"last_test_run": datetime.now().isoformat(), "test_suite": test_suite}),
+                    json.dumps(
+                        {
+                            "last_test_run": datetime.now().isoformat(),
+                            "test_suite": test_suite,
+                        }
+                    ),
                     sandbox_id,
                 ),
             )
@@ -519,7 +552,10 @@ class SandboxManager:
                 metadata = metadata || %s::jsonb
             WHERE id = %s
         """,
-            (json.dumps({"code_changes_started": datetime.now().isoformat()}), sandbox_id),
+            (
+                json.dumps({"code_changes_started": datetime.now().isoformat()}),
+                sandbox_id,
+            ),
         )
         conn.commit()
 
@@ -613,7 +649,10 @@ class SandboxManager:
         if sandbox["status"] == "testing" and not force:
             cur.close()
             conn.close()
-            return {"success": False, "error": "Tests are running. Use force=True to destroy anyway."}
+            return {
+                "success": False,
+                "error": "Tests are running. Use force=True to destroy anyway.",
+            }
 
         try:
             # Destroy actual sandbox
@@ -650,7 +689,11 @@ class SandboxManager:
             cur.close()
             conn.close()
 
-            return {"success": True, "sandbox_id": sandbox_id, "destroyed_at": result["destroyed_at"].isoformat()}
+            return {
+                "success": True,
+                "sandbox_id": sandbox_id,
+                "destroyed_at": result["destroyed_at"].isoformat(),
+            }
 
         except Exception as e:
             cur.close()
@@ -725,7 +768,11 @@ class SandboxManager:
         cur.close()
         conn.close()
 
-        return {"success": True, "sandboxes": [dict(s) for s in sandboxes], "total": len(sandboxes)}
+        return {
+            "success": True,
+            "sandboxes": [dict(s) for s in sandboxes],
+            "total": len(sandboxes),
+        }
 
     # ========================================================================
     # MODULE SANDBOX METHODS
@@ -754,7 +801,11 @@ class SandboxManager:
         cur.close()
         conn.close()
 
-        return {"success": True, "sandboxes": [dict(s) for s in sandboxes], "total": len(sandboxes)}
+        return {
+            "success": True,
+            "sandboxes": [dict(s) for s in sandboxes],
+            "total": len(sandboxes),
+        }
 
     def get_module_sandbox(self, module_id: str) -> Dict:
         """Get sandbox info for a specific module"""
@@ -972,7 +1023,12 @@ class SandboxManager:
                         logger.info(f"Container {container_name} not found (already stopped)")
                 else:
                     # Fallback to subprocess
-                    subprocess.run(["docker", "stop", container_name], capture_output=True, text=True, timeout=60)
+                    subprocess.run(
+                        ["docker", "stop", container_name],
+                        capture_output=True,
+                        text=True,
+                        timeout=60,
+                    )
                     logger.info(f"Container stopped for {module_id}")
             except Exception as docker_err:
                 logger.warning(f"Failed to stop Docker container: {docker_err}")
@@ -1037,7 +1093,10 @@ class SandboxManager:
         """Update the status of a module sandbox"""
         valid_statuses = ["inactive", "starting", "active", "testing", "stopping"]
         if status not in valid_statuses:
-            return {"success": False, "error": f"Invalid status: {status}. Must be one of: {valid_statuses}"}
+            return {
+                "success": False,
+                "error": f"Invalid status: {status}. Must be one of: {valid_statuses}",
+            }
 
         conn = self.get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -1074,7 +1133,10 @@ class SandboxManager:
         sandbox = sandbox_result["sandbox"]
 
         if sandbox["status"] != "active":
-            return {"success": False, "error": f'Module sandbox is not active: {sandbox["status"]}'}
+            return {
+                "success": False,
+                "error": f'Module sandbox is not active: {sandbox["status"]}',
+            }
 
         # Update status to testing
         self.update_module_sandbox_status(module_id, "testing")
@@ -1111,7 +1173,12 @@ class SandboxManager:
                 cur.close()
                 conn.close()
 
-                return {"success": True, "module_id": module_id, "test_suite": test_suite, "results": test_result}
+                return {
+                    "success": True,
+                    "module_id": module_id,
+                    "test_suite": test_suite,
+                    "results": test_result,
+                }
             else:
                 return {"success": False, "error": "Test runner not available"}
 

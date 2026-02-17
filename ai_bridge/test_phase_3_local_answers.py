@@ -14,12 +14,13 @@ Date: 2026-01-10
 """
 
 import sys
-sys.path.insert(0, '/mnt/archie_brain/ai_bridge')
-sys.path.insert(0, '/mnt/archie_brain/platform_v2')
 
-print("\n" + "="*70)
+sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
+sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+
+print("\n" + "=" * 70)
 print("PHASE 3: LOCAL ANSWER GENERATION - TEST SUITE")
-print("="*70)
+print("=" * 70)
 
 try:
     # Test 1: Module Imports
@@ -29,10 +30,11 @@ try:
         can_answer_locally,
         generate_local_response,
         estimate_cost_savings,
-        track_local_answer_usage
+        track_local_answer_usage,
     )
     from knowledge_retrieval import get_relevant_knowledge_enhanced
     from archie_bridge import archie_bridge
+
     print("✅ All modules imported successfully")
 
     # Test 2: Query Complexity Analysis
@@ -65,7 +67,7 @@ try:
     print(f"  Query: '{test_query}'")
     print(f"  Results found: {len(results)}")
     if results:
-        title = results[0].get('title') or 'Untitled'
+        title = results[0].get("title") or "Untitled"
         print(f"  Top result: {title[:50]}")
         print(f"  Type: {results[0].get('knowledge_type')}")
         print(f"  Score: {results[0].get('weighted_score', 0):.2f}")
@@ -82,27 +84,29 @@ try:
         print(f"  Strategy: {decision['strategy']}")
         print(f"  Reason: {decision['reason']}")
 
-        if decision['can_answer']:
+        if decision["can_answer"]:
             print("✅ Decision logic: Will answer locally")
 
             # Test 5: Response Generation
             print("\n[TEST 5] Testing local response generation...")
             response = generate_local_response(
-                test_query,
-                results,
-                strategy=decision['strategy']
+                test_query, results, strategy=decision["strategy"]
             )
             print(f"  Response length: {len(response)} characters")
             print(f"  Preview: {response[:150]}...")
             print("✅ Response generation working")
         else:
-            print("⚠️ Query not confident enough for local answer (this is expected for complex queries)")
+            print(
+                "⚠️ Query not confident enough for local answer (this is expected for complex queries)"
+            )
     else:
         print("⚠️ Skipping decision/response tests (no knowledge results)")
 
     # Test 6: Cost Estimation
     print("\n[TEST 6] Testing cost savings estimation...")
-    savings = estimate_cost_savings("What is A.R.C.H.I.E.?", "claude-sonnet-4", "anthropic")
+    savings = estimate_cost_savings(
+        "What is A.R.C.H.I.E.?", "claude-sonnet-4", "anthropic"
+    )
     print(f"  Tokens saved: {savings['tokens_saved']}")
     print(f"  Cost saved: ${savings['cost_saved']:.4f}")
     print(f"  Would have used: {savings['provider']}/{savings['model']}")
@@ -112,12 +116,13 @@ try:
     print("\n[TEST 7] Testing database tracking...")
     import psycopg2
     import os
+
     conn = psycopg2.connect(
-        host=os.getenv('DB_HOST', 'archie_database'),
-        port=os.getenv('DB_PORT', '5432'),
-        database=os.getenv('DB_NAME', 'archie'),
-        user=os.getenv('DB_USER', 'archie'),
-        password=os.getenv('DB_PASSWORD', '')
+        host=os.getenv("DB_HOST", "archie_database"),
+        port=os.getenv("DB_PORT", "5432"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", ""),
     )
     cur = conn.cursor()
 
@@ -168,11 +173,11 @@ try:
         prompt="What is A.R.C.H.I.E.?",
         user_id=2,  # Admin user
         try_local_first=True,
-        enable_memory=True
+        enable_memory=True,
     )
 
-    if test_result.get('success'):
-        if test_result.get('local_answer'):
+    if test_result.get("success"):
+        if test_result.get("local_answer"):
             print(f"  ✅ LOCAL ANSWER GENERATED")
             print(f"     Confidence: {test_result.get('confidence', 0):.2f}")
             print(f"     Strategy: {test_result.get('strategy', 'unknown')}")
@@ -180,7 +185,9 @@ try:
             print(f"     Entries used: {test_result.get('knowledge_entries_used', 0)}")
             print(f"     Response preview: {test_result['response'][:100]}...")
         else:
-            print(f"  ⚠️ LLM used instead of local (query may be too complex or no knowledge found)")
+            print(
+                f"  ⚠️ LLM used instead of local (query may be too complex or no knowledge found)"
+            )
             print(f"     Model: {test_result.get('model')}")
     else:
         print(f"  ❌ archie_bridge call failed: {test_result.get('error')}")
@@ -191,11 +198,11 @@ try:
         prompt="What is database?",
         user_id=2,
         try_local_first=False,  # Disabled
-        enable_memory=True
+        enable_memory=True,
     )
 
-    if test_result_control.get('success'):
-        if test_result_control.get('local_answer'):
+    if test_result_control.get("success"):
+        if test_result_control.get("local_answer"):
             print("  ⚠️ Local answer generated when disabled (unexpected)")
         else:
             print(f"  ✅ LLM used as expected (try_local_first=False)")
@@ -203,9 +210,9 @@ try:
     else:
         print(f"  ❌ Control test failed: {test_result_control.get('error')}")
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("✅ PHASE 3 WEEK 1 TESTS COMPLETED")
-    print("="*70)
+    print("=" * 70)
 
     # Summary
     print("\n📊 PHASE 3 STATUS SUMMARY:")
@@ -245,5 +252,6 @@ try:
 except Exception as e:
     print(f"\n❌ TEST FAILED: {e}")
     import traceback
+
     traceback.print_exc()
     sys.exit(1)

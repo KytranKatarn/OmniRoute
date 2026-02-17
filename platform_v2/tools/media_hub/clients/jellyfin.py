@@ -139,7 +139,7 @@ class JellyfinClient(MediaServerInterface):
             rating=rating,
             rating_source="jellyfin",
             genres=genres,
-            runtime_minutes=item.get("RunTimeTicks", 0) // 600000000 if item.get("RunTimeTicks") else None,
+            runtime_minutes=(item.get("RunTimeTicks", 0) // 600000000 if item.get("RunTimeTicks") else None),
             quality=quality,
             file_size_bytes=file_size,
             file_path=file_path,
@@ -221,7 +221,8 @@ class JellyfinClient(MediaServerInterface):
 
         # Get movie count and size
         movie_result = self._request(
-            f"/Users/{user_id}/Items", {"IncludeItemTypes": "Movie", "Recursive": True, "Fields": "MediaSources"}
+            f"/Users/{user_id}/Items",
+            {"IncludeItemTypes": "Movie", "Recursive": True, "Fields": "MediaSources"},
         )
         if movie_result and "Items" in movie_result:
             stats.movie_count = movie_result.get("TotalRecordCount", len(movie_result["Items"]))
@@ -236,7 +237,12 @@ class JellyfinClient(MediaServerInterface):
 
         # Get episode count and size
         episode_result = self._request(
-            f"/Users/{user_id}/Items", {"IncludeItemTypes": "Episode", "Recursive": True, "Fields": "MediaSources"}
+            f"/Users/{user_id}/Items",
+            {
+                "IncludeItemTypes": "Episode",
+                "Recursive": True,
+                "Fields": "MediaSources",
+            },
         )
         if episode_result and "Items" in episode_result:
             stats.episode_count = episode_result.get("TotalRecordCount", len(episode_result["Items"]))
@@ -337,7 +343,8 @@ class JellyfinClient(MediaServerInterface):
             return []
 
         result = self._request(
-            f"/Users/{user_id}/Items/Resume", {"Limit": limit, "Fields": "Overview,Genres,ProviderIds"}
+            f"/Users/{user_id}/Items/Resume",
+            {"Limit": limit, "Fields": "Overview,Genres,ProviderIds"},
         )
         items = []
 
@@ -611,7 +618,7 @@ class JellyfinClient(MediaServerInterface):
                 media_source.get("RunTimeTicks", 0) // 10000000 if media_source.get("RunTimeTicks") else 0
             ),
             "resume_position_ticks": resume_position_ticks,
-            "resume_position_seconds": resume_position_ticks // 10000000 if resume_position_ticks else 0,
+            "resume_position_seconds": (resume_position_ticks // 10000000 if resume_position_ticks else 0),
             "subtitles": subtitles,
             "media_source_id": media_source_id,
             "supports_direct": media_source.get("SupportsDirectStream", False),

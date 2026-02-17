@@ -59,7 +59,13 @@ def index():
             WHERE created_at > NOW() - INTERVAL '7 days'
         """
         )
-        stats = cur.fetchone() or {"total_workflows": 0, "completed": 0, "running": 0, "pending": 0, "failed": 0}
+        stats = cur.fetchone() or {
+            "total_workflows": 0,
+            "completed": 0,
+            "running": 0,
+            "pending": 0,
+            "failed": 0,
+        }
 
         # Get recent executions
         cur.execute(
@@ -81,7 +87,13 @@ def index():
         logger.error(f"[Goose] Dashboard error: {e}")
         return render_template(
             "goose.html",
-            stats={"total_workflows": 0, "completed": 0, "running": 0, "pending": 0, "failed": 0},
+            stats={
+                "total_workflows": 0,
+                "completed": 0,
+                "running": 0,
+                "pending": 0,
+                "failed": 0,
+            },
             recent_executions=[],
             error=str(e),
         )
@@ -112,7 +124,12 @@ def api_status():
 
         if goose_installed:
             try:
-                result = subprocess.run([goose_binary, "--version"], capture_output=True, text=True, timeout=5)
+                result = subprocess.run(
+                    [goose_binary, "--version"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
                 goose_version = result.stdout.strip() if result.returncode == 0 else "1.20.1"
             except Exception:
                 goose_version = "1.20.1"  # Known version
@@ -193,7 +210,17 @@ def api_status():
             }
         )
     except Exception as e:
-        return jsonify({"module": "goose", "status": "error", "healthy": False, "error": str(e)}), 500
+        return (
+            jsonify(
+                {
+                    "module": "goose",
+                    "status": "error",
+                    "healthy": False,
+                    "error": str(e),
+                }
+            ),
+            500,
+        )
 
 
 # =============================================================================
@@ -289,7 +316,13 @@ def get_workflow(workflow_id):
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "workflow": dict(workflow), "execution_logs": [dict(l) for l in logs]})
+        return jsonify(
+            {
+                "success": True,
+                "workflow": dict(workflow),
+                "execution_logs": [dict(l) for l in logs],
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -320,7 +353,13 @@ def create_workflow():
             VALUES (%s, %s, %s, %s, 'pending', %s)
             RETURNING *
         """,
-            (workflow_id, workflow_name, json.dumps(steps), json.dumps(parameters), f"user:{current_user.id}"),
+            (
+                workflow_id,
+                workflow_name,
+                json.dumps(steps),
+                json.dumps(parameters),
+                f"user:{current_user.id}",
+            ),
         )
 
         workflow = cur.fetchone()
@@ -373,7 +412,13 @@ def trigger_workflow(workflow_id):
 
         logger.info(f"[Goose] Workflow triggered: {workflow_id}")
 
-        return jsonify({"success": True, "message": "Workflow triggered", "workflow": dict(updated)})
+        return jsonify(
+            {
+                "success": True,
+                "message": "Workflow triggered",
+                "workflow": dict(updated),
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -403,9 +448,18 @@ def cancel_workflow(workflow_id):
         conn.close()
 
         if not workflow:
-            return jsonify({"success": False, "error": "Workflow not found or not cancellable"}), 404
+            return (
+                jsonify({"success": False, "error": "Workflow not found or not cancellable"}),
+                404,
+            )
 
-        return jsonify({"success": True, "message": "Workflow cancelled", "workflow": dict(workflow)})
+        return jsonify(
+            {
+                "success": True,
+                "message": "Workflow cancelled",
+                "workflow": dict(workflow),
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -494,7 +548,13 @@ def create_blueprint():
 
         logger.info(f"[Goose] Blueprint created: {safe_name}")
 
-        return jsonify({"success": True, "message": "Blueprint created", "filename": f"{safe_name}.yaml"})
+        return jsonify(
+            {
+                "success": True,
+                "message": "Blueprint created",
+                "filename": f"{safe_name}.yaml",
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -618,7 +678,13 @@ def webhook_trigger(workflow_name):
 
         logger.info(f"[Goose] Webhook triggered workflow: {workflow_name}")
 
-        return jsonify({"success": True, "workflow_id": workflow_id, "message": f"Workflow {workflow_name} queued"})
+        return jsonify(
+            {
+                "success": True,
+                "workflow_id": workflow_id,
+                "message": f"Workflow {workflow_name} queued",
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 

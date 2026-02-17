@@ -128,7 +128,13 @@ def register_mesh_routes(bridge_bp):
                         updated_at = NOW()
                     RETURNING id, reported_at, updated_at
                     """,
-                    (node_id, version, git_commit, migration_version, json.dumps(modules_list)),
+                    (
+                        node_id,
+                        version,
+                        git_commit,
+                        migration_version,
+                        json.dumps(modules_list),
+                    ),
                 )
                 row = cur.fetchone()
 
@@ -137,8 +143,8 @@ def register_mesh_routes(bridge_bp):
                     "success": True,
                     "message": "Version reported",
                     "version_id": row["id"],
-                    "reported_at": row["reported_at"].isoformat() if row["reported_at"] else None,
-                    "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+                    "reported_at": (row["reported_at"].isoformat() if row["reported_at"] else None),
+                    "updated_at": (row["updated_at"].isoformat() if row["updated_at"] else None),
                 }
             )
         except Exception as e:
@@ -164,7 +170,10 @@ def register_mesh_routes(bridge_bp):
         pattern_type = data.get("pattern_type")
         insight = data.get("insight")
         if not pattern_type or not insight:
-            return jsonify({"success": False, "error": "pattern_type and insight are required"}), 400
+            return (
+                jsonify({"success": False, "error": "pattern_type and insight are required"}),
+                400,
+            )
 
         category = data.get("category")
         metric_name = data.get("metric_name")
@@ -200,7 +209,7 @@ def register_mesh_routes(bridge_bp):
                     "success": True,
                     "message": "Learning pattern submitted",
                     "pattern_id": row["id"],
-                    "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                    "created_at": (row["created_at"].isoformat() if row["created_at"] else None),
                 }
             )
         except Exception as e:
@@ -249,7 +258,7 @@ def register_mesh_routes(bridge_bp):
                         "metric_value": r["metric_value"],
                         "metric_unit": r["metric_unit"],
                         "context": r["context"],
-                        "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                        "created_at": (r["created_at"].isoformat() if r["created_at"] else None),
                     }
                 )
 
@@ -274,7 +283,12 @@ def register_mesh_routes(bridge_bp):
 
         if not all([agent_id, source_node_id, target_node_id]):
             return (
-                jsonify({"success": False, "error": "agent_id, source_node_id, and target_node_id are required"}),
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "agent_id, source_node_id, and target_node_id are required",
+                    }
+                ),
                 400,
             )
 
@@ -294,9 +308,25 @@ def register_mesh_routes(bridge_bp):
                 node_ids_found = {n["node_id"] for n in nodes}
 
                 if source_node_id not in node_ids_found:
-                    return jsonify({"success": False, "error": "Source node not found or inactive"}), 404
+                    return (
+                        jsonify(
+                            {
+                                "success": False,
+                                "error": "Source node not found or inactive",
+                            }
+                        ),
+                        404,
+                    )
                 if target_node_id not in node_ids_found:
-                    return jsonify({"success": False, "error": "Target node not found or inactive"}), 404
+                    return (
+                        jsonify(
+                            {
+                                "success": False,
+                                "error": "Target node not found or inactive",
+                            }
+                        ),
+                        404,
+                    )
 
                 for n in nodes:
                     if n["approval_status"] != "approved":
@@ -340,7 +370,10 @@ def register_mesh_routes(bridge_bp):
         loan_id = data.get("loan_id")
 
         if not node_id or not loan_id:
-            return jsonify({"success": False, "error": "node_id and loan_id are required"}), 400
+            return (
+                jsonify({"success": False, "error": "node_id and loan_id are required"}),
+                400,
+            )
 
         valid, result = _verify_node_api_key(node_id)
         if not valid:
@@ -363,14 +396,22 @@ def register_mesh_routes(bridge_bp):
                 row = cur.fetchone()
 
             if not row:
-                return jsonify({"success": False, "error": "Loan not found or already completed"}), 404
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": "Loan not found or already completed",
+                        }
+                    ),
+                    404,
+                )
 
             return jsonify(
                 {
                     "success": True,
                     "message": "Agent returned successfully",
                     "loan_id": row["id"],
-                    "returned_at": row["returned_at"].isoformat() if row["returned_at"] else None,
+                    "returned_at": (row["returned_at"].isoformat() if row["returned_at"] else None),
                 }
             )
         except Exception as e:
@@ -418,7 +459,7 @@ def register_mesh_routes(bridge_bp):
                         "task_description": r["task_description"],
                         "status": r["status"],
                         "lent_at": r["lent_at"].isoformat() if r["lent_at"] else None,
-                        "returned_at": r["returned_at"].isoformat() if r["returned_at"] else None,
+                        "returned_at": (r["returned_at"].isoformat() if r["returned_at"] else None),
                         "work_summary": r["work_summary"],
                         "initiated_by": r["initiated_by"],
                     }
@@ -442,7 +483,10 @@ def register_mesh_routes(bridge_bp):
         sync_type = data.get("sync_type")
 
         if not node_id or not sync_type:
-            return jsonify({"success": False, "error": "node_id and sync_type are required"}), 400
+            return (
+                jsonify({"success": False, "error": "node_id and sync_type are required"}),
+                400,
+            )
 
         payload = data.get("payload", {})
 
@@ -538,14 +582,22 @@ def register_mesh_routes(bridge_bp):
                 row = cur.fetchone()
 
             if not row:
-                return jsonify({"success": False, "error": "Sync not found or already acknowledged"}), 404
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": "Sync not found or already acknowledged",
+                        }
+                    ),
+                    404,
+                )
 
             return jsonify(
                 {
                     "success": True,
                     "message": "Sync acknowledged",
                     "sync_id": row["id"],
-                    "acknowledged_at": row["acknowledged_at"].isoformat() if row["acknowledged_at"] else None,
+                    "acknowledged_at": (row["acknowledged_at"].isoformat() if row["acknowledged_at"] else None),
                 }
             )
         except Exception as e:

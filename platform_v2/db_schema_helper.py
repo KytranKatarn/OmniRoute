@@ -2,6 +2,7 @@
 Database Schema Helper
 Handles automatic schema switching based on sandbox mode
 """
+
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from flask import session, g
@@ -19,11 +20,11 @@ def get_db_connection(cursor_factory=RealDictCursor):
         # Queries will automatically use sandbox or public schema
     """
     conn = psycopg2.connect(
-        host=os.getenv('DB_HOST', 'archie_database'),
-        port=os.getenv('DB_PORT', '5432'),
-        database=os.getenv('DB_NAME', 'archie'),
-        user=os.getenv('DB_USER', 'archie'),
-        password=os.getenv('DB_PASSWORD', 'password')
+        host=os.getenv("DB_HOST", "archie_database"),
+        port=os.getenv("DB_PORT", "5432"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", "password"),
     )
 
     # Set schema based on session or g object
@@ -32,21 +33,22 @@ def get_db_connection(cursor_factory=RealDictCursor):
     # Try to get schema from flask session
     try:
         from flask import has_request_context
+
         if has_request_context():
-            schema = session.get('db_schema', 'public')
+            schema = session.get("db_schema", "public")
     except:
-        schema = 'public'
+        schema = "public"
 
     # If not in session, try g object
-    if not schema or schema == 'public':
+    if not schema or schema == "public":
         try:
-            schema = getattr(g, 'db_schema', 'public')
+            schema = getattr(g, "db_schema", "public")
         except:
-            schema = 'public'
+            schema = "public"
 
     # Set search_path at connection level
     cur = conn.cursor()
-    if schema == 'sandbox':
+    if schema == "sandbox":
         # Sandbox mode: search sandbox first, then public for system tables
         cur.execute("SET search_path TO sandbox, public")
     else:
@@ -64,31 +66,33 @@ def get_current_schema():
     """
     try:
         from flask import has_request_context
+
         if has_request_context():
-            return session.get('db_schema', 'public')
+            return session.get("db_schema", "public")
     except:
         pass
 
     try:
-        return getattr(g, 'db_schema', 'public')
+        return getattr(g, "db_schema", "public")
     except:
-        return 'public'
+        return "public"
 
 
 def is_sandbox_mode():
     """Check if currently in sandbox mode"""
-    return get_current_schema() == 'sandbox'
+    return get_current_schema() == "sandbox"
 
 
 def set_sandbox_mode(enabled=True):
     """Enable or disable sandbox mode for current session"""
-    schema = 'sandbox' if enabled else 'public'
+    schema = "sandbox" if enabled else "public"
 
     try:
         from flask import has_request_context
+
         if has_request_context():
-            session['db_schema'] = schema
-            session['sandbox_mode'] = enabled
+            session["db_schema"] = schema
+            session["sandbox_mode"] = enabled
     except:
         pass
 

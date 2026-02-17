@@ -10,7 +10,10 @@ from . import dev_hq_bp
 
 # DB Schema and API Docs - reuse Blueprint intelligence functions
 try:
-    from tools.blueprint.blueprint_intelligence import get_database_schema, get_api_endpoints
+    from tools.blueprint.blueprint_intelligence import (
+        get_database_schema,
+        get_api_endpoints,
+    )
 
     INTELLIGENCE_AVAILABLE = True
 except ImportError:
@@ -503,7 +506,10 @@ def api_activity():
 @admin_hub_only
 def api_schema():
     if not INTELLIGENCE_AVAILABLE:
-        return jsonify({"success": False, "error": "Blueprint Intelligence not available"}), 500
+        return (
+            jsonify({"success": False, "error": "Blueprint Intelligence not available"}),
+            500,
+        )
     try:
         return jsonify(get_database_schema())
     except Exception as e:
@@ -515,7 +521,10 @@ def api_schema():
 @admin_hub_only
 def api_docs():
     if not INTELLIGENCE_AVAILABLE:
-        return jsonify({"success": False, "error": "Blueprint Intelligence not available"}), 500
+        return (
+            jsonify({"success": False, "error": "Blueprint Intelligence not available"}),
+            500,
+        )
     try:
         return jsonify(get_api_endpoints())
     except Exception as e:

@@ -8,6 +8,7 @@ Features:
 - Health check validation
 - Rollback tracking and audit trail
 """
+
 import os
 import sys
 import psycopg2
@@ -17,7 +18,7 @@ from typing import Dict, Optional
 import subprocess
 import json
 
-sys.path.insert(0, '/mnt/archie_brain/platform_v2/tools/backup_manager')
+sys.path.insert(0, "/mnt/archie_brain/platform_v2/tools/backup_manager")
 
 
 class AutoRollbackManager:
@@ -34,16 +35,16 @@ class AutoRollbackManager:
     """
 
     def __init__(self):
-        self.backup_dir = '/mnt/archie_brain/backups'
+        self.backup_dir = "/mnt/archie_brain/backups"
 
     def get_db(self):
         """Get database connection"""
         return psycopg2.connect(
-            host=os.getenv('DB_HOST', 'archie_database'),
-            port=os.getenv('DB_PORT', '5432'),
-            database=os.getenv('DB_NAME', 'archie'),
-            user=os.getenv('DB_USER', 'archie'),
-            password=os.getenv('DB_PASSWORD', '')
+            host=os.getenv("DB_HOST", "archie_database"),
+            port=os.getenv("DB_PORT", "5432"),
+            database=os.getenv("DB_NAME", "archie"),
+            user=os.getenv("DB_USER", "archie"),
+            password=os.getenv("DB_PASSWORD", ""),
         )
 
     def rollback_deployment(
@@ -51,7 +52,7 @@ class AutoRollbackManager:
         deployment_id: int,
         backup_name: str = None,
         reason: str = None,
-        auto_triggered: bool = True
+        auto_triggered: bool = True,
     ) -> Dict:
         """
         Rollback a deployment to pre-deployment state.
@@ -75,85 +76,94 @@ class AutoRollbackManager:
 
         try:
             # 1. Get deployment details
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT * FROM improvement_deployments
                 WHERE id = %s
-            """, (deployment_id,))
+            """,
+                (deployment_id,),
+            )
             deployment = cur.fetchone()
 
             if not deployment:
                 return {
-                    'success': False,
-                    'error': f'Deployment {deployment_id} not found'
+                    "success": False,
+                    "error": f"Deployment {deployment_id} not found",
                 }
 
             # 2. Check if already rolled back
-            if deployment['status'] == 'rolled_back':
+            if deployment["status"] == "rolled_back":
                 return {
-                    'success': False,
-                    'error': 'Deployment already rolled back',
-                    'rolled_back_at': deployment['rolled_back_at']
+                    "success": False,
+                    "error": "Deployment already rolled back",
+                    "rolled_back_at": deployment["rolled_back_at"],
                 }
 
             # 3. Get backup name
             if not backup_name:
-                backup_name = deployment.get('backup_name')
+                backup_name = deployment.get("backup_name")
 
             if not backup_name:
                 return {
-                    'success': False,
-                    'error': 'No backup reference found. Cannot rollback.'
+                    "success": False,
+                    "error": "No backup reference found. Cannot rollback.",
                 }
 
             # 4. Verify backup exists
             backup_path = os.path.join(self.backup_dir, backup_name)
             if not os.path.exists(backup_path):
-                return {
-                    'success': False,
-                    'error': f'Backup not found: {backup_path}'
-                }
+                return {"success": False, "error": f"Backup not found: {backup_path}"}
 
             # 5. Execute rollback
             rollback_result = self._execute_rollback(backup_name, backup_path)
 
-            if not rollback_result['success']:
+            if not rollback_result["success"]:
                 cur.close()
                 conn.close()
                 return rollback_result
 
             # 6. Update deployment record
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE improvement_deployments
                 SET status = 'rolled_back',
                     rolled_back_at = NOW(),
                     rollback_reason = %s
                 WHERE id = %s
                 RETURNING rolled_back_at
-            """, (reason or 'Auto-rollback triggered', deployment_id))
+            """,
+                (reason or "Auto-rollback triggered", deployment_id),
+            )
 
             result = cur.fetchone()
-            rolled_back_at = result['rolled_back_at']
+            rolled_back_at = result["rolled_back_at"]
 
             # 7. Update proposal status
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE improvement_proposals
                 SET status = 'deployment_failed'
                 WHERE id = %s
-            """, (deployment['proposal_id'],))
+            """,
+                (deployment["proposal_id"],),
+            )
 
             conn.commit()
 
             # 8. Create notification (if notifications table exists)
             try:
-                cur.execute("""
+                cur.execute(
+                    """
                     INSERT INTO notifications
                     (user_id, type, title, message, created_at)
                     VALUES (%s, 'deployment_rollback', %s, %s, NOW())
-                """, (
-                    deployment['deployed_by'],
-                    f'Deployment Rolled Back',
-                    f'Deployment #{deployment_id} was rolled back. Reason: {reason}'
-                ))
+                """,
+                    (
+                        deployment["deployed_by"],
+                        f"Deployment Rolled Back",
+                        f"Deployment #{deployment_id} was rolled back. Reason: {reason}",
+                    ),
+                )
                 conn.commit()
             except:
                 pass  # Notifications table might not exist
@@ -162,13 +172,13 @@ class AutoRollbackManager:
             conn.close()
 
             return {
-                'success': True,
-                'deployment_id': deployment_id,
-                'proposal_id': deployment['proposal_id'],
-                'backup_restored': backup_name,
-                'rolled_back_at': rolled_back_at.isoformat(),
-                'reason': reason,
-                'auto_triggered': auto_triggered
+                "success": True,
+                "deployment_id": deployment_id,
+                "proposal_id": deployment["proposal_id"],
+                "backup_restored": backup_name,
+                "rolled_back_at": rolled_back_at.isoformat(),
+                "reason": reason,
+                "auto_triggered": auto_triggered,
             }
 
         except Exception as e:
@@ -176,10 +186,7 @@ class AutoRollbackManager:
             cur.close()
             conn.close()
 
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     def _execute_rollback(self, backup_name: str, backup_path: str) -> Dict:
         """
@@ -197,12 +204,12 @@ class AutoRollbackManager:
         """
         try:
             # Look for rollback script
-            rollback_script = os.path.join(backup_path, 'rollback.sh')
+            rollback_script = os.path.join(backup_path, "rollback.sh")
 
             if not os.path.exists(rollback_script):
                 return {
-                    'success': False,
-                    'error': f'Rollback script not found: {rollback_script}'
+                    "success": False,
+                    "error": f"Rollback script not found: {rollback_script}",
                 }
 
             # Make script executable
@@ -210,36 +217,30 @@ class AutoRollbackManager:
 
             # Execute rollback script
             result = subprocess.run(
-                ['bash', rollback_script],
+                ["bash", rollback_script],
                 capture_output=True,
                 text=True,
                 timeout=600,  # 10 minute timeout
-                cwd=backup_path
+                cwd=backup_path,
             )
 
             if result.returncode == 0:
                 return {
-                    'success': True,
-                    'components_restored': self._parse_rollback_output(result.stdout),
-                    'output': result.stdout
+                    "success": True,
+                    "components_restored": self._parse_rollback_output(result.stdout),
+                    "output": result.stdout,
                 }
             else:
                 return {
-                    'success': False,
-                    'error': f'Rollback script failed: {result.stderr}',
-                    'output': result.stdout
+                    "success": False,
+                    "error": f"Rollback script failed: {result.stderr}",
+                    "output": result.stdout,
                 }
 
         except subprocess.TimeoutExpired:
-            return {
-                'success': False,
-                'error': 'Rollback timed out after 10 minutes'
-            }
+            return {"success": False, "error": "Rollback timed out after 10 minutes"}
         except Exception as e:
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     def _parse_rollback_output(self, output: str) -> list:
         """
@@ -253,16 +254,16 @@ class AutoRollbackManager:
         """
         components = []
 
-        if 'database' in output.lower():
-            components.append('database')
-        if 'platform' in output.lower():
-            components.append('platform')
-        if 'ai_bridge' in output.lower():
-            components.append('ai_bridge')
-        if 'docs' in output.lower():
-            components.append('docs')
+        if "database" in output.lower():
+            components.append("database")
+        if "platform" in output.lower():
+            components.append("platform")
+        if "ai_bridge" in output.lower():
+            components.append("ai_bridge")
+        if "docs" in output.lower():
+            components.append("docs")
 
-        return components if components else ['unknown']
+        return components if components else ["unknown"]
 
     def can_rollback(self, deployment_id: int) -> Dict:
         """
@@ -280,33 +281,30 @@ class AutoRollbackManager:
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         try:
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT * FROM improvement_deployments
                 WHERE id = %s
-            """, (deployment_id,))
+            """,
+                (deployment_id,),
+            )
             deployment = cur.fetchone()
 
             cur.close()
             conn.close()
 
             if not deployment:
-                return {
-                    'can_rollback': False,
-                    'reason': 'Deployment not found'
-                }
+                return {"can_rollback": False, "reason": "Deployment not found"}
 
-            if deployment['status'] == 'rolled_back':
-                return {
-                    'can_rollback': False,
-                    'reason': 'Already rolled back'
-                }
+            if deployment["status"] == "rolled_back":
+                return {"can_rollback": False, "reason": "Already rolled back"}
 
-            backup_name = deployment.get('backup_name')
+            backup_name = deployment.get("backup_name")
             if not backup_name:
                 return {
-                    'can_rollback': False,
-                    'backup_available': False,
-                    'reason': 'No backup reference'
+                    "can_rollback": False,
+                    "backup_available": False,
+                    "reason": "No backup reference",
                 }
 
             backup_path = os.path.join(self.backup_dir, backup_name)
@@ -314,31 +312,24 @@ class AutoRollbackManager:
 
             if not backup_exists:
                 return {
-                    'can_rollback': False,
-                    'backup_available': False,
-                    'backup_name': backup_name,
-                    'reason': 'Backup not found on disk'
+                    "can_rollback": False,
+                    "backup_available": False,
+                    "backup_name": backup_name,
+                    "reason": "Backup not found on disk",
                 }
 
             return {
-                'can_rollback': True,
-                'backup_available': True,
-                'backup_name': backup_name,
-                'backup_path': backup_path,
-                'deployment_status': deployment['status']
+                "can_rollback": True,
+                "backup_available": True,
+                "backup_name": backup_name,
+                "backup_path": backup_path,
+                "deployment_status": deployment["status"],
             }
 
         except Exception as e:
-            return {
-                'can_rollback': False,
-                'reason': str(e)
-            }
+            return {"can_rollback": False, "reason": str(e)}
 
-    def get_rollback_history(
-        self,
-        proposal_id: int = None,
-        limit: int = 20
-    ) -> Dict:
+    def get_rollback_history(self, proposal_id: int = None, limit: int = 20) -> Dict:
         """
         Get history of rollbacks.
 
@@ -379,23 +370,21 @@ class AutoRollbackManager:
             conn.close()
 
             return {
-                'success': True,
-                'rollbacks': [dict(r) for r in rollbacks],
-                'total': len(rollbacks)
+                "success": True,
+                "rollbacks": [dict(r) for r in rollbacks],
+                "total": len(rollbacks),
             }
 
         except Exception as e:
             cur.close()
             conn.close()
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
 
 # ============================================================================
 # CONVENIENCE FUNCTIONS
 # ============================================================================
+
 
 def rollback_failed_deployment(deployment_id: int, reason: str = None) -> Dict:
     """Quick function to rollback deployment"""
@@ -413,7 +402,7 @@ def check_rollback_status(deployment_id: int) -> Dict:
 # TESTING
 # ============================================================================
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("Auto-Rollback Manager - Test Mode")
     print("=" * 60)
 

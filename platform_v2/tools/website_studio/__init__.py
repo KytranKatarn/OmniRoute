@@ -16,4 +16,4 @@ Date: 2026-01-12
 
 from .routes import website_studio_bp
 
-__all__ = ['website_studio_bp']
+__all__ = ["website_studio_bp"]

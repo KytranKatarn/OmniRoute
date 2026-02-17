@@ -13,6 +13,7 @@ Purpose:
 Author: A.R.C.H.I.E. Platform
 Date: 2026-01-07
 """
+
 import sys
 import os
 from typing import Dict, List, Optional, Any
@@ -20,11 +21,12 @@ import json
 import re
 
 # Add paths
-sys.path.insert(0, '/mnt/archie_brain')
-sys.path.insert(0, '/mnt/archie_brain/ai_bridge')
+sys.path.insert(0, "/mnt/archie_brain")
+sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
 
 try:
     from archie_bridge import archie_bridge
+
     AI_AVAILABLE = True
 except ImportError:
     AI_AVAILABLE = False
@@ -36,66 +38,113 @@ except ImportError:
 # ============================================================================
 
 TECH_STACKS = {
-    'python_web': {
-        'name': 'Python Web Stack',
-        'backend': 'Flask',
-        'frontend': 'React',
-        'database': 'PostgreSQL',
-        'description': 'Modern Python web application with React frontend',
-        'dependencies': {
-            'python': ['flask', 'flask-cors', 'flask-login', 'psycopg2-binary', 'python-dotenv', 'werkzeug'],
-            'javascript': ['react', 'react-dom', 'axios', 'react-router-dom']
+    "python_web": {
+        "name": "Python Web Stack",
+        "backend": "Flask",
+        "frontend": "React",
+        "database": "PostgreSQL",
+        "description": "Modern Python web application with React frontend",
+        "dependencies": {
+            "python": [
+                "flask",
+                "flask-cors",
+                "flask-login",
+                "psycopg2-binary",
+                "python-dotenv",
+                "werkzeug",
+            ],
+            "javascript": ["react", "react-dom", "axios", "react-router-dom"],
         },
-        'files': [
-            'app.py', 'config.py', 'models.py', 'routes.py', 'database.py',
-            'frontend/src/App.js', 'frontend/src/index.js', 'frontend/package.json',
-            'requirements.txt', '.env.example', 'README.md'
-        ]
+        "files": [
+            "app.py",
+            "config.py",
+            "models.py",
+            "routes.py",
+            "database.py",
+            "frontend/src/App.js",
+            "frontend/src/index.js",
+            "frontend/package.json",
+            "requirements.txt",
+            ".env.example",
+            "README.md",
+        ],
     },
-
-    'python_api': {
-        'name': 'Python API Stack',
-        'backend': 'FastAPI',
-        'database': 'PostgreSQL',
-        'description': 'High-performance REST API with FastAPI',
-        'dependencies': {
-            'python': ['fastapi', 'uvicorn', 'sqlalchemy', 'psycopg2-binary', 'pydantic', 'python-jose', 'passlib']
+    "python_api": {
+        "name": "Python API Stack",
+        "backend": "FastAPI",
+        "database": "PostgreSQL",
+        "description": "High-performance REST API with FastAPI",
+        "dependencies": {
+            "python": [
+                "fastapi",
+                "uvicorn",
+                "sqlalchemy",
+                "psycopg2-binary",
+                "pydantic",
+                "python-jose",
+                "passlib",
+            ]
         },
-        'files': [
-            'main.py', 'models.py', 'schemas.py', 'database.py', 'crud.py', 'auth.py',
-            'requirements.txt', '.env.example', 'README.md', 'Dockerfile'
-        ]
+        "files": [
+            "main.py",
+            "models.py",
+            "schemas.py",
+            "database.py",
+            "crud.py",
+            "auth.py",
+            "requirements.txt",
+            ".env.example",
+            "README.md",
+            "Dockerfile",
+        ],
     },
-
-    'node_web': {
-        'name': 'Node.js Web Stack',
-        'backend': 'Express.js',
-        'frontend': 'React',
-        'database': 'PostgreSQL',
-        'description': 'Full-stack JavaScript application',
-        'dependencies': {
-            'javascript': ['express', 'react', 'react-dom', 'pg', 'bcryptjs', 'jsonwebtoken', 'cors', 'dotenv']
+    "node_web": {
+        "name": "Node.js Web Stack",
+        "backend": "Express.js",
+        "frontend": "React",
+        "database": "PostgreSQL",
+        "description": "Full-stack JavaScript application",
+        "dependencies": {
+            "javascript": [
+                "express",
+                "react",
+                "react-dom",
+                "pg",
+                "bcryptjs",
+                "jsonwebtoken",
+                "cors",
+                "dotenv",
+            ]
         },
-        'files': [
-            'server/index.js', 'server/routes.js', 'server/models.js', 'server/auth.js',
-            'client/src/App.js', 'client/src/index.js', 'client/package.json',
-            'package.json', '.env.example', 'README.md'
-        ]
+        "files": [
+            "server/index.js",
+            "server/routes.js",
+            "server/models.js",
+            "server/auth.js",
+            "client/src/App.js",
+            "client/src/index.js",
+            "client/package.json",
+            "package.json",
+            ".env.example",
+            "README.md",
+        ],
     },
-
-    'python_cli': {
-        'name': 'Python CLI Stack',
-        'backend': 'Python',
-        'database': 'SQLite',
-        'description': 'Command-line tool with Python',
-        'dependencies': {
-            'python': ['click', 'rich', 'sqlalchemy', 'pydantic']
-        },
-        'files': [
-            'cli.py', 'commands.py', 'database.py', 'models.py',
-            'requirements.txt', 'README.md', 'setup.py'
-        ]
-    }
+    "python_cli": {
+        "name": "Python CLI Stack",
+        "backend": "Python",
+        "database": "SQLite",
+        "description": "Command-line tool with Python",
+        "dependencies": {"python": ["click", "rich", "sqlalchemy", "pydantic"]},
+        "files": [
+            "cli.py",
+            "commands.py",
+            "database.py",
+            "models.py",
+            "requirements.txt",
+            "README.md",
+            "setup.py",
+        ],
+    },
 }
 
 
@@ -103,28 +152,30 @@ TECH_STACKS = {
 # DATABASE SCHEMA TEMPLATES
 # ============================================================================
 
+
 def generate_users_table(has_auth: bool) -> Dict:
     """Generate users table schema if authentication needed"""
     if not has_auth:
         return None
 
     return {
-        'table_name': 'users',
-        'columns': [
-            {'name': 'id', 'type': 'SERIAL PRIMARY KEY'},
-            {'name': 'username', 'type': 'VARCHAR(100) UNIQUE NOT NULL'},
-            {'name': 'email', 'type': 'VARCHAR(255) UNIQUE NOT NULL'},
-            {'name': 'password_hash', 'type': 'VARCHAR(255) NOT NULL'},
-            {'name': 'created_at', 'type': 'TIMESTAMP DEFAULT NOW()'},
-            {'name': 'is_active', 'type': 'BOOLEAN DEFAULT TRUE'}
+        "table_name": "users",
+        "columns": [
+            {"name": "id", "type": "SERIAL PRIMARY KEY"},
+            {"name": "username", "type": "VARCHAR(100) UNIQUE NOT NULL"},
+            {"name": "email", "type": "VARCHAR(255) UNIQUE NOT NULL"},
+            {"name": "password_hash", "type": "VARCHAR(255) NOT NULL"},
+            {"name": "created_at", "type": "TIMESTAMP DEFAULT NOW()"},
+            {"name": "is_active", "type": "BOOLEAN DEFAULT TRUE"},
         ],
-        'indexes': ['username', 'email']
+        "indexes": ["username", "email"],
     }
 
 
 # ============================================================================
 # PLANNER AGENT
 # ============================================================================
+
 
 class PlannerAgent:
     """
@@ -163,9 +214,7 @@ class PlannerAgent:
         components = await self._identify_components(user_prompt, clarifications, tech_stack)
 
         # 6. Create implementation steps
-        implementation_steps = self._create_implementation_steps(
-            tech_stack, database_schema, api_endpoints, components
-        )
+        implementation_steps = self._create_implementation_steps(tech_stack, database_schema, api_endpoints, components)
 
         # 7. Estimate complexity
         complexity = self._estimate_complexity(database_schema, api_endpoints, components)
@@ -180,21 +229,21 @@ class PlannerAgent:
 
         # Compile full plan
         plan = {
-            'project_name': clarifications.get('app_type', 'Application'),
-            'description': user_prompt,
-            'tech_stack': tech_stack,
-            'database_schema': database_schema,
-            'api_endpoints': api_endpoints,
-            'file_structure': file_structure,
-            'components': components,
-            'implementation_steps': implementation_steps,
-            'complexity': complexity,
-            'estimated_files': len(file_structure['files']),
-            'estimated_lines': self._estimate_lines(complexity, len(file_structure['files'])),
-            'recommended_timeline': self._estimate_timeline(complexity),
-            'ai_recommendations': ai_enhancements.get('recommendations', []),
-            'security_considerations': self._generate_security_considerations(tech_stack, clarifications),
-            'deployment_strategy': self._plan_deployment(clarifications.get('deployment', 'Cloud'))
+            "project_name": clarifications.get("app_type", "Application"),
+            "description": user_prompt,
+            "tech_stack": tech_stack,
+            "database_schema": database_schema,
+            "api_endpoints": api_endpoints,
+            "file_structure": file_structure,
+            "components": components,
+            "implementation_steps": implementation_steps,
+            "complexity": complexity,
+            "estimated_files": len(file_structure["files"]),
+            "estimated_lines": self._estimate_lines(complexity, len(file_structure["files"])),
+            "recommended_timeline": self._estimate_timeline(complexity),
+            "ai_recommendations": ai_enhancements.get("recommendations", []),
+            "security_considerations": self._generate_security_considerations(tech_stack, clarifications),
+            "deployment_strategy": self._plan_deployment(clarifications.get("deployment", "Cloud")),
         }
 
         return plan
@@ -210,34 +259,34 @@ class PlannerAgent:
         Returns:
             Tech stack configuration
         """
-        app_type = clarifications.get('app_type', 'Web Application')
-        tech_prefs = clarifications.get('tech_preferences', [])
+        app_type = clarifications.get("app_type", "Web Application")
+        tech_prefs = clarifications.get("tech_preferences", [])
 
         # User has explicit preferences
-        if tech_prefs and tech_prefs != ['No preference (let A.R.C.H.I.E. decide)']:
+        if tech_prefs and tech_prefs != ["No preference (let A.R.C.H.I.E. decide)"]:
             # Parse preferences
-            has_python = any('Python' in pref for pref in tech_prefs)
-            has_node = any('Node' in pref or 'JavaScript' in pref for pref in tech_prefs)
-            has_react = any('React' in pref for pref in tech_prefs)
-            has_vue = any('Vue' in pref for pref in tech_prefs)
+            has_python = any("Python" in pref for pref in tech_prefs)
+            has_node = any("Node" in pref or "JavaScript" in pref for pref in tech_prefs)
+            has_react = any("React" in pref for pref in tech_prefs)
+            has_vue = any("Vue" in pref for pref in tech_prefs)
 
             if has_python:
-                stack = TECH_STACKS['python_web'].copy()
+                stack = TECH_STACKS["python_web"].copy()
                 if has_vue:
-                    stack['frontend'] = 'Vue.js'
+                    stack["frontend"] = "Vue.js"
             elif has_node:
-                stack = TECH_STACKS['node_web'].copy()
+                stack = TECH_STACKS["node_web"].copy()
             else:
-                stack = TECH_STACKS['python_web'].copy()
+                stack = TECH_STACKS["python_web"].copy()
         else:
             # Choose based on app type
-            if 'CLI' in app_type or 'command line' in app_type.lower():
-                stack = TECH_STACKS['python_cli'].copy()
-            elif 'API' in app_type or 'backend' in app_type.lower():
-                stack = TECH_STACKS['python_api'].copy()
+            if "CLI" in app_type or "command line" in app_type.lower():
+                stack = TECH_STACKS["python_cli"].copy()
+            elif "API" in app_type or "backend" in app_type.lower():
+                stack = TECH_STACKS["python_api"].copy()
             else:
                 # Default to Python web stack (most versatile)
-                stack = TECH_STACKS['python_web'].copy()
+                stack = TECH_STACKS["python_web"].copy()
 
         return stack
 
@@ -254,38 +303,40 @@ class PlannerAgent:
             Database schema definition
         """
         schema = {
-            'database_type': tech_stack.get('database', 'PostgreSQL'),
-            'tables': []
+            "database_type": tech_stack.get("database", "PostgreSQL"),
+            "tables": [],
         }
 
         # Add users table if authentication needed
-        has_auth = clarifications.get('authentication', 'No') != 'No'
+        has_auth = clarifications.get("authentication", "No") != "No"
         if has_auth:
             users_table = generate_users_table(has_auth)
             if users_table:
-                schema['tables'].append(users_table)
+                schema["tables"].append(users_table)
 
         # Parse database requirements from clarifications
-        database_info = clarifications.get('database', '')
+        database_info = clarifications.get("database", "")
 
         # Use AI to design schema from requirements
         if AI_AVAILABLE and database_info:
             ai_schema = await self._ai_design_schema(user_prompt, database_info, has_auth)
             if ai_schema:
-                schema['tables'].extend(ai_schema)
+                schema["tables"].extend(ai_schema)
 
         # If no tables designed yet, create basic table
-        if len(schema['tables']) == 0:
+        if len(schema["tables"]) == 0:
             # Default table based on app type
-            schema['tables'].append({
-                'table_name': 'items',
-                'columns': [
-                    {'name': 'id', 'type': 'SERIAL PRIMARY KEY'},
-                    {'name': 'name', 'type': 'VARCHAR(255) NOT NULL'},
-                    {'name': 'description', 'type': 'TEXT'},
-                    {'name': 'created_at', 'type': 'TIMESTAMP DEFAULT NOW()'}
-                ]
-            })
+            schema["tables"].append(
+                {
+                    "table_name": "items",
+                    "columns": [
+                        {"name": "id", "type": "SERIAL PRIMARY KEY"},
+                        {"name": "name", "type": "VARCHAR(255) NOT NULL"},
+                        {"name": "description", "type": "TEXT"},
+                        {"name": "created_at", "type": "TIMESTAMP DEFAULT NOW()"},
+                    ],
+                }
+            )
 
         return schema
 
@@ -319,16 +370,12 @@ Format as JSON array:
 
 Keep it simple and normalized. Include appropriate indexes and foreign keys."""
 
-            result = archie_bridge(
-                prompt=ai_prompt,
-                context={'task': 'database_design'},
-                user_id=1
-            )
+            result = archie_bridge(prompt=ai_prompt, context={"task": "database_design"}, user_id=1)
 
-            if result.get('success') and result.get('response'):
+            if result.get("success") and result.get("response"):
                 # Extract JSON from response
-                response = result['response']
-                json_match = re.search(r'\[.*\]', response, re.DOTALL)
+                response = result["response"]
+                json_match = re.search(r"\[.*\]", response, re.DOTALL)
                 if json_match:
                     tables = json.loads(json_match.group(0))
                     return tables
@@ -353,72 +400,86 @@ Keep it simple and normalized. Include appropriate indexes and foreign keys."""
         endpoints = []
 
         # Add auth endpoints if needed
-        has_auth = clarifications.get('authentication', 'No') != 'No'
+        has_auth = clarifications.get("authentication", "No") != "No"
         if has_auth:
-            endpoints.extend([
-                {
-                    'method': 'POST',
-                    'path': '/api/auth/signup',
-                    'description': 'User registration',
-                    'request_body': {'username': 'string', 'email': 'string', 'password': 'string'},
-                    'response': {'success': 'boolean', 'user_id': 'integer', 'token': 'string'}
-                },
-                {
-                    'method': 'POST',
-                    'path': '/api/auth/login',
-                    'description': 'User login',
-                    'request_body': {'username': 'string', 'password': 'string'},
-                    'response': {'success': 'boolean', 'token': 'string'}
-                },
-                {
-                    'method': 'POST',
-                    'path': '/api/auth/logout',
-                    'description': 'User logout',
-                    'requires_auth': True
-                }
-            ])
+            endpoints.extend(
+                [
+                    {
+                        "method": "POST",
+                        "path": "/api/auth/signup",
+                        "description": "User registration",
+                        "request_body": {
+                            "username": "string",
+                            "email": "string",
+                            "password": "string",
+                        },
+                        "response": {
+                            "success": "boolean",
+                            "user_id": "integer",
+                            "token": "string",
+                        },
+                    },
+                    {
+                        "method": "POST",
+                        "path": "/api/auth/login",
+                        "description": "User login",
+                        "request_body": {"username": "string", "password": "string"},
+                        "response": {"success": "boolean", "token": "string"},
+                    },
+                    {
+                        "method": "POST",
+                        "path": "/api/auth/logout",
+                        "description": "User logout",
+                        "requires_auth": True,
+                    },
+                ]
+            )
 
         # Generate CRUD endpoints for each table (except users)
-        for table in database_schema.get('tables', []):
-            if table['table_name'] != 'users':
-                table_name = table['table_name']
-                singular = table_name.rstrip('s')  # Simple pluralization
+        for table in database_schema.get("tables", []):
+            if table["table_name"] != "users":
+                table_name = table["table_name"]
+                singular = table_name.rstrip("s")  # Simple pluralization
 
-                endpoints.extend([
-                    {
-                        'method': 'GET',
-                        'path': f'/api/{table_name}',
-                        'description': f'List all {table_name}',
-                        'requires_auth': has_auth,
-                        'response': {'success': 'boolean', 'data': 'array'}
-                    },
-                    {
-                        'method': 'GET',
-                        'path': f'/api/{table_name}/{{id}}',
-                        'description': f'Get single {singular}',
-                        'requires_auth': has_auth,
-                        'response': {'success': 'boolean', 'data': 'object'}
-                    },
-                    {
-                        'method': 'POST',
-                        'path': f'/api/{table_name}',
-                        'description': f'Create new {singular}',
-                        'requires_auth': has_auth,
-                        'request_body': {col['name']: col['type'] for col in table['columns'] if col['name'] != 'id'}
-                    },
-                    {
-                        'method': 'PUT',
-                        'path': f'/api/{table_name}/{{id}}',
-                        'description': f'Update {singular}',
-                        'requires_auth': has_auth
-                    },
-                    {
-                        'method': 'DELETE',
-                        'path': f'/api/{table_name}/{{id}}',
-                        'description': f'Delete {singular}',
-                        'requires_auth': has_auth
-                    }
-                ])
+                endpoints.extend(
+                    [
+                        {
+                            "method": "GET",
+                            "path": f"/api/{table_name}",
+                            "description": f"List all {table_name}",
+                            "requires_auth": has_auth,
+                            "response": {"success": "boolean", "data": "array"},
+                        },
+                        {
+                            "method": "GET",
+                            "path": f"/api/{table_name}/{{id}}",
+                            "description": f"Get single {singular}",
+                            "requires_auth": has_auth,
+                            "response": {"success": "boolean", "data": "object"},
+                        },
+                        {
+                            "method": "POST",
+                            "path": f"/api/{table_name}",
+                            "description": f"Create new {singular}",
+                            "requires_auth": has_auth,
+                            "request_body": {
+                                col["name"]: col["type"] for col in table["columns"] if col["name"] != "id"
+                            },
+                        },
+                        {
+                            "method": "PUT",
+                            "path": f"/api/{table_name}/{{id}}",
+                            "description": f"Update {singular}",
+                            "requires_auth": has_auth,
+                        },
+                        {
+                            "method": "DELETE",
+                            "path": f"/api/{table_name}/{{id}}",
+                            "description": f"Delete {singular}",
+                            "requires_auth": has_auth,
+                        },
+                    ]
+                )
 
         return endpoints
 
@@ -434,45 +495,49 @@ Keep it simple and normalized. Include appropriate indexes and foreign keys."""
         Returns:
             File structure definition
         """
-        base_files = tech_stack.get('files', [])
+        base_files = tech_stack.get("files", [])
 
-        structure = {
-            'root': '/',
-            'files': base_files,
-            'directories': []
-        }
+        structure = {"root": "/", "files": base_files, "directories": []}
 
         # Add directories based on backend framework
-        backend = tech_stack.get('backend', 'Flask')
+        backend = tech_stack.get("backend", "Flask")
 
-        if backend == 'Flask':
-            structure['directories'] = [
-                'static', 'templates', 'models', 'routes', 'utils'
+        if backend == "Flask":
+            structure["directories"] = [
+                "static",
+                "templates",
+                "models",
+                "routes",
+                "utils",
             ]
-        elif backend == 'FastAPI':
-            structure['directories'] = [
-                'api', 'models', 'schemas', 'services', 'utils'
-            ]
-        elif backend == 'Express.js':
-            structure['directories'] = [
-                'server', 'client', 'server/routes', 'server/models', 'server/middleware'
+        elif backend == "FastAPI":
+            structure["directories"] = ["api", "models", "schemas", "services", "utils"]
+        elif backend == "Express.js":
+            structure["directories"] = [
+                "server",
+                "client",
+                "server/routes",
+                "server/models",
+                "server/middleware",
             ]
 
         # Add frontend directories if applicable
-        if tech_stack.get('frontend'):
-            structure['directories'].extend([
-                'frontend', 'frontend/src', 'frontend/src/components', 'frontend/src/pages', 'frontend/src/utils'
-            ])
+        if tech_stack.get("frontend"):
+            structure["directories"].extend(
+                [
+                    "frontend",
+                    "frontend/src",
+                    "frontend/src/components",
+                    "frontend/src/pages",
+                    "frontend/src/utils",
+                ]
+            )
 
         # Add test directory
-        structure['directories'].append('tests')
+        structure["directories"].append("tests")
 
         # Add config files
-        structure['files'].extend([
-            '.gitignore',
-            'docker-compose.yml',
-            'Dockerfile'
-        ])
+        structure["files"].extend([".gitignore", "docker-compose.yml", "Dockerfile"])
 
         return structure
 
@@ -491,37 +556,93 @@ Keep it simple and normalized. Include appropriate indexes and foreign keys."""
         components = []
 
         # Backend components (always needed)
-        components.extend([
-            {'name': 'App', 'type': 'backend', 'file': 'app.py', 'description': 'Main application'},
-            {'name': 'Database', 'type': 'backend', 'file': 'database.py', 'description': 'Database connection'},
-            {'name': 'Models', 'type': 'backend', 'file': 'models.py', 'description': 'Data models'},
-            {'name': 'Routes', 'type': 'backend', 'file': 'routes.py', 'description': 'API routes'}
-        ])
+        components.extend(
+            [
+                {
+                    "name": "App",
+                    "type": "backend",
+                    "file": "app.py",
+                    "description": "Main application",
+                },
+                {
+                    "name": "Database",
+                    "type": "backend",
+                    "file": "database.py",
+                    "description": "Database connection",
+                },
+                {
+                    "name": "Models",
+                    "type": "backend",
+                    "file": "models.py",
+                    "description": "Data models",
+                },
+                {
+                    "name": "Routes",
+                    "type": "backend",
+                    "file": "routes.py",
+                    "description": "API routes",
+                },
+            ]
+        )
 
         # Auth components if needed
-        has_auth = clarifications.get('authentication', 'No') != 'No'
+        has_auth = clarifications.get("authentication", "No") != "No"
         if has_auth:
-            components.append({
-                'name': 'Auth', 'type': 'backend', 'file': 'auth.py', 'description': 'Authentication logic'
-            })
+            components.append(
+                {
+                    "name": "Auth",
+                    "type": "backend",
+                    "file": "auth.py",
+                    "description": "Authentication logic",
+                }
+            )
 
         # Frontend components if applicable
-        if tech_stack.get('frontend'):
-            components.extend([
-                {'name': 'App', 'type': 'frontend', 'file': 'App.js', 'description': 'Root component'},
-                {'name': 'Home', 'type': 'frontend', 'file': 'pages/Home.js', 'description': 'Home page'},
-            ])
+        if tech_stack.get("frontend"):
+            components.extend(
+                [
+                    {
+                        "name": "App",
+                        "type": "frontend",
+                        "file": "App.js",
+                        "description": "Root component",
+                    },
+                    {
+                        "name": "Home",
+                        "type": "frontend",
+                        "file": "pages/Home.js",
+                        "description": "Home page",
+                    },
+                ]
+            )
 
             if has_auth:
-                components.extend([
-                    {'name': 'Login', 'type': 'frontend', 'file': 'pages/Login.js', 'description': 'Login page'},
-                    {'name': 'Signup', 'type': 'frontend', 'file': 'pages/Signup.js', 'description': 'Signup page'}
-                ])
+                components.extend(
+                    [
+                        {
+                            "name": "Login",
+                            "type": "frontend",
+                            "file": "pages/Login.js",
+                            "description": "Login page",
+                        },
+                        {
+                            "name": "Signup",
+                            "type": "frontend",
+                            "file": "pages/Signup.js",
+                            "description": "Signup page",
+                        },
+                    ]
+                )
 
         return components
 
-    def _create_implementation_steps(self, tech_stack: Dict, database_schema: Dict,
-                                    api_endpoints: List[Dict], components: List[Dict]) -> List[Dict]:
+    def _create_implementation_steps(
+        self,
+        tech_stack: Dict,
+        database_schema: Dict,
+        api_endpoints: List[Dict],
+        components: List[Dict],
+    ) -> List[Dict]:
         """
         Create ordered implementation steps
 
@@ -536,77 +657,77 @@ Keep it simple and normalized. Include appropriate indexes and foreign keys."""
         """
         steps = [
             {
-                'step': 1,
-                'name': 'Initialize Project',
-                'description': 'Set up project structure and install dependencies',
-                'tasks': [
-                    'Create directory structure',
-                    'Initialize Git repository',
-                    'Create requirements.txt / package.json',
-                    'Set up virtual environment',
-                    'Create configuration files'
-                ]
+                "step": 1,
+                "name": "Initialize Project",
+                "description": "Set up project structure and install dependencies",
+                "tasks": [
+                    "Create directory structure",
+                    "Initialize Git repository",
+                    "Create requirements.txt / package.json",
+                    "Set up virtual environment",
+                    "Create configuration files",
+                ],
             },
             {
-                'step': 2,
-                'name': 'Database Setup',
-                'description': 'Create database schema and models',
-                'tasks': [
-                    'Design database schema',
-                    'Create migration files',
-                    'Implement data models',
-                    'Set up database connection',
-                    'Create seed data (optional)'
-                ]
+                "step": 2,
+                "name": "Database Setup",
+                "description": "Create database schema and models",
+                "tasks": [
+                    "Design database schema",
+                    "Create migration files",
+                    "Implement data models",
+                    "Set up database connection",
+                    "Create seed data (optional)",
+                ],
             },
             {
-                'step': 3,
-                'name': 'Backend Implementation',
-                'description': 'Build backend API and business logic',
-                'tasks': [
-                    'Create Flask/FastAPI app',
-                    'Implement API routes',
-                    'Add authentication middleware',
-                    'Implement CRUD operations',
-                    'Add error handling'
-                ]
+                "step": 3,
+                "name": "Backend Implementation",
+                "description": "Build backend API and business logic",
+                "tasks": [
+                    "Create Flask/FastAPI app",
+                    "Implement API routes",
+                    "Add authentication middleware",
+                    "Implement CRUD operations",
+                    "Add error handling",
+                ],
             },
             {
-                'step': 4,
-                'name': 'Frontend Implementation',
-                'description': 'Build user interface',
-                'tasks': [
-                    'Set up React/Vue project',
-                    'Create component structure',
-                    'Implement pages',
-                    'Connect to backend API',
-                    'Add styling'
-                ]
+                "step": 4,
+                "name": "Frontend Implementation",
+                "description": "Build user interface",
+                "tasks": [
+                    "Set up React/Vue project",
+                    "Create component structure",
+                    "Implement pages",
+                    "Connect to backend API",
+                    "Add styling",
+                ],
             },
             {
-                'step': 5,
-                'name': 'Testing',
-                'description': 'Write and run tests',
-                'tasks': [
-                    'Write unit tests',
-                    'Write integration tests',
-                    'Test API endpoints',
-                    'Test frontend components',
-                    'Fix bugs'
-                ]
+                "step": 5,
+                "name": "Testing",
+                "description": "Write and run tests",
+                "tasks": [
+                    "Write unit tests",
+                    "Write integration tests",
+                    "Test API endpoints",
+                    "Test frontend components",
+                    "Fix bugs",
+                ],
             },
             {
-                'step': 6,
-                'name': 'Deployment',
-                'description': 'Deploy application',
-                'tasks': [
-                    'Create Docker containers',
-                    'Set up environment variables',
-                    'Configure production database',
-                    'Deploy to cloud platform',
-                    'Set up monitoring'
-                ]
-            }
+                "step": 6,
+                "name": "Deployment",
+                "description": "Deploy application",
+                "tasks": [
+                    "Create Docker containers",
+                    "Set up environment variables",
+                    "Configure production database",
+                    "Deploy to cloud platform",
+                    "Set up monitoring",
+                ],
+            },
         ]
 
         return steps
@@ -618,7 +739,7 @@ Keep it simple and normalized. Include appropriate indexes and foreign keys."""
         Returns:
             Complexity metrics
         """
-        table_count = len(database_schema.get('tables', []))
+        table_count = len(database_schema.get("tables", []))
         endpoint_count = len(api_endpoints)
         component_count = len(components)
 
@@ -629,122 +750,129 @@ Keep it simple and normalized. Include appropriate indexes and foreign keys."""
         score += component_count * 8
 
         if score < 100:
-            level = 'low'
-            description = 'Simple application with basic features'
+            level = "low"
+            description = "Simple application with basic features"
         elif score < 300:
-            level = 'medium'
-            description = 'Moderate complexity with multiple features'
+            level = "medium"
+            description = "Moderate complexity with multiple features"
         else:
-            level = 'high'
-            description = 'Complex application with many features'
+            level = "high"
+            description = "Complex application with many features"
 
         return {
-            'level': level,
-            'score': score,
-            'description': description,
-            'metrics': {
-                'tables': table_count,
-                'endpoints': endpoint_count,
-                'components': component_count
-            }
+            "level": level,
+            "score": score,
+            "description": description,
+            "metrics": {
+                "tables": table_count,
+                "endpoints": endpoint_count,
+                "components": component_count,
+            },
         }
 
     def _estimate_lines(self, complexity: Dict, file_count: int) -> int:
         """Estimate total lines of code"""
         base_lines = file_count * 50  # Average 50 lines per file
 
-        if complexity['level'] == 'low':
+        if complexity["level"] == "low":
             return base_lines * 2
-        elif complexity['level'] == 'medium':
+        elif complexity["level"] == "medium":
             return base_lines * 4
         else:
             return base_lines * 6
 
     def _estimate_timeline(self, complexity: Dict) -> Dict:
         """Estimate development timeline"""
-        level = complexity['level']
+        level = complexity["level"]
 
-        if level == 'low':
+        if level == "low":
             return {
-                'generation_time': '5-10 minutes',
-                'testing_time': '2-5 minutes',
-                'total_time': '7-15 minutes',
-                'human_equivalent': '2-4 hours'
+                "generation_time": "5-10 minutes",
+                "testing_time": "2-5 minutes",
+                "total_time": "7-15 minutes",
+                "human_equivalent": "2-4 hours",
             }
-        elif level == 'medium':
+        elif level == "medium":
             return {
-                'generation_time': '10-20 minutes',
-                'testing_time': '5-10 minutes',
-                'total_time': '15-30 minutes',
-                'human_equivalent': '8-16 hours'
+                "generation_time": "10-20 minutes",
+                "testing_time": "5-10 minutes",
+                "total_time": "15-30 minutes",
+                "human_equivalent": "8-16 hours",
             }
         else:
             return {
-                'generation_time': '20-40 minutes',
-                'testing_time': '10-20 minutes',
-                'total_time': '30-60 minutes',
-                'human_equivalent': '24-48 hours'
+                "generation_time": "20-40 minutes",
+                "testing_time": "10-20 minutes",
+                "total_time": "30-60 minutes",
+                "human_equivalent": "24-48 hours",
             }
 
     def _generate_security_considerations(self, tech_stack: Dict, clarifications: Dict) -> List[str]:
         """Generate security recommendations"""
         considerations = [
-            'Use environment variables for sensitive configuration',
-            'Implement HTTPS/TLS in production',
-            'Validate and sanitize all user input',
-            'Use parameterized queries to prevent SQL injection'
+            "Use environment variables for sensitive configuration",
+            "Implement HTTPS/TLS in production",
+            "Validate and sanitize all user input",
+            "Use parameterized queries to prevent SQL injection",
         ]
 
-        has_auth = clarifications.get('authentication', 'No') != 'No'
+        has_auth = clarifications.get("authentication", "No") != "No"
         if has_auth:
-            considerations.extend([
-                'Hash passwords with bcrypt or similar',
-                'Implement JWT tokens with expiration',
-                'Add rate limiting to prevent brute force attacks',
-                'Implement CORS properly for API security'
-            ])
+            considerations.extend(
+                [
+                    "Hash passwords with bcrypt or similar",
+                    "Implement JWT tokens with expiration",
+                    "Add rate limiting to prevent brute force attacks",
+                    "Implement CORS properly for API security",
+                ]
+            )
 
         return considerations
 
     def _plan_deployment(self, deployment_preference: str) -> Dict:
         """Plan deployment strategy"""
-        if 'Cloud' in deployment_preference or 'Vercel' in deployment_preference:
+        if "Cloud" in deployment_preference or "Vercel" in deployment_preference:
             return {
-                'platform': 'Vercel/Railway',
-                'method': 'Git-based deployment',
-                'steps': [
-                    'Connect GitHub repository',
-                    'Configure environment variables',
-                    'Deploy with automatic builds',
-                    'Set up custom domain (optional)'
-                ]
+                "platform": "Vercel/Railway",
+                "method": "Git-based deployment",
+                "steps": [
+                    "Connect GitHub repository",
+                    "Configure environment variables",
+                    "Deploy with automatic builds",
+                    "Set up custom domain (optional)",
+                ],
             }
-        elif 'Docker' in deployment_preference:
+        elif "Docker" in deployment_preference:
             return {
-                'platform': 'Docker',
-                'method': 'Container deployment',
-                'steps': [
-                    'Build Docker image',
-                    'Push to container registry',
-                    'Deploy to Docker host',
-                    'Set up reverse proxy'
-                ]
+                "platform": "Docker",
+                "method": "Container deployment",
+                "steps": [
+                    "Build Docker image",
+                    "Push to container registry",
+                    "Deploy to Docker host",
+                    "Set up reverse proxy",
+                ],
             }
         else:
             return {
-                'platform': 'Cloud (Recommended)',
-                'method': 'Automatic deployment',
-                'steps': [
-                    'Choose cloud platform',
-                    'Connect repository',
-                    'Configure settings',
-                    'Deploy'
-                ]
+                "platform": "Cloud (Recommended)",
+                "method": "Automatic deployment",
+                "steps": [
+                    "Choose cloud platform",
+                    "Connect repository",
+                    "Configure settings",
+                    "Deploy",
+                ],
             }
 
-    async def _enhance_plan_with_ai(self, user_prompt: str, clarifications: Dict,
-                                   tech_stack: Dict, database_schema: Dict,
-                                   api_endpoints: List[Dict]) -> Dict:
+    async def _enhance_plan_with_ai(
+        self,
+        user_prompt: str,
+        clarifications: Dict,
+        tech_stack: Dict,
+        database_schema: Dict,
+        api_endpoints: List[Dict],
+    ) -> Dict:
         """Use AI to enhance and validate the plan"""
         try:
             ai_prompt = f"""Review and enhance this application plan:
@@ -771,35 +899,29 @@ Format as JSON:
     "best_practices": ["practice 1", "practice 2", ...]
 }}"""
 
-            result = archie_bridge(
-                prompt=ai_prompt,
-                context={'task': 'plan_enhancement'},
-                user_id=1
-            )
+            result = archie_bridge(prompt=ai_prompt, context={"task": "plan_enhancement"}, user_id=1)
 
-            if result.get('success') and result.get('response'):
-                response = result['response']
-                json_match = re.search(r'\{.*\}', response, re.DOTALL)
+            if result.get("success") and result.get("response"):
+                response = result["response"]
+                json_match = re.search(r"\{.*\}", response, re.DOTALL)
                 if json_match:
                     return json.loads(json_match.group(0))
 
         except Exception as e:
             print(f"[PlannerAgent] AI enhancement failed: {e}")
 
-        return {
-            'recommendations': [],
-            'challenges': [],
-            'best_practices': []
-        }
+        return {"recommendations": [], "challenges": [], "best_practices": []}
 
     async def save_to_database(self, plan: Dict):
         """Save generated plan to database"""
         try:
             from app import get_db
+
             conn = get_db()
             cur = conn.cursor()
 
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE app_builder_projects
                 SET project_plan = %s,
                     tech_stack = %s,
@@ -807,28 +929,33 @@ Format as JSON:
                     status = 'plan_approval',
                     updated_at = NOW()
                 WHERE id = %s
-            """, (
-                json.dumps(plan),
-                json.dumps(plan['tech_stack']),
-                json.dumps(plan['tech_stack'].get('dependencies', {})),
-                self.project_id
-            ))
+            """,
+                (
+                    json.dumps(plan),
+                    json.dumps(plan["tech_stack"]),
+                    json.dumps(plan["tech_stack"].get("dependencies", {})),
+                    self.project_id,
+                ),
+            )
 
             # Add to chat history
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO app_builder_chat_history
                 (project_id, user_id, role, message, message_type, step, agent, metadata)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            """, (
-                self.project_id,
-                1,  # System user
-                'assistant',
-                f"Generated technical plan with {plan['estimated_files']} files and {len(plan['implementation_steps'])} implementation steps.",
-                'plan',
-                'planning',
-                'planner_agent',
-                json.dumps({'complexity': plan['complexity']['level']})
-            ))
+            """,
+                (
+                    self.project_id,
+                    1,  # System user
+                    "assistant",
+                    f"Generated technical plan with {plan['estimated_files']} files and {len(plan['implementation_steps'])} implementation steps.",
+                    "plan",
+                    "planning",
+                    "planner_agent",
+                    json.dumps({"complexity": plan["complexity"]["level"]}),
+                ),
+            )
 
             conn.commit()
             cur.close()
@@ -841,20 +968,20 @@ Format as JSON:
 # TESTING
 # ============================================================================
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("=" * 80)
     print("PLANNER AGENT TEST")
     print("=" * 80)
 
     # Test plan generation
     clarifications = {
-        'app_type': 'Web Application',
-        'core_features': 'User authentication, task management, due dates',
-        'target_users': 'General public',
-        'authentication': 'Yes, with login/signup',
-        'database': 'User accounts, tasks with title, description, due date, priority',
-        'tech_preferences': ['No preference (let A.R.C.H.I.E. decide)'],
-        'deployment': 'Cloud (Vercel, Railway, etc.) - Recommended'
+        "app_type": "Web Application",
+        "core_features": "User authentication, task management, due dates",
+        "target_users": "General public",
+        "authentication": "Yes, with login/signup",
+        "database": "User accounts, tasks with title, description, due date, priority",
+        "tech_preferences": ["No preference (let A.R.C.H.I.E. decide)"],
+        "deployment": "Cloud (Vercel, Railway, etc.) - Recommended",
     }
 
     agent = PlannerAgent(project_id=1, clarifications=clarifications)
@@ -867,9 +994,9 @@ if __name__ == '__main__':
     print(f"   Database: {tech_stack['database']}")
 
     # Test complexity estimation
-    mock_schema = {'tables': [{'table_name': 'users'}, {'table_name': 'tasks'}]}
-    mock_endpoints = [{'path': '/api/auth/login'}, {'path': '/api/tasks'}]
-    mock_components = [{'name': 'App'}, {'name': 'Login'}]
+    mock_schema = {"tables": [{"table_name": "users"}, {"table_name": "tasks"}]}
+    mock_endpoints = [{"path": "/api/auth/login"}, {"path": "/api/tasks"}]
+    mock_components = [{"name": "App"}, {"name": "Login"}]
 
     complexity = agent._estimate_complexity(mock_schema, mock_endpoints, mock_components)
     print(f"\n✅ Complexity: {complexity['level']} (score: {complexity['score']})")

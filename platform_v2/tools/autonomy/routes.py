@@ -133,7 +133,10 @@ def toggle_loop():
     try:
         agent_loop = current_app.config.get("AGENT_LOOP")
         if not agent_loop:
-            return jsonify({"success": False, "error": "Agent loop not initialized"}), 500
+            return (
+                jsonify({"success": False, "error": "Agent loop not initialized"}),
+                500,
+            )
 
         action = request.json.get("action", "toggle")
 
@@ -235,7 +238,10 @@ def approve_action(approval_id):
         conn.close()
 
         if not result:
-            return jsonify({"success": False, "error": "Item not found or not pending"}), 404
+            return (
+                jsonify({"success": False, "error": "Item not found or not pending"}),
+                404,
+            )
 
         return jsonify({"success": True, "message": f"Approved: {result['action_type']}"})
     except Exception as e:
@@ -268,7 +274,10 @@ def reject_action(approval_id):
         conn.close()
 
         if not result:
-            return jsonify({"success": False, "error": "Item not found or not pending"}), 404
+            return (
+                jsonify({"success": False, "error": "Item not found or not pending"}),
+                404,
+            )
 
         return jsonify({"success": True, "message": f"Rejected: {result['action_type']}"})
     except Exception as e:

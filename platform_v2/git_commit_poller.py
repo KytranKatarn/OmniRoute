@@ -11,6 +11,7 @@ Purpose:
 Author: A.R.C.H.I.E. Platform
 Date: 2026-01-06
 """
+
 import os
 import time
 import subprocess
@@ -24,9 +25,9 @@ class GitCommitPoller:
 
     def __init__(
         self,
-        repo_path: str = '/mnt/archie_brain/platform_v2',
+        repo_path: str = "/mnt/archie_brain/platform_v2",
         poll_interval: int = 30,
-        enabled: bool = True
+        enabled: bool = True,
     ):
         self.repo_path = repo_path
         self.poll_interval = poll_interval
@@ -95,11 +96,11 @@ class GitCommitPoller:
         """Get list of all sandbox branches"""
         try:
             result = subprocess.run(
-                ['git', 'branch', '--list', 'sandbox-proposal-*'],
+                ["git", "branch", "--list", "sandbox-proposal-*"],
                 cwd=self.repo_path,
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5,
             )
 
             if result.returncode != 0:
@@ -107,12 +108,12 @@ class GitCommitPoller:
 
             # Parse branch names (remove leading spaces and asterisk)
             branches = []
-            for line in result.stdout.split('\n'):
+            for line in result.stdout.split("\n"):
                 line = line.strip()
                 if line:
                     # Remove asterisk if current branch
-                    branch = line.lstrip('* ')
-                    if branch.startswith('sandbox-proposal-'):
+                    branch = line.lstrip("* ")
+                    if branch.startswith("sandbox-proposal-"):
                         branches.append(branch)
 
             return branches
@@ -139,7 +140,7 @@ class GitCommitPoller:
             processed_commits = self._get_processed_commits(proposal_id)
 
             # Find new commits
-            new_commits = [c for c in commits if c['hash'] not in processed_commits]
+            new_commits = [c for c in commits if c["hash"] not in processed_commits]
 
             if not new_commits:
                 return
@@ -157,10 +158,10 @@ class GitCommitPoller:
         """Extract proposal ID from branch name"""
         try:
             # Format: sandbox-proposal-123
-            if not branch_name.startswith('sandbox-proposal-'):
+            if not branch_name.startswith("sandbox-proposal-"):
                 return None
 
-            proposal_id_str = branch_name.replace('sandbox-proposal-', '')
+            proposal_id_str = branch_name.replace("sandbox-proposal-", "")
             return int(proposal_id_str)
 
         except ValueError:
@@ -172,34 +173,37 @@ class GitCommitPoller:
             # Get commits: main..branch
             result = subprocess.run(
                 [
-                    'git', 'log',
-                    f'main..{branch_name}',
-                    '--pretty=format:%H|%an|%ae|%at|%s',
-                    '-10'  # Limit to last 10 commits
+                    "git",
+                    "log",
+                    f"main..{branch_name}",
+                    "--pretty=format:%H|%an|%ae|%at|%s",
+                    "-10",  # Limit to last 10 commits
                 ],
                 cwd=self.repo_path,
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=10,
             )
 
             if result.returncode != 0:
                 return []
 
             commits = []
-            for line in result.stdout.split('\n'):
+            for line in result.stdout.split("\n"):
                 if not line.strip():
                     continue
 
-                parts = line.split('|')
+                parts = line.split("|")
                 if len(parts) >= 5:
-                    commits.append({
-                        'hash': parts[0],
-                        'author_name': parts[1],
-                        'author_email': parts[2],
-                        'timestamp': int(parts[3]),
-                        'message': parts[4]
-                    })
+                    commits.append(
+                        {
+                            "hash": parts[0],
+                            "author_name": parts[1],
+                            "author_email": parts[2],
+                            "timestamp": int(parts[3]),
+                            "message": parts[4],
+                        }
+                    )
 
             return commits
 
@@ -220,10 +224,7 @@ class GitCommitPoller:
             """
 
             with db.engine.connect() as conn:
-                result = conn.execute(
-                    sqlalchemy.text(query),
-                    (proposal_id,)
-                )
+                result = conn.execute(sqlalchemy.text(query), (proposal_id,))
 
                 return [row[0] for row in result]
 
@@ -236,30 +237,25 @@ class GitCommitPoller:
         try:
             import requests
 
-            webhook_url = 'http://localhost:3000/api/cursor/commit-webhook'
+            webhook_url = "http://localhost:3000/api/cursor/commit-webhook"
 
             payload = {
-                'proposal_id': proposal_id,
-                'commit_hash': commit['hash'],
-                'commit_message': commit['message'],
-                'author_name': commit['author_name'],
-                'author_email': commit['author_email'],
-                'branch': branch_name,
-                'timestamp': commit['timestamp']
+                "proposal_id": proposal_id,
+                "commit_hash": commit["hash"],
+                "commit_message": commit["message"],
+                "author_name": commit["author_name"],
+                "author_email": commit["author_email"],
+                "branch": branch_name,
+                "timestamp": commit["timestamp"],
             }
 
             headers = {
-                'Content-Type': 'application/json',
-                'X-Git-Hook': 'true',
-                'X-Git-Poller': 'true'  # Indicate this came from poller
+                "Content-Type": "application/json",
+                "X-Git-Hook": "true",
+                "X-Git-Poller": "true",  # Indicate this came from poller
             }
 
-            response = requests.post(
-                webhook_url,
-                json=payload,
-                headers=headers,
-                timeout=10
-            )
+            response = requests.post(webhook_url, json=payload, headers=headers, timeout=10)
 
             if response.status_code == 200:
                 self.commits_detected += 1
@@ -274,13 +270,13 @@ class GitCommitPoller:
     def get_status(self) -> Dict:
         """Get current status of the poller"""
         return {
-            'running': self.running,
-            'enabled': self.enabled,
-            'poll_interval': self.poll_interval,
-            'last_poll_time': self.last_poll_time.isoformat() if self.last_poll_time else None,
-            'commits_detected': self.commits_detected,
-            'webhooks_triggered': self.webhooks_triggered,
-            'thread_alive': self.thread.is_alive() if self.thread else False
+            "running": self.running,
+            "enabled": self.enabled,
+            "poll_interval": self.poll_interval,
+            "last_poll_time": (self.last_poll_time.isoformat() if self.last_poll_time else None),
+            "commits_detected": self.commits_detected,
+            "webhooks_triggered": self.webhooks_triggered,
+            "thread_alive": self.thread.is_alive() if self.thread else False,
         }
 
 

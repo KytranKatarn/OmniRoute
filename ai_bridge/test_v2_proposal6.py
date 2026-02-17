@@ -3,7 +3,9 @@
 Test V2 Code Generation Engine on Proposal #6 (Bare Except Fix)
 This proposal previously FAILED with IndentationError
 """
+
 import sys
+
 sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
 sys.path.insert(0, "/mnt/archie_brain/platform_v2")
 
@@ -21,7 +23,7 @@ print(f"Engine ready. Validator: {engine.validator is not None}")
 print("\nValidating target file...")
 validation = engine._validate_target_files(["platform_v2/tools/coderabbit/routes.py"])
 print(f"  Valid files: {len(validation['valid_files'])}")
-if validation['valid_files']:
+if validation["valid_files"]:
     print(f"  Full path: {validation['valid_files'][0]['full_path']}")
 
 # Get context around line 43 (where bare except is)
@@ -48,7 +50,7 @@ The bare except at line 43 should be changed to catch a specific exception type.
     category="code_quality",
     target_files=["platform_v2/tools/coderabbit/routes.py"],
     line_number=43,
-    prefer_contractor=False
+    prefer_contractor=False,
 )
 
 print("\n" + "=" * 60)
@@ -75,12 +77,12 @@ if result.get("changes"):
         print(f"Action: {change.get('action')}")
         print(f"Description: {change.get('description', 'N/A')}")
         print(f"\nOld content:")
-        if change.get('old_content'):
-            for line in change['old_content'].split('\n'):
+        if change.get("old_content"):
+            for line in change["old_content"].split("\n"):
                 print(f"  |{line}|")
         print(f"\nNew content:")
-        if change.get('new_content'):
-            for line in change['new_content'].split('\n'):
+        if change.get("new_content"):
+            for line in change["new_content"].split("\n"):
                 print(f"  |{line}|")
 
 if result.get("error"):

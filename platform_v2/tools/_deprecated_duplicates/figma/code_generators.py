@@ -164,7 +164,11 @@ def generate_tailwind_classes(styles):
         if styles.get("flexDirection") == "column":
             classes.append("flex-col")
         if styles.get("alignItems"):
-            align_map = {"center": "items-center", "flex-start": "items-start", "flex-end": "items-end"}
+            align_map = {
+                "center": "items-center",
+                "flex-start": "items-start",
+                "flex-end": "items-end",
+            }
             classes.append(align_map.get(styles["alignItems"], ""))
         if styles.get("justifyContent"):
             justify_map = {
@@ -270,7 +274,13 @@ def generate_react_code(parse_id, styling="tailwind", components=None, options=N
             comp_content = generate_react_css_component(comp_name, comp_type, styles, props)
             css_styles.append(generate_css_styles(styles, comp_name.lower()))
 
-        files.append({"path": f"components/{comp_name}.jsx", "language": "jsx", "content": comp_content})
+        files.append(
+            {
+                "path": f"components/{comp_name}.jsx",
+                "language": "jsx",
+                "content": comp_content,
+            }
+        )
 
         app_imports.append(f"import {comp_name} from './components/{comp_name}';")
         app_components.append(f"      <{comp_name} />")
@@ -473,7 +483,13 @@ def generate_vue_code(parse_id, styling="tailwind", components=None, options=Non
         else:
             vue_content = generate_vue_scoped_component(comp_name, comp_type, styles, props)
 
-        files.append({"path": f"components/{comp_name}.vue", "language": "vue", "content": vue_content})
+        files.append(
+            {
+                "path": f"components/{comp_name}.vue",
+                "language": "vue",
+                "content": vue_content,
+            }
+        )
 
     # Generate App.vue
     imports = "\n".join([f"import {name} from './components/{name}.vue';" for name in component_names])

@@ -14,6 +14,7 @@ Purpose:
 Author: A.R.C.H.I.E. Platform
 Date: 2026-01-07
 """
+
 import json
 import re
 from typing import Dict, List, Optional, Any
@@ -23,8 +24,10 @@ from datetime import datetime
 DB_AVAILABLE = False
 try:
     import sys
-    sys.path.append('/mnt/archie_brain/platform_v2')
+
+    sys.path.append("/mnt/archie_brain/platform_v2")
     from tools.database import db
+
     DB_AVAILABLE = True
 except ImportError:
     DB_AVAILABLE = False
@@ -70,13 +73,13 @@ class BackendGenerator:
         """
         print(f"\n[Backend Generator] Generating backend for project {self.project_id}...")
 
-        tech_stack = self.plan.get('tech_stack', {})
-        backend_framework = tech_stack.get('backend', 'Flask')
+        tech_stack = self.plan.get("tech_stack", {})
+        backend_framework = tech_stack.get("backend", "Flask")
 
         # Determine which generator to use
-        if 'Flask' in backend_framework:
+        if "Flask" in backend_framework:
             result = await self._generate_flask_backend()
-        elif 'FastAPI' in backend_framework:
+        elif "FastAPI" in backend_framework:
             result = await self._generate_fastapi_backend()
         else:
             raise ValueError(f"Unsupported backend framework: {backend_framework}")
@@ -95,15 +98,15 @@ class BackendGenerator:
         files = {}
 
         # 1. Generate requirements.txt
-        files['backend/requirements.txt'] = self._generate_flask_requirements()
+        files["backend/requirements.txt"] = self._generate_flask_requirements()
         print("  ✓ Generated requirements.txt")
 
         # 2. Generate config.py
-        files['backend/config.py'] = self._generate_flask_config()
+        files["backend/config.py"] = self._generate_flask_config()
         print("  ✓ Generated config.py")
 
         # 3. Generate app.py (main application)
-        files['backend/app.py'] = self._generate_flask_app()
+        files["backend/app.py"] = self._generate_flask_app()
         print("  ✓ Generated app.py")
 
         # 4. Generate database models
@@ -128,39 +131,39 @@ class BackendGenerator:
         print(f"  ✓ Generated middleware files")
 
         # 8. Generate database initialization
-        files['backend/init_db.py'] = self._generate_flask_db_init()
+        files["backend/init_db.py"] = self._generate_flask_db_init()
         print("  ✓ Generated init_db.py")
 
         # 9. Generate .env.example
-        files['backend/.env.example'] = self._generate_env_file()
+        files["backend/.env.example"] = self._generate_env_file()
         print("  ✓ Generated .env.example")
 
         # 10. Generate README
-        files['backend/README.md'] = self._generate_backend_readme('Flask')
+        files["backend/README.md"] = self._generate_backend_readme("Flask")
         print("  ✓ Generated README.md")
 
         # Store files for database persistence
         self.generated_files = [
             {
-                'file_path': path,
-                'content': content,
-                'file_type': self._get_file_type(path)
+                "file_path": path,
+                "content": content,
+                "file_type": self._get_file_type(path),
             }
             for path, content in files.items()
         ]
 
         return {
-            'framework': 'Flask',
-            'files': self.generated_files,
-            'file_count': len(files),
-            'structure': self._get_file_structure(files),
-            'generated_at': datetime.now().isoformat()
+            "framework": "Flask",
+            "files": self.generated_files,
+            "file_count": len(files),
+            "structure": self._get_file_structure(files),
+            "generated_at": datetime.now().isoformat(),
         }
 
     def _generate_flask_requirements(self) -> str:
         """Generate requirements.txt for Flask"""
-        schema = self.plan.get('database_schema', {})
-        db_type = schema.get('database_type', 'PostgreSQL')
+        schema = self.plan.get("database_schema", {})
+        db_type = schema.get("database_type", "PostgreSQL")
         has_auth = self._has_authentication()
 
         requirements = [
@@ -173,49 +176,59 @@ class BackendGenerator:
             "Flask-SQLAlchemy==3.1.1",
         ]
 
-        if 'PostgreSQL' in db_type:
-            requirements.extend([
-                "psycopg2-binary==2.9.9",
-            ])
-        elif 'MySQL' in db_type:
-            requirements.extend([
-                "pymysql==1.1.0",
-            ])
+        if "PostgreSQL" in db_type:
+            requirements.extend(
+                [
+                    "psycopg2-binary==2.9.9",
+                ]
+            )
+        elif "MySQL" in db_type:
+            requirements.extend(
+                [
+                    "pymysql==1.1.0",
+                ]
+            )
         else:  # SQLite
-            requirements.extend([
-                "# SQLite is built into Python",
-            ])
+            requirements.extend(
+                [
+                    "# SQLite is built into Python",
+                ]
+            )
 
         if has_auth:
-            requirements.extend([
+            requirements.extend(
+                [
+                    "",
+                    "# Authentication",
+                    "PyJWT==2.8.0",
+                    "bcrypt==4.1.2",
+                    "Flask-Login==0.6.3",
+                ]
+            )
+
+        requirements.extend(
+            [
                 "",
-                "# Authentication",
-                "PyJWT==2.8.0",
-                "bcrypt==4.1.2",
-                "Flask-Login==0.6.3",
-            ])
+                "# Validation & Security",
+                "python-dotenv==1.0.0",
+                "marshmallow==3.20.1",
+                "",
+                "# Utilities",
+                "python-dateutil==2.8.2",
+                "requests==2.31.0",
+            ]
+        )
 
-        requirements.extend([
-            "",
-            "# Validation & Security",
-            "python-dotenv==1.0.0",
-            "marshmallow==3.20.1",
-            "",
-            "# Utilities",
-            "python-dateutil==2.8.2",
-            "requests==2.31.0",
-        ])
-
-        return '\n'.join(requirements)
+        return "\n".join(requirements)
 
     def _generate_flask_config(self) -> str:
         """Generate config.py with environment configurations"""
-        schema = self.plan.get('database_schema', {})
-        db_type = schema.get('database_type', 'PostgreSQL')
+        schema = self.plan.get("database_schema", {})
+        db_type = schema.get("database_type", "PostgreSQL")
 
-        if 'PostgreSQL' in db_type:
+        if "PostgreSQL" in db_type:
             db_uri = "postgresql://user:password@localhost:5432/dbname"
-        elif 'MySQL' in db_type:
+        elif "MySQL" in db_type:
             db_uri = "mysql+pymysql://user:password@localhost:3306/dbname"
         else:
             db_uri = "sqlite:///app.db"
@@ -300,26 +313,28 @@ def get_config(env=None):
     def _generate_flask_app(self) -> str:
         """Generate main app.py file"""
         has_auth = self._has_authentication()
-        tables = self.plan.get('database_schema', {}).get('tables', [])
+        tables = self.plan.get("database_schema", {}).get("tables", [])
 
         # Get resource names (exclude users table)
-        resources = [t['table_name'] for t in tables if t['table_name'] != 'users']
+        resources = [t["table_name"] for t in tables if t["table_name"] != "users"]
 
-        imports = ['from flask import Flask, jsonify',
-                   'from flask_cors import CORS',
-                   'from flask_sqlalchemy import SQLAlchemy',
-                   'from config import get_config',
-                   'import os']
+        imports = [
+            "from flask import Flask, jsonify",
+            "from flask_cors import CORS",
+            "from flask_sqlalchemy import SQLAlchemy",
+            "from config import get_config",
+            "import os",
+        ]
 
         if has_auth:
-            imports.append('from flask_login import LoginManager')
+            imports.append("from flask_login import LoginManager")
 
         # Blueprint imports
         blueprint_imports = []
         if has_auth:
-            blueprint_imports.append('from routes.auth import auth_bp')
+            blueprint_imports.append("from routes.auth import auth_bp")
         for resource in resources:
-            blueprint_imports.append(f'from routes.{resource} import {resource}_bp')
+            blueprint_imports.append(f"from routes.{resource} import {resource}_bp")
 
         return f'''"""
 Main Application Entry Point
@@ -400,14 +415,17 @@ if __name__ == '__main__':
     def _generate_flask_models(self) -> Dict[str, str]:
         """Generate SQLAlchemy models for all database tables"""
         files = {}
-        schema = self.plan.get('database_schema', {})
-        tables = schema.get('tables', [])
+        schema = self.plan.get("database_schema", {})
+        tables = schema.get("tables", [])
 
         # Generate models/__init__.py
-        model_imports = [f"from .{table['table_name']} import {self._to_class_name(table['table_name'])}"
-                         for table in tables]
+        model_imports = [
+            f"from .{table['table_name']} import {self._to_class_name(table['table_name'])}" for table in tables
+        ]
 
-        files['backend/models/__init__.py'] = f'''"""
+        files[
+            "backend/models/__init__.py"
+        ] = f'''"""
 Database Models
 """
 from app import db
@@ -419,24 +437,24 @@ __all__ = [{', '.join([f"'{self._to_class_name(t['table_name'])}'" for t in tabl
 
         # Generate individual model files
         for table in tables:
-            table_name = table['table_name']
+            table_name = table["table_name"]
             class_name = self._to_class_name(table_name)
 
-            files[f'backend/models/{table_name}.py'] = self._generate_model_file(table)
+            files[f"backend/models/{table_name}.py"] = self._generate_model_file(table)
 
         return files
 
     def _generate_model_file(self, table: Dict) -> str:
         """Generate a single SQLAlchemy model file"""
-        table_name = table['table_name']
+        table_name = table["table_name"]
         class_name = self._to_class_name(table_name)
-        columns = table.get('columns', [])
+        columns = table.get("columns", [])
 
         # Generate column definitions
         column_defs = []
         for col in columns:
-            col_name = col['name']
-            col_type = col['type'].upper()
+            col_name = col["name"]
+            col_type = col["type"].upper()
 
             # Convert SQL type to SQLAlchemy type
             sa_type = self._sql_to_sqlalchemy_type(col_type)
@@ -445,27 +463,27 @@ __all__ = [{', '.join([f"'{self._to_class_name(t['table_name'])}'" for t in tabl
             col_def = f"    {col_name} = db.Column({sa_type}"
 
             # Add constraints
-            if 'PRIMARY KEY' in col_type:
+            if "PRIMARY KEY" in col_type:
                 col_def += ", primary_key=True"
-            if 'UNIQUE' in col_type:
+            if "UNIQUE" in col_type:
                 col_def += ", unique=True"
-            if 'NOT NULL' in col_type and 'PRIMARY KEY' not in col_type:
+            if "NOT NULL" in col_type and "PRIMARY KEY" not in col_type:
                 col_def += ", nullable=False"
-            if 'DEFAULT' in col_type:
+            if "DEFAULT" in col_type:
                 # Extract default value
-                match = re.search(r'DEFAULT\s+([^\s,)]+)', col_type)
+                match = re.search(r"DEFAULT\s+([^\s,)]+)", col_type)
                 if match:
                     default_val = match.group(1)
-                    if default_val == 'NOW()' or default_val == 'CURRENT_TIMESTAMP':
+                    if default_val == "NOW()" or default_val == "CURRENT_TIMESTAMP":
                         col_def += ", default=datetime.utcnow"
-                    elif default_val.lower() in ['true', 'false']:
+                    elif default_val.lower() in ["true", "false"]:
                         col_def += f", default={default_val.title()}"
                     else:
                         col_def += f", default={default_val}"
 
             # Foreign key
-            if 'REFERENCES' in col_type:
-                match = re.search(r'REFERENCES\s+(\w+)\((\w+)\)', col_type)
+            if "REFERENCES" in col_type:
+                match = re.search(r"REFERENCES\s+(\w+)\((\w+)\)", col_type)
                 if match:
                     ref_table = match.group(1)
                     ref_col = match.group(2)
@@ -475,23 +493,25 @@ __all__ = [{', '.join([f"'{self._to_class_name(t['table_name'])}'" for t in tabl
             column_defs.append(col_def)
 
         # Add timestamps if not present
-        has_created_at = any(col['name'] == 'created_at' for col in columns)
-        has_updated_at = any(col['name'] == 'updated_at' for col in columns)
+        has_created_at = any(col["name"] == "created_at" for col in columns)
+        has_updated_at = any(col["name"] == "updated_at" for col in columns)
 
         if not has_created_at:
             column_defs.append("    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)")
         if not has_updated_at:
-            column_defs.append("    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)")
+            column_defs.append(
+                "    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)"
+            )
 
         # Generate relationships if foreign keys exist
         relationships = []
         for col in columns:
-            if 'REFERENCES' in col['type']:
-                match = re.search(r'REFERENCES\s+(\w+)', col['type'])
+            if "REFERENCES" in col["type"]:
+                match = re.search(r"REFERENCES\s+(\w+)", col["type"])
                 if match:
                     ref_table = match.group(1)
                     ref_class = self._to_class_name(ref_table)
-                    rel_name = ref_table if ref_table != 'users' else 'user'
+                    rel_name = ref_table if ref_table != "users" else "user"
                     relationships.append(f"    {rel_name} = db.relationship('{ref_class}', backref='{table_name}')")
 
         return f'''"""
@@ -527,30 +547,33 @@ class {class_name}(db.Model):
     def _generate_flask_routes(self) -> Dict[str, str]:
         """Generate Flask API routes for all resources"""
         files = {}
-        schema = self.plan.get('database_schema', {})
-        tables = schema.get('tables', [])
+        schema = self.plan.get("database_schema", {})
+        tables = schema.get("tables", [])
 
         # Generate routes/__init__.py
-        files['backend/routes/__init__.py'] = '"""API Routes"""'
+        files["backend/routes/__init__.py"] = '"""API Routes"""'
 
         # Generate route files for each table (except users, handled by auth)
         for table in tables:
-            table_name = table['table_name']
-            if table_name == 'users':
+            table_name = table["table_name"]
+            if table_name == "users":
                 continue  # Users handled by auth routes
 
-            files[f'backend/routes/{table_name}.py'] = self._generate_route_file(table)
+            files[f"backend/routes/{table_name}.py"] = self._generate_route_file(table)
 
         return files
 
     def _generate_route_file(self, table: Dict) -> str:
         """Generate a single route file with CRUD operations"""
-        table_name = table['table_name']
+        table_name = table["table_name"]
         class_name = self._to_class_name(table_name)
         singular = self._singularize(table_name)
 
         # Determine primary key column
-        pk_col = next((col['name'] for col in table['columns'] if 'PRIMARY KEY' in col['type']), 'id')
+        pk_col = next(
+            (col["name"] for col in table["columns"] if "PRIMARY KEY" in col["type"]),
+            "id",
+        )
 
         return f'''"""
 {class_name} Routes
@@ -729,7 +752,9 @@ def delete_{singular}({pk_col}):
         files = {}
 
         # Auth routes
-        files['backend/routes/auth.py'] = '''"""
+        files[
+            "backend/routes/auth.py"
+        ] = '''"""
 Authentication Routes
 User registration, login, logout, token refresh
 """
@@ -998,9 +1023,11 @@ def logout(current_user):
         """Generate middleware files"""
         files = {}
 
-        files['backend/middleware/__init__.py'] = '"""Middleware"""'
+        files["backend/middleware/__init__.py"] = '"""Middleware"""'
 
-        files['backend/middleware/error_handler.py'] = '''"""
+        files[
+            "backend/middleware/error_handler.py"
+        ] = '''"""
 Global Error Handler Middleware
 """
 from flask import jsonify
@@ -1091,22 +1118,22 @@ if __name__ == '__main__':
 
     def _has_authentication(self) -> bool:
         """Check if authentication is needed"""
-        tables = self.plan.get('database_schema', {}).get('tables', [])
-        return any(t['table_name'] == 'users' for t in tables)
+        tables = self.plan.get("database_schema", {}).get("tables", [])
+        return any(t["table_name"] == "users" for t in tables)
 
     def _generate_env_file(self) -> str:
         """Generate .env.example file"""
-        schema = self.plan.get('database_schema', {})
-        db_type = schema.get('database_type', 'PostgreSQL')
+        schema = self.plan.get("database_schema", {})
+        db_type = schema.get("database_type", "PostgreSQL")
 
-        if 'PostgreSQL' in db_type:
+        if "PostgreSQL" in db_type:
             db_url = "postgresql://user:password@localhost:5432/dbname"
-        elif 'MySQL' in db_type:
+        elif "MySQL" in db_type:
             db_url = "mysql+pymysql://user:password@localhost:3306/dbname"
         else:
             db_url = "sqlite:///app.db"
 
-        return f'''# Flask Configuration
+        return f"""# Flask Configuration
 FLASK_ENV=development
 SECRET_KEY=your-secret-key-change-in-production
 
@@ -1121,13 +1148,13 @@ CORS_ORIGINS=http://localhost:3000,http://localhost:3001
 
 # Server
 PORT=5000
-'''
+"""
 
     def _generate_backend_readme(self, framework: str) -> str:
         """Generate README for backend"""
-        project_name = self.plan.get('name', 'App')
+        project_name = self.plan.get("name", "App")
 
-        return f'''# {project_name} - Backend
+        return f"""# {project_name} - Backend
 
 {framework} backend API for {project_name}.
 
@@ -1202,95 +1229,97 @@ pytest tests/
 ## Deployment
 
 See deployment guide in main README.
-'''
+"""
 
     def _generate_endpoint_docs(self) -> str:
         """Generate endpoint documentation for README"""
-        tables = self.plan.get('database_schema', {}).get('tables', [])
+        tables = self.plan.get("database_schema", {}).get("tables", [])
         docs = []
 
         for table in tables:
-            if table['table_name'] == 'users':
+            if table["table_name"] == "users":
                 continue
 
-            table_name = table['table_name']
+            table_name = table["table_name"]
             singular = self._singularize(table_name)
 
-            docs.append(f'''
+            docs.append(
+                f"""
 #### {table_name.title()}
 - `GET /api/{table_name}` - Get all {table_name}
 - `GET /api/{table_name}/<id>` - Get {singular} by ID
 - `POST /api/{table_name}` - Create {singular}
 - `PUT /api/{table_name}/<id>` - Update {singular}
-- `DELETE /api/{table_name}/<id>` - Delete {singular}''')
+- `DELETE /api/{table_name}/<id>` - Delete {singular}"""
+            )
 
-        return '\n'.join(docs)
+        return "\n".join(docs)
 
     def _sql_to_sqlalchemy_type(self, sql_type: str) -> str:
         """Convert SQL type to SQLAlchemy type"""
         sql_type_upper = sql_type.upper()
 
-        if 'SERIAL' in sql_type_upper:
-            return 'db.Integer'
-        elif 'INTEGER' in sql_type_upper or 'INT' in sql_type_upper:
-            return 'db.Integer'
-        elif 'VARCHAR' in sql_type_upper:
+        if "SERIAL" in sql_type_upper:
+            return "db.Integer"
+        elif "INTEGER" in sql_type_upper or "INT" in sql_type_upper:
+            return "db.Integer"
+        elif "VARCHAR" in sql_type_upper:
             # Extract length
-            match = re.search(r'VARCHAR\((\d+)\)', sql_type_upper)
-            length = match.group(1) if match else '255'
-            return f'db.String({length})'
-        elif 'TEXT' in sql_type_upper:
-            return 'db.Text'
-        elif 'BOOLEAN' in sql_type_upper or 'BOOL' in sql_type_upper:
-            return 'db.Boolean'
-        elif 'TIMESTAMP' in sql_type_upper or 'DATETIME' in sql_type_upper:
-            return 'db.DateTime'
-        elif 'DATE' in sql_type_upper:
-            return 'db.Date'
-        elif 'DECIMAL' in sql_type_upper or 'NUMERIC' in sql_type_upper:
-            return 'db.Numeric'
-        elif 'FLOAT' in sql_type_upper or 'REAL' in sql_type_upper:
-            return 'db.Float'
-        elif 'JSON' in sql_type_upper:
-            return 'db.JSON'
+            match = re.search(r"VARCHAR\((\d+)\)", sql_type_upper)
+            length = match.group(1) if match else "255"
+            return f"db.String({length})"
+        elif "TEXT" in sql_type_upper:
+            return "db.Text"
+        elif "BOOLEAN" in sql_type_upper or "BOOL" in sql_type_upper:
+            return "db.Boolean"
+        elif "TIMESTAMP" in sql_type_upper or "DATETIME" in sql_type_upper:
+            return "db.DateTime"
+        elif "DATE" in sql_type_upper:
+            return "db.Date"
+        elif "DECIMAL" in sql_type_upper or "NUMERIC" in sql_type_upper:
+            return "db.Numeric"
+        elif "FLOAT" in sql_type_upper or "REAL" in sql_type_upper:
+            return "db.Float"
+        elif "JSON" in sql_type_upper:
+            return "db.JSON"
         else:
-            return 'db.String'
+            return "db.String"
 
     def _to_class_name(self, table_name: str) -> str:
         """Convert table name to class name (PascalCase)"""
         # Remove trailing 's' for singular
         singular = self._singularize(table_name)
         # Convert to PascalCase
-        return ''.join(word.capitalize() for word in singular.split('_'))
+        return "".join(word.capitalize() for word in singular.split("_"))
 
     def _singularize(self, word: str) -> str:
         """Simple singularize (remove trailing 's')"""
-        if word.endswith('ies'):
-            return word[:-3] + 'y'
-        elif word.endswith('ses'):
+        if word.endswith("ies"):
+            return word[:-3] + "y"
+        elif word.endswith("ses"):
             return word[:-2]
-        elif word.endswith('s'):
+        elif word.endswith("s"):
             return word[:-1]
         return word
 
     def _get_file_type(self, path: str) -> str:
         """Get file type from path"""
-        if path.endswith('.py'):
-            return 'python'
-        elif path.endswith('.txt'):
-            return 'text'
-        elif path.endswith('.md'):
-            return 'markdown'
-        elif path.endswith('.env') or path.endswith('.example'):
-            return 'config'
+        if path.endswith(".py"):
+            return "python"
+        elif path.endswith(".txt"):
+            return "text"
+        elif path.endswith(".md"):
+            return "markdown"
+        elif path.endswith(".env") or path.endswith(".example"):
+            return "config"
         else:
-            return 'text'
+            return "text"
 
     def _get_file_structure(self, files: Dict[str, str]) -> Dict:
         """Generate file structure tree"""
         structure = {}
         for path in files.keys():
-            parts = path.split('/')
+            parts = path.split("/")
             current = structure
             for part in parts:
                 if part not in current:
@@ -1333,12 +1362,12 @@ See deployment guide in main README.
                         db_connection.text(insert_query),
                         (
                             self.project_id,
-                            file_data['file_path'],
-                            file_data['content'],
-                            file_data['file_type'],
+                            file_data["file_path"],
+                            file_data["content"],
+                            file_data["file_type"],
                             1,  # version
-                            True  # is_latest
-                        )
+                            True,  # is_latest
+                        ),
                     )
 
                 conn.commit()
@@ -1354,7 +1383,7 @@ See deployment guide in main README.
 # TESTING
 # ============================================================================
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import asyncio
 
     print("=" * 80)
@@ -1363,36 +1392,39 @@ if __name__ == '__main__':
 
     # Mock plan
     mock_plan = {
-        'name': 'Todo App',
-        'tech_stack': {
-            'backend': 'Flask',
-            'frontend': 'React',
-            'database': 'PostgreSQL'
+        "name": "Todo App",
+        "tech_stack": {
+            "backend": "Flask",
+            "frontend": "React",
+            "database": "PostgreSQL",
         },
-        'database_schema': {
-            'database_type': 'PostgreSQL',
-            'tables': [
+        "database_schema": {
+            "database_type": "PostgreSQL",
+            "tables": [
                 {
-                    'table_name': 'users',
-                    'columns': [
-                        {'name': 'id', 'type': 'SERIAL PRIMARY KEY'},
-                        {'name': 'username', 'type': 'VARCHAR(100) UNIQUE NOT NULL'},
-                        {'name': 'email', 'type': 'VARCHAR(255) UNIQUE NOT NULL'},
-                        {'name': 'password_hash', 'type': 'VARCHAR(255) NOT NULL'}
-                    ]
+                    "table_name": "users",
+                    "columns": [
+                        {"name": "id", "type": "SERIAL PRIMARY KEY"},
+                        {"name": "username", "type": "VARCHAR(100) UNIQUE NOT NULL"},
+                        {"name": "email", "type": "VARCHAR(255) UNIQUE NOT NULL"},
+                        {"name": "password_hash", "type": "VARCHAR(255) NOT NULL"},
+                    ],
                 },
                 {
-                    'table_name': 'tasks',
-                    'columns': [
-                        {'name': 'id', 'type': 'SERIAL PRIMARY KEY'},
-                        {'name': 'user_id', 'type': 'INTEGER REFERENCES users(id) NOT NULL'},
-                        {'name': 'title', 'type': 'VARCHAR(255) NOT NULL'},
-                        {'name': 'description', 'type': 'TEXT'},
-                        {'name': 'completed', 'type': 'BOOLEAN DEFAULT FALSE'}
-                    ]
-                }
-            ]
-        }
+                    "table_name": "tasks",
+                    "columns": [
+                        {"name": "id", "type": "SERIAL PRIMARY KEY"},
+                        {
+                            "name": "user_id",
+                            "type": "INTEGER REFERENCES users(id) NOT NULL",
+                        },
+                        {"name": "title", "type": "VARCHAR(255) NOT NULL"},
+                        {"name": "description", "type": "TEXT"},
+                        {"name": "completed", "type": "BOOLEAN DEFAULT FALSE"},
+                    ],
+                },
+            ],
+        },
     }
 
     mock_architecture = {}
@@ -1410,10 +1442,10 @@ if __name__ == '__main__':
         print(f"  - Generated At: {result['generated_at']}")
 
         print(f"\n📁 File Structure:")
-        for file in result['files'][:10]:  # Show first 10 files
+        for file in result["files"][:10]:  # Show first 10 files
             print(f"  - {file['file_path']} ({file['file_type']})")
 
-        if len(result['files']) > 10:
+        if len(result["files"]) > 10:
             print(f"  ... and {len(result['files']) - 10} more files")
 
         print(f"\n✅ Backend Generator test complete")

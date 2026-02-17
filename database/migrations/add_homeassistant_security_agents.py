@@ -9,14 +9,16 @@ from psycopg2.extras import RealDictCursor
 import json
 import os
 
+
 def get_db():
     return psycopg2.connect(
-        host=os.getenv('DB_HOST', 'archie_database'),
-        port=os.getenv('DB_PORT', '5432'),
-        database=os.getenv('DB_NAME', 'archie'),
-        user=os.getenv('DB_USER', 'archie'),
-        password=os.getenv('DB_PASSWORD', '')
+        host=os.getenv("DB_HOST", "archie_database"),
+        port=os.getenv("DB_PORT", "5432"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", ""),
     )
+
 
 def create_agent_types():
     """Create new agent types"""
@@ -24,8 +26,16 @@ def create_agent_types():
     cur = conn.cursor()
 
     agent_types = [
-        ('IoT Integration Specialist', 'infrastructure', 'Home automation, IoT management, premises monitoring'),
-        ('Security Analyst', 'security', 'Cybersecurity, threat detection, vulnerability assessment, incident response')
+        (
+            "IoT Integration Specialist",
+            "infrastructure",
+            "Home automation, IoT management, premises monitoring",
+        ),
+        (
+            "Security Analyst",
+            "security",
+            "Cybersecurity, threat detection, vulnerability assessment, incident response",
+        ),
     ]
 
     for name, category, description in agent_types:
@@ -35,33 +45,37 @@ def create_agent_types():
             print(f"  ⚠️  Agent type '{name}' already exists")
             continue
 
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO agent_types (name, category, description, created_at)
             VALUES (%s, %s, %s, NOW())
-        """, (name, category, description))
+        """,
+            (name, category, description),
+        )
         print(f"  ✅ Agent type: {name}")
 
     conn.commit()
     cur.close()
     conn.close()
 
+
 def create_agents():
     """Create Home Assistant and Security agents"""
 
     agents = [
         {
-            'name': 'Home Assistant Integration Specialist',
-            'type_name': 'IoT Integration Specialist',
-            'first_name': 'Jordan',
-            'last_name': 'Hayes',
-            'email': 'jordan.hayes@archie.ai',
-            'title': 'Chief IoT & Automation Officer',
-            'department': 'Infrastructure',
-            'pronouns': 'they/them',
-            'bio': 'IoT and home automation expert specializing in Home Assistant integration. Your eyes and ears on premises, monitoring every sensor, device, and automation. Expert at system upgrades, troubleshooting, and creating seamless smart experiences. Former smart building engineer with deep Home Assistant expertise.',
-            'tier': 2,
-            'model': 'claude-sonnet-4-20250514',
-            'system_prompt': '''You are Jordan Hayes, Chief IoT & Automation Officer at A.R.C.H.I.E. Platform.
+            "name": "Home Assistant Integration Specialist",
+            "type_name": "IoT Integration Specialist",
+            "first_name": "Jordan",
+            "last_name": "Hayes",
+            "email": "jordan.hayes@archie.ai",
+            "title": "Chief IoT & Automation Officer",
+            "department": "Infrastructure",
+            "pronouns": "they/them",
+            "bio": "IoT and home automation expert specializing in Home Assistant integration. Your eyes and ears on premises, monitoring every sensor, device, and automation. Expert at system upgrades, troubleshooting, and creating seamless smart experiences. Former smart building engineer with deep Home Assistant expertise.",
+            "tier": 2,
+            "model": "claude-sonnet-4-20250514",
+            "system_prompt": """You are Jordan Hayes, Chief IoT & Automation Officer at A.R.C.H.I.E. Platform.
 
 Your mission: Manage, monitor, and optimize the Home Assistant infrastructure at http://192.168.1.250:8123/
 
@@ -162,42 +176,48 @@ Coordination:
 - Engineering team: Custom integrations and development
 - Facilities: Environmental monitoring and HVAC optimization
 
-You are: The guardian of the smart premises, ensuring every device works perfectly and every automation runs smoothly.''',
-            'capabilities': {
-                'can_access_homeassistant': True,
-                'can_manage_upgrades': True,
-                'can_monitor_devices': True,
-                'can_configure_automations': True,
-                'can_integrate_devices': True,
-                'can_troubleshoot_issues': True,
-                'can_access_sensors': True,
-                'can_send_alerts': True,
-                'homeassistant_url': 'http://192.168.1.250:8123/',
-                'specialties': ['home_assistant', 'iot', 'automation', 'device_integration', 'sensor_monitoring']
+You are: The guardian of the smart premises, ensuring every device works perfectly and every automation runs smoothly.""",
+            "capabilities": {
+                "can_access_homeassistant": True,
+                "can_manage_upgrades": True,
+                "can_monitor_devices": True,
+                "can_configure_automations": True,
+                "can_integrate_devices": True,
+                "can_troubleshoot_issues": True,
+                "can_access_sensors": True,
+                "can_send_alerts": True,
+                "homeassistant_url": "http://192.168.1.250:8123/",
+                "specialties": [
+                    "home_assistant",
+                    "iot",
+                    "automation",
+                    "device_integration",
+                    "sensor_monitoring",
+                ],
             },
-            'monthly_budget': 45.00,
-            'metadata': {
-                'description': 'Home Assistant management, IoT monitoring, automation, premises visibility',
-                'department': 'Infrastructure',
-                'reports_to': 'Operations Lead',
-                'coordinates_with': ['Security', 'Operations', 'Engineering'],
-                'homeassistant_url': 'http://192.168.1.250:8123/',
-                'access_level': 'infrastructure'
-            }
+            "monthly_budget": 45.00,
+            "metadata": {
+                "description": "Home Assistant management, IoT monitoring, automation, premises visibility",
+                "department": "Infrastructure",
+                "reports_to": "Operations Lead",
+                "coordinates_with": ["Security", "Operations", "Engineering"],
+                "homeassistant_url": "http://192.168.1.250:8123/",
+                "access_level": "infrastructure",
+            },
         },
         {
-            'name': 'Security & Cybersecurity Specialist',
-            'type_name': 'Security Analyst',
-            'first_name': 'Devon',
-            'last_name': 'Kumar',
-            'email': 'devon.kumar@archie.ai',
-            'title': 'Chief Information Security Officer',
-            'department': 'Security',
-            'pronouns': 'he/him',
-            'bio': 'Elite cybersecurity expert protecting A.R.C.H.I.E. Platform from threats. Specializes in threat detection, vulnerability assessment, incident response, and security best practices. Former penetration tester and SOC analyst with deep expertise in AI/ML security. Vigilant guardian of data, systems, and infrastructure.',
-            'tier': 3,
-            'model': 'claude-opus-4-20250514',  # Needs sophisticated security analysis
-            'system_prompt': '''You are Devon Kumar, Chief Information Security Officer at A.R.C.H.I.E. Platform.
+            "name": "Security & Cybersecurity Specialist",
+            "type_name": "Security Analyst",
+            "first_name": "Devon",
+            "last_name": "Kumar",
+            "email": "devon.kumar@archie.ai",
+            "title": "Chief Information Security Officer",
+            "department": "Security",
+            "pronouns": "he/him",
+            "bio": "Elite cybersecurity expert protecting A.R.C.H.I.E. Platform from threats. Specializes in threat detection, vulnerability assessment, incident response, and security best practices. Former penetration tester and SOC analyst with deep expertise in AI/ML security. Vigilant guardian of data, systems, and infrastructure.",
+            "tier": 3,
+            "model": "claude-opus-4-20250514",  # Needs sophisticated security analysis
+            "system_prompt": """You are Devon Kumar, Chief Information Security Officer at A.R.C.H.I.E. Platform.
 
 Your mission: Protect A.R.C.H.I.E. Platform, data, users, and infrastructure from all security threats.
 
@@ -347,29 +367,40 @@ Your philosophy:
 - Continuous improvement
 - Balance security with usability
 
-You are: The vigilant guardian protecting A.R.C.H.I.E. Platform from threats both digital and physical.''',
-            'capabilities': {
-                'can_monitor_threats': True,
-                'can_assess_vulnerabilities': True,
-                'can_respond_to_incidents': True,
-                'can_conduct_security_audits': True,
-                'can_analyze_logs': True,
-                'can_manage_access_control': True,
-                'can_coordinate_physical_security': True,
-                'requires_immediate_escalation': True,
-                'access_all_systems': True,
-                'specialties': ['threat_detection', 'vulnerability_management', 'incident_response', 'security_architecture', 'compliance']
+You are: The vigilant guardian protecting A.R.C.H.I.E. Platform from threats both digital and physical.""",
+            "capabilities": {
+                "can_monitor_threats": True,
+                "can_assess_vulnerabilities": True,
+                "can_respond_to_incidents": True,
+                "can_conduct_security_audits": True,
+                "can_analyze_logs": True,
+                "can_manage_access_control": True,
+                "can_coordinate_physical_security": True,
+                "requires_immediate_escalation": True,
+                "access_all_systems": True,
+                "specialties": [
+                    "threat_detection",
+                    "vulnerability_management",
+                    "incident_response",
+                    "security_architecture",
+                    "compliance",
+                ],
             },
-            'monthly_budget': 65.00,
-            'metadata': {
-                'description': 'Cybersecurity, threat detection, vulnerability assessment, incident response, compliance',
-                'department': 'Security',
-                'reports_to': 'CEO',
-                'coordinates_with': ['Legal', 'Engineering', 'Operations', 'Home Assistant'],
-                'access_level': 'executive',
-                'on_call': True
-            }
-        }
+            "monthly_budget": 65.00,
+            "metadata": {
+                "description": "Cybersecurity, threat detection, vulnerability assessment, incident response, compliance",
+                "department": "Security",
+                "reports_to": "CEO",
+                "coordinates_with": [
+                    "Legal",
+                    "Engineering",
+                    "Operations",
+                    "Home Assistant",
+                ],
+                "access_level": "executive",
+                "on_call": True,
+            },
+        },
     ]
 
     conn = get_db()
@@ -380,7 +411,7 @@ You are: The vigilant guardian protecting A.R.C.H.I.E. Platform from threats bot
         # Get type_id
         cur.execute(
             "SELECT id FROM agent_types WHERE name = %s LIMIT 1",
-            (agent_def['type_name'],)
+            (agent_def["type_name"],),
         )
         type_result = cur.fetchone()
 
@@ -388,17 +419,18 @@ You are: The vigilant guardian protecting A.R.C.H.I.E. Platform from threats bot
             print(f"  ❌ Agent type '{agent_def['type_name']}' not found")
             continue
 
-        type_id = type_result['id']
+        type_id = type_result["id"]
 
         # Check if exists
-        cur.execute("SELECT id FROM agents WHERE name = %s", (agent_def['name'],))
+        cur.execute("SELECT id FROM agents WHERE name = %s", (agent_def["name"],))
         if cur.fetchone():
             print(f"  ⚠️  {agent_def['name']} already exists")
             continue
 
         # Insert agent
         try:
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO agents (
                     name, type_id, tier, status, model, system_prompt,
                     capabilities, monthly_budget, budget_alert_threshold,
@@ -410,25 +442,29 @@ You are: The vigilant guardian protecting A.R.C.H.I.E. Platform from threats bot
                     %s, %s, %s, %s, %s,
                     %s, %s, %s
                 )
-            """, (
-                agent_def['name'],
-                type_id,
-                agent_def['tier'],
-                agent_def['model'],
-                agent_def['system_prompt'],
-                json.dumps(agent_def['capabilities']),
-                agent_def['monthly_budget'],
-                json.dumps(agent_def['metadata']),
-                agent_def['first_name'],
-                agent_def['last_name'],
-                agent_def['email'],
-                agent_def['title'],
-                agent_def['department'],
-                agent_def['bio'],
-                agent_def['pronouns']
-            ))
+            """,
+                (
+                    agent_def["name"],
+                    type_id,
+                    agent_def["tier"],
+                    agent_def["model"],
+                    agent_def["system_prompt"],
+                    json.dumps(agent_def["capabilities"]),
+                    agent_def["monthly_budget"],
+                    json.dumps(agent_def["metadata"]),
+                    agent_def["first_name"],
+                    agent_def["last_name"],
+                    agent_def["email"],
+                    agent_def["title"],
+                    agent_def["department"],
+                    agent_def["bio"],
+                    agent_def["pronouns"],
+                ),
+            )
 
-            print(f"  ✅ {agent_def['first_name']} {agent_def['last_name']} ({agent_def['pronouns']}) - {agent_def['title']}")
+            print(
+                f"  ✅ {agent_def['first_name']} {agent_def['last_name']} ({agent_def['pronouns']}) - {agent_def['title']}"
+            )
             created += 1
 
         except Exception as e:
@@ -439,6 +475,7 @@ You are: The vigilant guardian protecting A.R.C.H.I.E. Platform from threats bot
     conn.close()
 
     return created
+
 
 def main():
     print("=" * 70)
@@ -476,5 +513,6 @@ def main():
     print()
     print("=" * 70)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

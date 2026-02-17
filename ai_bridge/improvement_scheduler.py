@@ -2,14 +2,16 @@
 A.R.C.H.I.E. Improvement Scheduler
 Runs automatic improvement detection on a schedule
 """
+
 import schedule
 import time
 import sys
 from datetime import datetime
 
-sys.path.insert(0, '/app/ai_bridge')
+sys.path.insert(0, "/app/ai_bridge")
 from improvement_engine import run_auto_improvement_detection
 from improvement_chat import self_reflection_chat
+
 
 def scheduled_improvement_detection():
     """Run scheduled improvement detection"""
@@ -24,15 +26,17 @@ def scheduled_improvement_detection():
         print(f"   Opportunities detected: {summary['opportunities_detected']}")
         print(f"   Proposals created: {summary['proposals_created']}")
 
-        if summary['breakdown']:
+        if summary["breakdown"]:
             print(f"\n📊 Breakdown:")
-            for opp_type, count in summary['breakdown'].items():
+            for opp_type, count in summary["breakdown"].items():
                 print(f"   - {opp_type}: {count}")
 
     except Exception as e:
         print(f"\n❌ Error during detection: {e}")
         import traceback
+
         traceback.print_exc()
+
 
 def scheduled_self_reflection():
     """Run scheduled self-reflection"""
@@ -41,11 +45,13 @@ def scheduled_self_reflection():
     print(f"{'='*80}")
 
     try:
-        result = self_reflection_chat(topic='overall performance')
+        result = self_reflection_chat(topic="overall performance")
 
-        if result.get('success'):
+        if result.get("success"):
             print(f"\n✅ Self-reflection complete!")
-            print(f"   Personality state: {result['personality'].get('personality_summary', 'Unknown')}")
+            print(
+                f"   Personality state: {result['personality'].get('personality_summary', 'Unknown')}"
+            )
             print(f"   Opportunities found: {result['opportunities_count']}")
             print(f"\n💭 Reflection excerpt:")
             print(f"   {result['reflection'][:200]}...")
@@ -55,7 +61,9 @@ def scheduled_self_reflection():
     except Exception as e:
         print(f"\n❌ Error during self-reflection: {e}")
         import traceback
+
         traceback.print_exc()
+
 
 def run_scheduler():
     """Main scheduler loop"""
@@ -82,7 +90,8 @@ def run_scheduler():
         schedule.run_pending()
         time.sleep(60)  # Check every minute
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     try:
         run_scheduler()
     except KeyboardInterrupt:
@@ -90,4 +99,5 @@ if __name__ == '__main__':
     except Exception as e:
         print(f"\n\n❌ Scheduler error: {e}")
         import traceback
+
         traceback.print_exc()

@@ -10,19 +10,22 @@ import json
 import os
 from datetime import datetime
 
+
 def get_db():
     """Get database connection"""
     return psycopg2.connect(
-        host=os.getenv('DB_HOST', 'archie_database'),
-        port=os.getenv('DB_PORT', '5432'),
-        database=os.getenv('DB_NAME', 'archie'),
-        user=os.getenv('DB_USER', 'archie'),
-        password=os.getenv('DB_PASSWORD', '')
+        host=os.getenv("DB_HOST", "archie_database"),
+        port=os.getenv("DB_PORT", "5432"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", ""),
     )
+
 
 # =============================================================================
 # LIST AGENTS
 # =============================================================================
+
 
 def list_agents(filters=None):
     """
@@ -71,15 +74,15 @@ def list_agents(filters=None):
     params = []
 
     if filters:
-        if 'department' in filters:
+        if "department" in filters:
             conditions.append("a.department = %s")
-            params.append(filters['department'])
-        if 'status' in filters:
+            params.append(filters["department"])
+        if "status" in filters:
             conditions.append("a.status = %s")
-            params.append(filters['status'])
-        if 'tier' in filters:
+            params.append(filters["status"])
+        if "tier" in filters:
             conditions.append("a.tier = %s")
-            params.append(filters['tier'])
+            params.append(filters["tier"])
 
     if conditions:
         query += " WHERE " + " AND ".join(conditions)
@@ -94,9 +97,11 @@ def list_agents(filters=None):
 
     return [dict(agent) for agent in agents]
 
+
 # =============================================================================
 # GET SINGLE AGENT
 # =============================================================================
+
 
 def get_agent(agent_id):
     """
@@ -111,7 +116,8 @@ def get_agent(agent_id):
     conn = get_db()
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
-    cur.execute("""
+    cur.execute(
+        """
         SELECT
             a.*,
             at.name as agent_type,
@@ -119,7 +125,9 @@ def get_agent(agent_id):
         FROM agents a
         LEFT JOIN agent_types at ON a.type_id = at.id
         WHERE a.id = %s
-    """, (agent_id,))
+    """,
+        (agent_id,),
+    )
 
     agent = cur.fetchone()
 
@@ -128,9 +136,11 @@ def get_agent(agent_id):
 
     return dict(agent) if agent else None
 
+
 # =============================================================================
 # ADD AGENT
 # =============================================================================
+
 
 def add_agent(agent_data):
     """
@@ -149,22 +159,23 @@ def add_agent(agent_data):
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     # Check if agent type exists
-    cur.execute("SELECT id FROM agent_types WHERE id = %s", (agent_data['type_id'],))
+    cur.execute("SELECT id FROM agent_types WHERE id = %s", (agent_data["type_id"],))
     if not cur.fetchone():
         cur.close()
         conn.close()
         raise ValueError(f"Agent type ID {agent_data['type_id']} not found")
 
     # Check for duplicate email
-    if 'email' in agent_data and agent_data['email']:
-        cur.execute("SELECT id FROM agents WHERE email = %s", (agent_data['email'],))
+    if "email" in agent_data and agent_data["email"]:
+        cur.execute("SELECT id FROM agents WHERE email = %s", (agent_data["email"],))
         if cur.fetchone():
             cur.close()
             conn.close()
             raise ValueError(f"Email {agent_data['email']} already exists")
 
     # Insert agent
-    cur.execute("""
+    cur.execute(
+        """
         INSERT INTO agents (
             name, type_id, tier, status, model, system_prompt,
             capabilities, monthly_budget, budget_alert_threshold,
@@ -177,37 +188,41 @@ def add_agent(agent_data):
             %(department)s, %(bio)s, %(pronouns)s, %(avatar_url)s, NOW()
         )
         RETURNING id
-    """, {
-        'name': agent_data['name'],
-        'type_id': agent_data['type_id'],
-        'tier': agent_data.get('tier', 1),
-        'status': agent_data.get('status', 'active'),
-        'model': agent_data['model'],
-        'system_prompt': agent_data['system_prompt'],
-        'capabilities': json.dumps(agent_data.get('capabilities', {})),
-        'monthly_budget': agent_data.get('monthly_budget'),
-        'budget_alert_threshold': agent_data.get('budget_alert_threshold', 0.80),
-        'metadata': json.dumps(agent_data.get('metadata', {})),
-        'first_name': agent_data.get('first_name'),
-        'last_name': agent_data.get('last_name'),
-        'email': agent_data.get('email'),
-        'title': agent_data.get('title'),
-        'department': agent_data.get('department'),
-        'bio': agent_data.get('bio'),
-        'pronouns': agent_data.get('pronouns', 'they/them'),
-        'avatar_url': agent_data.get('avatar_url')
-    })
+    """,
+        {
+            "name": agent_data["name"],
+            "type_id": agent_data["type_id"],
+            "tier": agent_data.get("tier", 1),
+            "status": agent_data.get("status", "active"),
+            "model": agent_data["model"],
+            "system_prompt": agent_data["system_prompt"],
+            "capabilities": json.dumps(agent_data.get("capabilities", {})),
+            "monthly_budget": agent_data.get("monthly_budget"),
+            "budget_alert_threshold": agent_data.get("budget_alert_threshold", 0.80),
+            "metadata": json.dumps(agent_data.get("metadata", {})),
+            "first_name": agent_data.get("first_name"),
+            "last_name": agent_data.get("last_name"),
+            "email": agent_data.get("email"),
+            "title": agent_data.get("title"),
+            "department": agent_data.get("department"),
+            "bio": agent_data.get("bio"),
+            "pronouns": agent_data.get("pronouns", "they/them"),
+            "avatar_url": agent_data.get("avatar_url"),
+        },
+    )
 
-    agent_id = cur.fetchone()['id']
+    agent_id = cur.fetchone()["id"]
     conn.commit()
     cur.close()
     conn.close()
 
     return get_agent(agent_id)
 
+
 # =============================================================================
 # UPDATE AGENT
 # =============================================================================
+
 
 def update_agent(agent_id, updates):
     """
@@ -231,8 +246,11 @@ def update_agent(agent_id, updates):
         raise ValueError(f"Agent ID {agent_id} not found")
 
     # Check for duplicate email if updating email
-    if 'email' in updates and updates['email']:
-        cur.execute("SELECT id FROM agents WHERE email = %s AND id != %s", (updates['email'], agent_id))
+    if "email" in updates and updates["email"]:
+        cur.execute(
+            "SELECT id FROM agents WHERE email = %s AND id != %s",
+            (updates["email"], agent_id),
+        )
         if cur.fetchone():
             cur.close()
             conn.close()
@@ -240,10 +258,24 @@ def update_agent(agent_id, updates):
 
     # Build update query
     allowed_fields = [
-        'name', 'type_id', 'tier', 'status', 'model', 'system_prompt',
-        'capabilities', 'monthly_budget', 'budget_alert_threshold',
-        'metadata', 'first_name', 'last_name', 'email', 'title',
-        'department', 'bio', 'pronouns', 'avatar_url'
+        "name",
+        "type_id",
+        "tier",
+        "status",
+        "model",
+        "system_prompt",
+        "capabilities",
+        "monthly_budget",
+        "budget_alert_threshold",
+        "metadata",
+        "first_name",
+        "last_name",
+        "email",
+        "title",
+        "department",
+        "bio",
+        "pronouns",
+        "avatar_url",
     ]
 
     set_clauses = []
@@ -252,7 +284,7 @@ def update_agent(agent_id, updates):
     for field, value in updates.items():
         if field in allowed_fields:
             # Handle JSON fields
-            if field in ['capabilities', 'metadata'] and not isinstance(value, str):
+            if field in ["capabilities", "metadata"] and not isinstance(value, str):
                 value = json.dumps(value)
 
             set_clauses.append(f"{field} = %s")
@@ -273,9 +305,11 @@ def update_agent(agent_id, updates):
 
     return get_agent(agent_id)
 
+
 # =============================================================================
 # DELETE AGENT
 # =============================================================================
+
 
 def delete_agent(agent_id, soft_delete=True):
     """
@@ -309,9 +343,11 @@ def delete_agent(agent_id, soft_delete=True):
 
     return True
 
+
 # =============================================================================
 # UPLOAD AVATAR
 # =============================================================================
+
 
 def update_avatar(agent_id, avatar_url):
     """
@@ -324,11 +360,13 @@ def update_avatar(agent_id, avatar_url):
     Returns:
         dict: Updated agent
     """
-    return update_agent(agent_id, {'avatar_url': avatar_url})
+    return update_agent(agent_id, {"avatar_url": avatar_url})
+
 
 # =============================================================================
 # SEARCH AGENTS
 # =============================================================================
+
 
 def search_agents(query):
     """
@@ -345,7 +383,8 @@ def search_agents(query):
 
     search_pattern = f"%{query}%"
 
-    cur.execute("""
+    cur.execute(
+        """
         SELECT
             a.id,
             a.first_name,
@@ -365,7 +404,16 @@ def search_agents(query):
             OR a.department ILIKE %s
             OR a.name ILIKE %s
         ORDER BY a.first_name, a.last_name
-    """, (search_pattern, search_pattern, search_pattern, search_pattern, search_pattern, search_pattern))
+    """,
+        (
+            search_pattern,
+            search_pattern,
+            search_pattern,
+            search_pattern,
+            search_pattern,
+            search_pattern,
+        ),
+    )
 
     agents = cur.fetchall()
 
@@ -374,18 +422,19 @@ def search_agents(query):
 
     return [dict(agent) for agent in agents]
 
+
 # =============================================================================
 # CLI EXAMPLES
 # =============================================================================
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("Agent Management API - Examples\n")
 
     # Example 1: List all agents
     print("=" * 70)
     print("Example 1: List all active agents")
     print("=" * 70)
-    agents = list_agents({'status': 'active'})
+    agents = list_agents({"status": "active"})
     print(f"Found {len(agents)} active agents\n")
     for agent in agents[:5]:  # Show first 5
         print(f"  • {agent['first_name']} {agent['last_name']} - {agent['title']}")
@@ -403,7 +452,7 @@ if __name__ == '__main__':
     print("\n" + "=" * 70)
     print("Example 3: Search agents")
     print("=" * 70)
-    results = search_agents('sales')
+    results = search_agents("sales")
     print(f"Found {len(results)} agents matching 'sales'")
     for agent in results:
         print(f"  • {agent['first_name']} {agent['last_name']} - {agent['title']}")

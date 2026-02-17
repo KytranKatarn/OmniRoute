@@ -9,6 +9,7 @@ Routes Ollama requests to the best available node based on:
 
 Falls back to OLLAMA_HOST environment variable when no nodes available.
 """
+
 import os
 import random
 import logging
@@ -17,7 +18,7 @@ from psycopg2.extras import RealDictCursor
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 
-logger = logging.getLogger('archie.node_router')
+logger = logging.getLogger("archie.node_router")
 
 # Cache for node selections (avoid DB hits on every request)
 _node_cache = {}
@@ -27,19 +28,19 @@ _cache_ttl = 30  # seconds
 def get_db():
     """Get database connection"""
     return psycopg2.connect(
-        host=os.getenv('DB_HOST', 'archie_database'),
-        port=os.getenv('DB_PORT', '5432'),
-        database=os.getenv('DB_NAME', 'archie'),
-        user=os.getenv('DB_USER', 'archie'),
-        password=os.getenv('DB_PASSWORD', '')
+        host=os.getenv("DB_HOST", "archie_database"),
+        port=os.getenv("DB_PORT", "5432"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", ""),
     )
 
 
 def get_fallback_host() -> str:
     """Get fallback Ollama host from environment"""
-    host = os.getenv('OLLAMA_HOST', 'http://host.docker.internal:11434')
-    if not host.startswith('http://') and not host.startswith('https://'):
-        host = f'http://{host}'
+    host = os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
+    if not host.startswith("http://") and not host.startswith("https://"):
+        host = f"http://{host}"
     return host
 
 
@@ -57,7 +58,8 @@ def get_nodes_with_model(model_name: str) -> List[Dict[str, Any]]:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 n.node_id,
                 n.node_name,
@@ -78,7 +80,9 @@ def get_nodes_with_model(model_name: str) -> List[Dict[str, Any]]:
               AND m.model_name = %s
               AND m.is_available = true
             ORDER BY n.current_load ASC, n.bridge_priority DESC
-        """, (model_name,))
+        """,
+            (model_name,),
+        )
 
         nodes = cur.fetchall()
         cur.close()
@@ -91,7 +95,9 @@ def get_nodes_with_model(model_name: str) -> List[Dict[str, Any]]:
         return []
 
 
-def select_best_node(model_name: str, prefer_gpu: bool = True) -> Optional[Dict[str, Any]]:
+def select_best_node(
+    model_name: str, prefer_gpu: bool = True
+) -> Optional[Dict[str, Any]]:
     """
     Select the best available node for a model request.
 
@@ -110,9 +116,9 @@ def select_best_node(model_name: str, prefer_gpu: bool = True) -> Optional[Dict[
     # Check cache first
     cache_key = f"{model_name}:{prefer_gpu}"
     cached = _node_cache.get(cache_key)
-    if cached and (datetime.now() - cached['time']).total_seconds() < _cache_ttl:
+    if cached and (datetime.now() - cached["time"]).total_seconds() < _cache_ttl:
         # Return cached node if still valid
-        return cached['node']
+        return cached["node"]
 
     nodes = get_nodes_with_model(model_name)
 
@@ -123,20 +129,20 @@ def select_best_node(model_name: str, prefer_gpu: bool = True) -> Optional[Dict[
     # If only one node, return it
     if len(nodes) == 1:
         node = dict(nodes[0])
-        _node_cache[cache_key] = {'node': node, 'time': datetime.now()}
+        _node_cache[cache_key] = {"node": node, "time": datetime.now()}
         return node
 
     # Calculate weights for each node
     weights = []
     for node in nodes:
         # Base weight from load (0-100 load -> 100-0 weight)
-        load_factor = max(0.1, 1 - (node.get('current_load', 0) / 100))
+        load_factor = max(0.1, 1 - (node.get("current_load", 0) / 100))
 
         # Priority factor (0-100 priority -> 0-1 factor)
-        priority_factor = node.get('bridge_priority', 50) / 100
+        priority_factor = node.get("bridge_priority", 50) / 100
 
         # GPU bonus
-        gpu_bonus = 1.3 if (prefer_gpu and node.get('gpu_available')) else 1.0
+        gpu_bonus = 1.3 if (prefer_gpu and node.get("gpu_available")) else 1.0
 
         # Combined weight
         weight = load_factor * priority_factor * gpu_bonus * 100
@@ -147,10 +153,12 @@ def select_best_node(model_name: str, prefer_gpu: bool = True) -> Optional[Dict[
     node = dict(selected)
 
     # Cache the selection
-    _node_cache[cache_key] = {'node': node, 'time': datetime.now()}
+    _node_cache[cache_key] = {"node": node, "time": datetime.now()}
 
-    logger.debug(f"Selected node {node['node_name']} for model {model_name} "
-                 f"(load: {node.get('current_load', 0)}, priority: {node.get('bridge_priority', 50)})")
+    logger.debug(
+        f"Selected node {node['node_name']} for model {model_name} "
+        f"(load: {node.get('current_load', 0)}, priority: {node.get('bridge_priority', 50)})"
+    )
 
     return node
 
@@ -166,7 +174,7 @@ def get_ollama_url(model_name: str, prefer_gpu: bool = True) -> tuple:
 
     if node:
         url = f"http://{node['vpn_ip']}:{node.get('port', 11434)}"
-        return url, node['node_id']
+        return url, node["node_id"]
     else:
         # Fallback to environment variable
         logger.info(f"Using fallback OLLAMA_HOST for model {model_name}")
@@ -176,12 +184,12 @@ def get_ollama_url(model_name: str, prefer_gpu: bool = True) -> tuple:
 def log_model_request(
     node_id: Optional[str],
     model_name: str,
-    request_type: str = 'generate',
+    request_type: str = "generate",
     tokens_in: int = None,
     tokens_out: int = None,
     response_ms: int = None,
     success: bool = True,
-    error_message: str = None
+    error_message: str = None,
 ):
     """
     Log a model request for analytics and load tracking.
@@ -203,19 +211,29 @@ def log_model_request(
         conn = get_db()
         cur = conn.cursor()
 
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO node_model_requests (
                 node_id, model_name, request_type, tokens_in, tokens_out,
                 response_ms, success, error_message
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """, (
-            node_id, model_name, request_type, tokens_in, tokens_out,
-            response_ms, success, error_message
-        ))
+        """,
+            (
+                node_id,
+                model_name,
+                request_type,
+                tokens_in,
+                tokens_out,
+                response_ms,
+                success,
+                error_message,
+            ),
+        )
 
         # Update model stats
         if success and response_ms:
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE node_ollama_models
                 SET total_requests = total_requests + 1,
                     avg_response_ms = COALESCE(
@@ -225,10 +243,13 @@ def log_model_request(
                     last_used = NOW(),
                     updated_at = NOW()
                 WHERE node_id = %s AND model_name = %s
-            """, (response_ms, response_ms, node_id, model_name))
+            """,
+                (response_ms, response_ms, node_id, model_name),
+            )
 
         # Update node load (simple increment, will be reset by heartbeat)
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE remote_nodes
             SET current_load = LEAST(current_load + 5, 100),
                 total_requests = total_requests + 1,
@@ -236,7 +257,9 @@ def log_model_request(
                 failed_requests = failed_requests + %s,
                 updated_at = NOW()
             WHERE node_id = %s
-        """, (1 if success else 0, 0 if success else 1, node_id))
+        """,
+            (1 if success else 0, 0 if success else 1, node_id),
+        )
 
         conn.commit()
         cur.close()
@@ -274,7 +297,7 @@ def get_model_availability() -> Dict[str, List[str]]:
             ORDER BY m.model_name
         """)
 
-        result = {row['model_name']: row['nodes'] for row in cur.fetchall()}
+        result = {row["model_name"]: row["nodes"] for row in cur.fetchall()}
         cur.close()
         conn.close()
 
@@ -288,6 +311,7 @@ def get_model_availability() -> Dict[str, List[str]]:
 # ============================================
 # Image Generation Service Routing (Phase 72)
 # ============================================
+
 
 def get_nodes_with_service(service_name: str) -> List[Dict[str, Any]]:
     """
@@ -352,8 +376,8 @@ def select_best_image_node(service_name: str) -> Optional[Dict[str, Any]]:
     # Check cache
     cache_key = f"image:{service_name}"
     cached = _node_cache.get(cache_key)
-    if cached and (datetime.now() - cached['time']).total_seconds() < _cache_ttl:
-        return cached['node']
+    if cached and (datetime.now() - cached["time"]).total_seconds() < _cache_ttl:
+        return cached["node"]
 
     nodes = get_nodes_with_service(service_name)
 
@@ -364,18 +388,18 @@ def select_best_image_node(service_name: str) -> Optional[Dict[str, Any]]:
     # Single node - return it
     if len(nodes) == 1:
         node = dict(nodes[0])
-        _node_cache[cache_key] = {'node': node, 'time': datetime.now()}
+        _node_cache[cache_key] = {"node": node, "time": datetime.now()}
         return node
 
     # Calculate weights - heavily prefer GPU nodes for image generation
     weights = []
     for node in nodes:
-        load_factor = max(0.1, 1 - (node.get('current_load', 0) / 100))
-        priority_factor = node.get('bridge_priority', 50) / 100
+        load_factor = max(0.1, 1 - (node.get("current_load", 0) / 100))
+        priority_factor = node.get("bridge_priority", 50) / 100
 
         # Strong GPU preference for image generation
-        gpu_bonus = 2.0 if node.get('gpu_available') else 0.5
-        vram = node.get('gpu_vram_gb', 0) or 0
+        gpu_bonus = 2.0 if node.get("gpu_available") else 0.5
+        vram = node.get("gpu_vram_gb", 0) or 0
         vram_bonus = 1.0 + (vram / 24)  # Up to ~1.67x bonus for 16GB VRAM
 
         weight = load_factor * priority_factor * gpu_bonus * vram_bonus * 100
@@ -384,10 +408,12 @@ def select_best_image_node(service_name: str) -> Optional[Dict[str, Any]]:
     selected = random.choices(nodes, weights=weights, k=1)[0]
     node = dict(selected)
 
-    _node_cache[cache_key] = {'node': node, 'time': datetime.now()}
+    _node_cache[cache_key] = {"node": node, "time": datetime.now()}
 
-    logger.debug(f"Selected node {node['node_name']} for {service_name} "
-                 f"(GPU: {node.get('gpu_model', 'None')}, VRAM: {node.get('gpu_vram_gb', 0)}GB)")
+    logger.debug(
+        f"Selected node {node['node_name']} for {service_name} "
+        f"(GPU: {node.get('gpu_model', 'None')}, VRAM: {node.get('gpu_vram_gb', 0)}GB)"
+    )
 
     return node
 
@@ -399,14 +425,14 @@ def get_foocus_url() -> tuple:
     Returns:
         Tuple of (url, node_id) where node_id is None if using fallback
     """
-    node = select_best_image_node('foocus')
+    node = select_best_image_node("foocus")
 
     if node:
         url = f"http://{node['vpn_ip']}:{node.get('port', 7865)}"
-        return url, node['node_id']
+        return url, node["node_id"]
     else:
         logger.info("Using fallback FOOOCUS_URL")
-        fallback = os.getenv('FOOOCUS_URL', 'http://localhost:7865')
+        fallback = os.getenv("FOOOCUS_URL", "http://localhost:7865")
         return fallback, None
 
 
@@ -417,14 +443,14 @@ def get_comfyui_url() -> tuple:
     Returns:
         Tuple of (url, node_id) where node_id is None if using fallback
     """
-    node = select_best_image_node('comfyui')
+    node = select_best_image_node("comfyui")
 
     if node:
         url = f"http://{node['vpn_ip']}:{node.get('port', 8188)}"
-        return url, node['node_id']
+        return url, node["node_id"]
     else:
         logger.info("Using fallback COMFYUI_URL")
-        fallback = os.getenv('COMFYUI_URL', 'http://localhost:8188')
+        fallback = os.getenv("COMFYUI_URL", "http://localhost:8188")
         return fallback, None
 
 
@@ -435,14 +461,14 @@ def get_auto1111_url() -> tuple:
     Returns:
         Tuple of (url, node_id) where node_id is None if using fallback
     """
-    node = select_best_image_node('auto1111')
+    node = select_best_image_node("auto1111")
 
     if node:
         url = f"http://{node['vpn_ip']}:{node.get('port', 7860)}"
-        return url, node['node_id']
+        return url, node["node_id"]
     else:
         logger.info("Using fallback AUTO1111_URL")
-        fallback = os.getenv('AUTO1111_URL', 'http://localhost:7860')
+        fallback = os.getenv("AUTO1111_URL", "http://localhost:7860")
         return fallback, None
 
 
@@ -473,41 +499,37 @@ def get_image_service_availability() -> Dict[str, List[str]]:
         cur.close()
         conn.close()
 
-        result = {
-            'foocus': [],
-            'comfyui': [],
-            'auto1111': []
-        }
+        result = {"foocus": [], "comfyui": [], "auto1111": []}
 
         for node in nodes:
-            if node.get('foocus_available'):
-                result['foocus'].append(node['node_name'])
-            if node.get('comfyui_available'):
-                result['comfyui'].append(node['node_name'])
-            if node.get('auto1111_available'):
-                result['auto1111'].append(node['node_name'])
+            if node.get("foocus_available"):
+                result["foocus"].append(node["node_name"])
+            if node.get("comfyui_available"):
+                result["comfyui"].append(node["node_name"])
+            if node.get("auto1111_available"):
+                result["auto1111"].append(node["node_name"])
 
         return result
 
     except Exception as e:
         logger.error(f"Error getting image service availability: {e}")
-        return {'foocus': [], 'comfyui': [], 'auto1111': []}
+        return {"foocus": [], "comfyui": [], "auto1111": []}
 
 
 # Export main functions
 __all__ = [
-    'get_ollama_url',
-    'select_best_node',
-    'get_nodes_with_model',
-    'log_model_request',
-    'get_fallback_host',
-    'clear_cache',
-    'get_model_availability',
+    "get_ollama_url",
+    "select_best_node",
+    "get_nodes_with_model",
+    "log_model_request",
+    "get_fallback_host",
+    "clear_cache",
+    "get_model_availability",
     # Image generation services (Phase 72)
-    'get_foocus_url',
-    'get_comfyui_url',
-    'get_auto1111_url',
-    'get_nodes_with_service',
-    'select_best_image_node',
-    'get_image_service_availability'
+    "get_foocus_url",
+    "get_comfyui_url",
+    "get_auto1111_url",
+    "get_nodes_with_service",
+    "select_best_image_node",
+    "get_image_service_availability",
 ]

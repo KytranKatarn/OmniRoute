@@ -38,7 +38,10 @@ except ImportError:
 
 # Create blueprint
 email_manager_bp = Blueprint(
-    "email_manager", __name__, url_prefix="/tools/email-manager", template_folder="../../templates/tools"
+    "email_manager",
+    __name__,
+    url_prefix="/tools/email-manager",
+    template_folder="../../templates/tools",
 )
 
 
@@ -160,7 +163,14 @@ def index():
         current_app.logger.error(f"[EmailManager] Error loading dashboard: {e}")
         return render_template(
             "email_manager.html",
-            stats={"total_sent": 0, "delivered": 0, "opened": 0, "clicked": 0, "failed": 0, "bounced": 0},
+            stats={
+                "total_sent": 0,
+                "delivered": 0,
+                "opened": 0,
+                "clicked": 0,
+                "failed": 0,
+                "bounced": 0,
+            },
             templates=[],
             recent_emails=[],
             campaigns=[],
@@ -219,7 +229,10 @@ def create_template():
         data = request.get_json()
 
         if not data.get("name") or not data.get("subject"):
-            return jsonify({"success": False, "error": "Name and subject are required"}), 400
+            return (
+                jsonify({"success": False, "error": "Name and subject are required"}),
+                400,
+            )
 
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -247,7 +260,13 @@ def create_template():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "template": dict(template), "message": "Template created successfully"})
+        return jsonify(
+            {
+                "success": True,
+                "template": dict(template),
+                "message": "Template created successfully",
+            }
+        )
     except Exception as e:
         current_app.logger.error(f"[EmailManager] Error creating template: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
@@ -402,7 +421,10 @@ def create_settings():
         data = request.get_json()
 
         if not data.get("smtp_host") or not data.get("from_email"):
-            return jsonify({"success": False, "error": "SMTP host and from email are required"}), 400
+            return (
+                jsonify({"success": False, "error": "SMTP host and from email are required"}),
+                400,
+            )
 
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -438,7 +460,13 @@ def create_settings():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "settings": dict(settings), "message": "SMTP settings created"})
+        return jsonify(
+            {
+                "success": True,
+                "settings": dict(settings),
+                "message": "SMTP settings created",
+            }
+        )
     except Exception as e:
         current_app.logger.error(f"[EmailManager] Error creating settings: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
@@ -456,7 +484,10 @@ def update_settings(settings_id):
 
         # If this is marked as default, unset other defaults
         if data.get("is_default"):
-            cur.execute("UPDATE email_settings SET is_default = false WHERE id != %s", (settings_id,))
+            cur.execute(
+                "UPDATE email_settings SET is_default = false WHERE id != %s",
+                (settings_id,),
+            )
 
         # Build update query
         updates = []
@@ -574,7 +605,13 @@ def test_settings(settings_id):
         cur.close()
         conn.close()
 
-        return jsonify({"success": test_result == "success", "result": test_result, "message": test_message})
+        return jsonify(
+            {
+                "success": test_result == "success",
+                "result": test_result,
+                "message": test_message,
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -623,7 +660,10 @@ def send_email():
         if not smtp:
             cur.close()
             conn.close()
-            return jsonify({"success": False, "error": "No SMTP settings configured"}), 400
+            return (
+                jsonify({"success": False, "error": "No SMTP settings configured"}),
+                400,
+            )
 
         # Create email log entry
         cur.execute(
@@ -687,7 +727,13 @@ def send_email():
             cur.close()
             conn.close()
 
-            return jsonify({"success": True, "message": f"Email sent to {recipient}", "log_id": log_id})
+            return jsonify(
+                {
+                    "success": True,
+                    "message": f"Email sent to {recipient}",
+                    "log_id": log_id,
+                }
+            )
 
         except Exception as e:
             # Log the error
@@ -703,7 +749,10 @@ def send_email():
             cur.close()
             conn.close()
 
-            return jsonify({"success": False, "error": f"Failed to send: {str(e)}"}), 500
+            return (
+                jsonify({"success": False, "error": f"Failed to send: {str(e)}"}),
+                500,
+            )
 
     except Exception as e:
         current_app.logger.error(f"[EmailManager] Send error: {e}")
@@ -767,7 +816,13 @@ def send_bulk():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "queued": queued, "message": f"{queued} emails queued for sending"})
+        return jsonify(
+            {
+                "success": True,
+                "queued": queued,
+                "message": f"{queued} emails queued for sending",
+            }
+        )
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -873,7 +928,10 @@ def create_campaign():
         data = request.get_json()
 
         if not data.get("name") or not data.get("template_id"):
-            return jsonify({"success": False, "error": "Name and template are required"}), 400
+            return (
+                jsonify({"success": False, "error": "Name and template are required"}),
+                400,
+            )
 
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -885,7 +943,13 @@ def create_campaign():
             VALUES (%s, %s, %s, %s, %s)
             RETURNING *
         """,
-            (data["name"], data["template_id"], data.get("segment_id"), data.get("scheduled_for"), current_user.id),
+            (
+                data["name"],
+                data["template_id"],
+                data.get("segment_id"),
+                data.get("scheduled_for"),
+                current_user.id,
+            ),
         )
         campaign = cur.fetchone()
 
@@ -1164,9 +1228,19 @@ def status():
                 "templates": template_count,
                 "recent_emails": recent_emails,
                 "smtp_configured": smtp_status is not None,
-                "smtp_tested": smtp_status["test_result"] == "success" if smtp_status else False,
+                "smtp_tested": (smtp_status["test_result"] == "success" if smtp_status else False),
                 "message": f"Email Manager operational with {template_count} templates",
             }
         )
     except Exception as e:
-        return jsonify({"module": "email_manager", "status": "error", "healthy": False, "message": str(e)}), 500
+        return (
+            jsonify(
+                {
+                    "module": "email_manager",
+                    "status": "error",
+                    "healthy": False,
+                    "message": str(e),
+                }
+            ),
+            500,
+        )

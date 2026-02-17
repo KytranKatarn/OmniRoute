@@ -16,4 +16,4 @@ Date: 2026-01-12
 
 from .routes import call_center_bp
 
-__all__ = ['call_center_bp']
+__all__ = ["call_center_bp"]

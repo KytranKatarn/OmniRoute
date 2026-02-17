@@ -23,7 +23,11 @@ sys.path.insert(0, "/mnt/archie_brain/platform_v2")
 
 # Import Bridge routing functions for proper team member routing
 try:
-    from ai_bridge.archie_bridge import route_task_to_station, execute_agent_task, get_available_agent_for_station
+    from ai_bridge.archie_bridge import (
+        route_task_to_station,
+        execute_agent_task,
+        get_available_agent_for_station,
+    )
 
     BRIDGE_ROUTING_AVAILABLE = True
 except ImportError:
@@ -54,7 +58,12 @@ def check_ollama_status():
             r = requests.get(f"http://{host}/api/tags", timeout=2)
             if r.status_code == 200:
                 models = [m["name"] for m in r.json().get("models", [])]
-                return {"available": True, "host": host, "models": models[:5], "model_count": len(models)}
+                return {
+                    "available": True,
+                    "host": host,
+                    "models": models[:5],
+                    "model_count": len(models),
+                }
         except Exception:
             continue
     return {"available": False, "host": None, "models": [], "model_count": 0}
@@ -195,7 +204,7 @@ def basic_static_analysis(code_content, file_path):
     return {
         "quality_score": score,
         "issues": issues,
-        "summary": f"Static analysis found {len(issues)} issues" if issues else "No issues found",
+        "summary": (f"Static analysis found {len(issues)} issues" if issues else "No issues found"),
         "analysis_type": "static",
     }
 
@@ -342,7 +351,10 @@ def ai_status():
                 "available": True,  # archie_bridge is part of the platform
                 "path": "/mnt/archie_brain/ai_bridge",
             },
-            "analysis_modes": {"ai_powered": ollama["available"], "static_analysis": True},  # Always available
+            "analysis_modes": {
+                "ai_powered": ollama["available"],
+                "static_analysis": True,
+            },  # Always available
             "recommended_mode": "ai_powered" if ollama["available"] else "static",
         }
     )
@@ -357,7 +369,11 @@ def get_config():
             "github_connected": bool(GITHUB_TOKEN),
             "repositories": GITHUB_REPOS,
             "primary_repo": GITHUB_REPO,
-            "scan_settings": {"auto_review_prs": True, "security_scan_enabled": True, "code_style_check": True},
+            "scan_settings": {
+                "auto_review_prs": True,
+                "security_scan_enabled": True,
+                "code_style_check": True,
+            },
         }
     )
 
@@ -389,18 +405,30 @@ def add_repo():
     # Test if repo exists and is accessible
     if GITHUB_TOKEN:
         try:
-            headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+            headers = {
+                "Authorization": f"token {GITHUB_TOKEN}",
+                "Accept": "application/vnd.github.v3+json",
+            }
             response = requests.get(f"https://api.github.com/repos/{repo}", headers=headers, timeout=10)
             if response.status_code == 404:
                 return jsonify({"error": "Repository not found or not accessible"}), 404
             elif response.status_code != 200:
-                return jsonify({"error": f"GitHub API error: {response.status_code}"}), 500
+                return (
+                    jsonify({"error": f"GitHub API error: {response.status_code}"}),
+                    500,
+                )
         except Exception as e:
             return jsonify({"error": f"Failed to verify repo: {str(e)}"}), 500
 
     GITHUB_REPOS.append(repo)
 
-    return jsonify({"success": True, "message": f"Repository {repo} added", "repositories": GITHUB_REPOS})
+    return jsonify(
+        {
+            "success": True,
+            "message": f"Repository {repo} added",
+            "repositories": GITHUB_REPOS,
+        }
+    )
 
 
 @coderabbit_bp.route("/api/repos/<path:repo>", methods=["DELETE"])
@@ -417,7 +445,13 @@ def remove_repo(repo):
 
     GITHUB_REPOS.remove(repo)
 
-    return jsonify({"success": True, "message": f"Repository {repo} removed", "repositories": GITHUB_REPOS})
+    return jsonify(
+        {
+            "success": True,
+            "message": f"Repository {repo} removed",
+            "repositories": GITHUB_REPOS,
+        }
+    )
 
 
 @coderabbit_bp.route("/api/recent-prs")
@@ -433,7 +467,10 @@ def get_recent_prs():
     repos_to_fetch = [repo_filter] if repo_filter else GITHUB_REPOS
 
     try:
-        headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+        headers = {
+            "Authorization": f"token {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json",
+        }
 
         all_prs = []
         repo_errors = []
@@ -544,7 +581,13 @@ def github_webhook():
         )
 
     return jsonify(
-        {"success": True, "event": event_type, "action": action, "repository": repo, "message": "Webhook received"}
+        {
+            "success": True,
+            "event": event_type,
+            "action": action,
+            "repository": repo,
+            "message": "Webhook received",
+        }
     )
 
 
@@ -555,7 +598,10 @@ def get_stats():
         return jsonify({"error": "GitHub token not configured"}), 400
 
     try:
-        headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+        headers = {
+            "Authorization": f"token {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json",
+        }
 
         total_open = 0
         total_closed = 0
@@ -564,10 +610,14 @@ def get_stats():
         for repo in GITHUB_REPOS:
             try:
                 open_response = requests.get(
-                    f"https://api.github.com/repos/{repo}/pulls?state=open&per_page=100", headers=headers, timeout=10
+                    f"https://api.github.com/repos/{repo}/pulls?state=open&per_page=100",
+                    headers=headers,
+                    timeout=10,
                 )
                 closed_response = requests.get(
-                    f"https://api.github.com/repos/{repo}/pulls?state=closed&per_page=100", headers=headers, timeout=10
+                    f"https://api.github.com/repos/{repo}/pulls?state=closed&per_page=100",
+                    headers=headers,
+                    timeout=10,
                 )
 
                 repo_open = len(open_response.json()) if open_response.status_code == 200 else 0
@@ -627,7 +677,10 @@ def request_coderabbit_review():
         return jsonify({"success": False, "error": "repo and pr_number required"}), 400
 
     try:
-        headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+        headers = {
+            "Authorization": f"token {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json",
+        }
 
         # Post a comment to trigger CodeRabbit review
         response = requests.post(
@@ -647,7 +700,12 @@ def request_coderabbit_review():
             )
         else:
             return (
-                jsonify({"success": False, "error": f"GitHub API error: {response.status_code}"}),
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"GitHub API error: {response.status_code}",
+                    }
+                ),
                 response.status_code,
             )
 
@@ -675,16 +733,23 @@ def get_pr_review_comments(pr_number):
         return jsonify({"success": False, "error": "No repository specified"}), 400
 
     try:
-        headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+        headers = {
+            "Authorization": f"token {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json",
+        }
 
         # Get issue comments (where CodeRabbit posts summary)
         comments_resp = requests.get(
-            f"https://api.github.com/repos/{repo}/issues/{pr_number}/comments", headers=headers, timeout=10
+            f"https://api.github.com/repos/{repo}/issues/{pr_number}/comments",
+            headers=headers,
+            timeout=10,
         )
 
         # Get review comments (inline code comments)
         review_comments_resp = requests.get(
-            f"https://api.github.com/repos/{repo}/pulls/{pr_number}/comments", headers=headers, timeout=10
+            f"https://api.github.com/repos/{repo}/pulls/{pr_number}/comments",
+            headers=headers,
+            timeout=10,
         )
 
         coderabbit_suggestions = []
@@ -932,7 +997,10 @@ def merge_pr(pr_number):
         return jsonify({"success": False, "error": "No repository specified"}), 400
 
     try:
-        headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+        headers = {
+            "Authorization": f"token {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json",
+        }
 
         # Merge the PR
         response = requests.put(
@@ -953,12 +1021,33 @@ def merge_pr(pr_number):
                 }
             )
         elif response.status_code == 405:
-            return jsonify({"success": False, "error": "PR cannot be merged (conflicts or checks failing)"}), 405
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "PR cannot be merged (conflicts or checks failing)",
+                    }
+                ),
+                405,
+            )
         elif response.status_code == 409:
-            return jsonify({"success": False, "error": "Head branch was modified, review and try again"}), 409
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Head branch was modified, review and try again",
+                    }
+                ),
+                409,
+            )
         else:
             return (
-                jsonify({"success": False, "error": f"GitHub API error: {response.status_code}"}),
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"GitHub API error: {response.status_code}",
+                    }
+                ),
                 response.status_code,
             )
 
@@ -983,7 +1072,10 @@ def sync_prs():
     per_page = data.get("per_page", 30)
 
     try:
-        headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+        headers = {
+            "Authorization": f"token {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json",
+        }
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -1113,11 +1205,11 @@ def get_local_prs():
                 "pull_requests": [
                     {
                         **dict(pr),
-                        "created_at": pr["created_at"].isoformat() if pr["created_at"] else None,
-                        "updated_at": pr["updated_at"].isoformat() if pr["updated_at"] else None,
-                        "merged_at": pr["merged_at"].isoformat() if pr["merged_at"] else None,
-                        "closed_at": pr["closed_at"].isoformat() if pr["closed_at"] else None,
-                        "synced_at": pr["synced_at"].isoformat() if pr["synced_at"] else None,
+                        "created_at": (pr["created_at"].isoformat() if pr["created_at"] else None),
+                        "updated_at": (pr["updated_at"].isoformat() if pr["updated_at"] else None),
+                        "merged_at": (pr["merged_at"].isoformat() if pr["merged_at"] else None),
+                        "closed_at": (pr["closed_at"].isoformat() if pr["closed_at"] else None),
+                        "synced_at": (pr["synced_at"].isoformat() if pr["synced_at"] else None),
                         "repo_short": pr["repo"].split("/")[-1],
                     }
                     for pr in prs
@@ -1483,7 +1575,11 @@ Critical/High Issues:
                     ],
                     "code_scan",
                     json.dumps(
-                        {"scan_id": scan_id, "quality_score": analysis.get("quality_score", 0), "issues": len(issues)}
+                        {
+                            "scan_id": scan_id,
+                            "quality_score": analysis.get("quality_score", 0),
+                            "issues": len(issues),
+                        }
                     ),
                     True,
                 ),
@@ -1588,7 +1684,11 @@ def batch_scan_files():
                 full_path = f"/mnt/archie_brain/{file_path}"
 
             if not os.path.exists(full_path):
-                return {"file_path": file_path, "error": "File not found", "success": False}
+                return {
+                    "file_path": file_path,
+                    "error": "File not found",
+                    "success": False,
+                }
 
             with open(full_path, "r") as f:
                 code_content = f.read()
@@ -1731,8 +1831,8 @@ def get_scan_history():
                 "scans": [
                     {
                         **dict(s),
-                        "scanned_at": s["scanned_at"].isoformat() if s["scanned_at"] else None,
-                        "quality_score": float(s["quality_score"]) if s["quality_score"] else None,
+                        "scanned_at": (s["scanned_at"].isoformat() if s["scanned_at"] else None),
+                        "quality_score": (float(s["quality_score"]) if s["quality_score"] else None),
                         "scan_result": s["scan_result"] if s["scan_result"] else {},
                     }
                     for s in scans
@@ -1811,9 +1911,9 @@ def get_issues():
                 "issues": [
                     {
                         **dict(i),
-                        "created_at": i["created_at"].isoformat() if i["created_at"] else None,
-                        "fixed_at": i["fixed_at"].isoformat() if i["fixed_at"] else None,
-                        "scanned_at": i["scanned_at"].isoformat() if i["scanned_at"] else None,
+                        "created_at": (i["created_at"].isoformat() if i["created_at"] else None),
+                        "fixed_at": (i["fixed_at"].isoformat() if i["fixed_at"] else None),
+                        "scanned_at": (i["scanned_at"].isoformat() if i["scanned_at"] else None),
                         "proposal_id": i.get("proposal_id"),
                         "proposal_status": i.get("proposal_status"),
                         "proposal_title": i.get("proposal_title"),
@@ -1870,7 +1970,15 @@ def mark_issue_fixed(issue_id):
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             RETURNING id
         """,
-            (issue_id, issue["file_path"], fixed_by, fix_description, pr_number, pr_url, commit_sha),
+            (
+                issue_id,
+                issue["file_path"],
+                fixed_by,
+                fix_description,
+                pr_number,
+                pr_url,
+                commit_sha,
+            ),
         )
 
         fix_id = cur.fetchone()["id"]
@@ -1917,7 +2025,13 @@ def get_fixes():
         return jsonify(
             {
                 "success": True,
-                "fixes": [{**dict(f), "fixed_at": f["fixed_at"].isoformat() if f["fixed_at"] else None} for f in fixes],
+                "fixes": [
+                    {
+                        **dict(f),
+                        "fixed_at": (f["fixed_at"].isoformat() if f["fixed_at"] else None),
+                    }
+                    for f in fixes
+                ],
             }
         )
 
@@ -1975,7 +2089,11 @@ def get_issues_multi_agent_status():
         # Include issues not found (no multi-agent review)
         for issue_id in issue_ids:
             if issue_id not in status_map:
-                status_map[issue_id] = {"has_multi_agent": False, "review_id": None, "agent_count": 0}
+                status_map[issue_id] = {
+                    "has_multi_agent": False,
+                    "review_id": None,
+                    "agent_count": 0,
+                }
 
         all_have_review = all(s["has_multi_agent"] for s in status_map.values())
 
@@ -2070,7 +2188,12 @@ def send_issues_to_improvements():
             category = category_map.get(issue["issue_type"], "feature")
 
             # Map severity to priority
-            priority_map = {"critical": "critical", "high": "high", "medium": "medium", "low": "low"}
+            priority_map = {
+                "critical": "critical",
+                "high": "high",
+                "medium": "medium",
+                "low": "low",
+            }
             priority = priority_map.get(issue["severity"], "medium")
 
             # FIRST: Check for multi-agent analysis on this issue (REQUIRED)
@@ -2130,8 +2253,8 @@ def send_issues_to_improvements():
                     ),
                     "agent_suggestions": [dict(s) for s in agent_suggestions],
                     "agents_consulted": len(agent_suggestions),
-                    "highest_confidence": agent_suggestions[0]["confidence"] if agent_suggestions else None,
-                    "agreement_count": agent_suggestions[0]["agreement_count"] if agent_suggestions else 0,
+                    "highest_confidence": (agent_suggestions[0]["confidence"] if agent_suggestions else None),
+                    "agreement_count": (agent_suggestions[0]["agreement_count"] if agent_suggestions else 0),
                 }
 
                 if best_agent:
@@ -2148,7 +2271,11 @@ def send_issues_to_improvements():
             if not multi_agent_data:
                 # Track this issue as skipped - needs multi-agent review first
                 skipped_no_review.append(
-                    {"issue_id": issue["id"], "file_path": issue["file_path"], "message": issue["message"][:50]}
+                    {
+                        "issue_id": issue["id"],
+                        "file_path": issue["file_path"],
+                        "message": issue["message"][:50],
+                    }
                 )
                 continue
 
@@ -2287,11 +2414,17 @@ def update_issue_from_improvement():
     fixed_by = data.get("fixed_by", session.get("username", "system"))
 
     if not proposal_id or not new_status:
-        return jsonify({"success": False, "error": "proposal_id and status required"}), 400
+        return (
+            jsonify({"success": False, "error": "proposal_id and status required"}),
+            400,
+        )
 
     valid_statuses = ["fixed", "deployed", "rejected", "wont_fix", "in_progress"]
     if new_status not in valid_statuses:
-        return jsonify({"success": False, "error": f"Invalid status. Use: {valid_statuses}"}), 400
+        return (
+            jsonify({"success": False, "error": f"Invalid status. Use: {valid_statuses}"}),
+            400,
+        )
 
     try:
         conn = get_db()
@@ -2393,12 +2526,17 @@ def compare_pr_and_health_reviews():
         # If PR number provided, fetch CodeRabbit comments from GitHub
         if pr_number and GITHUB_TOKEN:
             try:
-                headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+                headers = {
+                    "Authorization": f"token {GITHUB_TOKEN}",
+                    "Accept": "application/vnd.github.v3+json",
+                }
 
                 # Get PR review comments (inline)
                 repo = GITHUB_REPOS[0] if GITHUB_REPOS else GITHUB_REPO
                 response = requests.get(
-                    f"https://api.github.com/repos/{repo}/pulls/{pr_number}/comments", headers=headers, timeout=10
+                    f"https://api.github.com/repos/{repo}/pulls/{pr_number}/comments",
+                    headers=headers,
+                    timeout=10,
                 )
 
                 if response.status_code == 200:
@@ -2437,7 +2575,11 @@ def compare_pr_and_health_reviews():
                 sources.append("pr_review")
 
             comparison["correlations"].append(
-                {"line": line, "sources": sources, "confidence": "high" if len(sources) >= 2 else "medium"}
+                {
+                    "line": line,
+                    "sources": sources,
+                    "confidence": "high" if len(sources) >= 2 else "medium",
+                }
             )
 
         # Summary
@@ -2494,8 +2636,8 @@ def get_file_health():
                     {
                         **dict(f),
                         "open_issues": open_issues.get(f["file_path"], 0),
-                        "quality_score": float(f["quality_score"]) if f["quality_score"] else None,
-                        "scanned_at": f["scanned_at"].isoformat() if f["scanned_at"] else None,
+                        "quality_score": (float(f["quality_score"]) if f["quality_score"] else None),
+                        "scanned_at": (f["scanned_at"].isoformat() if f["scanned_at"] else None),
                     }
                     for f in files
                 ],
@@ -2576,8 +2718,8 @@ def get_files_needing_rescan():
                                 "name": filename,
                                 "full_path": full_path,
                                 "mtime": mtime.isoformat(),
-                                "last_scan": last_scan.isoformat() if last_scan else None,
-                                "reason": "never_scanned" if last_scan is None else "modified",
+                                "last_scan": (last_scan.isoformat() if last_scan else None),
+                                "reason": ("never_scanned" if last_scan is None else "modified"),
                             }
                         )
 
@@ -2696,7 +2838,12 @@ def run_git_command(args, cwd=None):
         env["GIT_WORK_TREE"] = GIT_WORK_TREE
 
         result = subprocess.run(
-            ["git"] + args, cwd=cwd or GIT_WORK_TREE, capture_output=True, text=True, timeout=30, env=env
+            ["git"] + args,
+            cwd=cwd or GIT_WORK_TREE,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env=env,
         )
         return {
             "success": result.returncode == 0,
@@ -2774,7 +2921,12 @@ def get_git_status():
             for line in log_result["stdout"].strip().split("\n"):
                 if line:
                     parts = line.split(" ", 1)
-                    recent_commits.append({"hash": parts[0], "message": parts[1] if len(parts) > 1 else ""})
+                    recent_commits.append(
+                        {
+                            "hash": parts[0],
+                            "message": parts[1] if len(parts) > 1 else "",
+                        }
+                    )
 
         # Check if ahead/behind remote
         ahead_behind = run_git_command(["rev-list", "--left-right", "--count", "@{u}...HEAD"])
@@ -2807,7 +2959,10 @@ def get_git_status():
     except Exception as e:
         import traceback
 
-        return jsonify({"success": False, "error": str(e), "traceback": traceback.format_exc()}), 500
+        return (
+            jsonify({"success": False, "error": str(e), "traceback": traceback.format_exc()}),
+            500,
+        )
 
 
 @coderabbit_bp.route("/api/git/push", methods=["POST"])
@@ -2815,13 +2970,19 @@ def get_git_status():
 def git_push():
     """Push commits to remote repository"""
     if not GIT_REPO_PATH:
-        return jsonify({"success": False, "error": "Git repository not accessible"}), 400
+        return (
+            jsonify({"success": False, "error": "Git repository not accessible"}),
+            400,
+        )
 
     try:
         # First, get current branch
         branch_result = run_git_command(["branch", "--show-current"])
         if not branch_result["success"]:
-            return jsonify({"success": False, "error": "Could not determine current branch"}), 400
+            return (
+                jsonify({"success": False, "error": "Could not determine current branch"}),
+                400,
+            )
 
         current_branch = branch_result["stdout"].strip()
 
@@ -2857,7 +3018,10 @@ def git_push():
 def git_pull():
     """Pull latest changes from remote repository"""
     if not GIT_REPO_PATH:
-        return jsonify({"success": False, "error": "Git repository not accessible"}), 400
+        return (
+            jsonify({"success": False, "error": "Git repository not accessible"}),
+            400,
+        )
 
     try:
         # Pull from origin
@@ -2865,7 +3029,11 @@ def git_pull():
 
         if pull_result["success"]:
             return jsonify(
-                {"success": True, "message": "Successfully pulled latest changes", "output": pull_result["stdout"]}
+                {
+                    "success": True,
+                    "message": "Successfully pulled latest changes",
+                    "output": pull_result["stdout"],
+                }
             )
         else:
             return (
@@ -2888,7 +3056,10 @@ def git_pull():
 def git_stage_all():
     """Stage all changes for commit"""
     if not GIT_REPO_PATH:
-        return jsonify({"success": False, "error": "Git repository not accessible"}), 400
+        return (
+            jsonify({"success": False, "error": "Git repository not accessible"}),
+            400,
+        )
 
     try:
         # Check if there are changes to stage
@@ -2905,9 +3076,24 @@ def git_stage_all():
                 len([f for f in staged_result["stdout"].strip().split("\n") if f]) if staged_result["success"] else 0
             )
 
-            return jsonify({"success": True, "message": f"Staged {staged_count} file(s)", "staged_count": staged_count})
+            return jsonify(
+                {
+                    "success": True,
+                    "message": f"Staged {staged_count} file(s)",
+                    "staged_count": staged_count,
+                }
+            )
         else:
-            return jsonify({"success": False, "error": "Failed to stage files", "details": add_result["stderr"]}), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Failed to stage files",
+                        "details": add_result["stderr"],
+                    }
+                ),
+                400,
+            )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -2918,7 +3104,10 @@ def git_stage_all():
 def git_commit():
     """Create a new commit with staged changes"""
     if not GIT_REPO_PATH:
-        return jsonify({"success": False, "error": "Git repository not accessible"}), 400
+        return (
+            jsonify({"success": False, "error": "Git repository not accessible"}),
+            400,
+        )
 
     data = request.get_json() or {}
     message = data.get("message", "").strip()
@@ -2933,7 +3122,13 @@ def git_commit():
             add_result = run_git_command(["add", "-A"])
             if not add_result["success"]:
                 return (
-                    jsonify({"success": False, "error": "Failed to stage changes", "details": add_result["stderr"]}),
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": "Failed to stage changes",
+                            "details": add_result["stderr"],
+                        }
+                    ),
                     400,
                 )
 
@@ -2958,7 +3153,11 @@ def git_commit():
             if "nothing to commit" in commit_result["stdout"].lower():
                 return (
                     jsonify(
-                        {"success": False, "error": "Nothing to commit", "details": "No changes staged for commit"}
+                        {
+                            "success": False,
+                            "error": "Nothing to commit",
+                            "details": "No changes staged for commit",
+                        }
                     ),
                     400,
                 )
@@ -2983,7 +3182,10 @@ def git_commit():
 def git_fetch():
     """Fetch latest refs from remote without merging"""
     if not GIT_REPO_PATH:
-        return jsonify({"success": False, "error": "Git repository not accessible"}), 400
+        return (
+            jsonify({"success": False, "error": "Git repository not accessible"}),
+            400,
+        )
 
     try:
         fetch_result = run_git_command(["fetch", "origin"])
@@ -2991,7 +3193,7 @@ def git_fetch():
         return jsonify(
             {
                 "success": fetch_result["success"],
-                "message": "Fetch completed" if fetch_result["success"] else "Fetch failed",
+                "message": ("Fetch completed" if fetch_result["success"] else "Fetch failed"),
                 "output": fetch_result["stdout"] or fetch_result["stderr"],
             }
         )
@@ -3026,12 +3228,18 @@ def git_create_pr():
 
     # Get the first configured repo (or could make this selectable)
     if not GITHUB_REPOS:
-        return jsonify({"success": False, "error": "No GitHub repositories configured"}), 400
+        return (
+            jsonify({"success": False, "error": "No GitHub repositories configured"}),
+            400,
+        )
 
     repo = GITHUB_REPOS[0]
 
     try:
-        headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+        headers = {
+            "Authorization": f"token {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json",
+        }
 
         # Create the PR
         response = requests.post(
@@ -3062,7 +3270,12 @@ def git_create_pr():
             return jsonify({"success": False, "error": error_msg}), 422
         else:
             return (
-                jsonify({"success": False, "error": f"GitHub API error: {response.status_code} - {response.text}"}),
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"GitHub API error: {response.status_code} - {response.text}",
+                    }
+                ),
                 response.status_code,
             )
 
@@ -3106,7 +3319,12 @@ def git_pr_info():
 
         # Get commits ahead of base branch
         commits_result = run_git_command(
-            ["log", f"origin/{base_branch}..HEAD", "--format=%H|%h|%s|%an|%ar|%b", "--reverse"]
+            [
+                "log",
+                f"origin/{base_branch}..HEAD",
+                "--format=%H|%h|%s|%an|%ar|%b",
+                "--reverse",
+            ]
         )
 
         commits = []
@@ -3257,7 +3475,10 @@ def git_pr_info():
     except Exception as e:
         import traceback
 
-        return jsonify({"success": False, "error": str(e), "traceback": traceback.format_exc()}), 500
+        return (
+            jsonify({"success": False, "error": str(e), "traceback": traceback.format_exc()}),
+            500,
+        )
 
 
 @coderabbit_bp.route("/api/git/suggest-splits")
@@ -3287,7 +3508,10 @@ def git_suggest_splits():
         # --diff-filter=AM excludes deleted files that don't exist in HEAD
         files_result = run_git_command(["diff", "--name-only", "--diff-filter=AM", f"origin/{base_branch}..HEAD"])
         if not files_result["success"]:
-            return jsonify({"success": False, "error": "Failed to get changed files"}), 500
+            return (
+                jsonify({"success": False, "error": "Failed to get changed files"}),
+                500,
+            )
 
         changed_files = [f for f in files_result["stdout"].strip().split("\n") if f]
 
@@ -3372,13 +3596,23 @@ def git_suggest_splits():
             },
             "system_ops": {
                 "name": "System Operations",
-                "patterns": ["system_operations", "host_monitor", "071_", "security_network"],
+                "patterns": [
+                    "system_operations",
+                    "host_monitor",
+                    "071_",
+                    "security_network",
+                ],
                 "files": [],
                 "description": "Host machine administration and monitoring",
             },
             "website_figma": {
                 "name": "Website Studio & Figma",
-                "patterns": ["website_studio", "website_designer", "figma/", "figma.html"],
+                "patterns": [
+                    "website_studio",
+                    "website_designer",
+                    "figma/",
+                    "figma.html",
+                ],
                 "files": [],
                 "description": "Website designer and Figma integration",
             },
@@ -3390,7 +3624,12 @@ def git_suggest_splits():
             },
             "creation_tools": {
                 "name": "Creation Tools",
-                "patterns": ["game_studio", "content_studio", "media_studio", "project_builder"],
+                "patterns": [
+                    "game_studio",
+                    "content_studio",
+                    "media_studio",
+                    "project_builder",
+                ],
                 "files": [],
                 "description": "Game, content, media studios and project builder",
             },
@@ -3427,7 +3666,15 @@ def git_suggest_splits():
             },
             "standalone_apps": {
                 "name": "Standalone Apps",
-                "patterns": ["stockbot", "therapy", "fitness", "doc.html", "/doc/", "iaae", "standalone_apps_nav"],
+                "patterns": [
+                    "stockbot",
+                    "therapy",
+                    "fitness",
+                    "doc.html",
+                    "/doc/",
+                    "iaae",
+                    "standalone_apps_nav",
+                ],
                 "files": [],
                 "description": "StockBot, therapy, fitness, DOC, IAAE compliance",
             },
@@ -3494,7 +3741,11 @@ def git_suggest_splits():
             },
             "conversation": {
                 "name": "Conversation & Triage",
-                "patterns": ["conversation_triage/", "conversation_ingest", "archie_chat"],
+                "patterns": [
+                    "conversation_triage/",
+                    "conversation_ingest",
+                    "archie_chat",
+                ],
                 "files": [],
                 "description": "Conversation handling and triage system",
             },
@@ -3506,7 +3757,14 @@ def git_suggest_splits():
             },
             "scripts_config": {
                 "name": "Scripts & Config",
-                "patterns": ["scripts/", "docker-compose", ".gitignore", "requirements.txt", ".env", "config.py"],
+                "patterns": [
+                    "scripts/",
+                    "docker-compose",
+                    ".gitignore",
+                    "requirements.txt",
+                    ".env",
+                    "config.py",
+                ],
                 "files": [],
                 "description": "Shell scripts, Docker, configuration files",
             },
@@ -3596,7 +3854,10 @@ def git_suggest_splits():
     except Exception as e:
         import traceback
 
-        return jsonify({"success": False, "error": str(e), "traceback": traceback.format_exc()}), 500
+        return (
+            jsonify({"success": False, "error": str(e), "traceback": traceback.format_exc()}),
+            500,
+        )
 
 
 @coderabbit_bp.route("/api/git/create-split-branch", methods=["POST"])
@@ -3620,7 +3881,15 @@ def git_create_split_branch():
     commit_message = data.get("commit_message", "Split PR: Auto-generated branch")
 
     if not branch_name or not files or not source_branch:
-        return jsonify({"success": False, "error": "branch_name, files, and source_branch are required"}), 400
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": "branch_name, files, and source_branch are required",
+                }
+            ),
+            400,
+        )
 
     try:
         # Store current branch to return to
@@ -3633,7 +3902,12 @@ def git_create_split_branch():
         if not create_result["success"]:
             # Return to original branch
             run_git_command(["checkout", original_branch])
-            return jsonify({"success": False, "error": f'Failed to create branch: {create_result.get("stderr", "")}'})
+            return jsonify(
+                {
+                    "success": False,
+                    "error": f'Failed to create branch: {create_result.get("stderr", "")}',
+                }
+            )
 
         # Checkout files from source branch
         checkout_result = run_git_command(["checkout", source_branch, "--"] + files)
@@ -3642,7 +3916,10 @@ def git_create_split_branch():
             run_git_command(["checkout", original_branch])
             run_git_command(["branch", "-D", branch_name])
             return jsonify(
-                {"success": False, "error": f'Failed to checkout files: {checkout_result.get("stderr", "")}'}
+                {
+                    "success": False,
+                    "error": f'Failed to checkout files: {checkout_result.get("stderr", "")}',
+                }
             )
 
         # Stage all files
@@ -3653,7 +3930,12 @@ def git_create_split_branch():
         if not commit_result["success"]:
             run_git_command(["checkout", original_branch])
             run_git_command(["branch", "-D", branch_name])
-            return jsonify({"success": False, "error": f'Failed to commit: {commit_result.get("stderr", "")}'})
+            return jsonify(
+                {
+                    "success": False,
+                    "error": f'Failed to commit: {commit_result.get("stderr", "")}',
+                }
+            )
 
         # Push to remote
         push_result = run_git_command(["push", "-u", "origin", branch_name])
@@ -3679,7 +3961,10 @@ def git_create_split_branch():
             run_git_command(["checkout", original_branch])
         except:
             pass
-        return jsonify({"success": False, "error": str(e), "traceback": traceback.format_exc()}), 500
+        return (
+            jsonify({"success": False, "error": str(e), "traceback": traceback.format_exc()}),
+            500,
+        )
 
 
 # =============================================================================
@@ -3703,7 +3988,11 @@ def get_git_branches():
 
         # Get local branches with tracking info
         local_result = run_git_command(
-            ["branch", "-vv", "--format=%(refname:short)|%(upstream:short)|%(upstream:track)|%(objectname:short)"]
+            [
+                "branch",
+                "-vv",
+                "--format=%(refname:short)|%(upstream:short)|%(upstream:track)|%(objectname:short)",
+            ]
         )
         local_branches = []
         if local_result["success"] and local_result["stdout"].strip():
@@ -3733,7 +4022,14 @@ def get_git_branches():
                 if line and not line.endswith("/HEAD"):
                     remote_branches.append({"name": line.strip()})
 
-        return jsonify({"success": True, "current": current_branch, "local": local_branches, "remote": remote_branches})
+        return jsonify(
+            {
+                "success": True,
+                "current": current_branch,
+                "local": local_branches,
+                "remote": remote_branches,
+            }
+        )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -3759,19 +4055,38 @@ def git_create_branch():
         return jsonify({"success": False, "error": "Branch name is required"}), 400
 
     if not re.match(r"^[a-zA-Z0-9][a-zA-Z0-9/_.-]*$", branch_name):
-        return jsonify({"success": False, "error": "Invalid branch name. Use letters, numbers, /, _, -, ."}), 400
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": "Invalid branch name. Use letters, numbers, /, _, -, .",
+                }
+            ),
+            400,
+        )
 
     # Check if branch already exists
     check_result = run_git_command(["branch", "--list", branch_name])
     if check_result["success"] and check_result["stdout"].strip():
-        return jsonify({"success": False, "error": f"Branch '{branch_name}' already exists"}), 400
+        return (
+            jsonify({"success": False, "error": f"Branch '{branch_name}' already exists"}),
+            400,
+        )
 
     try:
         # Create the branch
         create_result = run_git_command(["branch", branch_name, base_branch])
 
         if not create_result["success"]:
-            return jsonify({"success": False, "error": create_result["stderr"] or "Failed to create branch"}), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": create_result["stderr"] or "Failed to create branch",
+                    }
+                ),
+                400,
+            )
 
         message = f"Created branch '{branch_name}'"
 
@@ -3826,9 +4141,23 @@ def git_checkout():
         checkout_result = run_git_command(["checkout", branch])
 
         if checkout_result["success"]:
-            return jsonify({"success": True, "message": f"Switched to branch '{branch}'", "branch": branch})
+            return jsonify(
+                {
+                    "success": True,
+                    "message": f"Switched to branch '{branch}'",
+                    "branch": branch,
+                }
+            )
         else:
-            return jsonify({"success": False, "error": checkout_result["stderr"] or "Failed to switch branch"}), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": checkout_result["stderr"] or "Failed to switch branch",
+                    }
+                ),
+                400,
+            )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -3855,7 +4184,15 @@ def git_delete_branch():
     # Protected branches
     protected_branches = ["main", "master", "develop", "production"]
     if branch in protected_branches:
-        return jsonify({"success": False, "error": f"Cannot delete protected branch '{branch}'"}), 400
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": f"Cannot delete protected branch '{branch}'",
+                }
+            ),
+            400,
+        )
 
     try:
         # Check if it's the current branch
@@ -3863,7 +4200,15 @@ def git_delete_branch():
         current_branch = current_result["stdout"].strip() if current_result["success"] else ""
 
         if branch == current_branch:
-            return jsonify({"success": False, "error": "Cannot delete the currently checked out branch"}), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Cannot delete the currently checked out branch",
+                    }
+                ),
+                400,
+            )
 
         # Delete the branch
         flag = "-D" if force else "-d"
@@ -3907,21 +4252,35 @@ def get_github_issues():
         return jsonify({"success": False, "error": "GitHub token not configured"}), 400
 
     if not GITHUB_REPOS:
-        return jsonify({"success": False, "error": "No GitHub repositories configured"}), 400
+        return (
+            jsonify({"success": False, "error": "No GitHub repositories configured"}),
+            400,
+        )
 
     state = request.args.get("state", "open")  # open, closed, all
     labels = request.args.get("labels", "")
     repo = request.args.get("repo", GITHUB_REPOS[0])
 
     try:
-        headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+        headers = {
+            "Authorization": f"token {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json",
+        }
 
-        params = {"state": state, "per_page": 50, "sort": "updated", "direction": "desc"}
+        params = {
+            "state": state,
+            "per_page": 50,
+            "sort": "updated",
+            "direction": "desc",
+        }
         if labels:
             params["labels"] = labels
 
         response = requests.get(
-            f"https://api.github.com/repos/{repo}/issues", headers=headers, params=params, timeout=15
+            f"https://api.github.com/repos/{repo}/issues",
+            headers=headers,
+            params=params,
+            timeout=15,
         )
 
         if response.status_code == 200:
@@ -3943,16 +4302,26 @@ def get_github_issues():
                         "updated_at": issue["updated_at"],
                         "comments": issue.get("comments", 0),
                         "url": issue["html_url"],
-                        "body": issue.get("body", "")[:500] if issue.get("body") else "",
+                        "body": (issue.get("body", "")[:500] if issue.get("body") else ""),
                     }
                 )
 
             return jsonify(
-                {"success": True, "issues": simplified_issues, "total": len(simplified_issues), "repo": repo}
+                {
+                    "success": True,
+                    "issues": simplified_issues,
+                    "total": len(simplified_issues),
+                    "repo": repo,
+                }
             )
         else:
             return (
-                jsonify({"success": False, "error": f"GitHub API error: {response.status_code}"}),
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"GitHub API error: {response.status_code}",
+                    }
+                ),
                 response.status_code,
             )
 
@@ -3970,7 +4339,10 @@ def create_github_issue():
         return jsonify({"success": False, "error": "GitHub token not configured"}), 400
 
     if not GITHUB_REPOS:
-        return jsonify({"success": False, "error": "No GitHub repositories configured"}), 400
+        return (
+            jsonify({"success": False, "error": "No GitHub repositories configured"}),
+            400,
+        )
 
     data = request.get_json() or {}
     title = data.get("title", "").strip()
@@ -3982,14 +4354,20 @@ def create_github_issue():
         return jsonify({"success": False, "error": "Issue title is required"}), 400
 
     try:
-        headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+        headers = {
+            "Authorization": f"token {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json",
+        }
 
         payload = {"title": title, "body": body}
         if labels:
             payload["labels"] = labels
 
         response = requests.post(
-            f"https://api.github.com/repos/{repo}/issues", headers=headers, json=payload, timeout=15
+            f"https://api.github.com/repos/{repo}/issues",
+            headers=headers,
+            json=payload,
+            timeout=15,
         )
 
         if response.status_code == 201:
@@ -3997,13 +4375,22 @@ def create_github_issue():
             return jsonify(
                 {
                     "success": True,
-                    "issue": {"number": issue["number"], "title": issue["title"], "url": issue["html_url"]},
+                    "issue": {
+                        "number": issue["number"],
+                        "title": issue["title"],
+                        "url": issue["html_url"],
+                    },
                     "message": f"Issue #{issue['number']} created successfully",
                 }
             )
         else:
             return (
-                jsonify({"success": False, "error": f"GitHub API error: {response.status_code} - {response.text}"}),
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"GitHub API error: {response.status_code} - {response.text}",
+                    }
+                ),
                 response.status_code,
             )
 
@@ -4021,14 +4408,20 @@ def update_github_issue(issue_number):
         return jsonify({"success": False, "error": "GitHub token not configured"}), 400
 
     if not GITHUB_REPOS:
-        return jsonify({"success": False, "error": "No GitHub repositories configured"}), 400
+        return (
+            jsonify({"success": False, "error": "No GitHub repositories configured"}),
+            400,
+        )
 
     data = request.get_json() or {}
     state = data.get("state", "open")  # open or closed
     repo = data.get("repo", GITHUB_REPOS[0])
 
     try:
-        headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+        headers = {
+            "Authorization": f"token {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json",
+        }
 
         response = requests.patch(
             f"https://api.github.com/repos/{repo}/issues/{issue_number}",
@@ -4042,7 +4435,12 @@ def update_github_issue(issue_number):
             return jsonify({"success": True, "message": f"Issue #{issue_number} {action}"})
         else:
             return (
-                jsonify({"success": False, "error": f"GitHub API error: {response.status_code}"}),
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"GitHub API error: {response.status_code}",
+                    }
+                ),
                 response.status_code,
             )
 
@@ -4065,15 +4463,24 @@ def get_workflow_runs():
         return jsonify({"success": False, "error": "GitHub token not configured"}), 400
 
     if not GITHUB_REPOS:
-        return jsonify({"success": False, "error": "No GitHub repositories configured"}), 400
+        return (
+            jsonify({"success": False, "error": "No GitHub repositories configured"}),
+            400,
+        )
 
     repo = request.args.get("repo", GITHUB_REPOS[0])
 
     try:
-        headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+        headers = {
+            "Authorization": f"token {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json",
+        }
 
         response = requests.get(
-            f"https://api.github.com/repos/{repo}/actions/runs", headers=headers, params={"per_page": 20}, timeout=15
+            f"https://api.github.com/repos/{repo}/actions/runs",
+            headers=headers,
+            params={"per_page": 20},
+            timeout=15,
         )
 
         if response.status_code == 200:
@@ -4095,10 +4502,22 @@ def get_workflow_runs():
                     }
                 )
 
-            return jsonify({"success": True, "runs": runs, "total": data.get("total_count", 0), "repo": repo})
+            return jsonify(
+                {
+                    "success": True,
+                    "runs": runs,
+                    "total": data.get("total_count", 0),
+                    "repo": repo,
+                }
+            )
         else:
             return (
-                jsonify({"success": False, "error": f"GitHub API error: {response.status_code}"}),
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"GitHub API error: {response.status_code}",
+                    }
+                ),
                 response.status_code,
             )
 
@@ -4116,25 +4535,47 @@ def get_workflows():
         return jsonify({"success": False, "error": "GitHub token not configured"}), 400
 
     if not GITHUB_REPOS:
-        return jsonify({"success": False, "error": "No GitHub repositories configured"}), 400
+        return (
+            jsonify({"success": False, "error": "No GitHub repositories configured"}),
+            400,
+        )
 
     repo = request.args.get("repo", GITHUB_REPOS[0])
 
     try:
-        headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+        headers = {
+            "Authorization": f"token {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json",
+        }
 
-        response = requests.get(f"https://api.github.com/repos/{repo}/actions/workflows", headers=headers, timeout=15)
+        response = requests.get(
+            f"https://api.github.com/repos/{repo}/actions/workflows",
+            headers=headers,
+            timeout=15,
+        )
 
         if response.status_code == 200:
             data = response.json()
             workflows = []
             for wf in data.get("workflows", []):
-                workflows.append({"id": wf["id"], "name": wf["name"], "path": wf["path"], "state": wf["state"]})
+                workflows.append(
+                    {
+                        "id": wf["id"],
+                        "name": wf["name"],
+                        "path": wf["path"],
+                        "state": wf["state"],
+                    }
+                )
 
             return jsonify({"success": True, "workflows": workflows, "repo": repo})
         else:
             return (
-                jsonify({"success": False, "error": f"GitHub API error: {response.status_code}"}),
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"GitHub API error: {response.status_code}",
+                    }
+                ),
                 response.status_code,
             )
 
@@ -4152,23 +4593,41 @@ def rerun_workflow(run_id):
         return jsonify({"success": False, "error": "GitHub token not configured"}), 400
 
     if not GITHUB_REPOS:
-        return jsonify({"success": False, "error": "No GitHub repositories configured"}), 400
+        return (
+            jsonify({"success": False, "error": "No GitHub repositories configured"}),
+            400,
+        )
 
     data = request.get_json() or {}
     repo = data.get("repo", GITHUB_REPOS[0])
 
     try:
-        headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+        headers = {
+            "Authorization": f"token {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json",
+        }
 
         response = requests.post(
-            f"https://api.github.com/repos/{repo}/actions/runs/{run_id}/rerun", headers=headers, timeout=15
+            f"https://api.github.com/repos/{repo}/actions/runs/{run_id}/rerun",
+            headers=headers,
+            timeout=15,
         )
 
         if response.status_code == 201:
-            return jsonify({"success": True, "message": f"Workflow run #{run_id} has been re-triggered"})
+            return jsonify(
+                {
+                    "success": True,
+                    "message": f"Workflow run #{run_id} has been re-triggered",
+                }
+            )
         else:
             return (
-                jsonify({"success": False, "error": f"GitHub API error: {response.status_code}"}),
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"GitHub API error: {response.status_code}",
+                    }
+                ),
                 response.status_code,
             )
 
@@ -4199,22 +4658,46 @@ multi_agent_reviews = {}
 REVIEW_SKILL_MAPPING = {
     "security": {
         "skills": ["security", "cybersecurity", "penetration_testing"],
-        "focus": ["SQL injection", "XSS", "auth bypass", "secrets exposure", "OWASP top 10"],
+        "focus": [
+            "SQL injection",
+            "XSS",
+            "auth bypass",
+            "secrets exposure",
+            "OWASP top 10",
+        ],
         "prompt_prefix": "You are a security expert reviewing code for vulnerabilities. Focus on: ",
     },
     "code_review": {
         "skills": ["code_review", "code_quality", "best_practices"],
-        "focus": ["SOLID principles", "DRY violations", "code smells", "naming conventions", "documentation"],
+        "focus": [
+            "SOLID principles",
+            "DRY violations",
+            "code smells",
+            "naming conventions",
+            "documentation",
+        ],
         "prompt_prefix": "You are a senior developer reviewing code quality. Focus on: ",
     },
     "architecture": {
         "skills": ["architecture", "system_design", "api_design"],
-        "focus": ["design patterns", "separation of concerns", "modularity", "dependencies", "scalability"],
+        "focus": [
+            "design patterns",
+            "separation of concerns",
+            "modularity",
+            "dependencies",
+            "scalability",
+        ],
         "prompt_prefix": "You are a software architect reviewing code structure. Focus on: ",
     },
     "bug_fixing": {
         "skills": ["bug_fixing", "debugging", "testing"],
-        "focus": ["edge cases", "error handling", "null checks", "race conditions", "memory leaks"],
+        "focus": [
+            "edge cases",
+            "error handling",
+            "null checks",
+            "race conditions",
+            "memory leaks",
+        ],
         "prompt_prefix": "You are a QA engineer reviewing code for potential bugs. Focus on: ",
     },
 }
@@ -4425,7 +4908,8 @@ def start_multi_agent_review():
         import threading
 
         thread = threading.Thread(
-            target=_run_multi_agent_review, args=(review_id, code, file_path, selected_agents, context)
+            target=_run_multi_agent_review,
+            args=(review_id, code, file_path, selected_agents, context),
         )
         thread.daemon = True
         thread.start()
@@ -4716,7 +5200,13 @@ def _parse_agent_response(response: str) -> dict:
         if "line" in line.lower() and ":" in line:
             if current_issue:
                 issues.append(current_issue)
-            current_issue = {"line": 0, "type": "general", "severity": "medium", "message": "", "suggestion": ""}
+            current_issue = {
+                "line": 0,
+                "type": "general",
+                "severity": "medium",
+                "message": "",
+                "suggestion": "",
+            }
             try:
                 current_issue["line"] = int(re.search(r"\d+", line).group())
             except Exception:
@@ -4776,7 +5266,10 @@ def _build_consensus(all_issues: list) -> dict:
 
         confirmed_issues.append(confirmed_issue)
 
-    confirmed_issues.sort(key=lambda i: (severity_order.get(i["severity"], 0), i["agreement_count"]), reverse=True)
+    confirmed_issues.sort(
+        key=lambda i: (severity_order.get(i["severity"], 0), i["agreement_count"]),
+        reverse=True,
+    )
 
     return {
         "total_issues": len(confirmed_issues),
@@ -4833,7 +5326,10 @@ def _save_multi_agent_review(review: dict):
 
         for issue in final_issues:
             # Only create code_issues for high confidence issues
-            if issue.get("confidence") == "high" or issue.get("severity") in ("critical", "high"):
+            if issue.get("confidence") == "high" or issue.get("severity") in (
+                "critical",
+                "high",
+            ):
                 # Check if similar issue already exists
                 cur.execute(
                     """

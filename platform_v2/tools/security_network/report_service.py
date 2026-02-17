@@ -52,7 +52,9 @@ def parse_nmap_xml(filepath: str) -> Dict[str, Any]:
 
         for host in root.findall(".//host"):
             host_info = {
-                "status": host.find("status").get("state", "unknown") if host.find("status") is not None else "unknown",
+                "status": (
+                    host.find("status").get("state", "unknown") if host.find("status") is not None else "unknown"
+                ),
                 "addresses": [],
                 "hostnames": [],
                 "ports": [],
@@ -72,7 +74,7 @@ def parse_nmap_xml(filepath: str) -> Dict[str, Any]:
                 port_info = {
                     "port": port.get("portid"),
                     "protocol": port.get("protocol"),
-                    "state": port.find("state").get("state") if port.find("state") is not None else "unknown",
+                    "state": (port.find("state").get("state") if port.find("state") is not None else "unknown"),
                     "service": {},
                 }
 
@@ -89,7 +91,10 @@ def parse_nmap_xml(filepath: str) -> Dict[str, Any]:
                     if "vulnerabilities" not in port_info:
                         port_info["vulnerabilities"] = []
                     port_info["vulnerabilities"].append(
-                        {"id": script.get("id"), "output": script.get("output", "")[:500]}  # Truncate
+                        {
+                            "id": script.get("id"),
+                            "output": script.get("output", "")[:500],
+                        }  # Truncate
                     )
 
                 host_info["ports"].append(port_info)
@@ -188,7 +193,11 @@ def parse_ssl_json(filepath: str) -> Dict[str, Any]:
                     }
                 )
 
-        return {"scanner": "testssl", "findings": findings, "vulnerabilities": vulnerabilities}
+        return {
+            "scanner": "testssl",
+            "findings": findings,
+            "vulnerabilities": vulnerabilities,
+        }
     except Exception as e:
         return {"error": str(e), "scanner": "testssl"}
 
@@ -444,18 +453,28 @@ def generate_scan_report(scan_filename: str) -> Dict[str, Any]:
         report_name = scan_filename.rsplit(".", 1)[0] + "_report.html"
         report_path = os.path.join(REPORTS_DIR, report_name)
 
-        html = generate_html_report(scan_data, f"Security Scan Report - {scan_data.get('scanner', 'Unknown').upper()}")
+        html = generate_html_report(
+            scan_data,
+            f"Security Scan Report - {scan_data.get('scanner', 'Unknown').upper()}",
+        )
 
         with open(report_path, "w") as f:
             f.write(html)
 
-        return {"success": True, "report_file": report_name, "report_path": report_path, "scan_data": scan_data}
+        return {
+            "success": True,
+            "report_file": report_name,
+            "report_path": report_path,
+            "scan_data": scan_data,
+        }
     except Exception as e:
         return {"success": False, "error": str(e)}
 
 
 def generate_assessment_report(
-    scan_filenames: List[str], client_name: str = "Assessment", assessment_name: str = "Security Assessment"
+    scan_filenames: List[str],
+    client_name: str = "Assessment",
+    assessment_name: str = "Security Assessment",
 ) -> Dict[str, Any]:
     """Generate combined assessment report from multiple scans"""
     ensure_reports_dir()
@@ -677,7 +696,13 @@ def list_reports() -> List[Dict[str, Any]]:
             if filename.endswith(".html"):
                 filepath = os.path.join(REPORTS_DIR, filename)
                 stat = os.stat(filepath)
-                reports.append({"filename": filename, "size": stat.st_size, "created_at": stat.st_mtime})
+                reports.append(
+                    {
+                        "filename": filename,
+                        "size": stat.st_size,
+                        "created_at": stat.st_mtime,
+                    }
+                )
 
         reports.sort(key=lambda x: x["created_at"], reverse=True)
         return reports

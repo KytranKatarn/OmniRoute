@@ -10,11 +10,11 @@ import json
 
 # Database connection
 conn = psycopg2.connect(
-    dbname='archie',
-    user='archie',
-    password='CTIf6MjCwuGUwVR_sWNNVIaMB6G7wnZ3RinJ_Cr6jwI',
-    host='archie_database',
-    port=5432
+    dbname="archie",
+    user="archie",
+    password="CTIf6MjCwuGUwVR_sWNNVIaMB6G7wnZ3RinJ_Cr6jwI",
+    host="archie_database",
+    port=5432,
 )
 
 cur = conn.cursor()
@@ -30,7 +30,8 @@ print("📚 Migrating Learning Resources to A.R.C.H.I.E.'s Consciousness...")
 print("=" * 70)
 
 # Get repository summary
-cur.execute("""
+cur.execute(
+    """
     SELECT
         repo_type,
         COUNT(*) as file_count,
@@ -39,7 +40,8 @@ cur.execute("""
     FROM knowledge_base
     GROUP BY repo_type
     ORDER BY COUNT(*) DESC
-""")
+"""
+)
 
 repos = cur.fetchall()
 
@@ -60,61 +62,90 @@ This external GitHub repository has been cloned and indexed for A.R.C.H.I.E.'s l
 
     # Determine category and tags based on repo type
     category_map = {
-        'ai-agents': 'ai_examples',
-        'prompts': 'prompts_library',
-        'n8n': 'automation_workflows',
-        'python-basics': 'programming_tutorials',
-        'python-iot': 'programming_tutorials',
-        'python-compiler': 'programming_tutorials',
-        'python-practice': 'programming_tutorials',
-        'python-programs': 'programming_tutorials',
-        'python-testing': 'programming_tutorials',
-        'python-tutorials': 'programming_tutorials',
-        'python-database': 'programming_tutorials'
+        "ai-agents": "ai_examples",
+        "prompts": "prompts_library",
+        "n8n": "automation_workflows",
+        "python-basics": "programming_tutorials",
+        "python-iot": "programming_tutorials",
+        "python-compiler": "programming_tutorials",
+        "python-practice": "programming_tutorials",
+        "python-programs": "programming_tutorials",
+        "python-testing": "programming_tutorials",
+        "python-tutorials": "programming_tutorials",
+        "python-database": "programming_tutorials",
     }
 
     tags_map = {
-        'ai-agents': ['learning-resource', 'ai-agents', 'examples', 'github'],
-        'prompts': ['learning-resource', 'system-prompts', 'ai-models', 'github'],
-        'n8n': ['learning-resource', 'n8n', 'automation', 'workflows', 'github'],
-        'python-basics': ['learning-resource', 'python', 'programming', 'basics', 'github'],
-        'python-iot': ['learning-resource', 'python', 'iot', 'dataloggers', 'github'],
-        'python-compiler': ['learning-resource', 'python', 'compiler', 'llvm', 'github'],
-        'python-practice': ['learning-resource', 'python', 'practice', 'examples', 'github'],
-        'python-programs': ['learning-resource', 'python', 'programs', 'examples', 'github'],
-        'python-testing': ['learning-resource', 'python', 'testing', 'github'],
-        'python-tutorials': ['learning-resource', 'python', 'tutorials', 'github'],
-        'python-database': ['learning-resource', 'python', 'database', 'github']
+        "ai-agents": ["learning-resource", "ai-agents", "examples", "github"],
+        "prompts": ["learning-resource", "system-prompts", "ai-models", "github"],
+        "n8n": ["learning-resource", "n8n", "automation", "workflows", "github"],
+        "python-basics": [
+            "learning-resource",
+            "python",
+            "programming",
+            "basics",
+            "github",
+        ],
+        "python-iot": ["learning-resource", "python", "iot", "dataloggers", "github"],
+        "python-compiler": [
+            "learning-resource",
+            "python",
+            "compiler",
+            "llvm",
+            "github",
+        ],
+        "python-practice": [
+            "learning-resource",
+            "python",
+            "practice",
+            "examples",
+            "github",
+        ],
+        "python-programs": [
+            "learning-resource",
+            "python",
+            "programs",
+            "examples",
+            "github",
+        ],
+        "python-testing": ["learning-resource", "python", "testing", "github"],
+        "python-tutorials": ["learning-resource", "python", "tutorials", "github"],
+        "python-database": ["learning-resource", "python", "database", "github"],
     }
 
-    category = category_map.get(repo_type, 'learning_resource')
-    tags = tags_map.get(repo_type, ['learning-resource', 'github'])
+    category = category_map.get(repo_type, "learning_resource")
+    tags = tags_map.get(repo_type, ["learning-resource", "github"])
 
     # Insert into long_term_memory
-    metadata = json.dumps({
-        'type': 'github_repository',
-        'repo_type': repo_type,
-        'file_count': file_count,
-        'docs_count': docs,
-        'code_files': code_files,
-        'indexed_date': now.isoformat()
-    })
+    metadata = json.dumps(
+        {
+            "type": "github_repository",
+            "repo_type": repo_type,
+            "file_count": file_count,
+            "docs_count": docs,
+            "code_files": code_files,
+            "indexed_date": now.isoformat(),
+        }
+    )
 
-    cur.execute("""
+    cur.execute(
+        """
         INSERT INTO long_term_memory
         (content, category, tags, importance_score, memory_type, metadata, created_at, user_id)
         VALUES (%s, %s, %s, %s, %s, %s::jsonb, %s, %s)
         ON CONFLICT DO NOTHING
-    """, (
-        content,
-        category,
-        tags,
-        8.0,  # High importance
-        'external_resource',
-        metadata,
-        now,
-        user_id
-    ))
+    """,
+        (
+            content,
+            category,
+            tags,
+            8.0,  # High importance
+            "external_resource",
+            metadata,
+            now,
+            user_id,
+        ),
+    )
 
     migrated_count += 1
     print(f"✓ {repo_type:20s} - {file_count:4d} files ({docs:3d} docs, {code_files:3d} code)")

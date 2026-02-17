@@ -2640,9 +2640,10 @@ def get_available_models():
     return {
         "ollama": [
             "dolphin3-8k:latest",
-            "qwen2.5-coder:7b",
-            "deepseek-coder:33b",
-            "codellama:latest",
+            "qwen3-coder-cpu:latest",
+            "qwen25-classify",
+            "arctic-embed-cpu",
+            "minicpm-v-cpu",
         ],
         "claude": ["claude-sonnet-4-20250514", "claude-opus-4-20250514"],
         "openai": ["gpt-4-turbo", "gpt-4", "gpt-3.5-turbo", "gpt-4o", "o1-preview"],

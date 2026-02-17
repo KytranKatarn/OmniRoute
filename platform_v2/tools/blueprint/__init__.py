@@ -12,6 +12,6 @@ Features:
 
 from flask import Blueprint
 
-blueprint_bp = Blueprint('blueprint', __name__, url_prefix='/tools/blueprint')
+blueprint_bp = Blueprint("blueprint", __name__, url_prefix="/tools/blueprint")
 
 from . import routes

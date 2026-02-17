@@ -68,7 +68,14 @@ def status():
             }
         )
     except Exception as e:
-        return jsonify({"module": "fine_tuning", "status": "error", "healthy": False, "message": str(e)})
+        return jsonify(
+            {
+                "module": "fine_tuning",
+                "status": "error",
+                "healthy": False,
+                "message": str(e),
+            }
+        )
 
 
 # =============================================================================
@@ -219,9 +226,18 @@ def create_dataset():
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "dataset": dataset, "message": "Dataset created successfully"})
+        return jsonify(
+            {
+                "success": True,
+                "dataset": dataset,
+                "message": "Dataset created successfully",
+            }
+        )
     except psycopg2.errors.UniqueViolation:
-        return jsonify({"success": False, "error": "Dataset with this name already exists"}), 400
+        return (
+            jsonify({"success": False, "error": "Dataset with this name already exists"}),
+            400,
+        )
     except Exception as e:
         logger.error(f"Failed to create dataset: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
@@ -271,7 +287,10 @@ def upload_dataset_data(dataset_id):
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Verify ownership
-        cur.execute("SELECT id FROM ft_datasets WHERE id = %s AND user_id = %s", (dataset_id, current_user.id))
+        cur.execute(
+            "SELECT id FROM ft_datasets WHERE id = %s AND user_id = %s",
+            (dataset_id, current_user.id),
+        )
         if not cur.fetchone():
             cur.close()
             conn.close()
@@ -291,7 +310,14 @@ def upload_dataset_data(dataset_id):
             WHERE id = %s
             RETURNING id, total_samples, status
         """,
-            (total, train_count, val_count, test_count, json.dumps(samples[:5]), dataset_id),
+            (
+                total,
+                train_count,
+                val_count,
+                test_count,
+                json.dumps(samples[:5]),
+                dataset_id,
+            ),
         )
 
         result = cur.fetchone()
@@ -299,7 +325,13 @@ def upload_dataset_data(dataset_id):
         cur.close()
         conn.close()
 
-        return jsonify({"success": True, "dataset": result, "message": f"Uploaded {total} samples successfully"})
+        return jsonify(
+            {
+                "success": True,
+                "dataset": result,
+                "message": f"Uploaded {total} samples successfully",
+            }
+        )
     except Exception as e:
         logger.error(f"Failed to upload dataset data: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
@@ -408,7 +440,10 @@ def create_job():
         if not dataset:
             cur.close()
             conn.close()
-            return jsonify({"success": False, "error": "Dataset not found or not ready"}), 400
+            return (
+                jsonify({"success": False, "error": "Dataset not found or not ready"}),
+                400,
+            )
 
         # Calculate total steps
         total_steps = (dataset["total_samples"] // batch_size) * epochs
@@ -502,7 +537,10 @@ def start_job(job_id):
         conn.close()
 
         if not job:
-            return jsonify({"success": False, "error": "Job not found or already started"}), 404
+            return (
+                jsonify({"success": False, "error": "Job not found or already started"}),
+                404,
+            )
 
         # TODO: Trigger actual training process via background worker
 
@@ -536,7 +574,10 @@ def cancel_job(job_id):
         conn.close()
 
         if not job:
-            return jsonify({"success": False, "error": "Job not found or cannot be cancelled"}), 404
+            return (
+                jsonify({"success": False, "error": "Job not found or cannot be cancelled"}),
+                404,
+            )
 
         return jsonify({"success": True, "job": job, "message": "Training job cancelled"})
     except Exception as e:
@@ -635,12 +676,19 @@ def deploy_model(model_id):
         conn.close()
 
         if not model:
-            return jsonify({"success": False, "error": "Model not found or not ready"}), 404
+            return (
+                jsonify({"success": False, "error": "Model not found or not ready"}),
+                404,
+            )
 
         # TODO: Actually load model into Ollama
 
         return jsonify(
-            {"success": True, "model": model, "message": f"Model {model['model_name']} deployed successfully"}
+            {
+                "success": True,
+                "model": model,
+                "message": f"Model {model['model_name']} deployed successfully",
+            }
         )
     except Exception as e:
         logger.error(f"Failed to deploy model: {e}")

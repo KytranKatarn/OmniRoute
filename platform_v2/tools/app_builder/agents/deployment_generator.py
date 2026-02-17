@@ -16,7 +16,12 @@ class DeploymentGenerator:
     Generates deployment files including Docker, CI/CD, and deployment scripts
     """
 
-    def __init__(self, project_id: int, project_plan: Dict, architecture_plan: Optional[Dict] = None):
+    def __init__(
+        self,
+        project_id: int,
+        project_plan: Dict,
+        architecture_plan: Optional[Dict] = None,
+    ):
         """
         Initialize Deployment Generator
 
@@ -31,19 +36,18 @@ class DeploymentGenerator:
         self.generated_files = []
 
         # Extract project details
-        self.project_name = project_plan.get('project_name', 'MyApp').lower().replace(' ', '_')
-        self.tech_stack = project_plan.get('tech_stack', {})
-        self.database_type = self.tech_stack.get('database', 'postgresql').lower()
+        self.project_name = project_plan.get("project_name", "MyApp").lower().replace(" ", "_")
+        self.tech_stack = project_plan.get("tech_stack", {})
+        self.database_type = self.tech_stack.get("database", "postgresql").lower()
 
         # Deployment settings
         self.use_docker = True
         self.use_kubernetes = False
-        self.ci_cd_provider = 'github'  # 'github', 'gitlab', 'jenkins'
+        self.ci_cd_provider = "github"  # 'github', 'gitlab', 'jenkins'
 
-    async def generate_deployment(self,
-                                  docker: bool = True,
-                                  ci_cd: bool = True,
-                                  kubernetes: bool = False) -> Dict[str, Any]:
+    async def generate_deployment(
+        self, docker: bool = True, ci_cd: bool = True, kubernetes: bool = False
+    ) -> Dict[str, Any]:
         """
         Generate all deployment files
 
@@ -91,12 +95,12 @@ class DeploymentGenerator:
         self.generated_files = deployment_files
 
         return {
-            'success': True,
-            'deployment_files': deployment_files,
-            'file_count': len(deployment_files),
-            'docker_enabled': docker,
-            'ci_cd_enabled': ci_cd,
-            'kubernetes_enabled': kubernetes
+            "success": True,
+            "deployment_files": deployment_files,
+            "file_count": len(deployment_files),
+            "docker_enabled": docker,
+            "ci_cd_enabled": ci_cd,
+            "kubernetes_enabled": kubernetes,
         }
 
     # ============================================================================
@@ -164,9 +168,9 @@ CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "--timeout", "120",
 """
 
         return {
-            'path': 'backend/Dockerfile',
-            'content': content,
-            'description': 'Backend Docker container definition'
+            "path": "backend/Dockerfile",
+            "content": content,
+            "description": "Backend Docker container definition",
         }
 
     def _generate_frontend_dockerfile(self) -> Dict[str, str]:
@@ -210,15 +214,15 @@ CMD ["nginx", "-g", "daemon off;"]
 """
 
         return {
-            'path': 'frontend/Dockerfile',
-            'content': content,
-            'description': 'Frontend Docker container definition'
+            "path": "frontend/Dockerfile",
+            "content": content,
+            "description": "Frontend Docker container definition",
         }
 
     def _generate_docker_compose(self) -> Dict[str, str]:
         """Generate docker-compose.yml for local development"""
         db_service = ""
-        if self.database_type == 'postgresql':
+        if self.database_type == "postgresql":
             db_service = f"""
   database:
     image: postgres:15-alpine
@@ -238,7 +242,7 @@ CMD ["nginx", "-g", "daemon off;"]
       timeout: 5s
       retries: 5
 """
-        elif self.database_type == 'mysql':
+        elif self.database_type == "mysql":
             db_service = f"""
   database:
     image: mysql:8.0
@@ -312,9 +316,9 @@ networks:
 """
 
         return {
-            'path': 'docker-compose.yml',
-            'content': content,
-            'description': 'Docker Compose configuration for development'
+            "path": "docker-compose.yml",
+            "content": content,
+            "description": "Docker Compose configuration for development",
         }
 
     def _generate_docker_compose_production(self) -> Dict[str, str]:
@@ -405,9 +409,9 @@ networks:
 """
 
         return {
-            'path': 'docker-compose.prod.yml',
-            'content': content,
-            'description': 'Docker Compose configuration for production'
+            "path": "docker-compose.prod.yml",
+            "content": content,
+            "description": "Docker Compose configuration for production",
         }
 
     def _generate_backend_dockerignore(self) -> Dict[str, str]:
@@ -472,9 +476,9 @@ Thumbs.db
 """
 
         return {
-            'path': 'backend/.dockerignore',
-            'content': content,
-            'description': 'Docker ignore file for backend'
+            "path": "backend/.dockerignore",
+            "content": content,
+            "description": "Docker ignore file for backend",
         }
 
     def _generate_frontend_dockerignore(self) -> Dict[str, str]:
@@ -515,9 +519,9 @@ Thumbs.db
 """
 
         return {
-            'path': 'frontend/.dockerignore',
-            'content': content,
-            'description': 'Docker ignore file for frontend'
+            "path": "frontend/.dockerignore",
+            "content": content,
+            "description": "Docker ignore file for frontend",
         }
 
     # ============================================================================
@@ -704,9 +708,9 @@ jobs:
 """
 
         return {
-            'path': '.github/workflows/ci-cd.yml',
-            'content': content,
-            'description': 'GitHub Actions CI/CD pipeline'
+            "path": ".github/workflows/ci-cd.yml",
+            "content": content,
+            "description": "GitHub Actions CI/CD pipeline",
         }
 
     def _generate_gitlab_ci(self) -> Dict[str, str]:
@@ -828,9 +832,9 @@ deploy-production:
 """
 
         return {
-            'path': '.gitlab-ci.yml',
-            'content': content,
-            'description': 'GitLab CI/CD pipeline'
+            "path": ".gitlab-ci.yml",
+            "content": content,
+            "description": "GitLab CI/CD pipeline",
         }
 
     # ============================================================================
@@ -898,9 +902,9 @@ LOG_FILE=app.log
 """
 
         return {
-            'path': '.env.example',
-            'content': content,
-            'description': 'Example environment configuration'
+            "path": ".env.example",
+            "content": content,
+            "description": "Example environment configuration",
         }
 
     def _generate_env_production(self) -> Dict[str, str]:
@@ -947,9 +951,9 @@ LOG_LEVEL=WARNING
 """
 
         return {
-            'path': '.env.production',
-            'content': content,
-            'description': 'Production environment configuration template'
+            "path": ".env.production",
+            "content": content,
+            "description": "Production environment configuration template",
         }
 
     def _generate_env_development(self) -> Dict[str, str]:
@@ -982,9 +986,9 @@ LOG_LEVEL=DEBUG
 """
 
         return {
-            'path': '.env.development',
-            'content': content,
-            'description': 'Development environment configuration'
+            "path": ".env.development",
+            "content": content,
+            "description": "Development environment configuration",
         }
 
     # ============================================================================
@@ -1071,10 +1075,10 @@ echo "Deployment complete at $(date)"
 """
 
         return {
-            'path': 'deploy.sh',
-            'content': content,
-            'description': 'Deployment script',
-            'executable': True
+            "path": "deploy.sh",
+            "content": content,
+            "description": "Deployment script",
+            "executable": True,
         }
 
     def _generate_rollback_script(self) -> Dict[str, str]:
@@ -1137,10 +1141,10 @@ echo "Rollback complete at $(date)"
 """
 
         return {
-            'path': 'rollback.sh',
-            'content': content,
-            'description': 'Rollback script',
-            'executable': True
+            "path": "rollback.sh",
+            "content": content,
+            "description": "Rollback script",
+            "executable": True,
         }
 
     def _generate_health_check_script(self) -> Dict[str, str]:
@@ -1190,10 +1194,10 @@ exit 0
 """
 
         return {
-            'path': 'health_check.sh',
-            'content': content,
-            'description': 'Health check script',
-            'executable': True
+            "path": "health_check.sh",
+            "content": content,
+            "description": "Health check script",
+            "executable": True,
         }
 
     def _generate_backup_script(self) -> Dict[str, str]:
@@ -1235,10 +1239,10 @@ echo "Backup complete: $BACKUP_DIR/$BACKUP_NAME.tar.gz"
 """
 
         return {
-            'path': 'backup.sh',
-            'content': content,
-            'description': 'Backup script',
-            'executable': True
+            "path": "backup.sh",
+            "content": content,
+            "description": "Backup script",
+            "executable": True,
         }
 
     # ============================================================================
@@ -1315,9 +1319,9 @@ server {{
 """
 
         return {
-            'path': 'frontend/nginx.conf',
-            'content': content,
-            'description': 'Nginx configuration'
+            "path": "frontend/nginx.conf",
+            "content": content,
+            "description": "Nginx configuration",
         }
 
     def _generate_nginx_ssl_conf(self) -> Dict[str, str]:
@@ -1396,9 +1400,9 @@ server {{
 """
 
         return {
-            'path': 'nginx/nginx-ssl.conf',
-            'content': content,
-            'description': 'Nginx SSL configuration'
+            "path": "nginx/nginx-ssl.conf",
+            "content": content,
+            "description": "Nginx SSL configuration",
         }
 
     # ============================================================================
@@ -1429,9 +1433,9 @@ metadata:
 """
 
         return {
-            'path': 'k8s/namespace.yaml',
-            'content': content,
-            'description': 'Kubernetes namespace'
+            "path": "k8s/namespace.yaml",
+            "content": content,
+            "description": "Kubernetes namespace",
         }
 
     def _generate_k8s_backend_deployment(self) -> Dict[str, str]:
@@ -1499,9 +1503,9 @@ spec:
 """
 
         return {
-            'path': 'k8s/backend-deployment.yaml',
-            'content': content,
-            'description': 'Kubernetes backend deployment'
+            "path": "k8s/backend-deployment.yaml",
+            "content": content,
+            "description": "Kubernetes backend deployment",
         }
 
     def _generate_k8s_frontend_deployment(self) -> Dict[str, str]:
@@ -1558,9 +1562,9 @@ spec:
 """
 
         return {
-            'path': 'k8s/frontend-deployment.yaml',
-            'content': content,
-            'description': 'Kubernetes frontend deployment'
+            "path": "k8s/frontend-deployment.yaml",
+            "content": content,
+            "description": "Kubernetes frontend deployment",
         }
 
     def _generate_k8s_database_deployment(self) -> Dict[str, str]:
@@ -1630,9 +1634,9 @@ spec:
 """
 
         return {
-            'path': 'k8s/database-deployment.yaml',
-            'content': content,
-            'description': 'Kubernetes database deployment'
+            "path": "k8s/database-deployment.yaml",
+            "content": content,
+            "description": "Kubernetes database deployment",
         }
 
     def _generate_k8s_ingress(self) -> Dict[str, str]:
@@ -1674,9 +1678,9 @@ spec:
 """
 
         return {
-            'path': 'k8s/ingress.yaml',
-            'content': content,
-            'description': 'Kubernetes ingress configuration'
+            "path": "k8s/ingress.yaml",
+            "content": content,
+            "description": "Kubernetes ingress configuration",
         }
 
     # ============================================================================
@@ -1915,9 +1919,9 @@ For issues and questions:
 """
 
         return {
-            'path': 'DEPLOYMENT.md',
-            'content': content,
-            'description': 'Deployment guide'
+            "path": "DEPLOYMENT.md",
+            "content": content,
+            "description": "Deployment guide",
         }
 
     def _generate_troubleshooting_guide(self) -> Dict[str, str]:
@@ -2147,9 +2151,9 @@ docker-compose exec database psql -U {self.project_name}_user -d {self.project_n
 """
 
         return {
-            'path': 'TROUBLESHOOTING.md',
-            'content': content,
-            'description': 'Troubleshooting guide'
+            "path": "TROUBLESHOOTING.md",
+            "content": content,
+            "description": "Troubleshooting guide",
         }
 
     # ============================================================================
@@ -2158,38 +2162,38 @@ docker-compose exec database psql -U {self.project_name}_user -d {self.project_n
 
     def _get_database_url(self, host: str, password: str) -> str:
         """Get database URL based on database type"""
-        if self.database_type == 'postgresql':
+        if self.database_type == "postgresql":
             return f"postgresql://{self.project_name}_user:{password}@{host}:5432/{self.project_name}"
-        elif self.database_type == 'mysql':
+        elif self.database_type == "mysql":
             return f"mysql://{self.project_name}_user:{password}@{host}:3306/{self.project_name}"
         else:
             return f"sqlite:///{self.project_name}.db"
 
     def _get_volume_name(self) -> str:
         """Get Docker volume name based on database type"""
-        if self.database_type == 'postgresql':
-            return 'postgres_data'
-        elif self.database_type == 'mysql':
-            return 'mysql_data'
+        if self.database_type == "postgresql":
+            return "postgres_data"
+        elif self.database_type == "mysql":
+            return "mysql_data"
         else:
-            return 'sqlite_data'
+            return "sqlite_data"
 
     def _get_production_db_image(self) -> str:
         """Get production database Docker image"""
-        if self.database_type == 'postgresql':
-            return 'postgres:15-alpine'
-        elif self.database_type == 'mysql':
-            return 'mysql:8.0'
+        if self.database_type == "postgresql":
+            return "postgres:15-alpine"
+        elif self.database_type == "mysql":
+            return "mysql:8.0"
         else:
-            return 'alpine:latest'
+            return "alpine:latest"
 
     def _get_production_db_env(self) -> str:
         """Get production database environment variables"""
-        if self.database_type == 'postgresql':
+        if self.database_type == "postgresql":
             return f"""POSTGRES_DB: {self.project_name}
       POSTGRES_USER: ${{DB_USER}}
       POSTGRES_PASSWORD: ${{DB_PASSWORD}}"""
-        elif self.database_type == 'mysql':
+        elif self.database_type == "mysql":
             return f"""MYSQL_DATABASE: {self.project_name}
       MYSQL_USER: ${{DB_USER}}
       MYSQL_PASSWORD: ${{DB_PASSWORD}}
@@ -2199,9 +2203,9 @@ docker-compose exec database psql -U {self.project_name}_user -d {self.project_n
 
     def _get_db_healthcheck(self) -> str:
         """Get database health check command"""
-        if self.database_type == 'postgresql':
+        if self.database_type == "postgresql":
             return f'["CMD-SHELL", "pg_isready -U {self.project_name}_user"]'
-        elif self.database_type == 'mysql':
+        elif self.database_type == "mysql":
             return '["CMD", "mysqladmin", "ping", "-h", "localhost"]'
         else:
             return '["CMD", "echo", "ok"]'
@@ -2217,28 +2221,24 @@ docker-compose exec database psql -U {self.project_name}_user -d {self.project_n
 if __name__ == "__main__":
     # Mock data for testing
     mock_plan = {
-        'project_name': 'TodoApp',
-        'tech_stack': {
-            'backend': 'Flask',
-            'frontend': 'React',
-            'database': 'PostgreSQL'
-        }
+        "project_name": "TodoApp",
+        "tech_stack": {
+            "backend": "Flask",
+            "frontend": "React",
+            "database": "PostgreSQL",
+        },
     }
 
     # Test the generator
     generator = DeploymentGenerator(project_id=1, project_plan=mock_plan)
-    result = asyncio.run(generator.generate_deployment(
-        docker=True,
-        ci_cd=True,
-        kubernetes=False
-    ))
+    result = asyncio.run(generator.generate_deployment(docker=True, ci_cd=True, kubernetes=False))
 
     print(f"\n✅ Deployment Generation Complete!")
     print(f"Total files: {result['file_count']}")
     print(f"Docker enabled: {result['docker_enabled']}")
     print(f"CI/CD enabled: {result['ci_cd_enabled']}")
     print(f"\nGenerated deployment files:")
-    for deploy_file in result['deployment_files'][:15]:  # Show first 15
+    for deploy_file in result["deployment_files"][:15]:  # Show first 15
         print(f"  - {deploy_file['path']}")
-    if result['file_count'] > 15:
+    if result["file_count"] > 15:
         print(f"  ... and {result['file_count'] - 15} more")

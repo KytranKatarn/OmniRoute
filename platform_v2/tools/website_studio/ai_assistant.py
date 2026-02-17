@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 try:
     from ai_bridge.archie_bridge import archie_bridge
     from ai_bridge.knowledge_retrieval import get_relevant_knowledge
+
     AI_BRIDGE_AVAILABLE = True
 except ImportError as e:
     AI_BRIDGE_AVAILABLE = False
@@ -39,17 +40,14 @@ def suggest_website_design(description: str, website_type: str = None, user_id: 
     """
     if not AI_BRIDGE_AVAILABLE:
         return {
-            'success': False,
-            'error': 'AI Bridge not available',
-            'fallback': get_fallback_suggestions(website_type)
+            "success": False,
+            "error": "AI Bridge not available",
+            "fallback": get_fallback_suggestions(website_type),
         }
 
     try:
         # Get relevant knowledge for context
-        context = get_relevant_knowledge(
-            f"website design {description} {website_type or ''}",
-            limit=5
-        )
+        context = get_relevant_knowledge(f"website design {description} {website_type or ''}", limit=5)
 
         prompt = f"""You are a web design expert. A user wants to create a website:
 
@@ -66,42 +64,34 @@ Based on this, provide a JSON response with:
 
 Respond ONLY with valid JSON, no markdown or explanation."""
 
-        result = archie_bridge(
-            prompt,
-            context=context,
-            user_id=user_id,
-            enable_memory=False
-        )
-        response = result.get('response', '') if result.get('success') else ''
+        result = archie_bridge(prompt, context=context, user_id=user_id, enable_memory=False)
+        response = result.get("response", "") if result.get("success") else ""
 
         # Try to parse JSON from response
         try:
             # Clean response if needed
             json_str = response.strip()
-            if json_str.startswith('```'):
-                json_str = json_str.split('```')[1]
-                if json_str.startswith('json'):
+            if json_str.startswith("```"):
+                json_str = json_str.split("```")[1]
+                if json_str.startswith("json"):
                     json_str = json_str[4:]
 
             suggestions = json.loads(json_str)
-            return {
-                'success': True,
-                'suggestions': suggestions
-            }
+            return {"success": True, "suggestions": suggestions}
         except json.JSONDecodeError:
             return {
-                'success': True,
-                'suggestions': {
-                    'raw_response': response,
-                    'fallback': get_fallback_suggestions(website_type)
-                }
+                "success": True,
+                "suggestions": {
+                    "raw_response": response,
+                    "fallback": get_fallback_suggestions(website_type),
+                },
             }
 
     except Exception as e:
         return {
-            'success': False,
-            'error': str(e),
-            'fallback': get_fallback_suggestions(website_type)
+            "success": False,
+            "error": str(e),
+            "fallback": get_fallback_suggestions(website_type),
         }
 
 
@@ -109,7 +99,7 @@ def generate_page_content(
     page_name: str,
     website_description: str,
     business_name: str = None,
-    tone: str = "professional"
+    tone: str = "professional",
 ) -> Dict:
     """
     Generate content for a specific page.
@@ -124,10 +114,7 @@ def generate_page_content(
         Dict with generated content sections
     """
     if not AI_BRIDGE_AVAILABLE:
-        return {
-            'success': False,
-            'error': 'AI Bridge not available'
-        }
+        return {"success": False, "error": "AI Bridge not available"}
 
     try:
         prompt = f"""Generate website content for a "{page_name}" page.
@@ -145,39 +132,25 @@ Provide JSON with:
 Keep content concise and engaging. Respond ONLY with valid JSON."""
 
         result = archie_bridge(prompt, enable_memory=False)
-        response = result.get('response', '') if result.get('success') else ''
+        response = result.get("response", "") if result.get("success") else ""
 
         try:
             json_str = response.strip()
-            if json_str.startswith('```'):
-                json_str = json_str.split('```')[1]
-                if json_str.startswith('json'):
+            if json_str.startswith("```"):
+                json_str = json_str.split("```")[1]
+                if json_str.startswith("json"):
                     json_str = json_str[4:]
 
             content = json.loads(json_str)
-            return {
-                'success': True,
-                'content': content
-            }
+            return {"success": True, "content": content}
         except json.JSONDecodeError:
-            return {
-                'success': True,
-                'content': {'raw_response': response}
-            }
+            return {"success": True, "content": {"raw_response": response}}
 
     except Exception as e:
-        return {
-            'success': False,
-            'error': str(e)
-        }
+        return {"success": False, "error": str(e)}
 
 
-def improve_seo(
-    title: str,
-    description: str,
-    content: str,
-    keywords: List[str] = None
-) -> Dict:
+def improve_seo(title: str, description: str, content: str, keywords: List[str] = None) -> Dict:
     """
     Get SEO improvement suggestions.
 
@@ -191,10 +164,7 @@ def improve_seo(
         Dict with SEO recommendations
     """
     if not AI_BRIDGE_AVAILABLE:
-        return {
-            'success': False,
-            'error': 'AI Bridge not available'
-        }
+        return {"success": False, "error": "AI Bridge not available"}
 
     try:
         prompt = f"""Analyze and improve SEO for this page:
@@ -215,38 +185,25 @@ Provide JSON with:
 Respond ONLY with valid JSON."""
 
         result = archie_bridge(prompt, enable_memory=False)
-        response = result.get('response', '') if result.get('success') else ''
+        response = result.get("response", "") if result.get("success") else ""
 
         try:
             json_str = response.strip()
-            if json_str.startswith('```'):
-                json_str = json_str.split('```')[1]
-                if json_str.startswith('json'):
+            if json_str.startswith("```"):
+                json_str = json_str.split("```")[1]
+                if json_str.startswith("json"):
                     json_str = json_str[4:]
 
             seo = json.loads(json_str)
-            return {
-                'success': True,
-                'seo': seo
-            }
+            return {"success": True, "seo": seo}
         except json.JSONDecodeError:
-            return {
-                'success': True,
-                'seo': {'raw_response': response}
-            }
+            return {"success": True, "seo": {"raw_response": response}}
 
     except Exception as e:
-        return {
-            'success': False,
-            'error': str(e)
-        }
+        return {"success": False, "error": str(e)}
 
 
-def generate_css_styles(
-    design_style: str,
-    color_scheme: Dict = None,
-    components: List[str] = None
-) -> Dict:
+def generate_css_styles(design_style: str, color_scheme: Dict = None, components: List[str] = None) -> Dict:
     """
     Generate CSS styles based on design preferences.
 
@@ -260,9 +217,9 @@ def generate_css_styles(
     """
     if not AI_BRIDGE_AVAILABLE:
         return {
-            'success': False,
-            'error': 'AI Bridge not available',
-            'fallback_css': get_fallback_css(design_style)
+            "success": False,
+            "error": "AI Bridge not available",
+            "fallback_css": get_fallback_css(design_style),
         }
 
     try:
@@ -287,31 +244,25 @@ Return JSON with:
 Respond ONLY with valid JSON containing CSS code strings."""
 
         result = archie_bridge(prompt, enable_memory=False)
-        response = result.get('response', '') if result.get('success') else ''
+        response = result.get("response", "") if result.get("success") else ""
 
         try:
             json_str = response.strip()
-            if json_str.startswith('```'):
-                json_str = json_str.split('```')[1]
-                if json_str.startswith('json'):
+            if json_str.startswith("```"):
+                json_str = json_str.split("```")[1]
+                if json_str.startswith("json"):
                     json_str = json_str[4:]
 
             styles = json.loads(json_str)
-            return {
-                'success': True,
-                'styles': styles
-            }
+            return {"success": True, "styles": styles}
         except json.JSONDecodeError:
-            return {
-                'success': True,
-                'styles': {'raw_response': response}
-            }
+            return {"success": True, "styles": {"raw_response": response}}
 
     except Exception as e:
         return {
-            'success': False,
-            'error': str(e),
-            'fallback_css': get_fallback_css(design_style)
+            "success": False,
+            "error": str(e),
+            "fallback_css": get_fallback_css(design_style),
         }
 
 
@@ -319,48 +270,95 @@ Respond ONLY with valid JSON containing CSS code strings."""
 # FALLBACK SUGGESTIONS (when AI is unavailable)
 # ============================================================================
 
+
 def get_fallback_suggestions(website_type: str = None) -> Dict:
     """Get fallback suggestions when AI is unavailable"""
 
     templates = {
-        'business': {
-            'suggested_pages': ['Home', 'About', 'Services', 'Contact'],
-            'design_style': 'professional corporate',
-            'color_scheme': {'primary': '#2563eb', 'secondary': '#1e40af', 'accent': '#f59e0b'},
-            'key_features': ['contact form', 'services showcase', 'testimonials', 'team section'],
-            'layout_type': 'multi-page'
+        "business": {
+            "suggested_pages": ["Home", "About", "Services", "Contact"],
+            "design_style": "professional corporate",
+            "color_scheme": {
+                "primary": "#2563eb",
+                "secondary": "#1e40af",
+                "accent": "#f59e0b",
+            },
+            "key_features": [
+                "contact form",
+                "services showcase",
+                "testimonials",
+                "team section",
+            ],
+            "layout_type": "multi-page",
         },
-        'portfolio': {
-            'suggested_pages': ['Home', 'Work', 'About', 'Contact'],
-            'design_style': 'modern minimalist',
-            'color_scheme': {'primary': '#18181b', 'secondary': '#3f3f46', 'accent': '#a855f7'},
-            'key_features': ['project gallery', 'case studies', 'skills showcase', 'resume download'],
-            'layout_type': 'single-page'
+        "portfolio": {
+            "suggested_pages": ["Home", "Work", "About", "Contact"],
+            "design_style": "modern minimalist",
+            "color_scheme": {
+                "primary": "#18181b",
+                "secondary": "#3f3f46",
+                "accent": "#a855f7",
+            },
+            "key_features": [
+                "project gallery",
+                "case studies",
+                "skills showcase",
+                "resume download",
+            ],
+            "layout_type": "single-page",
         },
-        'blog': {
-            'suggested_pages': ['Home', 'Blog', 'Categories', 'About', 'Contact'],
-            'design_style': 'clean readable',
-            'color_scheme': {'primary': '#0f172a', 'secondary': '#334155', 'accent': '#0ea5e9'},
-            'key_features': ['post archive', 'categories', 'search', 'newsletter signup'],
-            'layout_type': 'multi-page'
+        "blog": {
+            "suggested_pages": ["Home", "Blog", "Categories", "About", "Contact"],
+            "design_style": "clean readable",
+            "color_scheme": {
+                "primary": "#0f172a",
+                "secondary": "#334155",
+                "accent": "#0ea5e9",
+            },
+            "key_features": [
+                "post archive",
+                "categories",
+                "search",
+                "newsletter signup",
+            ],
+            "layout_type": "multi-page",
         },
-        'store': {
-            'suggested_pages': ['Home', 'Products', 'Cart', 'About', 'Contact'],
-            'design_style': 'modern ecommerce',
-            'color_scheme': {'primary': '#0d9488', 'secondary': '#115e59', 'accent': '#f97316'},
-            'key_features': ['product catalog', 'shopping cart', 'checkout', 'customer reviews'],
-            'layout_type': 'multi-page'
+        "store": {
+            "suggested_pages": ["Home", "Products", "Cart", "About", "Contact"],
+            "design_style": "modern ecommerce",
+            "color_scheme": {
+                "primary": "#0d9488",
+                "secondary": "#115e59",
+                "accent": "#f97316",
+            },
+            "key_features": [
+                "product catalog",
+                "shopping cart",
+                "checkout",
+                "customer reviews",
+            ],
+            "layout_type": "multi-page",
         },
-        'landing': {
-            'suggested_pages': ['Home'],
-            'design_style': 'bold conversion-focused',
-            'color_scheme': {'primary': '#7c3aed', 'secondary': '#5b21b6', 'accent': '#fbbf24'},
-            'key_features': ['hero section', 'features grid', 'testimonials', 'pricing', 'CTA'],
-            'layout_type': 'landing-page'
-        }
+        "landing": {
+            "suggested_pages": ["Home"],
+            "design_style": "bold conversion-focused",
+            "color_scheme": {
+                "primary": "#7c3aed",
+                "secondary": "#5b21b6",
+                "accent": "#fbbf24",
+            },
+            "key_features": [
+                "hero section",
+                "features grid",
+                "testimonials",
+                "pricing",
+                "CTA",
+            ],
+            "layout_type": "landing-page",
+        },
     }
 
-    return templates.get(website_type, templates['business'])
+    return templates.get(website_type, templates["business"])
 
 
 def get_fallback_css(design_style: str = None) -> str:

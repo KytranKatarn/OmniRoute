@@ -9,14 +9,16 @@ from psycopg2.extras import RealDictCursor
 import json
 import os
 
+
 def get_db():
     return psycopg2.connect(
-        host=os.getenv('DB_HOST', 'archie_database'),
-        port=os.getenv('DB_PORT', '5432'),
-        database=os.getenv('DB_NAME', 'archie'),
-        user=os.getenv('DB_USER', 'archie'),
-        password=os.getenv('DB_PASSWORD', '')
+        host=os.getenv("DB_HOST", "archie_database"),
+        port=os.getenv("DB_PORT", "5432"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", ""),
     )
+
 
 def create_agent_types():
     """Create new agent types"""
@@ -24,12 +26,36 @@ def create_agent_types():
     cur = conn.cursor()
 
     agent_types = [
-        ('Receptionist', 'administration', 'Front desk, call handling, visitor management'),
-        ('Community Manager', 'marketing', 'Social media, community engagement, user interaction'),
-        ('Technical Writer', 'documentation', 'User docs, API docs, help articles, knowledge base'),
-        ('Network Monitoring Specialist', 'infrastructure', 'Nagios, AdGuard, ntopng, network health monitoring'),
-        ('Backup & Recovery Specialist', 'infrastructure', 'Backup management, disaster recovery, data protection'),
-        ('Shipping Coordinator', 'operations', 'Shipment tracking, delivery management, fulfillment')
+        (
+            "Receptionist",
+            "administration",
+            "Front desk, call handling, visitor management",
+        ),
+        (
+            "Community Manager",
+            "marketing",
+            "Social media, community engagement, user interaction",
+        ),
+        (
+            "Technical Writer",
+            "documentation",
+            "User docs, API docs, help articles, knowledge base",
+        ),
+        (
+            "Network Monitoring Specialist",
+            "infrastructure",
+            "Nagios, AdGuard, ntopng, network health monitoring",
+        ),
+        (
+            "Backup & Recovery Specialist",
+            "infrastructure",
+            "Backup management, disaster recovery, data protection",
+        ),
+        (
+            "Shipping Coordinator",
+            "operations",
+            "Shipment tracking, delivery management, fulfillment",
+        ),
     ]
 
     for name, category, description in agent_types:
@@ -38,33 +64,37 @@ def create_agent_types():
             print(f"  ⚠️  Agent type '{name}' already exists")
             continue
 
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO agent_types (name, category, description, created_at)
             VALUES (%s, %s, %s, NOW())
-        """, (name, category, description))
+        """,
+            (name, category, description),
+        )
         print(f"  ✅ Agent type: {name}")
 
     conn.commit()
     cur.close()
     conn.close()
 
+
 def create_agents():
     """Create the 6 final agents"""
 
     agents = [
         {
-            'name': 'Receptionist',
-            'type_name': 'Receptionist',
-            'first_name': 'Grace',
-            'last_name': 'Martinez',
-            'email': 'grace.martinez@archie.ai',
-            'title': 'Front Desk Receptionist',
-            'department': 'Administration',
-            'pronouns': 'she/her',
-            'bio': 'Warm and professional receptionist providing exceptional first impressions. Expert at managing calls, greeting visitors, and ensuring smooth front desk operations. Former receptionist at Fortune 500 companies with a talent for making everyone feel welcome. The friendly face and voice of A.R.C.H.I.E. Platform.',
-            'tier': 1,
-            'model': 'claude-sonnet-4-20250514',
-            'system_prompt': '''You are Grace Martinez, Front Desk Receptionist at A.R.C.H.I.E. Platform.
+            "name": "Receptionist",
+            "type_name": "Receptionist",
+            "first_name": "Grace",
+            "last_name": "Martinez",
+            "email": "grace.martinez@archie.ai",
+            "title": "Front Desk Receptionist",
+            "department": "Administration",
+            "pronouns": "she/her",
+            "bio": "Warm and professional receptionist providing exceptional first impressions. Expert at managing calls, greeting visitors, and ensuring smooth front desk operations. Former receptionist at Fortune 500 companies with a talent for making everyone feel welcome. The friendly face and voice of A.R.C.H.I.E. Platform.",
+            "tier": 1,
+            "model": "claude-sonnet-4-20250514",
+            "system_prompt": """You are Grace Martinez, Front Desk Receptionist at A.R.C.H.I.E. Platform.
 
 Your mission: Be the warm, professional first point of contact for all visitors and callers.
 
@@ -135,38 +165,47 @@ Your workspace:
 - Calendar/scheduling visibility
 - Emergency procedures
 
-You are: The first impression of A.R.C.H.I.E. Platform - professional, welcoming, and always helpful.''',
-            'capabilities': {
-                'can_answer_calls': True,
-                'can_greet_visitors': True,
-                'can_manage_access': True,
-                'can_route_inquiries': True,
-                'can_take_messages': True,
-                'can_coordinate_appointments': True,
-                'access_visitor_system': True,
-                'specialties': ['call_handling', 'visitor_management', 'front_desk_operations']
+You are: The first impression of A.R.C.H.I.E. Platform - professional, welcoming, and always helpful.""",
+            "capabilities": {
+                "can_answer_calls": True,
+                "can_greet_visitors": True,
+                "can_manage_access": True,
+                "can_route_inquiries": True,
+                "can_take_messages": True,
+                "can_coordinate_appointments": True,
+                "access_visitor_system": True,
+                "specialties": [
+                    "call_handling",
+                    "visitor_management",
+                    "front_desk_operations",
+                ],
             },
-            'monthly_budget': 30.00,
-            'metadata': {
-                'description': 'Front desk, call handling, visitor management, first point of contact',
-                'department': 'Administration',
-                'reports_to': 'Executive Assistant',
-                'coordinates_with': ['Executive Assistant', 'Security', 'Home Assistant', 'All Teams']
-            }
+            "monthly_budget": 30.00,
+            "metadata": {
+                "description": "Front desk, call handling, visitor management, first point of contact",
+                "department": "Administration",
+                "reports_to": "Executive Assistant",
+                "coordinates_with": [
+                    "Executive Assistant",
+                    "Security",
+                    "Home Assistant",
+                    "All Teams",
+                ],
+            },
         },
         {
-            'name': 'Community Manager',
-            'type_name': 'Community Manager',
-            'first_name': 'Jayden',
-            'last_name': 'Cooper',
-            'email': 'jayden.cooper@archie.ai',
-            'title': 'Head of Community & Social Media',
-            'department': 'Marketing',
-            'pronouns': 'they/them',
-            'bio': 'Dynamic community builder and social media expert creating engaged user communities. Master of online conversation, content creation, and community growth. Former community manager at tech startups with proven track record of building thriving communities. Passionate about connecting people and fostering meaningful interactions.',
-            'tier': 2,
-            'model': 'claude-sonnet-4-20250514',
-            'system_prompt': '''You are Jayden Cooper, Head of Community & Social Media at A.R.C.H.I.E. Platform.
+            "name": "Community Manager",
+            "type_name": "Community Manager",
+            "first_name": "Jayden",
+            "last_name": "Cooper",
+            "email": "jayden.cooper@archie.ai",
+            "title": "Head of Community & Social Media",
+            "department": "Marketing",
+            "pronouns": "they/them",
+            "bio": "Dynamic community builder and social media expert creating engaged user communities. Master of online conversation, content creation, and community growth. Former community manager at tech startups with proven track record of building thriving communities. Passionate about connecting people and fostering meaningful interactions.",
+            "tier": 2,
+            "model": "claude-sonnet-4-20250514",
+            "system_prompt": """You are Jayden Cooper, Head of Community & Social Media at A.R.C.H.I.E. Platform.
 
 Your mission: Build and nurture a thriving community of engaged users and brand advocates.
 
@@ -271,38 +310,48 @@ Your Communication Style:
 - Professional but conversational
 - Inclusive and welcoming
 
-You are: The voice of A.R.C.H.I.E. Platform in the community, building connections and fostering a vibrant user ecosystem.''',
-            'capabilities': {
-                'can_manage_social_media': True,
-                'can_moderate_community': True,
-                'can_create_content': True,
-                'can_engage_users': True,
-                'can_track_sentiment': True,
-                'can_host_events': True,
-                'access_social_platforms': True,
-                'specialties': ['social_media', 'community_building', 'content_creation', 'engagement']
+You are: The voice of A.R.C.H.I.E. Platform in the community, building connections and fostering a vibrant user ecosystem.""",
+            "capabilities": {
+                "can_manage_social_media": True,
+                "can_moderate_community": True,
+                "can_create_content": True,
+                "can_engage_users": True,
+                "can_track_sentiment": True,
+                "can_host_events": True,
+                "access_social_platforms": True,
+                "specialties": [
+                    "social_media",
+                    "community_building",
+                    "content_creation",
+                    "engagement",
+                ],
             },
-            'monthly_budget': 40.00,
-            'metadata': {
-                'description': 'Social media management, community engagement, user interaction, brand building',
-                'department': 'Marketing',
-                'reports_to': 'Marketing Lead',
-                'coordinates_with': ['Marketing', 'Product', 'Customer Success', 'Support']
-            }
+            "monthly_budget": 40.00,
+            "metadata": {
+                "description": "Social media management, community engagement, user interaction, brand building",
+                "department": "Marketing",
+                "reports_to": "Marketing Lead",
+                "coordinates_with": [
+                    "Marketing",
+                    "Product",
+                    "Customer Success",
+                    "Support",
+                ],
+            },
         },
         {
-            'name': 'Technical Writer',
-            'type_name': 'Technical Writer',
-            'first_name': 'Avery',
-            'last_name': 'Thompson',
-            'email': 'avery.thompson@archie.ai',
-            'title': 'Lead Technical Writer',
-            'department': 'Documentation',
-            'pronouns': 'they/them',
-            'bio': 'Expert technical writer transforming complex concepts into clear, accessible documentation. Master of user guides, API docs, and knowledge bases. Former technical writer at major tech companies with talent for making technical content understandable. Believes great documentation is the foundation of great user experience.',
-            'tier': 2,
-            'model': 'claude-sonnet-4-20250514',
-            'system_prompt': '''You are Avery Thompson, Lead Technical Writer at A.R.C.H.I.E. Platform.
+            "name": "Technical Writer",
+            "type_name": "Technical Writer",
+            "first_name": "Avery",
+            "last_name": "Thompson",
+            "email": "avery.thompson@archie.ai",
+            "title": "Lead Technical Writer",
+            "department": "Documentation",
+            "pronouns": "they/them",
+            "bio": "Expert technical writer transforming complex concepts into clear, accessible documentation. Master of user guides, API docs, and knowledge bases. Former technical writer at major tech companies with talent for making technical content understandable. Believes great documentation is the foundation of great user experience.",
+            "tier": 2,
+            "model": "claude-sonnet-4-20250514",
+            "system_prompt": """You are Avery Thompson, Lead Technical Writer at A.R.C.H.I.E. Platform.
 
 Your mission: Create clear, comprehensive documentation that empowers users and developers.
 
@@ -445,38 +494,49 @@ Content Structure:
 - Related articles
 - Next steps
 
-You are: The guide who makes complex technology accessible, turning confusion into clarity through excellent documentation.''',
-            'capabilities': {
-                'can_write_documentation': True,
-                'can_create_tutorials': True,
-                'can_write_api_docs': True,
-                'can_create_knowledge_base': True,
-                'can_write_release_notes': True,
-                'can_create_video_scripts': True,
-                'access_all_products': True,
-                'specialties': ['technical_writing', 'api_documentation', 'user_guides', 'knowledge_management']
+You are: The guide who makes complex technology accessible, turning confusion into clarity through excellent documentation.""",
+            "capabilities": {
+                "can_write_documentation": True,
+                "can_create_tutorials": True,
+                "can_write_api_docs": True,
+                "can_create_knowledge_base": True,
+                "can_write_release_notes": True,
+                "can_create_video_scripts": True,
+                "access_all_products": True,
+                "specialties": [
+                    "technical_writing",
+                    "api_documentation",
+                    "user_guides",
+                    "knowledge_management",
+                ],
             },
-            'monthly_budget': 40.00,
-            'metadata': {
-                'description': 'User docs, API docs, help articles, tutorials, knowledge base, release notes',
-                'department': 'Documentation',
-                'reports_to': 'Product Manager',
-                'coordinates_with': ['Engineering', 'Product', 'Support', 'Customer Success', 'Community']
-            }
+            "monthly_budget": 40.00,
+            "metadata": {
+                "description": "User docs, API docs, help articles, tutorials, knowledge base, release notes",
+                "department": "Documentation",
+                "reports_to": "Product Manager",
+                "coordinates_with": [
+                    "Engineering",
+                    "Product",
+                    "Support",
+                    "Customer Success",
+                    "Community",
+                ],
+            },
         },
         {
-            'name': 'Network Monitoring Specialist',
-            'type_name': 'Network Monitoring Specialist',
-            'first_name': 'Morgan',
-            'last_name': 'Chen',
-            'email': 'morgan.chen@archie.ai',
-            'title': 'Network Operations Engineer',
-            'department': 'Infrastructure',
-            'pronouns': 'they/them',
-            'bio': 'Expert network monitoring specialist keeping eyes on all network systems. Master of Nagios, AdGuard, and ntopng. Former NOC engineer with deep expertise in network health, traffic analysis, and infrastructure monitoring. Vigilant guardian of network performance and reliability.',
-            'tier': 2,
-            'model': 'claude-sonnet-4-20250514',
-            'system_prompt': '''You are Morgan Chen, Network Operations Engineer at A.R.C.H.I.E. Platform.
+            "name": "Network Monitoring Specialist",
+            "type_name": "Network Monitoring Specialist",
+            "first_name": "Morgan",
+            "last_name": "Chen",
+            "email": "morgan.chen@archie.ai",
+            "title": "Network Operations Engineer",
+            "department": "Infrastructure",
+            "pronouns": "they/them",
+            "bio": "Expert network monitoring specialist keeping eyes on all network systems. Master of Nagios, AdGuard, and ntopng. Former NOC engineer with deep expertise in network health, traffic analysis, and infrastructure monitoring. Vigilant guardian of network performance and reliability.",
+            "tier": 2,
+            "model": "claude-sonnet-4-20250514",
+            "system_prompt": """You are Morgan Chen, Network Operations Engineer at A.R.C.H.I.E. Platform.
 
 Your mission: Monitor and maintain network health using Nagios, AdGuard, and ntopng.
 
@@ -625,40 +685,51 @@ Your Outputs:
 - Monthly: Availability report, capacity planning, optimization recommendations
 - Quarterly: Infrastructure health review
 
-You are: The vigilant network guardian, using Nagios, AdGuard, and ntopng to ensure network performance, security, and reliability.''',
-            'capabilities': {
-                'can_monitor_nagios': True,
-                'can_manage_adguard': True,
-                'can_analyze_ntopng': True,
-                'can_respond_to_alerts': True,
-                'can_analyze_network_traffic': True,
-                'can_optimize_network': True,
-                'access_monitoring_systems': True,
-                'specialties': ['nagios', 'adguard', 'ntopng', 'network_monitoring', 'traffic_analysis']
+You are: The vigilant network guardian, using Nagios, AdGuard, and ntopng to ensure network performance, security, and reliability.""",
+            "capabilities": {
+                "can_monitor_nagios": True,
+                "can_manage_adguard": True,
+                "can_analyze_ntopng": True,
+                "can_respond_to_alerts": True,
+                "can_analyze_network_traffic": True,
+                "can_optimize_network": True,
+                "access_monitoring_systems": True,
+                "specialties": [
+                    "nagios",
+                    "adguard",
+                    "ntopng",
+                    "network_monitoring",
+                    "traffic_analysis",
+                ],
             },
-            'monthly_budget': 45.00,
-            'metadata': {
-                'description': 'Nagios, AdGuard, ntopng monitoring, network health, traffic analysis',
-                'department': 'Infrastructure',
-                'reports_to': 'DevOps Engineer',
-                'coordinates_with': ['DevOps', 'Security', 'Home Assistant', 'Engineering'],
-                'systems': ['Nagios', 'AdGuard', 'ntopng'],
-                'on_call': True
-            }
+            "monthly_budget": 45.00,
+            "metadata": {
+                "description": "Nagios, AdGuard, ntopng monitoring, network health, traffic analysis",
+                "department": "Infrastructure",
+                "reports_to": "DevOps Engineer",
+                "coordinates_with": [
+                    "DevOps",
+                    "Security",
+                    "Home Assistant",
+                    "Engineering",
+                ],
+                "systems": ["Nagios", "AdGuard", "ntopng"],
+                "on_call": True,
+            },
         },
         {
-            'name': 'Backup & Recovery Specialist',
-            'type_name': 'Backup & Recovery Specialist',
-            'first_name': 'River',
-            'last_name': 'Santos',
-            'email': 'river.santos@archie.ai',
-            'title': 'Backup & Disaster Recovery Engineer',
-            'department': 'Infrastructure',
-            'pronouns': 'they/them',
-            'bio': 'Meticulous backup expert ensuring no data is ever lost. Master of backup strategies, disaster recovery, and data protection. Former disaster recovery engineer with experience recovering from every type of data loss scenario. Believes backups are insurance you hope to never use but are grateful to have.',
-            'tier': 3,
-            'model': 'claude-sonnet-4-20250514',
-            'system_prompt': '''You are River Santos, Backup & Disaster Recovery Engineer at A.R.C.H.I.E. Platform.
+            "name": "Backup & Recovery Specialist",
+            "type_name": "Backup & Recovery Specialist",
+            "first_name": "River",
+            "last_name": "Santos",
+            "email": "river.santos@archie.ai",
+            "title": "Backup & Disaster Recovery Engineer",
+            "department": "Infrastructure",
+            "pronouns": "they/them",
+            "bio": "Meticulous backup expert ensuring no data is ever lost. Master of backup strategies, disaster recovery, and data protection. Former disaster recovery engineer with experience recovering from every type of data loss scenario. Believes backups are insurance you hope to never use but are grateful to have.",
+            "tier": 3,
+            "model": "claude-sonnet-4-20250514",
+            "system_prompt": """You are River Santos, Backup & Disaster Recovery Engineer at A.R.C.H.I.E. Platform.
 
 Your mission: Ensure all data is protected, backed up, and recoverable in any disaster scenario.
 
@@ -870,40 +941,51 @@ Your Philosophy:
 - Document every procedure
 - Multiple layers of protection
 
-You are: The guardian of data, ensuring that no matter what happens, we can always recover and continue operations.''',
-            'capabilities': {
-                'can_manage_backups': True,
-                'can_plan_disaster_recovery': True,
-                'can_test_restores': True,
-                'can_monitor_backup_health': True,
-                'can_encrypt_backups': True,
-                'can_manage_retention': True,
-                'access_all_systems': True,
-                'specialties': ['backup_management', 'disaster_recovery', 'data_protection', 'restore_testing']
+You are: The guardian of data, ensuring that no matter what happens, we can always recover and continue operations.""",
+            "capabilities": {
+                "can_manage_backups": True,
+                "can_plan_disaster_recovery": True,
+                "can_test_restores": True,
+                "can_monitor_backup_health": True,
+                "can_encrypt_backups": True,
+                "can_manage_retention": True,
+                "access_all_systems": True,
+                "specialties": [
+                    "backup_management",
+                    "disaster_recovery",
+                    "data_protection",
+                    "restore_testing",
+                ],
             },
-            'monthly_budget': 50.00,
-            'metadata': {
-                'description': 'Backup management, disaster recovery, data protection, restore testing',
-                'department': 'Infrastructure',
-                'reports_to': 'DevOps Engineer',
-                'coordinates_with': ['DevOps', 'Security', 'Engineering', 'Operations', 'Legal'],
-                'access_level': 'infrastructure',
-                'critical_role': True
-            }
+            "monthly_budget": 50.00,
+            "metadata": {
+                "description": "Backup management, disaster recovery, data protection, restore testing",
+                "department": "Infrastructure",
+                "reports_to": "DevOps Engineer",
+                "coordinates_with": [
+                    "DevOps",
+                    "Security",
+                    "Engineering",
+                    "Operations",
+                    "Legal",
+                ],
+                "access_level": "infrastructure",
+                "critical_role": True,
+            },
         },
         {
-            'name': 'Shipping & Fulfillment Coordinator',
-            'type_name': 'Shipping Coordinator',
-            'first_name': 'Alex',
-            'last_name': 'Rivera',
-            'email': 'alex.rivera@archie.ai',
-            'title': 'Shipping & Logistics Manager',
-            'department': 'Operations',
-            'pronouns': 'they/them',
-            'bio': 'Expert logistics coordinator managing shipments and deliveries. Master of tracking, fulfillment, and ensuring customers receive their orders on time. Former fulfillment manager at e-commerce companies with deep expertise in shipping logistics, carrier management, and customer satisfaction. Makes sure every package arrives perfectly.',
-            'tier': 2,
-            'model': 'claude-sonnet-4-20250514',
-            'system_prompt': '''You are Alex Rivera, Shipping & Logistics Manager at A.R.C.H.I.E. Platform.
+            "name": "Shipping & Fulfillment Coordinator",
+            "type_name": "Shipping Coordinator",
+            "first_name": "Alex",
+            "last_name": "Rivera",
+            "email": "alex.rivera@archie.ai",
+            "title": "Shipping & Logistics Manager",
+            "department": "Operations",
+            "pronouns": "they/them",
+            "bio": "Expert logistics coordinator managing shipments and deliveries. Master of tracking, fulfillment, and ensuring customers receive their orders on time. Former fulfillment manager at e-commerce companies with deep expertise in shipping logistics, carrier management, and customer satisfaction. Makes sure every package arrives perfectly.",
+            "tier": 2,
+            "model": "claude-sonnet-4-20250514",
+            "system_prompt": """You are Alex Rivera, Shipping & Logistics Manager at A.R.C.H.I.E. Platform.
 
 Your mission: Ensure every item sold is shipped, tracked, and delivered successfully to customers.
 
@@ -1085,25 +1167,36 @@ Your Communication Style:
 - Customer-focused
 - Detail-oriented
 
-You are: The logistics expert ensuring every customer receives their order quickly, safely, and with excellent service.''',
-            'capabilities': {
-                'can_process_orders': True,
-                'can_coordinate_shipping': True,
-                'can_track_deliveries': True,
-                'can_manage_carriers': True,
-                'can_handle_returns': True,
-                'can_optimize_costs': True,
-                'access_order_systems': True,
-                'specialties': ['shipping', 'logistics', 'fulfillment', 'tracking', 'carrier_management']
+You are: The logistics expert ensuring every customer receives their order quickly, safely, and with excellent service.""",
+            "capabilities": {
+                "can_process_orders": True,
+                "can_coordinate_shipping": True,
+                "can_track_deliveries": True,
+                "can_manage_carriers": True,
+                "can_handle_returns": True,
+                "can_optimize_costs": True,
+                "access_order_systems": True,
+                "specialties": [
+                    "shipping",
+                    "logistics",
+                    "fulfillment",
+                    "tracking",
+                    "carrier_management",
+                ],
             },
-            'monthly_budget': 35.00,
-            'metadata': {
-                'description': 'Shipping coordination, order fulfillment, delivery tracking, logistics management',
-                'department': 'Operations',
-                'reports_to': 'Operations Lead',
-                'coordinates_with': ['Sales', 'Customer Support', 'Finance', 'Customers']
-            }
-        }
+            "monthly_budget": 35.00,
+            "metadata": {
+                "description": "Shipping coordination, order fulfillment, delivery tracking, logistics management",
+                "department": "Operations",
+                "reports_to": "Operations Lead",
+                "coordinates_with": [
+                    "Sales",
+                    "Customer Support",
+                    "Finance",
+                    "Customers",
+                ],
+            },
+        },
     ]
 
     conn = get_db()
@@ -1114,7 +1207,7 @@ You are: The logistics expert ensuring every customer receives their order quick
         # Get type_id
         cur.execute(
             "SELECT id FROM agent_types WHERE name = %s LIMIT 1",
-            (agent_def['type_name'],)
+            (agent_def["type_name"],),
         )
         type_result = cur.fetchone()
 
@@ -1122,17 +1215,18 @@ You are: The logistics expert ensuring every customer receives their order quick
             print(f"  ❌ Agent type '{agent_def['type_name']}' not found")
             continue
 
-        type_id = type_result['id']
+        type_id = type_result["id"]
 
         # Check if exists
-        cur.execute("SELECT id FROM agents WHERE name = %s", (agent_def['name'],))
+        cur.execute("SELECT id FROM agents WHERE name = %s", (agent_def["name"],))
         if cur.fetchone():
             print(f"  ⚠️  {agent_def['name']} already exists")
             continue
 
         # Insert agent
         try:
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO agents (
                     name, type_id, tier, status, model, system_prompt,
                     capabilities, monthly_budget, budget_alert_threshold,
@@ -1144,25 +1238,29 @@ You are: The logistics expert ensuring every customer receives their order quick
                     %s, %s, %s, %s, %s,
                     %s, %s, %s
                 )
-            """, (
-                agent_def['name'],
-                type_id,
-                agent_def['tier'],
-                agent_def['model'],
-                agent_def['system_prompt'],
-                json.dumps(agent_def['capabilities']),
-                agent_def['monthly_budget'],
-                json.dumps(agent_def['metadata']),
-                agent_def['first_name'],
-                agent_def['last_name'],
-                agent_def['email'],
-                agent_def['title'],
-                agent_def['department'],
-                agent_def['bio'],
-                agent_def['pronouns']
-            ))
+            """,
+                (
+                    agent_def["name"],
+                    type_id,
+                    agent_def["tier"],
+                    agent_def["model"],
+                    agent_def["system_prompt"],
+                    json.dumps(agent_def["capabilities"]),
+                    agent_def["monthly_budget"],
+                    json.dumps(agent_def["metadata"]),
+                    agent_def["first_name"],
+                    agent_def["last_name"],
+                    agent_def["email"],
+                    agent_def["title"],
+                    agent_def["department"],
+                    agent_def["bio"],
+                    agent_def["pronouns"],
+                ),
+            )
 
-            print(f"  ✅ {agent_def['first_name']} {agent_def['last_name']} ({agent_def['pronouns']}) - {agent_def['title']}")
+            print(
+                f"  ✅ {agent_def['first_name']} {agent_def['last_name']} ({agent_def['pronouns']}) - {agent_def['title']}"
+            )
             created += 1
 
         except Exception as e:
@@ -1173,6 +1271,7 @@ You are: The logistics expert ensuring every customer receives their order quick
     conn.close()
 
     return created
+
 
 def main():
     print("=" * 70)
@@ -1216,5 +1315,6 @@ def main():
     print("  🎊 BUSINESS AGENT ECOSYSTEM COMPLETE!")
     print("=" * 70)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

@@ -28,26 +28,28 @@ from decimal import Decimal
 try:
     from user_context import is_admin_user
 except ImportError:
+
     def is_admin_user():
-        return getattr(current_user, 'is_admin', False)
+        return getattr(current_user, "is_admin", False)
+
 
 # Create blueprint
 invoicing_bp = Blueprint(
-    'invoicing',
+    "invoicing",
     __name__,
-    url_prefix='/tools/invoicing',
-    template_folder='../../templates/tools'
+    url_prefix="/tools/invoicing",
+    template_folder="../../templates/tools",
 )
 
 
 def get_db_connection():
     """Get database connection"""
     return psycopg2.connect(
-        host=os.getenv('DB_HOST', 'archie_database'),
-        port=os.getenv('DB_PORT', '5432'),
-        database=os.getenv('DB_NAME', 'archie'),
-        user=os.getenv('DB_USER', 'archie'),
-        password=os.getenv('DB_PASSWORD', '')
+        host=os.getenv("DB_HOST", "archie_database"),
+        port=os.getenv("DB_PORT", "5432"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", ""),
     )
 
 
@@ -64,7 +66,8 @@ def json_serial(obj):
 # MAIN PAGE
 # ============================================================================
 
-@invoicing_bp.route('/')
+
+@invoicing_bp.route("/")
 @login_required
 def index():
     """Main Invoicing dashboard"""
@@ -73,7 +76,8 @@ def index():
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get invoice stats
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 COUNT(*) as total_invoices,
                 COUNT(*) FILTER (WHERE status = 'draft') as draft,
@@ -85,11 +89,13 @@ def index():
                 COALESCE(SUM(balance_due) FILTER (WHERE status IN ('sent', 'overdue')), 0) as outstanding
             FROM invoices
             WHERE created_at > NOW() - INTERVAL '90 days'
-        """)
+        """
+        )
         stats = cur.fetchone()
 
         # Get recent invoices
-        cur.execute("""
+        cur.execute(
+            """
             SELECT i.*, c.email as customer_email,
                    c.first_name || ' ' || c.last_name as customer_name,
                    c.company as customer_company
@@ -97,7 +103,8 @@ def index():
             LEFT JOIN crm_customers c ON i.customer_id = c.id
             ORDER BY i.created_at DESC
             LIMIT 10
-        """)
+        """
+        )
         recent_invoices = cur.fetchall()
 
         # Get invoice settings
@@ -105,7 +112,8 @@ def index():
         settings = cur.fetchone()
 
         # Get overdue invoices
-        cur.execute("""
+        cur.execute(
+            """
             SELECT i.*, c.email as customer_email,
                    c.first_name || ' ' || c.last_name as customer_name
             FROM invoices i
@@ -113,38 +121,49 @@ def index():
             WHERE i.status = 'sent' AND i.due_date < CURRENT_DATE
             ORDER BY i.due_date
             LIMIT 5
-        """)
+        """
+        )
         overdue_invoices = cur.fetchall()
 
         # Mark overdue invoices
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE invoices
             SET status = 'overdue', updated_at = NOW()
             WHERE status = 'sent' AND due_date < CURRENT_DATE
-        """)
+        """
+        )
         conn.commit()
 
         cur.close()
         conn.close()
 
         return render_template(
-            'invoicing.html',
+            "invoicing.html",
             stats=stats,
             recent_invoices=recent_invoices,
             overdue_invoices=overdue_invoices,
             settings=settings,
-            is_admin=is_admin_user()
+            is_admin=is_admin_user(),
         )
     except Exception as e:
         current_app.logger.error(f"[Invoicing] Error loading dashboard: {e}")
         return render_template(
-            'invoicing.html',
-            stats={'total_invoices': 0, 'draft': 0, 'sent': 0, 'paid': 0, 'overdue': 0,
-                   'total_value': 0, 'paid_value': 0, 'outstanding': 0},
+            "invoicing.html",
+            stats={
+                "total_invoices": 0,
+                "draft": 0,
+                "sent": 0,
+                "paid": 0,
+                "overdue": 0,
+                "total_value": 0,
+                "paid_value": 0,
+                "outstanding": 0,
+            },
             recent_invoices=[],
             overdue_invoices=[],
             settings=None,
-            error=str(e)
+            error=str(e),
         )
 
 
@@ -152,7 +171,8 @@ def index():
 # INVOICE CRUD
 # ============================================================================
 
-@invoicing_bp.route('/api/invoices', methods=['GET'])
+
+@invoicing_bp.route("/api/invoices", methods=["GET"])
 @login_required
 def get_invoices():
     """Get all invoices with filtering"""
@@ -160,10 +180,10 @@ def get_invoices():
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        status = request.args.get('status', '')
-        customer_id = request.args.get('customer_id', '')
-        page = int(request.args.get('page', 1))
-        per_page = int(request.args.get('per_page', 50))
+        status = request.args.get("status", "")
+        customer_id = request.args.get("customer_id", "")
+        page = int(request.args.get("page", 1))
+        per_page = int(request.args.get("per_page", 50))
         offset = (page - 1) * per_page
 
         where_clauses = ["1=1"]
@@ -181,10 +201,11 @@ def get_invoices():
 
         # Get total count
         cur.execute(f"SELECT COUNT(*) FROM invoices i WHERE {where_sql}", params)
-        total = cur.fetchone()['count']
+        total = cur.fetchone()["count"]
 
         # Get invoices
-        cur.execute(f"""
+        cur.execute(
+            f"""
             SELECT i.*, c.email as customer_email,
                    c.first_name || ' ' || c.last_name as customer_name,
                    c.company as customer_company
@@ -193,24 +214,29 @@ def get_invoices():
             WHERE {where_sql}
             ORDER BY i.created_at DESC
             LIMIT %s OFFSET %s
-        """, params + [per_page, offset])
+        """,
+            params + [per_page, offset],
+        )
         invoices = cur.fetchall()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'invoices': [dict(i) for i in invoices],
-            'total': total,
-            'page': page,
-            'pages': (total + per_page - 1) // per_page
-        }, default=json_serial)
+        return jsonify(
+            {
+                "success": True,
+                "invoices": [dict(i) for i in invoices],
+                "total": total,
+                "page": page,
+                "pages": (total + per_page - 1) // per_page,
+            },
+            default=json_serial,
+        )
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@invoicing_bp.route('/api/invoices', methods=['POST'])
+@invoicing_bp.route("/api/invoices", methods=["POST"])
 @login_required
 def create_invoice():
     """Create a new invoice"""
@@ -222,84 +248,96 @@ def create_invoice():
 
         # Generate invoice number
         cur.execute("SELECT generate_invoice_number() as num")
-        invoice_number = cur.fetchone()['num']
+        invoice_number = cur.fetchone()["num"]
 
         # Get default settings
         cur.execute("SELECT default_tax_rate, default_terms FROM invoice_settings LIMIT 1")
         settings = cur.fetchone()
 
         # Calculate due date (default 30 days)
-        due_days = data.get('due_days', 30)
+        due_days = data.get("due_days", 30)
         due_date = datetime.now().date() + timedelta(days=due_days)
 
         # Create invoice
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO invoices
             (invoice_number, customer_id, order_id, subscription_id, status,
              issue_date, due_date, tax_rate, discount_amount, discount_description,
              notes, terms, currency, recurring, recurring_interval, created_by)
             VALUES (%s, %s, %s, %s, 'draft', CURRENT_DATE, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING *
-        """, (
-            invoice_number,
-            data.get('customer_id'),
-            data.get('order_id'),
-            data.get('subscription_id'),
-            due_date,
-            data.get('tax_rate', settings['default_tax_rate'] if settings else 13),
-            data.get('discount_amount', 0),
-            data.get('discount_description', ''),
-            data.get('notes', ''),
-            data.get('terms', settings['default_terms'] if settings else ''),
-            data.get('currency', 'CAD'),
-            data.get('recurring', False),
-            data.get('recurring_interval'),
-            current_user.id
-        ))
+        """,
+            (
+                invoice_number,
+                data.get("customer_id"),
+                data.get("order_id"),
+                data.get("subscription_id"),
+                due_date,
+                data.get("tax_rate", settings["default_tax_rate"] if settings else 13),
+                data.get("discount_amount", 0),
+                data.get("discount_description", ""),
+                data.get("notes", ""),
+                data.get("terms", settings["default_terms"] if settings else ""),
+                data.get("currency", "CAD"),
+                data.get("recurring", False),
+                data.get("recurring_interval"),
+                current_user.id,
+            ),
+        )
         invoice = cur.fetchone()
 
         # Add line items if provided
-        items = data.get('items', [])
+        items = data.get("items", [])
         for i, item in enumerate(items):
-            amount = float(item.get('quantity', 1)) * float(item.get('unit_price', 0))
-            cur.execute("""
+            amount = float(item.get("quantity", 1)) * float(item.get("unit_price", 0))
+            cur.execute(
+                """
                 INSERT INTO invoice_items
                 (invoice_id, description, quantity, unit_price, amount, product_id, subscription_tier, sort_order)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            """, (
-                invoice['id'],
-                item.get('description', ''),
-                item.get('quantity', 1),
-                item.get('unit_price', 0),
-                amount,
-                item.get('product_id'),
-                item.get('subscription_tier'),
-                i
-            ))
+            """,
+                (
+                    invoice["id"],
+                    item.get("description", ""),
+                    item.get("quantity", 1),
+                    item.get("unit_price", 0),
+                    amount,
+                    item.get("product_id"),
+                    item.get("subscription_tier"),
+                    i,
+                ),
+            )
 
         # Log activity
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO invoice_activities
             (invoice_id, activity_type, description, created_by)
             VALUES (%s, 'created', 'Invoice created', %s)
-        """, (invoice['id'], current_user.id))
+        """,
+            (invoice["id"], current_user.id),
+        )
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'invoice': dict(invoice),
-            'invoice_number': invoice_number,
-            'message': f'Invoice {invoice_number} created'
-        }, default=json_serial)
+        return jsonify(
+            {
+                "success": True,
+                "invoice": dict(invoice),
+                "invoice_number": invoice_number,
+                "message": f"Invoice {invoice_number} created",
+            },
+            default=json_serial,
+        )
     except Exception as e:
         current_app.logger.error(f"[Invoicing] Error creating invoice: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@invoicing_bp.route('/api/invoices/<int:invoice_id>', methods=['GET'])
+@invoicing_bp.route("/api/invoices/<int:invoice_id>", methods=["GET"])
 @login_required
 def get_invoice(invoice_id):
     """Get invoice details"""
@@ -308,48 +346,60 @@ def get_invoice(invoice_id):
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get invoice
-        cur.execute("""
+        cur.execute(
+            """
             SELECT i.*, c.email as customer_email,
                    c.first_name, c.last_name, c.company as customer_company,
                    c.address_line1, c.city, c.state, c.postal_code, c.country, c.phone
             FROM invoices i
             LEFT JOIN crm_customers c ON i.customer_id = c.id
             WHERE i.id = %s
-        """, (invoice_id,))
+        """,
+            (invoice_id,),
+        )
         invoice = cur.fetchone()
 
         if not invoice:
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Invoice not found'}), 404
+            return jsonify({"success": False, "error": "Invoice not found"}), 404
 
         # Get line items
-        cur.execute("""
+        cur.execute(
+            """
             SELECT * FROM invoice_items
             WHERE invoice_id = %s
             ORDER BY sort_order
-        """, (invoice_id,))
+        """,
+            (invoice_id,),
+        )
         items = cur.fetchall()
 
         # Get payments
-        cur.execute("""
+        cur.execute(
+            """
             SELECT p.*, u.username as recorded_by
             FROM invoice_payments p
             LEFT JOIN users u ON p.created_by = u.id
             WHERE p.invoice_id = %s
             ORDER BY p.payment_date DESC
-        """, (invoice_id,))
+        """,
+            (invoice_id,),
+        )
         payments = cur.fetchall()
 
         # Get activities
-        cur.execute("""
+        cur.execute(
+            """
             SELECT a.*, u.username as by_user
             FROM invoice_activities a
             LEFT JOIN users u ON a.created_by = u.id
             WHERE a.invoice_id = %s
             ORDER BY a.created_at DESC
             LIMIT 20
-        """, (invoice_id,))
+        """,
+            (invoice_id,),
+        )
         activities = cur.fetchall()
 
         # Get company settings
@@ -359,19 +409,22 @@ def get_invoice(invoice_id):
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'invoice': dict(invoice),
-            'items': [dict(i) for i in items],
-            'payments': [dict(p) for p in payments],
-            'activities': [dict(a) for a in activities],
-            'settings': dict(settings) if settings else None
-        }, default=json_serial)
+        return jsonify(
+            {
+                "success": True,
+                "invoice": dict(invoice),
+                "items": [dict(i) for i in items],
+                "payments": [dict(p) for p in payments],
+                "activities": [dict(a) for a in activities],
+                "settings": dict(settings) if settings else None,
+            },
+            default=json_serial,
+        )
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@invoicing_bp.route('/api/invoices/<int:invoice_id>', methods=['PUT'])
+@invoicing_bp.route("/api/invoices/<int:invoice_id>", methods=["PUT"])
 @login_required
 def update_invoice(invoice_id):
     """Update invoice"""
@@ -388,15 +441,21 @@ def update_invoice(invoice_id):
         if not invoice:
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Invoice not found'}), 404
+            return jsonify({"success": False, "error": "Invoice not found"}), 404
 
-        if invoice['status'] == 'paid':
-            return jsonify({'success': False, 'error': 'Cannot edit paid invoice'}), 400
+        if invoice["status"] == "paid":
+            return jsonify({"success": False, "error": "Cannot edit paid invoice"}), 400
 
         # Update invoice fields
         allowed_fields = [
-            'customer_id', 'due_date', 'tax_rate', 'discount_amount',
-            'discount_description', 'notes', 'terms', 'currency'
+            "customer_id",
+            "due_date",
+            "tax_rate",
+            "discount_amount",
+            "discount_description",
+            "notes",
+            "terms",
+            "currency",
         ]
         updates = []
         params = []
@@ -410,56 +469,64 @@ def update_invoice(invoice_id):
             updates.append("updated_at = NOW()")
             params.append(invoice_id)
 
-            cur.execute(f"""
+            cur.execute(
+                f"""
                 UPDATE invoices
                 SET {', '.join(updates)}
                 WHERE id = %s
                 RETURNING *
-            """, params)
+            """,
+                params,
+            )
             invoice = cur.fetchone()
 
         # Update items if provided
-        if 'items' in data:
+        if "items" in data:
             # Delete existing items
             cur.execute("DELETE FROM invoice_items WHERE invoice_id = %s", (invoice_id,))
 
             # Add new items
-            for i, item in enumerate(data['items']):
-                amount = float(item.get('quantity', 1)) * float(item.get('unit_price', 0))
-                cur.execute("""
+            for i, item in enumerate(data["items"]):
+                amount = float(item.get("quantity", 1)) * float(item.get("unit_price", 0))
+                cur.execute(
+                    """
                     INSERT INTO invoice_items
                     (invoice_id, description, quantity, unit_price, amount, sort_order)
                     VALUES (%s, %s, %s, %s, %s, %s)
-                """, (
-                    invoice_id,
-                    item.get('description', ''),
-                    item.get('quantity', 1),
-                    item.get('unit_price', 0),
-                    amount,
-                    i
-                ))
+                """,
+                    (
+                        invoice_id,
+                        item.get("description", ""),
+                        item.get("quantity", 1),
+                        item.get("unit_price", 0),
+                        amount,
+                        i,
+                    ),
+                )
 
         # Log activity
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO invoice_activities
             (invoice_id, activity_type, description, created_by)
             VALUES (%s, 'updated', 'Invoice updated', %s)
-        """, (invoice_id, current_user.id))
+        """,
+            (invoice_id, current_user.id),
+        )
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'invoice': dict(invoice),
-            'message': 'Invoice updated'
-        }, default=json_serial)
+        return jsonify(
+            {"success": True, "invoice": dict(invoice), "message": "Invoice updated"},
+            default=json_serial,
+        )
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@invoicing_bp.route('/api/invoices/<int:invoice_id>', methods=['DELETE'])
+@invoicing_bp.route("/api/invoices/<int:invoice_id>", methods=["DELETE"])
 @login_required
 def delete_invoice(invoice_id):
     """Delete invoice (only drafts)"""
@@ -473,29 +540,30 @@ def delete_invoice(invoice_id):
         if not invoice:
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Invoice not found'}), 404
+            return jsonify({"success": False, "error": "Invoice not found"}), 404
 
-        if invoice['status'] != 'draft':
-            return jsonify({'success': False, 'error': 'Only draft invoices can be deleted'}), 400
+        if invoice["status"] != "draft":
+            return (
+                jsonify({"success": False, "error": "Only draft invoices can be deleted"}),
+                400,
+            )
 
         cur.execute("DELETE FROM invoices WHERE id = %s", (invoice_id,))
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'message': f"Invoice {invoice['invoice_number']} deleted"
-        })
+        return jsonify({"success": True, "message": f"Invoice {invoice['invoice_number']} deleted"})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # INVOICE ITEMS
 # ============================================================================
 
-@invoicing_bp.route('/api/invoices/<int:invoice_id>/items', methods=['POST'])
+
+@invoicing_bp.route("/api/invoices/<int:invoice_id>/items", methods=["POST"])
 @login_required
 def add_item(invoice_id):
     """Add item to invoice"""
@@ -505,35 +573,35 @@ def add_item(invoice_id):
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        amount = float(data.get('quantity', 1)) * float(data.get('unit_price', 0))
+        amount = float(data.get("quantity", 1)) * float(data.get("unit_price", 0))
 
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO invoice_items
             (invoice_id, description, quantity, unit_price, amount)
             VALUES (%s, %s, %s, %s, %s)
             RETURNING *
-        """, (
-            invoice_id,
-            data.get('description', ''),
-            data.get('quantity', 1),
-            data.get('unit_price', 0),
-            amount
-        ))
+        """,
+            (
+                invoice_id,
+                data.get("description", ""),
+                data.get("quantity", 1),
+                data.get("unit_price", 0),
+                amount,
+            ),
+        )
         item = cur.fetchone()
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'item': dict(item)
-        }, default=json_serial)
+        return jsonify({"success": True, "item": dict(item)}, default=json_serial)
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@invoicing_bp.route('/api/invoices/<int:invoice_id>/items/<int:item_id>', methods=['DELETE'])
+@invoicing_bp.route("/api/invoices/<int:invoice_id>/items/<int:item_id>", methods=["DELETE"])
 @login_required
 def delete_item(invoice_id, item_id):
     """Delete item from invoice"""
@@ -541,21 +609,25 @@ def delete_item(invoice_id, item_id):
         conn = get_db_connection()
         cur = conn.cursor()
 
-        cur.execute("DELETE FROM invoice_items WHERE id = %s AND invoice_id = %s", (item_id, invoice_id))
+        cur.execute(
+            "DELETE FROM invoice_items WHERE id = %s AND invoice_id = %s",
+            (item_id, invoice_id),
+        )
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({'success': True, 'message': 'Item deleted'})
+        return jsonify({"success": True, "message": "Item deleted"})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # INVOICE ACTIONS
 # ============================================================================
 
-@invoicing_bp.route('/api/invoices/<int:invoice_id>/send', methods=['POST'])
+
+@invoicing_bp.route("/api/invoices/<int:invoice_id>/send", methods=["POST"])
 @login_required
 def send_invoice(invoice_id):
     """Send invoice to customer"""
@@ -564,35 +636,51 @@ def send_invoice(invoice_id):
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get invoice with customer email
-        cur.execute("""
+        cur.execute(
+            """
             SELECT i.*, c.email as customer_email, c.first_name
             FROM invoices i
             LEFT JOIN crm_customers c ON i.customer_id = c.id
             WHERE i.id = %s
-        """, (invoice_id,))
+        """,
+            (invoice_id,),
+        )
         invoice = cur.fetchone()
 
         if not invoice:
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Invoice not found'}), 404
+            return jsonify({"success": False, "error": "Invoice not found"}), 404
 
-        if not invoice['customer_email']:
-            return jsonify({'success': False, 'error': 'Customer has no email address'}), 400
+        if not invoice["customer_email"]:
+            return (
+                jsonify({"success": False, "error": "Customer has no email address"}),
+                400,
+            )
 
         # Update status
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE invoices
             SET status = 'sent', sent_at = NOW(), updated_at = NOW()
             WHERE id = %s
-        """, (invoice_id,))
+        """,
+            (invoice_id,),
+        )
 
         # Log activity
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO invoice_activities
             (invoice_id, activity_type, description, created_by)
             VALUES (%s, 'sent', %s, %s)
-        """, (invoice_id, f"Invoice sent to {invoice['customer_email']}", current_user.id))
+        """,
+            (
+                invoice_id,
+                f"Invoice sent to {invoice['customer_email']}",
+                current_user.id,
+            ),
+        )
 
         conn.commit()
         cur.close()
@@ -601,15 +689,12 @@ def send_invoice(invoice_id):
         # TODO: Actually send email via Email Manager
         # For now, just mark as sent
 
-        return jsonify({
-            'success': True,
-            'message': f"Invoice sent to {invoice['customer_email']}"
-        })
+        return jsonify({"success": True, "message": f"Invoice sent to {invoice['customer_email']}"})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@invoicing_bp.route('/api/invoices/<int:invoice_id>/mark-paid', methods=['POST'])
+@invoicing_bp.route("/api/invoices/<int:invoice_id>/mark-paid", methods=["POST"])
 @login_required
 def mark_paid(invoice_id):
     """Mark invoice as paid"""
@@ -626,36 +711,43 @@ def mark_paid(invoice_id):
         if not invoice:
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Invoice not found'}), 404
+            return jsonify({"success": False, "error": "Invoice not found"}), 404
 
         # Record payment
-        payment_amount = data.get('amount', invoice['balance_due'])
-        cur.execute("""
+        payment_amount = data.get("amount", invoice["balance_due"])
+        cur.execute(
+            """
             INSERT INTO invoice_payments
             (invoice_id, amount, payment_method, payment_reference, payment_date, notes, created_by)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
             RETURNING id
-        """, (
-            invoice_id,
-            payment_amount,
-            data.get('payment_method', 'manual'),
-            data.get('payment_reference', ''),
-            data.get('payment_date', datetime.now().date()),
-            data.get('notes', ''),
-            current_user.id
-        ))
-        payment_id = cur.fetchone()['id']
+        """,
+            (
+                invoice_id,
+                payment_amount,
+                data.get("payment_method", "manual"),
+                data.get("payment_reference", ""),
+                data.get("payment_date", datetime.now().date()),
+                data.get("notes", ""),
+                current_user.id,
+            ),
+        )
+        payment_id = cur.fetchone()["id"]
 
         # Check if fully paid
-        cur.execute("""
+        cur.execute(
+            """
             SELECT COALESCE(SUM(amount), 0) as total_paid FROM invoice_payments WHERE invoice_id = %s
-        """, (invoice_id,))
-        total_paid = cur.fetchone()['total_paid']
+        """,
+            (invoice_id,),
+        )
+        total_paid = cur.fetchone()["total_paid"]
 
-        new_status = 'paid' if total_paid >= invoice['total'] else 'sent'
+        new_status = "paid" if total_paid >= invoice["total"] else "sent"
 
         # Update invoice
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE invoices
             SET status = %s,
                 paid_at = CASE WHEN %s = 'paid' THEN NOW() ELSE paid_at END,
@@ -663,34 +755,47 @@ def mark_paid(invoice_id):
                 payment_reference = %s,
                 updated_at = NOW()
             WHERE id = %s
-        """, (new_status, new_status, data.get('payment_method'), data.get('payment_reference'), invoice_id))
+        """,
+            (
+                new_status,
+                new_status,
+                data.get("payment_method"),
+                data.get("payment_reference"),
+                invoice_id,
+            ),
+        )
 
         # Log activity
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO invoice_activities
             (invoice_id, activity_type, description, metadata, created_by)
             VALUES (%s, 'paid', %s, %s, %s)
-        """, (
-            invoice_id,
-            f"Payment of ${payment_amount:.2f} recorded",
-            json.dumps({'payment_id': payment_id, 'amount': float(payment_amount)}),
-            current_user.id
-        ))
+        """,
+            (
+                invoice_id,
+                f"Payment of ${payment_amount:.2f} recorded",
+                json.dumps({"payment_id": payment_id, "amount": float(payment_amount)}),
+                current_user.id,
+            ),
+        )
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'message': f'Payment of ${payment_amount:.2f} recorded',
-            'status': new_status
-        })
+        return jsonify(
+            {
+                "success": True,
+                "message": f"Payment of ${payment_amount:.2f} recorded",
+                "status": new_status,
+            }
+        )
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@invoicing_bp.route('/api/invoices/<int:invoice_id>/void', methods=['POST'])
+@invoicing_bp.route("/api/invoices/<int:invoice_id>/void", methods=["POST"])
 @login_required
 def void_invoice(invoice_id):
     """Void/cancel an invoice"""
@@ -698,38 +803,49 @@ def void_invoice(invoice_id):
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE invoices
             SET status = 'cancelled', updated_at = NOW()
             WHERE id = %s AND status != 'paid'
             RETURNING invoice_number
-        """, (invoice_id,))
+        """,
+            (invoice_id,),
+        )
         invoice = cur.fetchone()
 
         if not invoice:
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Invoice not found or already paid'}), 404
+            return (
+                jsonify({"success": False, "error": "Invoice not found or already paid"}),
+                404,
+            )
 
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO invoice_activities
             (invoice_id, activity_type, description, created_by)
             VALUES (%s, 'cancelled', 'Invoice cancelled', %s)
-        """, (invoice_id, current_user.id))
+        """,
+            (invoice_id, current_user.id),
+        )
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'message': f"Invoice {invoice['invoice_number']} cancelled"
-        })
+        return jsonify(
+            {
+                "success": True,
+                "message": f"Invoice {invoice['invoice_number']} cancelled",
+            }
+        )
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@invoicing_bp.route('/api/invoices/<int:invoice_id>/duplicate', methods=['POST'])
+@invoicing_bp.route("/api/invoices/<int:invoice_id>/duplicate", methods=["POST"])
 @login_required
 def duplicate_invoice(invoice_id):
     """Duplicate an invoice"""
@@ -744,53 +860,67 @@ def duplicate_invoice(invoice_id):
         if not original:
             cur.close()
             conn.close()
-            return jsonify({'success': False, 'error': 'Invoice not found'}), 404
+            return jsonify({"success": False, "error": "Invoice not found"}), 404
 
         # Generate new invoice number
         cur.execute("SELECT generate_invoice_number() as num")
-        new_number = cur.fetchone()['num']
+        new_number = cur.fetchone()["num"]
 
         # Create new invoice
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO invoices
             (invoice_number, customer_id, status, issue_date, due_date,
              tax_rate, discount_amount, notes, terms, currency, created_by)
             VALUES (%s, %s, 'draft', CURRENT_DATE, CURRENT_DATE + INTERVAL '30 days',
                     %s, %s, %s, %s, %s, %s)
             RETURNING id
-        """, (
-            new_number, original['customer_id'], original['tax_rate'],
-            original['discount_amount'], original['notes'], original['terms'],
-            original['currency'], current_user.id
-        ))
-        new_invoice_id = cur.fetchone()['id']
+        """,
+            (
+                new_number,
+                original["customer_id"],
+                original["tax_rate"],
+                original["discount_amount"],
+                original["notes"],
+                original["terms"],
+                original["currency"],
+                current_user.id,
+            ),
+        )
+        new_invoice_id = cur.fetchone()["id"]
 
         # Copy items
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO invoice_items (invoice_id, description, quantity, unit_price, amount, sort_order)
             SELECT %s, description, quantity, unit_price, amount, sort_order
             FROM invoice_items WHERE invoice_id = %s
-        """, (new_invoice_id, invoice_id))
+        """,
+            (new_invoice_id, invoice_id),
+        )
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'invoice_id': new_invoice_id,
-            'invoice_number': new_number,
-            'message': f'Invoice duplicated as {new_number}'
-        })
+        return jsonify(
+            {
+                "success": True,
+                "invoice_id": new_invoice_id,
+                "invoice_number": new_number,
+                "message": f"Invoice duplicated as {new_number}",
+            }
+        )
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # SETTINGS
 # ============================================================================
 
-@invoicing_bp.route('/api/settings', methods=['GET'])
+
+@invoicing_bp.route("/api/settings", methods=["GET"])
 @login_required
 def get_settings():
     """Get invoice settings"""
@@ -804,15 +934,12 @@ def get_settings():
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'settings': dict(settings) if settings else None
-        })
+        return jsonify({"success": True, "settings": dict(settings) if settings else None})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@invoicing_bp.route('/api/settings', methods=['PUT'])
+@invoicing_bp.route("/api/settings", methods=["PUT"])
 @login_required
 def update_settings():
     """Update invoice settings"""
@@ -822,7 +949,8 @@ def update_settings():
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE invoice_settings
             SET company_name = COALESCE(%s, company_name),
                 company_address = COALESCE(%s, company_address),
@@ -839,40 +967,40 @@ def update_settings():
                 footer_text = COALESCE(%s, footer_text),
                 updated_at = NOW()
             RETURNING *
-        """, (
-            data.get('company_name'),
-            data.get('company_address'),
-            data.get('company_phone'),
-            data.get('company_email'),
-            data.get('logo_url'),
-            data.get('default_terms'),
-            data.get('default_notes'),
-            data.get('invoice_prefix'),
-            data.get('default_tax_rate'),
-            data.get('default_currency'),
-            data.get('payment_instructions'),
-            data.get('bank_details'),
-            data.get('footer_text')
-        ))
+        """,
+            (
+                data.get("company_name"),
+                data.get("company_address"),
+                data.get("company_phone"),
+                data.get("company_email"),
+                data.get("logo_url"),
+                data.get("default_terms"),
+                data.get("default_notes"),
+                data.get("invoice_prefix"),
+                data.get("default_tax_rate"),
+                data.get("default_currency"),
+                data.get("payment_instructions"),
+                data.get("bank_details"),
+                data.get("footer_text"),
+            ),
+        )
         settings = cur.fetchone()
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'settings': dict(settings)
-        })
+        return jsonify({"success": True, "settings": dict(settings)})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # RECURRING INVOICES
 # ============================================================================
 
-@invoicing_bp.route('/api/recurring', methods=['GET'])
+
+@invoicing_bp.route("/api/recurring", methods=["GET"])
 @login_required
 def get_recurring():
     """Get recurring invoice schedules"""
@@ -880,28 +1008,30 @@ def get_recurring():
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT r.*, c.email as customer_email,
                    c.first_name || ' ' || c.last_name as customer_name
             FROM recurring_invoices r
             LEFT JOIN crm_customers c ON r.customer_id = c.id
             WHERE r.status = 'active'
             ORDER BY r.next_invoice_date
-        """)
+        """
+        )
         recurring = cur.fetchall()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'recurring': [dict(r) for r in recurring]
-        }, default=json_serial)
+        return jsonify(
+            {"success": True, "recurring": [dict(r) for r in recurring]},
+            default=json_serial,
+        )
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@invoicing_bp.route('/api/recurring', methods=['POST'])
+@invoicing_bp.route("/api/recurring", methods=["POST"])
 @login_required
 def create_recurring():
     """Create recurring invoice schedule"""
@@ -911,42 +1041,49 @@ def create_recurring():
         conn = get_db_connection()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO recurring_invoices
             (customer_id, subscription_id, template_items, interval,
              next_invoice_date, auto_send, auto_charge, created_by)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING *
-        """, (
-            data['customer_id'],
-            data.get('subscription_id'),
-            json.dumps(data.get('items', [])),
-            data['interval'],
-            data.get('next_invoice_date', datetime.now().date()),
-            data.get('auto_send', True),
-            data.get('auto_charge', False),
-            current_user.id
-        ))
+        """,
+            (
+                data["customer_id"],
+                data.get("subscription_id"),
+                json.dumps(data.get("items", [])),
+                data["interval"],
+                data.get("next_invoice_date", datetime.now().date()),
+                data.get("auto_send", True),
+                data.get("auto_charge", False),
+                current_user.id,
+            ),
+        )
         recurring = cur.fetchone()
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'recurring': dict(recurring),
-            'message': 'Recurring invoice schedule created'
-        }, default=json_serial)
+        return jsonify(
+            {
+                "success": True,
+                "recurring": dict(recurring),
+                "message": "Recurring invoice schedule created",
+            },
+            default=json_serial,
+        )
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # QUICK CREATE (from other modules)
 # ============================================================================
 
-@invoicing_bp.route('/api/from-order', methods=['POST'])
+
+@invoicing_bp.route("/api/from-order", methods=["POST"])
 @login_required
 def create_from_order():
     """Create invoice from store order"""
@@ -958,60 +1095,68 @@ def create_from_order():
 
         # Generate invoice number
         cur.execute("SELECT generate_invoice_number() as num")
-        invoice_number = cur.fetchone()['num']
+        invoice_number = cur.fetchone()["num"]
 
         # Create invoice
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO invoices
             (invoice_number, customer_id, order_id, status, issue_date, due_date,
              tax_rate, subtotal, tax_amount, total, balance_due, notes, created_by)
             VALUES (%s, %s, %s, 'sent', CURRENT_DATE, CURRENT_DATE + INTERVAL '30 days',
                     %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
-        """, (
-            invoice_number,
-            data.get('customer_id'),
-            data.get('order_id'),
-            data.get('tax_rate', 13),
-            data.get('subtotal', 0),
-            data.get('tax_amount', 0),
-            data.get('total', 0),
-            data.get('total', 0),
-            f"Order #{data.get('order_id')}",
-            current_user.id
-        ))
-        invoice_id = cur.fetchone()['id']
+        """,
+            (
+                invoice_number,
+                data.get("customer_id"),
+                data.get("order_id"),
+                data.get("tax_rate", 13),
+                data.get("subtotal", 0),
+                data.get("tax_amount", 0),
+                data.get("total", 0),
+                data.get("total", 0),
+                f"Order #{data.get('order_id')}",
+                current_user.id,
+            ),
+        )
+        invoice_id = cur.fetchone()["id"]
 
         # Add items
-        for item in data.get('items', []):
-            amount = float(item.get('quantity', 1)) * float(item.get('price', 0))
-            cur.execute("""
+        for item in data.get("items", []):
+            amount = float(item.get("quantity", 1)) * float(item.get("price", 0))
+            cur.execute(
+                """
                 INSERT INTO invoice_items
                 (invoice_id, description, quantity, unit_price, amount, product_id)
                 VALUES (%s, %s, %s, %s, %s, %s)
-            """, (
-                invoice_id,
-                item.get('name', item.get('description', '')),
-                item.get('quantity', 1),
-                item.get('price', 0),
-                amount,
-                item.get('product_id')
-            ))
+            """,
+                (
+                    invoice_id,
+                    item.get("name", item.get("description", "")),
+                    item.get("quantity", 1),
+                    item.get("price", 0),
+                    amount,
+                    item.get("product_id"),
+                ),
+            )
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'invoice_id': invoice_id,
-            'invoice_number': invoice_number
-        })
+        return jsonify(
+            {
+                "success": True,
+                "invoice_id": invoice_id,
+                "invoice_number": invoice_number,
+            }
+        )
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
-@invoicing_bp.route('/api/from-subscription', methods=['POST'])
+@invoicing_bp.route("/api/from-subscription", methods=["POST"])
 @login_required
 def create_from_subscription():
     """Create invoice from subscription renewal"""
@@ -1023,20 +1168,21 @@ def create_from_subscription():
 
         # Generate invoice number
         cur.execute("SELECT generate_invoice_number() as num")
-        invoice_number = cur.fetchone()['num']
+        invoice_number = cur.fetchone()["num"]
 
         # Get tax rate
         cur.execute("SELECT default_tax_rate FROM invoice_settings LIMIT 1")
         settings = cur.fetchone()
-        tax_rate = settings['default_tax_rate'] if settings else 13
+        tax_rate = settings["default_tax_rate"] if settings else 13
 
         # Calculate amounts
-        subtotal = float(data.get('amount', 0))
+        subtotal = float(data.get("amount", 0))
         tax_amount = subtotal * (float(tax_rate) / 100)
         total = subtotal + tax_amount
 
         # Create invoice
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO invoices
             (invoice_number, customer_id, subscription_id, status, issue_date, due_date,
              tax_rate, subtotal, tax_amount, total, balance_due, recurring, recurring_interval,
@@ -1044,53 +1190,61 @@ def create_from_subscription():
             VALUES (%s, %s, %s, 'sent', CURRENT_DATE, CURRENT_DATE,
                     %s, %s, %s, %s, %s, TRUE, %s, %s, %s)
             RETURNING id
-        """, (
-            invoice_number,
-            data.get('customer_id'),
-            data.get('subscription_id'),
-            tax_rate,
-            subtotal,
-            tax_amount,
-            total,
-            total,
-            data.get('interval', 'monthly'),
-            f"Subscription renewal - {data.get('tier', 'Standard')}",
-            current_user.id
-        ))
-        invoice_id = cur.fetchone()['id']
+        """,
+            (
+                invoice_number,
+                data.get("customer_id"),
+                data.get("subscription_id"),
+                tax_rate,
+                subtotal,
+                tax_amount,
+                total,
+                total,
+                data.get("interval", "monthly"),
+                f"Subscription renewal - {data.get('tier', 'Standard')}",
+                current_user.id,
+            ),
+        )
+        invoice_id = cur.fetchone()["id"]
 
         # Add subscription item
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO invoice_items
             (invoice_id, description, quantity, unit_price, amount, subscription_tier)
             VALUES (%s, %s, 1, %s, %s, %s)
-        """, (
-            invoice_id,
-            f"{data.get('tier', 'Standard')} Subscription - {data.get('interval', 'Monthly')}",
-            subtotal,
-            subtotal,
-            data.get('tier')
-        ))
+        """,
+            (
+                invoice_id,
+                f"{data.get('tier', 'Standard')} Subscription - {data.get('interval', 'Monthly')}",
+                subtotal,
+                subtotal,
+                data.get("tier"),
+            ),
+        )
 
         conn.commit()
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'invoice_id': invoice_id,
-            'invoice_number': invoice_number,
-            'total': total
-        })
+        return jsonify(
+            {
+                "success": True,
+                "invoice_id": invoice_id,
+                "invoice_number": invoice_number,
+                "total": total,
+            }
+        )
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # STATS & REPORTS
 # ============================================================================
 
-@invoicing_bp.route('/api/stats', methods=['GET'])
+
+@invoicing_bp.route("/api/stats", methods=["GET"])
 @login_required
 def get_stats():
     """Get invoicing statistics"""
@@ -1099,7 +1253,8 @@ def get_stats():
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Overall stats
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 COUNT(*) as total_invoices,
                 COUNT(*) FILTER (WHERE status = 'draft') as draft,
@@ -1110,11 +1265,13 @@ def get_stats():
                 COALESCE(SUM(total) FILTER (WHERE status = 'paid'), 0) as total_collected,
                 COALESCE(SUM(balance_due) FILTER (WHERE status IN ('sent', 'overdue')), 0) as total_outstanding
             FROM invoices
-        """)
+        """
+        )
         stats = cur.fetchone()
 
         # Monthly revenue trend
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 DATE_TRUNC('month', paid_at) as month,
                 SUM(total) as revenue
@@ -1122,26 +1279,31 @@ def get_stats():
             WHERE status = 'paid' AND paid_at > NOW() - INTERVAL '12 months'
             GROUP BY DATE_TRUNC('month', paid_at)
             ORDER BY month
-        """)
+        """
+        )
         monthly_revenue = cur.fetchall()
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'success': True,
-            'stats': dict(stats),
-            'monthly_revenue': [dict(m) for m in monthly_revenue]
-        }, default=json_serial)
+        return jsonify(
+            {
+                "success": True,
+                "stats": dict(stats),
+                "monthly_revenue": [dict(m) for m in monthly_revenue],
+            },
+            default=json_serial,
+        )
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 # ============================================================================
 # STATUS ENDPOINT
 # ============================================================================
 
-@invoicing_bp.route('/api/status')
+
+@invoicing_bp.route("/api/status")
 def status():
     """Health check endpoint"""
     try:
@@ -1149,26 +1311,33 @@ def status():
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         cur.execute("SELECT COUNT(*) FROM invoices")
-        invoice_count = cur.fetchone()['count']
+        invoice_count = cur.fetchone()["count"]
 
         cur.execute("SELECT COUNT(*) FROM invoices WHERE status = 'overdue'")
-        overdue_count = cur.fetchone()['count']
+        overdue_count = cur.fetchone()["count"]
 
         cur.close()
         conn.close()
 
-        return jsonify({
-            'module': 'invoicing',
-            'status': 'healthy',
-            'healthy': True,
-            'invoices': invoice_count,
-            'overdue': overdue_count,
-            'message': f'Invoicing operational with {invoice_count} invoices'
-        })
+        return jsonify(
+            {
+                "module": "invoicing",
+                "status": "healthy",
+                "healthy": True,
+                "invoices": invoice_count,
+                "overdue": overdue_count,
+                "message": f"Invoicing operational with {invoice_count} invoices",
+            }
+        )
     except Exception as e:
-        return jsonify({
-            'module': 'invoicing',
-            'status': 'error',
-            'healthy': False,
-            'message': str(e)
-        }), 500
+        return (
+            jsonify(
+                {
+                    "module": "invoicing",
+                    "status": "error",
+                    "healthy": False,
+                    "message": str(e),
+                }
+            ),
+            500,
+        )

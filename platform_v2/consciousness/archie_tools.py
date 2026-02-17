@@ -2,6 +2,7 @@
 A.R.C.H.I.E.'s Tool System
 Tools that A.R.C.H.I.E. can use to interact with her own codebase and improve herself
 """
+
 import os
 import re
 import json
@@ -15,27 +16,24 @@ ALLOWED_PATHS = [
     "/app",  # Main application directory
     "/mnt/archie_brain/platform_v2",  # Host mount point (if accessible)
     "/mnt/archie_brain/ai_bridge",
-    "/mnt/archie_brain/docs"
+    "/mnt/archie_brain/docs",
 ]
 
 # ============================================================================
 # SAFETY & VALIDATION
 # ============================================================================
 
+
 def is_safe_path(path):
     """Ensure path is within allowed directories"""
     abs_path = os.path.abspath(path)
     return any(abs_path.startswith(allowed) for allowed in ALLOWED_PATHS)
 
+
 def is_safe_operation(path, operation="read"):
     """Check if operation is safe to perform"""
     # Don't allow modifying critical files without explicit approval
-    critical_files = [
-        "app.py",
-        "docker-compose.yml",
-        ".env",
-        "requirements.txt"
-    ]
+    critical_files = ["app.py", "docker-compose.yml", ".env", "requirements.txt"]
 
     if operation == "write":
         filename = os.path.basename(path)
@@ -47,9 +45,11 @@ def is_safe_operation(path, operation="read"):
 
     return True, "Safe"
 
+
 # ============================================================================
 # FILE OPERATIONS
 # ============================================================================
+
 
 def read_file(path, start_line=None, end_line=None):
     """
@@ -77,12 +77,12 @@ def read_file(path, start_line=None, end_line=None):
         # Safety check
         safe, msg = is_safe_operation(path, "read")
         if not safe:
-            return {'success': False, 'error': msg}
+            return {"success": False, "error": msg}
 
         if not os.path.exists(path):
-            return {'success': False, 'error': f"File not found: {path}"}
+            return {"success": False, "error": f"File not found: {path}"}
 
-        with open(path, 'r', encoding='utf-8') as f:
+        with open(path, "r", encoding="utf-8") as f:
             lines = f.readlines()
 
         # Apply line range if specified
@@ -91,18 +91,19 @@ def read_file(path, start_line=None, end_line=None):
             end = end_line if end_line else len(lines)
             lines = lines[start:end]
 
-        content = ''.join(lines)
+        content = "".join(lines)
 
         return {
-            'success': True,
-            'content': content,
-            'lines': len(lines),
-            'path': path,
-            'full_lines': len(lines) if start_line or end_line else None
+            "success": True,
+            "content": content,
+            "lines": len(lines),
+            "path": path,
+            "full_lines": len(lines) if start_line or end_line else None,
         }
 
     except Exception as e:
-        return {'success': False, 'error': str(e)}
+        return {"success": False, "error": str(e)}
+
 
 def edit_file(path, old_content, new_content, line_start=None, line_end=None, proposal_id=None):
     """
@@ -133,31 +134,31 @@ def edit_file(path, old_content, new_content, line_start=None, line_end=None, pr
         # Safety check
         safe, msg = is_safe_operation(path, "write")
         if not safe:
-            return {'success': False, 'error': msg, 'requires_approval': True}
+            return {"success": False, "error": msg, "requires_approval": True}
 
         # Read current file
         if not os.path.exists(path):
-            return {'success': False, 'error': f'File not found: {path}'}
+            return {"success": False, "error": f"File not found: {path}"}
 
-        with open(path, 'r') as f:
+        with open(path, "r") as f:
             original_content = f.read()
 
         # Check if old_content exists
         if old_content not in original_content:
             return {
-                'success': False,
-                'error': f'Content to replace not found in file',
-                'suggestion': 'Use read_file first to verify exact content'
+                "success": False,
+                "error": f"Content to replace not found in file",
+                "suggestion": "Use read_file first to verify exact content",
             }
 
         # Create backup with proposal reference if provided
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         if proposal_id:
             backup_path = f"{path}.backup_proposal{proposal_id}_{timestamp}"
         else:
             backup_path = f"{path}.backup_{timestamp}"
 
-        with open(backup_path, 'w') as f:
+        with open(backup_path, "w") as f:
             f.write(original_content)
 
         # Apply edit
@@ -165,31 +166,35 @@ def edit_file(path, old_content, new_content, line_start=None, line_end=None, pr
 
         # Calculate diff
         import difflib
-        diff = '\n'.join(difflib.unified_diff(
-            original_content.splitlines(),
-            new_file_content.splitlines(),
-            fromfile=f'{os.path.basename(path)} (original)',
-            tofile=f'{os.path.basename(path)} (modified)',
-            lineterm=''
-        ))
+
+        diff = "\n".join(
+            difflib.unified_diff(
+                original_content.splitlines(),
+                new_file_content.splitlines(),
+                fromfile=f"{os.path.basename(path)} (original)",
+                tofile=f"{os.path.basename(path)} (modified)",
+                lineterm="",
+            )
+        )
 
         # Count changed lines
-        lines_changed = len([line for line in diff.splitlines() if line.startswith('+') or line.startswith('-')])
+        lines_changed = len([line for line in diff.splitlines() if line.startswith("+") or line.startswith("-")])
 
         # Write new content
-        with open(path, 'w') as f:
+        with open(path, "w") as f:
             f.write(new_file_content)
 
         return {
-            'success': True,
-            'path': path,
-            'backup_path': backup_path,
-            'diff': diff,
-            'lines_changed': lines_changed
+            "success": True,
+            "path": path,
+            "backup_path": backup_path,
+            "diff": diff,
+            "lines_changed": lines_changed,
         }
 
     except Exception as e:
-        return {'success': False, 'error': str(e)}
+        return {"success": False, "error": str(e)}
+
 
 def write_file(path, content, create_backup=True, proposal_id=None):
     """
@@ -219,41 +224,42 @@ def write_file(path, content, create_backup=True, proposal_id=None):
         safe, msg = is_safe_operation(path, "write")
         if not safe:
             return {
-                'success': False,
-                'error': msg,
-                'requires_approval': True,
-                'path': path
+                "success": False,
+                "error": msg,
+                "requires_approval": True,
+                "path": path,
             }
 
         backup_path = None
 
         # Create backup if file exists with proposal reference if provided
         if create_backup and os.path.exists(path):
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             if proposal_id:
                 backup_path = f"{path}.backup_proposal{proposal_id}_{timestamp}"
             else:
                 backup_path = f"{path}.backup_{timestamp}"
 
-            with open(path, 'r') as f:
+            with open(path, "r") as f:
                 backup_content = f.read()
-            with open(backup_path, 'w') as f:
+            with open(backup_path, "w") as f:
                 f.write(backup_content)
 
         # Write new content
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, 'w', encoding='utf-8') as f:
+        with open(path, "w", encoding="utf-8") as f:
             f.write(content)
 
         return {
-            'success': True,
-            'path': path,
-            'backup_path': backup_path,
-            'requires_approval': False
+            "success": True,
+            "path": path,
+            "backup_path": backup_path,
+            "requires_approval": False,
         }
 
     except Exception as e:
-        return {'success': False, 'error': str(e)}
+        return {"success": False, "error": str(e)}
+
 
 def list_files(directory, pattern="*", recursive=False):
     """
@@ -278,10 +284,10 @@ def list_files(directory, pattern="*", recursive=False):
 
         safe, msg = is_safe_operation(directory, "read")
         if not safe:
-            return {'success': False, 'error': msg}
+            return {"success": False, "error": msg}
 
         if not os.path.exists(directory):
-            return {'success': False, 'error': f"Directory not found: {directory}"}
+            return {"success": False, "error": f"Directory not found: {directory}"}
 
         path_obj = Path(directory)
 
@@ -294,29 +300,33 @@ def list_files(directory, pattern="*", recursive=False):
         for file_path in file_paths:
             if file_path.is_file():
                 stat = file_path.stat()
-                files.append({
-                    'path': str(file_path),
-                    'name': file_path.name,
-                    'size': stat.st_size,
-                    'modified': datetime.fromtimestamp(stat.st_mtime).isoformat()
-                })
+                files.append(
+                    {
+                        "path": str(file_path),
+                        "name": file_path.name,
+                        "size": stat.st_size,
+                        "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                    }
+                )
 
         # Sort by name
-        files.sort(key=lambda x: x['name'])
+        files.sort(key=lambda x: x["name"])
 
         return {
-            'success': True,
-            'files': files,
-            'count': len(files),
-            'directory': directory
+            "success": True,
+            "files": files,
+            "count": len(files),
+            "directory": directory,
         }
 
     except Exception as e:
-        return {'success': False, 'error': str(e)}
+        return {"success": False, "error": str(e)}
+
 
 # ============================================================================
 # CODE SEARCH
 # ============================================================================
+
 
 def search_code(pattern, directory=None, file_pattern="*.py", max_results=50):
     """
@@ -344,7 +354,7 @@ def search_code(pattern, directory=None, file_pattern="*.py", max_results=50):
 
         safe, msg = is_safe_operation(directory, "read")
         if not safe:
-            return {'success': False, 'error': msg}
+            return {"success": False, "error": msg}
 
         matches = []
         regex = re.compile(pattern, re.IGNORECASE)
@@ -358,7 +368,7 @@ def search_code(pattern, directory=None, file_pattern="*.py", max_results=50):
                 continue
 
             try:
-                with open(file_path, 'r', encoding='utf-8') as f:
+                with open(file_path, "r", encoding="utf-8") as f:
                     lines = f.readlines()
 
                 for i, line in enumerate(lines, 1):
@@ -366,14 +376,16 @@ def search_code(pattern, directory=None, file_pattern="*.py", max_results=50):
                         # Get context (2 lines before and after)
                         start = max(0, i - 3)
                         end = min(len(lines), i + 2)
-                        context = ''.join(lines[start:end])
+                        context = "".join(lines[start:end])
 
-                        matches.append({
-                            'file': str(file_path),
-                            'line_number': i,
-                            'line_content': line.strip(),
-                            'context': context
-                        })
+                        matches.append(
+                            {
+                                "file": str(file_path),
+                                "line_number": i,
+                                "line_content": line.strip(),
+                                "context": context,
+                            }
+                        )
 
                         if len(matches) >= max_results:
                             break
@@ -385,18 +397,20 @@ def search_code(pattern, directory=None, file_pattern="*.py", max_results=50):
                 break
 
         return {
-            'success': True,
-            'matches': matches,
-            'count': len(matches),
-            'pattern': pattern
+            "success": True,
+            "matches": matches,
+            "count": len(matches),
+            "pattern": pattern,
         }
 
     except Exception as e:
-        return {'success': False, 'error': str(e)}
+        return {"success": False, "error": str(e)}
+
 
 # ============================================================================
 # GIT OPERATIONS
 # ============================================================================
+
 
 def git_diff(path=None):
     """
@@ -414,65 +428,56 @@ def git_diff(path=None):
         }
     """
     try:
-        cmd = ['git', 'diff']
+        cmd = ["git", "diff"]
 
         if path:
             if not os.path.isabs(path):
                 path = os.path.join(ARCHIE_BASE, path)
             cmd.append(path)
 
-        result = subprocess.run(
-            cmd,
-            cwd=ARCHIE_BASE,
-            capture_output=True,
-            text=True
-        )
+        result = subprocess.run(cmd, cwd=ARCHIE_BASE, capture_output=True, text=True)
 
         diff_output = result.stdout
 
         return {
-            'success': True,
-            'diff': diff_output,
-            'has_changes': len(diff_output) > 0
+            "success": True,
+            "diff": diff_output,
+            "has_changes": len(diff_output) > 0,
         }
 
     except Exception as e:
-        return {'success': False, 'error': str(e)}
+        return {"success": False, "error": str(e)}
+
 
 def git_status():
     """Get git status of the repository"""
     try:
         result = subprocess.run(
-            ['git', 'status', '--short'],
+            ["git", "status", "--short"],
             cwd=ARCHIE_BASE,
             capture_output=True,
-            text=True
+            text=True,
         )
 
         status = result.stdout
         files = []
 
-        for line in status.split('\n'):
+        for line in status.split("\n"):
             if line.strip():
                 status_code = line[:2]
                 filename = line[3:].strip()
-                files.append({
-                    'file': filename,
-                    'status': status_code.strip()
-                })
+                files.append({"file": filename, "status": status_code.strip()})
 
-        return {
-            'success': True,
-            'files': files,
-            'has_changes': len(files) > 0
-        }
+        return {"success": True, "files": files, "has_changes": len(files) > 0}
 
     except Exception as e:
-        return {'success': False, 'error': str(e)}
+        return {"success": False, "error": str(e)}
+
 
 # ============================================================================
 # CODE ANALYSIS
 # ============================================================================
+
 
 def analyze_file(path):
     """
@@ -493,11 +498,11 @@ def analyze_file(path):
     """
     try:
         result = read_file(path)
-        if not result['success']:
+        if not result["success"]:
             return result
 
-        content = result['content']
-        lines = content.split('\n')
+        content = result["content"]
+        lines = content.split("\n")
 
         # Basic analysis
         functions = []
@@ -508,27 +513,18 @@ def analyze_file(path):
             line_stripped = line.strip()
 
             # Find functions
-            if line_stripped.startswith('def '):
-                func_name = line_stripped.split('(')[0].replace('def ', '')
-                functions.append({
-                    'name': func_name,
-                    'line': i
-                })
+            if line_stripped.startswith("def "):
+                func_name = line_stripped.split("(")[0].replace("def ", "")
+                functions.append({"name": func_name, "line": i})
 
             # Find classes
-            if line_stripped.startswith('class '):
-                class_name = line_stripped.split('(')[0].split(':')[0].replace('class ', '')
-                classes.append({
-                    'name': class_name,
-                    'line': i
-                })
+            if line_stripped.startswith("class "):
+                class_name = line_stripped.split("(")[0].split(":")[0].replace("class ", "")
+                classes.append({"name": class_name, "line": i})
 
             # Find imports
-            if line_stripped.startswith('import ') or line_stripped.startswith('from '):
-                imports.append({
-                    'statement': line_stripped,
-                    'line': i
-                })
+            if line_stripped.startswith("import ") or line_stripped.startswith("from "):
+                imports.append({"statement": line_stripped, "line": i})
 
         # Generate suggestions
         suggestions = []
@@ -538,19 +534,20 @@ def analyze_file(path):
         # Check for repeated code patterns
 
         return {
-            'success': True,
-            'analysis': {
-                'path': path,
-                'lines': len(lines),
-                'functions': functions,
-                'classes': classes,
-                'imports': imports,
-                'suggestions': suggestions
-            }
+            "success": True,
+            "analysis": {
+                "path": path,
+                "lines": len(lines),
+                "functions": functions,
+                "classes": classes,
+                "imports": imports,
+                "suggestions": suggestions,
+            },
         }
 
     except Exception as e:
-        return {'success': False, 'error': str(e)}
+        return {"success": False, "error": str(e)}
+
 
 # ============================================================================
 # TOOL EXECUTION
@@ -559,6 +556,7 @@ def analyze_file(path):
 # ============================================================================
 # KNOWLEDGE BASE TOOLS - A.R.C.H.I.E.'s Self-Knowledge
 # ============================================================================
+
 
 def query_knowledge(search_term, knowledge_type=None, limit=10):
     """
@@ -581,11 +579,11 @@ def query_knowledge(search_term, knowledge_type=None, limit=10):
         from psycopg2.extras import RealDictCursor
 
         conn = psycopg2.connect(
-            host=os.getenv('DB_HOST', 'archie_database'),
-            port=os.getenv('DB_PORT', '5432'),
-            database=os.getenv('DB_NAME', 'archie'),
-            user=os.getenv('DB_USER', 'archie'),
-            password=os.getenv('DB_PASSWORD', '')
+            host=os.getenv("DB_HOST", "archie_database"),
+            port=os.getenv("DB_PORT", "5432"),
+            database=os.getenv("DB_NAME", "archie"),
+            user=os.getenv("DB_USER", "archie"),
+            password=os.getenv("DB_PASSWORD", ""),
         )
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
@@ -616,22 +614,30 @@ def query_knowledge(search_term, knowledge_type=None, limit=10):
         for result in results:
             result_dict = dict(result)
             # Convert datetime fields to ISO format strings
-            if 'last_updated' in result_dict and result_dict['last_updated']:
-                result_dict['last_updated'] = result_dict['last_updated'].isoformat()
+            if "last_updated" in result_dict and result_dict["last_updated"]:
+                result_dict["last_updated"] = result_dict["last_updated"].isoformat()
             serializable_results.append(result_dict)
 
         return {
-            'success': True,
-            'results': serializable_results,
-            'count': len(serializable_results),
-            'search_term': search_term
+            "success": True,
+            "results": serializable_results,
+            "count": len(serializable_results),
+            "search_term": search_term,
         }
 
     except Exception as e:
-        return {'success': False, 'error': str(e)}
+        return {"success": False, "error": str(e)}
 
-def add_knowledge(entity_name, knowledge_type, description, file_path=None,
-                  purpose=None, code_snippet=None, importance=0.5):
+
+def add_knowledge(
+    entity_name,
+    knowledge_type,
+    description,
+    file_path=None,
+    purpose=None,
+    code_snippet=None,
+    importance=0.5,
+):
     """
     Add new knowledge to A.R.C.H.I.E.'s knowledge base
 
@@ -655,22 +661,32 @@ def add_knowledge(entity_name, knowledge_type, description, file_path=None,
         import psycopg2
 
         conn = psycopg2.connect(
-            host=os.getenv('DB_HOST', 'archie_database'),
-            port=os.getenv('DB_PORT', '5432'),
-            database=os.getenv('DB_NAME', 'archie'),
-            user=os.getenv('DB_USER', 'archie'),
-            password=os.getenv('DB_PASSWORD', '')
+            host=os.getenv("DB_HOST", "archie_database"),
+            port=os.getenv("DB_PORT", "5432"),
+            database=os.getenv("DB_NAME", "archie"),
+            user=os.getenv("DB_USER", "archie"),
+            password=os.getenv("DB_PASSWORD", ""),
         )
         cur = conn.cursor()
 
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO archie_codebase_knowledge
             (entity_name, knowledge_type, description, file_path, purpose,
              code_snippet, importance_score, auto_learned)
             VALUES (%s, %s, %s, %s, %s, %s, %s, TRUE)
             RETURNING id
-        """, (entity_name, knowledge_type, description, file_path,
-              purpose, code_snippet, importance))
+        """,
+            (
+                entity_name,
+                knowledge_type,
+                description,
+                file_path,
+                purpose,
+                code_snippet,
+                importance,
+            ),
+        )
 
         knowledge_id = cur.fetchone()[0]
         conn.commit()
@@ -678,13 +694,14 @@ def add_knowledge(entity_name, knowledge_type, description, file_path=None,
         conn.close()
 
         return {
-            'success': True,
-            'knowledge_id': knowledge_id,
-            'message': f'Learned about {entity_name} ({knowledge_type})'
+            "success": True,
+            "knowledge_id": knowledge_id,
+            "message": f"Learned about {entity_name} ({knowledge_type})",
         }
 
     except Exception as e:
-        return {'success': False, 'error': str(e)}
+        return {"success": False, "error": str(e)}
+
 
 def learn_from_file(file_path):
     """
@@ -703,70 +720,72 @@ def learn_from_file(file_path):
     try:
         # Read and analyze the file
         file_result = read_file(file_path)
-        if not file_result['success']:
+        if not file_result["success"]:
             return file_result
 
         analysis_result = analyze_file(file_path)
-        if not analysis_result['success']:
+        if not analysis_result["success"]:
             return analysis_result
 
-        analysis = analysis_result['analysis']
+        analysis = analysis_result["analysis"]
         learned = []
         knowledge_ids = []
 
         # Learn about the file itself
         file_knowledge = add_knowledge(
             entity_name=os.path.basename(file_path),
-            knowledge_type='file',
+            knowledge_type="file",
             description=f'File with {analysis["lines"]} lines, {len(analysis["functions"])} functions, {len(analysis["classes"])} classes',
             file_path=file_path,
-            importance=0.7
+            importance=0.7,
         )
-        if file_knowledge['success']:
-            learned.append(f'File: {os.path.basename(file_path)}')
-            knowledge_ids.append(file_knowledge['knowledge_id'])
+        if file_knowledge["success"]:
+            learned.append(f"File: {os.path.basename(file_path)}")
+            knowledge_ids.append(file_knowledge["knowledge_id"])
 
         # Learn about each function
-        for func in analysis['functions'][:5]:  # Limit to first 5
+        for func in analysis["functions"][:5]:  # Limit to first 5
             func_knowledge = add_knowledge(
-                entity_name=func['name'],
-                knowledge_type='function',
+                entity_name=func["name"],
+                knowledge_type="function",
                 description=f'Function in {os.path.basename(file_path)} at line {func["line"]}',
                 file_path=file_path,
-                importance=0.6
+                importance=0.6,
             )
-            if func_knowledge['success']:
+            if func_knowledge["success"]:
                 learned.append(f'Function: {func["name"]}')
-                knowledge_ids.append(func_knowledge['knowledge_id'])
+                knowledge_ids.append(func_knowledge["knowledge_id"])
 
         # Learn about each class
-        for cls in analysis['classes'][:5]:  # Limit to first 5
+        for cls in analysis["classes"][:5]:  # Limit to first 5
             cls_knowledge = add_knowledge(
-                entity_name=cls['name'],
-                knowledge_type='class',
+                entity_name=cls["name"],
+                knowledge_type="class",
                 description=f'Class in {os.path.basename(file_path)} at line {cls["line"]}',
                 file_path=file_path,
-                importance=0.7
+                importance=0.7,
             )
-            if cls_knowledge['success']:
+            if cls_knowledge["success"]:
                 learned.append(f'Class: {cls["name"]}')
-                knowledge_ids.append(cls_knowledge['knowledge_id'])
+                knowledge_ids.append(cls_knowledge["knowledge_id"])
 
         return {
-            'success': True,
-            'learned': learned,
-            'knowledge_ids': knowledge_ids,
-            'count': len(learned)
+            "success": True,
+            "learned": learned,
+            "knowledge_ids": knowledge_ids,
+            "count": len(learned),
         }
 
     except Exception as e:
-        return {'success': False, 'error': str(e)}
+        return {"success": False, "error": str(e)}
+
 
 # ============================================================================
 # AGENT-SPECIFIC TOOLS
 # ============================================================================
 
-def create_improvement_proposal(title, description, category='general', priority='medium'):
+
+def create_improvement_proposal(title, description, category="general", priority="medium"):
     """
     Create a new improvement proposal (for Quality Assurance, Engineering agents)
 
@@ -785,21 +804,25 @@ def create_improvement_proposal(title, description, category='general', priority
     """
     try:
         import psycopg2
+
         conn = psycopg2.connect(
-            host=os.getenv('DB_HOST', 'archie_database'),
-            port=os.getenv('DB_PORT', '5432'),
-            database=os.getenv('DB_NAME', 'archie'),
-            user=os.getenv('DB_USER', 'archie'),
-            password=os.getenv('DB_PASSWORD', '')
+            host=os.getenv("DB_HOST", "archie_database"),
+            port=os.getenv("DB_PORT", "5432"),
+            database=os.getenv("DB_NAME", "archie"),
+            user=os.getenv("DB_USER", "archie"),
+            password=os.getenv("DB_PASSWORD", ""),
         )
         cur = conn.cursor()
 
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO improvement_proposals
             (title, description, category, priority, status, proposed_at)
             VALUES (%s, %s, %s, %s, 'pending', NOW())
             RETURNING id
-        """, (title, description, category, priority))
+        """,
+            (title, description, category, priority),
+        )
 
         proposal_id = cur.fetchone()[0]
         conn.commit()
@@ -807,13 +830,14 @@ def create_improvement_proposal(title, description, category='general', priority
         conn.close()
 
         return {
-            'success': True,
-            'proposal_id': proposal_id,
-            'message': f'Created improvement proposal #{proposal_id}: {title}'
+            "success": True,
+            "proposal_id": proposal_id,
+            "message": f"Created improvement proposal #{proposal_id}: {title}",
         }
 
     except Exception as e:
-        return {'success': False, 'error': str(e)}
+        return {"success": False, "error": str(e)}
+
 
 def query_database(query, description=None):
     """
@@ -833,29 +857,37 @@ def query_database(query, description=None):
     try:
         # Safety check: only allow SELECT queries
         query_upper = query.strip().upper()
-        if not query_upper.startswith('SELECT'):
+        if not query_upper.startswith("SELECT"):
             return {
-                'success': False,
-                'error': 'Only SELECT queries allowed. Use create_improvement_proposal for changes.'
+                "success": False,
+                "error": "Only SELECT queries allowed. Use create_improvement_proposal for changes.",
             }
 
         # Block dangerous keywords
-        dangerous_keywords = ['DROP', 'DELETE', 'UPDATE', 'INSERT', 'ALTER', 'TRUNCATE', 'CREATE']
+        dangerous_keywords = [
+            "DROP",
+            "DELETE",
+            "UPDATE",
+            "INSERT",
+            "ALTER",
+            "TRUNCATE",
+            "CREATE",
+        ]
         if any(keyword in query_upper for keyword in dangerous_keywords):
             return {
-                'success': False,
-                'error': f'Query contains dangerous keywords. Only SELECT allowed.'
+                "success": False,
+                "error": f"Query contains dangerous keywords. Only SELECT allowed.",
             }
 
         import psycopg2
         from psycopg2.extras import RealDictCursor
 
         conn = psycopg2.connect(
-            host=os.getenv('DB_HOST', 'archie_database'),
-            port=os.getenv('DB_PORT', '5432'),
-            database=os.getenv('DB_NAME', 'archie'),
-            user=os.getenv('DB_USER', 'archie'),
-            password=os.getenv('DB_PASSWORD', '')
+            host=os.getenv("DB_HOST", "archie_database"),
+            port=os.getenv("DB_PORT", "5432"),
+            database=os.getenv("DB_NAME", "archie"),
+            user=os.getenv("DB_USER", "archie"),
+            password=os.getenv("DB_PASSWORD", ""),
         )
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
@@ -866,14 +898,15 @@ def query_database(query, description=None):
         conn.close()
 
         return {
-            'success': True,
-            'rows': [dict(r) for r in rows],
-            'count': len(rows),
-            'query': query
+            "success": True,
+            "rows": [dict(r) for r in rows],
+            "count": len(rows),
+            "query": query,
         }
 
     except Exception as e:
-        return {'success': False, 'error': str(e)}
+        return {"success": False, "error": str(e)}
+
 
 def search_documentation(search_term, doc_type=None):
     """
@@ -894,59 +927,59 @@ def search_documentation(search_term, doc_type=None):
         results = []
 
         if not os.path.exists(docs_path):
-            return {'success': False, 'error': 'Documentation directory not found'}
+            return {"success": False, "error": "Documentation directory not found"}
 
         # Simple file search
         for root, dirs, files in os.walk(docs_path):
             for file in files:
-                if file.endswith('.md') or file.endswith('.txt'):
+                if file.endswith(".md") or file.endswith(".txt"):
                     file_path = os.path.join(root, file)
                     try:
-                        with open(file_path, 'r') as f:
+                        with open(file_path, "r") as f:
                             content = f.read()
                             if search_term.lower() in content.lower():
-                                results.append({
-                                    'file': file,
-                                    'path': file_path,
-                                    'excerpt': content[:200] + '...'
-                                })
+                                results.append(
+                                    {
+                                        "file": file,
+                                        "path": file_path,
+                                        "excerpt": content[:200] + "...",
+                                    }
+                                )
                     except:
                         continue
 
         return {
-            'success': True,
-            'results': results[:10],  # Limit to 10 results
-            'count': len(results)
+            "success": True,
+            "results": results[:10],  # Limit to 10 results
+            "count": len(results),
         }
 
     except Exception as e:
-        return {'success': False, 'error': str(e)}
+        return {"success": False, "error": str(e)}
+
 
 AVAILABLE_TOOLS = {
     # File operations
-    'read_file': read_file,
-    'edit_file': edit_file,
-    'write_file': write_file,
-    'list_files': list_files,
-    'search_code': search_code,
-
+    "read_file": read_file,
+    "edit_file": edit_file,
+    "write_file": write_file,
+    "list_files": list_files,
+    "search_code": search_code,
     # Git operations
-    'git_diff': git_diff,
-    'git_status': git_status,
-
+    "git_diff": git_diff,
+    "git_status": git_status,
     # Analysis
-    'analyze_file': analyze_file,
-
+    "analyze_file": analyze_file,
     # Knowledge & Learning
-    'query_knowledge': query_knowledge,
-    'add_knowledge': add_knowledge,
-    'learn_from_file': learn_from_file,
-
+    "query_knowledge": query_knowledge,
+    "add_knowledge": add_knowledge,
+    "learn_from_file": learn_from_file,
     # Agent-specific tools
-    'create_improvement_proposal': create_improvement_proposal,
-    'query_database': query_database,
-    'search_documentation': search_documentation
+    "create_improvement_proposal": create_improvement_proposal,
+    "query_database": query_database,
+    "search_documentation": search_documentation,
 }
+
 
 def execute_tool(tool_name, **kwargs):
     """
@@ -961,57 +994,52 @@ def execute_tool(tool_name, **kwargs):
     """
     if tool_name not in AVAILABLE_TOOLS:
         return {
-            'success': False,
-            'error': f"Unknown tool: {tool_name}",
-            'available_tools': list(AVAILABLE_TOOLS.keys())
+            "success": False,
+            "error": f"Unknown tool: {tool_name}",
+            "available_tools": list(AVAILABLE_TOOLS.keys()),
         }
 
     try:
         tool_func = AVAILABLE_TOOLS[tool_name]
         result = tool_func(**kwargs)
-        result['tool'] = tool_name
-        result['args'] = kwargs
+        result["tool"] = tool_name
+        result["args"] = kwargs
         return result
 
     except Exception as e:
         return {
-            'success': False,
-            'error': f"Tool execution error: {str(e)}",
-            'tool': tool_name
+            "success": False,
+            "error": f"Tool execution error: {str(e)}",
+            "tool": tool_name,
         }
+
 
 def get_tool_description(tool_name):
     """Get description of a tool"""
     descriptions = {
         # File operations
-        'read_file': 'Read contents of a file. Args: path, start_line (optional), end_line (optional)',
-        'edit_file': 'SAFELY edit a file by replacing specific content (PREFERRED over write_file). Args: path, old_content, new_content. Returns diff showing changes.',
-        'write_file': 'Write entire file content (DANGEROUS - use edit_file instead). Args: path, content, create_backup (default: True)',
-        'list_files': 'List files in a directory. Args: directory, pattern (default: *), recursive (default: False)',
-        'search_code': 'Search for code patterns in codebase. Args: pattern, directory (optional), file_pattern (default: *.py), max_results (default: 50)',
-
+        "read_file": "Read contents of a file. Args: path, start_line (optional), end_line (optional)",
+        "edit_file": "SAFELY edit a file by replacing specific content (PREFERRED over write_file). Args: path, old_content, new_content. Returns diff showing changes.",
+        "write_file": "Write entire file content (DANGEROUS - use edit_file instead). Args: path, content, create_backup (default: True)",
+        "list_files": "List files in a directory. Args: directory, pattern (default: *), recursive (default: False)",
+        "search_code": "Search for code patterns in codebase. Args: pattern, directory (optional), file_pattern (default: *.py), max_results (default: 50)",
         # Git operations
-        'git_diff': 'Show git diff. Args: path (optional, None for entire repo)',
-        'git_status': 'Get git status of repository. No args.',
-
+        "git_diff": "Show git diff. Args: path (optional, None for entire repo)",
+        "git_status": "Get git status of repository. No args.",
         # Analysis
-        'analyze_file': 'Analyze a Python file for structure and potential improvements. Args: path',
-
+        "analyze_file": "Analyze a Python file for structure and potential improvements. Args: path",
         # Knowledge & Learning
-        'query_knowledge': 'Query YOUR OWN knowledge base about your codebase. Use this to remember what you learned before! Args: search_term, knowledge_type (optional), limit (default: 10)',
-        'add_knowledge': 'Add new knowledge about your codebase to YOUR knowledge base. Use this to remember things! Args: entity_name, knowledge_type, description, file_path (optional), purpose (optional), importance (0-1)',
-        'learn_from_file': 'Analyze a file and automatically add it to YOUR knowledge base. Args: file_path',
-
+        "query_knowledge": "Query YOUR OWN knowledge base about your codebase. Use this to remember what you learned before! Args: search_term, knowledge_type (optional), limit (default: 10)",
+        "add_knowledge": "Add new knowledge about your codebase to YOUR knowledge base. Use this to remember things! Args: entity_name, knowledge_type, description, file_path (optional), purpose (optional), importance (0-1)",
+        "learn_from_file": "Analyze a file and automatically add it to YOUR knowledge base. Args: file_path",
         # Agent-specific tools
-        'create_improvement_proposal': 'Create a new improvement proposal in the system. Args: title, description, category (default: general), priority (default: medium)',
-        'query_database': 'Execute a read-only SELECT query on the database. Args: query, description (optional). Only SELECT allowed for safety.',
-        'search_documentation': 'Search through A.R.C.H.I.E. documentation. Args: search_term, doc_type (optional)'
+        "create_improvement_proposal": "Create a new improvement proposal in the system. Args: title, description, category (default: general), priority (default: medium)",
+        "query_database": "Execute a read-only SELECT query on the database. Args: query, description (optional). Only SELECT allowed for safety.",
+        "search_documentation": "Search through A.R.C.H.I.E. documentation. Args: search_term, doc_type (optional)",
     }
-    return descriptions.get(tool_name, 'No description available')
+    return descriptions.get(tool_name, "No description available")
+
 
 def list_available_tools():
     """Get list of all available tools with descriptions"""
-    return {
-        tool: get_tool_description(tool)
-        for tool in AVAILABLE_TOOLS.keys()
-    }
+    return {tool: get_tool_description(tool) for tool in AVAILABLE_TOOLS.keys()}

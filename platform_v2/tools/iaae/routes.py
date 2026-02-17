@@ -124,7 +124,10 @@ def iaae_stats():
 
     except Exception as e:
         logger.error(f"IAAE stats error: {e}")
-        return jsonify({"success": False, "error": "Could not load governance stats"}), 500
+        return (
+            jsonify({"success": False, "error": "Could not load governance stats"}),
+            500,
+        )
 
 
 @iaae_public_bp.route("/api/welfare")

@@ -77,7 +77,10 @@ async def assign_agent_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
         station = cur.fetchone()
 
         if not station:
-            return {"success": False, "error": f"Station '{station_code}' not found or inactive"}
+            return {
+                "success": False,
+                "error": f"Station '{station_code}' not found or inactive",
+            }
 
         # Verify agent exists and is active
         cur.execute(
@@ -93,7 +96,10 @@ async def assign_agent_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
             return {"success": False, "error": f"Agent ID {agent_id} not found"}
 
         if agent["status"] != "active":
-            return {"success": False, "error": f"Agent '{agent['name']}' is not active (status: {agent['status']})"}
+            return {
+                "success": False,
+                "error": f"Agent '{agent['name']}' is not active (status: {agent['status']})",
+            }
 
         # Check if agent is already assigned to this station
         cur.execute(
@@ -140,7 +146,14 @@ async def assign_agent_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
                 VALUES (%s, %s, %s, %s, 10, %s, %s)
                 RETURNING id
             """,
-                (station["id"], agent_id, assignment_type, shift_preference, user_id, notes),
+                (
+                    station["id"],
+                    agent_id,
+                    assignment_type,
+                    shift_preference,
+                    user_id,
+                    notes,
+                ),
             )
             assignment_id = cur.fetchone()["id"]
             action = "created"
@@ -152,7 +165,11 @@ async def assign_agent_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
             "action": action,
             "assignment_id": assignment_id,
             "agent": {"id": agent["id"], "name": agent["name"]},
-            "station": {"id": station["id"], "name": station["station_name"], "code": station_code.upper()},
+            "station": {
+                "id": station["id"],
+                "name": station["station_name"],
+                "code": station_code.upper(),
+            },
             "assignment_type": assignment_type,
             "shift_preference": shift_preference,
         }
@@ -199,7 +216,11 @@ Example: Assign agent 15 to Engineering as primary
                     "AWAY_TEAM",
                 ],
             },
-            "assignment_type": {"type": "string", "enum": ["primary", "backup", "trainee"], "default": "primary"},
+            "assignment_type": {
+                "type": "string",
+                "enum": ["primary", "backup", "trainee"],
+                "default": "primary",
+            },
             "shift_preference": {
                 "type": "string",
                 "enum": ["any", "morning", "afternoon", "evening", "night"],
@@ -247,7 +268,10 @@ async def unassign_agent_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
         assignment = cur.fetchone()
 
         if not assignment:
-            return {"success": False, "error": f"Agent {agent_id} has no active station assignment"}
+            return {
+                "success": False,
+                "error": f"Agent {agent_id} has no active station assignment",
+            }
 
         # Check if agent is fixed (ARCHIE or Kytran on Command)
         cur.execute(
@@ -260,7 +284,10 @@ async def unassign_agent_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
         check = cur.fetchone()
 
         if check and check["is_fixed"]:
-            return {"success": False, "error": f"Cannot unassign {assignment['name']} - they have a fixed assignment"}
+            return {
+                "success": False,
+                "error": f"Cannot unassign {assignment['name']} - they have a fixed assignment",
+            }
 
         # Deactivate assignment
         cur.execute(
@@ -304,7 +331,12 @@ Note: Fixed assignments (ARCHIE, Kytran on Command) cannot be removed.
 """,
     input_schema={
         "type": "object",
-        "properties": {"agent_id": {"type": "integer", "description": "ID of the agent to unassign"}},
+        "properties": {
+            "agent_id": {
+                "type": "integer",
+                "description": "ID of the agent to unassign",
+            }
+        },
         "required": ["agent_id"],
     },
     handler=unassign_agent_handler,
@@ -400,7 +432,10 @@ async def get_system_status_handler(arguments: Dict[str, Any]) -> Dict[str, Any]
         """
         )
         improvements = {r["status"]: r["count"] for r in cur.fetchall()}
-        status["sections"]["improvements"] = {"total": sum(improvements.values()), "by_status": improvements}
+        status["sections"]["improvements"] = {
+            "total": sum(improvements.values()),
+            "by_status": improvements,
+        }
 
         # Knowledge base
         cur.execute(
@@ -413,7 +448,10 @@ async def get_system_status_handler(arguments: Dict[str, Any]) -> Dict[str, Any]
         """
         )
         knowledge = {r["knowledge_type"]: r["count"] for r in cur.fetchall()}
-        status["sections"]["knowledge"] = {"total": sum(knowledge.values()), "by_type": knowledge}
+        status["sections"]["knowledge"] = {
+            "total": sum(knowledge.values()),
+            "by_type": knowledge,
+        }
 
         # Recent activity (last 24 hours)
         cur.execute(
@@ -434,7 +472,10 @@ async def get_system_status_handler(arguments: Dict[str, Any]) -> Dict[str, Any]
         )
         tokens_24h = cur.fetchone()["total"]
 
-        status["sections"]["activity_24h"] = {"api_calls": api_calls, "tokens_used": int(tokens_24h)}
+        status["sections"]["activity_24h"] = {
+            "api_calls": api_calls,
+            "tokens_used": int(tokens_24h),
+        }
 
         if include_details:
             # Recent improvements
@@ -552,7 +593,11 @@ async def list_agents_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
         return {
             "success": True,
             "count": len(agents),
-            "filters": {"status": status_filter, "department": department, "station_code": station_code},
+            "filters": {
+                "status": status_filter,
+                "department": department,
+                "station_code": station_code,
+            },
             "agents": agents,
         }
 
@@ -577,10 +622,21 @@ Filter by:
     input_schema={
         "type": "object",
         "properties": {
-            "status": {"type": "string", "enum": ["active", "inactive", "training", "all"], "default": "active"},
+            "status": {
+                "type": "string",
+                "enum": ["active", "inactive", "training", "all"],
+                "default": "active",
+            },
             "department": {"type": "string", "description": "Filter by department"},
-            "station_code": {"type": "string", "description": "Filter by assigned station"},
-            "limit": {"type": "integer", "description": "Max results (default 50, max 100)", "default": 50},
+            "station_code": {
+                "type": "string",
+                "description": "Filter by assigned station",
+            },
+            "limit": {
+                "type": "integer",
+                "description": "Max results (default 50, max 100)",
+                "default": 50,
+            },
         },
     },
     handler=list_agents_handler,
@@ -626,7 +682,12 @@ async def run_improvement_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
             cur.execute(query, params)
             improvements = [dict(r) for r in cur.fetchall()]
 
-            return {"success": True, "action": "list", "count": len(improvements), "improvements": improvements}
+            return {
+                "success": True,
+                "action": "list",
+                "count": len(improvements),
+                "improvements": improvements,
+            }
 
         elif action == "create":
             title = arguments.get("title")
@@ -666,15 +727,32 @@ async def run_improvement_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
             notes = arguments.get("notes", "")
 
             if not improvement_id or not new_status:
-                return {"success": False, "error": "improvement_id and new_status required"}
+                return {
+                    "success": False,
+                    "error": "improvement_id and new_status required",
+                }
 
-            valid_statuses = ["proposed", "approved", "in_progress", "testing", "deployed", "rejected", "on_hold"]
+            valid_statuses = [
+                "proposed",
+                "approved",
+                "in_progress",
+                "testing",
+                "deployed",
+                "rejected",
+                "on_hold",
+            ]
             if new_status not in valid_statuses:
-                return {"success": False, "error": f"Invalid status. Must be one of: {valid_statuses}"}
+                return {
+                    "success": False,
+                    "error": f"Invalid status. Must be one of: {valid_statuses}",
+                }
 
             # Update based on status
             updates = ["status = %s", "notes = COALESCE(notes, '') || %s"]
-            params = [new_status, f"\n[{datetime.now().isoformat()}] Status -> {new_status}: {notes}"]
+            params = [
+                new_status,
+                f"\n[{datetime.now().isoformat()}] Status -> {new_status}: {notes}",
+            ]
 
             if new_status == "approved":
                 updates.append("approved_at = NOW()")
@@ -698,11 +776,18 @@ async def run_improvement_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
             result = cur.fetchone()
 
             if not result:
-                return {"success": False, "error": f"Improvement {improvement_id} not found"}
+                return {
+                    "success": False,
+                    "error": f"Improvement {improvement_id} not found",
+                }
 
             conn.commit()
 
-            return {"success": True, "action": "update_status", "improvement": dict(result)}
+            return {
+                "success": True,
+                "action": "update_status",
+                "improvement": dict(result),
+            }
 
         elif action == "get":
             improvement_id = arguments.get("improvement_id")
@@ -720,12 +805,18 @@ async def run_improvement_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
             improvement = cur.fetchone()
 
             if not improvement:
-                return {"success": False, "error": f"Improvement {improvement_id} not found"}
+                return {
+                    "success": False,
+                    "error": f"Improvement {improvement_id} not found",
+                }
 
             return {"success": True, "action": "get", "improvement": dict(improvement)}
 
         else:
-            return {"success": False, "error": f"Unknown action: {action}. Use: list, create, update_status, get"}
+            return {
+                "success": False,
+                "error": f"Unknown action: {action}. Use: list, create, update_status, get",
+            }
 
     except Exception as e:
         conn.rollback()
@@ -752,21 +843,46 @@ Example: Create a new feature proposal for better search
     input_schema={
         "type": "object",
         "properties": {
-            "action": {"type": "string", "enum": ["list", "create", "update_status", "get"], "default": "list"},
-            "improvement_id": {"type": "integer", "description": "For update_status or get actions"},
+            "action": {
+                "type": "string",
+                "enum": ["list", "create", "update_status", "get"],
+                "default": "list",
+            },
+            "improvement_id": {
+                "type": "integer",
+                "description": "For update_status or get actions",
+            },
             "status": {
                 "type": "string",
                 "description": "For list action - filter by status",
-                "enum": ["all", "proposed", "approved", "in_progress", "testing", "deployed", "rejected"],
+                "enum": [
+                    "all",
+                    "proposed",
+                    "approved",
+                    "in_progress",
+                    "testing",
+                    "deployed",
+                    "rejected",
+                ],
             },
             "new_status": {"type": "string", "description": "For update_status action"},
             "title": {"type": "string", "description": "For create action"},
             "description": {"type": "string", "description": "For create action"},
             "category": {
                 "type": "string",
-                "enum": ["enhancement", "bugfix", "feature", "refactor", "security", "performance"],
+                "enum": [
+                    "enhancement",
+                    "bugfix",
+                    "feature",
+                    "refactor",
+                    "security",
+                    "performance",
+                ],
             },
-            "priority": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
+            "priority": {
+                "type": "string",
+                "enum": ["low", "medium", "high", "critical"],
+            },
             "risk_level": {"type": "string", "enum": ["low", "medium", "high"]},
             "notes": {"type": "string", "description": "For update_status action"},
             "limit": {"type": "integer", "default": 20},
@@ -822,7 +938,12 @@ async def manage_backup_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
                     backup["file_size_formatted"] = f"{size_mb:.2f} MB"
                 backups.append(backup)
 
-            return {"success": True, "action": "list", "count": len(backups), "backups": backups}
+            return {
+                "success": True,
+                "action": "list",
+                "count": len(backups),
+                "backups": backups,
+            }
 
         elif action == "create":
             backup_type = arguments.get("backup_type", "full")
@@ -871,7 +992,10 @@ async def manage_backup_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
             return {"success": True, "action": "status", "backup": dict(backup)}
 
         else:
-            return {"success": False, "error": f"Unknown action: {action}. Use: list, create, status"}
+            return {
+                "success": False,
+                "error": f"Unknown action: {action}. Use: list, create, status",
+            }
 
     except Exception as e:
         conn.rollback()
@@ -897,9 +1021,17 @@ Note: Actual backup execution happens via the Backup Manager UI.
     input_schema={
         "type": "object",
         "properties": {
-            "action": {"type": "string", "enum": ["list", "create", "status"], "default": "list"},
+            "action": {
+                "type": "string",
+                "enum": ["list", "create", "status"],
+                "default": "list",
+            },
             "backup_id": {"type": "integer", "description": "For status action"},
-            "backup_type": {"type": "string", "enum": ["full", "database", "files", "config"], "default": "full"},
+            "backup_type": {
+                "type": "string",
+                "enum": ["full", "database", "files", "config"],
+                "default": "full",
+            },
             "status": {
                 "type": "string",
                 "description": "For list action - filter",
@@ -1084,7 +1216,11 @@ Example: Get 7-day token usage overview
     input_schema={
         "type": "object",
         "properties": {
-            "period": {"type": "string", "enum": ["1h", "24h", "7d", "30d"], "default": "24h"},
+            "period": {
+                "type": "string",
+                "enum": ["1h", "24h", "7d", "30d"],
+                "default": "24h",
+            },
             "metric_type": {
                 "type": "string",
                 "enum": ["overview", "tokens", "models", "agents", "hourly"],
@@ -1133,7 +1269,10 @@ async def get_station_assignments_handler(arguments: Dict[str, Any]) -> Dict[str
             results = cur.fetchall()
 
             if not results:
-                return {"success": False, "error": f"Station '{station_code}' not found"}
+                return {
+                    "success": False,
+                    "error": f"Station '{station_code}' not found",
+                }
 
             station_info = {
                 "id": results[0]["id"],
@@ -1191,7 +1330,11 @@ async def get_station_assignments_handler(arguments: Dict[str, Any]) -> Dict[str
                         }
                     )
 
-            return {"success": True, "total_stations": len(stations), "stations": stations}
+            return {
+                "success": True,
+                "total_stations": len(stations),
+                "stations": stations,
+            }
 
     except Exception as e:
         logger.error(f"Error getting station assignments: {e}")
@@ -1215,8 +1358,15 @@ ENGINEERING, CREATIVE, SECURITY, MEDICAL, AWAY_TEAM
     input_schema={
         "type": "object",
         "properties": {
-            "station_code": {"type": "string", "description": "Get specific station details"},
-            "include_empty": {"type": "boolean", "description": "Include stations with no agents", "default": True},
+            "station_code": {
+                "type": "string",
+                "description": "Get specific station details",
+            },
+            "include_empty": {
+                "type": "boolean",
+                "description": "Include stations with no agents",
+                "default": True,
+            },
         },
     },
     handler=get_station_assignments_handler,
@@ -1265,7 +1415,10 @@ print(json.dumps(result, default=str))
         try:
             backup_result = json.loads(result.stdout.strip())
         except json.JSONDecodeError:
-            return {"success": False, "error": f"Failed to parse backup result: {result.stdout}"}
+            return {
+                "success": False,
+                "error": f"Failed to parse backup result: {result.stdout}",
+            }
 
         if backup_result.get("success"):
             return {
@@ -1278,7 +1431,10 @@ print(json.dumps(result, default=str))
                 "components": backup_result.get("backup", {}).get("components", {}),
             }
         else:
-            return {"success": False, "error": backup_result.get("error", "Unknown backup error")}
+            return {
+                "success": False,
+                "error": backup_result.get("error", "Unknown backup error"),
+            }
 
     except subprocess.TimeoutExpired:
         return {"success": False, "error": "Backup timed out after 5 minutes"}

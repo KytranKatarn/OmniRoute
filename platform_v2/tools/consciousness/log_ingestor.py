@@ -279,7 +279,10 @@ def batch_ingest_logs(limit: int = 5000, dry_run: bool = False) -> dict:
     results = {"processed": 0, "created": 0, "skipped": 0, "errors": []}
 
     if not os.path.exists(CONVERSATION_LOGS_DIR):
-        return {"success": False, "error": f"Directory not found: {CONVERSATION_LOGS_DIR}"}
+        return {
+            "success": False,
+            "error": f"Directory not found: {CONVERSATION_LOGS_DIR}",
+        }
 
     # Get list of log files (prioritize snapshots, then transcripts)
     files = []
@@ -325,10 +328,19 @@ def get_ingestion_status() -> dict:
 
     Returns counts of files in conversation_logs and ingested entries.
     """
-    status = {"snapshots": 0, "transcripts": 0, "session_ends": 0, "ingested": 0, "sessions": set()}
+    status = {
+        "snapshots": 0,
+        "transcripts": 0,
+        "session_ends": 0,
+        "ingested": 0,
+        "sessions": set(),
+    }
 
     if not os.path.exists(CONVERSATION_LOGS_DIR):
-        return {"success": False, "error": f"Directory not found: {CONVERSATION_LOGS_DIR}"}
+        return {
+            "success": False,
+            "error": f"Directory not found: {CONVERSATION_LOGS_DIR}",
+        }
 
     # Count files by type
     for filename in os.listdir(CONVERSATION_LOGS_DIR):

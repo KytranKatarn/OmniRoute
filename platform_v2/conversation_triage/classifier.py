@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class Classification:
     """Result of classifying a conversation."""
+
     primary_topic: str
     phase: str  # planning, coding, debugging, reviewing, deploying, discussing
     urgency_score: float  # 0.0 to 1.0
@@ -31,50 +32,88 @@ class ConversationClassifier:
 
     # Phase detection patterns
     PHASE_PATTERNS = {
-        'debugging': [
-            r'error[:\s]', r'exception', r'traceback', r'failed', r'fix',
-            r'bug', r'broken', r'crash', r'issue', r'problem', r'doesn\'t work'
+        "debugging": [
+            r"error[:\s]",
+            r"exception",
+            r"traceback",
+            r"failed",
+            r"fix",
+            r"bug",
+            r"broken",
+            r"crash",
+            r"issue",
+            r"problem",
+            r"doesn\'t work",
         ],
-        'coding': [
-            r'implement', r'create\s+\w+\s+function', r'add\s+\w+\s+method',
-            r'write\s+code', r'code\s+snippet', r'```\w+', r'def\s+\w+', r'function\s+\w+'
+        "coding": [
+            r"implement",
+            r"create\s+\w+\s+function",
+            r"add\s+\w+\s+method",
+            r"write\s+code",
+            r"code\s+snippet",
+            r"```\w+",
+            r"def\s+\w+",
+            r"function\s+\w+",
         ],
-        'planning': [
-            r'how\s+should', r'what\s+approach', r'design', r'architecture',
-            r'strategy', r'plan', r'roadmap', r'phase\s+\d+'
+        "planning": [
+            r"how\s+should",
+            r"what\s+approach",
+            r"design",
+            r"architecture",
+            r"strategy",
+            r"plan",
+            r"roadmap",
+            r"phase\s+\d+",
         ],
-        'reviewing': [
-            r'review', r'check', r'verify', r'test', r'looks\s+good',
-            r'lgtm', r'approve', r'merge'
+        "reviewing": [
+            r"review",
+            r"check",
+            r"verify",
+            r"test",
+            r"looks\s+good",
+            r"lgtm",
+            r"approve",
+            r"merge",
         ],
-        'deploying': [
-            r'deploy', r'release', r'production', r'docker', r'restart',
-            r'migration', r'rollout', r'push\s+to'
-        ]
+        "deploying": [
+            r"deploy",
+            r"release",
+            r"production",
+            r"docker",
+            r"restart",
+            r"migration",
+            r"rollout",
+            r"push\s+to",
+        ],
     }
 
     # Topic detection patterns
     TOPIC_PATTERNS = {
-        'database': [r'sql', r'postgres', r'migration', r'table', r'column', r'query'],
-        'api': [r'endpoint', r'route', r'api', r'request', r'response', r'rest'],
-        'frontend': [r'template', r'html', r'css', r'javascript', r'ui', r'button'],
-        'authentication': [r'auth', r'login', r'password', r'token', r'permission'],
-        'docker': [r'docker', r'container', r'compose', r'image'],
-        'testing': [r'test', r'pytest', r'unittest', r'coverage'],
-        'documentation': [r'docs', r'readme', r'documentation', r'comment'],
-        'configuration': [r'config', r'settings', r'environment', r'env'],
-        'ai_bridge': [r'ollama', r'model', r'prompt', r'ai_bridge', r'agent'],
-        'knowledge_base': [r'knowledge', r'memory', r'learning', r'consciousness']
+        "database": [r"sql", r"postgres", r"migration", r"table", r"column", r"query"],
+        "api": [r"endpoint", r"route", r"api", r"request", r"response", r"rest"],
+        "frontend": [r"template", r"html", r"css", r"javascript", r"ui", r"button"],
+        "authentication": [r"auth", r"login", r"password", r"token", r"permission"],
+        "docker": [r"docker", r"container", r"compose", r"image"],
+        "testing": [r"test", r"pytest", r"unittest", r"coverage"],
+        "documentation": [r"docs", r"readme", r"documentation", r"comment"],
+        "configuration": [r"config", r"settings", r"environment", r"env"],
+        "ai_bridge": [r"ollama", r"model", r"prompt", r"ai_bridge", r"agent"],
+        "knowledge_base": [r"knowledge", r"memory", r"learning", r"consciousness"],
     }
 
     # Urgency indicators
     URGENCY_HIGH = [
-        r'critical', r'urgent', r'broken', r'crash', r'down', r'emergency',
-        r'production\s+error', r'data\s+loss', r'security'
+        r"critical",
+        r"urgent",
+        r"broken",
+        r"crash",
+        r"down",
+        r"emergency",
+        r"production\s+error",
+        r"data\s+loss",
+        r"security",
     ]
-    URGENCY_MEDIUM = [
-        r'error', r'bug', r'fix', r'issue', r'problem', r'failed'
-    ]
+    URGENCY_MEDIUM = [r"error", r"bug", r"fix", r"issue", r"problem", r"failed"]
 
     def classify(self, content: str) -> Classification:
         """Classify a conversation transcript."""
@@ -97,7 +136,7 @@ class ConversationClassifier:
             phase=phase,
             urgency_score=urgency,
             tags=topic_tags,
-            confidence=confidence
+            confidence=confidence,
         )
 
     def _detect_phase(self, content: str) -> Tuple[str, float]:
@@ -112,7 +151,7 @@ class ConversationClassifier:
             scores[phase] = count
 
         if not scores or max(scores.values()) == 0:
-            return 'discussing', 0.5
+            return "discussing", 0.5
 
         best_phase = max(scores, key=scores.get)
         total = sum(scores.values())
@@ -133,7 +172,7 @@ class ConversationClassifier:
                 scores[topic] = count
 
         if not scores:
-            return 'general', []
+            return "general", []
 
         # Sort by score descending
         sorted_topics = sorted(scores.items(), key=lambda x: x[1], reverse=True)
@@ -145,12 +184,12 @@ class ConversationClassifier:
     def _calculate_urgency(self, content: str, phase: str) -> float:
         """Calculate urgency score (0.0 to 1.0)."""
         base_urgency = {
-            'debugging': 0.7,
-            'deploying': 0.6,
-            'coding': 0.5,
-            'reviewing': 0.4,
-            'planning': 0.3,
-            'discussing': 0.2
+            "debugging": 0.7,
+            "deploying": 0.6,
+            "coding": 0.5,
+            "reviewing": 0.4,
+            "planning": 0.3,
+            "discussing": 0.2,
         }.get(phase, 0.5)
 
         # Check for high urgency indicators
@@ -168,7 +207,7 @@ class ConversationClassifier:
     def extract_summary(self, content: str, max_length: int = 200) -> str:
         """Extract a brief summary from the conversation."""
         # Find user messages
-        user_pattern = r'(?:Human|User):\s*(.+?)(?=(?:Assistant|Human|User):|$)'
+        user_pattern = r"(?:Human|User):\s*(.+?)(?=(?:Assistant|Human|User):|$)"
         matches = re.findall(user_pattern, content, re.IGNORECASE | re.DOTALL)
 
         if matches:
@@ -176,7 +215,7 @@ class ConversationClassifier:
             for match in matches:
                 cleaned = match.strip()[:max_length]
                 if len(cleaned) > 20:
-                    return cleaned + '...' if len(match) > max_length else cleaned
+                    return cleaned + "..." if len(match) > max_length else cleaned
 
         # Fallback: first N characters
-        return content[:max_length].strip() + '...'
+        return content[:max_length].strip() + "..."

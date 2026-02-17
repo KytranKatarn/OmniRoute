@@ -14,12 +14,13 @@ Date: 2026-01-10
 """
 
 import sys
-sys.path.insert(0, '/mnt/archie_brain/ai_bridge')
-sys.path.insert(0, '/mnt/archie_brain/platform_v2')
 
-print("\n" + "="*70)
+sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
+sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+
+print("\n" + "=" * 70)
 print("PHASE 3 WEEK 2: CONSERVATIVE TESTING ROLLOUT - TEST SUITE")
-print("="*70)
+print("=" * 70)
 
 try:
     import psycopg2
@@ -31,30 +32,47 @@ try:
     from local_answer_generator import can_answer_locally
 
     # Mock high-confidence result (should require 0.90 now, not 0.85)
-    mock_results_high = [{
-        'id': 1,
-        'title': 'Test Knowledge',
-        'content': 'Test content',
-        'knowledge_type': 'vault_note',
-        'weighted_score': 0.87,  # Between old (0.85) and new (0.90) threshold
-        'importance_score': 0.87
-    }]
+    mock_results_high = [
+        {
+            "id": 1,
+            "title": "Test Knowledge",
+            "content": "Test content",
+            "knowledge_type": "vault_note",
+            "weighted_score": 0.87,  # Between old (0.85) and new (0.90) threshold
+            "importance_score": 0.87,
+        }
+    ]
 
     decision = can_answer_locally("What is test?", mock_results_high)
-    if not decision['can_answer']:
+    if not decision["can_answer"]:
         print("  ✅ High threshold raised: 0.87 score is now below 0.90 threshold")
     else:
         print("  ⚠️ Expected score 0.87 to be rejected with new 0.90 threshold")
 
     # Test medium confidence (0.75 threshold)
     mock_results_medium = [
-        {'id': 1, 'knowledge_type': 'code_snippet', 'weighted_score': 0.73, 'importance_score': 0.73},
-        {'id': 2, 'knowledge_type': 'vault_note', 'weighted_score': 0.72, 'importance_score': 0.72},
-        {'id': 3, 'knowledge_type': 'improvement', 'weighted_score': 0.74, 'importance_score': 0.74}
+        {
+            "id": 1,
+            "knowledge_type": "code_snippet",
+            "weighted_score": 0.73,
+            "importance_score": 0.73,
+        },
+        {
+            "id": 2,
+            "knowledge_type": "vault_note",
+            "weighted_score": 0.72,
+            "importance_score": 0.72,
+        },
+        {
+            "id": 3,
+            "knowledge_type": "improvement",
+            "weighted_score": 0.74,
+            "importance_score": 0.74,
+        },
     ]
 
     decision = can_answer_locally("How to do something?", mock_results_medium)
-    if not decision['can_answer']:
+    if not decision["can_answer"]:
         print("  ✅ Medium threshold raised: avg 0.73 is now below 0.75 threshold")
     else:
         print("  ⚠️ Expected avg 0.73 to be rejected with new 0.75 threshold")
@@ -62,11 +80,11 @@ try:
     # Test 2: Database migrations applied
     print("\n[TEST 2] Verifying database migrations...")
     conn = psycopg2.connect(
-        host=os.getenv('DB_HOST', 'archie_database'),
-        port=os.getenv('DB_PORT', '5432'),
-        database=os.getenv('DB_NAME', 'archie'),
-        user=os.getenv('DB_USER', 'archie'),
-        password=os.getenv('DB_PASSWORD', '')
+        host=os.getenv("DB_HOST", "archie_database"),
+        port=os.getenv("DB_PORT", "5432"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", ""),
     )
     cur = conn.cursor()
 
@@ -146,7 +164,9 @@ try:
     print("\n[TEST 5] Testing user preference integration...")
 
     # Get an admin user ID
-    cur.execute("SELECT id FROM users WHERE is_admin = TRUE AND enable_local_answers = TRUE LIMIT 1")
+    cur.execute(
+        "SELECT id FROM users WHERE is_admin = TRUE AND enable_local_answers = TRUE LIMIT 1"
+    )
     admin_result = cur.fetchone()
 
     if admin_result:
@@ -160,12 +180,12 @@ try:
         test_result = archie_bridge(
             prompt="What is A.R.C.H.I.E.?",
             user_id=admin_user_id,
-            enable_memory=True
+            enable_memory=True,
             # Note: NOT passing try_local_first - should check database preference
         )
 
-        if test_result.get('success'):
-            if test_result.get('local_answer'):
+        if test_result.get("success"):
+            if test_result.get("local_answer"):
                 print(f"  ✅ LOCAL ANSWER used (user preference from database)")
                 print(f"     Confidence: {test_result.get('confidence', 0):.2f}")
                 print(f"     Strategy: {test_result.get('strategy', 'unknown')}")
@@ -184,22 +204,22 @@ try:
     # Test 6: Verify monitoring data structure
     print("\n[TEST 6] Checking monitoring data structure...")
     conn = psycopg2.connect(
-        host=os.getenv('DB_HOST', 'archie_database'),
-        port=os.getenv('DB_PORT', '5432'),
-        database=os.getenv('DB_NAME', 'archie'),
-        user=os.getenv('DB_USER', 'archie'),
-        password=os.getenv('DB_PASSWORD', '')
+        host=os.getenv("DB_HOST", "archie_database"),
+        port=os.getenv("DB_PORT", "5432"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", ""),
     )
     cur = conn.cursor(cursor_factory=RealDictCursor)
 
     # Check if we have any local answer savings
     cur.execute("SELECT COUNT(*) FROM local_answer_savings")
-    savings_count = cur.fetchone()['count']
+    savings_count = cur.fetchone()["count"]
     print(f"  Local answers tracked: {savings_count}")
 
     # Check if we have any feedback
     cur.execute("SELECT COUNT(*) FROM local_answer_feedback")
-    feedback_count = cur.fetchone()['count']
+    feedback_count = cur.fetchone()["count"]
     print(f"  Feedback entries: {feedback_count}")
 
     if savings_count > 0:
@@ -217,15 +237,17 @@ try:
         samples = cur.fetchall()
         print("  Recent local answers:")
         for s in samples:
-            print(f"    - \"{s['query_preview']}\" (confidence: {s['confidence_score']}, "
-                  f"saved: ${s['estimated_cost_saved']:.4f})")
+            print(
+                f"    - \"{s['query_preview']}\" (confidence: {s['confidence_score']}, "
+                f"saved: ${s['estimated_cost_saved']:.4f})"
+            )
 
     cur.close()
     conn.close()
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("✅ PHASE 3 WEEK 2 TESTS COMPLETED")
-    print("="*70)
+    print("=" * 70)
 
     # Summary
     print("\n📊 PHASE 3 WEEK 2 STATUS SUMMARY:")
@@ -258,5 +280,6 @@ try:
 except Exception as e:
     print(f"\n❌ TEST FAILED: {e}")
     import traceback
+
     traceback.print_exc()
     sys.exit(1)

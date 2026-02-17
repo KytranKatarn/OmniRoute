@@ -15,6 +15,7 @@ Purpose:
 Author: A.R.C.H.I.E. Platform
 Date: 2026-01-07
 """
+
 import json
 import re
 from typing import Dict, List, Optional, Any
@@ -24,8 +25,10 @@ from datetime import datetime
 DB_AVAILABLE = False
 try:
     import sys
-    sys.path.append('/mnt/archie_brain/platform_v2')
+
+    sys.path.append("/mnt/archie_brain/platform_v2")
     from tools.database import db
+
     DB_AVAILABLE = True
 except ImportError:
     DB_AVAILABLE = False
@@ -72,13 +75,13 @@ class FrontendGenerator:
         """
         print(f"\n[Frontend Generator] Generating frontend for project {self.project_id}...")
 
-        tech_stack = self.plan.get('tech_stack', {})
-        frontend_framework = tech_stack.get('frontend', 'React')
+        tech_stack = self.plan.get("tech_stack", {})
+        frontend_framework = tech_stack.get("frontend", "React")
 
         # Determine which generator to use
-        if 'React' in frontend_framework:
+        if "React" in frontend_framework:
             result = await self._generate_react_frontend()
-        elif 'Vue' in frontend_framework:
+        elif "Vue" in frontend_framework:
             result = await self._generate_vue_frontend()
         else:
             raise ValueError(f"Unsupported frontend framework: {frontend_framework}")
@@ -97,19 +100,19 @@ class FrontendGenerator:
         files = {}
 
         # 1. Generate package.json
-        files['frontend/package.json'] = self._generate_react_package_json()
+        files["frontend/package.json"] = self._generate_react_package_json()
         print("  ✓ Generated package.json")
 
         # 2. Generate public/index.html
-        files['frontend/public/index.html'] = self._generate_index_html()
+        files["frontend/public/index.html"] = self._generate_index_html()
         print("  ✓ Generated index.html")
 
         # 3. Generate src/index.js
-        files['frontend/src/index.js'] = self._generate_react_index()
+        files["frontend/src/index.js"] = self._generate_react_index()
         print("  ✓ Generated index.js")
 
         # 4. Generate src/App.js
-        files['frontend/src/App.js'] = self._generate_react_app()
+        files["frontend/src/App.js"] = self._generate_react_app()
         print("  ✓ Generated App.js")
 
         # 5. Generate API service layer
@@ -139,7 +142,7 @@ class FrontendGenerator:
         print(f"  ✓ Generated state management files")
 
         # 10. Generate routing
-        files['frontend/src/routes/AppRoutes.jsx'] = self._generate_react_routing()
+        files["frontend/src/routes/AppRoutes.jsx"] = self._generate_react_routing()
         print("  ✓ Generated routing")
 
         # 11. Generate styles
@@ -148,86 +151,88 @@ class FrontendGenerator:
         print(f"  ✓ Generated style files")
 
         # 12. Generate .env.example
-        files['frontend/.env.example'] = self._generate_frontend_env()
+        files["frontend/.env.example"] = self._generate_frontend_env()
         print("  ✓ Generated .env.example")
 
         # 13. Generate README
-        files['frontend/README.md'] = self._generate_frontend_readme('React')
+        files["frontend/README.md"] = self._generate_frontend_readme("React")
         print("  ✓ Generated README.md")
 
         # 14. Generate .gitignore
-        files['frontend/.gitignore'] = self._generate_gitignore()
+        files["frontend/.gitignore"] = self._generate_gitignore()
         print("  ✓ Generated .gitignore")
 
         # Store files for database persistence
         self.generated_files = [
             {
-                'file_path': path,
-                'content': content,
-                'file_type': self._get_file_type(path)
+                "file_path": path,
+                "content": content,
+                "file_type": self._get_file_type(path),
             }
             for path, content in files.items()
         ]
 
         return {
-            'framework': 'React',
-            'files': self.generated_files,
-            'file_count': len(files),
-            'structure': self._get_file_structure(files),
-            'generated_at': datetime.now().isoformat()
+            "framework": "React",
+            "files": self.generated_files,
+            "file_count": len(files),
+            "structure": self._get_file_structure(files),
+            "generated_at": datetime.now().isoformat(),
         }
 
     def _generate_react_package_json(self) -> str:
         """Generate package.json for React"""
-        project_name = self.plan.get('name', 'app').lower().replace(' ', '-')
-        state_mgmt = self.architecture.get('state_management', {}).get('pattern', {})
-        uses_redux = 'Redux' in state_mgmt.get('name', '')
+        project_name = self.plan.get("name", "app").lower().replace(" ", "-")
+        state_mgmt = self.architecture.get("state_management", {}).get("pattern", {})
+        uses_redux = "Redux" in state_mgmt.get("name", "")
 
         dependencies = {
             "react": "^18.2.0",
             "react-dom": "^18.2.0",
             "react-router-dom": "^6.20.0",
-            "axios": "^1.6.2"
+            "axios": "^1.6.2",
         }
 
         if uses_redux:
-            dependencies.update({
-                "@reduxjs/toolkit": "^2.0.1",
-                "react-redux": "^9.0.4"
-            })
+            dependencies.update({"@reduxjs/toolkit": "^2.0.1", "react-redux": "^9.0.4"})
 
         dev_dependencies = {
             "@testing-library/react": "^14.1.2",
             "@testing-library/jest-dom": "^6.1.5",
-            "react-scripts": "5.0.1"
+            "react-scripts": "5.0.1",
         }
 
-        return json.dumps({
-            "name": project_name,
-            "version": "0.1.0",
-            "private": True,
-            "dependencies": dependencies,
-            "devDependencies": dev_dependencies,
-            "scripts": {
-                "start": "react-scripts start",
-                "build": "react-scripts build",
-                "test": "react-scripts test",
-                "eject": "react-scripts eject"
+        return json.dumps(
+            {
+                "name": project_name,
+                "version": "0.1.0",
+                "private": True,
+                "dependencies": dependencies,
+                "devDependencies": dev_dependencies,
+                "scripts": {
+                    "start": "react-scripts start",
+                    "build": "react-scripts build",
+                    "test": "react-scripts test",
+                    "eject": "react-scripts eject",
+                },
+                "eslintConfig": {"extends": ["react-app"]},
+                "browserslist": {
+                    "production": [">0.2%", "not dead", "not op_mini all"],
+                    "development": [
+                        "last 1 chrome version",
+                        "last 1 firefox version",
+                        "last 1 safari version",
+                    ],
+                },
             },
-            "eslintConfig": {
-                "extends": ["react-app"]
-            },
-            "browserslist": {
-                "production": [">0.2%", "not dead", "not op_mini all"],
-                "development": ["last 1 chrome version", "last 1 firefox version", "last 1 safari version"]
-            }
-        }, indent=2)
+            indent=2,
+        )
 
     def _generate_index_html(self) -> str:
         """Generate public/index.html"""
-        project_name = self.plan.get('name', 'App')
+        project_name = self.plan.get("name", "App")
 
-        return f'''<!DOCTYPE html>
+        return f"""<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -241,15 +246,15 @@ class FrontendGenerator:
     <div id="root"></div>
   </body>
 </html>
-'''
+"""
 
     def _generate_react_index(self) -> str:
         """Generate src/index.js"""
-        state_mgmt = self.architecture.get('state_management', {}).get('pattern', {})
-        uses_redux = 'Redux' in state_mgmt.get('name', '')
+        state_mgmt = self.architecture.get("state_management", {}).get("pattern", {})
+        uses_redux = "Redux" in state_mgmt.get("name", "")
 
         if uses_redux:
-            return '''import React from 'react';
+            return """import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { Provider } from 'react-redux';
 import { BrowserRouter } from 'react-router-dom';
@@ -267,9 +272,9 @@ root.render(
     </Provider>
   </React.StrictMode>
 );
-'''
+"""
         else:
-            return '''import React from 'react';
+            return """import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
@@ -283,14 +288,14 @@ root.render(
     </BrowserRouter>
   </React.StrictMode>
 );
-'''
+"""
 
     def _generate_react_app(self) -> str:
         """Generate src/App.js"""
         has_auth = self._has_authentication()
 
         if has_auth:
-            return '''import React, { useEffect } from 'react';
+            return """import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppRoutes from './routes/AppRoutes';
 import Layout from './components/Layout/Layout';
@@ -321,9 +326,9 @@ function App() {
 }
 
 export default App;
-'''
+"""
         else:
-            return '''import React from 'react';
+            return """import React from 'react';
 import AppRoutes from './routes/AppRoutes';
 import Layout from './components/Layout/Layout';
 import './App.css';
@@ -339,14 +344,16 @@ function App() {
 }
 
 export default App;
-'''
+"""
 
     def _generate_api_services(self) -> Dict[str, str]:
         """Generate API service layer with axios"""
         files = {}
 
         # Base API service
-        files['frontend/src/services/api.js'] = '''import axios from 'axios';
+        files[
+            "frontend/src/services/api.js"
+        ] = """import axios from 'axios';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
@@ -408,11 +415,13 @@ api.interceptors.response.use(
 );
 
 export default api;
-'''
+"""
 
         # Auth service
         if self._has_authentication():
-            files['frontend/src/services/authService.js'] = '''import api from './api';
+            files[
+                "frontend/src/services/authService.js"
+            ] = """import api from './api';
 
 export const signup = async (userData) => {
   const response = await api.post('/api/auth/signup', userData);
@@ -455,19 +464,21 @@ export const getCurrentUser = () => {
 export const isAuthenticated = () => {
   return !!localStorage.getItem('access_token');
 };
-'''
+"""
 
         # Resource services
-        tables = self.plan.get('database_schema', {}).get('tables', [])
+        tables = self.plan.get("database_schema", {}).get("tables", [])
         for table in tables:
-            table_name = table['table_name']
-            if table_name == 'users':
+            table_name = table["table_name"]
+            if table_name == "users":
                 continue
 
             class_name = self._to_class_name(table_name)
             singular = self._singularize(table_name)
 
-            files[f'frontend/src/services/{singular}Service.js'] = f'''import api from './api';
+            files[
+                f"frontend/src/services/{singular}Service.js"
+            ] = f"""import api from './api';
 
 export const getAll{class_name} = async (page = 1, perPage = 20) => {{
   const response = await api.get('/api/{table_name}', {{
@@ -495,7 +506,7 @@ export const delete{class_name} = async (id) => {{
   const response = await api.delete(`/api/{table_name}/${{id}}`);
   return response.data;
 }};
-'''
+"""
 
         return files
 
@@ -504,7 +515,9 @@ export const delete{class_name} = async (id) => {{
         files = {}
 
         # Login component
-        files['frontend/src/components/Auth/Login.jsx'] = '''import React, { useState } from 'react';
+        files[
+            "frontend/src/components/Auth/Login.jsx"
+        ] = """import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { login } from '../../services/authService';
 import './Auth.css';
@@ -581,10 +594,12 @@ const Login = () => {
 };
 
 export default Login;
-'''
+"""
 
         # Signup component
-        files['frontend/src/components/Auth/Signup.jsx'] = '''import React, { useState } from 'react';
+        files[
+            "frontend/src/components/Auth/Signup.jsx"
+        ] = """import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { signup } from '../../services/authService';
 import './Auth.css';
@@ -698,10 +713,12 @@ const Signup = () => {
 };
 
 export default Signup;
-'''
+"""
 
         # Auth CSS
-        files['frontend/src/components/Auth/Auth.css'] = '''.auth-container {
+        files[
+            "frontend/src/components/Auth/Auth.css"
+        ] = """.auth-container {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -793,10 +810,12 @@ export default Signup;
 .auth-link a:hover {
   text-decoration: underline;
 }
-'''
+"""
 
         # PrivateRoute component
-        files['frontend/src/components/Auth/PrivateRoute.jsx'] = '''import React from 'react';
+        files[
+            "frontend/src/components/Auth/PrivateRoute.jsx"
+        ] = """import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { isAuthenticated } from '../../services/authService';
 
@@ -805,50 +824,50 @@ const PrivateRoute = ({ children }) => {
 };
 
 export default PrivateRoute;
-'''
+"""
 
         return files
 
     def _generate_crud_components(self) -> Dict[str, str]:
         """Generate CRUD components for each resource"""
         files = {}
-        tables = self.plan.get('database_schema', {}).get('tables', [])
+        tables = self.plan.get("database_schema", {}).get("tables", [])
 
         for table in tables:
-            table_name = table['table_name']
-            if table_name == 'users':
+            table_name = table["table_name"]
+            if table_name == "users":
                 continue
 
             class_name = self._to_class_name(table_name)
             singular = self._singularize(table_name)
-            columns = table.get('columns', [])
+            columns = table.get("columns", [])
 
             # List component
-            files[f'frontend/src/components/{class_name}/{class_name}List.jsx'] = self._generate_list_component(
+            files[f"frontend/src/components/{class_name}/{class_name}List.jsx"] = self._generate_list_component(
                 class_name, singular, table_name, columns
             )
 
             # Form component
-            files[f'frontend/src/components/{class_name}/{class_name}Form.jsx'] = self._generate_form_component(
+            files[f"frontend/src/components/{class_name}/{class_name}Form.jsx"] = self._generate_form_component(
                 class_name, singular, table_name, columns
             )
 
             # Detail component
-            files[f'frontend/src/components/{class_name}/{class_name}Detail.jsx'] = self._generate_detail_component(
+            files[f"frontend/src/components/{class_name}/{class_name}Detail.jsx"] = self._generate_detail_component(
                 class_name, singular, table_name, columns
             )
 
             # CSS
-            files[f'frontend/src/components/{class_name}/{class_name}.css'] = self._generate_component_css(class_name)
+            files[f"frontend/src/components/{class_name}/{class_name}.css"] = self._generate_component_css(class_name)
 
         return files
 
     def _generate_list_component(self, class_name: str, singular: str, table_name: str, columns: List) -> str:
         """Generate list component for a resource"""
         # Get display columns (exclude password, timestamps, foreign keys)
-        display_cols = [col for col in columns if not any(x in col['name'] for x in ['password', '_id', 'hash'])][:5]
+        display_cols = [col for col in columns if not any(x in col["name"] for x in ["password", "_id", "hash"])][:5]
 
-        return f'''import React, {{ useState, useEffect }} from 'react';
+        return f"""import React, {{ useState, useEffect }} from 'react';
 import {{ Link }} from 'react-router-dom';
 import {{ getAll{class_name}, delete{class_name} }} from '../../services/{singular}Service';
 import './{class_name}.css';
@@ -968,14 +987,18 @@ const {class_name}List = () => {{
 }};
 
 export default {class_name}List;
-'''
+"""
 
     def _generate_form_component(self, class_name: str, singular: str, table_name: str, columns: List) -> str:
         """Generate form component for a resource"""
         # Get editable columns (exclude id, timestamps, foreign keys, password)
-        editable_cols = [col for col in columns if not any(x in col['name'] for x in ['id', 'created', 'updated', 'password', 'hash'])]
+        editable_cols = [
+            col
+            for col in columns
+            if not any(x in col["name"] for x in ["id", "created", "updated", "password", "hash"])
+        ]
 
-        return f'''import React, {{ useState, useEffect }} from 'react';
+        return f"""import React, {{ useState, useEffect }} from 'react';
 import {{ useNavigate, useParams }} from 'react-router-dom';
 import {{ create{class_name}, update{class_name}, get{class_name}ById }} from '../../services/{singular}Service';
 import './{class_name}.css';
@@ -1059,16 +1082,16 @@ const {class_name}Form = () => {{
 }};
 
 export default {class_name}Form;
-'''
+"""
 
     def _generate_form_field(self, col: Dict) -> str:
         """Generate a form field based on column type"""
-        col_name = col['name']
-        col_type = col['type'].upper()
-        label = col_name.replace('_', ' ').title()
+        col_name = col["name"]
+        col_type = col["type"].upper()
+        label = col_name.replace("_", " ").title()
 
-        if 'TEXT' in col_type:
-            return f'''        <div className="form-group">
+        if "TEXT" in col_type:
+            return f"""        <div className="form-group">
           <label htmlFor="{col_name}">{label}</label>
           <textarea
             id="{col_name}"
@@ -1077,9 +1100,9 @@ export default {class_name}Form;
             onChange={{handleChange}}
             rows="4"
           />
-        </div>'''
-        elif 'BOOLEAN' in col_type or 'BOOL' in col_type:
-            return f'''        <div className="form-group">
+        </div>"""
+        elif "BOOLEAN" in col_type or "BOOL" in col_type:
+            return f"""        <div className="form-group">
           <label className="checkbox-label">
             <input
               type="checkbox"
@@ -1089,10 +1112,10 @@ export default {class_name}Form;
             />
             {label}
           </label>
-        </div>'''
+        </div>"""
         else:
-            input_type = 'number' if any(x in col_type for x in ['INT', 'DECIMAL', 'FLOAT']) else 'text'
-            return f'''        <div className="form-group">
+            input_type = "number" if any(x in col_type for x in ["INT", "DECIMAL", "FLOAT"]) else "text"
+            return f"""        <div className="form-group">
           <label htmlFor="{col_name}">{label}</label>
           <input
             type="{input_type}"
@@ -1102,13 +1125,13 @@ export default {class_name}Form;
             onChange={{handleChange}}
             required
           />
-        </div>'''
+        </div>"""
 
     def _generate_detail_component(self, class_name: str, singular: str, table_name: str, columns: List) -> str:
         """Generate detail component for a resource"""
-        display_cols = [col for col in columns if not any(x in col['name'] for x in ['password', 'hash'])]
+        display_cols = [col for col in columns if not any(x in col["name"] for x in ["password", "hash"])]
 
-        return f'''import React, {{ useState, useEffect }} from 'react';
+        return f"""import React, {{ useState, useEffect }} from 'react';
 import {{ useParams, useNavigate, Link }} from 'react-router-dom';
 import {{ get{class_name}ById, delete{class_name} }} from '../../services/{singular}Service';
 import './{class_name}.css';
@@ -1180,11 +1203,11 @@ const {class_name}Detail = () => {{
 }};
 
 export default {class_name}Detail;
-'''
+"""
 
     def _generate_component_css(self, class_name: str) -> str:
         """Generate CSS for components"""
-        return '''.list-container, .form-container, .detail-container {
+        return """.list-container, .form-container, .detail-container {
   padding: 20px;
   max-width: 1200px;
   margin: 0 auto;
@@ -1353,7 +1376,7 @@ th {
   display: flex;
   gap: 8px;
 }
-'''
+"""
 
     def _generate_layout_components(self) -> Dict[str, str]:
         """Generate layout components"""
@@ -1361,7 +1384,9 @@ th {
 
         # Layout component
         has_auth = self._has_authentication()
-        files['frontend/src/components/Layout/Layout.jsx'] = f'''import React from 'react';
+        files[
+            "frontend/src/components/Layout/Layout.jsx"
+        ] = f"""import React from 'react';
 import Header from './Header';
 import './Layout.css';
 
@@ -1380,13 +1405,15 @@ const Layout = ({{ children }}) => {{
 }};
 
 export default Layout;
-'''
+"""
 
         # Header component
-        tables = self.plan.get('database_schema', {}).get('tables', [])
-        nav_items = [t['table_name'] for t in tables if t['table_name'] != 'users']
+        tables = self.plan.get("database_schema", {}).get("tables", [])
+        nav_items = [t["table_name"] for t in tables if t["table_name"] != "users"]
 
-        files['frontend/src/components/Layout/Header.jsx'] = f'''import React from 'react';
+        files[
+            "frontend/src/components/Layout/Header.jsx"
+        ] = f"""import React from 'react';
 import {{ Link, useNavigate }} from 'react-router-dom';
 import {{ isAuthenticated, logout }} from '../../services/authService';
 import './Layout.css';
@@ -1435,10 +1462,12 @@ const Header = () => {{
 }};
 
 export default Header;
-'''
+"""
 
         # Layout CSS
-        files['frontend/src/components/Layout/Layout.css'] = '''.layout {
+        files[
+            "frontend/src/components/Layout/Layout.css"
+        ] = """.layout {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -1526,10 +1555,12 @@ export default Header;
   padding: 20px;
   text-align: center;
 }
-'''
+"""
 
         # Home component
-        files['frontend/src/components/Home/Home.jsx'] = f'''import React from 'react';
+        files[
+            "frontend/src/components/Home/Home.jsx"
+        ] = f"""import React from 'react';
 import {{ Link }} from 'react-router-dom';
 import './Home.css';
 
@@ -1549,9 +1580,11 @@ const Home = () => {{
 }};
 
 export default Home;
-'''
+"""
 
-        files['frontend/src/components/Home/Home.css'] = '''.home-container {
+        files[
+            "frontend/src/components/Home/Home.css"
+        ] = """.home-container {
   max-width: 1200px;
   margin: 0 auto;
   padding: 40px 20px;
@@ -1602,19 +1635,21 @@ export default Home;
   color: #6c757d;
   margin: 0;
 }
-'''
+"""
 
         return files
 
     def _generate_state_management(self) -> Dict[str, str]:
         """Generate state management files"""
         files = {}
-        state_mgmt = self.architecture.get('state_management', {}).get('pattern', {})
-        uses_redux = 'Redux' in state_mgmt.get('name', '')
+        state_mgmt = self.architecture.get("state_management", {}).get("pattern", {})
+        uses_redux = "Redux" in state_mgmt.get("name", "")
 
         if uses_redux:
             # Redux store
-            files['frontend/src/store/store.js'] = '''import { configureStore } from '@reduxjs/toolkit';
+            files[
+                "frontend/src/store/store.js"
+            ] = """import { configureStore } from '@reduxjs/toolkit';
 import authReducer from './slices/authSlice';
 
 export const store = configureStore({
@@ -1624,10 +1659,12 @@ export const store = configureStore({
 });
 
 export default store;
-'''
+"""
 
             # Auth slice
-            files['frontend/src/store/slices/authSlice.js'] = '''import { createSlice } from '@reduxjs/toolkit';
+            files[
+                "frontend/src/store/slices/authSlice.js"
+            ] = """import { createSlice } from '@reduxjs/toolkit';
 
 const initialState = {
   user: null,
@@ -1657,10 +1694,12 @@ export const authSlice = createSlice({
 
 export const { setUser, setToken, logout } = authSlice.actions;
 export default authSlice.reducer;
-'''
+"""
         else:
             # Context API
-            files['frontend/src/context/AuthContext.jsx'] = '''import React, { createContext, useState, useContext, useEffect } from 'react';
+            files[
+                "frontend/src/context/AuthContext.jsx"
+            ] = """import React, { createContext, useState, useContext, useEffect } from 'react';
 import { getCurrentUser, isAuthenticated } from '../services/authService';
 
 const AuthContext = createContext();
@@ -1705,64 +1744,76 @@ export const AuthProvider = ({ children }) => {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
-'''
+"""
 
         return files
 
     def _generate_react_routing(self) -> str:
         """Generate React Router configuration"""
         has_auth = self._has_authentication()
-        tables = self.plan.get('database_schema', {}).get('tables', [])
-        resources = [t['table_name'] for t in tables if t['table_name'] != 'users']
+        tables = self.plan.get("database_schema", {}).get("tables", [])
+        resources = [t["table_name"] for t in tables if t["table_name"] != "users"]
 
         # Import statements
-        imports = ['import React from "react";',
-                   'import { Routes, Route, Navigate } from "react-router-dom";',
-                   'import Home from "../components/Home/Home";']
+        imports = [
+            'import React from "react";',
+            'import { Routes, Route, Navigate } from "react-router-dom";',
+            'import Home from "../components/Home/Home";',
+        ]
 
         if has_auth:
-            imports.extend([
-                'import Login from "../components/Auth/Login";',
-                'import Signup from "../components/Auth/Signup";',
-                'import PrivateRoute from "../components/Auth/PrivateRoute";'
-            ])
+            imports.extend(
+                [
+                    'import Login from "../components/Auth/Login";',
+                    'import Signup from "../components/Auth/Signup";',
+                    'import PrivateRoute from "../components/Auth/PrivateRoute";',
+                ]
+            )
 
         for table_name in resources:
             class_name = self._to_class_name(table_name)
-            imports.extend([
-                f'import {class_name}List from "../components/{class_name}/{class_name}List";',
-                f'import {class_name}Form from "../components/{class_name}/{class_name}Form";',
-                f'import {class_name}Detail from "../components/{class_name}/{class_name}Detail";'
-            ])
+            imports.extend(
+                [
+                    f'import {class_name}List from "../components/{class_name}/{class_name}List";',
+                    f'import {class_name}Form from "../components/{class_name}/{class_name}Form";',
+                    f'import {class_name}Detail from "../components/{class_name}/{class_name}Detail";',
+                ]
+            )
 
         # Routes
         route_lines = []
         route_lines.append('      <Route path="/" element={<Home />} />')
 
         if has_auth:
-            route_lines.extend([
-                '      <Route path="/login" element={<Login />} />',
-                '      <Route path="/signup" element={<Signup />} />'
-            ])
+            route_lines.extend(
+                [
+                    '      <Route path="/login" element={<Login />} />',
+                    '      <Route path="/signup" element={<Signup />} />',
+                ]
+            )
 
         for table_name in resources:
             class_name = self._to_class_name(table_name)
             if has_auth:
-                route_lines.extend([
-                    f'      <Route path="/{table_name}" element={{<PrivateRoute><{class_name}List /></PrivateRoute>}} />',
-                    f'      <Route path="/{table_name}/new" element={{<PrivateRoute><{class_name}Form /></PrivateRoute>}} />',
-                    f'      <Route path="/{table_name}/:id" element={{<PrivateRoute><{class_name}Detail /></PrivateRoute>}} />',
-                    f'      <Route path="/{table_name}/:id/edit" element={{<PrivateRoute><{class_name}Form /></PrivateRoute>}} />'
-                ])
+                route_lines.extend(
+                    [
+                        f'      <Route path="/{table_name}" element={{<PrivateRoute><{class_name}List /></PrivateRoute>}} />',
+                        f'      <Route path="/{table_name}/new" element={{<PrivateRoute><{class_name}Form /></PrivateRoute>}} />',
+                        f'      <Route path="/{table_name}/:id" element={{<PrivateRoute><{class_name}Detail /></PrivateRoute>}} />',
+                        f'      <Route path="/{table_name}/:id/edit" element={{<PrivateRoute><{class_name}Form /></PrivateRoute>}} />',
+                    ]
+                )
             else:
-                route_lines.extend([
-                    f'      <Route path="/{table_name}" element={{<{class_name}List />}} />',
-                    f'      <Route path="/{table_name}/new" element={{<{class_name}Form />}} />',
-                    f'      <Route path="/{table_name}/:id" element={{<{class_name}Detail />}} />',
-                    f'      <Route path="/{table_name}/:id/edit" element={{<{class_name}Form />}} />'
-                ])
+                route_lines.extend(
+                    [
+                        f'      <Route path="/{table_name}" element={{<{class_name}List />}} />',
+                        f'      <Route path="/{table_name}/new" element={{<{class_name}Form />}} />',
+                        f'      <Route path="/{table_name}/:id" element={{<{class_name}Detail />}} />',
+                        f'      <Route path="/{table_name}/:id/edit" element={{<{class_name}Form />}} />',
+                    ]
+                )
 
-        return f'''{chr(10).join(imports)}
+        return f"""{chr(10).join(imports)}
 
 const AppRoutes = () => {{
   return (
@@ -1774,14 +1825,16 @@ const AppRoutes = () => {{
 }};
 
 export default AppRoutes;
-'''
+"""
 
     def _generate_styles(self) -> Dict[str, str]:
         """Generate style files"""
         files = {}
 
         # Main CSS
-        files['frontend/src/index.css'] = '''* {
+        files[
+            "frontend/src/index.css"
+        ] = """* {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
@@ -1810,29 +1863,31 @@ a {
 a:hover {
   text-decoration: underline;
 }
-'''
+"""
 
-        files['frontend/src/App.css'] = '''.App {
+        files[
+            "frontend/src/App.css"
+        ] = """.App {
   min-height: 100vh;
 }
-'''
+"""
 
         return files
 
     def _generate_frontend_env(self) -> str:
         """Generate .env.example"""
-        return '''# API Configuration
+        return """# API Configuration
 REACT_APP_API_URL=http://localhost:5000
 
 # App Name
 REACT_APP_NAME=App
-'''
+"""
 
     def _generate_frontend_readme(self, framework: str) -> str:
         """Generate README for frontend"""
-        project_name = self.plan.get('name', 'App')
+        project_name = self.plan.get("name", "App")
 
-        return f'''# {project_name} - Frontend
+        return f"""# {project_name} - Frontend
 
 {framework} frontend application for {project_name}.
 
@@ -1908,11 +1963,11 @@ Deploy the `build` folder to any static hosting service:
 - Netlify
 - AWS S3
 - GitHub Pages
-'''
+"""
 
     def _generate_gitignore(self) -> str:
         """Generate .gitignore"""
-        return '''# Dependencies
+        return """# Dependencies
 /node_modules
 /.pnp
 .pnp.js
@@ -1936,7 +1991,7 @@ yarn-error.log*
 
 # Environment
 .env
-'''
+"""
 
     # ========================================================================
     # VUE FRONTEND GENERATION
@@ -1954,44 +2009,44 @@ yarn-error.log*
 
     def _has_authentication(self) -> bool:
         """Check if authentication is needed"""
-        tables = self.plan.get('database_schema', {}).get('tables', [])
-        return any(t['table_name'] == 'users' for t in tables)
+        tables = self.plan.get("database_schema", {}).get("tables", [])
+        return any(t["table_name"] == "users" for t in tables)
 
     def _to_class_name(self, table_name: str) -> str:
         """Convert table name to class name (PascalCase)"""
         singular = self._singularize(table_name)
-        return ''.join(word.capitalize() for word in singular.split('_'))
+        return "".join(word.capitalize() for word in singular.split("_"))
 
     def _singularize(self, word: str) -> str:
         """Simple singularize (remove trailing 's')"""
-        if word.endswith('ies'):
-            return word[:-3] + 'y'
-        elif word.endswith('ses'):
+        if word.endswith("ies"):
+            return word[:-3] + "y"
+        elif word.endswith("ses"):
             return word[:-2]
-        elif word.endswith('s'):
+        elif word.endswith("s"):
             return word[:-1]
         return word
 
     def _get_file_type(self, path: str) -> str:
         """Get file type from path"""
-        if path.endswith('.jsx') or path.endswith('.js'):
-            return 'javascript'
-        elif path.endswith('.css'):
-            return 'css'
-        elif path.endswith('.json'):
-            return 'json'
-        elif path.endswith('.html'):
-            return 'html'
-        elif path.endswith('.md'):
-            return 'markdown'
+        if path.endswith(".jsx") or path.endswith(".js"):
+            return "javascript"
+        elif path.endswith(".css"):
+            return "css"
+        elif path.endswith(".json"):
+            return "json"
+        elif path.endswith(".html"):
+            return "html"
+        elif path.endswith(".md"):
+            return "markdown"
         else:
-            return 'text'
+            return "text"
 
     def _get_file_structure(self, files: Dict[str, str]) -> Dict:
         """Generate file structure tree"""
         structure = {}
         for path in files.keys():
-            parts = path.split('/')
+            parts = path.split("/")
             current = structure
             for part in parts:
                 if part not in current:
@@ -2034,12 +2089,12 @@ yarn-error.log*
                         db_connection.text(insert_query),
                         (
                             self.project_id,
-                            file_data['file_path'],
-                            file_data['content'],
-                            file_data['file_type'],
+                            file_data["file_path"],
+                            file_data["content"],
+                            file_data["file_type"],
                             1,  # version
-                            True  # is_latest
-                        )
+                            True,  # is_latest
+                        ),
                     )
 
                 conn.commit()
@@ -2055,7 +2110,7 @@ yarn-error.log*
 # TESTING
 # ============================================================================
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import asyncio
 
     print("=" * 80)
@@ -2064,44 +2119,38 @@ if __name__ == '__main__':
 
     # Mock plan
     mock_plan = {
-        'name': 'Todo App',
-        'tech_stack': {
-            'backend': 'Flask',
-            'frontend': 'React',
-            'database': 'PostgreSQL'
+        "name": "Todo App",
+        "tech_stack": {
+            "backend": "Flask",
+            "frontend": "React",
+            "database": "PostgreSQL",
         },
-        'database_schema': {
-            'database_type': 'PostgreSQL',
-            'tables': [
+        "database_schema": {
+            "database_type": "PostgreSQL",
+            "tables": [
                 {
-                    'table_name': 'users',
-                    'columns': [
-                        {'name': 'id', 'type': 'SERIAL PRIMARY KEY'},
-                        {'name': 'username', 'type': 'VARCHAR(100)'},
-                        {'name': 'email', 'type': 'VARCHAR(255)'}
-                    ]
+                    "table_name": "users",
+                    "columns": [
+                        {"name": "id", "type": "SERIAL PRIMARY KEY"},
+                        {"name": "username", "type": "VARCHAR(100)"},
+                        {"name": "email", "type": "VARCHAR(255)"},
+                    ],
                 },
                 {
-                    'table_name': 'tasks',
-                    'columns': [
-                        {'name': 'id', 'type': 'SERIAL PRIMARY KEY'},
-                        {'name': 'user_id', 'type': 'INTEGER REFERENCES users(id)'},
-                        {'name': 'title', 'type': 'VARCHAR(255)'},
-                        {'name': 'description', 'type': 'TEXT'},
-                        {'name': 'completed', 'type': 'BOOLEAN DEFAULT FALSE'}
-                    ]
-                }
-            ]
-        }
+                    "table_name": "tasks",
+                    "columns": [
+                        {"name": "id", "type": "SERIAL PRIMARY KEY"},
+                        {"name": "user_id", "type": "INTEGER REFERENCES users(id)"},
+                        {"name": "title", "type": "VARCHAR(255)"},
+                        {"name": "description", "type": "TEXT"},
+                        {"name": "completed", "type": "BOOLEAN DEFAULT FALSE"},
+                    ],
+                },
+            ],
+        },
     }
 
-    mock_architecture = {
-        'state_management': {
-            'pattern': {
-                'name': 'React Context API'
-            }
-        }
-    }
+    mock_architecture = {"state_management": {"pattern": {"name": "React Context API"}}}
 
     async def test_frontend():
         print("\nTest 1: React Frontend Generation")
@@ -2116,10 +2165,10 @@ if __name__ == '__main__':
         print(f"  - Generated At: {result['generated_at']}")
 
         print(f"\n📁 File Structure:")
-        for file in result['files'][:15]:  # Show first 15 files
+        for file in result["files"][:15]:  # Show first 15 files
             print(f"  - {file['file_path']} ({file['file_type']})")
 
-        if len(result['files']) > 15:
+        if len(result["files"]) > 15:
             print(f"  ... and {len(result['files']) - 15} more files")
 
         print(f"\n✅ Frontend Generator test complete")

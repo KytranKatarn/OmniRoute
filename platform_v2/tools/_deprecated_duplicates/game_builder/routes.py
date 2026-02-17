@@ -1,10 +1,11 @@
 """
 Game Builder Routes (Placeholder)
 """
+
 from flask import render_template_string, jsonify
 from . import game_builder_bp
 
-COMING_SOON_HTML = '''
+COMING_SOON_HTML = """
 <!DOCTYPE html>
 <html>
 <head>
@@ -29,17 +30,21 @@ COMING_SOON_HTML = '''
     </div>
 </body>
 </html>
-'''
+"""
 
-@game_builder_bp.route('/')
+
+@game_builder_bp.route("/")
 def index():
     return render_template_string(COMING_SOON_HTML)
 
-@game_builder_bp.route('/api/status')
+
+@game_builder_bp.route("/api/status")
 def status():
-    return jsonify({
-        'module': 'game_builder',
-        'status': 'coming_soon',
-        'healthy': False,
-        'message': 'Module not yet implemented'
-    })
+    return jsonify(
+        {
+            "module": "game_builder",
+            "status": "coming_soon",
+            "healthy": False,
+            "message": "Module not yet implemented",
+        }
+    )

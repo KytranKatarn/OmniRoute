@@ -57,7 +57,15 @@ def prepare_cursor_project(proposal_id):
     """
     try:
         if CursorContextGenerator is None:
-            return jsonify({"success": False, "error": "Cursor integration not available on this node"}), 503
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Cursor integration not available on this node",
+                    }
+                ),
+                503,
+            )
         generator = CursorContextGenerator()
         result = generator.prepare_cursor_package(proposal_id)
 
@@ -75,12 +83,23 @@ def prepare_cursor_project(proposal_id):
                 }
             )
         else:
-            return jsonify({"success": False, "error": result.get("error", "Failed to prepare Cursor project")}), 500
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": result.get("error", "Failed to prepare Cursor project"),
+                    }
+                ),
+                500,
+            )
 
     except Exception as e:
         import traceback
 
-        return jsonify({"success": False, "error": str(e), "traceback": traceback.format_exc()}), 500
+        return (
+            jsonify({"success": False, "error": str(e), "traceback": traceback.format_exc()}),
+            500,
+        )
 
 
 @cursor_bp.route("/rules/<int:proposal_id>", methods=["GET"])
@@ -93,7 +112,15 @@ def get_cursorrules(proposal_id):
     """
     try:
         if CursorContextGenerator is None:
-            return jsonify({"success": False, "error": "Cursor integration not available on this node"}), 503
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Cursor integration not available on this node",
+                    }
+                ),
+                503,
+            )
         generator = CursorContextGenerator()
         result = generator.generate_cursorrules(proposal_id)
 
@@ -107,7 +134,15 @@ def get_cursorrules(proposal_id):
                 }
             )
         else:
-            return jsonify({"success": False, "error": result.get("error", "Failed to generate .cursorrules")}), 404
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": result.get("error", "Failed to generate .cursorrules"),
+                    }
+                ),
+                404,
+            )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -123,7 +158,15 @@ def download_cursorrules(proposal_id):
     """
     try:
         if CursorContextGenerator is None:
-            return jsonify({"success": False, "error": "Cursor integration not available on this node"}), 503
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Cursor integration not available on this node",
+                    }
+                ),
+                503,
+            )
         generator = CursorContextGenerator()
         result = generator.generate_cursorrules(proposal_id)
 
@@ -142,7 +185,15 @@ def download_cursorrules(proposal_id):
                 mimetype="text/plain",
             )
         else:
-            return jsonify({"success": False, "error": result.get("error", "Failed to generate .cursorrules")}), 404
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": result.get("error", "Failed to generate .cursorrules"),
+                    }
+                ),
+                404,
+            )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -222,7 +273,7 @@ def get_cursor_status(proposal_id):
                 "commits": commits,
                 "commit_count": len(commits),
                 "last_commit_at": commits[0]["timestamp"] if commits else None,
-                "files_changed": diff_result.get("num_files", 0) if diff_result.get("success") else 0,
+                "files_changed": (diff_result.get("num_files", 0) if diff_result.get("success") else 0),
                 "status": "in_progress" if commits else "ready",
             }
         )
@@ -282,7 +333,15 @@ def get_instructions(proposal_id):
     """
     try:
         if CursorContextGenerator is None:
-            return jsonify({"success": False, "error": "Cursor integration not available on this node"}), 503
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Cursor integration not available on this node",
+                    }
+                ),
+                503,
+            )
         generator = CursorContextGenerator()
         branch_name = f"sandbox-proposal-{proposal_id}"
         instructions = generator._generate_instructions(proposal_id, branch_name)
@@ -320,7 +379,10 @@ def commit_webhook():
     try:
         # Validate request comes from Git hook
         if not request.headers.get("X-Git-Hook"):
-            return jsonify({"success": False, "error": "Unauthorized: Not from Git hook"}), 403
+            return (
+                jsonify({"success": False, "error": "Unauthorized: Not from Git hook"}),
+                403,
+            )
 
         # Get commit data
         data = request.get_json()
@@ -328,7 +390,10 @@ def commit_webhook():
         required_fields = ["proposal_id", "commit_hash", "commit_message", "branch"]
         for field in required_fields:
             if field not in data:
-                return jsonify({"success": False, "error": f"Missing required field: {field}"}), 400
+                return (
+                    jsonify({"success": False, "error": f"Missing required field: {field}"}),
+                    400,
+                )
 
         proposal_id = data["proposal_id"]
         commit_hash = data["commit_hash"]
@@ -342,7 +407,12 @@ def commit_webhook():
         expected_branch = f"sandbox-proposal-{proposal_id}"
         if branch != expected_branch:
             return (
-                jsonify({"success": False, "error": f"Branch mismatch: expected {expected_branch}, got {branch}"}),
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"Branch mismatch: expected {expected_branch}, got {branch}",
+                    }
+                ),
                 400,
             )
 
@@ -363,7 +433,15 @@ def commit_webhook():
                 """
                 result = conn.execute(
                     __import__("sqlalchemy").text(insert_query),
-                    (proposal_id, commit_hash, commit_message, author_name, author_email, branch, timestamp),
+                    (
+                        proposal_id,
+                        commit_hash,
+                        commit_message,
+                        author_name,
+                        author_email,
+                        branch,
+                        timestamp,
+                    ),
                 )
                 conn.commit()
 
@@ -371,7 +449,13 @@ def commit_webhook():
 
                 if not commit_id:
                     # Commit already recorded
-                    return jsonify({"success": True, "message": "Commit already processed", "duplicate": True})
+                    return jsonify(
+                        {
+                            "success": True,
+                            "message": "Commit already processed",
+                            "duplicate": True,
+                        }
+                    )
 
             except Exception as db_error:
                 # Table might not exist, log but continue
@@ -382,7 +466,13 @@ def commit_webhook():
         is_test = request.headers.get("X-Git-Hook-Test") == "true"
 
         if is_test:
-            return jsonify({"success": True, "message": "Test webhook received successfully", "test_mode": True})
+            return jsonify(
+                {
+                    "success": True,
+                    "message": "Test webhook received successfully",
+                    "test_mode": True,
+                }
+            )
 
         # Trigger background workflow
         try:
@@ -427,7 +517,10 @@ def commit_webhook():
     except Exception as e:
         import traceback
 
-        return jsonify({"success": False, "error": str(e), "traceback": traceback.format_exc()}), 500
+        return (
+            jsonify({"success": False, "error": str(e), "traceback": traceback.format_exc()}),
+            500,
+        )
 
 
 @cursor_bp.route("/poller/status", methods=["GET"])
@@ -527,11 +620,18 @@ def get_proposal_commits(proposal_id):
                         "workflow_triggered": row[8],
                         "workflow_id": row[9],
                         "workflow_status": row[10],
-                        "workflow_completed_at": row[11].isoformat() if row[11] else None,
+                        "workflow_completed_at": (row[11].isoformat() if row[11] else None),
                     }
                 )
 
-            return jsonify({"success": True, "commits": commits, "total": len(commits), "proposal_id": proposal_id})
+            return jsonify(
+                {
+                    "success": True,
+                    "commits": commits,
+                    "total": len(commits),
+                    "proposal_id": proposal_id,
+                }
+            )
 
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

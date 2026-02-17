@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TriageResult:
     """Complete result of triaging a conversation."""
+
     classification: Classification
     errors: List[ExtractedError]
     code_snippets: List[ExtractedCode]
@@ -58,16 +59,17 @@ class TriagePipeline:
 
         # Stage 1: Classification
         classification = self.classifier.classify(content)
-        logger.info(f"Classified as {classification.phase}/{classification.primary_topic} "
-                   f"(urgency: {classification.urgency_score:.2f})")
+        logger.info(
+            f"Classified as {classification.phase}/{classification.primary_topic} "
+            f"(urgency: {classification.urgency_score:.2f})"
+        )
 
         # Stage 2: Extraction (parallel in concept, sequential here)
         errors = self.error_extractor.extract(content)
         code_snippets = self.code_extractor.extract(content)
         insights = self.insight_extractor.extract(content)
 
-        logger.info(f"Extracted: {len(errors)} errors, {len(code_snippets)} snippets, "
-                   f"{len(insights)} insights")
+        logger.info(f"Extracted: {len(errors)} errors, {len(code_snippets)} snippets, " f"{len(insights)} insights")
 
         # Calculate processing time
         processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
@@ -81,7 +83,7 @@ class TriagePipeline:
             code_snippets=code_snippets,
             insights=insights,
             processing_time_ms=processing_time,
-            summary=summary
+            summary=summary,
         )
 
         # Stage 3: Database insertion (if connected)
@@ -95,7 +97,7 @@ class TriagePipeline:
         classification: Classification,
         errors: List[ExtractedError],
         code_snippets: List[ExtractedCode],
-        insights: List[ExtractedInsight]
+        insights: List[ExtractedInsight],
     ) -> str:
         """Generate a human-readable summary of the triage."""
         parts = [
@@ -103,7 +105,7 @@ class TriagePipeline:
             f"**Phase:** {classification.phase}",
             f"**Urgency:** {classification.urgency_score:.0%}",
             "",
-            "**Extractions:**"
+            "**Extractions:**",
         ]
 
         if errors:
@@ -124,7 +126,7 @@ class TriagePipeline:
         if not errors and not code_snippets and not insights:
             parts.append("- No significant extractions")
 
-        return '\n'.join(parts)
+        return "\n".join(parts)
 
     def _save_to_database(self, result: TriageResult, conversation_id: int) -> None:
         """Save triage results to database."""
@@ -132,22 +134,25 @@ class TriagePipeline:
             cursor = self.db.cursor()
 
             # Insert into triage queue
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO conversation_triage_queue
                 (conversation_id, status, priority, primary_topic, conversation_phase,
                  urgency_score, classification, extractions, processed_at, processing_duration_ms)
                 VALUES (%s, 'completed', %s, %s, %s, %s, %s, %s, NOW(), %s)
                 RETURNING id
-            """, (
-                conversation_id,
-                self._calculate_priority(result),
-                result.classification.primary_topic,
-                result.classification.phase,
-                result.classification.urgency_score,
-                self._classification_to_json(result.classification),
-                self._extractions_to_json(result),
-                result.processing_time_ms
-            ))
+            """,
+                (
+                    conversation_id,
+                    self._calculate_priority(result),
+                    result.classification.primary_topic,
+                    result.classification.phase,
+                    result.classification.urgency_score,
+                    self._classification_to_json(result.classification),
+                    self._extractions_to_json(result),
+                    result.processing_time_ms,
+                ),
+            )
             triage_id = cursor.fetchone()[0]
 
             # Insert individual extractions
@@ -167,8 +172,8 @@ class TriagePipeline:
 
         # Boost for errors
         if result.errors:
-            critical = any(e.severity == 'critical' for e in result.errors)
-            high = any(e.severity == 'high' for e in result.errors)
+            critical = any(e.severity == "critical" for e in result.errors)
+            high = any(e.severity == "high" for e in result.errors)
             if critical:
                 base = min(base + 3, 10)
             elif high:
@@ -179,22 +184,28 @@ class TriagePipeline:
     def _classification_to_json(self, classification: Classification) -> str:
         """Convert classification to JSON string."""
         import json
-        return json.dumps({
-            'primary_topic': classification.primary_topic,
-            'phase': classification.phase,
-            'urgency_score': classification.urgency_score,
-            'tags': classification.tags,
-            'confidence': classification.confidence
-        })
+
+        return json.dumps(
+            {
+                "primary_topic": classification.primary_topic,
+                "phase": classification.phase,
+                "urgency_score": classification.urgency_score,
+                "tags": classification.tags,
+                "confidence": classification.confidence,
+            }
+        )
 
     def _extractions_to_json(self, result: TriageResult) -> str:
         """Convert extractions to JSON string."""
         import json
-        return json.dumps({
-            'error_count': len(result.errors),
-            'snippet_count': len(result.code_snippets),
-            'insight_count': len(result.insights)
-        })
+
+        return json.dumps(
+            {
+                "error_count": len(result.errors),
+                "snippet_count": len(result.code_snippets),
+                "insight_count": len(result.insights),
+            }
+        )
 
     def _save_extractions(self, cursor, triage_id: int, result: TriageResult) -> None:
         """Save individual extractions to triage_extractions table."""
@@ -202,48 +213,57 @@ class TriagePipeline:
 
         # Save errors
         for error in result.errors:
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO triage_extractions
                 (triage_id, extraction_type, title, content, severity, confidence_score, raw_extraction)
                 VALUES (%s, 'error', %s, %s, %s, %s, %s)
-            """, (
-                triage_id,
-                error.title,
-                f"**Error:** {error.error_message}\n\n**Cause:** {error.cause}\n\n**Solution:** {error.solution}",
-                error.severity,
-                error.confidence,
-                json.dumps(asdict(error))
-            ))
+            """,
+                (
+                    triage_id,
+                    error.title,
+                    f"**Error:** {error.error_message}\n\n**Cause:** {error.cause}\n\n**Solution:** {error.solution}",
+                    error.severity,
+                    error.confidence,
+                    json.dumps(asdict(error)),
+                ),
+            )
 
         # Save code snippets
         for snippet in result.code_snippets:
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO triage_extractions
                 (triage_id, extraction_type, title, content, language, confidence_score, raw_extraction)
                 VALUES (%s, 'code_snippet', %s, %s, %s, %s, %s)
-            """, (
-                triage_id,
-                snippet.title,
-                f"**Purpose:** {snippet.purpose}\n\n```{snippet.language}\n{snippet.code}\n```",
-                snippet.language,
-                snippet.confidence,
-                json.dumps(asdict(snippet))
-            ))
+            """,
+                (
+                    triage_id,
+                    snippet.title,
+                    f"**Purpose:** {snippet.purpose}\n\n```{snippet.language}\n{snippet.code}\n```",
+                    snippet.language,
+                    snippet.confidence,
+                    json.dumps(asdict(snippet)),
+                ),
+            )
 
         # Save insights
         for insight in result.insights:
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO triage_extractions
                 (triage_id, extraction_type, title, content, confidence_score, raw_extraction)
                 VALUES (%s, %s, %s, %s, %s, %s)
-            """, (
-                triage_id,
-                'insight' if insight.insight_type == 'learning' else insight.insight_type,
-                insight.title,
-                insight.content,
-                insight.confidence,
-                json.dumps(asdict(insight))
-            ))
+            """,
+                (
+                    triage_id,
+                    ("insight" if insight.insight_type == "learning" else insight.insight_type),
+                    insight.title,
+                    insight.content,
+                    insight.confidence,
+                    json.dumps(asdict(insight)),
+                ),
+            )
 
 
 def triage_conversation(content: str, db_connection=None, conversation_id: int = None) -> Dict[str, Any]:
@@ -262,17 +282,17 @@ def triage_conversation(content: str, db_connection=None, conversation_id: int =
     result = pipeline.process(content, conversation_id)
 
     return {
-        'classification': {
-            'topic': result.classification.primary_topic,
-            'phase': result.classification.phase,
-            'urgency': result.classification.urgency_score,
-            'tags': result.classification.tags
+        "classification": {
+            "topic": result.classification.primary_topic,
+            "phase": result.classification.phase,
+            "urgency": result.classification.urgency_score,
+            "tags": result.classification.tags,
         },
-        'extractions': {
-            'errors': [asdict(e) for e in result.errors],
-            'code_snippets': [asdict(c) for c in result.code_snippets],
-            'insights': [asdict(i) for i in result.insights]
+        "extractions": {
+            "errors": [asdict(e) for e in result.errors],
+            "code_snippets": [asdict(c) for c in result.code_snippets],
+            "insights": [asdict(i) for i in result.insights],
         },
-        'summary': result.summary,
-        'processing_time_ms': result.processing_time_ms
+        "summary": result.summary,
+        "processing_time_ms": result.processing_time_ms,
     }

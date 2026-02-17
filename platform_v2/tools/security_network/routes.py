@@ -262,7 +262,10 @@ except ImportError:
 def network_overview():
     """Get network overview"""
     if not NETWORK_AVAILABLE:
-        return jsonify({"success": False, "error": "Network integration not available"}), 503
+        return (
+            jsonify({"success": False, "error": "Network integration not available"}),
+            503,
+        )
 
     try:
         overview = get_network_overview()
@@ -277,7 +280,10 @@ def network_overview():
 def security_threats():
     """Get security threats"""
     if not NETWORK_AVAILABLE:
-        return jsonify({"success": False, "error": "Network integration not available"}), 503
+        return (
+            jsonify({"success": False, "error": "Network integration not available"}),
+            503,
+        )
 
     try:
         threats = check_security_threats()
@@ -292,7 +298,10 @@ def security_threats():
 def security_auto_block():
     """Auto-block detected threats"""
     if not NETWORK_AVAILABLE:
-        return jsonify({"success": False, "error": "Network integration not available"}), 503
+        return (
+            jsonify({"success": False, "error": "Network integration not available"}),
+            503,
+        )
 
     try:
         blocked = auto_block_threats()
@@ -400,7 +409,7 @@ def docker_security():
                 container_data.append(
                     {
                         "name": container.name,
-                        "image": container.image.tags[0] if container.image.tags else container.image.short_id,
+                        "image": (container.image.tags[0] if container.image.tags else container.image.short_id),
                         "security": {
                             "privileged": container_info["privileged"],
                             "network_mode": container_info["network_mode"],
@@ -510,9 +519,18 @@ def external_tools_status():
             sock.settimeout(timeout)
             result = sock.connect_ex((config["host"], config["port"]))
             sock.close()
-            results[tool_name] = {"online": result == 0, "host": config["host"], "port": config["port"]}
+            results[tool_name] = {
+                "online": result == 0,
+                "host": config["host"],
+                "port": config["port"],
+            }
         except Exception as e:
-            results[tool_name] = {"online": False, "host": config["host"], "port": config["port"], "error": str(e)}
+            results[tool_name] = {
+                "online": False,
+                "host": config["host"],
+                "port": config["port"],
+                "error": str(e),
+            }
 
     return jsonify({"success": True, "tools": results})
 
@@ -603,7 +621,10 @@ def run_nmap_scan():
             cur.execute(
                 """INSERT INTO audit_log (action, user_id, details)
                    VALUES ('security_scan', %s, %s)""",
-                (current_user.id, {"type": "nmap", "target": target, "scan_type": scan_type}),
+                (
+                    current_user.id,
+                    {"type": "nmap", "target": target, "scan_type": scan_type},
+                ),
             )
             conn.commit()
             cur.close()
@@ -869,7 +890,10 @@ def adguard_block_domain():
 def api_firewall_status():
     """Get firewall status"""
     if not SECURITY_SERVICE_AVAILABLE:
-        return jsonify({"success": False, "error": "Security service not available"}), 503
+        return (
+            jsonify({"success": False, "error": "Security service not available"}),
+            503,
+        )
 
     try:
         status = get_firewall_status()
@@ -884,7 +908,10 @@ def api_firewall_status():
 def api_active_connections():
     """Get active network connections"""
     if not SECURITY_SERVICE_AVAILABLE:
-        return jsonify({"success": False, "error": "Security service not available"}), 503
+        return (
+            jsonify({"success": False, "error": "Security service not available"}),
+            503,
+        )
 
     try:
         connections = get_active_connections()
@@ -904,7 +931,10 @@ def api_active_connections():
 def api_ip_access_list():
     """Get blocked and whitelisted IPs"""
     if not SECURITY_SERVICE_AVAILABLE:
-        return jsonify({"success": False, "error": "Security service not available"}), 503
+        return (
+            jsonify({"success": False, "error": "Security service not available"}),
+            503,
+        )
 
     try:
         blocked = get_blocked_ips()
@@ -920,7 +950,10 @@ def api_ip_access_list():
 def api_block_ip():
     """Block an IP address"""
     if not SECURITY_SERVICE_AVAILABLE:
-        return jsonify({"success": False, "error": "Security service not available"}), 503
+        return (
+            jsonify({"success": False, "error": "Security service not available"}),
+            503,
+        )
 
     data = request.get_json() or {}
     ip_address = data.get("ip_address", "")
@@ -943,7 +976,10 @@ def api_block_ip():
 def api_unblock_ip():
     """Unblock an IP address"""
     if not SECURITY_SERVICE_AVAILABLE:
-        return jsonify({"success": False, "error": "Security service not available"}), 503
+        return (
+            jsonify({"success": False, "error": "Security service not available"}),
+            503,
+        )
 
     data = request.get_json() or {}
     ip_address = data.get("ip_address", "")
@@ -969,7 +1005,10 @@ def api_unblock_ip():
 def api_auto_block_settings():
     """Get auto-block settings"""
     if not SECURITY_SERVICE_AVAILABLE:
-        return jsonify({"success": False, "error": "Security service not available"}), 503
+        return (
+            jsonify({"success": False, "error": "Security service not available"}),
+            503,
+        )
 
     try:
         settings = get_auto_block_settings()
@@ -984,7 +1023,10 @@ def api_auto_block_settings():
 def api_update_auto_block_settings():
     """Update auto-block settings"""
     if not SECURITY_SERVICE_AVAILABLE:
-        return jsonify({"success": False, "error": "Security service not available"}), 503
+        return (
+            jsonify({"success": False, "error": "Security service not available"}),
+            503,
+        )
 
     data = request.get_json() or {}
 
@@ -1003,7 +1045,10 @@ def api_update_auto_block_settings():
 def api_analyze_threats():
     """Analyze failed logins for threats"""
     if not SECURITY_SERVICE_AVAILABLE:
-        return jsonify({"success": False, "error": "Security service not available"}), 503
+        return (
+            jsonify({"success": False, "error": "Security service not available"}),
+            503,
+        )
 
     hours = request.args.get("hours", 24, type=int)
 
@@ -1020,7 +1065,10 @@ def api_analyze_threats():
 def api_execute_auto_block():
     """Execute auto-block on detected threats"""
     if not SECURITY_SERVICE_AVAILABLE:
-        return jsonify({"success": False, "error": "Security service not available"}), 503
+        return (
+            jsonify({"success": False, "error": "Security service not available"}),
+            503,
+        )
 
     try:
         result = auto_block_threats(current_user.id)
@@ -1040,7 +1088,10 @@ def api_execute_auto_block():
 def api_security_events():
     """Get security events"""
     if not SECURITY_SERVICE_AVAILABLE:
-        return jsonify({"success": False, "error": "Security service not available"}), 503
+        return (
+            jsonify({"success": False, "error": "Security service not available"}),
+            503,
+        )
 
     status = request.args.get("status")
     severity = request.args.get("severity")
@@ -1060,7 +1111,10 @@ def api_security_events():
 def api_resolve_event(event_id):
     """Resolve a security event"""
     if not SECURITY_SERVICE_AVAILABLE:
-        return jsonify({"success": False, "error": "Security service not available"}), 503
+        return (
+            jsonify({"success": False, "error": "Security service not available"}),
+            503,
+        )
 
     data = request.get_json() or {}
     notes = data.get("notes", "")
@@ -1083,7 +1137,10 @@ def api_resolve_event(event_id):
 def api_check_ssl():
     """Check SSL certificate for a domain"""
     if not SECURITY_SERVICE_AVAILABLE:
-        return jsonify({"success": False, "error": "Security service not available"}), 503
+        return (
+            jsonify({"success": False, "error": "Security service not available"}),
+            503,
+        )
 
     data = request.get_json() or {}
     domain = data.get("domain", "")
@@ -1105,7 +1162,10 @@ def api_check_ssl():
 def api_ssl_monitors():
     """Get SSL monitors"""
     if not SECURITY_SERVICE_AVAILABLE:
-        return jsonify({"success": False, "error": "Security service not available"}), 503
+        return (
+            jsonify({"success": False, "error": "Security service not available"}),
+            503,
+        )
 
     try:
         monitors = get_ssl_monitors()
@@ -1120,7 +1180,10 @@ def api_ssl_monitors():
 def api_add_ssl_monitor():
     """Add SSL monitor for a domain"""
     if not SECURITY_SERVICE_AVAILABLE:
-        return jsonify({"success": False, "error": "Security service not available"}), 503
+        return (
+            jsonify({"success": False, "error": "Security service not available"}),
+            503,
+        )
 
     data = request.get_json() or {}
     domain = data.get("domain", "")
@@ -1142,7 +1205,10 @@ def api_add_ssl_monitor():
 def api_refresh_ssl_monitors():
     """Refresh all SSL monitors"""
     if not SECURITY_SERVICE_AVAILABLE:
-        return jsonify({"success": False, "error": "Security service not available"}), 503
+        return (
+            jsonify({"success": False, "error": "Security service not available"}),
+            503,
+        )
 
     try:
         result = refresh_ssl_monitors()

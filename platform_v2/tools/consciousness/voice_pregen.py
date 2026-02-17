@@ -499,7 +499,11 @@ def run_pregen_job(
                     )
                 else:
                     result = synthesizer.synthesize(
-                        word, emotion, quality=quality, engine=effective_engine, language=language
+                        word,
+                        emotion,
+                        quality=quality,
+                        engine=effective_engine,
+                        language=language,
                     )
 
                 if result.get("success"):

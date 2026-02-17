@@ -11,6 +11,6 @@ Features:
 
 from flask import Blueprint
 
-code_sentinel_bp = Blueprint('code_sentinel', __name__, url_prefix='/tools/code_sentinel')
+code_sentinel_bp = Blueprint("code_sentinel", __name__, url_prefix="/tools/code_sentinel")
 
 from . import routes

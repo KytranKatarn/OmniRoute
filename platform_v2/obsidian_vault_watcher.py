@@ -14,6 +14,7 @@ Pattern: Background thread-based worker (similar to git_commit_poller.py)
 Author: A.R.C.H.I.E. Platform
 Date: 2026-01-08
 """
+
 import os
 import time
 import threading
@@ -31,20 +32,20 @@ class VaultEventHandler(FileSystemEventHandler):
         super().__init__()
 
     def on_created(self, event: FileSystemEvent):
-        if not event.is_directory and event.src_path.endswith('.md'):
-            self.watcher._queue_event('CREATE', event.src_path)
+        if not event.is_directory and event.src_path.endswith(".md"):
+            self.watcher._queue_event("CREATE", event.src_path)
 
     def on_modified(self, event: FileSystemEvent):
-        if not event.is_directory and event.src_path.endswith('.md'):
-            self.watcher._queue_event('MODIFY', event.src_path)
+        if not event.is_directory and event.src_path.endswith(".md"):
+            self.watcher._queue_event("MODIFY", event.src_path)
 
     def on_deleted(self, event: FileSystemEvent):
-        if not event.is_directory and event.src_path.endswith('.md'):
-            self.watcher._queue_event('DELETE', event.src_path)
+        if not event.is_directory and event.src_path.endswith(".md"):
+            self.watcher._queue_event("DELETE", event.src_path)
 
     def on_moved(self, event: FileSystemEvent):
-        if not event.is_directory and event.src_path.endswith('.md'):
-            self.watcher._queue_event('MOVE', event.src_path, event.dest_path)
+        if not event.is_directory and event.src_path.endswith(".md"):
+            self.watcher._queue_event("MOVE", event.src_path, event.dest_path)
 
 
 class ObsidianVaultWatcher:
@@ -52,9 +53,9 @@ class ObsidianVaultWatcher:
 
     def __init__(
         self,
-        vault_path: str = '/mnt/archie_brain/knowledge/',
+        vault_path: str = "/mnt/archie_brain/knowledge/",
         debounce_delay: float = 2.0,
-        enabled: bool = True
+        enabled: bool = True,
     ):
         self.vault_path = vault_path
         self.debounce_delay = debounce_delay
@@ -97,9 +98,7 @@ class ObsidianVaultWatcher:
 
         # Start event processor thread
         self.processor_thread = threading.Thread(
-            target=self._process_events_loop,
-            daemon=True,
-            name="VaultEventProcessor"
+            target=self._process_events_loop, daemon=True, name="VaultEventProcessor"
         )
         self.processor_thread.start()
 
@@ -124,12 +123,7 @@ class ObsidianVaultWatcher:
 
         print("[Vault Watcher] Stopped")
 
-    def _queue_event(
-        self,
-        event_type: str,
-        file_path: str,
-        dest_path: Optional[str] = None
-    ):
+    def _queue_event(self, event_type: str, file_path: str, dest_path: Optional[str] = None):
         """
         Queue a file system event with debouncing
 
@@ -144,18 +138,14 @@ class ObsidianVaultWatcher:
 
         with self.queue_lock:
             # Update or add event (most recent wins)
-            self.event_queue[file_path] = (
-                event_type,
-                time.time(),
-                dest_path
-            )
+            self.event_queue[file_path] = (event_type, time.time(), dest_path)
             self.events_detected += 1
             self.last_event_time = datetime.now()
 
     def _is_temp_file(self, file_path: str) -> bool:
         """Check if file is temporary (ignore these)"""
         filename = os.path.basename(file_path)
-        temp_patterns = ['.tmp', '.swp', '~', '.bak']
+        temp_patterns = [".tmp", ".swp", "~", ".bak"]
         return any(filename.endswith(pattern) for pattern in temp_patterns)
 
     def _process_events_loop(self):
@@ -182,7 +172,11 @@ class ObsidianVaultWatcher:
         with self.queue_lock:
             to_remove = []
 
-            for file_path, (event_type, timestamp, dest_path) in self.event_queue.items():
+            for file_path, (
+                event_type,
+                timestamp,
+                dest_path,
+            ) in self.event_queue.items():
                 # Check if debounce delay has passed
                 if current_time - timestamp >= self.debounce_delay:
                     ready[file_path] = (event_type, timestamp, dest_path)
@@ -194,12 +188,7 @@ class ObsidianVaultWatcher:
 
         return ready
 
-    def _handle_event(
-        self,
-        event_type: str,
-        file_path: str,
-        dest_path: Optional[str] = None
-    ):
+    def _handle_event(self, event_type: str, file_path: str, dest_path: Optional[str] = None):
         """
         Handle a debounced file system event
 
@@ -215,20 +204,15 @@ class ObsidianVaultWatcher:
             self._trigger_reindex(event_type, file_path, dest_path)
 
             # Log to database
-            self._log_sync_event(event_type, file_path, 'success')
+            self._log_sync_event(event_type, file_path, "success")
 
             self.events_processed += 1
 
         except Exception as e:
             print(f"[Vault Watcher] Error handling {event_type} for {file_path}: {e}")
-            self._log_sync_event(event_type, file_path, 'error', str(e))
+            self._log_sync_event(event_type, file_path, "error", str(e))
 
-    def _trigger_reindex(
-        self,
-        event_type: str,
-        file_path: str,
-        dest_path: Optional[str] = None
-    ):
+    def _trigger_reindex(self, event_type: str, file_path: str, dest_path: Optional[str] = None):
         """
         Trigger knowledge base re-indexing
 
@@ -241,13 +225,13 @@ class ObsidianVaultWatcher:
         try:
             from knowledge_vault_indexer import reindex_note
 
-            if event_type in ['CREATE', 'MODIFY']:
+            if event_type in ["CREATE", "MODIFY"]:
                 reindex_note(file_path)
-            elif event_type == 'DELETE':
+            elif event_type == "DELETE":
                 # Remove from knowledge base
                 print(f"[Vault Watcher] Note deleted: {file_path}")
                 # TODO: Call knowledge base delete function
-            elif event_type == 'MOVE':
+            elif event_type == "MOVE":
                 # Re-index at new location
                 if dest_path:
                     reindex_note(dest_path)
@@ -263,7 +247,7 @@ class ObsidianVaultWatcher:
         event_type: str,
         file_path: str,
         status: str,
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None,
     ):
         """
         Log sync event to database
@@ -286,7 +270,7 @@ class ObsidianVaultWatcher:
             with db.engine.connect() as conn:
                 conn.execute(
                     db.text(query),
-                    (event_type, file_path, status, error_message, datetime.now())
+                    (event_type, file_path, status, error_message, datetime.now()),
                 )
                 conn.commit()
 
@@ -296,13 +280,13 @@ class ObsidianVaultWatcher:
     def get_status(self) -> Dict:
         """Get watcher status"""
         return {
-            'running': self.running,
-            'vault_path': self.vault_path,
-            'debounce_delay': self.debounce_delay,
-            'events_detected': self.events_detected,
-            'events_processed': self.events_processed,
-            'queued_events': len(self.event_queue),
-            'last_event_time': self.last_event_time.isoformat() if self.last_event_time else None
+            "running": self.running,
+            "vault_path": self.vault_path,
+            "debounce_delay": self.debounce_delay,
+            "events_detected": self.events_detected,
+            "events_processed": self.events_processed,
+            "queued_events": len(self.event_queue),
+            "last_event_time": (self.last_event_time.isoformat() if self.last_event_time else None),
         }
 
 
@@ -343,14 +327,11 @@ def stop_watcher():
 # TESTING
 # ============================================================================
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("=== Obsidian Vault Watcher Test ===\n")
 
     # Create test watcher
-    watcher = ObsidianVaultWatcher(
-        vault_path='/mnt/archie_brain/knowledge/',
-        debounce_delay=2.0
-    )
+    watcher = ObsidianVaultWatcher(vault_path="/mnt/archie_brain/knowledge/", debounce_delay=2.0)
 
     # Start watcher
     watcher.start()
@@ -363,9 +344,11 @@ if __name__ == '__main__':
         while True:
             time.sleep(5)
             status = watcher.get_status()
-            print(f"[Status] Events: {status['events_detected']} detected, "
-                  f"{status['events_processed']} processed, "
-                  f"{status['queued_events']} queued")
+            print(
+                f"[Status] Events: {status['events_detected']} detected, "
+                f"{status['events_processed']} processed, "
+                f"{status['queued_events']} queued"
+            )
     except KeyboardInterrupt:
         print("\n\nStopping watcher...")
         watcher.stop()

@@ -13,6 +13,6 @@ Features:
 
 from flask import Blueprint
 
-project_manager_bp = Blueprint('project_manager', __name__, url_prefix='/tools/project-manager')
+project_manager_bp = Blueprint("project_manager", __name__, url_prefix="/tools/project-manager")
 
 from . import routes

@@ -20,12 +20,18 @@ This allows:
 - API calls to be logged
 - Local LLM conversations to be remembered
 """
+
 from flask import Flask, request, jsonify
-from conversation_ingest import ingest_conversation, retrieve_similar_conversations, get_archie_personality
+from conversation_ingest import (
+    ingest_conversation,
+    retrieve_similar_conversations,
+    get_archie_personality,
+)
 
 app = Flask(__name__)
 
-@app.route('/api/ingest/conversation', methods=['POST'])
+
+@app.route("/api/ingest/conversation", methods=["POST"])
 def ingest_conversation_endpoint():
     """
     Ingest a conversation into A.R.C.H.I.E.'s consciousness
@@ -55,38 +61,38 @@ def ingest_conversation_endpoint():
         data = request.get_json()
 
         if not data:
-            return jsonify({
-                'success': False,
-                'error': 'No JSON data provided'
-            }), 400
+            return jsonify({"success": False, "error": "No JSON data provided"}), 400
 
         # Validate required fields
-        if 'user_message' not in data or 'ai_response' not in data:
-            return jsonify({
-                'success': False,
-                'error': 'Missing required fields: user_message, ai_response'
-            }), 400
+        if "user_message" not in data or "ai_response" not in data:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Missing required fields: user_message, ai_response",
+                    }
+                ),
+                400,
+            )
 
         # Ingest conversation
         result = ingest_conversation(
-            user_message=data['user_message'],
-            ai_response=data['ai_response'],
-            user_id=data.get('user_id'),
-            source=data.get('source', 'unknown'),
-            model=data.get('model'),
-            provider=data.get('provider'),
-            metadata=data.get('metadata')
+            user_message=data["user_message"],
+            ai_response=data["ai_response"],
+            user_id=data.get("user_id"),
+            source=data.get("source", "unknown"),
+            model=data.get("model"),
+            provider=data.get("provider"),
+            metadata=data.get("metadata"),
         )
 
-        return jsonify(result), 200 if result.get('success') else 500
+        return jsonify(result), 200 if result.get("success") else 500
 
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
-@app.route('/api/retrieve/similar', methods=['POST'])
+
+@app.route("/api/retrieve/similar", methods=["POST"])
 def retrieve_similar_endpoint():
     """
     Retrieve similar conversations from consciousness (RAG retrieval)
@@ -119,32 +125,35 @@ def retrieve_similar_endpoint():
     try:
         data = request.get_json()
 
-        if not data or 'query' not in data:
-            return jsonify({
-                'success': False,
-                'error': 'Missing required field: query'
-            }), 400
+        if not data or "query" not in data:
+            return (
+                jsonify({"success": False, "error": "Missing required field: query"}),
+                400,
+            )
 
         conversations = retrieve_similar_conversations(
-            query=data['query'],
-            user_id=data.get('user_id'),
-            max_results=data.get('max_results', 5),
-            min_importance=data.get('min_importance', 0.3)
+            query=data["query"],
+            user_id=data.get("user_id"),
+            max_results=data.get("max_results", 5),
+            min_importance=data.get("min_importance", 0.3),
         )
 
-        return jsonify({
-            'success': True,
-            'conversations': conversations,
-            'count': len(conversations)
-        }), 200
+        return (
+            jsonify(
+                {
+                    "success": True,
+                    "conversations": conversations,
+                    "count": len(conversations),
+                }
+            ),
+            200,
+        )
 
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
-@app.route('/api/personality', methods=['GET'])
+
+@app.route("/api/personality", methods=["GET"])
 def get_personality_endpoint():
     """
     Get A.R.C.H.I.E.'s current personality traits
@@ -168,26 +177,27 @@ def get_personality_endpoint():
     try:
         personality = get_archie_personality()
 
-        return jsonify({
-            'success': True,
-            'personality': personality
-        }), 200
+        return jsonify({"success": True, "personality": personality}), 200
 
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
-@app.route('/api/health', methods=['GET'])
+
+@app.route("/api/health", methods=["GET"])
 def health_check():
     """Health check endpoint"""
-    return jsonify({
-        'status': 'healthy',
-        'service': 'archie_bridge_ingestion_api',
-        'version': '1.0.0'
-    }), 200
+    return (
+        jsonify(
+            {
+                "status": "healthy",
+                "service": "archie_bridge_ingestion_api",
+                "version": "1.0.0",
+            }
+        ),
+        200,
+    )
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     # Run API server
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    app.run(host="0.0.0.0", port=5001, debug=True)

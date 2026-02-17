@@ -4,37 +4,39 @@ Import existing /docs/ markdown files into Obsidian vault structure
 Creates frontmatter, organizes by category, preserves content
 Phase 3 - Knowledge Architecture Unification
 """
+
 import os
 import shutil
 import re
 from pathlib import Path
 from datetime import datetime
 
-DOCS_DIR = '/mnt/archie_brain/docs/'
-VAULT_DIR = '/mnt/archie_brain/knowledge/'
+DOCS_DIR = "/mnt/archie_brain/docs/"
+VAULT_DIR = "/mnt/archie_brain/knowledge/"
 
 # Category mapping based on filename patterns
 CATEGORY_MAPPINGS = {
-    'ADMIN': 'Development',
-    'AGENT': 'Agents',
-    'API': 'APIs',
-    'CONSCIOUSNESS': 'Core',
-    'PERSONALITY': 'Core',
-    'FEATURE': 'Features',
-    'WORKFLOW': 'Workflows',
-    'MASTER': 'Core',
-    'PHASE': 'Development',
-    'BACKUP': 'Operations',
-    'DEPLOYMENT': 'Operations',
-    'TESTING': 'Development',
-    'AI_POWERED': 'Features',
-    'BUILDER': 'Features',
-    'IMPROVEMENTS': 'Development',
-    'OPTIMIZATION': 'Development',
-    'SYSTEM': 'Core',
-    'GUIDE': 'Documentation',
-    'REFERENCE': 'Documentation',
+    "ADMIN": "Development",
+    "AGENT": "Agents",
+    "API": "APIs",
+    "CONSCIOUSNESS": "Core",
+    "PERSONALITY": "Core",
+    "FEATURE": "Features",
+    "WORKFLOW": "Workflows",
+    "MASTER": "Core",
+    "PHASE": "Development",
+    "BACKUP": "Operations",
+    "DEPLOYMENT": "Operations",
+    "TESTING": "Development",
+    "AI_POWERED": "Features",
+    "BUILDER": "Features",
+    "IMPROVEMENTS": "Development",
+    "OPTIMIZATION": "Development",
+    "SYSTEM": "Core",
+    "GUIDE": "Documentation",
+    "REFERENCE": "Documentation",
 }
+
 
 def determine_category(filename):
     """Determine category from filename"""
@@ -44,14 +46,16 @@ def determine_category(filename):
         if pattern in filename_upper:
             return category
 
-    return 'Documentation'  # Default category
+    return "Documentation"  # Default category
+
 
 def extract_title_from_content(content):
     """Extract title from first # heading or return None"""
-    match = re.search(r'^#\s+(.+)$', content, re.MULTILINE)
+    match = re.search(r"^#\s+(.+)$", content, re.MULTILINE)
     if match:
         return match.group(1).strip()
     return None
+
 
 def generate_tags(filename, category):
     """Generate tags from filename and category"""
@@ -61,29 +65,30 @@ def generate_tags(filename, category):
     tags.append(category.lower())
 
     # Add filename-based tags (split by underscore, lowercase)
-    name_parts = Path(filename).stem.lower().split('_')
+    name_parts = Path(filename).stem.lower().split("_")
     tags.extend([part for part in name_parts if len(part) > 3])  # Only meaningful parts
 
     # Always add 'documentation' tag
-    tags.append('documentation')
+    tags.append("documentation")
 
     # Remove duplicates
     return list(set(tags))
 
+
 def add_frontmatter(filepath, category):
     """Add YAML frontmatter to existing markdown file"""
-    with open(filepath, 'r', encoding='utf-8') as f:
+    with open(filepath, "r", encoding="utf-8") as f:
         content = f.read()
 
     # Check if frontmatter already exists
-    if content.startswith('---'):
+    if content.startswith("---"):
         print(f"  ⚠️  Frontmatter already exists, skipping: {Path(filepath).name}")
         return content
 
     # Extract title from content or use filename
     title = extract_title_from_content(content)
     if not title:
-        title = Path(filepath).stem.replace('_', ' ')
+        title = Path(filepath).stem.replace("_", " ")
 
     # Generate tags
     tags = generate_tags(Path(filepath).name, category)
@@ -102,14 +107,10 @@ migrated: true
 
     return frontmatter + content
 
+
 def import_docs():
     """Import all /docs/ files to vault"""
-    stats = {
-        'imported': 0,
-        'skipped': 0,
-        'errors': 0,
-        'categories': {}
-    }
+    stats = {"imported": 0, "skipped": 0, "errors": 0, "categories": {}}
 
     print(f"\n{'='*70}")
     print("IMPORTING /docs/ TO OBSIDIAN VAULT")
@@ -122,7 +123,7 @@ def import_docs():
         print(f"❌ Error: {DOCS_DIR} does not exist")
         return stats
 
-    md_files = [f for f in os.listdir(DOCS_DIR) if f.endswith('.md')]
+    md_files = [f for f in os.listdir(DOCS_DIR) if f.endswith(".md")]
     print(f"Found {len(md_files)} markdown files to import\n")
 
     for filename in sorted(md_files):
@@ -131,7 +132,7 @@ def import_docs():
             category = determine_category(filename)
 
             # Track category stats
-            stats['categories'][category] = stats['categories'].get(category, 0) + 1
+            stats["categories"][category] = stats["categories"].get(category, 0) + 1
 
             # Read original file
             src_path = os.path.join(DOCS_DIR, filename)
@@ -149,20 +150,21 @@ def import_docs():
             # Check if file already exists
             if os.path.exists(dest_path):
                 print(f"  ⚠️  File already exists, skipping: {filename}")
-                stats['skipped'] += 1
+                stats["skipped"] += 1
                 continue
 
-            with open(dest_path, 'w', encoding='utf-8') as f:
+            with open(dest_path, "w", encoding="utf-8") as f:
                 f.write(content_with_frontmatter)
 
-            stats['imported'] += 1
+            stats["imported"] += 1
             print(f"  ✅ {filename} → {category}/")
 
         except Exception as e:
-            stats['errors'] += 1
+            stats["errors"] += 1
             print(f"  ❌ Error importing {filename}: {e}")
 
     return stats
+
 
 def print_summary(stats):
     """Print import summary"""
@@ -173,9 +175,9 @@ def print_summary(stats):
     print(f"⚠️  Skipped: {stats['skipped']}")
     print(f"❌ Errors: {stats['errors']}")
 
-    if stats['categories']:
+    if stats["categories"]:
         print("\nFiles by Category:")
-        for category, count in sorted(stats['categories'].items(), key=lambda x: x[1], reverse=True):
+        for category, count in sorted(stats["categories"].items(), key=lambda x: x[1], reverse=True):
             print(f"  {category}: {count}")
 
     print(f"\n{'='*70}")
@@ -184,12 +186,13 @@ def print_summary(stats):
     print("2. Check vault at: http://192.168.1.200:3000/tools/obsidian-vault/")
     print(f"{'='*70}\n")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     print("Starting /docs/ import to Obsidian vault...")
     stats = import_docs()
     print_summary(stats)
 
-    if stats['errors'] > 0:
+    if stats["errors"] > 0:
         exit(1)
     else:
         exit(0)

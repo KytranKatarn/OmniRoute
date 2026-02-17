@@ -26,8 +26,8 @@ logger = logging.getLogger(__name__)
 
 # Add paths for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, '/app')
-sys.path.insert(0, '/mnt/archie_brain/platform_v2')
+sys.path.insert(0, "/app")
+sys.path.insert(0, "/mnt/archie_brain/platform_v2")
 
 try:
     import psycopg2
@@ -52,11 +52,11 @@ class TestRetryHandler:
 
     def __init__(self):
         self.db_config = {
-            'host': os.getenv('DB_HOST', 'archie_database'),
-            'port': os.getenv('DB_PORT', '5432'),
-            'database': os.getenv('DB_NAME', 'archie'),
-            'user': os.getenv('DB_USER', 'archie'),
-            'password': os.getenv('DB_PASSWORD', '')
+            "host": os.getenv("DB_HOST", "archie_database"),
+            "port": os.getenv("DB_PORT", "5432"),
+            "database": os.getenv("DB_NAME", "archie"),
+            "user": os.getenv("DB_USER", "archie"),
+            "password": os.getenv("DB_PASSWORD", ""),
         }
 
     def get_db(self):
@@ -64,10 +64,7 @@ class TestRetryHandler:
         return psycopg2.connect(**self.db_config)
 
     def handle_test_failure(
-        self,
-        proposal_id: int,
-        test_results: Dict,
-        sandbox_id: int = None
+        self, proposal_id: int, test_results: Dict, sandbox_id: int = None
     ) -> Dict:
         """
         Handle a test failure - decide whether to retry or escalate.
@@ -90,7 +87,8 @@ class TestRetryHandler:
 
         try:
             # Get current proposal state
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     ip.*,
                     a.name as assigned_agent_name,
@@ -98,29 +96,33 @@ class TestRetryHandler:
                 FROM improvement_proposals ip
                 LEFT JOIN agents a ON ip.assigned_agent_id = a.id
                 WHERE ip.id = %s
-            """, (proposal_id,))
+            """,
+                (proposal_id,),
+            )
 
             proposal = cur.fetchone()
             if not proposal:
                 return {
-                    'action': 'error',
-                    'error': f'Proposal #{proposal_id} not found'
+                    "action": "error",
+                    "error": f"Proposal #{proposal_id} not found",
                 }
 
-            current_retry_count = proposal.get('test_retry_count', 0) or 0
+            current_retry_count = proposal.get("test_retry_count", 0) or 0
 
             # Build failure context
             failure_context = self._build_failure_context(
-                test_results,
-                proposal.get('test_failure_context'),
-                current_retry_count
+                test_results, proposal.get("test_failure_context"), current_retry_count
             )
 
             if current_retry_count < self.MAX_RETRIES:
                 # Retry with same agent
                 return self._trigger_retry(
-                    cur, conn, proposal_id, proposal,
-                    failure_context, current_retry_count + 1
+                    cur,
+                    conn,
+                    proposal_id,
+                    proposal,
+                    failure_context,
+                    current_retry_count + 1,
                 )
             else:
                 # Max retries exhausted - escalate to contractor
@@ -131,19 +133,13 @@ class TestRetryHandler:
         except Exception as e:
             conn.rollback()
             logger.error(f"Error handling test failure for proposal {proposal_id}: {e}")
-            return {
-                'action': 'error',
-                'error': str(e)
-            }
+            return {"action": "error", "error": str(e)}
         finally:
             cur.close()
             conn.close()
 
     def _build_failure_context(
-        self,
-        current_results: Dict,
-        previous_context: Dict,
-        retry_count: int
+        self, current_results: Dict, previous_context: Dict, retry_count: int
     ) -> Dict:
         """
         Build comprehensive failure context for agent retry.
@@ -154,85 +150,88 @@ class TestRetryHandler:
         - Pattern analysis (recurring failures)
         """
         if previous_context is None:
-            previous_context = {'attempts': []}
+            previous_context = {"attempts": []}
 
         if isinstance(previous_context, str):
             try:
                 previous_context = json.loads(previous_context)
             except:
-                previous_context = {'attempts': []}
+                previous_context = {"attempts": []}
 
         # Extract failure details from current results
         failed_tests = []
         error_messages = []
 
-        if 'suite_results' in current_results:
-            for suite in current_results.get('suite_results', []):
-                if not suite.get('passed', True):
-                    failed_tests.append({
-                        'name': suite.get('name', 'Unknown'),
-                        'error': suite.get('error', ''),
-                        'output': suite.get('output', '')[:500]  # Truncate
-                    })
-                    if suite.get('error'):
-                        error_messages.append(suite['error'])
+        if "suite_results" in current_results:
+            for suite in current_results.get("suite_results", []):
+                if not suite.get("passed", True):
+                    failed_tests.append(
+                        {
+                            "name": suite.get("name", "Unknown"),
+                            "error": suite.get("error", ""),
+                            "output": suite.get("output", "")[:500],  # Truncate
+                        }
+                    )
+                    if suite.get("error"):
+                        error_messages.append(suite["error"])
 
         # Build new context
         new_attempt = {
-            'attempt_number': retry_count + 1,
-            'timestamp': datetime.now().isoformat(),
-            'failed_tests': failed_tests,
-            'error_summary': error_messages[:5],  # Top 5 errors
-            'overall_status': current_results.get('overall_status', 'failed'),
-            'passed_count': current_results.get('summary', {}).get('passed', 0),
-            'failed_count': current_results.get('summary', {}).get('failed', 0)
+            "attempt_number": retry_count + 1,
+            "timestamp": datetime.now().isoformat(),
+            "failed_tests": failed_tests,
+            "error_summary": error_messages[:5],  # Top 5 errors
+            "overall_status": current_results.get("overall_status", "failed"),
+            "passed_count": current_results.get("summary", {}).get("passed", 0),
+            "failed_count": current_results.get("summary", {}).get("failed", 0),
         }
 
-        attempts = previous_context.get('attempts', [])
+        attempts = previous_context.get("attempts", [])
         attempts.append(new_attempt)
 
         # Analyze patterns
         patterns = self._analyze_failure_patterns(attempts)
 
         return {
-            'attempts': attempts,
-            'total_retries': len(attempts),
-            'patterns': patterns,
-            'last_failure': new_attempt,
-            'recurring_errors': self._find_recurring_errors(attempts)
+            "attempts": attempts,
+            "total_retries": len(attempts),
+            "patterns": patterns,
+            "last_failure": new_attempt,
+            "recurring_errors": self._find_recurring_errors(attempts),
         }
 
     def _analyze_failure_patterns(self, attempts: List[Dict]) -> Dict:
         """Analyze failure patterns across retry attempts."""
         if len(attempts) < 2:
-            return {'pattern_detected': False}
+            return {"pattern_detected": False}
 
         # Count test names that fail repeatedly
         test_failure_counts = {}
         for attempt in attempts:
-            for test in attempt.get('failed_tests', []):
-                name = test.get('name', 'Unknown')
+            for test in attempt.get("failed_tests", []):
+                name = test.get("name", "Unknown")
                 test_failure_counts[name] = test_failure_counts.get(name, 0) + 1
 
         # Find tests that fail every time
         always_failing = [
-            name for name, count in test_failure_counts.items()
+            name
+            for name, count in test_failure_counts.items()
             if count == len(attempts)
         ]
 
         return {
-            'pattern_detected': len(always_failing) > 0,
-            'always_failing_tests': always_failing,
-            'test_failure_frequency': test_failure_counts
+            "pattern_detected": len(always_failing) > 0,
+            "always_failing_tests": always_failing,
+            "test_failure_frequency": test_failure_counts,
         }
 
     def _find_recurring_errors(self, attempts: List[Dict]) -> List[str]:
         """Find error messages that appear in multiple attempts."""
         error_counts = {}
         for attempt in attempts:
-            for error in attempt.get('error_summary', []):
+            for error in attempt.get("error_summary", []):
                 # Normalize error (first 100 chars)
-                normalized = error[:100] if error else ''
+                normalized = error[:100] if error else ""
                 if normalized:
                     error_counts[normalized] = error_counts.get(normalized, 0) + 1
 
@@ -246,7 +245,7 @@ class TestRetryHandler:
         proposal_id: int,
         proposal: Dict,
         failure_context: Dict,
-        new_retry_count: int
+        new_retry_count: int,
     ) -> Dict:
         """
         Trigger a retry with the same agent.
@@ -257,7 +256,8 @@ class TestRetryHandler:
         - status back to code_generating
         """
         # Update proposal
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE improvement_proposals
             SET
                 test_retry_count = %s,
@@ -265,41 +265,37 @@ class TestRetryHandler:
                 status = 'code_generating',
                 last_retry_at = NOW()
             WHERE id = %s
-        """, (
-            new_retry_count,
-            json.dumps(failure_context),
-            proposal_id
-        ))
+        """,
+            (new_retry_count, json.dumps(failure_context), proposal_id),
+        )
 
         # Log retry event
         self._log_chat_message(
-            cur, proposal_id,
-            sender_type='system',
+            cur,
+            proposal_id,
+            sender_type="system",
             content=f"Test retry #{new_retry_count} initiated. Previous failures: {len(failure_context.get('recurring_errors', []))} recurring errors detected.",
-            message_type='action'
+            message_type="action",
         )
 
         conn.commit()
 
-        logger.info(f"Proposal #{proposal_id}: Triggered retry {new_retry_count}/{self.MAX_RETRIES}")
+        logger.info(
+            f"Proposal #{proposal_id}: Triggered retry {new_retry_count}/{self.MAX_RETRIES}"
+        )
 
         return {
-            'action': 'retry',
-            'retry_count': new_retry_count,
-            'max_retries': self.MAX_RETRIES,
-            'message': f'Retry {new_retry_count}/{self.MAX_RETRIES} initiated',
-            'failure_context': failure_context,
-            'agent_id': proposal.get('assigned_agent_id'),
-            'agent_name': proposal.get('assigned_agent_name')
+            "action": "retry",
+            "retry_count": new_retry_count,
+            "max_retries": self.MAX_RETRIES,
+            "message": f"Retry {new_retry_count}/{self.MAX_RETRIES} initiated",
+            "failure_context": failure_context,
+            "agent_id": proposal.get("assigned_agent_id"),
+            "agent_name": proposal.get("assigned_agent_name"),
         }
 
     def _escalate_to_contractor(
-        self,
-        cur,
-        conn,
-        proposal_id: int,
-        proposal: Dict,
-        failure_context: Dict
+        self, cur, conn, proposal_id: int, proposal: Dict, failure_context: Dict
     ) -> Dict:
         """
         Escalate to external contractor after max retries.
@@ -310,36 +306,41 @@ class TestRetryHandler:
         3. Round-robin if multiple available
         """
         # Select appropriate contractor
-        contractor = self._select_contractor(cur, proposal.get('category'))
+        contractor = self._select_contractor(cur, proposal.get("category"))
 
         if not contractor:
             # No contractor available - escalate to human only
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE improvement_proposals
                 SET
                     escalation_status = 'human_only',
                     escalated_at = NOW(),
                     test_failure_context = %s
                 WHERE id = %s
-            """, (json.dumps(failure_context), proposal_id))
+            """,
+                (json.dumps(failure_context), proposal_id),
+            )
 
             self._log_chat_message(
-                cur, proposal_id,
-                sender_type='system',
-                content='No contractors available. Escalated to human-only investigation.',
-                message_type='action'
+                cur,
+                proposal_id,
+                sender_type="system",
+                content="No contractors available. Escalated to human-only investigation.",
+                message_type="action",
             )
 
             conn.commit()
 
             return {
-                'action': 'human_only',
-                'message': 'No contractors available - requires human investigation',
-                'failure_context': failure_context
+                "action": "human_only",
+                "message": "No contractors available - requires human investigation",
+                "failure_context": failure_context,
             }
 
         # Update proposal for contractor consultation
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE improvement_proposals
             SET
                 escalation_status = 'contractor_consulting',
@@ -348,33 +349,38 @@ class TestRetryHandler:
                 test_failure_context = %s,
                 status = 'escalated'
             WHERE id = %s
-        """, (contractor['id'], json.dumps(failure_context), proposal_id))
+        """,
+            (contractor["id"], json.dumps(failure_context), proposal_id),
+        )
 
         # Create contractor consultation record
         consultation_id = self._create_consultation(
-            cur, proposal_id, contractor['id'], proposal, failure_context
+            cur, proposal_id, contractor["id"], proposal, failure_context
         )
 
         # Log to chat
         self._log_chat_message(
-            cur, proposal_id,
-            sender_type='system',
+            cur,
+            proposal_id,
+            sender_type="system",
             content=f"Escalated to contractor: {contractor['name']} ({contractor['api_provider']}). Awaiting proposal.",
-            message_type='action'
+            message_type="action",
         )
 
         conn.commit()
 
-        logger.info(f"Proposal #{proposal_id}: Escalated to contractor {contractor['name']}")
+        logger.info(
+            f"Proposal #{proposal_id}: Escalated to contractor {contractor['name']}"
+        )
 
         return {
-            'action': 'escalate',
-            'contractor_id': contractor['id'],
-            'contractor_name': contractor['name'],
-            'contractor_provider': contractor['api_provider'],
-            'consultation_id': consultation_id,
-            'message': f"Escalated to {contractor['name']} for consultation",
-            'failure_context': failure_context
+            "action": "escalate",
+            "contractor_id": contractor["id"],
+            "contractor_name": contractor["name"],
+            "contractor_provider": contractor["api_provider"],
+            "consultation_id": consultation_id,
+            "message": f"Escalated to {contractor['name']} for consultation",
+            "failure_context": failure_context,
         }
 
     def _select_contractor(self, cur, category: str) -> Optional[Dict]:
@@ -388,18 +394,19 @@ class TestRetryHandler:
         """
         # Category to provider mapping (preferred)
         category_preferences = {
-            'security': 'anthropic',  # Claude for security
-            'database': 'openai',     # GPT for database
-            'performance': 'google',  # Gemini for analysis
-            'api': 'anthropic',
-            'ui': 'openai'
+            "security": "anthropic",  # Claude for security
+            "database": "openai",  # GPT for database
+            "performance": "google",  # Gemini for analysis
+            "api": "anthropic",
+            "ui": "openai",
         }
 
         preferred_provider = category_preferences.get(category)
 
         # Try preferred provider first
         if preferred_provider:
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT id, name, api_provider, model, personality_prompt
                 FROM agents
                 WHERE worker_type = 'contract'
@@ -407,7 +414,9 @@ class TestRetryHandler:
                 AND status = 'active'
                 AND api_enabled = TRUE
                 LIMIT 1
-            """, (preferred_provider,))
+            """,
+                (preferred_provider,),
+            )
 
             contractor = cur.fetchone()
             if contractor:
@@ -433,32 +442,35 @@ class TestRetryHandler:
         proposal_id: int,
         contractor_id: int,
         proposal: Dict,
-        failure_context: Dict
+        failure_context: Dict,
     ) -> int:
         """Create a contractor consultation record."""
         # Build prompt for contractor
         prompt = self._build_contractor_prompt(proposal, failure_context)
 
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO contractor_consultations
             (proposal_id, contractor_id, request_prompt, consultation_status)
             VALUES (%s, %s, %s, 'pending')
             RETURNING id
-        """, (proposal_id, contractor_id, prompt))
+        """,
+            (proposal_id, contractor_id, prompt),
+        )
 
         result = cur.fetchone()
-        return result['id'] if result else 0
+        return result["id"] if result else 0
 
     def _build_contractor_prompt(self, proposal: Dict, failure_context: Dict) -> str:
         """Build the prompt to send to contractor."""
-        attempts = failure_context.get('attempts', [])
-        recurring_errors = failure_context.get('recurring_errors', [])
+        attempts = failure_context.get("attempts", [])
+        recurring_errors = failure_context.get("recurring_errors", [])
 
         # Handle None values properly (get returns None if key exists but value is None)
-        title = proposal.get('title') or 'Unknown'
-        category = proposal.get('category') or 'General'
-        description = proposal.get('description') or 'No description'
-        code_changes = proposal.get('code_changes') or 'No code changes recorded'
+        title = proposal.get("title") or "Unknown"
+        category = proposal.get("category") or "General"
+        description = proposal.get("description") or "No description"
+        code_changes = proposal.get("code_changes") or "No code changes recorded"
 
         prompt = f"""You are a senior contractor reviewing a failed improvement proposal.
 
@@ -489,9 +501,9 @@ This proposal has failed {len(attempts)} times.
 
 **Error Details:**
 """
-            for test in last.get('failed_tests', [])[:3]:
-                test_name = test.get('name') or 'Unknown'
-                test_error = (test.get('error') or 'Unknown error')[:300]
+            for test in last.get("failed_tests", [])[:3]:
+                test_name = test.get("name") or "Unknown"
+                test_error = (test.get("error") or "Unknown error")[:300]
                 prompt += f"""
 Test: {test_name}
 Error: {test_error}
@@ -515,17 +527,27 @@ Focus on what the internal team overlooked. Be specific and provide implementati
         proposal_id: int,
         sender_type: str,
         content: str,
-        message_type: str = 'text',
+        message_type: str = "text",
         sender_id: int = None,
-        sender_name: str = None
+        sender_name: str = None,
     ):
         """Log a message to proposal chat."""
         try:
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO proposal_chat_messages
                 (proposal_id, sender_type, sender_id, sender_name, content, message_type)
                 VALUES (%s, %s, %s, %s, %s, %s)
-            """, (proposal_id, sender_type, sender_id, sender_name or sender_type.title(), content, message_type))
+            """,
+                (
+                    proposal_id,
+                    sender_type,
+                    sender_id,
+                    sender_name or sender_type.title(),
+                    content,
+                    message_type,
+                ),
+            )
         except Exception as e:
             logger.warning(f"Could not log chat message: {e}")
 
@@ -547,7 +569,8 @@ Focus on what the internal team overlooked. Be specific and provide implementati
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         try:
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     ip.id,
                     ip.title,
@@ -561,26 +584,37 @@ Focus on what the internal team overlooked. Be specific and provide implementati
                 FROM improvement_proposals ip
                 LEFT JOIN agents a ON ip.contractor_agent_id = a.id
                 WHERE ip.id = %s
-            """, (proposal_id,))
+            """,
+                (proposal_id,),
+            )
 
             proposal = cur.fetchone()
             if not proposal:
-                return {'error': 'Proposal not found'}
+                return {"error": "Proposal not found"}
 
             return {
-                'proposal_id': proposal['id'],
-                'title': proposal['title'],
-                'retry_count': proposal['test_retry_count'] or 0,
-                'max_retries': self.MAX_RETRIES,
-                'retries_remaining': self.MAX_RETRIES - (proposal['test_retry_count'] or 0),
-                'escalation_status': proposal['escalation_status'] or 'none',
-                'escalated_at': proposal['escalated_at'].isoformat() if proposal['escalated_at'] else None,
-                'contractor': {
-                    'id': proposal['contractor_agent_id'],
-                    'name': proposal['contractor_name'],
-                    'provider': proposal['contractor_provider']
-                } if proposal['contractor_agent_id'] else None,
-                'failure_context': proposal['test_failure_context']
+                "proposal_id": proposal["id"],
+                "title": proposal["title"],
+                "retry_count": proposal["test_retry_count"] or 0,
+                "max_retries": self.MAX_RETRIES,
+                "retries_remaining": self.MAX_RETRIES
+                - (proposal["test_retry_count"] or 0),
+                "escalation_status": proposal["escalation_status"] or "none",
+                "escalated_at": (
+                    proposal["escalated_at"].isoformat()
+                    if proposal["escalated_at"]
+                    else None
+                ),
+                "contractor": (
+                    {
+                        "id": proposal["contractor_agent_id"],
+                        "name": proposal["contractor_name"],
+                        "provider": proposal["contractor_provider"],
+                    }
+                    if proposal["contractor_agent_id"]
+                    else None
+                ),
+                "failure_context": proposal["test_failure_context"],
             }
 
         finally:
@@ -593,7 +627,8 @@ Focus on what the internal team overlooked. Be specific and provide implementati
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         try:
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE improvement_proposals
                 SET
                     test_retry_count = 0,
@@ -604,19 +639,21 @@ Focus on what the internal team overlooked. Be specific and provide implementati
                     escalated_at = NULL
                 WHERE id = %s
                 RETURNING id
-            """, (proposal_id,))
+            """,
+                (proposal_id,),
+            )
 
             result = cur.fetchone()
             conn.commit()
 
             if result:
                 logger.info(f"Reset retries for proposal #{proposal_id}")
-                return {'success': True, 'message': 'Retries reset'}
-            return {'success': False, 'error': 'Proposal not found'}
+                return {"success": True, "message": "Retries reset"}
+            return {"success": False, "error": "Proposal not found"}
 
         except Exception as e:
             conn.rollback()
-            return {'success': False, 'error': str(e)}
+            return {"success": False, "error": str(e)}
         finally:
             cur.close()
             conn.close()
@@ -624,6 +661,7 @@ Focus on what the internal team overlooked. Be specific and provide implementati
 
 # Singleton instance
 _handler_instance = None
+
 
 def get_retry_handler() -> TestRetryHandler:
     """Get singleton TestRetryHandler instance"""
@@ -638,9 +676,11 @@ def handle_test_failure(proposal_id: int, test_results: Dict) -> Dict:
     """Handle test failure for a proposal"""
     return get_retry_handler().handle_test_failure(proposal_id, test_results)
 
+
 def get_retry_status(proposal_id: int) -> Dict:
     """Get retry status for a proposal"""
     return get_retry_handler().get_retry_status(proposal_id)
+
 
 def reset_proposal_retries(proposal_id: int) -> Dict:
     """Reset retries for a proposal"""
@@ -648,7 +688,7 @@ def reset_proposal_retries(proposal_id: int) -> Dict:
 
 
 # CLI testing
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("Test Retry Handler - Diagnostic Mode")
     print("=" * 60)
 
@@ -659,7 +699,7 @@ if __name__ == '__main__':
         conn = handler.get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute("SELECT COUNT(*) as count FROM improvement_proposals")
-        count = cur.fetchone()['count']
+        count = cur.fetchone()["count"]
         print(f"✅ Database connected. {count} proposals found.")
         cur.close()
         conn.close()

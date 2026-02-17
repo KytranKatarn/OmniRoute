@@ -7,6 +7,7 @@ Risk-based decision making:
 - Medium risk → Auto-deploy with enhanced monitoring
 - High risk → Require manual approval
 """
+
 import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -30,29 +31,20 @@ class DeploymentDecisionEngine:
     def __init__(self):
         # Risk scoring weights
         self.risk_weights = {
-            'category': {
-                'security': 30,
-                'database': 25,
-                'architecture': 20,
-                'performance': 15,
-                'api': 15,
-                'infrastructure': 20,
-                'ui': 5,
-                'documentation': 0,
-                'knowledge': 0,
-                'testing': 5
+            "category": {
+                "security": 30,
+                "database": 25,
+                "architecture": 20,
+                "performance": 15,
+                "api": 15,
+                "infrastructure": 20,
+                "ui": 5,
+                "documentation": 0,
+                "knowledge": 0,
+                "testing": 5,
             },
-            'priority': {
-                'critical': 25,
-                'high': 15,
-                'medium': 5,
-                'low': 0
-            },
-            'complexity': {
-                'high': 20,
-                'medium': 10,
-                'low': 5
-            }
+            "priority": {"critical": 25, "high": 15, "medium": 5, "low": 0},
+            "complexity": {"high": 20, "medium": 10, "low": 5},
         }
 
         # Risk thresholds
@@ -62,11 +54,11 @@ class DeploymentDecisionEngine:
     def get_db(self):
         """Get database connection"""
         return psycopg2.connect(
-            host=os.getenv('DB_HOST', 'archie_database'),
-            port=os.getenv('DB_PORT', '5432'),
-            database=os.getenv('DB_NAME', 'archie'),
-            user=os.getenv('DB_USER', 'archie'),
-            password=os.getenv('DB_PASSWORD', '')
+            host=os.getenv("DB_HOST", "archie_database"),
+            port=os.getenv("DB_PORT", "5432"),
+            database=os.getenv("DB_NAME", "archie"),
+            user=os.getenv("DB_USER", "archie"),
+            password=os.getenv("DB_PASSWORD", ""),
         )
 
     def can_auto_deploy(
@@ -75,7 +67,7 @@ class DeploymentDecisionEngine:
         category: str = None,
         priority: str = None,
         complexity: str = None,
-        test_results: Dict = None
+        test_results: Dict = None,
     ) -> Dict:
         """
         Determine if a proposal can be auto-deployed.
@@ -101,7 +93,8 @@ class DeploymentDecisionEngine:
             conn = self.get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     p.*,
                     s.test_results
@@ -115,66 +108,65 @@ class DeploymentDecisionEngine:
                     LIMIT 1
                 ) s ON true
                 WHERE p.id = %s
-            """, (proposal_id,))
+            """,
+                (proposal_id,),
+            )
 
             proposal = cur.fetchone()
             cur.close()
             conn.close()
 
             if not proposal:
-                return {
-                    'can_auto_deploy': False,
-                    'reason': 'Proposal not found'
-                }
+                return {"can_auto_deploy": False, "reason": "Proposal not found"}
 
-            category = proposal.get('category')
-            priority = proposal.get('priority')
-            complexity = proposal.get('complexity')
-            test_results = proposal.get('test_results')
+            category = proposal.get("category")
+            priority = proposal.get("priority")
+            complexity = proposal.get("complexity")
+            test_results = proposal.get("test_results")
 
         # Calculate risk score
         risk_assessment = self.calculate_risk_score(
             category=category,
             priority=priority,
             complexity=complexity,
-            test_results=test_results
+            test_results=test_results,
         )
 
-        risk_score = risk_assessment['risk_score']
-        risk_level = risk_assessment['risk_level']
+        risk_score = risk_assessment["risk_score"]
+        risk_level = risk_assessment["risk_level"]
 
         # Make decision
         if risk_score <= self.auto_deploy_threshold:
             return {
-                'can_auto_deploy': True,
-                'risk_level': risk_level,
-                'risk_score': risk_score,
-                'reason': f'Low risk ({risk_score}/100) - Auto-deployment approved',
-                'requires_approval': False,
-                'monitoring_level': 'standard',
-                'risk_factors': risk_assessment['risk_factors']
+                "can_auto_deploy": True,
+                "risk_level": risk_level,
+                "risk_score": risk_score,
+                "reason": f"Low risk ({risk_score}/100) - Auto-deployment approved",
+                "requires_approval": False,
+                "monitoring_level": "standard",
+                "risk_factors": risk_assessment["risk_factors"],
             }
 
         elif risk_score <= self.manual_approval_threshold:
             return {
-                'can_auto_deploy': True,
-                'risk_level': risk_level,
-                'risk_score': risk_score,
-                'reason': f'Medium risk ({risk_score}/100) - Auto-deployment with enhanced monitoring',
-                'requires_approval': False,
-                'monitoring_level': 'enhanced',
-                'risk_factors': risk_assessment['risk_factors']
+                "can_auto_deploy": True,
+                "risk_level": risk_level,
+                "risk_score": risk_score,
+                "reason": f"Medium risk ({risk_score}/100) - Auto-deployment with enhanced monitoring",
+                "requires_approval": False,
+                "monitoring_level": "enhanced",
+                "risk_factors": risk_assessment["risk_factors"],
             }
 
         else:
             return {
-                'can_auto_deploy': False,
-                'risk_level': risk_level,
-                'risk_score': risk_score,
-                'reason': f'High risk ({risk_score}/100) - Manual approval required',
-                'requires_approval': True,
-                'monitoring_level': 'intensive',
-                'risk_factors': risk_assessment['risk_factors']
+                "can_auto_deploy": False,
+                "risk_level": risk_level,
+                "risk_score": risk_score,
+                "reason": f"High risk ({risk_score}/100) - Manual approval required",
+                "requires_approval": True,
+                "monitoring_level": "intensive",
+                "risk_factors": risk_assessment["risk_factors"],
             }
 
     def calculate_risk_score(
@@ -182,7 +174,7 @@ class DeploymentDecisionEngine:
         category: str = None,
         priority: str = None,
         complexity: str = None,
-        test_results: Dict = None
+        test_results: Dict = None,
     ) -> Dict:
         """
         Calculate numerical risk score (0-100).
@@ -204,55 +196,52 @@ class DeploymentDecisionEngine:
 
         # Category risk
         if category:
-            category_risk = self.risk_weights['category'].get(category, 10)
-            risk_factors['category'] = category_risk
+            category_risk = self.risk_weights["category"].get(category, 10)
+            risk_factors["category"] = category_risk
             total_risk += category_risk
 
         # Priority risk
         if priority:
-            priority_risk = self.risk_weights['priority'].get(priority, 5)
-            risk_factors['priority'] = priority_risk
+            priority_risk = self.risk_weights["priority"].get(priority, 5)
+            risk_factors["priority"] = priority_risk
             total_risk += priority_risk
 
         # Complexity risk
         if complexity:
-            complexity_risk = self.risk_weights['complexity'].get(complexity, 10)
-            risk_factors['complexity'] = complexity_risk
+            complexity_risk = self.risk_weights["complexity"].get(complexity, 10)
+            risk_factors["complexity"] = complexity_risk
             total_risk += complexity_risk
 
         # Test results impact
         if test_results:
-            if not test_results.get('success'):
+            if not test_results.get("success"):
                 # Failed tests increase risk significantly
                 test_risk = 30
-                risk_factors['test_failures'] = test_risk
+                risk_factors["test_failures"] = test_risk
                 total_risk += test_risk
             else:
                 # Passing tests reduce risk slightly
-                pass_rate = test_results.get('pass_rate', 100)
+                pass_rate = test_results.get("pass_rate", 100)
                 if pass_rate == 100:
                     risk_reduction = -5
-                    risk_factors['test_success'] = risk_reduction
+                    risk_factors["test_success"] = risk_reduction
                     total_risk += risk_reduction
 
         # Determine risk level
         if total_risk <= self.auto_deploy_threshold:
-            risk_level = 'low'
+            risk_level = "low"
         elif total_risk <= self.manual_approval_threshold:
-            risk_level = 'medium'
+            risk_level = "medium"
         else:
-            risk_level = 'high'
+            risk_level = "high"
 
         return {
-            'risk_score': max(0, min(100, total_risk)),  # Clamp to 0-100
-            'risk_level': risk_level,
-            'risk_factors': risk_factors
+            "risk_score": max(0, min(100, total_risk)),  # Clamp to 0-100
+            "risk_level": risk_level,
+            "risk_factors": risk_factors,
         }
 
-    def get_approval_requirements(
-        self,
-        proposal_id: int
-    ) -> Dict:
+    def get_approval_requirements(self, proposal_id: int) -> Dict:
         """
         Get approval requirements for a proposal.
 
@@ -266,32 +255,32 @@ class DeploymentDecisionEngine:
         """
         decision = self.can_auto_deploy(proposal_id=proposal_id)
 
-        if not decision['requires_approval']:
+        if not decision["requires_approval"]:
             return {
-                'requires_approval': False,
-                'required_approvers': [],
-                'approval_type': 'auto',
-                'risk_assessment': decision
+                "requires_approval": False,
+                "required_approvers": [],
+                "approval_type": "auto",
+                "risk_assessment": decision,
             }
 
         # Determine who needs to approve based on risk
         required_approvers = []
-        approval_type = 'manual'
+        approval_type = "manual"
 
-        if decision['risk_level'] == 'high':
+        if decision["risk_level"] == "high":
             # High risk requires senior engineer + admin
-            required_approvers = ['senior_engineer', 'admin']
-            approval_type = 'senior_approval'
-        elif decision['risk_level'] == 'medium':
+            required_approvers = ["senior_engineer", "admin"]
+            approval_type = "senior_approval"
+        elif decision["risk_level"] == "medium":
             # Medium risk requires any engineer
-            required_approvers = ['engineer']
-            approval_type = 'engineer_approval'
+            required_approvers = ["engineer"]
+            approval_type = "engineer_approval"
 
         return {
-            'requires_approval': True,
-            'required_approvers': required_approvers,
-            'approval_type': approval_type,
-            'risk_assessment': decision
+            "requires_approval": True,
+            "required_approvers": required_approvers,
+            "approval_type": approval_type,
+            "risk_assessment": decision,
         }
 
     def simulate_deployment_risk(
@@ -299,7 +288,7 @@ class DeploymentDecisionEngine:
         category: str,
         priority: str,
         complexity: str,
-        test_pass_rate: float = 100.0
+        test_pass_rate: float = 100.0,
     ) -> Dict:
         """
         Simulate risk calculation for planning purposes.
@@ -314,22 +303,20 @@ class DeploymentDecisionEngine:
             Risk assessment dict
         """
         # Simulate test results
-        test_results = {
-            'success': test_pass_rate == 100.0,
-            'pass_rate': test_pass_rate
-        }
+        test_results = {"success": test_pass_rate == 100.0, "pass_rate": test_pass_rate}
 
         return self.can_auto_deploy(
             category=category,
             priority=priority,
             complexity=complexity,
-            test_results=test_results
+            test_results=test_results,
         )
 
 
 # ============================================================================
 # CONVENIENCE FUNCTIONS
 # ============================================================================
+
 
 def can_deploy_automatically(proposal_id: int) -> Dict:
     """Quick function to check if proposal can auto-deploy"""
@@ -341,14 +328,14 @@ def get_risk_score(proposal_id: int) -> int:
     """Quick function to get risk score"""
     engine = DeploymentDecisionEngine()
     decision = engine.can_auto_deploy(proposal_id=proposal_id)
-    return decision.get('risk_score', 100)
+    return decision.get("risk_score", 100)
 
 
 # ============================================================================
 # TESTING
 # ============================================================================
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("Deployment Decision Engine - Test Mode")
     print("=" * 60)
 
@@ -357,40 +344,40 @@ if __name__ == '__main__':
     # Test various scenarios
     test_scenarios = [
         {
-            'name': 'Low Risk: Documentation Update',
-            'category': 'documentation',
-            'priority': 'low',
-            'complexity': 'low',
-            'test_pass_rate': 100.0
+            "name": "Low Risk: Documentation Update",
+            "category": "documentation",
+            "priority": "low",
+            "complexity": "low",
+            "test_pass_rate": 100.0,
         },
         {
-            'name': 'Medium Risk: UI Enhancement',
-            'category': 'ui',
-            'priority': 'medium',
-            'complexity': 'medium',
-            'test_pass_rate': 100.0
+            "name": "Medium Risk: UI Enhancement",
+            "category": "ui",
+            "priority": "medium",
+            "complexity": "medium",
+            "test_pass_rate": 100.0,
         },
         {
-            'name': 'High Risk: Security Fix',
-            'category': 'security',
-            'priority': 'critical',
-            'complexity': 'high',
-            'test_pass_rate': 100.0
+            "name": "High Risk: Security Fix",
+            "category": "security",
+            "priority": "critical",
+            "complexity": "high",
+            "test_pass_rate": 100.0,
         },
         {
-            'name': 'High Risk: Database Migration',
-            'category': 'database',
-            'priority': 'high',
-            'complexity': 'high',
-            'test_pass_rate': 100.0
+            "name": "High Risk: Database Migration",
+            "category": "database",
+            "priority": "high",
+            "complexity": "high",
+            "test_pass_rate": 100.0,
         },
         {
-            'name': 'Medium Risk with Failed Tests',
-            'category': 'ui',
-            'priority': 'medium',
-            'complexity': 'low',
-            'test_pass_rate': 80.0
-        }
+            "name": "Medium Risk with Failed Tests",
+            "category": "ui",
+            "priority": "medium",
+            "complexity": "low",
+            "test_pass_rate": 80.0,
+        },
     ]
 
     print("\n1. RISK ASSESSMENT SCENARIOS:")
@@ -398,13 +385,13 @@ if __name__ == '__main__':
 
     for scenario in test_scenarios:
         result = engine.simulate_deployment_risk(
-            category=scenario['category'],
-            priority=scenario['priority'],
-            complexity=scenario['complexity'],
-            test_pass_rate=scenario['test_pass_rate']
+            category=scenario["category"],
+            priority=scenario["priority"],
+            complexity=scenario["complexity"],
+            test_pass_rate=scenario["test_pass_rate"],
         )
 
-        auto_deploy_icon = "✓" if result['can_auto_deploy'] else "✗"
+        auto_deploy_icon = "✓" if result["can_auto_deploy"] else "✗"
         print(f"\n{auto_deploy_icon} {scenario['name']}")
         print(f"   Risk Score: {result['risk_score']}/100 ({result['risk_level']})")
         print(f"   Auto-Deploy: {result['can_auto_deploy']}")

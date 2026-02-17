@@ -7,14 +7,16 @@ Removes database schemas for destroyed sandboxes
 import psycopg2
 import os
 
+
 def get_db():
     """Get database connection"""
     return psycopg2.connect(
-        host=os.getenv('DB_HOST', 'archie_database'),
-        database=os.getenv('DB_NAME', 'archie'),
-        user=os.getenv('DB_USER', 'archie'),
-        password=os.getenv('DB_PASSWORD', 'password')
+        host=os.getenv("DB_HOST", "archie_database"),
+        database=os.getenv("DB_NAME", "archie"),
+        user=os.getenv("DB_USER", "archie"),
+        password=os.getenv("DB_PASSWORD", "password"),
     )
+
 
 def cleanup_orphaned_schemas():
     """Remove sandbox schemas that belong to destroyed sandboxes"""
@@ -24,23 +26,27 @@ def cleanup_orphaned_schemas():
     print("🔍 Finding orphaned sandbox schemas...")
 
     # Get all sandbox schemas
-    cur.execute("""
+    cur.execute(
+        """
         SELECT schema_name
         FROM information_schema.schemata
         WHERE schema_name LIKE 'sandbox%'
         ORDER BY schema_name
-    """)
+    """
+    )
 
     all_schemas = [row[0] for row in cur.fetchall()]
     print(f"📊 Found {len(all_schemas)} sandbox schema(s) in database")
 
     # Get active sandboxes
-    cur.execute("""
+    cur.execute(
+        """
         SELECT DISTINCT schema_name
         FROM sandbox_instances
         WHERE destroyed_at IS NULL
         AND schema_name IS NOT NULL
-    """)
+    """
+    )
 
     active_schemas = [row[0] for row in cur.fetchall()]
     print(f"🟢 Found {len(active_schemas)} active sandbox schema(s)")
@@ -87,6 +93,7 @@ def cleanup_orphaned_schemas():
     print(f"✅ Schemas removed: {cleaned}")
     print(f"❌ Schemas failed: {failed}")
     print(f"🟢 Active schemas kept: {len(active_schemas)}")
+
 
 if __name__ == "__main__":
     cleanup_orphaned_schemas()

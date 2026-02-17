@@ -22,10 +22,10 @@ import os
 
 # Database connection - support both local and Docker execution
 DB_CONFIG = {
-    'host': os.getenv('DB_HOST', 'localhost'),
-    'database': os.getenv('DB_NAME', 'archie'),
-    'user': os.getenv('DB_USER', 'archie'),
-    'password': os.getenv('DB_PASSWORD', 'archie_secure_2024')
+    "host": os.getenv("DB_HOST", "localhost"),
+    "database": os.getenv("DB_NAME", "archie"),
+    "user": os.getenv("DB_USER", "archie"),
+    "password": os.getenv("DB_PASSWORD", "archie_secure_2024"),
 }
 
 
@@ -355,9 +355,10 @@ def rollback_migration():
         conn.close()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import sys
-    if len(sys.argv) > 1 and sys.argv[1] == '--rollback':
+
+    if len(sys.argv) > 1 and sys.argv[1] == "--rollback":
         rollback_migration()
     else:
         run_migration()

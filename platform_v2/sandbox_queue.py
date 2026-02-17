@@ -9,6 +9,7 @@ Enhanced with proposal_queue table for:
 - Priority boost system
 - Test retry loop integration
 """
+
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
@@ -25,10 +26,10 @@ class SandboxQueue:
 
     def __init__(self):
         self.db_config = {
-            'host': os.getenv('DB_HOST', 'archie_database'),
-            'database': os.getenv('DB_NAME', 'archie'),
-            'user': os.getenv('DB_USER', 'archie'),
-            'password': os.getenv('DB_PASSWORD', 'password')
+            "host": os.getenv("DB_HOST", "archie_database"),
+            "database": os.getenv("DB_NAME", "archie"),
+            "user": os.getenv("DB_USER", "archie"),
+            "password": os.getenv("DB_PASSWORD", "password"),
         }
 
     def get_db(self):
@@ -46,7 +47,8 @@ class SandboxQueue:
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Check if there's an active sandbox
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 si.id as sandbox_id,
                 si.proposal_id,
@@ -63,7 +65,8 @@ class SandboxQueue:
             AND si.status IN ('ready', 'testing', 'tested', 'applying_changes')
             ORDER BY si.created_at DESC
             LIMIT 1
-        """)
+        """
+        )
 
         result = cur.fetchone()
         cur.close()
@@ -82,7 +85,8 @@ class SandboxQueue:
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Get approved proposals that aren't in sandbox yet
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 id,
                 title,
@@ -108,7 +112,8 @@ class SandboxQueue:
                     ELSE 5
                 END,
                 approved_at ASC
-        """)
+        """
+        )
 
         results = cur.fetchall()
         cur.close()
@@ -133,34 +138,34 @@ class SandboxQueue:
         # If no sandbox in use, this proposal can use it
         if not current:
             return {
-                'can_use': True,
-                'reason': 'Sandbox is available',
-                'current_proposal': None,
-                'queue_position': 0
+                "can_use": True,
+                "reason": "Sandbox is available",
+                "current_proposal": None,
+                "queue_position": 0,
             }
 
         # If this IS the current proposal, it's already using sandbox
-        if current['proposal_id'] == proposal_id:
+        if current["proposal_id"] == proposal_id:
             return {
-                'can_use': True,
-                'reason': 'This proposal is currently using the sandbox',
-                'current_proposal': current,
-                'queue_position': 0
+                "can_use": True,
+                "reason": "This proposal is currently using the sandbox",
+                "current_proposal": current,
+                "queue_position": 0,
             }
 
         # Otherwise, check queue position
         queue = self.get_queue()
         position = None
         for idx, queued_proposal in enumerate(queue):
-            if queued_proposal['id'] == proposal_id:
+            if queued_proposal["id"] == proposal_id:
                 position = idx + 1
                 break
 
         return {
-            'can_use': False,
-            'reason': f"Sandbox is in use by Proposal #{current['proposal_id']}",
-            'current_proposal': current,
-            'queue_position': position
+            "can_use": False,
+            "reason": f"Sandbox is in use by Proposal #{current['proposal_id']}",
+            "current_proposal": current,
+            "queue_position": position,
         }
 
     def release_sandbox(self, proposal_id: int) -> Dict:
@@ -179,21 +184,27 @@ class SandboxQueue:
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Mark sandbox as destroyed
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE sandbox_instances
             SET status = 'destroyed', destroyed_at = NOW()
             WHERE proposal_id = %s
             AND destroyed_at IS NULL
-        """, (proposal_id,))
+        """,
+            (proposal_id,),
+        )
 
         # Update proposal status to deployed
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE improvement_proposals
             SET
                 status = 'deployed',
                 deployed_at = NOW()
             WHERE id = %s
-        """, (proposal_id,))
+        """,
+            (proposal_id,),
+        )
 
         conn.commit()
         cur.close()
@@ -204,9 +215,9 @@ class SandboxQueue:
         next_proposal = queue[0] if queue else None
 
         return {
-            'success': True,
-            'message': f'Sandbox released from Proposal #{proposal_id}',
-            'next_proposal': next_proposal
+            "success": True,
+            "message": f"Sandbox released from Proposal #{proposal_id}",
+            "next_proposal": next_proposal,
         }
 
     def get_queue_status(self) -> Dict:
@@ -225,10 +236,10 @@ class SandboxQueue:
         queue = self.get_queue()
 
         return {
-            'sandbox_in_use': current is not None,
-            'current_proposal': current,
-            'queue_length': len(queue),
-            'queue': queue
+            "sandbox_in_use": current is not None,
+            "current_proposal": current,
+            "queue_length": len(queue),
+            "queue": queue,
         }
 
 
@@ -258,10 +269,10 @@ class ProposalQueueManager:
 
     def __init__(self):
         self.db_config = {
-            'host': os.getenv('DB_HOST', 'archie_database'),
-            'database': os.getenv('DB_NAME', 'archie'),
-            'user': os.getenv('DB_USER', 'archie'),
-            'password': os.getenv('DB_PASSWORD', 'password')
+            "host": os.getenv("DB_HOST", "archie_database"),
+            "database": os.getenv("DB_NAME", "archie"),
+            "user": os.getenv("DB_USER", "archie"),
+            "password": os.getenv("DB_PASSWORD", "password"),
         }
 
     def get_db(self):
@@ -279,30 +290,39 @@ class ProposalQueueManager:
 
         try:
             # Check if this proposal is already processing
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT id, queue_status
                 FROM proposal_queue
                 WHERE proposal_id = %s
                 AND queue_status IN ('queued', 'processing')
-            """, (proposal_id,))
+            """,
+                (proposal_id,),
+            )
 
             existing = cur.fetchone()
-            if existing and existing['queue_status'] == 'processing':
+            if existing and existing["queue_status"] == "processing":
                 return True, "Already processing"
 
             # Check if any other proposal is processing
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT pq.proposal_id, ip.title
                 FROM proposal_queue pq
                 JOIN improvement_proposals ip ON ip.id = pq.proposal_id
                 WHERE pq.queue_status = 'processing'
                 AND pq.proposal_id != %s
                 LIMIT 1
-            """, (proposal_id,))
+            """,
+                (proposal_id,),
+            )
 
             active = cur.fetchone()
             if active:
-                return False, f"Queue blocked by Proposal #{active['proposal_id']}: {active['title']}"
+                return (
+                    False,
+                    f"Queue blocked by Proposal #{active['proposal_id']}: {active['title']}",
+                )
 
             return True, "Ready to process"
 
@@ -317,37 +337,45 @@ class ProposalQueueManager:
 
         try:
             # Check if already in queue
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT id, queue_position, queue_status
                 FROM proposal_queue
                 WHERE proposal_id = %s
                 AND queue_status IN ('queued', 'processing')
-            """, (proposal_id,))
+            """,
+                (proposal_id,),
+            )
 
             existing = cur.fetchone()
             if existing:
                 return {
-                    'success': True,
-                    'already_queued': True,
-                    'queue_id': existing['id'],
-                    'position': existing['queue_position'],
-                    'status': existing['queue_status']
+                    "success": True,
+                    "already_queued": True,
+                    "queue_id": existing["id"],
+                    "position": existing["queue_position"],
+                    "status": existing["queue_status"],
                 }
 
             # Get next position
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT COALESCE(MAX(queue_position), 0) + 1 as next_pos
                 FROM proposal_queue
                 WHERE queue_status IN ('queued', 'processing')
-            """)
-            next_pos = cur.fetchone()['next_pos']
+            """
+            )
+            next_pos = cur.fetchone()["next_pos"]
 
             # Add to queue
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO proposal_queue (proposal_id, queue_position, priority_boost)
                 VALUES (%s, %s, %s)
                 RETURNING id, queue_position
-            """, (proposal_id, next_pos, priority_boost))
+            """,
+                (proposal_id, next_pos, priority_boost),
+            )
 
             result = cur.fetchone()
             conn.commit()
@@ -355,15 +383,15 @@ class ProposalQueueManager:
             logger.info(f"Proposal #{proposal_id} added to queue at position {next_pos}")
 
             return {
-                'success': True,
-                'queue_id': result['id'],
-                'position': result['queue_position']
+                "success": True,
+                "queue_id": result["id"],
+                "position": result["queue_position"],
             }
 
         except Exception as e:
             conn.rollback()
             logger.error(f"Failed to add proposal {proposal_id} to queue: {e}")
-            return {'success': False, 'error': str(e)}
+            return {"success": False, "error": str(e)}
         finally:
             cur.close()
             conn.close()
@@ -372,74 +400,86 @@ class ProposalQueueManager:
         """Mark a proposal as started processing."""
         can_start, message = self.can_start_processing(proposal_id)
         if not can_start:
-            return {'success': False, 'error': message}
+            return {"success": False, "error": message}
 
         conn = self.get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         try:
             # Check if already in queue
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT id FROM proposal_queue
                 WHERE proposal_id = %s AND queue_status = 'queued'
-            """, (proposal_id,))
+            """,
+                (proposal_id,),
+            )
 
             existing = cur.fetchone()
 
             if existing:
                 # Update existing entry
-                cur.execute("""
+                cur.execute(
+                    """
                     UPDATE proposal_queue
                     SET queue_status = 'processing', started_at = NOW()
                     WHERE id = %s
                     RETURNING id
-                """, (existing['id'],))
+                """,
+                    (existing["id"],),
+                )
             else:
                 # Create new entry directly in processing
-                cur.execute("""
+                cur.execute(
+                    """
                     INSERT INTO proposal_queue
                     (proposal_id, queue_position, queue_status, started_at)
                     VALUES (%s, (SELECT COALESCE(MAX(queue_position), 0) + 1 FROM proposal_queue), 'processing', NOW())
                     RETURNING id
-                """, (proposal_id,))
+                """,
+                    (proposal_id,),
+                )
 
             conn.commit()
             logger.info(f"Proposal #{proposal_id} started processing")
-            return {'success': True, 'message': 'Processing started'}
+            return {"success": True, "message": "Processing started"}
 
         except Exception as e:
             conn.rollback()
             logger.error(f"Failed to start processing: {e}")
-            return {'success': False, 'error': str(e)}
+            return {"success": False, "error": str(e)}
         finally:
             cur.close()
             conn.close()
 
-    def complete_processing(self, proposal_id: int, status: str = 'completed') -> Dict:
+    def complete_processing(self, proposal_id: int, status: str = "completed") -> Dict:
         """Mark a proposal as done processing."""
         conn = self.get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         try:
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE proposal_queue
                 SET queue_status = %s, completed_at = NOW()
                 WHERE proposal_id = %s
                 AND queue_status = 'processing'
                 RETURNING id
-            """, (status, proposal_id))
+            """,
+                (status, proposal_id),
+            )
 
             result = cur.fetchone()
             conn.commit()
 
             if result:
                 logger.info(f"Proposal #{proposal_id} completed: {status}")
-                return {'success': True}
-            return {'success': False, 'error': 'Not in processing state'}
+                return {"success": True}
+            return {"success": False, "error": "Not in processing state"}
 
         except Exception as e:
             conn.rollback()
-            return {'success': False, 'error': str(e)}
+            return {"success": False, "error": str(e)}
         finally:
             cur.close()
             conn.close()
@@ -451,29 +491,33 @@ class ProposalQueueManager:
 
         try:
             # Active processing
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT pq.*, ip.title, ip.category, ip.test_retry_count, ip.escalation_status
                 FROM proposal_queue pq
                 JOIN improvement_proposals ip ON ip.id = pq.proposal_id
                 WHERE pq.queue_status = 'processing'
-            """)
+            """
+            )
             active = cur.fetchone()
 
             # Queued items
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT pq.*, ip.title, ip.category
                 FROM proposal_queue pq
                 JOIN improvement_proposals ip ON ip.id = pq.proposal_id
                 WHERE pq.queue_status = 'queued'
                 ORDER BY (pq.queue_position - pq.priority_boost) ASC
-            """)
+            """
+            )
             queued = cur.fetchall()
 
             return {
-                'queue_available': active is None,
-                'active_processing': dict(active) if active else None,
-                'queued': [dict(q) for q in queued],
-                'queued_count': len(queued)
+                "queue_available": active is None,
+                "active_processing": dict(active) if active else None,
+                "queued": [dict(q) for q in queued],
+                "queued_count": len(queued),
             }
 
         finally:
@@ -486,41 +530,43 @@ class ProposalQueueManager:
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         try:
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT queue_status, queue_position, queued_at, started_at
                 FROM proposal_queue
                 WHERE proposal_id = %s
                 ORDER BY id DESC
                 LIMIT 1
-            """, (proposal_id,))
+            """,
+                (proposal_id,),
+            )
 
             result = cur.fetchone()
             if not result:
-                return {'in_queue': False}
+                return {"in_queue": False}
 
-            if result['queue_status'] == 'processing':
+            if result["queue_status"] == "processing":
                 return {
-                    'in_queue': True,
-                    'position': 0,
-                    'status': 'processing',
-                    'started_at': result['started_at'].isoformat() if result['started_at'] else None
+                    "in_queue": True,
+                    "position": 0,
+                    "status": "processing",
+                    "started_at": (result["started_at"].isoformat() if result["started_at"] else None),
                 }
-            elif result['queue_status'] == 'queued':
-                cur.execute("""
+            elif result["queue_status"] == "queued":
+                cur.execute(
+                    """
                     SELECT COUNT(*) as ahead
                     FROM proposal_queue
                     WHERE queue_status IN ('queued', 'processing')
                     AND (queue_position < %s OR queue_status = 'processing')
                     AND proposal_id != %s
-                """, (result['queue_position'], proposal_id))
-                ahead = cur.fetchone()['ahead']
+                """,
+                    (result["queue_position"], proposal_id),
+                )
+                ahead = cur.fetchone()["ahead"]
 
-                return {
-                    'in_queue': True,
-                    'position': ahead + 1,
-                    'status': 'queued'
-                }
-            return {'in_queue': False, 'status': result['queue_status']}
+                return {"in_queue": True, "position": ahead + 1, "status": "queued"}
+            return {"in_queue": False, "status": result["queue_status"]}
 
         finally:
             cur.close()
@@ -529,6 +575,7 @@ class ProposalQueueManager:
 
 # Singleton
 _proposal_queue_manager = None
+
 
 def get_proposal_queue_manager() -> ProposalQueueManager:
     """Get singleton ProposalQueueManager"""

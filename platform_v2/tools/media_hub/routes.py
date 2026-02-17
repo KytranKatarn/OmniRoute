@@ -223,7 +223,10 @@ def get_primary_media_server():
             try:
                 return (
                     JellyfinClient(
-                        host=config["host"], port=config["port"], api_key=config["api_key"], use_ssl=config["use_ssl"]
+                        host=config["host"],
+                        port=config["port"],
+                        api_key=config["api_key"],
+                        use_ssl=config["use_ssl"],
                     ),
                     "jellyfin",
                 )
@@ -236,7 +239,10 @@ def get_primary_media_server():
         try:
             return (
                 PlexClient(
-                    host=config["host"], port=config["port"], api_key=config["api_key"], use_ssl=config["use_ssl"]
+                    host=config["host"],
+                    port=config["port"],
+                    api_key=config["api_key"],
+                    use_ssl=config["use_ssl"],
                 ),
                 "plex",
             )
@@ -249,7 +255,10 @@ def get_primary_media_server():
         try:
             return (
                 JellyfinClient(
-                    host=config["host"], port=config["port"], api_key=config["api_key"], use_ssl=config["use_ssl"]
+                    host=config["host"],
+                    port=config["port"],
+                    api_key=config["api_key"],
+                    use_ssl=config["use_ssl"],
                 ),
                 "jellyfin",
             )
@@ -280,7 +289,12 @@ def index():
 def api_health():
     """Health check endpoint for module registry"""
     return jsonify(
-        {"module": "media_hub", "status": "active", "healthy": True, "message": "Media Hub module operational"}
+        {
+            "module": "media_hub",
+            "status": "active",
+            "healthy": True,
+            "message": "Media Hub module operational",
+        }
     )
 
 
@@ -312,7 +326,11 @@ def api_status():
         if config and config.get("api_key") and service["is_enabled"]:
             try:
                 client = get_service_client(
-                    service_type, config["host"], config["port"], config["api_key"], config["use_ssl"]
+                    service_type,
+                    config["host"],
+                    config["port"],
+                    config["api_key"],
+                    config["use_ssl"],
                 )
                 status["online"] = client.test_connection()
                 status["health_status"] = "healthy" if status["online"] else "unhealthy"
@@ -322,7 +340,13 @@ def api_status():
 
         statuses[service_type] = status
 
-    return jsonify({"success": True, "services": statuses, "encryption_key_source": get_key_source()})
+    return jsonify(
+        {
+            "success": True,
+            "services": statuses,
+            "encryption_key_source": get_key_source(),
+        }
+    )
 
 
 # =============================================================================
@@ -457,7 +481,12 @@ def api_library_stats():
             {
                 "success": False,
                 "error": "No media server configured",
-                "stats": {"movie_count": 0, "show_count": 0, "episode_count": 0, "total_size_bytes": 0},
+                "stats": {
+                    "movie_count": 0,
+                    "show_count": 0,
+                    "episode_count": 0,
+                    "total_size_bytes": 0,
+                },
             }
         )
 
@@ -744,7 +773,13 @@ def api_requests():
                 else:
                     # Keep the one with better status or more recent
                     existing = seen_tmdb_ids[tmdb_id]
-                    status_priority = {"available": 4, "processing": 3, "approved": 2, "pending": 1, "declined": 0}
+                    status_priority = {
+                        "available": 4,
+                        "processing": 3,
+                        "approved": 2,
+                        "pending": 1,
+                        "declined": 0,
+                    }
                     if status_priority.get(req.get("status"), 0) > status_priority.get(existing.get("status"), 0):
                         deduplicated.remove(existing)
                         seen_tmdb_ids[tmdb_id] = req
@@ -797,7 +832,10 @@ def api_create_request():
     seasons = data.get("seasons")  # List of season numbers for TV
 
     if not media_type or not tmdb_id:
-        return jsonify({"success": False, "error": "media_type and tmdb_id required"}), 400
+        return (
+            jsonify({"success": False, "error": "media_type and tmdb_id required"}),
+            400,
+        )
 
     overseerr_config = get_service_config("overseerr") or get_service_config("jellyseerr")
     if not overseerr_config or not overseerr_config.get("api_key"):
@@ -879,7 +917,10 @@ def api_retry_request(request_id):
         if target_req.media_type == "movie":
             radarr_config = get_service_config("radarr")
             if not radarr_config:
-                return jsonify({"success": False, "error": "Radarr not configured"}), 400
+                return (
+                    jsonify({"success": False, "error": "Radarr not configured"}),
+                    400,
+                )
 
             # Find movie in Radarr by TMDB ID
             base_url = f"http://{radarr_config['host']}:{radarr_config['port']}"
@@ -895,7 +936,10 @@ def api_retry_request(request_id):
                     break
 
             if not movie_id:
-                return jsonify({"success": False, "error": "Movie not found in Radarr"}), 404
+                return (
+                    jsonify({"success": False, "error": "Movie not found in Radarr"}),
+                    404,
+                )
 
             # Trigger search
             search_resp = http_requests.post(
@@ -907,12 +951,18 @@ def api_retry_request(request_id):
             if search_resp.status_code == 201:
                 return jsonify({"success": True, "message": "Search triggered"})
             else:
-                return jsonify({"success": False, "error": "Failed to trigger search"}), 500
+                return (
+                    jsonify({"success": False, "error": "Failed to trigger search"}),
+                    500,
+                )
         else:
             # TV show - use Sonarr
             sonarr_config = get_service_config("sonarr")
             if not sonarr_config:
-                return jsonify({"success": False, "error": "Sonarr not configured"}), 400
+                return (
+                    jsonify({"success": False, "error": "Sonarr not configured"}),
+                    400,
+                )
 
             base_url = f"http://{sonarr_config['host']}:{sonarr_config['port']}"
             headers = {"X-Api-Key": sonarr_config["api_key"]}
@@ -928,7 +978,10 @@ def api_retry_request(request_id):
                     break
 
             if not series_id:
-                return jsonify({"success": False, "error": "Series not found in Sonarr"}), 404
+                return (
+                    jsonify({"success": False, "error": "Series not found in Sonarr"}),
+                    404,
+                )
 
             # Trigger search
             search_resp = http_requests.post(
@@ -940,7 +993,10 @@ def api_retry_request(request_id):
             if search_resp.status_code == 201:
                 return jsonify({"success": True, "message": "Search triggered"})
             else:
-                return jsonify({"success": False, "error": "Failed to trigger search"}), 500
+                return (
+                    jsonify({"success": False, "error": "Failed to trigger search"}),
+                    500,
+                )
 
     except Exception as e:
         logger.error(f"Error retrying request: {e}")
@@ -958,10 +1014,18 @@ def api_check_library_status(request_id):
 
     try:
         base_url = f"http://{overseerr_config['host']}:{overseerr_config['port']}"
-        headers = {"X-Api-Key": overseerr_config["api_key"], "Content-Type": "application/json"}
+        headers = {
+            "X-Api-Key": overseerr_config["api_key"],
+            "Content-Type": "application/json",
+        }
 
         # Get all requests and find the target (individual endpoint requires session auth)
-        resp = http_requests.get(f"{base_url}/api/v1/request", headers=headers, params={"take": 100}, timeout=10)
+        resp = http_requests.get(
+            f"{base_url}/api/v1/request",
+            headers=headers,
+            params={"take": 100},
+            timeout=10,
+        )
         resp.raise_for_status()
         all_requests = resp.json().get("results", [])
 
@@ -999,7 +1063,10 @@ def api_check_library_status(request_id):
                 logger.debug(f"TMDB title lookup failed: {e}")
 
         if not media_id:
-            return jsonify({"success": False, "error": "No media ID found in request"}), 400
+            return (
+                jsonify({"success": False, "error": "No media ID found in request"}),
+                400,
+            )
 
         # Check if request has failed (status 4) - re-request it
         request_status = req_data.get("status", 0)
@@ -1028,11 +1095,24 @@ def api_check_library_status(request_id):
                     )
                 else:
                     return (
-                        jsonify({"success": False, "error": f"Failed to create new request: {new_req_resp.text}"}),
+                        jsonify(
+                            {
+                                "success": False,
+                                "error": f"Failed to create new request: {new_req_resp.text}",
+                            }
+                        ),
                         500,
                     )
             else:
-                return jsonify({"success": False, "error": f"Failed to delete old request: {delete_resp.text}"}), 500
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": f"Failed to delete old request: {delete_resp.text}",
+                        }
+                    ),
+                    500,
+                )
 
         # If already available, no need to update
         if current_media_status == 5:
@@ -1048,7 +1128,10 @@ def api_check_library_status(request_id):
         # Check library for this item
         media_server, server_type = get_primary_media_server()
         if not media_server:
-            return jsonify({"success": False, "error": "No media server configured"}), 400
+            return (
+                jsonify({"success": False, "error": "No media server configured"}),
+                400,
+            )
 
         found_in_library = False
         search_type = "movie" if media_type == "movie" else "show"
@@ -1090,7 +1173,13 @@ def api_check_library_status(request_id):
                     }
                 )
         else:
-            return jsonify({"success": True, "in_library": False, "message": f"'{title}' not found in library yet"})
+            return jsonify(
+                {
+                    "success": True,
+                    "in_library": False,
+                    "message": f"'{title}' not found in library yet",
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error checking library status: {e}")
@@ -1123,7 +1212,12 @@ def api_calendar_upcoming():
         )
         episodes = sonarr.get_upcoming_episodes(days, start_date)
         return jsonify(
-            {"success": True, "episodes": [ep.to_dict() for ep in episodes], "days": days, "start": start_date}
+            {
+                "success": True,
+                "episodes": [ep.to_dict() for ep in episodes],
+                "days": days,
+                "start": start_date,
+            }
         )
     except Exception as e:
         logger.error(f"Error getting calendar: {e}")
@@ -1140,7 +1234,14 @@ def api_downloads():
     """Get current downloads from SABnzbd"""
     sabnzbd_config = get_service_config("sabnzbd")
     if not sabnzbd_config or not sabnzbd_config.get("api_key"):
-        return jsonify({"success": False, "error": "SABnzbd not configured", "queue": [], "history": []})
+        return jsonify(
+            {
+                "success": False,
+                "error": "SABnzbd not configured",
+                "queue": [],
+                "history": [],
+            }
+        )
 
     try:
         from .clients.sabnzbd import SABnzbdClient
@@ -1178,7 +1279,13 @@ def api_downloads():
 def api_settings():
     """Get all service configurations (without decrypted API keys)"""
     services = get_all_services()
-    return jsonify({"success": True, "services": services, "encryption_key_source": get_key_source()})
+    return jsonify(
+        {
+            "success": True,
+            "services": services,
+            "encryption_key_source": get_key_source(),
+        }
+    )
 
 
 @media_hub_bp.route("/api/settings/services", methods=["POST"])
@@ -1197,7 +1304,10 @@ def api_add_service():
     config_path = data.get("config_path")
 
     if not service_type or not port:
-        return jsonify({"success": False, "error": "service_type and port are required"}), 400
+        return (
+            jsonify({"success": False, "error": "service_type and port are required"}),
+            400,
+        )
 
     try:
         # Encrypt API key if provided
@@ -1227,7 +1337,15 @@ def api_add_service():
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = %s
             """,
-                (name, use_ssl, api_key_encrypted, is_primary, is_enabled, config_path, existing[0]),
+                (
+                    name,
+                    use_ssl,
+                    api_key_encrypted,
+                    is_primary,
+                    is_enabled,
+                    config_path,
+                    existing[0],
+                ),
             )
             service_id = existing[0]
         else:
@@ -1257,7 +1375,13 @@ def api_add_service():
         cursor.close()
         conn.close()
 
-        return jsonify({"success": True, "service_id": service_id, "message": f"{service_type} configuration saved"})
+        return jsonify(
+            {
+                "success": True,
+                "service_id": service_id,
+                "message": f"{service_type} configuration saved",
+            }
+        )
     except Exception as e:
         logger.error(f"Error saving service: {e}")
         traceback.print_exc()
@@ -1384,7 +1508,7 @@ def api_test_service(service_id):
             {
                 "success": True,
                 "healthy": is_healthy,
-                "message": "Connection successful" if is_healthy else "Connection failed",
+                "message": ("Connection successful" if is_healthy else "Connection failed"),
             }
         )
     except Exception as e:
@@ -1398,7 +1522,10 @@ def api_delete_service(service_id):
     try:
         conn = get_db()
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM media_hub_services WHERE id = %s RETURNING service_type", (service_id,))
+        cursor.execute(
+            "DELETE FROM media_hub_services WHERE id = %s RETURNING service_type",
+            (service_id,),
+        )
         deleted = cursor.fetchone()
         conn.commit()
         cursor.close()
@@ -1428,7 +1555,10 @@ def api_set_primary_server(service_id):
 
         service_type = row[0]
         if service_type not in ("plex", "jellyfin"):
-            return jsonify({"success": False, "error": "Only Plex or Jellyfin can be primary"}), 400
+            return (
+                jsonify({"success": False, "error": "Only Plex or Jellyfin can be primary"}),
+                400,
+            )
 
         # Unset all other primaries for media servers
         cursor.execute(
@@ -1439,7 +1569,10 @@ def api_set_primary_server(service_id):
         )
 
         # Set this one as primary
-        cursor.execute("UPDATE media_hub_services SET is_primary = TRUE WHERE id = %s", (service_id,))
+        cursor.execute(
+            "UPDATE media_hub_services SET is_primary = TRUE WHERE id = %s",
+            (service_id,),
+        )
 
         conn.commit()
         cursor.close()
@@ -1564,7 +1697,13 @@ def api_collection_items(collection_id):
 
     try:
         items = media_server.get_collection_items(collection_id)
-        return jsonify({"success": True, "items": [item.to_dict() for item in items], "source": server_type})
+        return jsonify(
+            {
+                "success": True,
+                "items": [item.to_dict() for item in items],
+                "source": server_type,
+            }
+        )
     except Exception as e:
         logger.error(f"Error getting collection items: {e}")
         return jsonify({"success": False, "error": str(e), "items": []})
@@ -1606,7 +1745,13 @@ def api_watch_history():
 
     try:
         items = media_server.get_watch_history(limit)
-        return jsonify({"success": True, "items": [item.to_dict() for item in items], "source": server_type})
+        return jsonify(
+            {
+                "success": True,
+                "items": [item.to_dict() for item in items],
+                "source": server_type,
+            }
+        )
     except Exception as e:
         logger.error(f"Error getting watch history: {e}")
         return jsonify({"success": False, "error": str(e), "items": []})
@@ -1734,7 +1879,12 @@ def api_downloads_pause_all():
 
     try:
         result = client.pause_queue()
-        return jsonify({"success": result, "message": "Queue paused" if result else "Failed to pause"})
+        return jsonify(
+            {
+                "success": result,
+                "message": "Queue paused" if result else "Failed to pause",
+            }
+        )
     except Exception as e:
         logger.error(f"Error pausing downloads: {e}")
         return jsonify({"success": False, "error": str(e)})
@@ -1749,7 +1899,12 @@ def api_downloads_resume_all():
 
     try:
         result = client.resume_queue()
-        return jsonify({"success": result, "message": "Queue resumed" if result else "Failed to resume"})
+        return jsonify(
+            {
+                "success": result,
+                "message": "Queue resumed" if result else "Failed to resume",
+            }
+        )
     except Exception as e:
         logger.error(f"Error resuming downloads: {e}")
         return jsonify({"success": False, "error": str(e)})
@@ -1839,7 +1994,7 @@ def api_tmdb_status():
         {
             "success": True,
             "configured": client.is_configured(),
-            "message": "TMDB API configured" if client.is_configured() else "Add TMDB_API_KEY to environment",
+            "message": ("TMDB API configured" if client.is_configured() else "Add TMDB_API_KEY to environment"),
         }
     )
 
@@ -1901,7 +2056,14 @@ def api_tmdb_trending():
                 if item.get("title", "").lower() in library_titles:
                     item["in_library"] = True
 
-        return jsonify({"success": True, "items": items, "media_type": media_type, "time_window": time_window})
+        return jsonify(
+            {
+                "success": True,
+                "items": items,
+                "media_type": media_type,
+                "time_window": time_window,
+            }
+        )
     except Exception as e:
         logger.error(f"TMDB trending error: {e}")
         return jsonify({"success": False, "error": str(e), "items": []})

@@ -2,7 +2,9 @@
 """
 Test V2 Code Generation Engine on Proposal #4 (SQL Injection Fix)
 """
+
 import sys
+
 sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
 sys.path.insert(0, "/mnt/archie_brain/platform_v2")
 
@@ -19,7 +21,7 @@ print(f"Engine ready. Validator: {engine.validator is not None}")
 print("\nValidating target file...")
 validation = engine._validate_target_files(["platform_v2/agent_management_api.py"])
 print(f"  Valid files: {len(validation['valid_files'])}")
-if validation['valid_files']:
+if validation["valid_files"]:
     print(f"  Full path: {validation['valid_files'][0]['full_path']}")
 
 # Get context around line 152
@@ -43,7 +45,7 @@ Ensure parameterized queries are used.""",
     category="security",
     target_files=["platform_v2/agent_management_api.py"],
     line_number=152,
-    prefer_contractor=False
+    prefer_contractor=False,
 )
 
 print("\n" + "=" * 60)
@@ -69,11 +71,11 @@ if result.get("changes"):
         print(f"File: {change.get('file_path')}")
         print(f"Action: {change.get('action')}")
         print(f"Description: {change.get('description', 'N/A')}")
-        if change.get('old_content'):
-            preview = change['old_content'][:200].replace('\n', '\\n')
+        if change.get("old_content"):
+            preview = change["old_content"][:200].replace("\n", "\\n")
             print(f"Old: {preview}...")
-        if change.get('new_content'):
-            preview = change['new_content'][:200].replace('\n', '\\n')
+        if change.get("new_content"):
+            preview = change["new_content"][:200].replace("\n", "\\n")
             print(f"New: {preview}...")
 
 if result.get("error"):

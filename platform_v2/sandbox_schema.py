@@ -8,6 +8,7 @@ Uses PostgreSQL schema separation to create lightweight sandboxes:
 - Ideal for database-only changes or low-risk improvements
 - Full data isolation within same database
 """
+
 import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -29,23 +30,23 @@ class SchemaSandboxManager:
     """
 
     def __init__(self):
-        self.schema_prefix = 'sandbox'  # Single sandbox schema name
+        self.schema_prefix = "sandbox"  # Single sandbox schema name
         self.excluded_tables = [
-            'spatial_ref_sys',  # PostGIS system table
-            'geography_columns',
-            'geometry_columns',
-            'raster_columns',
-            'raster_overviews'
+            "spatial_ref_sys",  # PostGIS system table
+            "geography_columns",
+            "geometry_columns",
+            "raster_columns",
+            "raster_overviews",
         ]
 
     def get_db(self):
         """Get database connection"""
         return psycopg2.connect(
-            host=os.getenv('DB_HOST', 'archie_database'),
-            port=os.getenv('DB_PORT', '5432'),
-            database=os.getenv('DB_NAME', 'archie'),
-            user=os.getenv('DB_USER', 'archie'),
-            password=os.getenv('DB_PASSWORD', '')
+            host=os.getenv("DB_HOST", "archie_database"),
+            port=os.getenv("DB_PORT", "5432"),
+            database=os.getenv("DB_NAME", "archie"),
+            user=os.getenv("DB_USER", "archie"),
+            password=os.getenv("DB_PASSWORD", ""),
         )
 
     def create_schema(
@@ -53,7 +54,7 @@ class SchemaSandboxManager:
         sandbox_id: int,
         proposal_id: int,
         clone_data: bool = True,
-        tables_to_clone: List[str] = None
+        tables_to_clone: List[str] = None,
     ) -> Dict:
         """
         Create a new sandbox schema.
@@ -81,39 +82,39 @@ class SchemaSandboxManager:
 
         try:
             # Check if schema already exists - if so, drop it first (single sandbox design)
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT schema_name
                 FROM information_schema.schemata
                 WHERE schema_name = %s
-            """, (schema_name,))
+            """,
+                (schema_name,),
+            )
 
             if cur.fetchone():
                 print(f"🔄 Dropping existing {schema_name} schema to recreate it...")
-                cur.execute(sql.SQL("DROP SCHEMA IF EXISTS {} CASCADE").format(
-                    sql.Identifier(schema_name)
-                ))
+                cur.execute(sql.SQL("DROP SCHEMA IF EXISTS {} CASCADE").format(sql.Identifier(schema_name)))
                 conn.commit()
                 print(f"✅ Old {schema_name} schema dropped")
 
             # Create schema
-            cur.execute(sql.SQL("CREATE SCHEMA {}").format(
-                sql.Identifier(schema_name)
-            ))
+            cur.execute(sql.SQL("CREATE SCHEMA {}").format(sql.Identifier(schema_name)))
             conn.commit()
 
             # Get list of tables to clone
             if tables_to_clone:
                 tables = tables_to_clone
             else:
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT table_name
                     FROM information_schema.tables
                     WHERE table_schema = 'public'
                     AND table_type = 'BASE TABLE'
                     ORDER BY table_name
-                """)
-                tables = [row['table_name'] for row in cur.fetchall()
-                         if row['table_name'] not in self.excluded_tables]
+                """
+                )
+                tables = [row["table_name"] for row in cur.fetchall() if row["table_name"] not in self.excluded_tables]
 
             tables_cloned = 0
             total_rows = 0
@@ -123,32 +124,41 @@ class SchemaSandboxManager:
                 try:
                     if clone_data:
                         # Clone structure and data
-                        cur.execute(sql.SQL("""
+                        cur.execute(
+                            sql.SQL(
+                                """
                             CREATE TABLE {}.{} AS
                             SELECT * FROM public.{}
-                        """).format(
-                            sql.Identifier(schema_name),
-                            sql.Identifier(table),
-                            sql.Identifier(table)
-                        ))
+                        """
+                            ).format(
+                                sql.Identifier(schema_name),
+                                sql.Identifier(table),
+                                sql.Identifier(table),
+                            )
+                        )
                     else:
                         # Clone structure only
-                        cur.execute(sql.SQL("""
+                        cur.execute(
+                            sql.SQL(
+                                """
                             CREATE TABLE {}.{} (LIKE public.{} INCLUDING ALL)
-                        """).format(
-                            sql.Identifier(schema_name),
-                            sql.Identifier(table),
-                            sql.Identifier(table)
-                        ))
+                        """
+                            ).format(
+                                sql.Identifier(schema_name),
+                                sql.Identifier(table),
+                                sql.Identifier(table),
+                            )
+                        )
 
                     # Get row count
-                    cur.execute(sql.SQL("""
+                    cur.execute(
+                        sql.SQL(
+                            """
                         SELECT COUNT(*) as count FROM {}.{}
-                    """).format(
-                        sql.Identifier(schema_name),
-                        sql.Identifier(table)
-                    ))
-                    row_count = cur.fetchone()['count']
+                    """
+                        ).format(sql.Identifier(schema_name), sql.Identifier(table))
+                    )
+                    row_count = cur.fetchone()["count"]
                     total_rows += row_count
 
                     tables_cloned += 1
@@ -167,19 +177,17 @@ class SchemaSandboxManager:
             conn.close()
 
             return {
-                'success': True,
-                'schema_name': schema_name,
-                'tables_cloned': tables_cloned,
-                'rows_cloned': total_rows,
-                'created_at': datetime.now().isoformat()
+                "success": True,
+                "schema_name": schema_name,
+                "tables_cloned": tables_cloned,
+                "rows_cloned": total_rows,
+                "created_at": datetime.now().isoformat(),
             }
 
         except Exception as e:
             # Cleanup on error
             try:
-                cur.execute(sql.SQL("DROP SCHEMA IF EXISTS {} CASCADE").format(
-                    sql.Identifier(schema_name)
-                ))
+                cur.execute(sql.SQL("DROP SCHEMA IF EXISTS {} CASCADE").format(sql.Identifier(schema_name)))
                 conn.commit()
             except:
                 pass
@@ -187,16 +195,9 @@ class SchemaSandboxManager:
             cur.close()
             conn.close()
 
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
-    def destroy_schema(
-        self,
-        schema_name: str = None,
-        sandbox_id: int = None
-    ) -> Dict:
+    def destroy_schema(self, schema_name: str = None, sandbox_id: int = None) -> Dict:
         """
         Destroy a sandbox schema and cleanup resources.
 
@@ -214,46 +215,32 @@ class SchemaSandboxManager:
             schema_name = f"{self.schema_prefix}{sandbox_id}"
 
         if not schema_name:
-            return {
-                'success': False,
-                'error': 'Must provide schema_name or sandbox_id'
-            }
+            return {"success": False, "error": "Must provide schema_name or sandbox_id"}
 
         conn = self.get_db()
         cur = conn.cursor()
 
         try:
             # Drop schema with CASCADE to remove all objects
-            cur.execute(sql.SQL("DROP SCHEMA IF EXISTS {} CASCADE").format(
-                sql.Identifier(schema_name)
-            ))
+            cur.execute(sql.SQL("DROP SCHEMA IF EXISTS {} CASCADE").format(sql.Identifier(schema_name)))
             conn.commit()
 
             cur.close()
             conn.close()
 
             return {
-                'success': True,
-                'schema_name': schema_name,
-                'destroyed_at': datetime.now().isoformat()
+                "success": True,
+                "schema_name": schema_name,
+                "destroyed_at": datetime.now().isoformat(),
             }
 
         except Exception as e:
             cur.close()
             conn.close()
 
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
-    def execute_query(
-        self,
-        schema_name: str,
-        query: str,
-        params: tuple = None,
-        fetch: bool = True
-    ) -> Dict:
+    def execute_query(self, schema_name: str, query: str, params: tuple = None, fetch: bool = True) -> Dict:
         """
         Execute a query in the sandbox schema.
 
@@ -275,9 +262,7 @@ class SchemaSandboxManager:
 
         try:
             # Set search_path to sandbox schema
-            cur.execute(sql.SQL("SET search_path TO {}, public").format(
-                sql.Identifier(schema_name)
-            ))
+            cur.execute(sql.SQL("SET search_path TO {}, public").format(sql.Identifier(schema_name)))
 
             # Execute query
             if params:
@@ -296,28 +281,21 @@ class SchemaSandboxManager:
             cur.close()
             conn.close()
 
-            return {
-                'success': True,
-                'rows': rows,
-                'rowcount': rowcount
-            }
+            return {"success": True, "rows": rows, "rowcount": rowcount}
 
         except Exception as e:
             conn.rollback()
             cur.close()
             conn.close()
 
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
     def clone_table(
         self,
         schema_name: str,
         table_name: str,
-        source_schema: str = 'public',
-        clone_data: bool = True
+        source_schema: str = "public",
+        clone_data: bool = True,
     ) -> Dict:
         """
         Clone a single table into the sandbox schema.
@@ -342,59 +320,58 @@ class SchemaSandboxManager:
         try:
             if clone_data:
                 # Clone with data
-                cur.execute(sql.SQL("""
+                cur.execute(
+                    sql.SQL(
+                        """
                     CREATE TABLE {}.{} AS
                     SELECT * FROM {}.{}
-                """).format(
-                    sql.Identifier(schema_name),
-                    sql.Identifier(table_name),
-                    sql.Identifier(source_schema),
-                    sql.Identifier(table_name)
-                ))
+                """
+                    ).format(
+                        sql.Identifier(schema_name),
+                        sql.Identifier(table_name),
+                        sql.Identifier(source_schema),
+                        sql.Identifier(table_name),
+                    )
+                )
             else:
                 # Clone structure only
-                cur.execute(sql.SQL("""
+                cur.execute(
+                    sql.SQL(
+                        """
                     CREATE TABLE {}.{} (LIKE {}.{} INCLUDING ALL)
-                """).format(
-                    sql.Identifier(schema_name),
-                    sql.Identifier(table_name),
-                    sql.Identifier(source_schema),
-                    sql.Identifier(table_name)
-                ))
+                """
+                    ).format(
+                        sql.Identifier(schema_name),
+                        sql.Identifier(table_name),
+                        sql.Identifier(source_schema),
+                        sql.Identifier(table_name),
+                    )
+                )
 
             # Get row count
-            cur.execute(sql.SQL("""
+            cur.execute(
+                sql.SQL(
+                    """
                 SELECT COUNT(*) as count FROM {}.{}
-            """).format(
-                sql.Identifier(schema_name),
-                sql.Identifier(table_name)
-            ))
-            row_count = cur.fetchone()['count']
+            """
+                ).format(sql.Identifier(schema_name), sql.Identifier(table_name))
+            )
+            row_count = cur.fetchone()["count"]
 
             conn.commit()
             cur.close()
             conn.close()
 
-            return {
-                'success': True,
-                'rows_cloned': row_count
-            }
+            return {"success": True, "rows_cloned": row_count}
 
         except Exception as e:
             conn.rollback()
             cur.close()
             conn.close()
 
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
-    def compare_schemas(
-        self,
-        schema1: str,
-        schema2: str = 'public'
-    ) -> Dict:
+    def compare_schemas(self, schema1: str, schema2: str = "public") -> Dict:
         """
         Compare sandbox schema with production schema.
 
@@ -417,22 +394,28 @@ class SchemaSandboxManager:
 
         try:
             # Get tables in schema1
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT table_name
                 FROM information_schema.tables
                 WHERE table_schema = %s
                 AND table_type = 'BASE TABLE'
-            """, (schema1,))
-            tables1 = set(row['table_name'] for row in cur.fetchall())
+            """,
+                (schema1,),
+            )
+            tables1 = set(row["table_name"] for row in cur.fetchall())
 
             # Get tables in schema2
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT table_name
                 FROM information_schema.tables
                 WHERE table_schema = %s
                 AND table_type = 'BASE TABLE'
-            """, (schema2,))
-            tables2 = set(row['table_name'] for row in cur.fetchall())
+            """,
+                (schema2,),
+            )
+            tables2 = set(row["table_name"] for row in cur.fetchall())
 
             # Find differences
             only_in_1 = list(tables1 - tables2)
@@ -442,48 +425,46 @@ class SchemaSandboxManager:
             # Compare row counts for common tables
             row_count_diffs = {}
             for table in common:
-                cur.execute(sql.SQL("""
+                cur.execute(
+                    sql.SQL(
+                        """
                     SELECT
                         (SELECT COUNT(*) FROM {}.{}) as count1,
                         (SELECT COUNT(*) FROM {}.{}) as count2
-                """).format(
-                    sql.Identifier(schema1),
-                    sql.Identifier(table),
-                    sql.Identifier(schema2),
-                    sql.Identifier(table)
-                ))
+                """
+                    ).format(
+                        sql.Identifier(schema1),
+                        sql.Identifier(table),
+                        sql.Identifier(schema2),
+                        sql.Identifier(table),
+                    )
+                )
                 counts = cur.fetchone()
-                if counts['count1'] != counts['count2']:
+                if counts["count1"] != counts["count2"]:
                     row_count_diffs[table] = {
-                        schema1: counts['count1'],
-                        schema2: counts['count2'],
-                        'diff': counts['count1'] - counts['count2']
+                        schema1: counts["count1"],
+                        schema2: counts["count2"],
+                        "diff": counts["count1"] - counts["count2"],
                     }
 
             cur.close()
             conn.close()
 
             return {
-                'success': True,
-                'tables_only_in_schema1': only_in_1,
-                'tables_only_in_schema2': only_in_2,
-                'row_count_differences': row_count_diffs,
-                'common_tables': len(common)
+                "success": True,
+                "tables_only_in_schema1": only_in_1,
+                "tables_only_in_schema2": only_in_2,
+                "row_count_differences": row_count_diffs,
+                "common_tables": len(common),
             }
 
         except Exception as e:
             cur.close()
             conn.close()
 
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
-    def get_schema_size(
-        self,
-        schema_name: str
-    ) -> Dict:
+    def get_schema_size(self, schema_name: str) -> Dict:
         """
         Get the disk size of a sandbox schema.
 
@@ -501,48 +482,46 @@ class SchemaSandboxManager:
 
         try:
             # Get total size
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     pg_size_pretty(SUM(pg_total_relation_size(schemaname||'.'||tablename))::bigint) as size_pretty,
                     SUM(pg_total_relation_size(schemaname||'.'||tablename))::bigint as size_bytes,
                     COUNT(*) as table_count
                 FROM pg_tables
                 WHERE schemaname = %s
-            """, (schema_name,))
+            """,
+                (schema_name,),
+            )
 
             result = cur.fetchone()
             cur.close()
             conn.close()
 
             if result:
-                size_bytes = result['size_bytes'] or 0
+                size_bytes = result["size_bytes"] or 0
                 return {
-                    'success': True,
-                    'schema_name': schema_name,
-                    'size_bytes': size_bytes,
-                    'size_mb': round(size_bytes / (1024 * 1024), 2),
-                    'size_pretty': result['size_pretty'],
-                    'table_count': result['table_count']
+                    "success": True,
+                    "schema_name": schema_name,
+                    "size_bytes": size_bytes,
+                    "size_mb": round(size_bytes / (1024 * 1024), 2),
+                    "size_pretty": result["size_pretty"],
+                    "table_count": result["table_count"],
                 }
             else:
-                return {
-                    'success': False,
-                    'error': f'Schema {schema_name} not found'
-                }
+                return {"success": False, "error": f"Schema {schema_name} not found"}
 
         except Exception as e:
             cur.close()
             conn.close()
 
-            return {
-                'success': False,
-                'error': str(e)
-            }
+            return {"success": False, "error": str(e)}
 
 
 # ============================================================================
 # CONVENIENCE FUNCTIONS
 # ============================================================================
+
 
 def create_schema_sandbox(sandbox_id: int, proposal_id: int) -> Dict:
     """Quick function to create schema sandbox"""
@@ -560,7 +539,7 @@ def destroy_schema_sandbox(sandbox_id: int) -> Dict:
 # TESTING
 # ============================================================================
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print("Schema Sandbox Manager - Test Mode")
     print("=" * 60)
 

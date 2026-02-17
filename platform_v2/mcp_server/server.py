@@ -21,29 +21,30 @@ import requests
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler('/mnt/archie_brain/logs/mcp_server.log'),
-        logging.StreamHandler(sys.stderr)
-    ]
+        logging.FileHandler("/mnt/archie_brain/logs/mcp_server.log"),
+        logging.StreamHandler(sys.stderr),
+    ],
 )
-logger = logging.getLogger('archie_mcp')
+logger = logging.getLogger("archie_mcp")
 
 # Database configuration
 DB_CONFIG = {
-    'host': os.getenv('DB_HOST', 'localhost'),
-    'database': os.getenv('DB_NAME', 'archie'),
-    'user': os.getenv('DB_USER', 'archie'),
-    'password': os.getenv('DB_PASSWORD', 'archie_secure_2024')
+    "host": os.getenv("DB_HOST", "localhost"),
+    "database": os.getenv("DB_NAME", "archie"),
+    "user": os.getenv("DB_USER", "archie"),
+    "password": os.getenv("DB_PASSWORD", "archie_secure_2024"),
 }
 
 # A.R.C.H.I.E. Platform base URL
-PLATFORM_URL = os.getenv('ARCHIE_PLATFORM_URL', 'http://localhost:3000')
+PLATFORM_URL = os.getenv("ARCHIE_PLATFORM_URL", "http://localhost:3000")
 
 
 @dataclass
 class MCPTool:
     """Definition of an MCP tool"""
+
     name: str
     description: str
     input_schema: Dict[str, Any]
@@ -58,6 +59,7 @@ class MCPTool:
 @dataclass
 class MCPResource:
     """Definition of an MCP resource"""
+
     uri: str
     name: str
     description: str
@@ -94,6 +96,7 @@ class ArchieMCPServer:
     def _generate_session_id(self) -> str:
         """Generate unique session ID"""
         import uuid
+
         return f"mcp-{uuid.uuid4().hex[:12]}"
 
     def _get_db_connection(self):
@@ -101,6 +104,7 @@ class ArchieMCPServer:
         try:
             import psycopg2
             from psycopg2.extras import RealDictCursor
+
             conn = psycopg2.connect(**DB_CONFIG)
             return conn
         except Exception as e:
@@ -116,12 +120,14 @@ class ArchieMCPServer:
 
         try:
             cur = conn.cursor()
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT name, category, display_name, description, input_schema,
                        endpoint_path, http_method, requires_auth, timeout_ms
                 FROM mcp_tool_definitions
                 WHERE is_enabled = TRUE
-            """)
+            """
+            )
             rows = cur.fetchall()
 
             for row in rows:
@@ -129,11 +135,11 @@ class ArchieMCPServer:
                     name=row[0],
                     category=row[1],
                     description=row[3] or row[2] or row[0],
-                    input_schema=row[4] if isinstance(row[4], dict) else json.loads(row[4] or '{}'),
+                    input_schema=(row[4] if isinstance(row[4], dict) else json.loads(row[4] or "{}")),
                     endpoint_path=row[5],
-                    http_method=row[6] or 'POST',
+                    http_method=row[6] or "POST",
                     requires_auth=row[7] if row[7] is not None else True,
-                    timeout_ms=row[8] or 30000
+                    timeout_ms=row[8] or 30000,
                 )
                 self.tools[tool.name] = tool
 
@@ -150,41 +156,41 @@ class ArchieMCPServer:
         """Register built-in tools that don't need database definitions"""
 
         # System status tool
-        self.tools['ping'] = MCPTool(
-            name='ping',
-            description='Check if the A.R.C.H.I.E. MCP server is responsive',
+        self.tools["ping"] = MCPTool(
+            name="ping",
+            description="Check if the A.R.C.H.I.E. MCP server is responsive",
             input_schema={"type": "object", "properties": {}},
-            category='system',
+            category="system",
             requires_auth=False,
-            handler=self._handle_ping
+            handler=self._handle_ping,
         )
 
         # List available tools
-        self.tools['list_tools'] = MCPTool(
-            name='list_tools',
-            description='List all available MCP tools and their descriptions',
+        self.tools["list_tools"] = MCPTool(
+            name="list_tools",
+            description="List all available MCP tools and their descriptions",
             input_schema={
                 "type": "object",
                 "properties": {
                     "category": {
                         "type": "string",
-                        "description": "Filter by category (knowledge, creation, business, admin)"
+                        "description": "Filter by category (knowledge, creation, business, admin)",
                     }
-                }
+                },
             },
-            category='system',
+            category="system",
             requires_auth=False,
-            handler=self._handle_list_tools
+            handler=self._handle_list_tools,
         )
 
         # Get server info
-        self.tools['server_info'] = MCPTool(
-            name='server_info',
-            description='Get information about the A.R.C.H.I.E. MCP server',
+        self.tools["server_info"] = MCPTool(
+            name="server_info",
+            description="Get information about the A.R.C.H.I.E. MCP server",
             input_schema={"type": "object", "properties": {}},
-            category='system',
+            category="system",
             requires_auth=False,
-            handler=self._handle_server_info
+            handler=self._handle_server_info,
         )
 
     def _load_package_tools(self):
@@ -201,13 +207,13 @@ class ArchieMCPServer:
             upgraded_count = 0
 
             for tool_def in package_tools:
-                name = tool_def['name']
+                name = tool_def["name"]
 
                 # Check if tool exists and whether to override
                 if name in self.tools:
                     existing = self.tools[name]
                     # Override if existing has no handler (HTTP endpoint) but package has handler
-                    if not existing.handler and tool_def.get('handler'):
+                    if not existing.handler and tool_def.get("handler"):
                         logger.info(f"Upgrading tool '{name}' from HTTP endpoint to direct handler")
                         upgraded_count += 1
                     else:
@@ -216,11 +222,11 @@ class ArchieMCPServer:
 
                 tool = MCPTool(
                     name=name,
-                    description=tool_def['description'],
-                    input_schema=tool_def['input_schema'],
-                    category=tool_def['category'],
-                    handler=tool_def['handler'],
-                    requires_auth=tool_def.get('requires_permission', 'read') != 'none'
+                    description=tool_def["description"],
+                    input_schema=tool_def["input_schema"],
+                    category=tool_def["category"],
+                    handler=tool_def["handler"],
+                    requires_auth=tool_def.get("requires_permission", "read") != "none",
                 )
                 self.tools[name] = tool
                 loaded_count += 1
@@ -238,28 +244,30 @@ class ArchieMCPServer:
             "status": "ok",
             "message": "A.R.C.H.I.E. MCP Server is running",
             "timestamp": datetime.now().isoformat(),
-            "session_id": self.session_id
+            "session_id": self.session_id,
         }
 
     async def _handle_list_tools(self, params: Dict) -> Dict:
         """Handle list_tools tool"""
-        category_filter = params.get('category')
+        category_filter = params.get("category")
 
         tools_list = []
         for name, tool in self.tools.items():
             if category_filter and tool.category != category_filter:
                 continue
-            tools_list.append({
-                "name": name,
-                "category": tool.category,
-                "description": tool.description,
-                "requires_auth": tool.requires_auth
-            })
+            tools_list.append(
+                {
+                    "name": name,
+                    "category": tool.category,
+                    "description": tool.description,
+                    "requires_auth": tool.requires_auth,
+                }
+            )
 
         # Group by category
         by_category = {}
         for t in tools_list:
-            cat = t['category']
+            cat = t["category"]
             if cat not in by_category:
                 by_category[cat] = []
             by_category[cat].append(t)
@@ -267,7 +275,7 @@ class ArchieMCPServer:
         return {
             "total_tools": len(tools_list),
             "by_category": by_category,
-            "tools": tools_list
+            "tools": tools_list,
         }
 
     async def _handle_server_info(self, params: Dict) -> Dict:
@@ -281,7 +289,7 @@ class ArchieMCPServer:
             "uptime_seconds": uptime,
             "total_tools": len(self.tools),
             "requests_handled": self.request_count,
-            "categories": list(set(t.category for t in self.tools.values()))
+            "categories": list(set(t.category for t in self.tools.values())),
         }
 
     async def call_tool(self, name: str, params: Dict) -> Dict:
@@ -302,7 +310,7 @@ class ArchieMCPServer:
             return {
                 "error": True,
                 "code": "TOOL_NOT_FOUND",
-                "message": f"Tool '{name}' not found. Use 'list_tools' to see available tools."
+                "message": f"Tool '{name}' not found. Use 'list_tools' to see available tools.",
             }
 
         tool = self.tools[name]
@@ -318,7 +326,7 @@ class ArchieMCPServer:
                 return {
                     "error": True,
                     "code": "NO_HANDLER",
-                    "message": f"Tool '{name}' has no handler configured"
+                    "message": f"Tool '{name}' has no handler configured",
                 }
 
             # Log successful call
@@ -329,7 +337,7 @@ class ArchieMCPServer:
                 "success": True,
                 "tool": name,
                 "result": result,
-                "execution_time_ms": round(execution_time, 2)
+                "execution_time_ms": round(execution_time, 2),
             }
 
         except Exception as e:
@@ -345,7 +353,7 @@ class ArchieMCPServer:
                 "error": True,
                 "code": "EXECUTION_ERROR",
                 "message": error_msg,
-                "tool": name
+                "tool": name,
             }
 
     async def _call_http_endpoint(self, tool: MCPTool, params: Dict) -> Dict:
@@ -355,7 +363,7 @@ class ArchieMCPServer:
         headers = {
             "Content-Type": "application/json",
             "X-MCP-Session": self.session_id,
-            "X-MCP-Tool": tool.name
+            "X-MCP-Tool": tool.name,
         }
 
         if self.api_key:
@@ -364,13 +372,13 @@ class ArchieMCPServer:
         try:
             timeout = tool.timeout_ms / 1000  # Convert to seconds
 
-            if tool.http_method.upper() == 'GET':
+            if tool.http_method.upper() == "GET":
                 response = requests.get(url, params=params, headers=headers, timeout=timeout)
-            elif tool.http_method.upper() == 'POST':
+            elif tool.http_method.upper() == "POST":
                 response = requests.post(url, json=params, headers=headers, timeout=timeout)
-            elif tool.http_method.upper() == 'PUT':
+            elif tool.http_method.upper() == "PUT":
                 response = requests.put(url, json=params, headers=headers, timeout=timeout)
-            elif tool.http_method.upper() == 'DELETE':
+            elif tool.http_method.upper() == "DELETE":
                 response = requests.delete(url, params=params, headers=headers, timeout=timeout)
             else:
                 raise ValueError(f"Unsupported HTTP method: {tool.http_method}")
@@ -385,8 +393,15 @@ class ArchieMCPServer:
         except Exception as e:
             raise RuntimeError(f"Request failed: {str(e)}")
 
-    def _log_tool_usage(self, tool_name: str, category: str, params: Dict,
-                        success: bool, execution_time_ms: float, error_msg: str = None):
+    def _log_tool_usage(
+        self,
+        tool_name: str,
+        category: str,
+        params: Dict,
+        success: bool,
+        execution_time_ms: float,
+        error_msg: str = None,
+    ):
         """Log tool usage to database"""
         conn = self._get_db_connection()
         if not conn:
@@ -394,20 +409,23 @@ class ArchieMCPServer:
 
         try:
             cur = conn.cursor()
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO mcp_tool_usage
                 (session_id, tool_name, tool_category, input_params, success,
                  execution_time_ms, error_message, created_at)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
-            """, (
-                self.session_id,
-                tool_name,
-                category,
-                json.dumps(params),
-                success,
-                int(execution_time_ms),
-                error_msg
-            ))
+            """,
+                (
+                    self.session_id,
+                    tool_name,
+                    category,
+                    json.dumps(params),
+                    success,
+                    int(execution_time_ms),
+                    error_msg,
+                ),
+            )
             conn.commit()
             cur.close()
             conn.close()
@@ -422,7 +440,7 @@ class ArchieMCPServer:
             {
                 "name": tool.name,
                 "description": tool.description,
-                "inputSchema": tool.input_schema
+                "inputSchema": tool.input_schema,
             }
             for tool in self.tools.values()
         ]
@@ -434,7 +452,7 @@ class ArchieMCPServer:
                 "uri": resource.uri,
                 "name": resource.name,
                 "description": resource.description,
-                "mimeType": resource.mime_type
+                "mimeType": resource.mime_type,
             }
             for resource in self.resources.values()
         ]
@@ -443,6 +461,7 @@ class ArchieMCPServer:
 # ============================================================================
 # MCP Protocol Handler (stdio transport)
 # ============================================================================
+
 
 class MCPProtocolHandler:
     """
@@ -458,40 +477,40 @@ class MCPProtocolHandler:
 
     async def handle_message(self, message: Dict) -> Optional[Dict]:
         """Handle incoming MCP message. Returns None for notifications."""
-        method = message.get('method', '')
-        params = message.get('params', {})
-        msg_id = message.get('id')
-        is_notification = 'id' not in message
+        method = message.get("method", "")
+        params = message.get("params", {})
+        msg_id = message.get("id")
+        is_notification = "id" not in message
 
         logger.debug(f"Handling MCP message: {method} (notification={is_notification})")
 
         try:
             # Handle notifications (no id field) - must not send a response
             if is_notification:
-                if method == 'notifications/initialized':
+                if method == "notifications/initialized":
                     logger.info("Client initialization confirmed")
-                elif method == 'notifications/cancelled':
+                elif method == "notifications/cancelled":
                     logger.info(f"Client cancelled request: {params}")
-                elif method.startswith('notifications/'):
+                elif method.startswith("notifications/"):
                     logger.debug(f"Received notification: {method}")
                 else:
                     logger.debug(f"Ignoring unknown notification: {method}")
                 return None
 
             # Handle requests (have id field) - must send a response
-            if method == 'initialize':
+            if method == "initialize":
                 result = self._handle_initialize(params)
-            elif method == 'tools/list':
+            elif method == "tools/list":
                 result = {"tools": self.server.get_tools_list()}
-            elif method == 'tools/call':
-                tool_name = params.get('name')
-                tool_args = params.get('arguments', {})
+            elif method == "tools/call":
+                tool_name = params.get("name")
+                tool_args = params.get("arguments", {})
                 result = await self.server.call_tool(tool_name, tool_args)
-            elif method == 'resources/list':
+            elif method == "resources/list":
                 result = {"resources": self.server.get_resources_list()}
-            elif method == 'resources/read':
+            elif method == "resources/read":
                 result = await self._handle_resource_read(params)
-            elif method == 'ping':
+            elif method == "ping":
                 result = {}
             else:
                 return self._error_response(msg_id, -32601, f"Method not found: {method}")
@@ -504,7 +523,7 @@ class MCPProtocolHandler:
 
     def _handle_initialize(self, params: Dict) -> Dict:
         """Handle initialize request"""
-        client_info = params.get('clientInfo', {})
+        client_info = params.get("clientInfo", {})
         logger.info(f"MCP client connected: {client_info.get('name', 'unknown')}")
 
         return {
@@ -513,43 +532,35 @@ class MCPProtocolHandler:
                 "tools": {"listChanged": True},
                 "resources": {"subscribe": False, "listChanged": True},
                 "prompts": {"listChanged": False},
-                "logging": {}
+                "logging": {},
             },
-            "serverInfo": {
-                "name": "archie-mcp-server",
-                "version": "1.0.0"
-            }
+            "serverInfo": {"name": "archie-mcp-server", "version": "1.0.0"},
         }
 
     async def _handle_resource_read(self, params: Dict) -> Dict:
         """Handle resource read request"""
-        uri = params.get('uri', '')
+        uri = params.get("uri", "")
         # Resource reading will be implemented in Phase 50.6
         return {
-            "contents": [{
-                "uri": uri,
-                "mimeType": "text/plain",
-                "text": f"Resource reading not yet implemented for: {uri}"
-            }]
+            "contents": [
+                {
+                    "uri": uri,
+                    "mimeType": "text/plain",
+                    "text": f"Resource reading not yet implemented for: {uri}",
+                }
+            ]
         }
 
     def _success_response(self, msg_id: Any, result: Any) -> Dict:
         """Create success response"""
-        return {
-            "jsonrpc": "2.0",
-            "id": msg_id,
-            "result": result
-        }
+        return {"jsonrpc": "2.0", "id": msg_id, "result": result}
 
     def _error_response(self, msg_id: Any, code: int, message: str) -> Dict:
         """Create error response"""
         return {
             "jsonrpc": "2.0",
             "id": msg_id,
-            "error": {
-                "code": code,
-                "message": message
-            }
+            "error": {"code": code, "message": message},
         }
 
     async def run_stdio(self):
@@ -606,13 +617,14 @@ class MCPProtocolHandler:
 # Main Entry Point
 # ============================================================================
 
+
 def main():
     """Main entry point for MCP server"""
     import argparse
 
-    parser = argparse.ArgumentParser(description='A.R.C.H.I.E. MCP Server')
-    parser.add_argument('--api-key', help='API key for authentication')
-    parser.add_argument('--debug', action='store_true', help='Enable debug logging')
+    parser = argparse.ArgumentParser(description="A.R.C.H.I.E. MCP Server")
+    parser.add_argument("--api-key", help="API key for authentication")
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     args = parser.parse_args()
 
     if args.debug:
@@ -632,5 +644,5 @@ def main():
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

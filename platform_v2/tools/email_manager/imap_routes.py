@@ -375,6 +375,52 @@ def batch_analyze():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@email_manager_bp.route("/api/inbox/bulk", methods=["POST"])
+@login_required
+def bulk_action():
+    """Perform bulk actions on selected emails."""
+    try:
+        data = request.get_json(force=True)
+        ids = data.get("ids", [])
+        action = data.get("action")
+
+        if not ids or not action:
+            return jsonify({"success": False, "error": "Missing ids or action"}), 400
+
+        if len(ids) > 200:
+            return jsonify({"success": False, "error": "Max 200 emails per bulk action"}), 400
+
+        valid_actions = ["mark_read", "mark_unread", "archive", "star", "unstar"]
+        if action not in valid_actions:
+            return jsonify({"success": False, "error": f"Invalid action: {action}"}), 400
+
+        conn = get_db()
+        cur = conn.cursor()
+
+        placeholders = ",".join(["%s"] * len(ids))
+
+        if action == "mark_read":
+            cur.execute(f"UPDATE email_inbox SET is_read = TRUE WHERE id IN ({placeholders})", ids)
+        elif action == "mark_unread":
+            cur.execute(f"UPDATE email_inbox SET is_read = FALSE WHERE id IN ({placeholders})", ids)
+        elif action == "archive":
+            cur.execute(f"UPDATE email_inbox SET is_archived = TRUE WHERE id IN ({placeholders})", ids)
+        elif action == "star":
+            cur.execute(f"UPDATE email_inbox SET is_starred = TRUE WHERE id IN ({placeholders})", ids)
+        elif action == "unstar":
+            cur.execute(f"UPDATE email_inbox SET is_starred = FALSE WHERE id IN ({placeholders})", ids)
+
+        affected = cur.rowcount
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({"success": True, "affected": affected})
+    except Exception as e:
+        logger.error(f"Bulk action failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @email_manager_bp.route("/api/inbox/<int:email_id>", methods=["GET"])
 @login_required
 def get_email_detail(email_id):

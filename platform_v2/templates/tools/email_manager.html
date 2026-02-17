@@ -179,6 +179,27 @@
                         </button>
                     </div>
                 </div>
+                <!-- Bulk Action Bar -->
+                <div class="inbox-bulk-bar" id="inbox-bulk-bar" style="display: none;">
+                    <span class="bulk-count" id="bulk-count">0 selected</span>
+                    <div class="bulk-actions">
+                        <button class="em-btn em-btn--sm em-btn--outline" onclick="bulkAction('mark_read')">
+                            <i data-lucide="eye"></i> Mark Read
+                        </button>
+                        <button class="em-btn em-btn--sm em-btn--outline" onclick="bulkAction('mark_unread')">
+                            <i data-lucide="eye-off"></i> Mark Unread
+                        </button>
+                        <button class="em-btn em-btn--sm em-btn--outline" onclick="bulkAction('archive')">
+                            <i data-lucide="archive"></i> Archive
+                        </button>
+                        <button class="em-btn em-btn--sm em-btn--outline" onclick="bulkAnalyzeSelected()">
+                            <i data-lucide="sparkles"></i> Analyze Selected
+                        </button>
+                        <button class="em-btn em-btn--sm em-btn--outline" onclick="clearSelection()">
+                            <i data-lucide="x"></i> Clear
+                        </button>
+                    </div>
+                </div>
                 <!-- Category Filter Bar -->
                 <div class="inbox-filters" id="inbox-filters">
                     <button class="inbox-filter-btn active" data-category="" onclick="setInboxFilter('')">
@@ -211,6 +232,9 @@
                     <table class="em-table" id="inbox-table">
                         <thead>
                             <tr>
+                                <th style="width: 36px;">
+                                    <input type="checkbox" id="inbox-select-all" onchange="toggleSelectAll(this.checked)" title="Select all">
+                                </th>
                                 <th style="width: 40px;"></th>
                                 <th>From</th>
                                 <th>Subject</th>
@@ -222,7 +246,7 @@
                         </thead>
                         <tbody id="inbox-tbody">
                             <tr>
-                                <td colspan="7">
+                                <td colspan="8">
                                     <div class="em-loading">
                                         <i data-lucide="loader-2" class="em-spinner"></i>
                                         <span>Loading inbox...</span>
@@ -2687,6 +2711,36 @@ body.light-mode .em-table tbody tr:nth-child(even):hover {
         margin: 0;
     }
 }
+
+/* Bulk Action Bar */
+.inbox-bulk-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    background: rgba(255, 200, 0, 0.05);
+    border: 1px solid rgba(255, 200, 0, 0.2);
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+.bulk-count {
+    font-size: 13px;
+    font-weight: 600;
+    color: #FFC800;
+}
+.bulk-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.inbox-row-checkbox {
+    cursor: pointer;
+    accent-color: #00FFFF;
+}
+#inbox-select-all {
+    cursor: pointer;
+    accent-color: #00FFFF;
+}
 </style>
 
 <script>
@@ -2817,6 +2871,16 @@ function buildInboxRow(email) {
     tr.className = 'inbox-row' + (email.is_read ? '' : ' inbox-row--unread') + (email.id === currentEmailId ? ' selected' : '');
     tr.dataset.emailId = email.id;
     tr.addEventListener('click', function() { viewEmail(email.id); });
+
+    // Checkbox cell
+    const tdCheck = document.createElement('td');
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'inbox-row-checkbox';
+    checkbox.dataset.emailId = email.id;
+    checkbox.addEventListener('click', function(e) { e.stopPropagation(); updateBulkBar(); });
+    tdCheck.appendChild(checkbox);
+    tr.appendChild(tdCheck);
 
     // Star cell
     const tdStar = document.createElement('td');
@@ -2965,7 +3029,7 @@ async function loadInbox(page) {
     tbody.textContent = '';
     const loadingRow = document.createElement('tr');
     const loadingCell = document.createElement('td');
-    loadingCell.colSpan = 7;
+    loadingCell.colSpan = 8;
     loadingCell.innerHTML = '<div class="em-loading"><i data-lucide="loader-2" class="em-spinner"></i><span>Loading inbox...</span></div>';
     loadingRow.appendChild(loadingCell);
     tbody.appendChild(loadingRow);
@@ -2984,7 +3048,7 @@ async function loadInbox(page) {
             tbody.textContent = '';
             var errRow = document.createElement('tr');
             var errCell = document.createElement('td');
-            errCell.colSpan = 7;
+            errCell.colSpan = 8;
             var errDiv = document.createElement('div');
             errDiv.className = 'em-empty-state em-empty-state--inline';
             var errIcon = document.createElement('i');
@@ -3011,7 +3075,7 @@ async function loadInbox(page) {
         if (!data.emails || data.emails.length === 0) {
             var emptyRow = document.createElement('tr');
             var emptyCell = document.createElement('td');
-            emptyCell.colSpan = 7;
+            emptyCell.colSpan = 8;
             var emptyDiv = document.createElement('div');
             emptyDiv.className = 'em-empty-state em-empty-state--inline';
             var emptyIcon = document.createElement('i');
@@ -3051,7 +3115,7 @@ async function loadInbox(page) {
         tbody.textContent = '';
         var failRow = document.createElement('tr');
         var failCell = document.createElement('td');
-        failCell.colSpan = 7;
+        failCell.colSpan = 8;
         var failDiv = document.createElement('div');
         failDiv.className = 'em-empty-state em-empty-state--inline';
         var failIcon = document.createElement('i');
@@ -3302,6 +3366,88 @@ async function saveToKB(id) {
     } catch (error) {
         showToast('Error saving to KB', 'error');
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INBOX - BULK ACTIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+function getSelectedIds() {
+    return Array.from(document.querySelectorAll('.inbox-row-checkbox:checked'))
+        .map(function(cb) { return parseInt(cb.dataset.emailId); });
+}
+
+function updateBulkBar() {
+    var ids = getSelectedIds();
+    var bar = document.getElementById('inbox-bulk-bar');
+    if (ids.length > 0) {
+        bar.style.display = 'flex';
+        document.getElementById('bulk-count').textContent = ids.length + ' selected';
+    } else {
+        bar.style.display = 'none';
+    }
+    // Update select-all checkbox state
+    var allBoxes = document.querySelectorAll('.inbox-row-checkbox');
+    var selectAll = document.getElementById('inbox-select-all');
+    if (selectAll && allBoxes.length > 0) {
+        selectAll.checked = ids.length === allBoxes.length;
+        selectAll.indeterminate = ids.length > 0 && ids.length < allBoxes.length;
+    }
+}
+
+function toggleSelectAll(checked) {
+    document.querySelectorAll('.inbox-row-checkbox').forEach(function(cb) { cb.checked = checked; });
+    updateBulkBar();
+}
+
+function clearSelection() {
+    document.querySelectorAll('.inbox-row-checkbox').forEach(function(cb) { cb.checked = false; });
+    var selectAll = document.getElementById('inbox-select-all');
+    if (selectAll) selectAll.checked = false;
+    updateBulkBar();
+}
+
+async function bulkAction(action) {
+    var ids = getSelectedIds();
+    if (!ids.length) return;
+
+    try {
+        var resp = await fetch('/tools/email-manager/api/inbox/bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: ids, action: action })
+        });
+        var data = await resp.json();
+        if (data.success) {
+            showToast(action.replace(/_/g, ' ') + ': ' + data.affected + ' emails', 'success');
+            clearSelection();
+            loadInbox(inboxCurrentPage);
+            loadInboxStats();
+        } else {
+            showToast(data.error || 'Bulk action failed', 'error');
+        }
+    } catch (e) {
+        showToast('Bulk action error', 'error');
+    }
+}
+
+async function bulkAnalyzeSelected() {
+    var ids = getSelectedIds();
+    if (!ids.length) return;
+
+    showToast('Analyzing ' + ids.length + ' emails...', 'info');
+
+    var analyzed = 0;
+    for (var i = 0; i < ids.length; i++) {
+        try {
+            await fetch('/tools/email-manager/api/inbox/' + ids[i] + '/analyze', { method: 'POST' });
+            analyzed++;
+        } catch (e) { /* continue */ }
+    }
+
+    showToast('Analyzed ' + analyzed + '/' + ids.length + ' emails', 'success');
+    clearSelection();
+    loadInbox(inboxCurrentPage);
+    loadInboxStats();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

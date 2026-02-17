@@ -127,10 +127,10 @@
             <i data-lucide="list-checks"></i>
             <span>Tasks</span>
         </a>
-        <a href="{{ url_for('site_manager.index') }}"
-           class="nav-module-btn {% if request.endpoint and 'site_manager' in request.endpoint %}active{% endif %}"
+        <a href="{{ url_for('website_studio.index') }}"
+           class="nav-module-btn {% if request.endpoint and 'website_studio' in request.endpoint %}active{% endif %}"
            onclick="showTransition(event, this.href)"
-           title="Site Manager">
+           title="Website Designer">
             <i data-lucide="globe-2"></i>
             <span>Sites</span>
         </a>

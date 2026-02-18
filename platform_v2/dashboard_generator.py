@@ -6,9 +6,52 @@ Author: A.R.C.H.I.E. Platform
 Date: 2026-01-08
 """
 
-from typing import Dict
+import re
+from typing import Dict, List, Optional
 from module_registry import get_enabled_modules
 from rbac import can_access_module, get_user_role
+
+
+def get_featured_modules(user, pinned_ids: Optional[List[str]] = None) -> list:
+    """Get featured/pinned modules for dashboard hero section.
+
+    Returns a list of module dicts for the Priority Stations section.
+    Default pins: archie_chat, bridge, consciousness.
+    """
+    default_pins = ["archie_chat", "bridge", "consciousness"]
+    pin_ids = pinned_ids if pinned_ids else default_pins
+
+    enabled_modules = get_enabled_modules()
+    featured = []
+    for module in enabled_modules:
+        if module.id in pin_ids and can_access_module(module.id, user):
+            # Extract clean Lucide icon name from module icon field.
+            # module.icon is typically a plain name like "brain" or "monitor".
+            # If it ever contains HTML like '<i data-lucide="brain"></i>',
+            # extract just the icon name.
+            icon_name = module.icon or "box"
+            lucide_match = re.search(r'data-lucide="([^"]+)"', icon_name)
+            if lucide_match:
+                icon_name = lucide_match.group(1)
+            # Strip any remaining HTML tags as safety
+            icon_name = re.sub(r"<[^>]+>", "", icon_name).strip() or "box"
+
+            featured.append(
+                {
+                    "id": module.id,
+                    "name": module.name,
+                    "description": module.description,
+                    "icon": icon_name,
+                    "route": module.route,
+                    "category": module.category.value,
+                }
+            )
+
+    # Maintain pin order
+    return sorted(
+        featured,
+        key=lambda m: pin_ids.index(m["id"]) if m["id"] in pin_ids else 99,
+    )
 
 
 def get_user_dashboard_data(user) -> Dict:
@@ -102,6 +145,7 @@ def get_user_dashboard_data(user) -> Dict:
         "coming_soon_count": len([m for m in enabled_modules if m.coming_soon]),
         "locked_modules": locked_modules,
         "categories": get_categories_info(),
+        "featured_modules": get_featured_modules(user),
     }
 
 

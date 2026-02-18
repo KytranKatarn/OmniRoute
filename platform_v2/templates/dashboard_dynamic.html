@@ -1342,6 +1342,293 @@ body.light-mode .briefing-ai-status-row {
         min-height: auto;
     }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   FEATURED MODULES — Priority Stations
+   Task 5
+   ───────────────────────────────────────────────────────────────────────────── */
+.section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 32px 0 20px;
+    padding: 0 4px;
+    font-family: var(--archie-font-display, 'Orbitron', sans-serif);
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--archie-text-secondary);
+}
+
+.section-header::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(0, 255, 65, 0.3), transparent);
+}
+
+.section-header i[data-lucide] {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    color: rgba(0, 255, 65, 0.7);
+}
+
+.featured-cards-row {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.featured-card {
+    display: flex;
+    flex-direction: column;
+    padding: 24px;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    border-left: 3px solid var(--feat-accent, rgba(0, 255, 65, 0.3));
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.3s ease;
+    position: relative;
+    min-height: 200px;
+    flex: 1;
+    min-width: 280px;
+}
+
+.featured-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 12px 40px rgba(0, 255, 65, 0.15);
+    border-color: var(--feat-accent);
+    text-decoration: none;
+    color: inherit;
+}
+
+/* Category accent colors */
+.featured-card[data-category="admin_operations"],
+.featured-card[data-category="ai_command"] {
+    --feat-accent: #cc6600;
+}
+
+.featured-card[data-category="development_tools"] {
+    --feat-accent: #00808f;
+}
+
+.featured-card[data-category="saas_services"] {
+    --feat-accent: #7c3aed;
+}
+
+.featured-card[data-category="project_knowledge"] {
+    --feat-accent: #00aa33;
+}
+
+.featured-card[data-category="media_home"] {
+    --feat-accent: #db2777;
+}
+
+.featured-card-icon {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    margin-bottom: 16px;
+    color: var(--feat-accent, rgba(0, 255, 65, 0.7));
+}
+
+.featured-card-icon i[data-lucide] {
+    width: 28px;
+    height: 28px;
+}
+
+.featured-card-name {
+    font-family: var(--archie-font-display, 'Orbitron', sans-serif);
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #e0e0e0;
+    margin-bottom: 8px;
+}
+
+.featured-card-desc {
+    font-family: var(--archie-font-mono, 'JetBrains Mono', monospace);
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.55);
+    line-height: 1.6;
+    flex: 1;
+}
+
+.featured-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.featured-card-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.35);
+}
+
+.featured-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+.featured-status-dot.online {
+    background: #00FF41;
+    box-shadow: 0 0 6px rgba(0, 255, 65, 0.6);
+}
+
+.featured-status-dot.offline {
+    background: #ff3b3b;
+    box-shadow: 0 0 6px rgba(255, 59, 59, 0.6);
+}
+
+/* Pin toggle button */
+.featured-pin-btn {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.25);
+    transition: color 0.2s ease, background 0.2s ease;
+    z-index: 5;
+}
+
+.featured-pin-btn:hover {
+    color: #ffaa00;
+    background: rgba(255, 170, 0, 0.1);
+}
+
+.featured-pin-btn.pinned {
+    color: #ffaa00;
+}
+
+.featured-pin-btn i[data-lucide] {
+    width: 14px;
+    height: 14px;
+}
+
+/* ─── Light Mode: Featured Modules ─── */
+[data-theme="light"] .section-header,
+body.light-mode .section-header {
+    color: #444;
+}
+
+[data-theme="light"] .section-header::after,
+body.light-mode .section-header::after {
+    background: linear-gradient(90deg, rgba(0, 100, 40, 0.2), transparent);
+}
+
+[data-theme="light"] .section-header i[data-lucide],
+body.light-mode .section-header i[data-lucide] {
+    color: rgba(0, 100, 40, 0.6);
+}
+
+[data-theme="light"] .featured-card,
+body.light-mode .featured-card {
+    background: rgba(255, 255, 255, 0.7);
+    border-color: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .featured-card:hover,
+body.light-mode .featured-card:hover {
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .featured-card-name,
+body.light-mode .featured-card-name {
+    color: #111;
+}
+
+[data-theme="light"] .featured-card-desc,
+body.light-mode .featured-card-desc {
+    color: #555;
+}
+
+[data-theme="light"] .featured-card-icon,
+body.light-mode .featured-card-icon {
+    background: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .featured-card-status,
+body.light-mode .featured-card-status {
+    color: #888;
+}
+
+[data-theme="light"] .featured-card-footer,
+body.light-mode .featured-card-footer {
+    border-top-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .featured-pin-btn,
+body.light-mode .featured-pin-btn {
+    color: rgba(0, 0, 0, 0.2);
+    background: rgba(0, 0, 0, 0.03);
+}
+
+[data-theme="light"] .featured-pin-btn:hover,
+body.light-mode .featured-pin-btn:hover {
+    color: #cc7700;
+    background: rgba(204, 119, 0, 0.08);
+}
+
+[data-theme="light"] .featured-pin-btn.pinned,
+body.light-mode .featured-pin-btn.pinned {
+    color: #cc7700;
+}
+
+/* ─── Featured Modules Responsive: 717px ─── */
+@media (max-width: 717px) {
+    .featured-card {
+        min-width: calc(50% - 8px);
+        flex: 1 1 calc(50% - 8px);
+    }
+}
+
+/* ─── Featured Modules Responsive: 480px (mobile stacked) ─── */
+@media (max-width: 480px) {
+    .featured-cards-row {
+        flex-direction: column;
+    }
+    .featured-card {
+        min-width: 0;
+        flex: none;
+        min-height: 160px;
+    }
+    .section-header {
+        margin: 24px 0 16px;
+        font-size: 0.75rem;
+        letter-spacing: 3px;
+    }
+}
 {% endblock %}
 
 {% block content %}
@@ -1532,8 +1819,38 @@ body.light-mode .briefing-ai-status-row {
         </div>
     </div>
 
-    <!-- Section 6: Featured Modules -->
-    <div id="featured-modules" class="featured-modules"><!-- Task 5 --></div>
+    <!-- Section 6: Featured Modules — Priority Stations -->
+    <div id="featured-modules" class="featured-modules">
+        <div class="section-header">
+            <i data-lucide="star"></i>
+            <span>Priority Stations</span>
+        </div>
+        <div class="featured-cards-row" id="featuredCardsRow">
+            {% for module in dashboard_data.featured_modules %}
+            <a href="{{ module.route }}" class="featured-card" data-module-id="{{ module.id }}" data-category="{{ module.category }}">
+                <!-- Pin/unpin toggle -->
+                <button class="featured-pin-btn pinned" data-pin-id="{{ module.id }}" title="Unpin module" onclick="event.preventDefault(); event.stopPropagation(); togglePin(this, '{{ module.id }}');">
+                    <i data-lucide="star"></i>
+                </button>
+                <!-- Module icon -->
+                <div class="featured-card-icon">
+                    <i data-lucide="{{ module.icon }}"></i>
+                </div>
+                <!-- Module name -->
+                <div class="featured-card-name">{{ module.name }}</div>
+                <!-- Module description (strip HTML tags for clean display) -->
+                <div class="featured-card-desc">{{ module.description | striptags }}</div>
+                <!-- Footer: status indicator -->
+                <div class="featured-card-footer">
+                    <div class="featured-card-status">
+                        <span class="featured-status-dot" id="featStatus-{{ module.id }}"></span>
+                        <span class="featured-status-text" id="featStatusText-{{ module.id }}">CHECKING...</span>
+                    </div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
 
     <!-- Section 7: Category Grid -->
     <div id="category-grid" class="category-grid"><!-- Task 6 --></div>
@@ -2370,6 +2687,151 @@ body.light-mode .briefing-ai-status-row {
         });
         if (dashContent) {
             briefingObserver.observe(dashContent, { attributes: true, attributeFilter: ['class'] });
+        }
+    }
+})();
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FEATURED MODULES — Priority Stations — Task 5
+// Pin/unpin localStorage, module health check
+// ═══════════════════════════════════════════════════════════════════════════════
+(function initFeaturedModules() {
+    'use strict';
+
+    var STORAGE_KEY = 'archie-pinned-modules';
+    var DEFAULT_PINS = ['archie_chat', 'bridge', 'consciousness'];
+
+    // ── Get pinned modules from localStorage ──
+    function getPinnedModules() {
+        try {
+            var stored = localStorage.getItem(STORAGE_KEY);
+            if (stored) {
+                var parsed = JSON.parse(stored);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            }
+        } catch (e) {
+            // Ignore parse errors
+        }
+        return DEFAULT_PINS.slice();
+    }
+
+    // ── Save pinned modules to localStorage ──
+    function savePinnedModules(pins) {
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(pins));
+        } catch (e) {
+            console.warn('Failed to save pinned modules:', e);
+        }
+    }
+
+    // ── Initialize pin button states from localStorage ──
+    function initPinStates() {
+        var pins = getPinnedModules();
+        var pinBtns = document.querySelectorAll('.featured-pin-btn');
+        pinBtns.forEach(function(btn) {
+            var moduleId = btn.getAttribute('data-pin-id');
+            if (pins.indexOf(moduleId) >= 0) {
+                btn.classList.add('pinned');
+            } else {
+                btn.classList.remove('pinned');
+            }
+        });
+    }
+
+    // ── Toggle pin (exposed globally for onclick) ──
+    window.togglePin = function(btn, moduleId) {
+        var pins = getPinnedModules();
+        var idx = pins.indexOf(moduleId);
+
+        if (idx >= 0) {
+            // Unpin
+            pins.splice(idx, 1);
+            btn.classList.remove('pinned');
+            btn.title = 'Pin module';
+        } else {
+            // Pin
+            pins.push(moduleId);
+            btn.classList.add('pinned');
+            btn.title = 'Unpin module';
+        }
+
+        savePinnedModules(pins);
+    };
+
+    // ── Fetch module health and update status dots ──
+    function fetchModuleHealth() {
+        fetch('/api/modules/health')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success) return;
+                var modules = data.modules || data.health || {};
+
+                // Update each featured card's status dot
+                var cards = document.querySelectorAll('.featured-card');
+                cards.forEach(function(card) {
+                    var moduleId = card.getAttribute('data-module-id');
+                    var dot = document.getElementById('featStatus-' + moduleId);
+                    var text = document.getElementById('featStatusText-' + moduleId);
+                    if (!dot || !text) return;
+
+                    // Check health data - could be keyed by id
+                    var health = modules[moduleId];
+                    var isHealthy = false;
+
+                    if (health) {
+                        isHealthy = health.healthy || health.status === 'active' || health.status === 'ok';
+                    } else {
+                        // If no specific health data, assume online
+                        isHealthy = true;
+                    }
+
+                    dot.classList.remove('online', 'offline');
+                    if (isHealthy) {
+                        dot.classList.add('online');
+                        text.textContent = 'ONLINE';
+                    } else {
+                        dot.classList.add('offline');
+                        text.textContent = 'OFFLINE';
+                    }
+                });
+            })
+            .catch(function(err) {
+                console.warn('Featured module health fetch failed:', err);
+                // On error, mark all as online (graceful fallback)
+                var dots = document.querySelectorAll('.featured-status-dot');
+                dots.forEach(function(dot) {
+                    dot.classList.add('online');
+                });
+                var texts = document.querySelectorAll('.featured-status-text');
+                texts.forEach(function(text) {
+                    text.textContent = 'ONLINE';
+                });
+            });
+    }
+
+    // ── Start when dashboard is visible ──
+    function startFeaturedModules() {
+        initPinStates();
+        fetchModuleHealth();
+
+        // Re-render Lucide icons for featured cards
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    }
+
+    var dashContent = document.getElementById('dashboardContent');
+    if (dashContent && dashContent.classList.contains('visible')) {
+        startFeaturedModules();
+    } else {
+        var featObserver = new MutationObserver(function() {
+            if (dashContent && dashContent.classList.contains('visible')) {
+                featObserver.disconnect();
+                startFeaturedModules();
+            }
+        });
+        if (dashContent) {
+            featObserver.observe(dashContent, { attributes: true, attributeFilter: ['class'] });
         }
     }
 })();

@@ -687,6 +687,47 @@
 .voice-profile-card .profile-params .param-label { font-size: 0.65rem; color: var(--archie-text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
 .voice-profile-card .profile-actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
 
+.profile-lock-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    background: rgba(0, 255, 255, 0.1);
+    color: #00cccc;
+}
+
+.profile-lock-warning {
+    background: rgba(245, 166, 35, 0.1);
+    border: 1px solid rgba(245, 166, 35, 0.3);
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    font-size: 0.82rem;
+    color: #f5a623;
+    display: none;
+}
+
+.btn-regenerate {
+    background: transparent;
+    border: 1px solid #f5a623;
+    color: #f5a623;
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+
+.btn-regenerate:hover {
+    background: rgba(245, 166, 35, 0.1);
+}
+
+.cache-lock-icon {
+    font-size: 0.8rem;
+}
+
 /* Audio Preview */
 .voice-audio-container { margin: 1rem 0; padding: 1rem; background: var(--archie-bg-tertiary, #161b22); border-radius: 8px; }
 .voice-audio-container audio { width: 100%; }
@@ -1601,7 +1642,7 @@ body.light-mode .brain-filter-btn.active { color: var(--archie-purple); }
                     </div>
                 </div>
                 <table class="cache-table" id="voice-cache-table">
-                    <thead><tr><th>Word/Phrase</th><th>Agent</th><th>Engine</th><th>Lang</th><th>Emotion</th><th>Hits</th><th>Size</th><th>Last Used</th></tr></thead>
+                    <thead><tr><th>Word/Phrase</th><th>Agent</th><th>Engine</th><th>Lang</th><th>Emotion</th><th>Hits</th><th>Size</th><th>Locked</th><th>Last Used</th></tr></thead>
                     <tbody></tbody>
                 </table>
                 <div class="cache-pagination" id="cache-pagination"></div>
@@ -1684,8 +1725,9 @@ body.light-mode .brain-filter-btn.active { color: var(--archie-purple); }
                     <label>Warmth <span class="slider-val" id="profile-warmth-val">0.80</span></label>
                     <input type="range" class="voice-slider" id="profile-warmth" min="0.00" max="1.00" step="0.05" value="0.80" oninput="updateProfileSlider('warmth')">
                 </div>
-                <div style="display: flex; gap: 0.75rem;">
+                <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
                     <button class="btn btn-primary" onclick="saveAgentProfile()">Save Profile</button>
+                    <button class="btn-regenerate" id="btn-save-regen" onclick="saveAndRegenerate()" style="display:none;">Save &amp; Regenerate Cache</button>
                     <button class="btn btn-secondary" onclick="previewAgentVoice()">Preview</button>
                     <button class="btn btn-secondary" onclick="hideProfileForm()">Cancel</button>
                 </div>
@@ -5279,9 +5321,13 @@ async function loadVoiceCache(page) {
             var td4 = document.createElement('td'); td4.textContent = e.hit_count || 0;
             var size = e.audio_size ? (e.audio_size > 1048576 ? (e.audio_size / 1048576).toFixed(1) + ' MB' : (e.audio_size / 1024).toFixed(0) + ' KB') : '-';
             var td5 = document.createElement('td'); td5.textContent = size;
+            var tdLocked = document.createElement('td');
+            tdLocked.className = 'cache-lock-icon';
+            tdLocked.textContent = e.is_locked ? '\uD83D\uDD12' : '\uD83D\uDD13';
+            tdLocked.title = e.is_locked ? 'Locked' : 'Unlocked';
             var lastUsed = e.last_used ? new Date(e.last_used).toLocaleDateString() : '-';
             var td6 = document.createElement('td'); td6.textContent = lastUsed;
-            tr.appendChild(td1); tr.appendChild(tdAgent); tr.appendChild(td2); tr.appendChild(tdLang); tr.appendChild(td3); tr.appendChild(td4); tr.appendChild(td5); tr.appendChild(td6);
+            tr.appendChild(td1); tr.appendChild(tdAgent); tr.appendChild(td2); tr.appendChild(tdLang); tr.appendChild(td3); tr.appendChild(td4); tr.appendChild(td5); tr.appendChild(tdLocked); tr.appendChild(td6);
             tbody.appendChild(tr);
         });
 
@@ -5430,10 +5476,17 @@ async function loadVoiceProfiles() {
 
             // Meta
             var meta = document.createElement('div');
-            meta.style.cssText = 'font-size:0.75rem;color:var(--archie-text-muted)';
-            var metaText = (p.cached_words || 0) + ' cached words \u00b7 ' + (p.default_emotion || 'neutral');
-            if (p.voice_blend) metaText += ' \u00b7 blend: ' + p.voice_blend;
-            meta.textContent = metaText;
+            meta.style.cssText = 'font-size:0.75rem;color:var(--archie-text-muted);display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;';
+            var metaText = document.createElement('span');
+            metaText.textContent = (p.cached_words || 0) + ' cached words \u00b7 ' + (p.default_emotion || 'neutral');
+            if (p.voice_blend) metaText.textContent += ' \u00b7 blend: ' + p.voice_blend;
+            meta.appendChild(metaText);
+            if (p.locked_words > 0) {
+                var lockBadge = document.createElement('span');
+                lockBadge.className = 'profile-lock-badge';
+                lockBadge.textContent = '\uD83D\uDD12 Locked (' + p.locked_words + ')';
+                meta.appendChild(lockBadge);
+            }
             card.appendChild(meta);
 
             // Actions
@@ -5654,6 +5707,30 @@ function editVoiceProfile(id, agentId, name, speaker, speed, pitch, warmth, emot
     document.getElementById('profile-warmth').value = warmth;
     document.getElementById('profile-warmth-val').textContent = warmth.toFixed(2);
     document.getElementById('profile-blend').value = blend || '';
+
+    // Check lock status
+    var lockWarning = document.getElementById('profile-lock-warning');
+    if (!lockWarning) {
+        lockWarning = document.createElement('div');
+        lockWarning.id = 'profile-lock-warning';
+        lockWarning.className = 'profile-lock-warning';
+        var formEl = document.getElementById('agent-profile-form');
+        formEl.insertBefore(lockWarning, formEl.querySelector('.voice-form-row'));
+    }
+    lockWarning.style.display = 'none';
+    var regenBtn = document.getElementById('btn-save-regen');
+    if (regenBtn) regenBtn.style.display = 'none';
+    fetch('/tools/consciousness/api/voice/profile-lock-status/' + id)
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.success && d.locked_count > 0) {
+                lockWarning.textContent = 'This profile has ' + d.locked_count + ' locked cached words. Changing voice parameters will NOT update existing cache.';
+                lockWarning.style.display = 'block';
+                var regenBtn = document.getElementById('btn-save-regen');
+                if (regenBtn) regenBtn.style.display = 'inline-block';
+            }
+        })
+        .catch(function() {});
 }
 
 async function saveAgentProfile() {
@@ -5691,6 +5768,38 @@ async function saveAgentProfile() {
         }
     } catch (e) {
         alert('Error: ' + e.message);
+    }
+}
+
+async function saveAndRegenerate() {
+    // First save the profile
+    await saveAgentProfile();
+    // Then find the profile ID and invalidate cache
+    var agentId = document.getElementById('profile-agent').value;
+    var engine = document.getElementById('profile-engine').value;
+    var language = document.getElementById('profile-language').value;
+    try {
+        // Find profile ID by agent+engine+language
+        var listResp = await fetch('/tools/consciousness/api/voice/profiles');
+        var listData = await listResp.json();
+        if (listData.success) {
+            var profile = listData.profiles.find(function(p) {
+                return String(p.agent_id) === String(agentId) && p.engine === engine && (p.language || 'en') === language;
+            });
+            if (profile) {
+                var r = await fetch('/tools/archie-chat/api/voice/profiles/' + profile.id + '/invalidate-cache', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({clear: true, regenerate: true})
+                });
+                var d = await r.json();
+                if (d.success) {
+                    alert('Cache cleared and regeneration started (Job #' + (d.pregen_job_id || '?') + ')');
+                }
+            }
+        }
+    } catch (e) {
+        alert('Profile saved but cache regeneration failed: ' + e.message);
     }
 }
 

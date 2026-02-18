@@ -8400,7 +8400,8 @@ def voice_profiles_list():
                    a.name as agent_name,
                    a.first_name as agent_first_name,
                    a.avatar_url as agent_avatar,
-                   COALESCE(cache.cached_count, 0) as cached_words
+                   COALESCE(cache.cached_count, 0) as cached_words,
+                   COALESCE(locked.locked_count, 0) as locked_words
             FROM agent_voice_profiles p
             LEFT JOIN agents a ON p.agent_id = a.id
             LEFT JOIN (
@@ -8409,6 +8410,12 @@ def voice_profiles_list():
                 WHERE agent_id IS NOT NULL
                 GROUP BY agent_id, COALESCE(language, 'en')
             ) cache ON cache.agent_id = p.agent_id AND cache.lang = p.language
+            LEFT JOIN (
+                SELECT agent_id, COALESCE(language, 'en') as lang, COUNT(*) as locked_count
+                FROM voice_word_cache
+                WHERE agent_id IS NOT NULL AND is_locked = TRUE
+                GROUP BY agent_id, COALESCE(language, 'en')
+            ) locked ON locked.agent_id = p.agent_id AND locked.lang = p.language
             ORDER BY p.created_at DESC
         """
         )
@@ -8642,7 +8649,7 @@ def voice_cache_list():
         cur.execute(
             f"""
             SELECT c.word_id, c.word_text, c.emotion_context, c.hit_count, c.usage_count,
-                   c.duration_ms, c.last_used, c.agent_id,
+                   c.duration_ms, c.last_used, c.agent_id, c.is_locked,
                    COALESCE(c.engine, 'xtts_v2') as engine,
                    COALESCE(c.language, 'en') as language,
                    LENGTH(c.full_audio_cache) as audio_size,

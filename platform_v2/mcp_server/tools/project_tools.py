@@ -1354,7 +1354,7 @@ async def update_project_understanding_handler(
     try:
         updates = [
             "last_interaction = NOW()",
-            "interaction_count = interaction_count + 1",
+            "interaction_count = archie_project_awareness.interaction_count + 1",
         ]
         params = []
 

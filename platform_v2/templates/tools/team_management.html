@@ -120,6 +120,26 @@
     .mc-metric-card .mc-label{font-size:.75rem;color:var(--archie-muted,#6b7280);margin-top:2px}
     .mc-empty{text-align:center;padding:40px;color:var(--archie-muted,#6b7280)}
     @media(max-width:768px){.mc-body{flex-direction:column}.mc-feed{flex:none;max-height:300px}}
+
+    /* === Enhanced Roster Drawer === */
+    .tm-agent{cursor:pointer;transition:border-color .2s}
+    .tm-agent:hover{border-color:var(--archie-accent,#60a5fa)}
+    .tm-agent-drawer{display:none;padding:12px 16px;border-top:1px solid var(--archie-border,#2a3a4a);background:var(--archie-bg-secondary,#0c1a2e);animation:mcSlideIn .3s ease}
+    .tm-agent-drawer.open{display:block}
+    .drawer-section{margin-bottom:14px}
+    .drawer-section h4{font-family:'Orbitron',monospace;font-size:.8rem;color:var(--archie-accent,#60a5fa);margin:0 0 6px;text-transform:uppercase;letter-spacing:.5px}
+    .drawer-mood{display:flex;align-items:center;gap:8px;font-size:.9rem;flex-wrap:wrap}
+    .drawer-bar{height:6px;border-radius:3px;background:var(--archie-border,#2a3a4a);flex:0 0 120px;max-width:120px}
+    .drawer-bar-fill{height:100%;border-radius:3px;transition:width .3s}
+    .drawer-exec-table{width:100%;font-size:.8rem;border-collapse:collapse}
+    .drawer-exec-table th,.drawer-exec-table td{padding:4px 8px;text-align:left;border-bottom:1px solid var(--archie-border,#2a3a4a)}
+    .drawer-exec-table th{color:var(--archie-muted,#6b7280);font-weight:600}
+    .drawer-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .drawer-actions button{padding:4px 12px;border:1px solid var(--archie-border,#2a3a4a);border-radius:4px;background:var(--archie-card-bg,#0a1628);color:var(--archie-text,#e2e8f0);font-size:.8rem;cursor:pointer}
+    .drawer-actions button:hover{border-color:var(--archie-accent,#60a5fa)}
+    .tm-pill-green{background:rgba(0,255,65,0.12);color:var(--archie-green,#4ade80)}
+    .tm-pill-red{background:rgba(255,65,54,0.12);color:var(--archie-red,#f87171)}
+    .tm-pill-amber{background:rgba(255,170,0,0.12);color:var(--archie-orange,#fbbf24)}
 </style>
 {% endblock %}
 
@@ -377,6 +397,12 @@
                 st.appendChild(tp);
             }
             card.appendChild(st);
+
+            card.style.cursor = 'pointer';
+            card.onclick = function(){ toggleAgentDrawer(a.id, card); };
+            var drawer = el('div', 'tm-agent-drawer');
+            drawer.id = 'agent-drawer-' + a.id;
+            card.appendChild(drawer);
 
             grid.appendChild(card);
         });
@@ -771,6 +797,149 @@
 
     function stopSSE() {
         if (_sseSource) { _sseSource.close(); _sseSource = null; }
+    }
+
+    /* ============ Agent Drawer ============ */
+    var _openDrawer = null;
+
+    function toggleAgentDrawer(agentId, cardEl) {
+        var drawerId = 'agent-drawer-' + agentId;
+        var drawer = document.getElementById(drawerId);
+        if (!drawer) return;
+        if (_openDrawer && _openDrawer !== drawerId) {
+            var prev = document.getElementById(_openDrawer);
+            if (prev) prev.classList.remove('open');
+        }
+        if (drawer.classList.contains('open')) {
+            drawer.classList.remove('open');
+            _openDrawer = null;
+        } else {
+            drawer.classList.add('open');
+            _openDrawer = drawerId;
+            loadAgentDrawer(agentId, drawer);
+        }
+    }
+
+    async function loadAgentDrawer(agentId, drawer) {
+        var loadingMsg = el('div');
+        loadingMsg.textContent = 'Loading...';
+        loadingMsg.style.cssText = 'padding:10px;color:var(--archie-muted)';
+        drawer.textContent = '';
+        drawer.appendChild(loadingMsg);
+
+        var results = await Promise.all([
+            apiFetch('/tools/bridge/api/agents/' + agentId + '/executions?limit=10'),
+            apiFetch('/tools/bridge/api/agents/' + agentId + '/emotional-state'),
+        ]);
+        var execs = results[0];
+        var emo = results[1];
+        drawer.textContent = '';
+
+        // Emotional State section
+        var emoSection = el('div', 'drawer-section');
+        var emoTitle = el('h4');
+        emoTitle.textContent = 'Emotional State';
+        emoSection.appendChild(emoTitle);
+        var es = emo && emo.emotional_state;
+        if (es) {
+            var moodWrap = el('div', 'drawer-mood');
+            var moodText = el('span');
+            moodText.textContent = 'Mood: ' + (es.current_mood || 'neutral');
+            moodWrap.appendChild(moodText);
+            // Stress bar
+            var stressLabel = el('span');
+            stressLabel.textContent = 'Stress:';
+            moodWrap.appendChild(stressLabel);
+            var stressBar = el('div', 'drawer-bar');
+            var stressFill = el('div', 'drawer-bar-fill');
+            var stressVal = es.stress_level || 0;
+            stressFill.style.width = (stressVal * 100) + '%';
+            stressFill.style.background = stressVal > 0.7 ? '#f87171' : stressVal > 0.4 ? '#fbbf24' : '#4ade80';
+            stressBar.appendChild(stressFill);
+            moodWrap.appendChild(stressBar);
+            // Energy bar
+            var energyLabel = el('span');
+            energyLabel.textContent = 'Energy:';
+            moodWrap.appendChild(energyLabel);
+            var energyBar = el('div', 'drawer-bar');
+            var energyFill = el('div', 'drawer-bar-fill');
+            var energyVal = es.energy_level || 0;
+            energyFill.style.width = (energyVal * 100) + '%';
+            energyFill.style.background = energyVal < 0.3 ? '#f87171' : energyVal < 0.6 ? '#fbbf24' : '#4ade80';
+            energyBar.appendChild(energyFill);
+            moodWrap.appendChild(energyBar);
+            emoSection.appendChild(moodWrap);
+            if (emo.last_rest) {
+                var restInfo = el('div');
+                restInfo.style.cssText = 'font-size:.75rem;color:var(--archie-muted);margin-top:4px';
+                restInfo.textContent = 'Last rest: ' + timeAgo(emo.last_rest.started_at);
+                emoSection.appendChild(restInfo);
+            }
+        } else {
+            var noData = el('span');
+            noData.textContent = 'No data';
+            noData.style.color = 'var(--archie-muted)';
+            emoSection.appendChild(noData);
+        }
+        drawer.appendChild(emoSection);
+
+        // Executions section
+        var execSection = el('div', 'drawer-section');
+        var execTitle = el('h4');
+        execTitle.textContent = 'Recent Executions';
+        execSection.appendChild(execTitle);
+        if (execs && execs.length > 0) {
+            var table = el('table', 'drawer-exec-table');
+            var thead = el('thead');
+            var headRow = el('tr');
+            ['Time', 'Model', 'Duration', 'Status'].forEach(function(h) {
+                var th = el('th');
+                th.textContent = h;
+                headRow.appendChild(th);
+            });
+            thead.appendChild(headRow);
+            table.appendChild(thead);
+            var tbody = el('tbody');
+            execs.forEach(function(ex) {
+                var tr = el('tr');
+                var tdTime = el('td');
+                tdTime.textContent = timeAgo(ex.created_at);
+                var tdModel = el('td');
+                tdModel.textContent = ex.model_used || '-';
+                var tdDur = el('td');
+                tdDur.textContent = fmtMs(ex.total_duration_ms);
+                var tdStatus = el('td');
+                var st = ex.status || 'unknown';
+                var stCls = st === 'completed' ? 'tm-pill-green' : st === 'failed' ? 'tm-pill-red' : 'tm-pill-amber';
+                tdStatus.appendChild(pill(st, stCls));
+                tr.appendChild(tdTime);
+                tr.appendChild(tdModel);
+                tr.appendChild(tdDur);
+                tr.appendChild(tdStatus);
+                tbody.appendChild(tr);
+            });
+            table.appendChild(tbody);
+            execSection.appendChild(table);
+        } else {
+            var noExec = el('span');
+            noExec.textContent = 'No executions yet';
+            noExec.style.color = 'var(--archie-muted)';
+            execSection.appendChild(noExec);
+        }
+        drawer.appendChild(execSection);
+
+        // Quick Actions
+        var actSection = el('div', 'drawer-section');
+        var actTitle = el('h4');
+        actTitle.textContent = 'Quick Actions';
+        actSection.appendChild(actTitle);
+        var actWrap = el('div', 'drawer-actions');
+        var btnLounge = el('button');
+        btnLounge.textContent = 'Send to Lounge';
+        btnLounge.onclick = function(e) { e.stopPropagation(); };
+        actWrap.appendChild(btnLounge);
+        actSection.appendChild(actWrap);
+        drawer.appendChild(actSection);
     }
 
     /* ============ Loader Dispatch ============ */

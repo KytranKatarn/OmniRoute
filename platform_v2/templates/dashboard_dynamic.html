@@ -894,6 +894,49 @@ body.light-mode .hud-pod-sub {
 .status-footer {
     position: relative;
     z-index: 10;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 24px;
+    margin-top: 32px;
+    border-top: 1px solid rgba(0, 255, 65, 0.1);
+    font-family: var(--archie-font-mono);
+    font-size: 0.7rem;
+    letter-spacing: 1px;
+    color: rgba(255, 255, 255, 0.4);
+}
+.footer-time {
+    font-variant-numeric: tabular-nums;
+}
+.footer-divider {
+    opacity: 0.3;
+    margin: 0 8px;
+}
+.footer-version {
+    color: var(--archie-green, #00FF41);
+    opacity: 0.6;
+}
+.footer-conn-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    margin-right: 4px;
+    vertical-align: middle;
+}
+.footer-conn-dot.online {
+    background: #00FF41;
+    box-shadow: 0 0 6px rgba(0, 255, 65, 0.5);
+}
+/* Light mode footer */
+[data-theme="light"] .status-footer,
+body.light-mode .status-footer {
+    border-top-color: rgba(0, 0, 0, 0.1);
+    color: rgba(0, 0, 0, 0.4);
+}
+[data-theme="light"] .footer-version,
+body.light-mode .footer-version {
+    color: #006618;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -1761,6 +1804,13 @@ body.light-mode .featured-pin-btn.pinned {
     width: 24px;
     text-align: center;
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.module-card-icon i[data-lucide] {
+    width: 18px;
+    height: 18px;
 }
 .module-card-name {
     font-size: 0.75rem;
@@ -1842,6 +1892,11 @@ body.light-mode .module-card {
 }
 {% endblock %}
 
+{% block extra_head %}
+<!-- Font Awesome 6 (category header icons use fas fa-* classes) -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+{% endblock %}
+
 {% block content %}
 <!-- Sandbox Mode Banner (if in sandbox mode) -->
 {% include 'sandbox_banner.html' %}
@@ -1893,7 +1948,7 @@ body.light-mode .module-card {
 <div class="dashboard-content" id="dashboardContent">
 
     <!-- Section 3: Command Bar -->
-    <div id="command-bar" class="command-bar">
+    <div id="command-bar" class="command-bar" role="navigation" aria-label="Dashboard command bar">
         <!-- Left Zone: User info -->
         <div class="cb-zone cb-zone-left">
             <div class="cb-avatar">{{ current_user.username[0] | upper }}</div>
@@ -1912,30 +1967,30 @@ body.light-mode .module-card {
         <!-- Right Zone: Actions -->
         <div class="cb-zone cb-zone-right">
             <!-- Notifications -->
-            <button class="cb-icon-btn" id="cbNotifBtn" title="Notifications">
+            <button class="cb-icon-btn" id="cbNotifBtn" title="Notifications" aria-label="Notifications">
                 <i data-lucide="bell"></i>
                 <span class="cb-notif-badge hidden" id="cbNotifBadge">0</span>
             </button>
             <!-- Theme toggle -->
-            <button class="cb-icon-btn" id="cbThemeBtn" title="Toggle Theme" onclick="if(typeof toggleTheme==='function') toggleTheme();">
+            <button class="cb-icon-btn" id="cbThemeBtn" title="Toggle Theme" aria-label="Toggle light/dark theme" onclick="if(typeof toggleTheme==='function') toggleTheme();">
                 <i data-lucide="sun" id="cbThemeIconSun" style="display:none;"></i>
                 <i data-lucide="moon" id="cbThemeIconMoon"></i>
             </button>
             {% if dashboard_data.user_role in ['ADMIN', 'SUPER_ADMIN'] %}
             <!-- Dev HQ -->
-            <a class="cb-icon-btn" href="/dev-hq" title="Dev HQ">
+            <a class="cb-icon-btn" href="/dev-hq" title="Dev HQ" aria-label="Dev HQ">
                 <i data-lucide="compass"></i>
             </a>
             {% endif %}
             <!-- Logout -->
-            <a class="cb-icon-btn cb-logout" href="/logout" title="Logout">
+            <a class="cb-icon-btn cb-logout" href="/logout" title="Logout" aria-label="Logout">
                 <i data-lucide="log-out"></i>
             </a>
         </div>
     </div>
 
     <!-- Section 3: HUD Vitals -->
-    <div id="hud-vitals" class="hud-vitals-strip">
+    <div id="hud-vitals" class="hud-vitals-strip" role="status" aria-label="System vitals">
         <!-- Pod 1: SYSTEM health -->
         <div class="hud-pod" id="hudPodSystem">
             <span class="hud-pod-label">SYSTEM</span>
@@ -2070,7 +2125,7 @@ body.light-mode .module-card {
         <div class="category-panel category-{{ cat_key }}" data-category="{{ cat_key }}">
 
             <!-- LCARS Framed Category Header -->
-            <div class="cat-header" onclick="toggleCategory('{{ cat_key }}')">
+            <div class="cat-header" onclick="toggleCategory('{{ cat_key }}')" role="button" tabindex="0" aria-expanded="true" aria-controls="cat-{{ cat_key }}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleCategory('{{ cat_key }}');}">
                 <div class="cat-header-icon">
                     <i class="{{ cat_info.icon }}"></i>
                 </div>
@@ -2089,7 +2144,7 @@ body.light-mode .module-card {
                    data-module-id="{{ module.id }}"
                    {% if module.coming_soon %}onclick="return false;"{% endif %}>
                     <div class="module-card-icon">
-                        <i class="{{ module.icon }}"></i>
+                        <i data-lucide="{{ module.icon }}"></i>
                     </div>
                     <div class="module-card-info">
                         <div class="module-card-name">{{ module.name }}</div>
@@ -2110,7 +2165,21 @@ body.light-mode .module-card {
     </div>
 
     <!-- Section 8: Status Footer -->
-    <div id="status-footer" class="status-footer"><!-- Task 7 --></div>
+    <div id="status-footer" class="status-footer" role="contentinfo">
+        <div class="footer-left">
+            <span class="footer-time" id="footerTime">00:00:00</span>
+            <span class="footer-divider">|</span>
+            <span class="footer-version">v5.32.0</span>
+        </div>
+        <div class="footer-right">
+            <span class="footer-connection">
+                <span class="footer-conn-dot online" aria-hidden="true"></span>
+                Connected
+            </span>
+            <span class="footer-divider">|</span>
+            <span class="footer-refresh" id="footerRefresh">Last refreshed 0s ago</span>
+        </div>
+    </div>
 
 </div>
 
@@ -2586,6 +2655,11 @@ body.light-mode .module-card {
                 setRing('hudRingSystem', systemPct);
                 var sysValEl = document.getElementById('hudValSystem');
                 if (sysValEl) sysValEl.textContent = systemPct + '%';
+
+                // Reset footer refresh timer
+                if (typeof lastRefreshTime !== 'undefined') {
+                    lastRefreshTime = Date.now();
+                }
             })
             .catch(function(err) {
                 console.warn('HUD system-stats fetch failed:', err);
@@ -3104,6 +3178,12 @@ function toggleCategory(catKey) {
 
     panel.classList.toggle('collapsed');
 
+    // Update aria-expanded on the header
+    var header = panel.querySelector('.cat-header');
+    if (header) {
+        header.setAttribute('aria-expanded', !panel.classList.contains('collapsed'));
+    }
+
     // Save state to localStorage
     var collapsed = [];
     try {
@@ -3135,6 +3215,8 @@ function toggleCategory(catKey) {
             var panel = document.querySelector('.category-panel[data-category="' + catKey + '"]');
             if (panel) {
                 panel.classList.add('collapsed');
+                var header = panel.querySelector('.cat-header');
+                if (header) header.setAttribute('aria-expanded', 'false');
             }
         });
     }
@@ -3227,6 +3309,60 @@ function toggleCategory(catKey) {
         if (dashContent) {
             catObserver.observe(dashContent, { attributes: true, attributeFilter: ['class'] });
         }
+    }
+})();
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// STATUS FOOTER — Clock, Connection Status, Refresh Timer
+// Task 7 of Dashboard Rebuild
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Track last data refresh time (updated by fetchSystemStats)
+var lastRefreshTime = Date.now();
+
+// Update clock every second
+function updateFooterTime() {
+    var el = document.getElementById('footerTime');
+    if (!el) return;
+    var now = new Date();
+    var h = String(now.getHours()).padStart(2, '0');
+    var m = String(now.getMinutes()).padStart(2, '0');
+    var s = String(now.getSeconds()).padStart(2, '0');
+    el.textContent = h + ':' + m + ':' + s;
+}
+setInterval(updateFooterTime, 1000);
+updateFooterTime();
+
+// Update "last refreshed" counter
+function updateRefreshCounter() {
+    var el = document.getElementById('footerRefresh');
+    if (!el) return;
+    var ago = Math.floor((Date.now() - lastRefreshTime) / 1000);
+    el.textContent = 'Last refreshed ' + ago + 's ago';
+}
+setInterval(updateRefreshCounter, 1000);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FINAL POLISH — Ensure Lucide icons render after all sections
+// ═══════════════════════════════════════════════════════════════════════════════
+(function finalIconRender() {
+    // Render Lucide icons once DOM is fully ready
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+    // Also re-render when dashboard becomes visible (after boot sequence)
+    var dashContent = document.getElementById('dashboardContent');
+    if (dashContent) {
+        var iconObserver = new MutationObserver(function() {
+            if (dashContent.classList.contains('visible')) {
+                iconObserver.disconnect();
+                if (typeof lucide !== 'undefined') {
+                    // Small delay to let DOM settle after class change
+                    setTimeout(function() { lucide.createIcons(); }, 100);
+                }
+            }
+        });
+        iconObserver.observe(dashContent, { attributes: true, attributeFilter: ['class'] });
     }
 })();
 </script>

@@ -1,2054 +1,2356 @@
 {% extends "base.html" %}
 
-{% block title %}Security & Network - Admin Tools{% endblock %}
-
+{% block title %}Security & Network - A.R.C.H.I.E.{% endblock %}
 {% block module_name %}security-network{% endblock %}
 
 {% block styles %}
 <style>
-    /* Security & Network Module Styles - Using Design System */
-
-    /* Security accent color */
-    .security-network-container {
+    /* Security & Network Module — LCARS Design System */
+    .security-container {
         --archie-accent: var(--archie-red);
         --archie-accent-dim: var(--archie-red-dim);
         --archie-accent-alpha-10: var(--archie-red-alpha-10);
         --archie-accent-alpha-20: var(--archie-red-alpha-20);
         --archie-accent-alpha-30: var(--archie-red-alpha-30);
         --archie-glow-accent: var(--archie-glow-red);
+        max-width: 1600px;
+        margin: 0 auto;
+        padding: 20px;
+        font-family: var(--archie-font-body);
     }
+
+    /* Header */
+    .sec-header {
+        text-align: center;
+        padding: 20px 25px;
+        border: 2px solid var(--archie-accent);
+        border-radius: 12px;
+        margin-bottom: 20px;
+        background: linear-gradient(180deg, var(--archie-accent-alpha-10) 0%, transparent 100%);
+        box-shadow: 0 0 30px var(--archie-accent-alpha-20);
+    }
+    .sec-header h1 {
+        font-family: var(--archie-font-heading);
+        font-size: 1.8rem;
+        color: var(--archie-accent);
+        text-shadow: 0 0 20px var(--archie-accent-alpha-30);
+        letter-spacing: 3px;
+        margin: 0;
+    }
+    .sec-header .subtitle {
+        color: var(--archie-text-muted);
+        margin-top: 6px;
+        font-size: 0.85rem;
+    }
+    .header-services {
+        display: flex;
+        justify-content: center;
+        gap: 16px;
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid var(--archie-border-default);
+        flex-wrap: wrap;
+    }
+    .svc-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.75rem;
+        padding: 4px 10px;
+        border-radius: 20px;
+        background: var(--archie-bg-tertiary);
+        border: 1px solid var(--archie-border-muted);
+        color: var(--archie-text-muted);
+    }
+    .svc-badge .dot {
+        width: 6px; height: 6px;
+        border-radius: 50%;
+        background: var(--archie-text-muted);
+    }
+    .svc-badge.online .dot { background: var(--archie-green); }
+    .svc-badge.offline .dot { background: var(--archie-red); }
+
+    /* Tab Navigation */
+    .tab-nav {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 20px;
+        overflow-x: auto;
+        scrollbar-width: thin;
+        padding-bottom: 4px;
+    }
+    .tab-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 16px;
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
+        border-radius: 8px 8px 0 0;
+        color: var(--archie-text-muted);
+        cursor: pointer;
+        font-size: 0.85rem;
+        font-weight: 500;
+        white-space: nowrap;
+        transition: all 0.2s;
+    }
+    .tab-btn:hover {
+        color: var(--archie-text-primary);
+        border-color: var(--archie-accent);
+        background: var(--archie-accent-alpha-10);
+    }
+    .tab-btn.active {
+        color: var(--archie-accent);
+        border-color: var(--archie-accent);
+        border-bottom-color: transparent;
+        background: var(--archie-bg-primary);
+        box-shadow: 0 -2px 8px var(--archie-accent-alpha-20);
+    }
+    .tab-content {
+        display: none;
+        animation: fadeIn 0.2s ease-in;
+    }
+    .tab-content.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    /* Subtab Navigation (DNS tab) */
+    .subtab-nav {
+        display: flex;
+        gap: 2px;
+        margin-bottom: 16px;
+        border-bottom: 1px solid var(--archie-border-default);
+        overflow-x: auto;
+    }
+    .subtab-btn {
+        padding: 8px 14px;
+        background: none;
+        border: none;
+        border-bottom: 2px solid transparent;
+        color: var(--archie-text-muted);
+        cursor: pointer;
+        font-size: 0.8rem;
+        white-space: nowrap;
+        transition: all 0.2s;
+    }
+    .subtab-btn:hover { color: var(--archie-text-primary); }
+    .subtab-btn.active {
+        color: var(--archie-accent);
+        border-bottom-color: var(--archie-accent);
+    }
+    .subtab-content { display: none; }
+    .subtab-content.active { display: block; }
 
     /* Stats Grid */
     .stats-grid {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
-        gap: var(--archie-space-5);
-        margin-bottom: var(--archie-space-6);
+        gap: 16px;
+        margin-bottom: 20px;
     }
-
     .stat-card {
         background: var(--archie-bg-secondary);
         border: 1px solid var(--archie-border-default);
-        padding: var(--archie-space-5);
+        padding: 16px;
         text-align: center;
         border-radius: var(--archie-radius-lg);
-        transition: all var(--archie-transition-normal);
+        transition: all 0.2s;
     }
-
     .stat-card:hover {
         border-color: var(--archie-accent);
-        box-shadow: var(--archie-glow-accent-sm);
+        box-shadow: 0 0 12px var(--archie-accent-alpha-20);
         transform: translateY(-2px);
     }
-
-    .stat-card.highlight-success {
-        background: linear-gradient(135deg, var(--archie-green-alpha-10) 0%, rgba(0, 255, 65, 0.02) 100%);
-        border-color: var(--archie-green);
-    }
-
-    .stat-card.highlight-danger {
-        background: linear-gradient(135deg, var(--archie-red-alpha-10) 0%, rgba(255, 107, 107, 0.02) 100%);
-        border-color: var(--archie-red);
-    }
-
     .stat-label {
-        font-size: var(--archie-text-xs);
+        font-size: 0.7rem;
         color: var(--archie-text-muted);
-        margin-bottom: var(--archie-space-2);
         text-transform: uppercase;
-        letter-spacing: var(--archie-tracking-wider);
+        letter-spacing: 1px;
+        margin-bottom: 4px;
     }
-
     .stat-value {
-        font-size: var(--archie-text-3xl);
-        font-weight: var(--archie-font-bold);
-        color: var(--archie-green);
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: var(--archie-accent);
         font-family: var(--archie-font-mono);
     }
-
-    .stat-value.warning {
-        color: var(--archie-orange);
-    }
-
-    .stat-value.danger {
-        color: var(--archie-red);
-    }
-
+    .stat-value.green { color: var(--archie-green); }
+    .stat-value.orange { color: var(--archie-orange); }
     .stat-subtitle {
-        font-size: var(--archie-text-xs);
-        margin-top: var(--archie-space-1);
+        font-size: 0.7rem;
         color: var(--archie-text-muted);
+        margin-top: 2px;
     }
 
     /* Section Headers */
     .section-header {
         font-family: var(--archie-font-heading);
-        font-size: var(--archie-text-xl);
+        font-size: 1.1rem;
         color: var(--archie-accent);
-        margin: var(--archie-space-6) 0 var(--archie-space-2) 0;
+        margin: 20px 0 10px;
         display: flex;
         align-items: center;
-        gap: var(--archie-space-2);
+        gap: 8px;
     }
 
-    .section-header:first-of-type {
-        margin-top: 0;
-    }
-
-    .section-subtitle {
-        color: var(--archie-text-muted);
-        margin-bottom: var(--archie-space-5);
-        font-size: var(--archie-text-sm);
-    }
-
-    /* Action Bar */
-    .action-bar {
-        display: flex;
-        flex-wrap: wrap;
-        gap: var(--archie-space-3);
-        margin-bottom: var(--archie-space-5);
-    }
-
-    /* Health Panel */
-    .health-panel {
+    /* Cards */
+    .card {
         background: var(--archie-bg-secondary);
         border: 1px solid var(--archie-border-default);
-        padding: var(--archie-space-5);
         border-radius: var(--archie-radius-lg);
-        margin-bottom: var(--archie-space-6);
+        padding: 16px;
+        margin-bottom: 12px;
     }
-
-    .progress-container {
-        margin: var(--archie-space-4) 0;
-    }
-
-    .progress-label {
+    .card-header {
         display: flex;
         justify-content: space-between;
-        margin-bottom: var(--archie-space-2);
-        font-size: var(--archie-text-sm);
-        color: var(--archie-text-tertiary);
+        align-items: center;
+        margin-bottom: 12px;
     }
-
-    .progress-label span:last-child {
-        color: var(--archie-green);
-        font-weight: var(--archie-font-semibold);
-        font-family: var(--archie-font-mono);
-    }
-
-    .progress-bar {
-        height: 10px;
-        background: var(--archie-bg-tertiary);
-        border: 1px solid var(--archie-border-muted);
-        border-radius: var(--archie-radius-full);
-        overflow: hidden;
-    }
-
-    .progress-fill {
-        height: 100%;
-        background: linear-gradient(90deg, var(--archie-green-dim), var(--archie-green));
-        border-radius: var(--archie-radius-full);
-        transition: width var(--archie-transition-slow);
-    }
-
-    .progress-fill.warning {
-        background: linear-gradient(90deg, var(--archie-orange-dim), var(--archie-orange));
-    }
-
-    .progress-fill.danger {
-        background: linear-gradient(90deg, var(--archie-red-dim), var(--archie-red));
-    }
-
-    /* Network Grid */
-    .network-grid {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: var(--archie-space-5);
-        margin-bottom: var(--archie-space-6);
-    }
-
-    .network-card {
-        background: var(--archie-bg-secondary);
-        border: 1px solid var(--archie-border-default);
-        padding: var(--archie-space-5);
-        border-radius: var(--archie-radius-lg);
-        transition: all var(--archie-transition-normal);
-    }
-
-    .network-card:hover {
-        border-color: var(--archie-cyan);
-        box-shadow: var(--archie-glow-cyan-sm);
-        transform: translateY(-2px);
-    }
-
-    .network-card h3 {
-        color: var(--archie-cyan);
+    .card-title {
         font-family: var(--archie-font-heading);
-        margin-bottom: var(--archie-space-2);
-        font-size: var(--archie-text-base);
-        display: flex;
-        align-items: center;
-        gap: var(--archie-space-2);
+        color: var(--archie-accent);
+        font-size: 0.95rem;
     }
 
-    .network-card p {
-        color: var(--archie-text-muted);
-        font-size: var(--archie-text-sm);
-        margin-bottom: var(--archie-space-3);
+    /* Data Tables */
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.82rem;
     }
-
-    .network-card .status {
-        display: inline-flex;
-        align-items: center;
-        gap: var(--archie-space-1);
-        padding: var(--archie-space-1) var(--archie-space-3);
-        border-radius: var(--archie-radius-full);
-        font-size: var(--archie-text-xs);
-        margin-bottom: var(--archie-space-3);
-        font-weight: var(--archie-font-medium);
-    }
-
-    .network-card .status.online {
-        background: var(--archie-green-alpha-10);
-        border: 1px solid var(--archie-green);
-        color: var(--archie-green);
-    }
-
-    .network-card .status.offline {
-        background: var(--archie-red-alpha-10);
-        border: 1px solid var(--archie-red);
-        color: var(--archie-red);
-    }
-
-    .network-card .status.checking {
-        background: var(--archie-orange-alpha-10);
-        border: 1px solid var(--archie-orange);
-        color: var(--archie-orange);
-    }
-
-    /* Security Stack Cards */
-    .stack-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: var(--archie-space-5);
-        margin-bottom: var(--archie-space-6);
-    }
-
-    @media (max-width: 900px) {
-        .stack-grid { grid-template-columns: 1fr; }
-    }
-
-    .stack-card {
-        background: var(--archie-bg-secondary);
-        border: 1px solid var(--archie-border-default);
-        border-radius: var(--archie-radius-lg);
-        padding: var(--archie-space-5);
-        transition: all var(--archie-transition-normal);
-        position: relative;
-        overflow: hidden;
-    }
-
-    .stack-card::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 3px;
-        background: var(--stack-color, var(--archie-cyan));
-    }
-
-    .stack-card:hover {
-        border-color: var(--stack-color, var(--archie-cyan));
-        box-shadow: 0 0 20px color-mix(in srgb, var(--stack-color, var(--archie-cyan)) 20%, transparent);
-        transform: translateY(-2px);
-    }
-
-    .stack-card-header {
-        display: flex;
-        align-items: center;
-        gap: var(--archie-space-3);
-        margin-bottom: var(--archie-space-3);
-    }
-
-    .stack-card-header .stack-icon {
-        width: 40px;
-        height: 40px;
-        border-radius: var(--archie-radius-md);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: color-mix(in srgb, var(--stack-color, var(--archie-cyan)) 15%, transparent);
-        color: var(--stack-color, var(--archie-cyan));
-    }
-
-    .stack-card-header h3 {
-        color: var(--archie-text-primary);
-        font-size: var(--archie-text-base);
-        font-weight: var(--archie-font-semibold);
-        margin: 0;
-    }
-
-    .stack-card-header .stack-status {
-        margin-left: auto;
-        display: flex;
-        align-items: center;
-        gap: var(--archie-space-2);
-        font-size: var(--archie-text-xs);
-        padding: var(--archie-space-1) var(--archie-space-3);
-        border-radius: var(--archie-radius-full);
-        font-weight: var(--archie-font-medium);
-    }
-
-    .stack-status.running {
-        background: var(--archie-green-alpha-10);
-        border: 1px solid var(--archie-green);
-        color: var(--archie-green);
-    }
-
-    .stack-status.partial {
-        background: var(--archie-orange-alpha-10);
-        border: 1px solid var(--archie-orange);
-        color: var(--archie-orange);
-    }
-
-    .stack-status.stopped {
-        background: var(--archie-red-alpha-10);
-        border: 1px solid var(--archie-red);
-        color: var(--archie-red);
-    }
-
-    .stack-status.unknown {
+    .data-table th {
+        text-align: left;
+        padding: 8px 10px;
         background: var(--archie-bg-tertiary);
-        border: 1px solid var(--archie-border-default);
         color: var(--archie-text-muted);
-    }
-
-    .stack-card-body {
-        color: var(--archie-text-muted);
-        font-size: var(--archie-text-sm);
-        margin-bottom: var(--archie-space-4);
-    }
-
-    .stack-card-footer {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-
-    .stack-container-count {
-        font-family: var(--archie-font-mono);
-        font-size: var(--archie-text-sm);
-        color: var(--archie-text-tertiary);
-    }
-
-    .stack-container-count span {
-        color: var(--archie-text-primary);
-        font-weight: var(--archie-font-semibold);
-    }
-
-    /* Audit Panel */
-    .audit-panel {
-        background: var(--archie-bg-secondary);
-        border: 1px solid var(--archie-border-default);
-        border-radius: var(--archie-radius-lg);
-        overflow: hidden;
-    }
-
-    .audit-header {
-        background: var(--archie-bg-tertiary);
-        padding: var(--archie-space-3) var(--archie-space-4);
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.7rem;
+        letter-spacing: 0.5px;
         border-bottom: 1px solid var(--archie-border-default);
     }
-
-    .audit-log {
-        max-height: 350px;
-        overflow-y: auto;
+    .data-table td {
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--archie-border-muted);
+        color: var(--archie-text-secondary);
+    }
+    .data-table tr:hover td {
+        background: var(--archie-accent-alpha-10);
+    }
+    .data-table .mono {
+        font-family: var(--archie-font-mono);
+        font-size: 0.78rem;
     }
 
-    .audit-entry {
-        padding: var(--archie-space-3) var(--archie-space-4);
-        border-bottom: 1px solid var(--archie-border-subtle);
+    /* Forms */
+    .form-row {
         display: flex;
-        justify-content: space-between;
-        align-items: center;
-        transition: background var(--archie-transition-fast);
+        gap: 10px;
+        margin-bottom: 12px;
+        align-items: flex-end;
+        flex-wrap: wrap;
     }
-
-    .audit-entry:hover {
-        background: var(--archie-bg-tertiary);
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        flex: 1;
+        min-width: 150px;
     }
-
-    .audit-action {
-        font-weight: var(--archie-font-medium);
-        font-family: var(--archie-font-mono);
-        font-size: var(--archie-text-sm);
-    }
-
-    .audit-action.success {
-        color: var(--archie-green);
-    }
-
-    .audit-action.failed {
-        color: var(--archie-red);
-    }
-
-    .audit-time {
+    .form-label {
+        font-size: 0.72rem;
         color: var(--archie-text-muted);
-        font-size: var(--archie-text-xs);
-        font-family: var(--archie-font-mono);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
+    .form-input, .form-select, .form-textarea {
+        padding: 8px 12px;
+        background: var(--archie-bg-tertiary);
+        border: 1px solid var(--archie-border-default);
+        border-radius: 6px;
+        color: var(--archie-text-primary);
+        font-size: 0.85rem;
+        font-family: var(--archie-font-body);
+    }
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+        outline: none;
+        border-color: var(--archie-accent);
+        box-shadow: 0 0 8px var(--archie-accent-alpha-20);
+    }
+    .form-textarea {
+        min-height: 120px;
+        resize: vertical;
+        font-family: var(--archie-font-mono);
+        font-size: 0.8rem;
+    }
+
+    /* Buttons */
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 16px;
+        border: 1px solid var(--archie-border-default);
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.82rem;
+        font-weight: 500;
+        transition: all 0.2s;
+        background: var(--archie-bg-secondary);
+        color: var(--archie-text-secondary);
+    }
+    .btn:hover {
+        border-color: var(--archie-accent);
+        color: var(--archie-accent);
+    }
+    .btn-sm { padding: 5px 10px; font-size: 0.75rem; }
+    .btn-primary {
+        background: var(--archie-accent);
+        color: #000;
+        border-color: var(--archie-accent);
+        font-weight: 600;
+    }
+    .btn-primary:hover {
+        box-shadow: 0 0 12px var(--archie-accent-alpha-30);
+        transform: translateY(-1px);
+        color: #000;
+    }
+    .btn-danger {
+        color: var(--archie-red);
+        border-color: var(--archie-red);
+    }
+    .btn-danger:hover { background: var(--archie-red-alpha-10); color: var(--archie-red); }
+    .btn-success {
+        color: var(--archie-green);
+        border-color: var(--archie-green);
+    }
+    .btn-success:hover { background: var(--archie-green-alpha-10); color: var(--archie-green); }
+
+    /* Status Badges */
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 0.7rem;
+        font-weight: 600;
+    }
+    .badge-success { background: var(--archie-green-alpha-10); color: var(--archie-green); }
+    .badge-danger { background: var(--archie-red-alpha-10); color: var(--archie-red); }
+    .badge-warning { background: var(--archie-orange-alpha-10); color: var(--archie-orange); }
+    .badge-info { background: var(--archie-cyan-alpha-10); color: var(--archie-cyan); }
+    .badge-muted { background: var(--archie-bg-tertiary); color: var(--archie-text-muted); }
 
     /* Empty State */
     .empty-state {
-        padding: var(--archie-space-10);
         text-align: center;
+        padding: 40px 20px;
         color: var(--archie-text-muted);
+        font-size: 0.9rem;
     }
+    .empty-state i { margin-bottom: 12px; opacity: 0.5; }
 
-    .empty-state .icon {
-        font-size: var(--archie-text-2xl);
-        margin-bottom: var(--archie-space-2);
-        color: var(--archie-accent);
+    /* Camera Grid */
+    .camera-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        margin-bottom: 20px;
     }
-
-    /* Failed Login Entry */
-    .failed-logins {
-        max-height: 400px;
-        overflow-y: auto;
+    .camera-card {
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-border-default);
+        border-radius: var(--archie-radius-lg);
+        overflow: hidden;
+        transition: all 0.2s;
     }
-
-    .failed-login-entry {
-        padding: var(--archie-space-3) var(--archie-space-4);
-        border-bottom: 1px solid var(--archie-red-alpha-20);
+    .camera-card:hover {
+        border-color: var(--archie-accent);
+        box-shadow: 0 0 12px var(--archie-accent-alpha-20);
+    }
+    .camera-card img {
+        width: 100%;
+        height: 200px;
+        object-fit: cover;
+        background: var(--archie-bg-tertiary);
+        display: block;
+    }
+    .camera-info {
+        padding: 10px 14px;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        transition: background var(--archie-transition-fast);
+    }
+    .camera-name {
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: var(--archie-text-primary);
+    }
+    .camera-location {
+        font-size: 0.72rem;
+        color: var(--archie-text-muted);
     }
 
-    .failed-login-entry:hover {
-        background: var(--archie-red-alpha-10);
-    }
-
-    .failed-ip {
-        color: var(--archie-red);
-        font-family: var(--archie-font-mono);
-    }
-
-    /* Docker Security Panel */
-    .docker-security-summary {
+    /* Module Grid (Recon) */
+    .module-grid {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
-        gap: var(--archie-space-4);
-        margin-bottom: var(--archie-space-5);
+        gap: 12px;
+        margin-bottom: 20px;
     }
-
-    .docker-security-card {
+    .module-card {
         background: var(--archie-bg-secondary);
         border: 1px solid var(--archie-border-default);
         border-radius: var(--archie-radius-lg);
-        padding: var(--archie-space-4);
-        text-align: center;
+        padding: 14px;
+        transition: all 0.2s;
+        cursor: pointer;
+    }
+    .module-card:hover {
+        border-color: var(--archie-cyan);
+        box-shadow: 0 0 10px rgba(0, 255, 255, 0.1);
+    }
+    .module-card .mod-name {
+        font-weight: 600;
+        font-size: 0.82rem;
+        color: var(--archie-text-primary);
+        margin-bottom: 4px;
+    }
+    .module-card .mod-desc {
+        font-size: 0.72rem;
+        color: var(--archie-text-muted);
+    }
+    .module-card .mod-cat {
+        font-size: 0.65rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--archie-cyan);
+        margin-bottom: 6px;
     }
 
-    .docker-security-card.high-risk {
-        border-color: var(--archie-red);
-        background: var(--archie-red-alpha-10);
+    /* Toggle Switch */
+    .toggle-switch {
+        position: relative;
+        width: 36px;
+        height: 20px;
+        display: inline-block;
     }
-
-    .docker-security-card.medium-risk {
-        border-color: var(--archie-orange);
-        background: var(--archie-orange-alpha-10);
+    .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
     }
-
-    .docker-security-card.low-risk {
-        border-color: var(--archie-green);
+    .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: var(--archie-bg-tertiary);
+        border: 1px solid var(--archie-border-default);
+        border-radius: 20px;
+        transition: 0.2s;
+    }
+    .toggle-slider::before {
+        content: '';
+        position: absolute;
+        height: 14px; width: 14px;
+        left: 2px; bottom: 2px;
+        background: var(--archie-text-muted);
+        border-radius: 50%;
+        transition: 0.2s;
+    }
+    .toggle-switch input:checked + .toggle-slider {
         background: var(--archie-green-alpha-10);
+        border-color: var(--archie-green);
+    }
+    .toggle-switch input:checked + .toggle-slider::before {
+        transform: translateX(16px);
+        background: var(--archie-green);
     }
 
-    .container-security-list {
+    /* Agent Panel (floating) */
+    .agent-fab {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        background: var(--archie-accent);
+        border: none;
+        cursor: pointer;
         display: flex;
-        flex-direction: column;
-        gap: var(--archie-space-3);
+        align-items: center;
+        justify-content: center;
+        color: #000;
+        box-shadow: 0 4px 16px var(--archie-accent-alpha-30);
+        z-index: 1000;
+        transition: all 0.2s;
     }
-
-    .container-security-item {
+    .agent-fab:hover {
+        transform: scale(1.1);
+        box-shadow: 0 6px 24px var(--archie-accent-alpha-30);
+    }
+    .agent-fab .fab-badge {
+        position: absolute;
+        top: -4px;
+        right: -4px;
+        background: var(--archie-orange);
+        color: #000;
+        font-size: 0.65rem;
+        font-weight: 700;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .agent-panel {
+        position: fixed;
+        bottom: 84px;
+        right: 24px;
+        width: 380px;
+        max-height: 70vh;
         background: var(--archie-bg-secondary);
-        border: 1px solid var(--archie-border-default);
-        border-radius: var(--archie-radius-lg);
-        padding: var(--archie-space-4);
+        border: 1px solid var(--archie-accent);
+        border-radius: 12px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        z-index: 999;
+        display: none;
+        flex-direction: column;
+        overflow: hidden;
+    }
+    .agent-panel.open { display: flex; }
+    .agent-panel-header {
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--archie-border-default);
         display: flex;
         justify-content: space-between;
         align-items: center;
+        background: var(--archie-accent-alpha-10);
     }
-
-    .container-security-item .container-name {
-        font-family: var(--archie-font-mono);
-        font-weight: var(--archie-font-medium);
-        color: var(--archie-text-primary);
-    }
-
-    .security-score {
-        display: inline-flex;
-        align-items: center;
-        gap: var(--archie-space-2);
-        padding: var(--archie-space-1) var(--archie-space-3);
-        border-radius: var(--archie-radius-full);
-        font-size: var(--archie-text-sm);
-        font-weight: var(--archie-font-semibold);
-    }
-
-    .security-score.high {
-        background: var(--archie-green-alpha-20);
-        color: var(--archie-green);
-    }
-
-    .security-score.medium {
-        background: var(--archie-orange-alpha-20);
-        color: var(--archie-orange);
-    }
-
-    .security-score.low {
-        background: var(--archie-red-alpha-20);
-        color: var(--archie-red);
-    }
-
-    .security-warnings {
-        display: flex;
-        flex-wrap: wrap;
-        gap: var(--archie-space-2);
-        margin-top: var(--archie-space-2);
-    }
-
-    .security-warning-badge {
-        font-size: var(--archie-text-xs);
-        padding: var(--archie-space-0-5) var(--archie-space-2);
-        background: var(--archie-orange-alpha-10);
-        border: 1px solid var(--archie-orange);
-        border-radius: var(--archie-radius-sm);
-        color: var(--archie-orange);
-    }
-
-    /* Loading State */
-    .loading {
-        text-align: center;
-        padding: var(--archie-space-6);
+    .agent-panel-header h3 {
+        font-family: var(--archie-font-heading);
         color: var(--archie-accent);
+        font-size: 0.9rem;
+        margin: 0;
     }
-
-    /* Responsive */
-    @media (max-width: 1200px) {
-        .stats-grid, .network-grid, .docker-security-summary {
-            grid-template-columns: repeat(2, 1fr);
-        }
-    }
-
-    @media (max-width: 768px) {
-        .stats-grid, .network-grid, .docker-security-summary {
-            grid-template-columns: 1fr;
-        }
-    }
-
-    /* Tab Navigation */
-    .tab-nav {
-        display: flex;
-        gap: var(--archie-space-2);
-        border-bottom: 1px solid var(--archie-border-default);
-        margin-bottom: var(--archie-space-6);
-        overflow-x: auto;
-        padding-bottom: var(--archie-space-1);
-    }
-
-    .tab-btn {
-        background: none;
-        border: none;
-        padding: var(--archie-space-3) var(--archie-space-4);
-        color: var(--archie-text-muted);
-        cursor: pointer;
-        font-size: var(--archie-text-sm);
-        border-radius: var(--archie-radius-md) var(--archie-radius-md) 0 0;
-        transition: all var(--archie-transition-fast);
-        white-space: nowrap;
-        display: flex;
-        align-items: center;
-        gap: var(--archie-space-2);
-    }
-
-    .tab-btn:hover {
-        color: var(--archie-text-primary);
-        background: var(--archie-bg-tertiary);
-    }
-
-    .tab-btn.active {
-        color: var(--archie-accent);
-        border-bottom: 2px solid var(--archie-accent);
-        background: var(--archie-bg-secondary);
-    }
-
-    .tab-content {
-        display: none;
-    }
-
-    .tab-content.active {
-        display: block;
-    }
-
-    /* IP Table */
-    .ip-table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-
-    .ip-table th, .ip-table td {
-        padding: var(--archie-space-3);
-        text-align: left;
-        border-bottom: 1px solid var(--archie-border-subtle);
-    }
-
-    .ip-table th {
-        background: var(--archie-bg-tertiary);
-        color: var(--archie-text-secondary);
-        font-size: var(--archie-text-xs);
-        text-transform: uppercase;
-    }
-
-    .ip-table tr:hover {
-        background: var(--archie-bg-tertiary);
-    }
-
-    /* Form Styles */
-    .form-row {
-        display: flex;
-        gap: var(--archie-space-3);
-        margin-bottom: var(--archie-space-4);
-    }
-
-    .form-group {
+    .agent-panel-body {
         flex: 1;
+        overflow-y: auto;
+        padding: 14px;
     }
-
-    .form-group label {
-        display: block;
-        margin-bottom: var(--archie-space-2);
-        color: var(--archie-text-secondary);
-        font-size: var(--archie-text-sm);
-    }
-
-    .form-group input, .form-group select {
-        width: 100%;
-        padding: var(--archie-space-3);
+    .suggestion-card {
         background: var(--archie-bg-tertiary);
-        border: 1px solid var(--archie-border-default);
-        border-radius: var(--archie-radius-md);
+        border: 1px solid var(--archie-border-muted);
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 10px;
+    }
+    .suggestion-card .sg-title {
+        font-weight: 600;
+        font-size: 0.85rem;
         color: var(--archie-text-primary);
-        font-size: var(--archie-text-sm);
+        margin-bottom: 4px;
+    }
+    .suggestion-card .sg-desc {
+        font-size: 0.78rem;
+        color: var(--archie-text-muted);
+        margin-bottom: 6px;
+    }
+    .suggestion-card .sg-reason {
+        font-size: 0.72rem;
+        color: var(--archie-text-tertiary);
+        font-style: italic;
+        margin-bottom: 8px;
+    }
+    .suggestion-actions {
+        display: flex;
+        gap: 6px;
     }
 
-    .form-group input:focus, .form-group select:focus {
-        outline: none;
-        border-color: var(--archie-accent);
+    /* Loading Spinner */
+    .spinner {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border: 2px solid var(--archie-border-default);
+        border-top-color: var(--archie-accent);
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-state {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 30px;
+        color: var(--archie-text-muted);
+        font-size: 0.85rem;
     }
 
-    /* SSL Card */
-    .ssl-card {
-        background: var(--archie-bg-secondary);
-        border: 1px solid var(--archie-border-default);
-        border-radius: var(--archie-radius-lg);
-        padding: var(--archie-space-4);
-        margin-bottom: var(--archie-space-4);
-    }
-
-    .ssl-card.grade-a { border-left: 4px solid var(--archie-green); }
-    .ssl-card.grade-b { border-left: 4px solid var(--archie-cyan); }
-    .ssl-card.grade-c { border-left: 4px solid var(--archie-orange); }
-    .ssl-card.grade-d, .ssl-card.grade-f { border-left: 4px solid var(--archie-red); }
-
-    .ssl-grade {
-        font-size: var(--archie-text-2xl);
-        font-weight: bold;
-        font-family: var(--archie-font-mono);
-    }
-
-    /* Scan Card */
+    /* Scan Result Card */
     .scan-card {
         background: var(--archie-bg-secondary);
         border: 1px solid var(--archie-border-default);
         border-radius: var(--archie-radius-lg);
-        padding: var(--archie-space-4);
-        margin-bottom: var(--archie-space-3);
+        padding: 12px 16px;
+        margin-bottom: 8px;
         display: flex;
         justify-content: space-between;
         align-items: center;
     }
-
     .scan-card:hover {
         border-color: var(--archie-accent);
     }
 
-    /* Severity Badge */
-    .severity-badge {
-        display: inline-block;
-        padding: var(--archie-space-1) var(--archie-space-2);
-        border-radius: var(--archie-radius-sm);
-        font-size: var(--archie-text-xs);
-        font-weight: var(--archie-font-medium);
+    /* Pagination */
+    .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 8px;
+        margin-top: 16px;
+    }
+    .pagination .page-info {
+        font-size: 0.78rem;
+        color: var(--archie-text-muted);
     }
 
-    .severity-critical { background: var(--archie-red-alpha-20); color: var(--archie-red); }
-    .severity-high { background: rgba(255, 107, 107, 0.2); color: #ff6b6b; }
-    .severity-medium { background: var(--archie-orange-alpha-20); color: var(--archie-orange); }
-    .severity-low { background: var(--archie-green-alpha-20); color: var(--archie-green); }
-    .severity-info { background: var(--archie-cyan-alpha-20); color: var(--archie-cyan); }
+    /* Activity Feed */
+    .activity-feed {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    .activity-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 8px 0;
+        border-bottom: 1px solid var(--archie-border-muted);
+    }
+    .activity-item:last-child { border-bottom: none; }
+    .activity-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .activity-text {
+        font-size: 0.8rem;
+        color: var(--archie-text-secondary);
+    }
+    .activity-time {
+        font-size: 0.68rem;
+        color: var(--archie-text-muted);
+        margin-top: 2px;
+    }
+
+    /* Modal */
+    .modal-overlay {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.6);
+        z-index: 2000;
+        display: none;
+        align-items: center;
+        justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+        background: var(--archie-bg-secondary);
+        border: 1px solid var(--archie-accent);
+        border-radius: 12px;
+        width: 90%;
+        max-width: 600px;
+        max-height: 80vh;
+        overflow-y: auto;
+        padding: 20px;
+    }
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+    }
+    .modal-header h3 {
+        font-family: var(--archie-font-heading);
+        color: var(--archie-accent);
+        margin: 0;
+    }
+
+    /* Responsive */
+    @media (max-width: 1280px) {
+        .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        .module-grid { grid-template-columns: repeat(3, 1fr); }
+        .camera-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 717px) {
+        .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        .module-grid { grid-template-columns: repeat(2, 1fr); }
+        .camera-grid { grid-template-columns: 1fr 1fr; }
+        .tab-nav { gap: 2px; }
+        .tab-btn { padding: 8px 10px; font-size: 0.78rem; }
+        .agent-panel { width: calc(100% - 32px); right: 16px; }
+        .form-row { flex-direction: column; }
+    }
+    @media (max-width: 374px) {
+        .security-container { padding: 10px; }
+        .stats-grid { grid-template-columns: 1fr; }
+        .module-grid { grid-template-columns: 1fr; }
+        .camera-grid { grid-template-columns: 1fr; }
+        .tab-btn i { display: none; }
+    }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="category-container admin-tools-container security-network-container">
-    <!-- Admin Tools Navigation -->
-    {% include 'includes/admin_tools_nav.html' %}
+<div class="security-container">
 
-    <div class="category-content">
-
-    <!-- Page Header -->
-    <div class="category-header" style="--archie-accent: var(--archie-red);">
-        <i data-lucide="shield" style="width: 32px; height: 32px;"></i>
-        <div class="category-header-text">
-            <h1>Security & Network</h1>
-            <p>Security monitoring, network health, audit logs</p>
+    <!-- Header -->
+    <div class="sec-header">
+        <h1>SECURITY & NETWORK</h1>
+        <div class="subtitle">Unified security operations center</div>
+        <div class="header-services" id="service-badges">
+            <span class="svc-badge" id="svc-adguard"><span class="dot"></span> AdGuard</span>
+            <span class="svc-badge" id="svc-hostinger"><span class="dot"></span> Hostinger</span>
+            <span class="svc-badge" id="svc-surveillance"><span class="dot"></span> Cameras</span>
+            <span class="svc-badge" id="svc-argus"><span class="dot"></span> Argus</span>
+            <span class="svc-badge" id="svc-agent"><span class="dot"></span> Agent</span>
         </div>
     </div>
 
-    <div class="container" style="max-width: 1600px; margin: 0 auto; padding: var(--archie-space-6);">
-        <!-- Tab Navigation -->
-        <nav class="tab-nav">
-            <button class="tab-btn active" data-tab="overview" onclick="switchTab('overview')">
-                <i data-lucide="layout-dashboard" style="width: 16px; height: 16px;"></i> Overview
-            </button>
-            <button class="tab-btn" data-tab="firewall" onclick="switchTab('firewall')">
-                <i data-lucide="shield" style="width: 16px; height: 16px;"></i> Firewall
-            </button>
-            <button class="tab-btn" data-tab="threats" onclick="switchTab('threats')">
-                <i data-lucide="alert-triangle" style="width: 16px; height: 16px;"></i> Threats
-            </button>
-            <button class="tab-btn" data-tab="scanning" onclick="switchTab('scanning')">
-                <i data-lucide="radar" style="width: 16px; height: 16px;"></i> Scanning
-            </button>
-            <button class="tab-btn" data-tab="vulnerabilities" onclick="switchTab('vulnerabilities')">
-                <i data-lucide="bug" style="width: 16px; height: 16px;"></i> Vulnerabilities
-            </button>
-            <button class="tab-btn" data-tab="ssl" onclick="switchTab('ssl')">
-                <i data-lucide="lock" style="width: 16px; height: 16px;"></i> SSL Monitor
-            </button>
-            <button class="tab-btn" data-tab="reports" onclick="switchTab('reports')">
-                <i data-lucide="file-text" style="width: 16px; height: 16px;"></i> Reports
-            </button>
-        </nav>
+    <!-- Tab Navigation -->
+    <div class="tab-nav">
+        <button class="tab-btn active" data-tab="dashboard">
+            <i data-lucide="layout-dashboard" style="width:16px;height:16px"></i>
+            Dashboard
+        </button>
+        <button class="tab-btn" data-tab="dns">
+            <i data-lucide="globe" style="width:16px;height:16px"></i>
+            DNS Management
+        </button>
+        <button class="tab-btn" data-tab="surveillance">
+            <i data-lucide="camera" style="width:16px;height:16px"></i>
+            Surveillance
+        </button>
+        <button class="tab-btn" data-tab="recon">
+            <i data-lucide="radar" style="width:16px;height:16px"></i>
+            Reconnaissance
+        </button>
+        <button class="tab-btn" data-tab="scanning">
+            <i data-lucide="scan" style="width:16px;height:16px"></i>
+            Scanning
+        </button>
+        <button class="tab-btn" data-tab="access">
+            <i data-lucide="shield-check" style="width:16px;height:16px"></i>
+            Access Control
+        </button>
+        <button class="tab-btn" data-tab="reports">
+            <i data-lucide="file-text" style="width:16px;height:16px"></i>
+            Reports
+        </button>
+    </div>
 
-        <!-- Tab: Overview -->
-        <div id="tab-overview" class="tab-content active">
-        <!-- Security Monitoring -->
-        <div class="section-header">
-            <i data-lucide="shield-check" style="width: 20px; height: 20px;"></i>
-            Security Monitoring
-        </div>
-        <div class="section-subtitle">Real-time security status and threat detection</div>
-
-        <div class="stats-grid">
+    <!-- ==================== TAB: DASHBOARD ==================== -->
+    <div id="tab-dashboard" class="tab-content active">
+        <div class="stats-grid" id="dash-stats">
             <div class="stat-card">
-                <div class="stat-label">Failed Logins (24h)</div>
-                <div class="stat-value {% if failed_logins_24h > 10 %}danger{% elif failed_logins_24h > 5 %}warning{% endif %}" id="stat-failed-logins">{{ failed_logins_24h }}</div>
-                <div class="stat-subtitle">authentication failures</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Blocked IPs</div>
-                <div class="stat-value" id="stat-blocked-ips">0</div>
-                <div class="stat-subtitle">threat prevention</div>
+                <div class="stat-label">DNS Queries (24h)</div>
+                <div class="stat-value" id="dash-dns-queries">--</div>
+                <div class="stat-subtitle">Total DNS requests</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Active Sessions</div>
-                <div class="stat-value" id="stat-active-sessions">{{ active_sessions }}</div>
-                <div class="stat-subtitle">logged in users</div>
+                <div class="stat-label">Blocked (24h)</div>
+                <div class="stat-value" id="dash-dns-blocked" style="color:var(--archie-orange)">--</div>
+                <div class="stat-subtitle">Ads &amp; trackers blocked</div>
             </div>
-            <div class="stat-card {% if failed_logins_24h > 10 %}highlight-danger{% else %}highlight-success{% endif %}">
-                <div class="stat-label">Security Status</div>
-                <div class="stat-value" style="font-size: var(--archie-text-xl);">{% if failed_logins_24h > 10 %}ALERT{% else %}SECURE{% endif %}</div>
-                <div class="stat-subtitle">{% if failed_logins_24h > 10 %}review needed{% else %}all systems normal{% endif %}</div>
+            <div class="stat-card">
+                <div class="stat-label">Active Cameras</div>
+                <div class="stat-value green" id="dash-cameras">--</div>
+                <div class="stat-subtitle">Surveillance feeds</div>
             </div>
-        </div>
-
-        <div class="action-bar">
-            <button class="btn btn-danger" onclick="autoBlockThreats()">
-                <i data-lucide="shield-alert" style="width: 16px; height: 16px;"></i>
-                Auto-Block Threats
-            </button>
-            <button class="btn" onclick="viewFailedLogins()">
-                <i data-lucide="eye" style="width: 16px; height: 16px;"></i>
-                View Failed Logins
-            </button>
-            <button class="btn btn-ghost" onclick="refreshStats()">
-                <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i>
-                Refresh
-            </button>
-        </div>
-
-        <!-- Docker Security Section -->
-        <div class="section-header">
-            <i data-lucide="container" style="width: 20px; height: 20px;"></i>
-            Docker Container Security
-        </div>
-        <div class="section-subtitle">Container security analysis and risk assessment</div>
-
-        <div class="docker-security-summary" id="docker-security-summary">
-            <div class="docker-security-card">
-                <div class="stat-label">Total Containers</div>
-                <div class="stat-value" id="sec-total">--</div>
-            </div>
-            <div class="docker-security-card high-risk">
-                <div class="stat-label">High Risk</div>
-                <div class="stat-value danger" id="sec-high">--</div>
-            </div>
-            <div class="docker-security-card medium-risk">
-                <div class="stat-label">Medium Risk</div>
-                <div class="stat-value warning" id="sec-medium">--</div>
-            </div>
-            <div class="docker-security-card low-risk">
-                <div class="stat-label">Low Risk</div>
-                <div class="stat-value" id="sec-low">--</div>
+            <div class="stat-card">
+                <div class="stat-label">Agent Suggestions</div>
+                <div class="stat-value" id="dash-suggestions" style="color:var(--archie-cyan)">--</div>
+                <div class="stat-subtitle">Pending review</div>
             </div>
         </div>
 
-        <div class="panel" id="docker-security-panel">
-            <div class="container-security-list" id="container-security-list">
-                <div class="loading">Loading container security data...</div>
-            </div>
-        </div>
-
-        <!-- System Health -->
-        <div class="section-header">
-            <i data-lucide="activity" style="width: 20px; height: 20px;"></i>
-            System Health
-        </div>
-        <div class="section-subtitle">Real-time resource utilization</div>
-
-        {% if system_health %}
-        <div class="health-panel">
-            <div class="progress-container">
-                <div class="progress-label">
-                    <span>CPU Usage</span>
-                    <span id="cpu-value">{{ "%.1f"|format(system_health.cpu.percent) }}%</span>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Recent Activity</span>
+                    <button class="btn btn-sm" onclick="loadDashboard()">
+                        <i data-lucide="refresh-cw" style="width:12px;height:12px"></i> Refresh
+                    </button>
                 </div>
-                <div class="progress-bar">
-                    <div class="progress-fill {% if system_health.cpu.percent > 80 %}danger{% elif system_health.cpu.percent > 60 %}warning{% endif %}"
-                         style="width: {{ system_health.cpu.percent }}%"></div>
+                <div class="activity-feed" id="dash-activity">
+                    <div class="loading-state"><span class="spinner"></span> Loading...</div>
                 </div>
             </div>
-
-            <div class="progress-container">
-                <div class="progress-label">
-                    <span>Memory Usage</span>
-                    <span id="memory-value">{{ "%.1f"|format(system_health.memory.percent) }}%</span>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Quick Actions</span>
                 </div>
-                <div class="progress-bar">
-                    <div class="progress-fill {% if system_health.memory.percent > 80 %}danger{% elif system_health.memory.percent > 60 %}warning{% endif %}"
-                         style="width: {{ system_health.memory.percent }}%"></div>
-                </div>
-            </div>
-
-            <div class="progress-container">
-                <div class="progress-label">
-                    <span>Disk Usage</span>
-                    <span id="disk-value">{{ "%.1f"|format(system_health.disk.percent) }}%</span>
-                </div>
-                <div class="progress-bar">
-                    <div class="progress-fill {% if system_health.disk.percent > 80 %}danger{% elif system_health.disk.percent > 60 %}warning{% endif %}"
-                         style="width: {{ system_health.disk.percent }}%"></div>
+                <div style="display:flex;flex-direction:column;gap:10px">
+                    <button class="btn" onclick="quickToggleProtection()">
+                        <i data-lucide="shield" style="width:14px;height:14px"></i>
+                        Toggle DNS Protection
+                    </button>
+                    <button class="btn" onclick="quickBlockDomain()">
+                        <i data-lucide="ban" style="width:14px;height:14px"></i>
+                        Block Domain
+                    </button>
+                    <button class="btn" onclick="switchToTab('recon')">
+                        <i data-lucide="radar" style="width:14px;height:14px"></i>
+                        Run Recon Scan
+                    </button>
+                    <button class="btn" onclick="switchToTab('scanning')">
+                        <i data-lucide="scan" style="width:14px;height:14px"></i>
+                        Vulnerability Scan
+                    </button>
                 </div>
             </div>
         </div>
-        {% endif %}
+    </div>
 
-        <!-- Security Stacks -->
-        <div class="section-header" style="display: flex; justify-content: space-between; align-items: center;">
-            <span style="display: flex; align-items: center; gap: var(--archie-space-2);">
-                <i data-lucide="layers" style="width: 20px; height: 20px;"></i>
-                Security Stacks
-            </span>
-            <a href="/tools/system-operations?tab=docker" class="btn btn-sm btn-ghost">
-                <i data-lucide="settings" style="width: 14px; height: 14px;"></i>
-                Manage All Stacks
-            </a>
+    <!-- ==================== TAB: DNS MANAGEMENT ==================== -->
+    <div id="tab-dns" class="tab-content">
+        <div class="subtab-nav">
+            <button class="subtab-btn active" data-subtab="dns-overview">Overview</button>
+            <button class="subtab-btn" data-subtab="dns-querylog">Query Log</button>
+            <button class="subtab-btn" data-subtab="dns-filters">Filters</button>
+            <button class="subtab-btn" data-subtab="dns-rewrites">Rewrites</button>
+            <button class="subtab-btn" data-subtab="dns-hostinger">Hostinger</button>
+            <button class="subtab-btn" data-subtab="dns-rules">Rules</button>
         </div>
-        <div class="section-subtitle">Docker stacks for security and network monitoring</div>
 
-        <div class="stack-grid" id="security-stacks-grid">
-            <div class="stack-card" id="stack-monitoring" style="--stack-color: #E5A00D;">
-                <div class="stack-card-header">
-                    <div class="stack-icon">
-                        <i data-lucide="activity" style="width: 20px; height: 20px;"></i>
+        <div id="subtab-dns-overview" class="subtab-content active">
+            <div class="stats-grid" id="dns-stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Total Queries</div>
+                    <div class="stat-value" id="dns-total-queries">--</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Blocked</div>
+                    <div class="stat-value" id="dns-blocked" style="color:var(--archie-orange)">--</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Safe Browsing</div>
+                    <div class="stat-value green" id="dns-safe-browsing">--</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Protection</div>
+                    <div class="stat-value" id="dns-protection-status">--</div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Quick Block / Unblock</span>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Domain</label>
+                        <input type="text" class="form-input" id="dns-quick-domain" placeholder="example.com">
                     </div>
-                    <h3>Monitoring</h3>
-                    <span class="stack-status unknown" id="stack-status-monitoring">Loading...</span>
-                </div>
-                <div class="stack-card-body">
-                    Nagios, Grafana, and system monitoring tools
-                </div>
-                <div class="stack-card-footer">
-                    <span class="stack-container-count"><span id="stack-containers-monitoring">-</span> containers</span>
-                    <a href="/tools/system-operations?tab=docker&stack=monitoring" class="btn btn-sm">
-                        <i data-lucide="external-link" style="width: 14px; height: 14px;"></i>
-                        Manage
-                    </a>
-                </div>
-            </div>
-
-            <div class="stack-card" id="stack-network-tools" style="--stack-color: #4ECDC4;">
-                <div class="stack-card-header">
-                    <div class="stack-icon">
-                        <i data-lucide="network" style="width: 20px; height: 20px;"></i>
-                    </div>
-                    <h3>Network Tools</h3>
-                    <span class="stack-status unknown" id="stack-status-network-tools">Loading...</span>
-                </div>
-                <div class="stack-card-body">
-                    AdGuard DNS, ntopng traffic analysis
-                </div>
-                <div class="stack-card-footer">
-                    <span class="stack-container-count"><span id="stack-containers-network-tools">-</span> containers</span>
-                    <a href="/tools/system-operations?tab=docker&stack=network-tools" class="btn btn-sm">
-                        <i data-lucide="external-link" style="width: 14px; height: 14px;"></i>
-                        Manage
-                    </a>
-                </div>
-            </div>
-
-            <div class="stack-card" id="stack-security-scanner" style="--stack-color: #FF6B6B;">
-                <div class="stack-card-header">
-                    <div class="stack-icon">
-                        <i data-lucide="scan" style="width: 20px; height: 20px;"></i>
-                    </div>
-                    <h3>Security Scanner</h3>
-                    <span class="stack-status unknown" id="stack-status-security-scanner">Loading...</span>
-                </div>
-                <div class="stack-card-body">
-                    Nmap, Nikto, Nuclei, ZAP vulnerability scanners
-                </div>
-                <div class="stack-card-footer">
-                    <span class="stack-container-count"><span id="stack-containers-security-scanner">-</span> containers</span>
-                    <a href="/tools/system-operations?tab=docker&stack=security-scanner" class="btn btn-sm">
-                        <i data-lucide="external-link" style="width: 14px; height: 14px;"></i>
-                        Manage
-                    </a>
+                    <button class="btn btn-danger btn-sm" onclick="dnsBlockDomain()">Block</button>
+                    <button class="btn btn-success btn-sm" onclick="dnsUnblockDomain()">Unblock</button>
                 </div>
             </div>
         </div>
 
-        <!-- Audit Log -->
-        <div class="section-header">
-            <i data-lucide="file-text" style="width: 20px; height: 20px;"></i>
-            Audit Log
+        <div id="subtab-dns-querylog" class="subtab-content">
+            <div class="form-row" style="margin-bottom:16px">
+                <div class="form-group">
+                    <label class="form-label">Search</label>
+                    <input type="text" class="form-input" id="ql-search" placeholder="Domain or client...">
+                </div>
+                <div class="form-group" style="max-width:180px">
+                    <label class="form-label">Status</label>
+                    <select class="form-select" id="ql-status">
+                        <option value="">All</option>
+                        <option value="blocked">Blocked</option>
+                        <option value="processed">Processed</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="loadQueryLog(0)">Search</button>
+            </div>
+            <div id="querylog-container">
+                <div class="loading-state"><span class="spinner"></span> Loading query log...</div>
+            </div>
+            <div class="pagination" id="ql-pagination" style="display:none">
+                <button class="btn btn-sm" id="ql-prev" onclick="loadQueryLog(qlOffset - 50)">Prev</button>
+                <span class="page-info" id="ql-page-info"></span>
+                <button class="btn btn-sm" id="ql-next" onclick="loadQueryLog(qlOffset + 50)">Next</button>
+            </div>
         </div>
-        <div class="section-subtitle">Recent system activity and security events</div>
 
-        <div class="audit-panel">
-            <div class="audit-header">
-                <div class="action-bar" style="margin: 0;">
-                    <button class="btn btn-sm" onclick="loadAuditLog('all')">All</button>
-                    <button class="btn btn-sm" onclick="loadAuditLog('login_success')">Logins</button>
-                    <button class="btn btn-sm" onclick="loadAuditLog('login_failed')">Failures</button>
+        <div id="subtab-dns-filters" class="subtab-content">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Add Filter List</span>
+                    <button class="btn btn-sm" onclick="refreshAllFilters()">
+                        <i data-lucide="refresh-cw" style="width:12px;height:12px"></i> Refresh All
+                    </button>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Name</label>
+                        <input type="text" class="form-input" id="filter-name" placeholder="Filter name">
+                    </div>
+                    <div class="form-group" style="flex:2">
+                        <label class="form-label">URL</label>
+                        <input type="text" class="form-input" id="filter-url" placeholder="https://...">
+                    </div>
+                    <button class="btn btn-primary btn-sm" onclick="addFilter()">Add</button>
                 </div>
             </div>
-            <div class="audit-log" id="audit-log-container">
+            <div id="filters-list">
+                <div class="loading-state"><span class="spinner"></span> Loading filters...</div>
+            </div>
+        </div>
+
+        <div id="subtab-dns-rewrites" class="subtab-content">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Add DNS Rewrite</span>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Domain</label>
+                        <input type="text" class="form-input" id="rw-domain" placeholder="local.example.com">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Answer (IP)</label>
+                        <input type="text" class="form-input" id="rw-answer" placeholder="192.168.1.100">
+                    </div>
+                    <button class="btn btn-primary btn-sm" onclick="addRewrite()">Add</button>
+                </div>
+            </div>
+            <div id="rewrites-list">
+                <div class="loading-state"><span class="spinner"></span> Loading rewrites...</div>
+            </div>
+        </div>
+
+        <div id="subtab-dns-hostinger" class="subtab-content">
+            <div class="card" id="hostinger-not-configured" style="display:none">
                 <div class="empty-state">
-                    <div class="icon"><i data-lucide="scroll" style="width: 32px; height: 32px;"></i></div>
-                    <p>Click a filter above to load audit entries</p>
+                    <i data-lucide="key" style="width:32px;height:32px"></i>
+                    <p>Hostinger API not configured. Set HOSTINGER_API_KEY in environment.</p>
+                </div>
+            </div>
+            <div id="hostinger-configured">
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Add DNS Record</span>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group" style="max-width:120px">
+                            <label class="form-label">Type</label>
+                            <select class="form-select" id="host-type">
+                                <option>A</option><option>AAAA</option><option>CNAME</option>
+                                <option>MX</option><option>TXT</option><option>NS</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Name</label>
+                            <input type="text" class="form-input" id="host-name" placeholder="subdomain">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Content</label>
+                            <input type="text" class="form-input" id="host-content" placeholder="IP or value">
+                        </div>
+                        <div class="form-group" style="max-width:100px">
+                            <label class="form-label">TTL</label>
+                            <input type="number" class="form-input" id="host-ttl" value="3600">
+                        </div>
+                        <button class="btn btn-primary btn-sm" onclick="addHostingerRecord()">Add</button>
+                    </div>
+                </div>
+                <div id="hostinger-records">
+                    <div class="loading-state"><span class="spinner"></span> Loading DNS records...</div>
                 </div>
             </div>
         </div>
-        </div><!-- /tab-overview -->
 
-        <!-- Tab: Firewall -->
-        <div id="tab-firewall" class="tab-content">
-            <div class="section-header">
-                <i data-lucide="shield" style="width: 20px; height: 20px;"></i>
-                IP Access Control
-            </div>
-            <div class="section-subtitle">Manage blocked and whitelisted IP addresses</div>
-
-            <div class="action-bar">
-                <button class="btn btn-danger" onclick="showBlockIPModal()">
-                    <i data-lucide="ban" style="width: 16px; height: 16px;"></i>
-                    Block IP
-                </button>
-                <button class="btn" onclick="loadIPAccessList()">
-                    <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i>
-                    Refresh
-                </button>
-            </div>
-
-            <div class="panel" style="margin-bottom: var(--archie-space-6);">
-                <h4 style="color: var(--archie-red); margin-bottom: var(--archie-space-4);">Blocked IPs</h4>
-                <div id="blocked-ips-list">
-                    <div class="loading">Loading...</div>
+        <div id="subtab-dns-rules" class="subtab-content">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Custom Filtering Rules</span>
+                    <button class="btn btn-primary btn-sm" onclick="saveUserRules()">Save Rules</button>
                 </div>
+                <textarea class="form-textarea" id="user-rules" placeholder="# Custom AdGuard filtering rules&#10;# One rule per line&#10;||ads.example.com^"></textarea>
             </div>
+        </div>
+    </div>
 
-            <div class="panel">
-                <h4 style="color: var(--archie-green); margin-bottom: var(--archie-space-4);">Whitelisted IPs</h4>
-                <div id="whitelisted-ips-list">
-                    <div class="loading">Loading...</div>
-                </div>
-            </div>
-        </div><!-- /tab-firewall -->
-
-        <!-- Tab: Threats -->
-        <div id="tab-threats" class="tab-content">
-            <div class="section-header">
-                <i data-lucide="alert-triangle" style="width: 20px; height: 20px;"></i>
-                Security Events
-            </div>
-            <div class="section-subtitle">Detected threats and security incidents</div>
-
-            <div class="action-bar">
-                <button class="btn btn-danger" onclick="executeAutoBlock()">
-                    <i data-lucide="shield-alert" style="width: 16px; height: 16px;"></i>
-                    Auto-Block Threats
-                </button>
-                <button class="btn" onclick="loadSecurityEvents()">
-                    <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i>
-                    Refresh
-                </button>
-            </div>
-
-            <div class="panel" id="security-events-panel">
-                <div class="loading">Loading security events...</div>
-            </div>
-        </div><!-- /tab-threats -->
-
-        <!-- Tab: Scanning -->
-        <div id="tab-scanning" class="tab-content">
-            <div class="section-header">
-                <i data-lucide="radar" style="width: 20px; height: 20px;"></i>
-                Security Scanning
-            </div>
-            <div class="section-subtitle">Launch security scans on targets</div>
-
-            <div class="stats-grid" style="grid-template-columns: repeat(5, 1fr);">
-                <div class="stat-card" onclick="showScanModal('nmap')" style="cursor: pointer;">
-                    <div class="stat-label">Network Scan</div>
-                    <div class="stat-value" style="font-size: var(--archie-text-xl); color: var(--archie-cyan);">NMAP</div>
-                    <div class="stat-subtitle">Port & service discovery</div>
-                </div>
-                <div class="stat-card" onclick="showScanModal('nikto')" style="cursor: pointer;">
-                    <div class="stat-label">Web Scan</div>
-                    <div class="stat-value" style="font-size: var(--archie-text-xl); color: var(--archie-orange);">NIKTO</div>
-                    <div class="stat-subtitle">Web vulnerabilities</div>
-                </div>
-                <div class="stat-card" onclick="showScanModal('zap')" style="cursor: pointer;">
-                    <div class="stat-label">App Scan</div>
-                    <div class="stat-value" style="font-size: var(--archie-text-xl); color: var(--archie-red);">ZAP</div>
-                    <div class="stat-subtitle">OWASP testing</div>
-                </div>
-                <div class="stat-card" onclick="showScanModal('nuclei')" style="cursor: pointer;">
-                    <div class="stat-label">CVE Scan</div>
-                    <div class="stat-value" style="font-size: var(--archie-text-xl); color: var(--archie-purple);">NUCLEI</div>
-                    <div class="stat-subtitle">Template-based</div>
-                </div>
-                <div class="stat-card" onclick="showScanModal('ssl')" style="cursor: pointer;">
-                    <div class="stat-label">SSL/TLS</div>
-                    <div class="stat-value" style="font-size: var(--archie-text-xl); color: var(--archie-green);">TESTSSL</div>
-                    <div class="stat-subtitle">Certificate analysis</div>
-                </div>
-            </div>
-
-            <div class="section-header" style="margin-top: var(--archie-space-8);">
-                <i data-lucide="history" style="width: 20px; height: 20px;"></i>
-                Recent Scans
-            </div>
-
-            <div class="panel" id="recent-scans-panel">
-                <div class="loading">Loading recent scans...</div>
-            </div>
-        </div><!-- /tab-scanning -->
-
-        <!-- Tab: Vulnerabilities -->
-        <div id="tab-vulnerabilities" class="tab-content">
-            <div class="section-header">
-                <i data-lucide="bug" style="width: 20px; height: 20px;"></i>
-                Vulnerabilities
-            </div>
-            <div class="section-subtitle">Findings from security scans</div>
-
-            <div class="action-bar">
-                <select id="vuln-scan-filter" onchange="loadVulnerabilities()" class="btn" style="background: var(--archie-bg-tertiary);">
-                    <option value="">All Scans</option>
-                </select>
-                <select id="vuln-severity-filter" onchange="loadVulnerabilities()" class="btn" style="background: var(--archie-bg-tertiary);">
-                    <option value="">All Severities</option>
-                    <option value="critical">Critical</option>
-                    <option value="high">High</option>
-                    <option value="medium">Medium</option>
-                    <option value="low">Low</option>
-                </select>
-            </div>
-
-            <div class="panel" id="vulnerabilities-panel">
+    <!-- ==================== TAB: SURVEILLANCE ==================== -->
+    <div id="tab-surveillance" class="tab-content">
+        <div id="surv-not-configured" style="display:none">
+            <div class="card">
                 <div class="empty-state">
-                    <div class="icon"><i data-lucide="check-circle" style="width: 32px; height: 32px;"></i></div>
-                    <p>Run a scan to discover vulnerabilities</p>
+                    <i data-lucide="camera-off" style="width:32px;height:32px"></i>
+                    <p>Home Assistant not configured. Set HA_API_TOKEN in environment to enable camera feeds.</p>
                 </div>
             </div>
-        </div><!-- /tab-vulnerabilities -->
-
-        <!-- Tab: SSL Monitor -->
-        <div id="tab-ssl" class="tab-content">
-            <div class="section-header">
-                <i data-lucide="lock" style="width: 20px; height: 20px;"></i>
-                SSL Certificate Monitor
-            </div>
-            <div class="section-subtitle">Track certificate expiry and SSL health</div>
-
-            <div class="action-bar">
-                <button class="btn" onclick="showAddSSLMonitorModal()">
-                    <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
-                    Add Domain
-                </button>
-                <button class="btn" onclick="refreshSSLMonitors()">
-                    <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i>
-                    Refresh All
-                </button>
-            </div>
-
-            <div id="ssl-monitors-panel">
-                <div class="loading">Loading SSL monitors...</div>
-            </div>
-        </div><!-- /tab-ssl -->
-
-        <!-- Tab: Reports -->
-        <div id="tab-reports" class="tab-content">
-            <div class="section-header">
-                <i data-lucide="file-text" style="width: 20px; height: 20px;"></i>
-                Security Reports
-            </div>
-            <div class="section-subtitle">Generate and download assessment reports</div>
-
-            <div class="action-bar">
-                <button class="btn" onclick="showGenerateReportModal()">
-                    <i data-lucide="file-plus" style="width: 16px; height: 16px;"></i>
-                    Generate Report
-                </button>
-                <button class="btn" onclick="loadReports()">
-                    <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i>
-                    Refresh
-                </button>
-            </div>
-
-            <div class="panel" id="reports-panel">
-                <div class="loading">Loading reports...</div>
-            </div>
-        </div><!-- /tab-reports -->
-    </div>
-
-    <!-- Failed Logins Modal -->
-    <div class="modal-overlay" id="failed-logins-modal">
-        <div class="modal modal-lg">
-            <div class="modal-header">
-                <h3 class="modal-title" style="color: var(--archie-red);">
-                    <i data-lucide="alert-triangle" style="width: 20px; height: 20px;"></i>
-                    Failed Login Attempts
-                </h3>
-                <button class="modal-close" onclick="closeModal()">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div id="failed-logins-list" class="failed-logins">
-                    <div class="loading">Loading...</div>
+        </div>
+        <div id="surv-configured">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+                <div class="section-header" style="margin:0">
+                    <i data-lucide="camera" style="width:18px;height:18px"></i> Camera Feeds
+                </div>
+                <div style="display:flex;gap:8px">
+                    <button class="btn btn-success btn-sm" onclick="armSystem()">
+                        <i data-lucide="shield" style="width:12px;height:12px"></i> Arm All
+                    </button>
+                    <button class="btn btn-danger btn-sm" onclick="disarmSystem()">
+                        <i data-lucide="shield-off" style="width:12px;height:12px"></i> Disarm All
+                    </button>
+                    <button class="btn btn-sm" onclick="loadSurveillance()">
+                        <i data-lucide="refresh-cw" style="width:12px;height:12px"></i> Refresh
+                    </button>
                 </div>
             </div>
-            <div class="modal-footer">
-                <button class="btn btn-ghost" onclick="closeModal()">Close</button>
+            <div class="camera-grid" id="camera-grid">
+                <div class="loading-state" style="grid-column:1/-1"><span class="spinner"></span> Loading cameras...</div>
+            </div>
+            <div class="section-header">
+                <i data-lucide="activity" style="width:18px;height:18px"></i> Recent Events
+            </div>
+            <div id="surv-events">
+                <div class="loading-state"><span class="spinner"></span> Loading events...</div>
             </div>
         </div>
     </div>
 
-    <!-- Confirm Modal -->
-    <div class="modal-overlay" id="confirm-modal">
-        <div class="modal modal-sm">
-            <div class="modal-header">
-                <h3 class="modal-title" id="confirm-title">Confirm Action</h3>
-                <button class="modal-close" onclick="closeConfirmModal()">&times;</button>
+    <!-- ==================== TAB: RECONNAISSANCE ==================== -->
+    <div id="tab-recon" class="tab-content">
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Launch Scan</span>
             </div>
-            <div class="modal-body">
-                <p id="confirm-message">Are you sure?</p>
+            <div class="form-row">
+                <div class="form-group" style="max-width:200px">
+                    <label class="form-label">Module</label>
+                    <select class="form-select" id="recon-module"></select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Target</label>
+                    <input type="text" class="form-input" id="recon-target" placeholder="example.com or 192.168.1.0/24">
+                </div>
+                <button class="btn btn-primary" onclick="startReconScan()">
+                    <i data-lucide="play" style="width:14px;height:14px"></i> Start Scan
+                </button>
             </div>
-            <div class="modal-footer">
-                <button class="btn btn-ghost" onclick="closeConfirmModal()">Cancel</button>
-                <button class="btn btn-danger" id="confirm-btn" onclick="executeConfirmAction()">Confirm</button>
+        </div>
+
+        <div class="section-header">
+            <i data-lucide="grid-3x3" style="width:18px;height:18px"></i> Available Modules
+        </div>
+        <div class="module-grid" id="recon-modules">
+            <div class="loading-state" style="grid-column:1/-1"><span class="spinner"></span> Loading modules...</div>
+        </div>
+
+        <div class="section-header">
+            <i data-lucide="history" style="width:18px;height:18px"></i> Scan History
+        </div>
+        <div id="recon-history">
+            <div class="loading-state"><span class="spinner"></span> Loading history...</div>
+        </div>
+    </div>
+
+    <!-- ==================== TAB: VULNERABILITY SCANNING ==================== -->
+    <div id="tab-scanning" class="tab-content">
+        <div class="stats-grid" style="grid-template-columns:repeat(5,1fr)">
+            <div class="stat-card" style="cursor:pointer" onclick="showScannerForm('nmap')">
+                <div class="stat-label">Nmap</div>
+                <div style="margin:8px 0"><i data-lucide="network" style="width:24px;height:24px;color:var(--archie-cyan)"></i></div>
+                <div class="stat-subtitle">Port Scanner</div>
+            </div>
+            <div class="stat-card" style="cursor:pointer" onclick="showScannerForm('nikto')">
+                <div class="stat-label">Nikto</div>
+                <div style="margin:8px 0"><i data-lucide="bug" style="width:24px;height:24px;color:var(--archie-orange)"></i></div>
+                <div class="stat-subtitle">Web Vuln Scanner</div>
+            </div>
+            <div class="stat-card" style="cursor:pointer" onclick="showScannerForm('nuclei')">
+                <div class="stat-label">Nuclei</div>
+                <div style="margin:8px 0"><i data-lucide="atom" style="width:24px;height:24px;color:var(--archie-green)"></i></div>
+                <div class="stat-subtitle">Template Scanner</div>
+            </div>
+            <div class="stat-card" style="cursor:pointer" onclick="showScannerForm('ssl')">
+                <div class="stat-label">SSL/TLS</div>
+                <div style="margin:8px 0"><i data-lucide="lock" style="width:24px;height:24px;color:var(--archie-blue)"></i></div>
+                <div class="stat-subtitle">Certificate Check</div>
+            </div>
+            <div class="stat-card" style="cursor:pointer" onclick="showScannerForm('zap')">
+                <div class="stat-label">ZAP</div>
+                <div style="margin:8px 0"><i data-lucide="zap" style="width:24px;height:24px;color:var(--archie-red)"></i></div>
+                <div class="stat-subtitle">Web App Scanner</div>
+            </div>
+        </div>
+
+        <div class="card" id="scanner-form-card" style="display:none">
+            <div class="card-header">
+                <span class="card-title" id="scanner-form-title">Scanner</span>
+                <button class="btn btn-sm" onclick="document.getElementById('scanner-form-card').style.display='none'">Close</button>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Target</label>
+                    <input type="text" class="form-input" id="scan-target" placeholder="IP, hostname, or URL">
+                </div>
+                <div class="form-group" style="max-width:160px" id="scan-type-group">
+                    <label class="form-label">Scan Type</label>
+                    <select class="form-select" id="scan-type">
+                        <option value="quick">Quick</option>
+                        <option value="full">Full</option>
+                        <option value="stealth">Stealth</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary" onclick="runVulnScan()">
+                    <i data-lucide="play" style="width:14px;height:14px"></i> Run
+                </button>
+            </div>
+            <div id="scan-confirm-internal" style="display:none;margin-top:8px">
+                <label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;color:var(--archie-orange)">
+                    <input type="checkbox" id="scan-confirm-checkbox"> Confirm scan of internal network target
+                </label>
+            </div>
+        </div>
+
+        <div class="section-header">
+            <i data-lucide="file-search" style="width:18px;height:18px"></i> Scan Results
+        </div>
+        <div id="scan-results-list">
+            <div class="loading-state"><span class="spinner"></span> Loading scan results...</div>
+        </div>
+
+        <div class="section-header">
+            <i data-lucide="monitor" style="width:18px;height:18px"></i> SSL Monitoring
+        </div>
+        <div style="margin-bottom:8px">
+            <button class="btn btn-sm" onclick="showAddSSLModal()">
+                <i data-lucide="plus" style="width:12px;height:12px"></i> Add Monitor
+            </button>
+            <button class="btn btn-sm" onclick="refreshSSLMonitors()">
+                <i data-lucide="refresh-cw" style="width:12px;height:12px"></i> Refresh All
+            </button>
+        </div>
+        <div id="ssl-monitors-list">
+            <div class="loading-state"><span class="spinner"></span> Loading SSL monitors...</div>
+        </div>
+    </div>
+
+    <!-- ==================== TAB: ACCESS CONTROL ==================== -->
+    <div id="tab-access" class="tab-content">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Firewall Status</span>
+                    <button class="btn btn-sm" onclick="loadFirewall()">
+                        <i data-lucide="refresh-cw" style="width:12px;height:12px"></i>
+                    </button>
+                </div>
+                <div id="firewall-panel">
+                    <div class="loading-state"><span class="spinner"></span> Loading...</div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">Auto-Block Settings</span>
+                </div>
+                <div id="autoblock-panel">
+                    <div class="loading-state"><span class="spinner"></span> Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">IP Access Control</span>
+            </div>
+            <div class="form-row" style="margin-bottom:12px">
+                <div class="form-group">
+                    <label class="form-label">IP Address</label>
+                    <input type="text" class="form-input" id="ip-input" placeholder="192.168.1.x">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Reason</label>
+                    <input type="text" class="form-input" id="ip-reason" placeholder="Reason for blocking">
+                </div>
+                <button class="btn btn-danger btn-sm" onclick="blockIP()">Block</button>
+                <button class="btn btn-success btn-sm" onclick="unblockIP()">Unblock</button>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <div>
+                    <h4 style="color:var(--archie-red);font-size:0.85rem;margin-bottom:8px">Blocked IPs</h4>
+                    <div id="blocked-ips-list"><div class="loading-state"><span class="spinner"></span></div></div>
+                </div>
+                <div>
+                    <h4 style="color:var(--archie-green);font-size:0.85rem;margin-bottom:8px">Whitelisted IPs</h4>
+                    <div id="whitelisted-ips-list"><div class="loading-state"><span class="spinner"></span></div></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Security Events</span>
+                <button class="btn btn-sm" onclick="loadSecurityEvents()">
+                    <i data-lucide="refresh-cw" style="width:12px;height:12px"></i> Refresh
+                </button>
+            </div>
+            <div id="security-events-list">
+                <div class="loading-state"><span class="spinner"></span> Loading events...</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Active Connections</span>
+                <button class="btn btn-sm" onclick="loadConnections()">
+                    <i data-lucide="refresh-cw" style="width:12px;height:12px"></i>
+                </button>
+            </div>
+            <div id="connections-list">
+                <div class="loading-state"><span class="spinner"></span> Loading connections...</div>
             </div>
         </div>
     </div>
 
-    <!-- Toast Container -->
-    <div id="toast-container" style="position: fixed; bottom: 20px; right: 20px; z-index: 9999;"></div>
+    <!-- ==================== TAB: REPORTS ==================== -->
+    <div id="tab-reports" class="tab-content">
+        <div style="display:flex;gap:8px;margin-bottom:16px">
+            <button class="btn" onclick="loadReports()">
+                <i data-lucide="refresh-cw" style="width:14px;height:14px"></i> Refresh
+            </button>
+        </div>
+        <div id="reports-list">
+            <div class="loading-state"><span class="spinner"></span> Loading reports...</div>
+        </div>
+    </div>
 
-    <script>
-    let pendingConfirmAction = null;
+    <!-- ==================== AGENT AUTOMATION PANEL ==================== -->
+    <button class="agent-fab" id="agent-fab" onclick="toggleAgentPanel()">
+        <i data-lucide="bot" style="width:24px;height:24px"></i>
+        <span class="fab-badge" id="agent-badge" style="display:none">0</span>
+    </button>
 
-    // Tab switching
-    function switchTab(tabName) {
-        // Hide all tabs
-        document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
-        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    <div class="agent-panel" id="agent-panel">
+        <div class="agent-panel-header">
+            <h3>Agent Automation</h3>
+            <button class="btn btn-sm" onclick="toggleAgentPanel()">Close</button>
+        </div>
+        <div class="agent-panel-body">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                <span style="font-size:0.78rem;color:var(--archie-text-muted)">Mode</span>
+                <span class="badge badge-info" id="agent-mode">suggest</span>
+            </div>
+            <div style="display:flex;gap:6px;margin-bottom:14px">
+                <button class="btn btn-sm" id="agent-pause-btn" onclick="toggleAgentPause()">Pause</button>
+                <button class="btn btn-sm" onclick="loadAgentConfig()">
+                    <i data-lucide="settings" style="width:12px;height:12px"></i> Config
+                </button>
+            </div>
+            <div style="font-size:0.78rem;color:var(--archie-text-muted);margin-bottom:8px">Pending Suggestions</div>
+            <div id="agent-suggestions">
+                <div class="empty-state" style="padding:16px">No pending suggestions</div>
+            </div>
+            <div style="font-size:0.78rem;color:var(--archie-text-muted);margin:12px 0 8px">Recent Actions</div>
+            <div id="agent-actions">
+                <div style="font-size:0.78rem;color:var(--archie-text-muted);text-align:center;padding:12px">No recent actions</div>
+            </div>
+        </div>
+    </div>
 
-        // Show selected tab
-        document.getElementById('tab-' + tabName).classList.add('active');
-        document.querySelector('[data-tab="' + tabName + '"]').classList.add('active');
+    <!-- ==================== MODAL ==================== -->
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal" id="modal-content"></div>
+    </div>
 
-        // Load data for the tab
-        if (tabName === 'firewall') loadIPAccessList();
-        if (tabName === 'threats') loadSecurityEvents();
-        if (tabName === 'scanning') loadRecentScans();
-        if (tabName === 'ssl') loadSSLMonitors();
-        if (tabName === 'reports') loadReports();
+</div>
 
-        if (typeof lucide !== 'undefined') lucide.createIcons();
-    }
+<script>
+const API = '/tools/security-network/api';
 
-    // Helper to escape HTML
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
+/* ========== Utility Functions ========== */
+function esc(s) {
+    if (s == null) return '';
+    const d = document.createElement('div');
+    d.textContent = String(s);
+    return d.innerHTML;
+}
+function formatNum(n) {
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+    if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+    return String(n);
+}
+function formatTime(t) {
+    if (!t) return '-';
+    try { return new Date(t).toLocaleString(undefined, {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); }
+    catch(e) { return String(t); }
+}
+function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
+function setBadge(id, online) {
+    const el = document.getElementById(id);
+    if (el) el.className = 'svc-badge ' + (online ? 'online' : 'offline');
+}
 
-    // Toast notification
-    function showToast(type, message) {
-        const container = document.getElementById('toast-container');
-        const toast = document.createElement('div');
-        toast.className = 'toast toast-' + type;
-        toast.style.cssText = 'background: var(--archie-bg-secondary); border: 1px solid var(--archie-' + (type === 'success' ? 'green' : type === 'error' ? 'red' : 'orange') + '); color: var(--archie-' + (type === 'success' ? 'green' : type === 'error' ? 'red' : 'orange') + '); padding: var(--archie-space-3) var(--archie-space-4); border-radius: var(--archie-radius-md); margin-top: var(--archie-space-2); animation: slideUp 0.3s ease; box-shadow: var(--archie-shadow-lg);';
-        toast.textContent = message;
-        container.appendChild(toast);
-        setTimeout(() => toast.remove(), 4000);
-    }
-
-    // Confirm modal functions
-    function showConfirmModal(title, message, onConfirm) {
-        document.getElementById('confirm-title').textContent = title;
-        document.getElementById('confirm-message').textContent = message;
-        document.getElementById('confirm-modal').classList.add('active');
-        pendingConfirmAction = onConfirm;
-    }
-
-    function closeConfirmModal() {
-        document.getElementById('confirm-modal').classList.remove('active');
-        pendingConfirmAction = null;
-    }
-
-    async function executeConfirmAction() {
-        if (pendingConfirmAction) {
-            await pendingConfirmAction();
-        }
-        closeConfirmModal();
-    }
-
-    async function refreshStats() {
-        try {
-            const response = await fetch('/tools/security-network/api/stats');
-            const data = await response.json();
-            if (data.success) {
-                document.getElementById('stat-failed-logins').textContent = data.failed_logins_24h;
-                if (data.system_health) {
-                    document.getElementById('cpu-value').textContent = data.system_health.cpu.percent.toFixed(1) + '%';
-                    document.getElementById('memory-value').textContent = data.system_health.memory.percent.toFixed(1) + '%';
-                    document.getElementById('disk-value').textContent = data.system_health.disk.percent.toFixed(1) + '%';
-                }
-                showToast('success', 'Stats refreshed');
+/* Safe DOM table builder */
+function buildTable(headers, rows) {
+    const table = document.createElement('table');
+    table.className = 'data-table';
+    const thead = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    headers.forEach(h => { const th = document.createElement('th'); th.textContent = h; headRow.appendChild(th); });
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    rows.forEach(rowData => {
+        const tr = document.createElement('tr');
+        rowData.forEach(cellData => {
+            const td = document.createElement('td');
+            if (typeof cellData === 'string' || typeof cellData === 'number') {
+                td.textContent = cellData;
+            } else if (cellData instanceof Node) {
+                td.appendChild(cellData);
+            } else if (cellData && cellData.html) {
+                td.className = cellData.cls || '';
+                td.textContent = cellData.text || '';
             }
-        } catch (error) {
-            console.error('Error refreshing stats:', error);
-            showToast('error', 'Failed to refresh stats');
-        }
-    }
-
-    async function autoBlockThreats() {
-        showConfirmModal('Auto-Block Threats', 'This will automatically block detected threats. Continue?', async () => {
-            try {
-                const response = await fetch('/tools/security-network/api/auto-block', { method: 'POST', credentials: 'same-origin' });
-                const result = await response.json();
-                if (result.success) {
-                    showToast('success', 'Blocked ' + result.blocked + ' threats. ' + result.message);
-                    refreshStats();
-                } else {
-                    showToast('error', 'Error: ' + result.error);
-                }
-            } catch (error) {
-                showToast('error', 'Error: ' + error.message);
-            }
+            tr.appendChild(td);
         });
-    }
+        tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    return table;
+}
 
-    async function viewFailedLogins() {
-        document.getElementById('failed-logins-modal').classList.add('active');
-        const container = document.getElementById('failed-logins-list');
-        container.textContent = '';
-        const loadingDiv = document.createElement('div');
-        loadingDiv.className = 'loading';
-        loadingDiv.textContent = 'Loading...';
-        container.appendChild(loadingDiv);
+function createBadge(text, type) {
+    const span = document.createElement('span');
+    span.className = 'badge badge-' + type;
+    span.textContent = text;
+    return span;
+}
 
-        try {
-            const response = await fetch('/tools/security-network/api/stats');
-            const data = await response.json();
+function showLoading(el) {
+    el.textContent = '';
+    const d = document.createElement('div');
+    d.className = 'loading-state';
+    const sp = document.createElement('span');
+    sp.className = 'spinner';
+    d.appendChild(sp);
+    d.appendChild(document.createTextNode(' Loading...'));
+    el.appendChild(d);
+}
+
+function showEmpty(el, msg) {
+    el.textContent = '';
+    const d = document.createElement('div');
+    d.className = 'empty-state';
+    d.textContent = msg;
+    el.appendChild(d);
+}
+
+/* ========== Tab Management ========== */
+let dnsTabLoaded = false, survTabLoaded = false, reconTabLoaded = false;
+let scanTabLoaded = false, accessTabLoaded = false, reportsTabLoaded = false;
+let qlOffset = 0, activeScannerType = 'nmap';
+
+function initTabs() {
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            btn.classList.add('active');
+            const tab = btn.dataset.tab;
+            document.getElementById('tab-' + tab).classList.add('active');
+            if (tab === 'dns' && !dnsTabLoaded) { dnsTabLoaded = true; loadDNSOverview(); loadUserRules(); }
+            if (tab === 'surveillance' && !survTabLoaded) { survTabLoaded = true; loadSurveillance(); }
+            if (tab === 'recon' && !reconTabLoaded) { reconTabLoaded = true; loadReconModules(); loadReconHistory(); }
+            if (tab === 'scanning' && !scanTabLoaded) { scanTabLoaded = true; loadScanResults(); loadSSLMonitors(); }
+            if (tab === 'access' && !accessTabLoaded) { accessTabLoaded = true; loadFirewall(); loadIPAccess(); loadAutoBlockSettings(); loadSecurityEvents(); loadConnections(); }
+            if (tab === 'reports' && !reportsTabLoaded) { reportsTabLoaded = true; loadReports(); }
+            lucide.createIcons();
+        });
+    });
+}
+
+function initSubtabs() {
+    document.querySelectorAll('.subtab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const parent = btn.closest('.tab-content');
+            parent.querySelectorAll('.subtab-btn').forEach(b => b.classList.remove('active'));
+            parent.querySelectorAll('.subtab-content').forEach(c => c.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('subtab-' + btn.dataset.subtab).classList.add('active');
+            const st = btn.dataset.subtab;
+            if (st === 'dns-querylog') loadQueryLog(0);
+            if (st === 'dns-filters') loadFilters();
+            if (st === 'dns-rewrites') loadRewrites();
+            if (st === 'dns-hostinger') loadHostingerRecords();
+            if (st === 'dns-rules') loadUserRules();
+            lucide.createIcons();
+        });
+    });
+}
+
+function switchToTab(tabName) {
+    const btn = document.querySelector('.tab-btn[data-tab="' + tabName + '"]');
+    if (btn) btn.click();
+}
+
+/* ========== Dashboard ========== */
+async function loadDashboard() {
+    try {
+        const r = await fetch(API + '/dashboard/stats');
+        const d = await r.json();
+        if (!d.success) return;
+        document.getElementById('dash-dns-queries').textContent = formatNum(d.dns_queries_24h || 0);
+        document.getElementById('dash-dns-blocked').textContent = formatNum(d.dns_blocked_24h || 0);
+        document.getElementById('dash-cameras').textContent = d.camera_count || 0;
+        document.getElementById('dash-suggestions').textContent = d.pending_suggestions || 0;
+        setBadge('svc-adguard', d.services && d.services.adguard);
+        setBadge('svc-hostinger', d.services && d.services.hostinger);
+        setBadge('svc-surveillance', d.services && d.services.surveillance);
+        setBadge('svc-argus', d.services && d.services.argus);
+        setBadge('svc-agent', d.services && d.services.agent);
+
+        const feed = document.getElementById('dash-activity');
+        feed.textContent = '';
+        if (d.recent_activity && d.recent_activity.length) {
+            d.recent_activity.forEach(a => {
+                const item = document.createElement('div');
+                item.className = 'activity-item';
+                const iconDiv = document.createElement('div');
+                iconDiv.className = 'activity-icon';
+                iconDiv.style.background = 'var(--archie-accent-alpha-10)';
+                const textDiv = document.createElement('div');
+                const txt = document.createElement('div');
+                txt.className = 'activity-text';
+                txt.textContent = a.text || '';
+                const tm = document.createElement('div');
+                tm.className = 'activity-time';
+                tm.textContent = a.time || '';
+                textDiv.appendChild(txt);
+                textDiv.appendChild(tm);
+                item.appendChild(iconDiv);
+                item.appendChild(textDiv);
+                feed.appendChild(item);
+            });
+        } else {
+            showEmpty(feed, 'No recent activity');
+        }
+    } catch(e) { console.error('Dashboard error:', e); }
+}
+
+function quickToggleProtection() {
+    const enabled = confirm('Enable DNS protection? (OK=Enable, Cancel=Disable)');
+    fetch(API + '/dns/adguard/protection', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({enabled:enabled})
+    }).then(r=>r.json()).then(d=>{
+        if(d.success) showToast('success','DNS protection '+(enabled?'enabled':'disabled'));
+        else showToast('error',d.error||'Failed');
+    }).catch(e=>showToast('error',e.message));
+}
+
+function quickBlockDomain() {
+    const domain = prompt('Enter domain to block:');
+    if(!domain) return;
+    fetch(API+'/dns/adguard/block',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({domain:domain})
+    }).then(r=>r.json()).then(d=>{
+        if(d.success) showToast('success',domain+' blocked');
+        else showToast('error',d.error||'Failed');
+    }).catch(e=>showToast('error',e.message));
+}
+
+/* ========== DNS Management ========== */
+async function loadDNSOverview() {
+    try {
+        const r = await fetch(API + '/dns/adguard/stats');
+        const d = await r.json();
+        if (d.success && d.stats) {
+            const s = d.stats;
+            document.getElementById('dns-total-queries').textContent = formatNum(s.num_dns_queries || 0);
+            document.getElementById('dns-blocked').textContent = formatNum(s.num_blocked_filtering || 0);
+            document.getElementById('dns-safe-browsing').textContent = formatNum(s.num_replaced_safebrowsing || 0);
+            const pEl = document.getElementById('dns-protection-status');
+            pEl.textContent = d.protection_enabled !== false ? 'ON' : 'OFF';
+            pEl.style.color = d.protection_enabled !== false ? 'var(--archie-green)' : 'var(--archie-red)';
+        }
+    } catch(e) { console.error('DNS overview error:', e); }
+}
+
+function dnsBlockDomain() {
+    const domain = document.getElementById('dns-quick-domain').value.trim();
+    if(!domain) return showToast('error','Enter a domain');
+    fetch(API+'/dns/adguard/block',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain:domain})})
+    .then(r=>r.json()).then(d=>{
+        if(d.success){showToast('success',domain+' blocked');document.getElementById('dns-quick-domain').value='';}
+        else showToast('error',d.error||'Failed');
+    }).catch(e=>showToast('error',e.message));
+}
+
+function dnsUnblockDomain() {
+    const domain = document.getElementById('dns-quick-domain').value.trim();
+    if(!domain) return showToast('error','Enter a domain');
+    fetch(API+'/dns/adguard/unblock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain:domain})})
+    .then(r=>r.json()).then(d=>{
+        if(d.success){showToast('success',domain+' unblocked');document.getElementById('dns-quick-domain').value='';}
+        else showToast('error',d.error||'Failed');
+    }).catch(e=>showToast('error',e.message));
+}
+
+/* Query Log */
+async function loadQueryLog(offset) {
+    qlOffset = Math.max(0, offset || 0);
+    const search = document.getElementById('ql-search').value;
+    const status = document.getElementById('ql-status').value;
+    const container = document.getElementById('querylog-container');
+    showLoading(container);
+    try {
+        const params = new URLSearchParams({limit:50,offset:qlOffset});
+        if(search) params.set('search',search);
+        if(status) params.set('response_status',status);
+        const r = await fetch(API+'/dns/adguard/querylog?'+params);
+        const d = await r.json();
+        if(d.success && d.data) {
+            const entries = d.data.data || d.data || [];
+            if(!entries.length) { showEmpty(container,'No query log entries'); document.getElementById('ql-pagination').style.display='none'; return; }
+            const rows = entries.map(e => {
+                const q = e.question || {};
+                const blocked = e.reason && e.reason !== 'NotFilteredNotFound';
+                const timeTd = document.createElement('td');
+                timeTd.className = 'mono';
+                timeTd.textContent = formatTime(e.time);
+                return [formatTime(e.time), q.name||'-', e.client||'-', q.type||'-', createBadge(blocked?'Blocked':'OK', blocked?'danger':'success')];
+            });
             container.textContent = '';
+            container.appendChild(buildTable(['Time','Domain','Client','Type','Status'], rows));
+            const pag = document.getElementById('ql-pagination');
+            pag.style.display = 'flex';
+            document.getElementById('ql-prev').disabled = qlOffset === 0;
+            document.getElementById('ql-page-info').textContent = 'Showing '+(qlOffset+1)+' - '+(qlOffset+entries.length);
+        } else { showEmpty(container, 'Could not load query log'); }
+    } catch(e) { showEmpty(container, 'Error loading query log'); }
+}
 
-            if (!data.success || !data.recent_failures?.length) {
-                const emptyState = document.createElement('div');
-                emptyState.className = 'empty-state';
-                emptyState.innerHTML = '<div class="icon"><i data-lucide="check-circle" style="width: 32px; height: 32px;"></i></div>';
-                const p = document.createElement('p');
-                p.textContent = 'No failed logins in the last 24 hours';
-                emptyState.appendChild(p);
-                container.appendChild(emptyState);
-                if (typeof lucide !== 'undefined') lucide.createIcons();
-                return;
-            }
-
-            data.recent_failures.forEach(f => {
-                const details = f.details || {};
-                const time = new Date(f.created_at).toLocaleString();
-                const entry = document.createElement('div');
-                entry.className = 'failed-login-entry';
-
-                const infoDiv = document.createElement('div');
-                const ipSpan = document.createElement('span');
-                ipSpan.className = 'failed-ip';
-                ipSpan.textContent = details.ip || 'Unknown';
-                const userSpan = document.createElement('span');
-                userSpan.style.cssText = 'color: var(--archie-text-muted); margin-left: 10px;';
-                userSpan.textContent = 'User: ' + (details.username || 'Unknown');
-                infoDiv.appendChild(ipSpan);
-                infoDiv.appendChild(userSpan);
-
-                const timeDiv = document.createElement('div');
-                timeDiv.className = 'audit-time';
-                timeDiv.textContent = time;
-
-                entry.appendChild(infoDiv);
-                entry.appendChild(timeDiv);
-                container.appendChild(entry);
-            });
-        } catch (error) {
+/* Filters */
+async function loadFilters() {
+    const container = document.getElementById('filters-list');
+    showLoading(container);
+    try {
+        const r = await fetch(API+'/dns/adguard/filters');
+        const d = await r.json();
+        if(d.success && d.filters) {
+            if(!d.filters.length) { showEmpty(container,'No filters configured'); return; }
             container.textContent = '';
-            const emptyState = document.createElement('div');
-            emptyState.className = 'empty-state';
-            emptyState.innerHTML = '<div class="icon"><i data-lucide="alert-triangle" style="width: 32px; height: 32px;"></i></div>';
-            const p = document.createElement('p');
-            p.textContent = 'Error: ' + error.message;
-            emptyState.appendChild(p);
-            container.appendChild(emptyState);
-            if (typeof lucide !== 'undefined') lucide.createIcons();
-        }
-    }
-
-    function closeModal() {
-        document.getElementById('failed-logins-modal').classList.remove('active');
-    }
-
-    async function loadAuditLog(action) {
-        const container = document.getElementById('audit-log-container');
-        container.textContent = '';
-        const loadingDiv = document.createElement('div');
-        loadingDiv.className = 'loading';
-        loadingDiv.textContent = 'Loading audit log...';
-        container.appendChild(loadingDiv);
-
-        try {
-            let url = '/tools/security-network/api/audit-log?limit=50';
-            if (action && action !== 'all') url += '&action=' + action;
-            const response = await fetch(url);
-            const data = await response.json();
-            container.textContent = '';
-
-            if (!data.success || !data.entries?.length) {
-                const emptyState = document.createElement('div');
-                emptyState.className = 'empty-state';
-                emptyState.innerHTML = '<div class="icon"><i data-lucide="scroll" style="width: 32px; height: 32px;"></i></div>';
-                const p = document.createElement('p');
-                p.textContent = 'No audit entries found';
-                emptyState.appendChild(p);
-                container.appendChild(emptyState);
-                if (typeof lucide !== 'undefined') lucide.createIcons();
-                return;
-            }
-
-            data.entries.forEach(e => {
-                const actionClass = e.action.includes('success') ? 'success' : e.action.includes('failed') ? 'failed' : '';
-                const time = new Date(e.created_at).toLocaleString();
-
-                const entry = document.createElement('div');
-                entry.className = 'audit-entry';
-
-                const infoDiv = document.createElement('div');
-                const actionSpan = document.createElement('span');
-                actionSpan.className = 'audit-action ' + actionClass;
-                actionSpan.textContent = e.action;
-                const userSpan = document.createElement('span');
-                userSpan.style.cssText = 'color: var(--archie-text-muted); margin-left: 15px;';
-                userSpan.textContent = e.user_id ? 'User #' + e.user_id : 'System';
-                infoDiv.appendChild(actionSpan);
-                infoDiv.appendChild(userSpan);
-
-                const timeDiv = document.createElement('div');
-                timeDiv.className = 'audit-time';
-                timeDiv.textContent = time;
-
-                entry.appendChild(infoDiv);
-                entry.appendChild(timeDiv);
-                container.appendChild(entry);
+            const rows = d.filters.map(f => {
+                const toggle = document.createElement('label');
+                toggle.className = 'toggle-switch';
+                const input = document.createElement('input');
+                input.type = 'checkbox';
+                input.checked = f.enabled;
+                input.addEventListener('change', function() { toggleFilter(f.url, this.checked); });
+                const slider = document.createElement('span');
+                slider.className = 'toggle-slider';
+                toggle.appendChild(input);
+                toggle.appendChild(slider);
+                const delBtn = document.createElement('button');
+                delBtn.className = 'btn btn-danger btn-sm';
+                delBtn.textContent = 'Remove';
+                delBtn.addEventListener('click', function() { removeFilter(f.url); });
+                return [toggle, f.name, f.url, f.rules_count||0, delBtn];
             });
-        } catch (error) {
-            container.textContent = '';
-            const emptyState = document.createElement('div');
-            emptyState.className = 'empty-state';
-            emptyState.innerHTML = '<div class="icon"><i data-lucide="alert-triangle" style="width: 32px; height: 32px;"></i></div>';
-            const p = document.createElement('p');
-            p.textContent = 'Error: ' + error.message;
-            emptyState.appendChild(p);
-            container.appendChild(emptyState);
-            if (typeof lucide !== 'undefined') lucide.createIcons();
+            container.appendChild(buildTable(['Enabled','Name','URL','Rules',''], rows));
         }
-    }
+    } catch(e) { showEmpty(container, 'Error loading filters'); }
+}
 
-    // Load Docker container security
-    async function loadDockerSecurity() {
-        try {
-            const response = await fetch('/tools/security-network/api/docker/security');
-            const data = await response.json();
-            if (data.success) {
-                // Update summary
-                document.getElementById('sec-total').textContent = data.summary.total;
-                document.getElementById('sec-high').textContent = data.summary.high_risk;
-                document.getElementById('sec-medium').textContent = data.summary.medium_risk;
-                document.getElementById('sec-low').textContent = data.summary.low_risk;
+function addFilter() {
+    const name = document.getElementById('filter-name').value.trim();
+    const url = document.getElementById('filter-url').value.trim();
+    if(!name||!url) return showToast('error','Name and URL required');
+    fetch(API+'/dns/adguard/filters',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name,url:url,enabled:true})})
+    .then(r=>r.json()).then(d=>{
+        if(d.success){showToast('success','Filter added');loadFilters();document.getElementById('filter-name').value='';document.getElementById('filter-url').value='';}
+        else showToast('error',d.error||'Failed');
+    }).catch(e=>showToast('error',e.message));
+}
 
-                // Render container list using DOM methods
-                const list = document.getElementById('container-security-list');
-                list.textContent = '';
+function toggleFilter(url, enabled) {
+    fetch(API+'/dns/adguard/filters/'+encodeURIComponent(url),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:enabled})})
+    .then(r=>r.json()).then(d=>{if(!d.success){showToast('error',d.error||'Failed');loadFilters();}})
+    .catch(e=>showToast('error',e.message));
+}
 
-                if (!data.containers?.length) {
-                    const emptyState = document.createElement('div');
-                    emptyState.className = 'empty-state';
-                    const p = document.createElement('p');
-                    p.textContent = 'No containers found';
-                    emptyState.appendChild(p);
-                    list.appendChild(emptyState);
-                    return;
-                }
+function removeFilter(url) {
+    if(!confirm('Remove this filter?')) return;
+    fetch(API+'/dns/adguard/filters/'+encodeURIComponent(url),{method:'DELETE'})
+    .then(r=>r.json()).then(d=>{if(d.success){showToast('success','Filter removed');loadFilters();}else showToast('error',d.error||'Failed');})
+    .catch(e=>showToast('error',e.message));
+}
 
-                data.containers.forEach(c => {
-                    const scoreClass = c.security_score >= 80 ? 'high' : c.security_score >= 50 ? 'medium' : 'low';
-                    const warnings = c.security_warnings || [];
+function refreshAllFilters() {
+    fetch(API+'/dns/adguard/filters/refresh',{method:'POST'}).then(r=>r.json()).then(d=>{
+        if(d.success){showToast('success','Filters refreshed');loadFilters();}else showToast('error',d.error||'Failed');
+    }).catch(e=>showToast('error',e.message));
+}
 
-                    const item = document.createElement('div');
-                    item.className = 'container-security-item';
-
-                    const infoDiv = document.createElement('div');
-                    const nameDiv = document.createElement('div');
-                    nameDiv.className = 'container-name';
-                    nameDiv.textContent = c.name;
-                    const imageDiv = document.createElement('div');
-                    imageDiv.style.cssText = 'font-size: var(--archie-text-xs); color: var(--archie-text-muted);';
-                    imageDiv.textContent = c.image;
-                    infoDiv.appendChild(nameDiv);
-                    infoDiv.appendChild(imageDiv);
-
-                    if (warnings.length) {
-                        const warningsDiv = document.createElement('div');
-                        warningsDiv.className = 'security-warnings';
-                        warnings.forEach(w => {
-                            const badge = document.createElement('span');
-                            badge.className = 'security-warning-badge';
-                            badge.textContent = w;
-                            warningsDiv.appendChild(badge);
-                        });
-                        infoDiv.appendChild(warningsDiv);
-                    }
-
-                    const scoreSpan = document.createElement('span');
-                    scoreSpan.className = 'security-score ' + scoreClass;
-                    scoreSpan.textContent = c.security_score + '/100';
-
-                    item.appendChild(infoDiv);
-                    item.appendChild(scoreSpan);
-                    list.appendChild(item);
-                });
-            }
-        } catch (error) {
-            console.error('Error loading Docker security:', error);
-            const list = document.getElementById('container-security-list');
-            list.textContent = '';
-            const emptyState = document.createElement('div');
-            emptyState.className = 'empty-state';
-            const p = document.createElement('p');
-            p.textContent = 'Failed to load Docker security data';
-            emptyState.appendChild(p);
-            list.appendChild(emptyState);
-        }
-    }
-
-    // Load security stacks status from System Operations
-    async function loadSecurityStacks() {
-        const stackNames = ['monitoring', 'network-tools', 'security-scanner'];
-
-        try {
-            const response = await fetch('/tools/system-operations/api/stacks/status?names=' + stackNames.join(','));
-            const data = await response.json();
-
-            if (data.success && data.stacks) {
-                data.stacks.forEach(stack => {
-                    const statusEl = document.getElementById('stack-status-' + stack.name);
-                    const containersEl = document.getElementById('stack-containers-' + stack.name);
-                    const cardEl = document.getElementById('stack-' + stack.name);
-
-                    if (statusEl) {
-                        statusEl.className = 'stack-status ' + stack.status;
-                        const statusText = stack.status === 'running' ? 'Running' :
-                                          stack.status === 'partial' ? 'Partial' :
-                                          stack.status === 'stopped' ? 'Stopped' : 'Unknown';
-                        statusEl.textContent = statusText;
-                    }
-
-                    if (containersEl) {
-                        containersEl.textContent = stack.containers_running + '/' + stack.containers_total;
-                    }
-
-                    // Update card color from stack data
-                    if (cardEl && stack.color) {
-                        cardEl.style.setProperty('--stack-color', stack.color);
-                    }
-                });
-            }
-        } catch (error) {
-            console.error('Error loading security stacks:', error);
-            stackNames.forEach(name => {
-                const statusEl = document.getElementById('stack-status-' + name);
-                if (statusEl) {
-                    statusEl.className = 'stack-status unknown';
-                    statusEl.textContent = 'Error';
-                }
+/* Rewrites */
+async function loadRewrites() {
+    const container = document.getElementById('rewrites-list');
+    showLoading(container);
+    try {
+        const r = await fetch(API+'/dns/adguard/rewrites');
+        const d = await r.json();
+        if(d.success && d.rewrites) {
+            if(!d.rewrites.length){showEmpty(container,'No DNS rewrites');return;}
+            container.textContent='';
+            const rows = d.rewrites.map(rw => {
+                const delBtn = document.createElement('button');
+                delBtn.className='btn btn-danger btn-sm';
+                delBtn.textContent='Delete';
+                delBtn.addEventListener('click', function(){deleteRewrite(rw.domain,rw.answer);});
+                return [rw.domain, rw.answer, delBtn];
             });
+            container.appendChild(buildTable(['Domain','Answer',''], rows));
         }
-    }
+    } catch(e) { showEmpty(container,'Error loading rewrites'); }
+}
 
-    // ========== IP ACCESS CONTROL ==========
-    async function loadIPAccessList() {
-        try {
-            const response = await fetch('/tools/security-network/api/ip-access');
-            const data = await response.json();
+function addRewrite() {
+    const domain = document.getElementById('rw-domain').value.trim();
+    const answer = document.getElementById('rw-answer').value.trim();
+    if(!domain||!answer) return showToast('error','Domain and answer required');
+    fetch(API+'/dns/adguard/rewrites',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain:domain,answer:answer})})
+    .then(r=>r.json()).then(d=>{
+        if(d.success){showToast('success','Rewrite added');loadRewrites();document.getElementById('rw-domain').value='';document.getElementById('rw-answer').value='';}
+        else showToast('error',d.error||'Failed');
+    }).catch(e=>showToast('error',e.message));
+}
 
-            // Blocked IPs
-            const blockedList = document.getElementById('blocked-ips-list');
-            blockedList.textContent = '';
-            if (data.blocked?.length) {
-                const table = document.createElement('table');
-                table.className = 'ip-table';
-                const headerRow = document.createElement('tr');
-                ['IP Address', 'Reason', 'Expires', 'Actions'].forEach(h => {
-                    const th = document.createElement('th');
-                    th.textContent = h;
-                    headerRow.appendChild(th);
-                });
-                table.appendChild(headerRow);
+function deleteRewrite(domain, answer) {
+    if(!confirm('Delete rewrite '+domain+'?')) return;
+    fetch(API+'/dns/adguard/rewrites',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain:domain,answer:answer})})
+    .then(r=>r.json()).then(d=>{if(d.success){showToast('success','Rewrite deleted');loadRewrites();}else showToast('error',d.error||'Failed');})
+    .catch(e=>showToast('error',e.message));
+}
 
-                data.blocked.forEach(ip => {
-                    const row = document.createElement('tr');
-                    const ipCell = document.createElement('td');
-                    ipCell.style.fontFamily = 'var(--archie-font-mono)';
-                    ipCell.textContent = ip.ip_address;
-                    const reasonCell = document.createElement('td');
-                    reasonCell.textContent = ip.reason || 'N/A';
-                    const expiresCell = document.createElement('td');
-                    expiresCell.textContent = ip.expires_at ? new Date(ip.expires_at).toLocaleString() : 'Never';
-                    const actionsCell = document.createElement('td');
-                    const unblockBtn = document.createElement('button');
-                    unblockBtn.className = 'btn btn-sm btn-ghost';
-                    unblockBtn.textContent = 'Unblock';
-                    unblockBtn.onclick = () => unblockIP(ip.ip_address);
-                    actionsCell.appendChild(unblockBtn);
-                    row.appendChild(ipCell);
-                    row.appendChild(reasonCell);
-                    row.appendChild(expiresCell);
-                    row.appendChild(actionsCell);
-                    table.appendChild(row);
-                });
-                blockedList.appendChild(table);
-                document.getElementById('stat-blocked-ips').textContent = data.blocked.length;
-            } else {
-                const empty = document.createElement('div');
-                empty.className = 'empty-state';
-                empty.textContent = 'No blocked IPs';
-                blockedList.appendChild(empty);
-                document.getElementById('stat-blocked-ips').textContent = '0';
-            }
-
-            // Whitelisted IPs
-            const whiteList = document.getElementById('whitelisted-ips-list');
-            whiteList.textContent = '';
-            if (data.whitelisted?.length) {
-                const table = document.createElement('table');
-                table.className = 'ip-table';
-                const headerRow = document.createElement('tr');
-                ['IP Address', 'Reason', 'Added'].forEach(h => {
-                    const th = document.createElement('th');
-                    th.textContent = h;
-                    headerRow.appendChild(th);
-                });
-                table.appendChild(headerRow);
-
-                data.whitelisted.forEach(ip => {
-                    const row = document.createElement('tr');
-                    const ipCell = document.createElement('td');
-                    ipCell.style.fontFamily = 'var(--archie-font-mono)';
-                    ipCell.textContent = ip.ip_address;
-                    const reasonCell = document.createElement('td');
-                    reasonCell.textContent = ip.reason || 'N/A';
-                    const addedCell = document.createElement('td');
-                    addedCell.textContent = new Date(ip.created_at).toLocaleString();
-                    row.appendChild(ipCell);
-                    row.appendChild(reasonCell);
-                    row.appendChild(addedCell);
-                    table.appendChild(row);
-                });
-                whiteList.appendChild(table);
-            } else {
-                const empty = document.createElement('div');
-                empty.className = 'empty-state';
-                empty.textContent = 'No whitelisted IPs';
-                whiteList.appendChild(empty);
-            }
-        } catch (error) {
-            console.error('Error loading IP access list:', error);
+/* Hostinger */
+async function loadHostingerRecords() {
+    try {
+        const r = await fetch(API+'/dns/hostinger/records');
+        const d = await r.json();
+        if(!d.success && (d.error||'').indexOf('not configured')>=0) {
+            document.getElementById('hostinger-not-configured').style.display='block';
+            document.getElementById('hostinger-configured').style.display='none';
+            lucide.createIcons();
+            return;
         }
-    }
-
-    function showBlockIPModal() {
-        const ip = prompt('Enter IP address to block:');
-        if (!ip) return;
-        const reason = prompt('Reason for blocking (optional):') || 'Manually blocked';
-        blockIP(ip, reason);
-    }
-
-    async function blockIP(ip, reason) {
-        try {
-            const response = await fetch('/tools/security-network/api/ip-access/block', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ip_address: ip, reason: reason })
+        document.getElementById('hostinger-not-configured').style.display='none';
+        document.getElementById('hostinger-configured').style.display='block';
+        const container = document.getElementById('hostinger-records');
+        if(d.success && d.records) {
+            if(!d.records.length){showEmpty(container,'No DNS records');return;}
+            container.textContent='';
+            const rows = d.records.map(rec=>{
+                const delBtn=document.createElement('button');
+                delBtn.className='btn btn-danger btn-sm';
+                delBtn.textContent='Delete';
+                delBtn.addEventListener('click',function(){deleteHostingerRecord(rec.id);});
+                return [createBadge(rec.type||rec.record_type,'info'), rec.name, rec.content||rec.value, rec.ttl||'-', delBtn];
             });
-            const data = await response.json();
-            if (data.success) {
-                showToast('success', 'IP blocked successfully');
-                loadIPAccessList();
-            } else {
-                showToast('error', 'Error: ' + data.error);
-            }
-        } catch (error) {
-            showToast('error', 'Error: ' + error.message);
+            container.appendChild(buildTable(['Type','Name','Content','TTL',''], rows));
+        } else { showEmpty(container,'Could not load records'); }
+    } catch(e) { showEmpty(document.getElementById('hostinger-records'),'Error loading records'); }
+}
+
+function addHostingerRecord() {
+    const record_type=document.getElementById('host-type').value;
+    const name=document.getElementById('host-name').value.trim();
+    const content=document.getElementById('host-content').value.trim();
+    const ttl=parseInt(document.getElementById('host-ttl').value)||3600;
+    if(!name||!content) return showToast('error','Name and content required');
+    fetch(API+'/dns/hostinger/records',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({record_type:record_type,name:name,content:content,ttl:ttl})})
+    .then(r=>r.json()).then(d=>{if(d.success){showToast('success','Record added');loadHostingerRecords();}else showToast('error',d.error||'Failed');})
+    .catch(e=>showToast('error',e.message));
+}
+
+function deleteHostingerRecord(id) {
+    if(!confirm('Delete this DNS record?')) return;
+    fetch(API+'/dns/hostinger/records/'+id,{method:'DELETE'})
+    .then(r=>r.json()).then(d=>{if(d.success){showToast('success','Record deleted');loadHostingerRecords();}else showToast('error',d.error||'Failed');})
+    .catch(e=>showToast('error',e.message));
+}
+
+/* User Rules */
+async function loadUserRules() {
+    try {
+        const r = await fetch(API+'/dns/adguard/rules');
+        const d = await r.json();
+        if(d.success) document.getElementById('user-rules').value = d.rules||'';
+    } catch(e){console.error('Rules load error:',e);}
+}
+
+function saveUserRules() {
+    const rules = document.getElementById('user-rules').value;
+    fetch(API+'/dns/adguard/rules',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rules:rules})})
+    .then(r=>r.json()).then(d=>{if(d.success) showToast('success','Rules saved'); else showToast('error',d.error||'Failed');})
+    .catch(e=>showToast('error',e.message));
+}
+
+/* ========== Surveillance ========== */
+async function loadSurveillance() {
+    try {
+        const r = await fetch(API+'/surveillance/cameras');
+        const d = await r.json();
+        if(!d.success && (d.error||'').indexOf('not configured')>=0) {
+            document.getElementById('surv-not-configured').style.display='block';
+            document.getElementById('surv-configured').style.display='none';
+            lucide.createIcons();
+            return;
         }
-    }
-
-    async function unblockIP(ip) {
-        if (!confirm('Unblock ' + ip + '?')) return;
-        try {
-            const response = await fetch('/tools/security-network/api/ip-access/unblock', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ip_address: ip })
-            });
-            const data = await response.json();
-            if (data.success) {
-                showToast('success', 'IP unblocked');
-                loadIPAccessList();
-            } else {
-                showToast('error', 'Error: ' + data.error);
-            }
-        } catch (error) {
-            showToast('error', 'Error: ' + error.message);
-        }
-    }
-
-    // ========== SECURITY EVENTS ==========
-    async function loadSecurityEvents() {
-        const panel = document.getElementById('security-events-panel');
-        try {
-            const response = await fetch('/tools/security-network/api/events?limit=50');
-            const data = await response.json();
-            panel.textContent = '';
-
-            if (!data.events?.length) {
-                const empty = document.createElement('div');
-                empty.className = 'empty-state';
-                empty.textContent = 'No security events';
-                panel.appendChild(empty);
-                return;
-            }
-
-            data.events.forEach(event => {
+        document.getElementById('surv-not-configured').style.display='none';
+        document.getElementById('surv-configured').style.display='block';
+        const grid = document.getElementById('camera-grid');
+        grid.textContent='';
+        if(d.success && d.cameras) {
+            d.cameras.forEach(cam=>{
+                const entityId = cam.entity_id||cam.key;
                 const card = document.createElement('div');
-                card.className = 'scan-card';
-
-                const infoDiv = document.createElement('div');
-                const badge = document.createElement('span');
-                badge.className = 'severity-badge severity-' + event.severity;
-                badge.textContent = event.severity.toUpperCase();
-                const typeSpan = document.createElement('strong');
-                typeSpan.style.marginLeft = '10px';
-                typeSpan.textContent = event.event_type;
-                const descP = document.createElement('p');
-                descP.style.cssText = 'margin: 5px 0; color: var(--archie-text-muted);';
-                descP.textContent = event.description || '';
-                const timeSmall = document.createElement('small');
-                timeSmall.style.color = 'var(--archie-text-tertiary)';
-                timeSmall.textContent = new Date(event.created_at).toLocaleString();
-
-                infoDiv.appendChild(badge);
-                infoDiv.appendChild(typeSpan);
-                infoDiv.appendChild(descP);
-                infoDiv.appendChild(timeSmall);
-
-                const statusSpan = document.createElement('span');
-                statusSpan.className = 'status ' + (event.status === 'resolved' ? 'online' : 'offline');
-                statusSpan.textContent = event.status;
-
-                card.appendChild(infoDiv);
-                card.appendChild(statusSpan);
-                panel.appendChild(card);
+                card.className = 'camera-card';
+                const img = document.createElement('img');
+                img.src = API+'/surveillance/cameras/'+encodeURIComponent(entityId)+'/snapshot?t='+Date.now();
+                img.alt = cam.name||entityId;
+                img.onerror = function(){this.style.background='var(--archie-bg-tertiary)';};
+                const info = document.createElement('div');
+                info.className = 'camera-info';
+                const nameDiv = document.createElement('div');
+                const nameSpan = document.createElement('div');
+                nameSpan.className = 'camera-name';
+                nameSpan.textContent = cam.name||entityId;
+                const locSpan = document.createElement('div');
+                locSpan.className = 'camera-location';
+                locSpan.textContent = cam.location||'';
+                nameDiv.appendChild(nameSpan);
+                nameDiv.appendChild(locSpan);
+                const refreshBtn = document.createElement('button');
+                refreshBtn.className = 'btn btn-sm';
+                refreshBtn.textContent = 'Refresh';
+                refreshBtn.addEventListener('click', function(){refreshCamera(entityId);});
+                info.appendChild(nameDiv);
+                info.appendChild(refreshBtn);
+                card.appendChild(img);
+                card.appendChild(info);
+                grid.appendChild(card);
             });
-        } catch (error) {
-            panel.textContent = '';
-            const empty = document.createElement('div');
-            empty.className = 'empty-state';
-            empty.textContent = 'Error loading events';
-            panel.appendChild(empty);
-        }
-    }
+        } else { showEmpty(grid,'No cameras available'); }
+        loadSurveillanceEvents();
+    } catch(e) { showEmpty(document.getElementById('camera-grid'),'Error loading cameras'); }
+}
 
-    async function executeAutoBlock() {
-        if (!confirm('This will automatically block IPs with suspicious activity. Continue?')) return;
-        try {
-            const response = await fetch('/tools/security-network/api/auto-block/execute', { method: 'POST' });
-            const data = await response.json();
-            if (data.success) {
-                showToast('success', 'Blocked ' + data.blocked + ' IP(s)');
-                loadIPAccessList();
-                loadSecurityEvents();
-            } else {
-                showToast('error', 'Error: ' + data.error);
-            }
-        } catch (error) {
-            showToast('error', 'Error: ' + error.message);
-        }
-    }
+async function loadSurveillanceEvents() {
+    const container = document.getElementById('surv-events');
+    try {
+        const r = await fetch(API+'/surveillance/events?hours=24');
+        const d = await r.json();
+        if(d.success && d.events && d.events.length) {
+            container.textContent='';
+            const rows = d.events.map(ev=>[formatTime(ev.created_at), ev.camera_entity||'-', createBadge(ev.event_type,'warning'), ev.location||'-']);
+            container.appendChild(buildTable(['Time','Camera','Event','Location'], rows));
+        } else { showEmpty(container,'No recent events'); }
+    } catch(e) { showEmpty(container,'Error loading events'); }
+}
 
-    // ========== SCANNING ==========
-    async function loadRecentScans() {
-        const panel = document.getElementById('recent-scans-panel');
-        try {
-            const response = await fetch('/tools/security-network/api/scans');
-            const data = await response.json();
-            panel.textContent = '';
+function refreshCamera(entityId) {
+    fetch(API+'/surveillance/cameras/'+encodeURIComponent(entityId)+'/refresh',{method:'POST'})
+    .then(r=>r.json()).then(d=>{if(d.success){showToast('success','Snapshot refreshed');loadSurveillance();}else showToast('error',d.error||'Failed');})
+    .catch(e=>showToast('error',e.message));
+}
 
-            if (!data.scans?.length) {
-                const empty = document.createElement('div');
-                empty.className = 'empty-state';
-                empty.textContent = 'No scans found. Launch a scan above.';
-                panel.appendChild(empty);
-                return;
-            }
+function armSystem() {
+    if(!confirm('Arm all cameras?')) return;
+    fetch(API+'/surveillance/system/arm',{method:'POST'}).then(r=>r.json()).then(d=>{
+        if(d.success) showToast('success','System armed'); else showToast('error',d.error||'Failed');
+    }).catch(e=>showToast('error',e.message));
+}
 
-            data.scans.slice(0, 20).forEach(scan => {
+function disarmSystem() {
+    if(!confirm('Disarm all cameras?')) return;
+    fetch(API+'/surveillance/system/disarm',{method:'POST'}).then(r=>r.json()).then(d=>{
+        if(d.success) showToast('success','System disarmed'); else showToast('error',d.error||'Failed');
+    }).catch(e=>showToast('error',e.message));
+}
+
+/* ========== Reconnaissance ========== */
+async function loadReconModules() {
+    const grid = document.getElementById('recon-modules');
+    const select = document.getElementById('recon-module');
+    try {
+        const r = await fetch(API+'/recon/modules');
+        const d = await r.json();
+        if(d.success && d.modules) {
+            grid.textContent='';
+            select.textContent='';
+            d.modules.forEach(m=>{
+                const opt = document.createElement('option');
+                opt.value = m.name;
+                opt.textContent = m.name;
+                select.appendChild(opt);
                 const card = document.createElement('div');
-                card.className = 'scan-card';
+                card.className='module-card';
+                card.addEventListener('click', function(){select.value=m.name;document.getElementById('recon-target').focus();});
+                const cat = document.createElement('div');
+                cat.className='mod-cat'; cat.textContent=m.category||'other';
+                const name = document.createElement('div');
+                name.className='mod-name'; name.textContent=m.name;
+                const desc = document.createElement('div');
+                desc.className='mod-desc'; desc.textContent=m.description||'';
+                card.appendChild(cat); card.appendChild(name); card.appendChild(desc);
+                grid.appendChild(card);
+            });
+        }
+    } catch(e) { showEmpty(grid,'Error loading modules'); }
+}
 
-                const infoDiv = document.createElement('div');
-                const typeStrong = document.createElement('strong');
-                typeStrong.textContent = scan.scan_type.toUpperCase();
-                const fileSpan = document.createElement('span');
-                fileSpan.style.cssText = 'margin-left: 10px; color: var(--archie-text-muted);';
-                fileSpan.textContent = scan.filename;
-                const timeBr = document.createElement('br');
-                const timeSmall = document.createElement('small');
-                timeSmall.style.color = 'var(--archie-text-tertiary)';
-                timeSmall.textContent = new Date(scan.created_at * 1000).toLocaleString();
-                infoDiv.appendChild(typeStrong);
-                infoDiv.appendChild(fileSpan);
-                infoDiv.appendChild(timeBr);
-                infoDiv.appendChild(timeSmall);
-
-                const actionsDiv = document.createElement('div');
+async function loadReconHistory() {
+    const container = document.getElementById('recon-history');
+    try {
+        const r = await fetch(API+'/recon/history?limit=20');
+        const d = await r.json();
+        if(d.success && d.scans && d.scans.length) {
+            container.textContent='';
+            const rows = d.scans.map(s=>{
+                const statusCls = s.status==='completed'?'success':s.status==='running'?'warning':'danger';
+                const actions = document.createElement('div');
+                actions.style.display='flex'; actions.style.gap='4px';
                 const viewBtn = document.createElement('button');
-                viewBtn.className = 'btn btn-sm';
-                viewBtn.textContent = 'View';
-                viewBtn.onclick = () => viewScanResult(scan.filename);
-                const reportBtn = document.createElement('button');
-                reportBtn.className = 'btn btn-sm btn-ghost';
-                reportBtn.textContent = 'Report';
-                reportBtn.onclick = () => generateScanReport(scan.filename);
-                actionsDiv.appendChild(viewBtn);
-                actionsDiv.appendChild(reportBtn);
-
-                card.appendChild(infoDiv);
-                card.appendChild(actionsDiv);
-                panel.appendChild(card);
+                viewBtn.className='btn btn-sm'; viewBtn.textContent='View';
+                viewBtn.addEventListener('click',function(){viewScanResult(s.id);});
+                const delBtn = document.createElement('button');
+                delBtn.className='btn btn-danger btn-sm'; delBtn.textContent='Del';
+                delBtn.addEventListener('click',function(){deleteReconScan(s.id);});
+                actions.appendChild(viewBtn); actions.appendChild(delBtn);
+                return ['#'+s.id, s.module_name, s.target, createBadge(s.status,statusCls), formatTime(s.started_at), actions];
             });
-        } catch (error) {
-            panel.textContent = '';
-            const empty = document.createElement('div');
-            empty.className = 'empty-state';
-            empty.textContent = 'Error loading scans';
-            panel.appendChild(empty);
-        }
+            container.appendChild(buildTable(['ID','Module','Target','Status','Started',''], rows));
+        } else { showEmpty(container,'No scan history yet'); }
+    } catch(e) { showEmpty(container,'Error loading scan history'); }
+}
+
+function startReconScan() {
+    const module_name = document.getElementById('recon-module').value;
+    const target = document.getElementById('recon-target').value.trim();
+    if(!module_name||!target) return showToast('error','Select a module and enter a target');
+    showToast('info','Starting scan...');
+    fetch(API+'/recon/scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({module_name:module_name,target:target})})
+    .then(r=>r.json()).then(d=>{
+        if(d.success){showToast('success','Scan started (ID: '+d.scan_id+')');setTimeout(loadReconHistory,2000);}
+        else showToast('error',d.error||'Failed');
+    }).catch(e=>showToast('error',e.message));
+}
+
+function viewScanResult(scanId) {
+    fetch(API+'/recon/scan/'+scanId).then(r=>r.json()).then(d=>{
+        if(!d.success) return showToast('error',d.error||'Failed');
+        const modal = document.getElementById('modal-content');
+        modal.textContent = '';
+        const header = document.createElement('div');
+        header.className = 'modal-header';
+        const h3 = document.createElement('h3');
+        h3.textContent = 'Scan #'+scanId+' - '+(d.scan?d.scan.module_name:'');
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'btn btn-sm';
+        closeBtn.textContent = 'Close';
+        closeBtn.addEventListener('click', closeModal);
+        header.appendChild(h3); header.appendChild(closeBtn);
+        modal.appendChild(header);
+        const info = document.createElement('div');
+        info.style.marginBottom = '8px';
+        info.appendChild(createBadge(d.scan?d.scan.status:'', d.scan&&d.scan.status==='completed'?'success':'warning'));
+        const targetSpan = document.createElement('span');
+        targetSpan.style.cssText = 'font-size:0.78rem;color:var(--archie-text-muted);margin-left:8px';
+        targetSpan.textContent = 'Target: '+(d.scan?d.scan.target:'');
+        info.appendChild(targetSpan);
+        modal.appendChild(info);
+        const pre = document.createElement('pre');
+        pre.style.cssText = 'background:var(--archie-bg-tertiary);padding:12px;border-radius:8px;font-size:0.75rem;max-height:400px;overflow:auto;color:var(--archie-text-secondary)';
+        pre.textContent = JSON.stringify(d.scan?d.scan.results:{}, null, 2);
+        modal.appendChild(pre);
+        document.getElementById('modal-overlay').classList.add('open');
+    }).catch(e=>showToast('error',e.message));
+}
+
+function deleteReconScan(scanId) {
+    if(!confirm('Delete scan #'+scanId+'?')) return;
+    fetch(API+'/recon/scan/'+scanId,{method:'DELETE'}).then(r=>r.json()).then(d=>{
+        if(d.success){showToast('success','Scan deleted');loadReconHistory();}else showToast('error',d.error||'Failed');
+    }).catch(e=>showToast('error',e.message));
+}
+
+/* ========== Vulnerability Scanning ========== */
+function showScannerForm(type) {
+    activeScannerType = type;
+    var titles = {nmap:'Nmap Port Scanner',nikto:'Nikto Web Scanner',nuclei:'Nuclei Template Scanner',ssl:'SSL/TLS Check',zap:'ZAP Web App Scanner'};
+    document.getElementById('scanner-form-title').textContent = titles[type]||type;
+    document.getElementById('scanner-form-card').style.display = 'block';
+    document.getElementById('scan-type-group').style.display = (type==='nmap'||type==='zap')?'flex':'none';
+    document.getElementById('scan-confirm-internal').style.display = 'none';
+    document.getElementById('scan-target').placeholder = type==='ssl'?'example.com':'IP, hostname, or URL';
+    if(type==='zap') {
+        var sel = document.getElementById('scan-type');
+        sel.textContent = '';
+        ['spider','active','ajax'].forEach(function(v){var o=document.createElement('option');o.value=v;o.textContent=v;sel.appendChild(o);});
+    } else {
+        var sel = document.getElementById('scan-type');
+        sel.textContent = '';
+        ['quick','full','stealth'].forEach(function(v){var o=document.createElement('option');o.value=v;o.textContent=v;sel.appendChild(o);});
     }
+}
 
-    function showScanModal(scanType) {
-        const target = prompt('Enter target (hostname/IP/URL):');
-        if (!target) return;
-
-        let endpoint = '/tools/security-network/api/scanner/' + scanType;
-        let body = { target: target };
-
-        if (scanType === 'ssl') {
-            body = { domain: target };
-        }
-
-        showToast('info', 'Starting ' + scanType + ' scan...');
-
-        fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) {
-                showToast('success', 'Scan completed: ' + (data.scan_id || 'OK'));
-                loadRecentScans();
-            } else {
-                showToast('error', 'Scan error: ' + data.error);
-            }
-        })
-        .catch(err => showToast('error', 'Error: ' + err.message));
+function runVulnScan() {
+    const target = document.getElementById('scan-target').value.trim();
+    if(!target) return showToast('error','Enter a target');
+    const internal = ['127.','localhost','192.168.','10.','172.'].some(function(p){return target.indexOf(p)===0;});
+    if(internal && !document.getElementById('scan-confirm-checkbox').checked) {
+        document.getElementById('scan-confirm-internal').style.display='block';
+        return showToast('warning','Confirm internal target scan');
     }
+    var body = {target:target};
+    if(activeScannerType==='nmap'||activeScannerType==='zap') body.scan_type = document.getElementById('scan-type').value;
+    if(activeScannerType==='ssl') body.domain = target;
+    if(internal) body.confirm_internal = true;
+    var endpoint = activeScannerType==='ssl'?'/scanner/ssl':'/scanner/'+activeScannerType;
+    showToast('info','Starting '+activeScannerType+' scan...');
+    fetch(API+endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+    .then(r=>r.json()).then(d=>{
+        if(d.success){showToast('success','Scan complete');loadScanResults();}else showToast('error',d.error||'Scan failed');
+    }).catch(e=>showToast('error',e.message));
+}
 
-    async function viewScanResult(filename) {
-        try {
-            const response = await fetch('/tools/security-network/api/scans/' + encodeURIComponent(filename));
-            const data = await response.json();
-            if (data.success) {
-                alert('Scan content loaded. Check console for details.');
-                console.log('Scan result:', data.content);
-            } else {
-                showToast('error', data.error);
-            }
-        } catch (error) {
-            showToast('error', 'Error: ' + error.message);
-        }
-    }
-
-    async function generateScanReport(filename) {
-        showToast('info', 'Generating report...');
-        try {
-            const response = await fetch('/tools/security-network/api/reports/scan/' + encodeURIComponent(filename), { method: 'POST' });
-            const data = await response.json();
-            if (data.success) {
-                showToast('success', 'Report generated: ' + data.report_file);
-                loadReports();
-            } else {
-                showToast('error', data.error);
-            }
-        } catch (error) {
-            showToast('error', 'Error: ' + error.message);
-        }
-    }
-
-    // ========== SSL MONITORS ==========
-    async function loadSSLMonitors() {
-        const panel = document.getElementById('ssl-monitors-panel');
-        try {
-            const response = await fetch('/tools/security-network/api/ssl/monitors');
-            const data = await response.json();
-            panel.textContent = '';
-
-            if (!data.monitors?.length) {
-                const empty = document.createElement('div');
-                empty.className = 'empty-state';
-                empty.textContent = 'No SSL monitors configured. Add a domain above.';
-                panel.appendChild(empty);
-                return;
-            }
-
-            data.monitors.forEach(mon => {
-                const gradeClass = mon.grade?.toLowerCase() || 'f';
+async function loadScanResults() {
+    const container = document.getElementById('scan-results-list');
+    try {
+        const r = await fetch(API+'/scans');
+        const d = await r.json();
+        if(d.success && d.scans && d.scans.length) {
+            container.textContent='';
+            d.scans.forEach(s=>{
                 const card = document.createElement('div');
-                card.className = 'ssl-card grade-' + gradeClass;
-
-                const wrapper = document.createElement('div');
-                wrapper.style.cssText = 'display: flex; justify-content: space-between; align-items: center;';
-
-                const infoDiv = document.createElement('div');
-                const domainStrong = document.createElement('strong');
-                domainStrong.style.fontSize = 'var(--archie-text-lg)';
-                domainStrong.textContent = mon.domain;
-                const issuerP = document.createElement('p');
-                issuerP.style.cssText = 'margin: 5px 0; color: var(--archie-text-muted);';
-                issuerP.textContent = 'Issuer: ' + (mon.issuer || 'Unknown');
-                const expiryP = document.createElement('p');
-                expiryP.style.cssText = 'margin: 0; color: ' + (mon.days_until_expiry < 30 ? 'var(--archie-red)' : 'var(--archie-text-tertiary)') + ';';
-                expiryP.textContent = 'Expires: ' + (mon.valid_until ? new Date(mon.valid_until).toLocaleDateString() : 'Unknown') + ' (' + (mon.days_until_expiry || '?') + ' days)';
-                infoDiv.appendChild(domainStrong);
-                infoDiv.appendChild(issuerP);
-                infoDiv.appendChild(expiryP);
-
-                const gradeDiv = document.createElement('div');
-                gradeDiv.className = 'ssl-grade';
-                gradeDiv.style.color = gradeClass === 'a' ? 'var(--archie-green)' : gradeClass === 'b' ? 'var(--archie-cyan)' : gradeClass === 'c' ? 'var(--archie-orange)' : 'var(--archie-red)';
-                gradeDiv.textContent = mon.grade || '?';
-
-                wrapper.appendChild(infoDiv);
-                wrapper.appendChild(gradeDiv);
-                card.appendChild(wrapper);
-                panel.appendChild(card);
+                card.className='scan-card';
+                const info = document.createElement('div');
+                const nameEl = document.createElement('strong');
+                nameEl.textContent = s.filename;
+                const meta = document.createElement('small');
+                meta.style.color='var(--archie-text-muted)';
+                meta.textContent = ' | '+s.scan_type+' | '+new Date(s.created_at*1000).toLocaleString();
+                info.appendChild(nameEl);
+                info.appendChild(meta);
+                const actions = document.createElement('div');
+                actions.style.display='flex'; actions.style.gap='6px';
+                const viewBtn = document.createElement('button');
+                viewBtn.className='btn btn-sm'; viewBtn.textContent='View';
+                viewBtn.addEventListener('click',function(){viewScanFile(s.filename);});
+                actions.appendChild(viewBtn);
+                const dlLink = document.createElement('a');
+                dlLink.href=API+'/reports/download/'+encodeURIComponent(s.filename);
+                dlLink.className='btn btn-sm'; dlLink.textContent='Download';
+                actions.appendChild(dlLink);
+                card.appendChild(info); card.appendChild(actions);
+                container.appendChild(card);
             });
-        } catch (error) {
-            panel.textContent = '';
-            const empty = document.createElement('div');
-            empty.className = 'empty-state';
-            empty.textContent = 'Error loading SSL monitors';
-            panel.appendChild(empty);
-        }
-    }
+        } else { showEmpty(container,'No scan results yet'); }
+    } catch(e) { showEmpty(container,'Error loading scan results'); }
+}
 
-    function showAddSSLMonitorModal() {
-        const domain = prompt('Enter domain to monitor (e.g., example.com):');
-        if (!domain) return;
+function viewScanFile(filename) {
+    fetch(API+'/scans/'+encodeURIComponent(filename)).then(r=>r.json()).then(d=>{
+        if(!d.success) return;
+        const modal = document.getElementById('modal-content');
+        modal.textContent='';
+        const header = document.createElement('div');
+        header.className='modal-header';
+        const h3 = document.createElement('h3');
+        h3.textContent=filename;
+        const closeBtn = document.createElement('button');
+        closeBtn.className='btn btn-sm'; closeBtn.textContent='Close';
+        closeBtn.addEventListener('click',closeModal);
+        header.appendChild(h3); header.appendChild(closeBtn);
+        modal.appendChild(header);
+        const pre = document.createElement('pre');
+        pre.style.cssText='background:var(--archie-bg-tertiary);padding:12px;border-radius:8px;font-size:0.75rem;max-height:500px;overflow:auto;color:var(--archie-text-secondary)';
+        pre.textContent = typeof d.content==='object'?JSON.stringify(d.content,null,2):d.content;
+        modal.appendChild(pre);
+        document.getElementById('modal-overlay').classList.add('open');
+    }).catch(e=>showToast('error',e.message));
+}
 
-        fetch('/tools/security-network/api/ssl/monitors', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ domain: domain })
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) {
-                showToast('success', 'SSL monitor added');
-                loadSSLMonitors();
-            } else {
-                showToast('error', data.error);
-            }
-        })
-        .catch(err => showToast('error', 'Error: ' + err.message));
-    }
+/* SSL Monitors */
+async function loadSSLMonitors() {
+    const container = document.getElementById('ssl-monitors-list');
+    try {
+        const r = await fetch(API+'/ssl/monitors');
+        const d = await r.json();
+        if(d.success && d.monitors && d.monitors.length) {
+            container.textContent='';
+            const rows = d.monitors.map(m=>{
+                const daysColor = (m.days_until_expiry||0)<30?'danger':'success';
+                const expiry = document.createElement('span');
+                expiry.style.color = daysColor==='danger'?'var(--archie-red)':'var(--archie-green)';
+                expiry.textContent = (m.valid_until?new Date(m.valid_until).toLocaleDateString():'-')+' ('+(m.days_until_expiry||'?')+'d)';
+                return [m.domain, m.issuer||'-', expiry, createBadge(m.grade||'?', (m.grade==='A'||m.grade==='A+')?'success':'warning')];
+            });
+            container.appendChild(buildTable(['Domain','Issuer','Expires','Grade'], rows));
+        } else { showEmpty(container,'No SSL monitors configured'); }
+    } catch(e) { showEmpty(container,'Error loading SSL monitors'); }
+}
 
-    async function refreshSSLMonitors() {
-        showToast('info', 'Refreshing SSL monitors...');
-        try {
-            const response = await fetch('/tools/security-network/api/ssl/refresh', { method: 'POST' });
-            const data = await response.json();
-            if (data.success) {
-                showToast('success', 'Refreshed ' + data.updated + ' monitors');
-                loadSSLMonitors();
-            } else {
-                showToast('error', data.error);
-            }
-        } catch (error) {
-            showToast('error', 'Error: ' + error.message);
-        }
-    }
+function showAddSSLModal() {
+    const domain = prompt('Enter domain to monitor (e.g., example.com):');
+    if(!domain) return;
+    fetch(API+'/ssl/monitors',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain:domain})})
+    .then(r=>r.json()).then(d=>{if(d.success){showToast('success','SSL monitor added');loadSSLMonitors();}else showToast('error',d.error||'Failed');})
+    .catch(e=>showToast('error',e.message));
+}
 
-    // ========== REPORTS ==========
-    async function loadReports() {
-        const panel = document.getElementById('reports-panel');
-        try {
-            const response = await fetch('/tools/security-network/api/reports');
-            const data = await response.json();
-            panel.textContent = '';
+function refreshSSLMonitors() {
+    fetch(API+'/ssl/refresh',{method:'POST'}).then(r=>r.json()).then(d=>{
+        if(d.success){showToast('success','SSL monitors refreshed');loadSSLMonitors();}else showToast('error',d.error||'Failed');
+    }).catch(e=>showToast('error',e.message));
+}
 
-            if (!data.reports?.length) {
-                const empty = document.createElement('div');
-                empty.className = 'empty-state';
-                empty.textContent = 'No reports generated yet.';
-                panel.appendChild(empty);
-                return;
-            }
+/* ========== Access Control ========== */
+async function loadFirewall() {
+    const panel = document.getElementById('firewall-panel');
+    try {
+        const r = await fetch(API+'/firewall/status');
+        const d = await r.json();
+        if(d.success && d.firewall) {
+            const fw = d.firewall;
+            panel.textContent='';
+            const wrap = document.createElement('div');
+            wrap.style.cssText='display:flex;gap:16px;flex-wrap:wrap';
+            [
+                {label:'STATUS', badge:fw.active?'Active':'Inactive', type:fw.active?'success':'danger'},
+                {label:'RULES', text:String(fw.rules_count||0)},
+                {label:'DEFAULT', text:fw.default_policy||'-'}
+            ].forEach(item=>{
+                const d = document.createElement('div');
+                const lbl = document.createElement('span');
+                lbl.style.cssText='font-size:0.72rem;color:var(--archie-text-muted)';
+                lbl.textContent = item.label;
+                d.appendChild(lbl);
+                d.appendChild(document.createElement('br'));
+                if(item.badge){d.appendChild(createBadge(item.badge,item.type));}
+                else{const v=document.createElement('span');v.style.cssText='font-family:var(--archie-font-mono);color:var(--archie-text-primary)';v.textContent=item.text;d.appendChild(v);}
+                wrap.appendChild(d);
+            });
+            panel.appendChild(wrap);
+        } else { showEmpty(panel,'Firewall status unavailable'); }
+    } catch(e) { showEmpty(panel,'Error loading firewall'); }
+}
 
-            data.reports.forEach(report => {
+async function loadAutoBlockSettings() {
+    const panel = document.getElementById('autoblock-panel');
+    try {
+        const r = await fetch(API+'/auto-block/settings');
+        const d = await r.json();
+        if(d.success && d.settings) {
+            const s = d.settings;
+            panel.textContent='';
+            const wrap = document.createElement('div');
+            wrap.style.cssText='display:flex;flex-direction:column;gap:8px';
+            const lbl = document.createElement('label');
+            lbl.style.cssText='display:flex;align-items:center;gap:8px;font-size:0.82rem;color:var(--archie-text-secondary)';
+            const toggle = document.createElement('label');
+            toggle.className='toggle-switch';
+            const input = document.createElement('input');
+            input.type='checkbox'; input.checked=s.enabled;
+            input.addEventListener('change',function(){updateAutoBlock({enabled:this.checked});});
+            const slider = document.createElement('span');
+            slider.className='toggle-slider';
+            toggle.appendChild(input); toggle.appendChild(slider);
+            lbl.appendChild(toggle);
+            lbl.appendChild(document.createTextNode('Auto-block enabled'));
+            wrap.appendChild(lbl);
+            const info = document.createElement('div');
+            info.style.cssText='font-size:0.78rem;color:var(--archie-text-muted)';
+            info.textContent='Threshold: '+(s.threshold||5)+' failed attempts | Window: '+(s.window_hours||24)+'h';
+            wrap.appendChild(info);
+            panel.appendChild(wrap);
+        } else { showEmpty(panel,'Auto-block settings unavailable'); }
+    } catch(e) { showEmpty(panel,'Error loading auto-block'); }
+}
+
+function updateAutoBlock(settings) {
+    fetch(API+'/auto-block/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(settings)})
+    .then(r=>r.json()).then(d=>{if(d.success)showToast('success','Settings updated');else showToast('error',d.error||'Failed');})
+    .catch(e=>showToast('error',e.message));
+}
+
+async function loadIPAccess() {
+    try {
+        const r = await fetch(API+'/ip-access');
+        const d = await r.json();
+        if(!d.success) return;
+        const blockedEl = document.getElementById('blocked-ips-list');
+        const whiteEl = document.getElementById('whitelisted-ips-list');
+        blockedEl.textContent='';
+        whiteEl.textContent='';
+        if(d.blocked && d.blocked.length) {
+            d.blocked.forEach(ip=>{
+                const ipStr = typeof ip==='string'?ip:ip.ip_address||ip.ip||'';
+                const row = document.createElement('div');
+                row.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--archie-border-muted)';
+                const txt = document.createElement('span');
+                txt.className='mono'; txt.style.fontSize='0.8rem'; txt.textContent=ipStr;
+                const btn = document.createElement('button');
+                btn.className='btn btn-success btn-sm'; btn.style.padding='2px 6px'; btn.textContent='Unblock';
+                btn.addEventListener('click',function(){unblockIP(ipStr);});
+                row.appendChild(txt); row.appendChild(btn);
+                blockedEl.appendChild(row);
+            });
+        } else { const n=document.createElement('div');n.style.cssText='font-size:0.78rem;color:var(--archie-text-muted)';n.textContent='None';blockedEl.appendChild(n); }
+        if(d.whitelisted && d.whitelisted.length) {
+            d.whitelisted.forEach(ip=>{
+                const ipStr = typeof ip==='string'?ip:ip.ip_address||ip.ip||'';
+                const row = document.createElement('div');
+                row.style.cssText='padding:4px 0;border-bottom:1px solid var(--archie-border-muted)';
+                const txt = document.createElement('span');
+                txt.className='mono'; txt.style.fontSize='0.8rem'; txt.textContent=ipStr;
+                row.appendChild(txt);
+                whiteEl.appendChild(row);
+            });
+        } else { const n=document.createElement('div');n.style.cssText='font-size:0.78rem;color:var(--archie-text-muted)';n.textContent='None';whiteEl.appendChild(n); }
+    } catch(e){console.error('IP access error:',e);}
+}
+
+function blockIP(ipParam) {
+    const ip = ipParam||document.getElementById('ip-input').value.trim();
+    const reason = document.getElementById('ip-reason')?document.getElementById('ip-reason').value.trim():'Manually blocked';
+    if(!ip) return showToast('error','Enter an IP address');
+    fetch(API+'/ip-access/block',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ip_address:ip,reason:reason||'Manually blocked'})})
+    .then(r=>r.json()).then(d=>{if(d.success){showToast('success',ip+' blocked');loadIPAccess();}else showToast('error',d.error||'Failed');})
+    .catch(e=>showToast('error',e.message));
+}
+
+function unblockIP(ipParam) {
+    const ip = ipParam||document.getElementById('ip-input').value.trim();
+    if(!ip) return showToast('error','Enter an IP address');
+    fetch(API+'/ip-access/unblock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ip_address:ip})})
+    .then(r=>r.json()).then(d=>{if(d.success){showToast('success',ip+' unblocked');loadIPAccess();}else showToast('error',d.error||'Failed');})
+    .catch(e=>showToast('error',e.message));
+}
+
+async function loadSecurityEvents() {
+    const container = document.getElementById('security-events-list');
+    try {
+        const r = await fetch(API+'/events?limit=20');
+        const d = await r.json();
+        if(d.success && d.events && d.events.length) {
+            container.textContent='';
+            const rows = d.events.map(ev=>{
+                const sevCls = ev.severity==='critical'||ev.severity==='high'?'danger':ev.severity==='medium'?'warning':'info';
+                const actions = document.createElement('span');
+                if(ev.status!=='resolved'){
+                    const btn = document.createElement('button');
+                    btn.className='btn btn-success btn-sm'; btn.textContent='Resolve';
+                    btn.addEventListener('click',function(){resolveEvent(ev.id);});
+                    actions.appendChild(btn);
+                } else { actions.appendChild(createBadge('Resolved','success')); }
+                return [formatTime(ev.created_at), ev.event_type||ev.type||'-', createBadge(ev.severity||'-',sevCls), ev.description||'', actions];
+            });
+            container.appendChild(buildTable(['Time','Type','Severity','Details',''], rows));
+        } else { showEmpty(container,'No security events'); }
+    } catch(e) { showEmpty(container,'Error loading events'); }
+}
+
+function resolveEvent(eventId) {
+    const notes = prompt('Resolution notes (optional):')||'';
+    fetch(API+'/events/'+eventId+'/resolve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({notes:notes})})
+    .then(r=>r.json()).then(d=>{if(d.success){showToast('success','Event resolved');loadSecurityEvents();}else showToast('error',d.error||'Failed');})
+    .catch(e=>showToast('error',e.message));
+}
+
+async function loadConnections() {
+    const container = document.getElementById('connections-list');
+    try {
+        const r = await fetch(API+'/connections/active');
+        const d = await r.json();
+        if(d.success && d.connections && d.connections.length) {
+            container.textContent='';
+            const rows = d.connections.slice(0,50).map(c=>[
+                c.proto||c.type||'-', c.local_address||c.laddr||'-',
+                c.remote_address||c.raddr||'-', createBadge(c.status||'-','muted'), c.pid||'-'
+            ]);
+            container.appendChild(buildTable(['Proto','Local','Remote','Status','PID'], rows));
+        } else { showEmpty(container,'No active connections data'); }
+    } catch(e) { showEmpty(container,'Error loading connections'); }
+}
+
+/* ========== Reports ========== */
+async function loadReports() {
+    const container = document.getElementById('reports-list');
+    try {
+        const r = await fetch(API+'/reports');
+        const d = await r.json();
+        if(d.success && d.reports && d.reports.length) {
+            container.textContent='';
+            d.reports.forEach(report=>{
                 const card = document.createElement('div');
-                card.className = 'scan-card';
-
-                const infoDiv = document.createElement('div');
-                const nameStrong = document.createElement('strong');
-                nameStrong.textContent = report.filename;
-                const timeBr = document.createElement('br');
-                const timeSmall = document.createElement('small');
-                timeSmall.style.color = 'var(--archie-text-tertiary)';
-                timeSmall.textContent = new Date(report.created_at * 1000).toLocaleString();
-                infoDiv.appendChild(nameStrong);
-                infoDiv.appendChild(timeBr);
-                infoDiv.appendChild(timeSmall);
-
-                const downloadLink = document.createElement('a');
-                downloadLink.href = '/tools/security-network/api/reports/download/' + encodeURIComponent(report.filename);
-                downloadLink.className = 'btn btn-sm';
-                downloadLink.textContent = 'Download';
-
-                card.appendChild(infoDiv);
-                card.appendChild(downloadLink);
-                panel.appendChild(card);
+                card.className='scan-card';
+                const info = document.createElement('div');
+                const name = document.createElement('strong');
+                name.textContent = report.filename||report.title;
+                info.appendChild(name);
+                if(report.created_at){
+                    const br = document.createElement('br');
+                    const meta = document.createElement('small');
+                    meta.style.color='var(--archie-text-muted)';
+                    meta.textContent = new Date(typeof report.created_at==='number'?report.created_at*1000:report.created_at).toLocaleString();
+                    info.appendChild(br); info.appendChild(meta);
+                }
+                const dl = document.createElement('a');
+                dl.href=API+'/reports/download/'+encodeURIComponent(report.filename||report.id);
+                dl.className='btn btn-sm'; dl.textContent='Download';
+                card.appendChild(info); card.appendChild(dl);
+                container.appendChild(card);
             });
-        } catch (error) {
-            panel.textContent = '';
-            const empty = document.createElement('div');
-            empty.className = 'empty-state';
-            empty.textContent = 'Error loading reports';
-            panel.appendChild(empty);
+        } else { showEmpty(container,'No reports generated yet. Run a scan and generate a report from the Scanning tab.'); }
+    } catch(e) { showEmpty(container,'Error loading reports'); }
+}
+
+/* ========== Agent Automation ========== */
+let agentPaused = false;
+
+function toggleAgentPanel() {
+    const panel = document.getElementById('agent-panel');
+    panel.classList.toggle('open');
+    if(panel.classList.contains('open')){loadAgentSuggestions();loadAgentActions();loadAgentConfig();}
+}
+
+async function loadAgentConfig() {
+    try {
+        const r = await fetch(API+'/agent/config');
+        const d = await r.json();
+        if(d.success && d.config) {
+            document.getElementById('agent-mode').textContent = d.config.mode||'suggest';
+            agentPaused = d.config.paused||false;
+            document.getElementById('agent-pause-btn').textContent = agentPaused?'Resume':'Pause';
         }
-    }
+    } catch(e){console.error('Agent config error:',e);}
+}
 
-    function showGenerateReportModal() {
-        alert('To generate a report, go to the Scanning tab and click "Report" on a completed scan.');
-    }
-
-    function loadVulnerabilities() {
-        const panel = document.getElementById('vulnerabilities-panel');
-        panel.textContent = '';
-        const empty = document.createElement('div');
-        empty.className = 'empty-state';
-        empty.textContent = 'View vulnerabilities in scan results on the Scanning tab.';
-        panel.appendChild(empty);
-    }
-
-    // Escape key handler
-    document.addEventListener('keydown', e => {
-        if (e.key === 'Escape') {
-            closeModal();
-            closeConfirmModal();
+async function loadAgentSuggestions() {
+    try {
+        const r = await fetch(API+'/agent/suggestions?limit=10');
+        const d = await r.json();
+        const container = document.getElementById('agent-suggestions');
+        const badge = document.getElementById('agent-badge');
+        if(d.success && d.suggestions && d.suggestions.length) {
+            badge.style.display='flex'; badge.textContent=d.suggestions.length;
+            container.textContent='';
+            d.suggestions.forEach(s=>{
+                const card = document.createElement('div');
+                card.className='suggestion-card';
+                const title = document.createElement('div');
+                title.className='sg-title'; title.textContent=s.title;
+                const desc = document.createElement('div');
+                desc.className='sg-desc'; desc.textContent=s.description||'';
+                const reason = document.createElement('div');
+                reason.className='sg-reason'; reason.textContent=s.reasoning||'';
+                const actions = document.createElement('div');
+                actions.className='suggestion-actions';
+                const approveBtn = document.createElement('button');
+                approveBtn.className='btn btn-success btn-sm'; approveBtn.textContent='Approve';
+                approveBtn.addEventListener('click',function(){approveSuggestion(s.id);});
+                const dismissBtn = document.createElement('button');
+                dismissBtn.className='btn btn-sm'; dismissBtn.textContent='Dismiss';
+                dismissBtn.addEventListener('click',function(){dismissSuggestion(s.id);});
+                actions.appendChild(approveBtn); actions.appendChild(dismissBtn);
+                card.appendChild(title); card.appendChild(desc); card.appendChild(reason); card.appendChild(actions);
+                container.appendChild(card);
+            });
+        } else {
+            badge.style.display='none';
+            showEmpty(container,'No pending suggestions');
         }
-    });
+    } catch(e){console.error('Suggestions error:',e);}
+}
 
-    // Initialize
-    document.addEventListener('DOMContentLoaded', () => {
-        if (typeof lucide !== 'undefined') lucide.createIcons();
-        loadDockerSecurity();
-        loadSecurityStacks();
-        loadIPAccessList();
-    });
+async function loadAgentActions() {
+    try {
+        const r = await fetch(API+'/agent/actions?limit=10');
+        const d = await r.json();
+        const container = document.getElementById('agent-actions');
+        if(d.success && d.actions && d.actions.length) {
+            container.textContent='';
+            d.actions.forEach(a=>{
+                const item = document.createElement('div');
+                item.style.cssText='padding:6px 0;border-bottom:1px solid var(--archie-border-muted)';
+                const row = document.createElement('div');
+                row.style.cssText='display:flex;justify-content:space-between';
+                const txt = document.createElement('span');
+                txt.style.cssText='font-size:0.78rem;color:var(--archie-text-secondary)';
+                txt.textContent = a.title;
+                const statusCls = a.status==='executed'?'success':a.status==='dismissed'?'muted':'warning';
+                row.appendChild(txt); row.appendChild(createBadge(a.status,statusCls));
+                const tm = document.createElement('div');
+                tm.style.cssText='font-size:0.7rem;color:var(--archie-text-muted)';
+                tm.textContent = formatTime(a.created_at);
+                item.appendChild(row); item.appendChild(tm);
+                container.appendChild(item);
+            });
+        } else { showEmpty(container,'No recent actions'); }
+    } catch(e){console.error('Actions error:',e);}
+}
 
-    // Auto refresh
-    setInterval(refreshStats, 30000);
-    setInterval(loadDockerSecurity, 60000);
-    setInterval(loadSecurityStacks, 60000);
-    </script>
+function approveSuggestion(id) {
+    fetch(API+'/agent/suggestions/'+id+'/approve',{method:'POST'}).then(r=>r.json()).then(d=>{
+        if(d.success){showToast('success','Suggestion approved');loadAgentSuggestions();loadAgentActions();}
+        else showToast('error',d.error||'Failed');
+    }).catch(e=>showToast('error',e.message));
+}
 
-    </div><!-- /category-content -->
-</div><!-- /category-container -->
+function dismissSuggestion(id) {
+    const reason = prompt('Reason for dismissing (optional):')||'';
+    fetch(API+'/agent/suggestions/'+id+'/dismiss',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reason:reason})})
+    .then(r=>r.json()).then(d=>{if(d.success){showToast('success','Suggestion dismissed');loadAgentSuggestions();}else showToast('error',d.error||'Failed');})
+    .catch(e=>showToast('error',e.message));
+}
+
+function toggleAgentPause() {
+    const endpoint = agentPaused?'/agent/resume':'/agent/pause';
+    fetch(API+endpoint,{method:'POST'}).then(r=>r.json()).then(d=>{
+        if(d.success){agentPaused=!agentPaused;document.getElementById('agent-pause-btn').textContent=agentPaused?'Resume':'Pause';
+        showToast('success',agentPaused?'Agent paused':'Agent resumed');}
+        else showToast('error',d.error||'Failed');
+    }).catch(e=>showToast('error',e.message));
+}
+
+/* ========== Init ========== */
+document.addEventListener('DOMContentLoaded', function() {
+    if(typeof lucide!=='undefined') lucide.createIcons();
+    initTabs();
+    initSubtabs();
+    loadDashboard();
+});
+
+setInterval(function(){
+    var active = document.querySelector('.tab-btn.active');
+    if(active && active.dataset.tab==='dashboard') loadDashboard();
+}, 60000);
+
+document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeModal(); });
+</script>
 {% endblock %}

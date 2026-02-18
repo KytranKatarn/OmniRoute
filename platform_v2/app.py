@@ -997,6 +997,171 @@ def dashboard():
         )
 
 
+# ============================================================================
+# DASHBOARD API ENDPOINTS (HUD Vitals & Mission Briefing)
+# ============================================================================
+
+
+@app.route("/api/dashboard/system-stats")
+@login_required
+def api_dashboard_system_stats():
+    """System stats for dashboard HUD vitals"""
+    import psutil
+
+    try:
+        uptime_seconds = int(time.time() - start_time)
+        hours, remainder = divmod(uptime_seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        cpu_percent = psutil.cpu_percent(interval=0.1)
+        memory = psutil.virtual_memory()
+        disk = psutil.disk_usage("/")
+        return jsonify(
+            {
+                "success": True,
+                "cpu_percent": cpu_percent,
+                "memory_percent": memory.percent,
+                "memory_used_gb": round(memory.used / (1024**3), 1),
+                "memory_total_gb": round(memory.total / (1024**3), 1),
+                "disk_percent": disk.percent,
+                "disk_used_gb": round(disk.used / (1024**3), 1),
+                "disk_total_gb": round(disk.total / (1024**3), 1),
+                "uptime_seconds": uptime_seconds,
+                "uptime_formatted": f"{hours}h {minutes}m {seconds}s",
+            }
+        )
+    except Exception as e:
+        logger.error(f"System stats API error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/dashboard/ai-status")
+@login_required
+def api_dashboard_ai_status():
+    """AI bridge status for dashboard HUD"""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT COUNT(*) as count FROM agents WHERE status = 'active'")
+        agent_count = cur.fetchone()["count"]
+        cur.execute("SELECT COUNT(*) as count FROM orchestration_sessions WHERE created_at >= CURRENT_DATE")
+        today_interactions = cur.fetchone()["count"]
+        cur.execute(
+            "SELECT service_name, status FROM service_status WHERE service_name IN ('ollama', 'ai_bridge', 'consciousness')"
+        )
+        services = {row["service_name"]: row["status"] for row in cur.fetchall()}
+        cur.close()
+        conn.close()
+        ai_online = all(s == "online" for s in services.values()) if services else True
+        return jsonify(
+            {
+                "success": True,
+                "ai_online": ai_online,
+                "active_agents": agent_count,
+                "today_interactions": today_interactions,
+                "services": services,
+            }
+        )
+    except Exception as e:
+        logger.error(f"AI status API error: {e}")
+        return jsonify(
+            {
+                "success": True,
+                "ai_online": True,
+                "active_agents": 0,
+                "today_interactions": 0,
+                "services": {},
+            }
+        )
+
+
+@app.route("/api/dashboard/recent-activity")
+@login_required
+def api_dashboard_recent_activity():
+    """Recent user activity for mission briefing"""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT action, module, details, created_at, username
+            FROM user_activity_log
+            ORDER BY created_at DESC
+            LIMIT 10
+        """
+        )
+        activities = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify(
+            {
+                "success": True,
+                "activities": [
+                    {
+                        "action": a["action"],
+                        "module": a["module"],
+                        "details": a["details"],
+                        "username": a["username"],
+                        "timestamp": a["created_at"].isoformat() if a["created_at"] else None,
+                    }
+                    for a in activities
+                ],
+            }
+        )
+    except Exception as e:
+        logger.error(f"Recent activity API error: {e}")
+        return jsonify({"success": True, "activities": []})
+
+
+@app.route("/api/dashboard/alerts")
+@login_required
+def api_dashboard_alerts():
+    """System alerts for mission briefing"""
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT type, title, message, priority, created_at
+            FROM notifications
+            WHERE user_id = %s AND is_read = FALSE
+            ORDER BY created_at DESC
+            LIMIT 10
+        """,
+            (current_user.id,),
+        )
+        alerts = cur.fetchall()
+        cur.execute("SELECT service_name, status, error_message FROM service_status WHERE status != 'online'")
+        service_issues = cur.fetchall()
+        cur.close()
+        conn.close()
+        return jsonify(
+            {
+                "success": True,
+                "alerts": [
+                    {
+                        "type": a["type"],
+                        "title": a["title"],
+                        "message": a["message"],
+                        "priority": a["priority"],
+                        "timestamp": a["created_at"].isoformat() if a["created_at"] else None,
+                    }
+                    for a in alerts
+                ],
+                "service_issues": [
+                    {
+                        "service": s["service_name"],
+                        "status": s["status"],
+                        "error": s["error_message"],
+                    }
+                    for s in service_issues
+                ],
+            }
+        )
+    except Exception as e:
+        logger.error(f"Alerts API error: {e}")
+        return jsonify({"success": True, "alerts": [], "service_issues": []})
+
+
 @app.route("/health")
 def health():
     """Health check endpoint with uptime"""

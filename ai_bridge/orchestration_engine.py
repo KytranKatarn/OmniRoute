@@ -450,6 +450,12 @@ class OrchestrationEngine:
                 },
             )
 
+            # Auto-extract preferences (non-blocking)
+            try:
+                self._auto_extract_preference(message, response_text, user_id)
+            except Exception:
+                pass  # Never block chat for extraction
+
             return OrchestrationResult(
                 success=True,
                 response=response_text,
@@ -1224,6 +1230,48 @@ Please try again or use the Team Management module directly.""",
         except Exception as e:
             logger.error("Memory command error: %s", e)
             return f"Sorry, I had trouble with that memory command: {e}"
+
+    def _auto_extract_preference(self, message, response, user_id):
+        """Lightweight preference extraction via classifier."""
+        if not message or len(message) < 20:
+            return
+        prompt = (
+            "Does this user message contain a personal preference, decision, or fact worth remembering? "
+            "If yes, extract it as ONE short sentence starting with 'User prefers' or 'User decided'. "
+            "If no, respond with exactly: NONE\n\n"
+            "User message: " + message[:500]
+        )
+        try:
+            resp = requests.post(
+                os.environ.get("OLLAMA_URL", "http://host.docker.internal:11434")
+                + "/api/generate",
+                json={
+                    "model": "qwen25-classify:latest",
+                    "prompt": prompt,
+                    "stream": False,
+                },
+                timeout=10,
+            )
+            if resp.ok:
+                result = resp.json().get("response", "").strip()
+                if result and result.upper() != "NONE" and len(result) < 200:
+                    conn = get_db()
+                    cur = conn.cursor()
+                    cur.execute(
+                        """
+                        INSERT INTO long_term_memory
+                        (user_id, memory_type, category, content,
+                         importance_score, source_type, source_module)
+                        VALUES (%s, 'preference', 'auto-detected', %s,
+                                0.5, 'auto-extracted', 'orchestration')
+                    """,
+                        (user_id, result),
+                    )
+                    conn.commit()
+                    cur.close()
+                    conn.close()
+        except Exception as e:
+            logger.debug("Auto-extraction skipped: %s", e)
 
     def _handle_team_management(
         self, message: str, user_id: int, intent: Dict, steps: List[ThinkingStep]

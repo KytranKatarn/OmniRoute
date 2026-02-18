@@ -353,6 +353,26 @@ class IntentParser:
                 "entities": {"language": language},
             }
 
+        # Memory commands (before business_task to catch "forget about my email" etc.)
+        memory_store_pat = r"\b(remember\s+(that|this|my)|note\s+that|save\s+(this|that)\s+to\s+memory)\b"
+        if re.search(memory_store_pat, text_lower):
+            return {"type": "memory_store", "confidence": 0.95}
+
+        memory_forget_pat = r"\b(forget\s+(about|that|my)|remove\s+memory|delete\s+memory|stop\s+remembering)\b"
+        if re.search(memory_forget_pat, text_lower):
+            return {"type": "memory_forget", "confidence": 0.95}
+
+        memory_list_pat = (
+            r"\b(what\s+do\s+you\s+remember|my\s+preferences|list\s+(my\s+)?memories|show\s+(my\s+)?memories)\b"
+        )
+        if re.search(memory_list_pat, text_lower):
+            return {"type": "memory_list", "confidence": 0.95}
+
+        # Briefing commands
+        briefing_pat = r"\b(generate\s+briefing|daily\s+summary|morning\s+report|give\s+me\s+a?\s*briefing|configure\s+(my\s+)?briefing)\b"
+        if re.search(briefing_pat, text_lower):
+            return {"type": "briefing_command", "confidence": 0.90}
+
         # Business tasks
         if any(
             word in text_lower
@@ -417,26 +437,6 @@ class IntentParser:
             ]
         ):
             return {"type": "knowledge_query", "confidence": 0.75, "entities": {}}
-
-        # Memory commands
-        memory_store_pat = r"\b(remember\s+(that|this|my)|note\s+that|save\s+(this|that)\s+to\s+memory)\b"
-        if re.search(memory_store_pat, text_lower):
-            return {"type": "memory_store", "confidence": 0.95}
-
-        memory_forget_pat = r"\b(forget\s+(about|that|my)|remove\s+memory|delete\s+memory|stop\s+remembering)\b"
-        if re.search(memory_forget_pat, text_lower):
-            return {"type": "memory_forget", "confidence": 0.95}
-
-        memory_list_pat = (
-            r"\b(what\s+do\s+you\s+remember|my\s+preferences|list\s+(my\s+)?memories|show\s+(my\s+)?memories)\b"
-        )
-        if re.search(memory_list_pat, text_lower):
-            return {"type": "memory_list", "confidence": 0.95}
-
-        # Briefing commands
-        briefing_pat = r"\b(generate\s+briefing|daily\s+summary|morning\s+report|give\s+me\s+a?\s*briefing|configure\s+(my\s+)?briefing)\b"
-        if re.search(briefing_pat, text_lower):
-            return {"type": "briefing_command", "confidence": 0.90}
 
         return None
 

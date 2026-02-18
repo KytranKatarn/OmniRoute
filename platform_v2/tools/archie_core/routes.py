@@ -1497,3 +1497,512 @@ def invalidate_voice_cache(profile_id):
 
             traceback.print_exc()
             return jsonify({"success": False, "error": str(e)}), 500
+
+    # ─── Analytics API Endpoints ─────────────────────────────────────────
+
+    @archie_chat_bp.route("/api/analytics/conversation-metrics", methods=["GET"])
+    @login_required
+    def analytics_conversation_metrics():
+        """Message counts, avg response time, daily trend, active threads."""
+        try:
+            range_days = min(int(request.args.get("range", 7)), 365)
+        except (ValueError, TypeError):
+            range_days = 7
+
+        conn = None
+        try:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Message counts: today, this week (7d), this month (30d)
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*) FILTER (WHERE created_at >= CURRENT_DATE) AS today,
+                    COUNT(*) FILTER (WHERE created_at >= NOW() - make_interval(days => 7)) AS week,
+                    COUNT(*) FILTER (WHERE created_at >= NOW() - make_interval(days => 30)) AS month
+                FROM ai_conversations
+                """
+            )
+            counts = cur.fetchone()
+
+            # Average response time from metadata->'response_time_ms'
+            cur.execute(
+                """
+                SELECT
+                    ROUND(AVG((metadata->>'response_time_ms')::numeric)) AS avg_response_ms,
+                    ROUND(MIN((metadata->>'response_time_ms')::numeric)) AS min_response_ms,
+                    ROUND(MAX((metadata->>'response_time_ms')::numeric)) AS max_response_ms
+                FROM ai_conversations
+                WHERE metadata->>'response_time_ms' IS NOT NULL
+                  AND created_at >= NOW() - make_interval(days => %s)
+                """,
+                (range_days,),
+            )
+            response_time = cur.fetchone()
+
+            # Daily trend for the requested range
+            cur.execute(
+                """
+                SELECT
+                    DATE(created_at) AS day,
+                    COUNT(*) AS message_count
+                FROM ai_conversations
+                WHERE created_at >= NOW() - make_interval(days => %s)
+                GROUP BY DATE(created_at)
+                ORDER BY day
+                """,
+                (range_days,),
+            )
+            daily_trend = [{"day": row["day"].isoformat(), "count": row["message_count"]} for row in cur.fetchall()]
+
+            # Active (non-archived) threads
+            cur.execute(
+                """
+                SELECT COUNT(*) AS active_threads
+                FROM ai_conversation_threads
+                WHERE is_archived = false
+                """
+            )
+            threads = cur.fetchone()
+
+            cur.close()
+            conn.close()
+
+            return jsonify(
+                {
+                    "success": True,
+                    "counts": {
+                        "today": counts["today"] or 0,
+                        "week": counts["week"] or 0,
+                        "month": counts["month"] or 0,
+                    },
+                    "response_time": {
+                        "avg_ms": int(response_time["avg_response_ms"] or 0),
+                        "min_ms": int(response_time["min_response_ms"] or 0),
+                        "max_ms": int(response_time["max_response_ms"] or 0),
+                    },
+                    "daily_trend": daily_trend,
+                    "active_threads": threads["active_threads"] or 0,
+                    "range_days": range_days,
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"Analytics conversation-metrics error: {e}")
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": str(e),
+                        "counts": {"today": 0, "week": 0, "month": 0},
+                        "response_time": {"avg_ms": 0, "min_ms": 0, "max_ms": 0},
+                        "daily_trend": [],
+                        "active_threads": 0,
+                    }
+                ),
+                500,
+            )
+
+    @archie_chat_bp.route("/api/analytics/model-usage", methods=["GET"])
+    @login_required
+    def analytics_model_usage():
+        """Model distribution, agent usage, step timing from orchestration_steps."""
+        try:
+            range_days = min(int(request.args.get("range", 7)), 365)
+        except (ValueError, TypeError):
+            range_days = 7
+
+        conn = None
+        try:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Model distribution
+            cur.execute(
+                """
+                SELECT
+                    COALESCE(model_used, 'unknown') AS model,
+                    COUNT(*) AS count,
+                    ROUND(AVG(duration_ms)) AS avg_duration_ms
+                FROM orchestration_steps
+                WHERE created_at >= NOW() - make_interval(days => %s)
+                  AND model_used IS NOT NULL
+                GROUP BY model_used
+                ORDER BY count DESC
+                """,
+                (range_days,),
+            )
+            model_dist = [
+                {
+                    "model": row["model"],
+                    "count": row["count"],
+                    "avg_duration_ms": int(row["avg_duration_ms"] or 0),
+                }
+                for row in cur.fetchall()
+            ]
+
+            # Agent usage (join agents table for display name)
+            cur.execute(
+                """
+                SELECT
+                    a.name AS agent_name,
+                    COALESCE(a.first_name || ' ' || a.last_name, a.name) AS display_name,
+                    COUNT(*) AS step_count,
+                    ROUND(AVG(os.duration_ms)) AS avg_duration_ms
+                FROM orchestration_steps os
+                JOIN agents a ON a.id = os.agent_id
+                WHERE os.created_at >= NOW() - make_interval(days => %s)
+                GROUP BY a.id, a.name, a.first_name, a.last_name
+                ORDER BY step_count DESC
+                """,
+                (range_days,),
+            )
+            agent_usage = [
+                {
+                    "agent": row["agent_name"],
+                    "display_name": row["display_name"],
+                    "step_count": row["step_count"],
+                    "avg_duration_ms": int(row["avg_duration_ms"] or 0),
+                }
+                for row in cur.fetchall()
+            ]
+
+            # Step type breakdown with timing
+            cur.execute(
+                """
+                SELECT
+                    step_type,
+                    COUNT(*) AS count,
+                    ROUND(AVG(duration_ms)) AS avg_duration_ms,
+                    SUM(CASE WHEN success THEN 1 ELSE 0 END) AS success_count
+                FROM orchestration_steps
+                WHERE created_at >= NOW() - make_interval(days => %s)
+                GROUP BY step_type
+                ORDER BY count DESC
+                """,
+                (range_days,),
+            )
+            step_types = [
+                {
+                    "step_type": row["step_type"],
+                    "count": row["count"],
+                    "avg_duration_ms": int(row["avg_duration_ms"] or 0),
+                    "success_rate": (round(row["success_count"] / row["count"] * 100, 1) if row["count"] else 0),
+                }
+                for row in cur.fetchall()
+            ]
+
+            cur.close()
+            conn.close()
+
+            return jsonify(
+                {
+                    "success": True,
+                    "model_distribution": model_dist,
+                    "agent_usage": agent_usage,
+                    "step_types": step_types,
+                    "range_days": range_days,
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"Analytics model-usage error: {e}")
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": str(e),
+                        "model_distribution": [],
+                        "agent_usage": [],
+                        "step_types": [],
+                    }
+                ),
+                500,
+            )
+
+    @archie_chat_bp.route("/api/analytics/cost", methods=["GET"])
+    @login_required
+    def analytics_cost():
+        """Token and cost data from cloud_model_usage grouped by provider/model."""
+        try:
+            range_days = min(int(request.args.get("range", 30)), 365)
+        except (ValueError, TypeError):
+            range_days = 30
+
+        conn = None
+        try:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Cost by provider
+            cur.execute(
+                """
+                SELECT
+                    provider,
+                    COUNT(*) AS request_count,
+                    SUM(prompt_tokens) AS total_prompt_tokens,
+                    SUM(completion_tokens) AS total_completion_tokens,
+                    SUM(total_tokens) AS total_tokens,
+                    SUM(cost_usd)::numeric(10,4) AS total_cost_usd
+                FROM cloud_model_usage
+                WHERE created_at >= NOW() - make_interval(days => %s)
+                GROUP BY provider
+                ORDER BY total_cost_usd DESC
+                """,
+                (range_days,),
+            )
+            by_provider = [
+                {
+                    "provider": row["provider"],
+                    "request_count": row["request_count"],
+                    "total_prompt_tokens": row["total_prompt_tokens"] or 0,
+                    "total_completion_tokens": row["total_completion_tokens"] or 0,
+                    "total_tokens": row["total_tokens"] or 0,
+                    "total_cost_usd": float(row["total_cost_usd"] or 0),
+                }
+                for row in cur.fetchall()
+            ]
+
+            # Cost by model
+            cur.execute(
+                """
+                SELECT
+                    model_name,
+                    provider,
+                    COUNT(*) AS request_count,
+                    SUM(total_tokens) AS total_tokens,
+                    SUM(cost_usd)::numeric(10,4) AS total_cost_usd,
+                    ROUND(AVG(response_ms)) AS avg_response_ms
+                FROM cloud_model_usage
+                WHERE created_at >= NOW() - make_interval(days => %s)
+                GROUP BY model_name, provider
+                ORDER BY total_cost_usd DESC
+                """,
+                (range_days,),
+            )
+            by_model = [
+                {
+                    "model": row["model_name"],
+                    "provider": row["provider"],
+                    "request_count": row["request_count"],
+                    "total_tokens": row["total_tokens"] or 0,
+                    "total_cost_usd": float(row["total_cost_usd"] or 0),
+                    "avg_response_ms": int(row["avg_response_ms"] or 0),
+                }
+                for row in cur.fetchall()
+            ]
+
+            # Daily cost trend
+            cur.execute(
+                """
+                SELECT
+                    DATE(created_at) AS day,
+                    SUM(cost_usd)::numeric(10,4) AS daily_cost,
+                    SUM(total_tokens) AS daily_tokens
+                FROM cloud_model_usage
+                WHERE created_at >= NOW() - make_interval(days => %s)
+                GROUP BY DATE(created_at)
+                ORDER BY day
+                """,
+                (range_days,),
+            )
+            daily_cost = [
+                {
+                    "day": row["day"].isoformat(),
+                    "cost_usd": float(row["daily_cost"] or 0),
+                    "tokens": row["daily_tokens"] or 0,
+                }
+                for row in cur.fetchall()
+            ]
+
+            cur.close()
+            conn.close()
+
+            return jsonify(
+                {
+                    "success": True,
+                    "by_provider": by_provider,
+                    "by_model": by_model,
+                    "daily_cost": daily_cost,
+                    "range_days": range_days,
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"Analytics cost error: {e}")
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": str(e),
+                        "by_provider": [],
+                        "by_model": [],
+                        "daily_cost": [],
+                    }
+                ),
+                500,
+            )
+
+    @archie_chat_bp.route("/api/analytics/voice", methods=["GET"])
+    @login_required
+    def analytics_voice():
+        """Voice generation count, cache hit rate, avg latency."""
+        try:
+            range_days = min(int(request.args.get("range", 7)), 365)
+        except (ValueError, TypeError):
+            range_days = 7
+
+        conn = None
+        try:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            # Generation stats with cache hit rate
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*) AS total_generations,
+                    SUM(CASE WHEN cached THEN 1 ELSE 0 END) AS cache_hits,
+                    ROUND(
+                        100.0 * SUM(CASE WHEN cached THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0),
+                        1
+                    ) AS cache_hit_rate,
+                    ROUND(AVG(generation_time_ms)) AS avg_latency_ms,
+                    ROUND(AVG(generation_time_ms) FILTER (WHERE NOT cached)) AS avg_uncached_ms,
+                    ROUND(AVG(text_length)) AS avg_text_length
+                FROM voice_generation_log
+                WHERE created_at >= NOW() - make_interval(days => %s)
+                """,
+                (range_days,),
+            )
+            stats = cur.fetchone()
+
+            # By engine breakdown
+            cur.execute(
+                """
+                SELECT
+                    COALESCE(engine, 'unknown') AS engine,
+                    COUNT(*) AS count,
+                    ROUND(AVG(generation_time_ms)) AS avg_latency_ms,
+                    ROUND(
+                        100.0 * SUM(CASE WHEN cached THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0),
+                        1
+                    ) AS cache_hit_rate
+                FROM voice_generation_log
+                WHERE created_at >= NOW() - make_interval(days => %s)
+                GROUP BY engine
+                ORDER BY count DESC
+                """,
+                (range_days,),
+            )
+            by_engine = [
+                {
+                    "engine": row["engine"],
+                    "count": row["count"],
+                    "avg_latency_ms": int(row["avg_latency_ms"] or 0),
+                    "cache_hit_rate": float(row["cache_hit_rate"] or 0),
+                }
+                for row in cur.fetchall()
+            ]
+
+            # Daily generation trend
+            cur.execute(
+                """
+                SELECT
+                    DATE(created_at) AS day,
+                    COUNT(*) AS generations,
+                    SUM(CASE WHEN cached THEN 1 ELSE 0 END) AS cache_hits
+                FROM voice_generation_log
+                WHERE created_at >= NOW() - make_interval(days => %s)
+                GROUP BY DATE(created_at)
+                ORDER BY day
+                """,
+                (range_days,),
+            )
+            daily_trend = [
+                {
+                    "day": row["day"].isoformat(),
+                    "generations": row["generations"],
+                    "cache_hits": row["cache_hits"],
+                }
+                for row in cur.fetchall()
+            ]
+
+            # Cache size info
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*) AS total_entries,
+                    SUM(hit_count) AS total_hits
+                FROM voice_word_cache
+                """
+            )
+            cache_info = cur.fetchone()
+
+            cur.close()
+            conn.close()
+
+            return jsonify(
+                {
+                    "success": True,
+                    "stats": {
+                        "total_generations": stats["total_generations"] or 0,
+                        "cache_hits": stats["cache_hits"] or 0,
+                        "cache_hit_rate": float(stats["cache_hit_rate"] or 0),
+                        "avg_latency_ms": int(stats["avg_latency_ms"] or 0),
+                        "avg_uncached_ms": int(stats["avg_uncached_ms"] or 0),
+                        "avg_text_length": int(stats["avg_text_length"] or 0),
+                    },
+                    "by_engine": by_engine,
+                    "daily_trend": daily_trend,
+                    "cache": {
+                        "total_entries": cache_info["total_entries"] or 0,
+                        "total_hits": cache_info["total_hits"] or 0,
+                    },
+                    "range_days": range_days,
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"Analytics voice error: {e}")
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": str(e),
+                        "stats": {
+                            "total_generations": 0,
+                            "cache_hits": 0,
+                            "cache_hit_rate": 0,
+                            "avg_latency_ms": 0,
+                            "avg_uncached_ms": 0,
+                            "avg_text_length": 0,
+                        },
+                        "by_engine": [],
+                        "daily_trend": [],
+                        "cache": {"total_entries": 0, "total_hits": 0},
+                    }
+                ),
+                500,
+            )
